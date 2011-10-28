@@ -1,0 +1,7 @@
+COI-SERVICES
+
+This is the repository that defines the COI services.
+
+They are intended to be deployed as port of the ION system launch.
+Services are deployed in pyon capability containers
+
