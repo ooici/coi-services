@@ -56,6 +56,7 @@
         <symlink action="delete" link="./control_cc" resource="${pyon.base}/control_cc"/>
         <symlink action="delete" link="./unittest" resource="${pyon.base}/unittest"/>
         <symlink action="delete" link="./scripts" resource="${pyon.base}/scripts"/>
+        <symlink action="delete" link="./res" resource="${pyon.base}/res"/>
 
         <!-- Set up symlinks to dependent packages for easier development -->
         <symlink action="delete" link="./pyon" resource="${pyon.base}/pyon"/>
@@ -68,6 +69,7 @@
         <symlink link="./control_cc" resource="${pyon.base}/control_cc"/>
         <symlink link="./unittest" resource="${pyon.base}/unittest"/>
         <symlink link="./scripts" resource="${pyon.base}/scripts"/>
+        <symlink link="./res" resource="${pyon.base}/res"/>
 
         <!-- Set up symlinks to dependent packages for easier development -->
         <symlink link="./pyon" resource="${pyon.base}/pyon"/>

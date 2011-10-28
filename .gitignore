@@ -25,13 +25,14 @@ bin/
 buildout.cfg
 .idea
 msc.*
-res/config/pyon.local.yml
-res/config/logging.local.yml
+reslocal/config/pyon.local.yml
+reslocal/config/logging.local.yml
 logs
 res/config/*~*
 scripts/*~*
 unittest.out
 interface/*
+res
 control_cc
 obj
 pycc
