@@ -52,27 +52,17 @@
 
     <target name="remove-links">
         <!-- Set up symlinks to pyon scripts to start it and develop with it -->
-        <symlink action="delete" link="./pycc" resource="${pyon.base}/pycc"/>
-        <symlink action="delete" link="./control_cc" resource="${pyon.base}/control_cc"/>
-        <symlink action="delete" link="./unittest" resource="${pyon.base}/unittest"/>
-        <symlink action="delete" link="./scripts" resource="${pyon.base}/scripts"/>
         <symlink action="delete" link="./res" resource="${pyon.base}/res"/>
 
         <!-- Set up symlinks to dependent packages for easier development -->
-        <symlink action="delete" link="./pyon" resource="${pyon.base}/pyon"/>
         <symlink action="delete" link="./obj" resource="extern/ion-definitions/objects"/>
     </target>
 
     <target name="setup-links" depends="remove-links">
         <!-- Set up symlinks to pyon scripts to start it and develop with it -->
-        <symlink link="./pycc" resource="${pyon.base}/pycc"/>
-        <symlink link="./control_cc" resource="${pyon.base}/control_cc"/>
-        <symlink link="./unittest" resource="${pyon.base}/unittest"/>
-        <symlink link="./scripts" resource="${pyon.base}/scripts"/>
         <symlink link="./res" resource="${pyon.base}/res"/>
 
         <!-- Set up symlinks to dependent packages for easier development -->
-        <symlink link="./pyon" resource="${pyon.base}/pyon"/>
         <symlink link="./obj" resource="extern/ion-definitions/objects"/>
     </target>
 

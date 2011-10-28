@@ -16,7 +16,7 @@ version = '0.1'
 
 setup(  name = 'coi-services',
         version = version,
-        description = 'OOI ION COI Services' 
+        description = 'OOI ION COI Services',
         url = 'https://github.com/ooici/coi-services',
         download_url = 'http://ooici.net/releases',
         license = 'Apache 2.0',
