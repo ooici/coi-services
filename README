@@ -1,7 +1,43 @@
-COI-SERVICES
+===========================================================
+Ocean Observatories Initiative Cyberinfrastructure (OOI CI)
+Integrated Observatory Network (ION)
+
+coi-servives - ION COI services
+
+(C) UC Regents, 2010-2011
+===========================================================
 
 This is the repository that defines the COI services.
 
 They are intended to be deployed as port of the ION system launch.
 Services are deployed in pyon capability containers
 
+INSTALL
+=======
+
+See the pyon README for basic pyon installation
+
+For a development environment setup with access to pyon code and ion-definitions
+(without explicitly released or committed versions of these repositories).
+    ant setup-links
+
+Note: this requires the existence of:
+    ../pyon   (from https://github.com/ooici/pyon)
+    ../ion-definitions  (from https://github.com/ooici/ion-definitions)
+
+
+LAUNCH ION
+==========
+
+CONFIGURE:
+
+- Make sure a deploy file exists (res/deploy/*.yml)
+
+- Provide configuration in:
+    res/config/pyon-local.yml
+
+
+LAUNCH:
+
+Start development instance of the ION system with COI services:
+    ./pycc --rel res/deploy/r2coi.yml

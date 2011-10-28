@@ -32,3 +32,9 @@ res/config/*~*
 scripts/*~*
 unittest.out
 interface/*
+control_cc
+obj
+pycc
+pyon
+scripts
+unittest

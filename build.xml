@@ -13,6 +13,9 @@
     <property name="build" location="build"/>
     <property name="dist"  location="dist"/>
 
+    <property name="pyon.base"  location="../pyon"/>
+    <property name="iondef.base"  location="../ion-definitions"/>
+
     <target name="info">
         <echo message="Repository for COI-services as part of the ION system."/>
         <echo message="This repository is enabled to launch the ION system and containers from."/>
@@ -32,16 +35,43 @@
     </target>
 
     <target name="clean" description="clean up">
-        <delete>
+        <delete failonerror="false">
             <fileset dir="${src}" includes="**/*.pyc"/>
             <fileset dir="scripts" includes="**/*.pyc"/>
             <fileset dir="prototype" includes="**/*.pyc"/>
         </delete>
-        <delete dir="interface"/>
-        <delete dir="${build}"/>
-        <delete dir="${dist}"/>
-        <delete dir="pyon.egg-info"/>
+        <delete dir="interface" failonerror="false"/>
+        <delete dir="${build}" failonerror="false"/>
+        <delete dir="${dist}" failonerror="false"/>
+        <delete dir="pyon.egg-info" failonerror="false"/>
+        
+        <antcall target="remove-links"/>
+
         <!--<antcall target="remeggs"/>-->
+    </target>
+
+    <target name="remove-links">
+        <!-- Set up symlinks to pyon scripts to start it and develop with it -->
+        <symlink action="delete" link="./pycc" resource="${pyon.base}/pycc"/>
+        <symlink action="delete" link="./control_cc" resource="${pyon.base}/control_cc"/>
+        <symlink action="delete" link="./unittest" resource="${pyon.base}/unittest"/>
+        <symlink action="delete" link="./scripts" resource="${pyon.base}/scripts"/>
+
+        <!-- Set up symlinks to dependent packages for easier development -->
+        <symlink action="delete" link="./pyon" resource="${pyon.base}/pyon"/>
+        <symlink action="delete" link="./obj" resource="extern/ion-definitions/objects"/>
+    </target>
+
+    <target name="setup-links" depends="remove-links">
+        <!-- Set up symlinks to pyon scripts to start it and develop with it -->
+        <symlink link="./pycc" resource="${pyon.base}/pycc"/>
+        <symlink link="./control_cc" resource="${pyon.base}/control_cc"/>
+        <symlink link="./unittest" resource="${pyon.base}/unittest"/>
+        <symlink link="./scripts" resource="${pyon.base}/scripts"/>
+
+        <!-- Set up symlinks to dependent packages for easier development -->
+        <symlink link="./pyon" resource="${pyon.base}/pyon"/>
+        <symlink link="./obj" resource="extern/ion-definitions/objects"/>
     </target>
 
 </project>
