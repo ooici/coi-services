@@ -24,13 +24,6 @@ setup(  name = 'coi-services',
         author_email = 'mmeisinger@ucsd.edu',
         keywords = ['ooici','ioncore', 'pyon', 'coi'],
         packages = find_packages(),
-        entry_points = {
-            'console_scripts' : [
-                'pycc=scripts.pycc:entry',
-                'control_cc=scripts.control_cc:main',
-                'generate_interfaces=scripts.generate_interfaces:main'
-                ]
-            },
         dependency_links = [
             'http://ooici.net/releases'
         ],
