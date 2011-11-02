@@ -15,7 +15,11 @@ Services are deployed in pyon capability containers
 INSTALL
 =======
 
-See the pyon README for basic pyon installation
+See the pyon README for basic pyon dependencies installation
+
+Setup a virtualenv with a command like the following (substitute your own name for "coi"):
+    > mkvirtualenv --no-site-packages --python=python2.7 coi
+    Note: Do not use the pyon virtualenv if you are a pyon developer
 
 For a development environment setup with access to pyon code and ion-definitions
 (without explicitly released or committed versions of these repositories).
