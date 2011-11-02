@@ -45,8 +45,6 @@
         <delete dir="${dist}" failonerror="false"/>
         <delete dir="pyon.egg-info" failonerror="false"/>
         
-        <antcall target="remove-links"/>
-
         <!--<antcall target="remeggs"/>-->
     </target>
 </project>
