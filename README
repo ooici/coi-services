@@ -16,32 +16,60 @@ INSTALL
 =======
 
 See the pyon README for basic pyon dependencies installation
+    Note: This includes Python 2.7, distutils, pip, homebrew,
+          virtualenv, libevent libyaml zeromq couchdb, rabbitmq
 
 Setup a virtualenv with a command like the following (substitute your own name for "coi"):
     > mkvirtualenv --no-site-packages --python=python2.7 coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
 
-For a development environment setup with access to pyon code and ion-definitions
-(without explicitly released or committed versions of these repositories).
-    ant setup-links
+Use Buildout to install the python package dependencies with:
+    > python bootstrap.py
+    > bin/buildout
 
 Note: this requires the existence of:
     ../pyon   (from https://github.com/ooici/pyon)
-    ../ion-definitions  (from https://github.com/ooici/ion-definitions)
+
+Link git submodule ion-definitions, containing object and service definitions and resource files:
+    > git submodule update --init
+    > cd extern/ion-definitions
+    > git checkout master
+
+Generate service definition interfaces and abstract base classes files:
+    > bin/generate_interfaces
+    Note: These will be placed in the interfaces/ subdirectory (and not in GIT nor in the egg).
+
+
+RUN-TIME DEPENDENCIES
+=====================
+
+COUCHDB (OBJECT DATA STORE):
+
+Run couchdb in second terminal before starting the container or running tests:
+    > couchdb
+
+
+RABBITMQ (MESSAGE BROKER):
+    > sudo sbin/rabbitmq-server
+
+
+SOURCE PATH:
+
+Add the current directory to your PYTHONPATH for an easier time running scripts. Add the following
+line to your ~/.profile (create it if it doesnt not exist, or use bash_profile if you already have that):
+    > export PYTHONPATH=.
 
 
 LAUNCH ION
 ==========
 
-CONFIGURE:
+Provide configuration in:
+    res/config/pyon.local.yml
+    res/config/logging.local.yml
 
-- Make sure a deploy file exists (res/deploy/*.yml)
-
-- Provide configuration in:
-    res/config/pyon-local.yml
-
-
-LAUNCH:
 
 Start development instance of the ION system with COI services:
-    ./pycc --rel res/deploy/r2coi.yml
+    bin/pycc --rel res/deploy/r2coi.yml
+
+Run unittests:
+    bin/unittest
