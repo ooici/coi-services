@@ -113,7 +113,7 @@ Start an example (bank) locally:
     Note: It does not do anything but start by itself. You need to use a client to trigger actions.
 
 Start development instance of the ION system with COI services:
-    > bin/pycc --rel res/deploy/r2coi.yml
+    > bin/pycc --rel res/deploy/r2deploy.yml
 
 Run unittests:
     > bin/unittest
