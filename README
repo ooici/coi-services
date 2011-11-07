@@ -10,19 +10,21 @@ coi-servives - ION COI services
 This is the repository that defines the COI services.
 Note: Initially, all ION services are defined here and later moved to subsystem repositories.
 
-COI services are intended to be deployed as port of the ION system launch.
+COI services are intended to be deployed as part of the ION system launch.
 Services are deployed in pyon capability containers.
 
 INSTALL
 =======
+
+This assumes basic development environment setup (git, directory structure). Please follow the
+"New Developers Tutorial" for basic steps.
 
 Pyon: The main dependency of this repository is the pyon Capability Container. Follow the listed
 steps to install the minimal needed dependencies to run pyon on a Mac. For more details and Linux
 install instructions, check out the pyon README: https://github.com/ooici/pyon/blob/master/README
 
 Install the following if not yet present:
-- python 2.7: Download Max installer
-- distutils 2.7.2: Download egg and execute with sh
+- python 2.7: Download Mac installer
 - pip
     > easy_install pip
 - homebrew
