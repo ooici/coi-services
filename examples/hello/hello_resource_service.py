@@ -5,7 +5,7 @@ to port a service from R1 to R2
 
 from pyon.public import Container
 from pyon.core.bootstrap import IonObject
-from pyon.net.endpoint import RPCClient
+from pyon.net.endpoint import ProcessRPCClient
 
 from interface.services.ihello_resource_service import IHelloResourceService, BaseHelloResourceService
 
@@ -155,7 +155,7 @@ class HelloResourceService(BaseHelloResourceService):
         #    response.MessageResponseCode = response.ResponseCodes.OK
         #    yield self.reply_ok(msg, response)
 
-def start_client(container):
+def run_client(container):
     """
     This method takes a container reference, establishes
     a Process RPC client endpoint to the Bank service and send
@@ -175,3 +175,5 @@ def start_client(container):
     client.update_instrument_resource(resource_id, instrument_info)
 
     client.set_instrument_resource_life_cycle(resource_id, DEVELOP)
+
+    print "Done"
