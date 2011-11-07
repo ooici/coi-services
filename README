@@ -51,7 +51,7 @@ Clone pyon and coi-services (if you haven't already) in your code directory:
     > cd code   # Whatever your code repository directory is
 
 Clone pyon (needed for now):
-    > git@github.com:ooici/pyon.git
+    > git clone git@github.com:ooici/pyon.git
 
 Clone coi-services (this repository, if you haven't already):
     > git clone git@github.com:ooici/coi-services.git
