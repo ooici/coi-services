@@ -138,6 +138,9 @@ Get the latest code before you start editing, or anytime you want:
     > git pull
     > git submodule update  # Do NOT forget. This does not happen automatically
 
+Once in a while, service interfaces change. Generate interfaces frequently (especially in case of error):
+    > bin/generate-interfaces
+
 Before define objects, services in ./obj, define app and deploy files in /res, checkout master:
     > cd extern/ion-definitions
     > git status            # Just to see what's going on
