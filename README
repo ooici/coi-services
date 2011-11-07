@@ -8,32 +8,63 @@ coi-servives - ION COI services
 ===========================================================
 
 This is the repository that defines the COI services.
+Note: Initially, all ION services are defined here and later moved to subsystem repositories.
 
-They are intended to be deployed as port of the ION system launch.
-Services are deployed in pyon capability containers
+COI services are intended to be deployed as port of the ION system launch.
+Services are deployed in pyon capability containers.
 
 INSTALL
 =======
 
-See the pyon README for basic pyon dependencies installation
-    Note: This includes Python 2.7, distutils, pip, homebrew,
-          virtualenv, libevent libyaml zeromq couchdb, rabbitmq
+Pyon: The main dependency of this repository is the pyon Capability Container. Follow the listed
+steps to install the minimal needed dependencies to run pyon on a Mac. For more details and Linux
+install instructions, check out the pyon README: https://github.com/ooici/pyon/blob/master/README
 
-Setup a virtualenv with a command like the following (substitute your own name for "coi"):
+Install the following if not yet present:
+- python 2.7: Download Max installer
+- distutils 2.7.2: Download egg and execute with sh
+- pip
+    > easy_install pip
+- homebrew
+    > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
+- virtualenv and virtualenvwrapper modules for your python 2.7 installation
+    > easy_install --upgrade virtualenv
+    > easy_install --upgrade virtualenvwrapper
+    Note: This may require Mac's XCode (use XCode 3.3 free version)
+- Install libevent, libyaml, zeromq, couchdb with Homebrew
+    > brew install libevent libyaml zeromq couchdb
+- rabbitmq 2.6.1 (recommended, but can use rabbitmq on amoeba)
+    Download generic Linux version and unpack into a suitable directory.
+    Note: May need erl (Erlang) and some dependencies installed before
+
+Setup a virtualenv to run COI-services (use any name you like):
     > mkvirtualenv --no-site-packages --python=python2.7 coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
 
-Use Buildout to install the python package dependencies with:
-    > python bootstrap.py
-    > bin/buildout
 
-Note: this requires the existence of:
-    ../pyon   (from https://github.com/ooici/pyon)
+PACKAGE DOWNLOAD
+================
+
+Clone pyon and coi-services (if you haven't already) in your code directory:
+    > cd code   # Whatever your code repository directory is
+
+Clone pyon (needed for now):
+    > git@github.com:ooici/pyon.git
+
+Clone coi-services (this repository, if you haven't already):
+    > git clone git@github.com:ooici/coi-services.git
 
 Link git submodule ion-definitions, containing object and service definitions and resource files:
+    > cd coi-services
     > git submodule update --init
-    > cd extern/ion-definitions
-    > git checkout master
+
+
+PACKAGE DEPENDENCIES
+====================
+
+Use Buildout to install the python package dependencies (including pyon itself) with:
+    > python bootstrap.py
+    > bin/buildout
 
 Generate service definition interfaces and abstract base classes files:
     > bin/generate_interfaces
@@ -46,30 +77,80 @@ RUN-TIME DEPENDENCIES
 COUCHDB (OBJECT DATA STORE):
 
 Run couchdb in second terminal before starting the container or running tests:
+Note: optional. An in-memory mockdb is used by default and couchdb unit-tests are skipped.
     > couchdb
 
 
 RABBITMQ (MESSAGE BROKER):
+
+Run RabbitMQ in second terminal before starting the container or running tests:
+Note: optional. RabbitMQ on amoeba us used by default for new developers.
     > sudo sbin/rabbitmq-server
 
 
 SOURCE PATH:
 
 Add the current directory to your PYTHONPATH for an easier time running scripts. Add the following
-line to your ~/.profile (create it if it doesnt not exist, or use bash_profile if you already have that):
+line to your ~/.profile (create it if it doesn't exist, or use bash_profile if you already have that):
     > export PYTHONPATH=.
 
 
-LAUNCH ION
-==========
+USE
+===
 
-Provide configuration in:
-    res/config/pyon.local.yml
-    res/config/logging.local.yml
+Provide local configuration overrides (e.g. broker host, debug levels) in:
+    > res/config/pyon.local.yml
+    > res/config/logging.local.yml
+    Note: DO NOT EDIT the standard configuration and logging config files.
 
+List supported Pyon Capability Container arguments:
+    > bin/pycc --help
+
+Start an example (bank) locally:
+    > bin/pycc --rel res/deploy/ex/bank_all.yml
+    Note: It does not do anything but start by itself. You need to use a client to trigger actions.
 
 Start development instance of the ION system with COI services:
-    bin/pycc --rel res/deploy/r2coi.yml
+    > bin/pycc --rel res/deploy/r2coi.yml
 
 Run unittests:
-    bin/unittest
+    > bin/unittest
+
+
+DEBUG
+=====
+
+USE Pycharm or any other Python IDE to start in debug mode. Breakpoints and step-by-step are possible.
+Set your debugger to start the bin/pycc script, with the arguments you like.
+
+
+DEVELOPMEMT
+===========
+
+You can develop services locally in this repository. Use this repository until subsystem
+specific repositories are available.
+
+Please follow the following steps as long as you are new:
+
+Get the latest code before you start editing, or anytime you want:
+    > git pull
+    > git submodule update  # Do NOT forget. This does not happen automatically
+
+Before define objects, services in ./obj, define app and deploy files in /res, checkout master:
+    > cd extern/ion-definitions
+    > git status            # Just to see what's going on
+    > git checkout master   # To track the master branch (enables update and later push)
+    > git pull              # To get latest from the server
+
+Note: The res/ and obj/ dirs are symlinks to a subdirectory in a git submodule. Beware of the pitfalls
+of git submodule. You need to treat it as a separate GIT module. In case of changes, both GIT modules
+must be pushed, submodule first:
+    > cd extern/ion-definitions
+    > git status            # Just to see what's going on
+    > git commit -am "Something smart"
+    > git push origin master
+    > cd ../..              # To the root of coi-services
+    > git commit -am "Something smarter"
+    > git push
+
+Put your services in ion/services/<subsystem>/... (subdirectories are allowed).
