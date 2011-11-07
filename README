@@ -113,7 +113,7 @@ Start an example (bank) locally:
     Note: It does not do anything but start by itself. You need to use a client to trigger actions.
 
 Start development instance of the ION system with COI services:
-    > bin/pycc --rel res/deploy/r2coi.yml
+    > bin/pycc --rel res/deploy/r2deploy.yml
 
 Run unittests:
     > bin/unittest
@@ -126,7 +126,7 @@ USE Pycharm or any other Python IDE to start in debug mode. Breakpoints and step
 Set your debugger to start the bin/pycc script, with the arguments you like.
 
 
-DEVELOPMEMT
+DEVELOPMENT
 ===========
 
 You can develop services locally in this repository. Use this repository until subsystem
@@ -138,6 +138,8 @@ Get the latest code before you start editing, or anytime you want:
     > git pull
     > git submodule update  # Do NOT forget. This does not happen automatically
 
+See below for an automated approach.
+
 Once in a while, service interfaces change. Generate interfaces frequently (especially in case of error):
     > bin/generate-interfaces
 
@@ -147,6 +149,7 @@ Before define objects, services in ./obj, define app and deploy files in /res, c
     > git checkout master   # To track the master branch (enables update and later push)
     > git pull              # To get latest from the server
 
+*See below for an automated approach to git-submodules*
 Note: The res/ and obj/ dirs are symlinks to a subdirectory in a git submodule. Beware of the pitfalls
 of git submodule. You need to treat it as a separate GIT module. In case of changes, both GIT modules
 must be pushed, submodule first:
@@ -159,3 +162,36 @@ must be pushed, submodule first:
     > git push
 
 Put your services in ion/services/<subsystem>/... (subdirectories are allowed).
+
+GIT SUBMODULE HOOKS
+===================
+
+A git hook is a script that executes during various points of using git. Some simple hooks have been written
+to help automate dealing with submodules for most people. See the steps here:
+http://blog.chaitanyagupta.com/2009/08/couple-of-hooks-to-make-life-easy-with.html
+
+They do require an initial setup. Simple instructions:
+
+Clone this repository:
+    > cd /some/tmp/directory
+    > git clone https://github.com/chaitanyagupta/gitutils.git
+
+Use the provided install script:
+    > sh gitutils/submodule-hooks/install.sh /path/to/your/pyon/or/coi-services/dir
+
+*OR*
+
+Copy the scripts into your working copy:
+    > cd /your/pyon/.git/hooks
+    > cp /your/tmp/gitutils/submodule-hooks/pre-commit pre-commit
+    > cp /your/tmp/gitutils/submodule-hooks/post-merge-commit post-merge
+    > ln -s post-merge post-checkout
+    > chmod +x post-merge post-checkout pre-commit
+
+Now, when checking out a branch, pulling, merging etc, git will prompt you to automatically update
+if it notices a change to the commit that your supermodule points to.
+
+The pre-commit script is so you don't forget to push changes to the submodule *BEFORE* you push changes
+to the supermodule.
+
+    
