@@ -23,6 +23,9 @@ DECOMMISSIONED = 3
 RETIRED = 4
 DEVELOPED =5
 
+class FakeProcess:
+    name = ''
+
 class HelloResourceService(BaseHelloResourceService):
 
     def create_instrument_resource(self, instrument_info={}):
@@ -51,12 +54,7 @@ class HelloResourceService(BaseHelloResourceService):
         #        if request.configuration.IsFieldSet('serial_number'):
         #            resource.serial_number = request.configuration.serial_number
         #
-        instrument_resource_dict = {}
-        instrument_resource_dict["name"] = instrument_info.name
-        instrument_resource_dict["make"] = instrument_info.make
-        instrument_resource_dict["model"] = instrument_info.model
-        instrument_resource_dict["serial_number"] = instrument_info.serial_number
-
+        instrument_resource_dict = {"name": instrument_info.name, "make": instrument_info.make, "model": instrument_info.model, "serial_number": instrument_info.serial_number}
         resource = IonObject("InstrumentResource", instrument_resource_dict)
 
         # Persist resource.  This is comparable to:
@@ -133,20 +131,6 @@ class HelloResourceService(BaseHelloResourceService):
         #    resource = yield self.rc.get_instance(request.resource_reference)
         resource = self.clients.resource_registry.read(resource_id)
 
-        global ACTIVATE
-        global DEACTIVATE
-        global COMMISSION
-        global DECOMMISSION
-        global RETIRE
-        global DEVELOP
-
-        global ACTIVE
-        global INACTIVE
-        global COMMISSIONED
-        global DECOMMISSIONED
-        global RETIRED
-        global DEVELOPED
-
         # Set lifecycle_state field.  This is comparable to:
         if life_cycle_operation == ACTIVATE:
             resource.lifecycle_state = ACTIVE
@@ -171,26 +155,16 @@ class HelloResourceService(BaseHelloResourceService):
         #    response.MessageResponseCode = response.ResponseCodes.OK
         #    yield self.reply_ok(msg, response)
 
-def start_client():
+def start_client(container):
     """
-    This method will start a container.  We then establish
-    an RPC client endpoint to the Bank service and send
+    This method takes a container reference, establishes
+    a Process RPC client endpoint to the Bank service and send
     a series of requests.
     """
-    container = Container()
-    ready = container.start()
-    ready.get()
-    print 'Client container started'
-
-    client = RPCClient(node=container.node, name="hello_resource", iface=IHelloResourceService)
+    client = ProcessRPCClient(node=container.node, name="hello_resource", iface=IHelloResourceService, process=FakeProcess())
     print 'RPC endpoint created'
 
-    instrument_info_dict = {}
-    instrument_info_dict["name"] = "FooInstrument"
-    instrument_info_dict["make"] = "Foo Co."
-    instrument_info_dict["model"] = "Foo 2000"
-    instrument_info_dict["serial_number"] = "123-456"
-
+    instrument_info_dict = {"name": "FooInstrument", "make": "Foo Co.", "model": "Foo 2000", "serial_number": "123-456"}
     instrument_info = IonObject("InstrumentInfoObject", instrument_info_dict)
 
     resource_id = client.create_instrument_resource(instrument_info)
@@ -200,7 +174,4 @@ def start_client():
 
     client.update_instrument_resource(resource_id, instrument_info)
 
-    global DEVELOP
     client.set_instrument_resource_life_cycle(resource_id, DEVELOP)
-
-    container.stop()

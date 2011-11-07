@@ -1,12 +1,15 @@
-from pyon.net.endpoint import RPCClient
+from pyon.net.endpoint import ProcessRPCClient
 from interface.services.ibank_service import IBankService
+
+class FakeProcess(object):
+    name = ''
 
 def run_client(container):
     """
-    This method will establish an RPC client endpoint to the Bank service and send a series of requests.
+    This method will establish a Process RPC client endpoint to the Bank service and send a series of requests.
     """
-    client = RPCClient(node=container.node, name="bank", iface=IBankService)
-    print 'RPC endpoint created'
+    client = ProcessRPCClient(node=container.node, name="bank", iface=IBankService, process=FakeProcess())
+    print 'Process RPC endpoint created'
 
     print 'Creating savings account'
     savingsAcctNum = client.new_account('kurt', 'Savings')
