@@ -23,24 +23,31 @@ Pyon: The main dependency of this repository is the pyon Capability Container. F
 steps to install the minimal needed dependencies to run pyon on a Mac. For more details and Linux
 install instructions, check out the pyon README: https://github.com/ooici/pyon/blob/master/README
 
+
+
 Install the following if not yet present:
-- python 2.7: Download Mac installer run
-- git 1.7.7: Download the Mac installer and run
+- git 1.7.7: Download the Mac or Linux installer and run it
+
+
+* OS Packages and package management:
+For Mac, use homebrew
+    > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
+- python 2.7
+- rabbitmq 2.6.1 (recommended, but can use rabbitmq on amoeba)
+- couchdb 0.8
+- Install libevent, libyaml, zeromq, couchdb, python, and rabbitmq with Homebrew
+    > brew install libevent libyaml zeromq couchdb python rabbitmq
+    You can even reinstall git using brew to clean up your /usr/local directory
+    
+* python packages and environment management:
 - pip
     > easy_install pip
-- homebrew
-    > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
 - virtualenv and virtualenvwrapper modules for your python 2.7 installation
     > easy_install --upgrade virtualenv
     > easy_install --upgrade virtualenvwrapper
     Note: This may require Mac's XCode (use XCode 3.3 free version)
-- Install libevent, libyaml, zeromq, couchdb with Homebrew
-    > brew install libevent libyaml zeromq couchdb
-- rabbitmq 2.6.1 (recommended, but can use rabbitmq on amoeba)
-    Download generic Linux version and unpack into a suitable directory.
-    Note: May need erl (Erlang) and some dependencies installed before
 
-Setup a virtualenv to run COI-services (use any name you like):
+* Setup a virtualenv to run COI-services (use any name you like):
     > mkvirtualenv --no-site-packages --python=python2.7 coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
 
@@ -184,9 +191,8 @@ Clone this repository:
 Use the provided install script:
     > sh gitutils/submodule-hooks/install.sh /path/to/your/pyon/or/coi-services/dir
 
-*OR*
 
-Copy the scripts into your working copy:
+The install script does the following (you can also do it manually):
     > cd /your/pyon/.git/hooks
     > cp /your/tmp/gitutils/submodule-hooks/pre-commit pre-commit
     > cp /your/tmp/gitutils/submodule-hooks/post-merge-commit post-merge
