@@ -36,3 +36,6 @@ class ChatServerService(BaseChatsService):
             else:
                 return "USER NOT FOUND"
         return "OK"
+
+    def list_users(self):
+        return str(self.clients.keys())

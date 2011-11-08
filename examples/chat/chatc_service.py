@@ -24,6 +24,9 @@ class ChatClientService(BaseChatcService):
             pass
         print "INIT CHAT CLIENT: ", self.clients.chats.register(self.username, self.id)
 
+    def on_stop(self):
+        self.clients.chats.unregister(self.username)
+
     def ping(self, from_name=''):
         print "PING from %s" % (from_name)
         return "OK"
