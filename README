@@ -24,7 +24,8 @@ steps to install the minimal needed dependencies to run pyon on a Mac. For more 
 install instructions, check out the pyon README: https://github.com/ooici/pyon/blob/master/README
 
 Install the following if not yet present:
-- python 2.7: Download Mac installer
+- python 2.7: Download Mac installer run
+- git 1.7.7: Download the Mac installer and run
 - pip
     > easy_install pip
 - homebrew
