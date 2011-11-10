@@ -6,8 +6,8 @@ from pyon.util.log import log
 from pyon.net.endpoint import ProcessRPCClient
 from pyon.util.containers import DotDict
 
-from interface.services.ichats_service import BaseChatsService
-from interface.services.ichatc_service import IChatcService
+from interface.services.examples.chat.ichats_service import BaseChatsService
+from interface.services.examples.chat.ichatc_service import IChatcService
 
 class ChatServerService(BaseChatsService):
     def on_init(self):

@@ -7,7 +7,7 @@ the affirmative.
 
 from pyon.core.bootstrap import IonObject
 
-from interface.services.itrade_service import BaseTradeService
+from interface.services.examples.bank.itrade_service import BaseTradeService
 
 class TradeService(BaseTradeService):
 

@@ -7,7 +7,7 @@ from pyon.public import CFG
 from pyon.util.log import log
 from pyon.util.containers import DotDict
 
-from interface.services.ichatc_service import BaseChatcService
+from interface.services.examples.chat.ichatc_service import BaseChatcService
 
 def get_username():
     import os

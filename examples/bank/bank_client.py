@@ -1,5 +1,5 @@
 from pyon.net.endpoint import ProcessRPCClient
-from interface.services.ibank_service import IBankService
+from interface.services.examples.bank.ibank_service import IBankService
 
 class FakeProcess(object):
     name = ''

@@ -7,7 +7,7 @@ from pyon.public import Container
 from pyon.core.bootstrap import IonObject
 from pyon.net.endpoint import ProcessRPCClient
 
-from interface.services.ihello_resource_service import IHelloResourceService, BaseHelloResourceService
+from interface.services.examples.hello.ihello_resource_service import IHelloResourceService, BaseHelloResourceService
 
 ACTIVATE = 0
 DEACTIVATE = 1

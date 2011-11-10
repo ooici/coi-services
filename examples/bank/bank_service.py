@@ -10,7 +10,7 @@ from pyon.datastore.datastore import DataStore
 from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 
-from interface.services.ibank_service import BaseBankService
+from interface.services.examples.bank.ibank_service import BaseBankService
 
 class BankService(BaseBankService):
 

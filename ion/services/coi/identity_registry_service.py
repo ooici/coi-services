@@ -9,7 +9,7 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import NotFound
 from pyon.util.log import log
 
-from interface.services.iidentity_registry_service import BaseIdentityRegistryService
+from interface.services.coi.iidentity_registry_service import BaseIdentityRegistryService
 
 class IdentityRegistryService(BaseIdentityRegistryService):
 
