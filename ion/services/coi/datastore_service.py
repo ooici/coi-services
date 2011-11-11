@@ -57,11 +57,11 @@ class DataStoreService(BaseDatastoreService):
     def list_object_revisions(self, object_id='', datastore_name=''):
         return self.datastore.list_object_revisions(object_id, datastore_name)
 
-    def create(self, object={}, datastore_name=''):
-        return self.datastore.create(object, datastore_name)
+    def create(self, object={}, object_id='', datastore_name=''):
+        return self.datastore.create(object, object_id=object_id, datastore_name=datastore_name)
 
-    def create_doc(self, object={}, datastore_name=''):
-        return self.datastore.create_doc(object, datastore_name)
+    def create_doc(self, object={}, object_id='', datastore_name=''):
+        return self.datastore.create_doc(object, object_id=object_id, datastore_name=datastore_name)
 
     def read(self, object_id='', rev_id='', datastore_name=''):
         return self.datastore.read(object_id, rev_id, datastore_name)
