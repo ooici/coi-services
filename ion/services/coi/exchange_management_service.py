@@ -16,6 +16,9 @@ class ExchangeManagementService(BaseExchangeManagementService):
     def create_exchange_space(self, name='', org_id=''):
         xs = IonObject(self.RT_EXCHANGE_SPACE, dict(name=name))
         res,rev = self.clients.resource_registry.create(xs)
+
+        aid = self.clients.resource_registry.create_association(org_id, "HAS-A", res)
+
         return res
 
     def update_exchange_space(self, exchange_space_id={}):

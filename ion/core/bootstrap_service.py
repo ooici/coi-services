@@ -73,14 +73,19 @@ class BootstrapService(BaseBootstrapService):
 
     def post_org_management(self, config):
         # Create root Org: ION
-        org_id = self.clients.org_management.create_org("ION")
+        self.org_id = self.clients.org_management.create_org("ION")
 
     def post_exchange_management(self, config):
         # Create root ExchangeSpace
-        xs_id = self.clients.exchange_management.create_exchange_space("ioncore")
+        self.xs_id = self.clients.exchange_management.create_exchange_space("ioncore", self.org_id)
+
+        #self.clients.resource_registry.find_objects(self.org_id, "HAS-A")
+
+        #self.clients.resource_registry.find_subjects(self.xs_id, "HAS-A")
     
     def on_quit(self):
         log.info("Bootstrap service QUIT: System quit")
+
 
 def start(container, starttype, app_definition, config):
     print "****", config

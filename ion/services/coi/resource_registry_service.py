@@ -50,3 +50,18 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def find(self, criteria=[]):
         return self.resource_registry.find(criteria)
+
+    def create_association(self, subject_id=None, predicate=None, object_id=None):
+        return self.resource_registry.create_association(subject_id, predicate, object_id)
+
+    def delete_association(self, association_id=''):
+        return self.resource_registry.delete_association(tuple, datastore_name)
+
+    def find_associations(self, subject_id=None, predicate=None, object_id=None):
+        return self.resource_registry.find_associations(subject_id, predicate, object_id)
+
+    def find_objects(self, subject_id=None, predicate=None):
+        return self.resource_registry.find_objects(subject_id, predicate)
+
+    def find_subjects(self, object_id=None, predicate=None):
+        return self.resource_registry.find_subjects(object_id, predicate)
