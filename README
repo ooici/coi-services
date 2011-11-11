@@ -34,11 +34,16 @@ Install the following if not yet present:
     > easy_install --upgrade virtualenv
     > easy_install --upgrade virtualenvwrapper
     Note: This may require Mac's XCode (use XCode 3.3 free version)
-- Install libevent, libyaml, zeromq, couchdb with Homebrew
+- Install libevent, libyaml, zeromq, couchdb with Homebrew on Mac
     > brew install libevent libyaml zeromq couchdb
+    - Be sure to read the pyon README for platform specific guidance to installing dependend libraries and packages.
+    ** couchdb 1.1.0 (optional if memory mockdb is used)
+    **   Linux: Note that many installs have much older versions installed by default. You will need to upgrade couchdb to at least 1.1.0.
+
 - rabbitmq 2.6.1 (recommended, but can use rabbitmq on amoeba)
     Download generic Linux version and unpack into a suitable directory.
     Note: May need erl (Erlang) and some dependencies installed before
+
 
 Setup a virtualenv to run COI-services (use any name you like):
     > mkvirtualenv --no-site-packages --python=python2.7 coi
@@ -124,6 +129,10 @@ DEBUG
 =====
 
 USE Pycharm or any other Python IDE to start in debug mode. Breakpoints and step-by-step are possible.
+
+You will need to make sure the Pycharm debug egg is available in your path, something like:
+export PYTHONPATH=.:/Applications/PyCharm\ 1.5.2.app/pycharm-debug.egg
+
 Set your debugger to start the bin/pycc script, with the arguments you like.
 
 Remote debugging of services in a running container is possible too. Setup a remote debugging configuration to use the localhost and port 8585.
