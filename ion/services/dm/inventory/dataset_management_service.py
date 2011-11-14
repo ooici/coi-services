@@ -4,7 +4,7 @@ __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
 
-from interface.services.dm.idataset_management_service import DatasetManagementService
+from interface.services.dm.idataset_management_service import BaseDatasetManagementService
 
 class DatasetManagementService(BaseDatasetManagementService):
 
