@@ -7,6 +7,8 @@ from pyon.core.bootstrap import sys_name
 from pyon.core.exception import NotFound
 from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.datastore.mockdb.mockdb_datastore import MockDB_DataStore
+from pyon.ion.public import LCS
+
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
 class ResourceRegistryService(BaseResourceRegistryService):
@@ -50,6 +52,18 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def find(self, criteria=[]):
         return self.resource_registry.find(criteria)
+
+    def execute_lifecycle_transition(resource_id='', lcstate=''):
+        res_obj = self.read(resource_id)
+        res_obj.lcstate = lcstate
+        assert lcstate in LCS, "Unknown life-cycle state %s" % lcstate
+        return self.update(res_obj)
+
+    def define_resource_lifecycle(self):
+        return True
+
+    def delete_resource_lifecycle(self):
+        return True
 
     def create_association(self, subject=None, predicate=None, object=None):
         return self.resource_registry.create_association(subject, predicate, object)

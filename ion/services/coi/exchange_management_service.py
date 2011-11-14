@@ -2,23 +2,24 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.public import CFG, IonObject
-from pyon.util.log import log
+from pyon.public import CFG, IonObject, log
+from pyon.ion.public import RT, AT
 
 from interface.services.coi.iexchange_management_service import BaseExchangeManagementService
 
 class ExchangeManagementService(BaseExchangeManagementService):
 
-    RT_EXCHANGE_SPACE = "ExchangeSpace"
-    RT_EXCHANGE_NAME = "ExchangeName"
-    RT_EXCHANGE_POINT = "ExchangePoint"
+
 
     def create_exchange_space(self, name='', org_id=''):
-        xs = IonObject(self.RT_EXCHANGE_SPACE, dict(name=name))
+        xs = IonObject(RT.ExchangeSpace, dict(name=name))
         res,rev = self.clients.resource_registry.create(xs)
+        aid = self.clients.resource_registry.create_association(org_id, AT.HAS_A, res)
 
-        aid = self.clients.resource_registry.create_association(org_id, "HAS-A", res)
-
+        # Now do the work
+        if name == "ioncore":
+            pass
+        
         return res
 
     def update_exchange_space(self, exchange_space_id={}):
@@ -45,11 +46,12 @@ class ExchangeManagementService(BaseExchangeManagementService):
         pass
 
     def create_exchange_name(self, name='', exchange_space={}):
-        # Return Value
-        # ------------
-        # exchange_name_id: {}
-        # 
-        pass
+        xn = IonObject(RT.ExchangeName, dict(name=name))
+        res,rev = self.clients.resource_registry.create(xn)
+
+        aid = self.clients.resource_registry.create_association(exchange_space, AT.HAS_A, res)
+
+        return res
 
     def update_exchange_name(self, exchange_name_id={}):
         # Return Value
@@ -75,11 +77,13 @@ class ExchangeManagementService(BaseExchangeManagementService):
         pass
 
     def create_exchange_point(self, name=''):
-        # Return Value
-        # ------------
-        # {exchange_point_id: ''}
-        # 
-        pass
+        xp = IonObject(RT.ExchangePoint, dict(name=name))
+        res,rev = self.clients.resource_registry.create(xp)
+
+        #aid = self.clients.resource_registry.create_association(exchange_space, AT.HAS_A, res)
+
+        return res
+
 
     def update_exchange_point(self, exchange_point_id=''):
         # Return Value

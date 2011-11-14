@@ -4,10 +4,8 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.core.bootstrap import sys_name
-from pyon.datastore.datastore import DataStore
-from pyon.public import CFG, IonObject
-from pyon.util.log import log
+from pyon.ion.resource import RT_LIST
+from pyon.public import CFG, IonObject, log, sys_name
 
 from interface.services.ibootstrap_service import BaseBootstrapService
 
@@ -18,10 +16,6 @@ class BootstrapService(BaseBootstrapService):
     Bootstrap service: This service will initialize the ION system environment.
     This service is triggered for each boot level.
     """
-
-    RESOURCE_TYPES = ['Org',
-                      'Policy',
-                      'Instrument']
 
     def on_init(self):
         log.info("Bootstrap service INIT: System init")
@@ -49,6 +43,11 @@ class BootstrapService(BaseBootstrapService):
         elif level == "exchange_management":
             self.post_exchange_management(config)
 
+        # Create ROOT user identity
+        # Create default roles
+        # Create default policy
+
+
     def post_datastore(self, config):
         # Make sure to detect that system was already bootstrapped.
         # Look in datastore for secret cookie\
@@ -67,7 +66,7 @@ class BootstrapService(BaseBootstrapService):
         pass
 
     def post_resource_registry(self, config):
-        for res in self.RESOURCE_TYPES:
+        for res in RT_LIST:
             rt = IonObject("ResourceType", dict(name=res))
             self.clients.datastore.create(rt)
 

@@ -2,18 +2,16 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.public import CFG, IonObject
-from pyon.util.log import log
+from pyon.public import CFG, IonObject, log
+from pyon.ion.public import RT, AT
 
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 
 class OrgManagementService(BaseOrgManagementService):
 
-    RT_ORG = "Org"
-
     def create_org(self, name=''):
         log.debug("create_org" + name)
-        org = IonObject(self.RT_ORG, dict(name=name))
+        org = IonObject(RT.Org, dict(name=name))
         rid,rev = self.clients.resource_registry.create(org)
         return rid
 
