@@ -76,3 +76,12 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def find_subjects(self, object=None, predicate=None, subject_type=None, id_only=False):
         return self.resource_registry.find_subjects(object, predicate, subject_type, id_only=id_only)
+
+    def find_res_bytype(self, restype, lcstate=None, id_only=False):
+        return self.resource_registry.find_res_bytype(restype, lcstate, id_only=id_only)
+
+    def find_res_bylcstate(self, lcstate, restype=None, id_only=False):
+        return self.resource_registry.find_res_bylcstate(lcstate, restype, id_only=id_only)
+
+    def find_res_byname(self, name, restype=None, id_only=False):
+        return self.resource_registry.find_res_byname(name, restype, id_only=id_only)

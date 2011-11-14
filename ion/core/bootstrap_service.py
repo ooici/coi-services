@@ -5,6 +5,7 @@
 __author__ = 'Michael Meisinger'
 
 from pyon.ion.resource import RT_LIST
+from pyon.ion.public import RT, LCS, AT
 from pyon.public import CFG, IonObject, log, sys_name
 
 from interface.services.ibootstrap_service import BaseBootstrapService
@@ -42,6 +43,8 @@ class BootstrapService(BaseBootstrapService):
             self.post_org_management(config)
         elif level == "exchange_management":
             self.post_exchange_management(config)
+
+            self.post_startup()
 
         # Create ROOT user identity
         # Create default roles
@@ -81,7 +84,15 @@ class BootstrapService(BaseBootstrapService):
         #self.clients.resource_registry.find_objects(self.org_id, "HAS-A")
 
         #self.clients.resource_registry.find_subjects(self.xs_id, "HAS-A")
-    
+
+    def post_startup(self):
+        # Do some sanity tests across the board
+        org_ids, _ = self.clients.resource_registry.find_res_bytype(RT.Org, None, True)
+        assert len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined"
+
+        xs_ids, _ = self.clients.resource_registry.find_res_bytype(RT.ExchangeSpace, None, True)
+        assert len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined"
+
     def on_quit(self):
         log.info("Bootstrap service QUIT: System quit")
 

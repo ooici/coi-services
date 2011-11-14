@@ -47,4 +47,9 @@
         
         <!--<antcall target="remeggs"/>-->
     </target>
+
+    <!-- Generates the interfaces -->
+    <target name="interfaces" depends="clean" description="Generate the interfces">
+    </target>
+
 </project>
