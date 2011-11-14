@@ -87,29 +87,26 @@ class DataStoreService(BaseDatastoreService):
     def find_doc(self, criteria=[], datastore_name=''):
         return self.datastore.find_doc(criteria, datastore_name)
 
-    def find_by_association(self, criteria=[], association="", datastore_name=""):
-        return self.datastore.find_by_association(criteria, association, datastore_name)
+    def find_by_idref(self, criteria=[], association="", datastore_name=""):
+        return self.datastore.find_by_idref(criteria, association, datastore_name)
 
-    def find_by_association_doc(self, criteria=[], association="", datastore_name=""):
-        return self.datastore.find_by_association_doc(criteria, association, datastore_name)
+    def find_by_idref_doc(self, criteria=[], association="", datastore_name=""):
+        return self.datastore.find_by_idref_doc(criteria, association, datastore_name)
 
-    def resolve_association(self, subject="", predicate="", object="", datastore_name=""):
-        return self.datastore.resolve_association(tuple, datastore_name)
+    def resolve_idref(self, subject="", predicate="", object="", datastore_name=""):
+        return self.datastore.resolve_idref(subject, predicate, object, datastore_name)
 
-    def resolve_association_doc(self, subject="", predicate="", object="", datastore_name=""):
-        return self.datastore.resolve_association_doc(tuple, datastore_name)
+    def resolve_idref_doc(self, subject="", predicate="", object="", datastore_name=""):
+        return self.datastore.resolve_idref_doc(subject, predicate, object, datastore_name)
 
-    def create_association(self, subject_id=None, predicate=None, object_id=None):
-        return self.datastore.create_association(subject_id, predicate, object_id)
+    def create_association(self, subject=None, predicate=None, object=None):
+        return self.datastore.create_association(subject, predicate, object)
 
-    def delete_association(self, association_id=''):
-        return self.datastore.delete_association(tuple, datastore_name)
+    def delete_association(self, association=''):
+        return self.datastore.delete_association(association, datastore_name)
 
-    def find_associations(self, subject_id=None, predicate=None, object_id=None):
-        return self.datastore.find_associations(subject_id, predicate, object_id)
+    def find_objects(self, subject=None, predicate=None, object_type=None, id_only=False):
+        return self.datastore.find_objects(subject, predicate, object_type, id_only=id_only)
 
-    def find_objects(self, subject_id=None, predicate=None):
-        return self.datastore.find_objects(subject_id, predicate)
-
-    def find_subjects(self, object_id=None, predicate=None):
-        return self.datastore.find_subjects(object_id, predicate)
+    def find_subjects(self, object=None, predicate=None, subject_type=None, id_only=False):
+        return self.datastore.find_subjects(object, predicate, subject_type, id_only=id_only)
