@@ -70,16 +70,18 @@ class BootstrapService(BaseBootstrapService):
 
     def post_resource_registry(self, config):
         for res in RT_LIST:
-            rt = IonObject("ResourceType", dict(name=res))
-            self.clients.datastore.create(rt)
+            rt = IonObject("ResourceType", name=res)
+            #self.clients.datastore.create(rt)
 
     def post_org_management(self, config):
         # Create root Org: ION
-        self.org_id = self.clients.org_management.create_org("ION")
+        org = IonObject(RT.Org, name="ION", description="ION Root Org")
+        self.org_id = self.clients.org_management.create_org(org)
 
     def post_exchange_management(self, config):
         # Create root ExchangeSpace
-        self.xs_id = self.clients.exchange_management.create_exchange_space("ioncore", self.org_id)
+        xs = IonObject(RT.ExchangeSpace, name="ioncore", description="ION service XS")
+        self.xs_id = self.clients.exchange_management.create_exchange_space(xs, self.org_id)
 
         #self.clients.resource_registry.find_objects(self.org_id, "HAS-A")
 
@@ -92,6 +94,12 @@ class BootstrapService(BaseBootstrapService):
 
         xs_ids, _ = self.clients.resource_registry.find_res_bytype(RT.ExchangeSpace, None, True)
         assert len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined"
+
+        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.HAS_A, RT.ExchangeSpace, True)
+        assert len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated"
+
+        res_ids, _ = self.clients.resource_registry.find_subjects(self.xs_id, AT.HAS_A, RT.Org, True)
+        assert len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated"
 
     def on_quit(self):
         log.info("Bootstrap service QUIT: System quit")
