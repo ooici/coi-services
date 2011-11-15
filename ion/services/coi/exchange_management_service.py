@@ -9,41 +9,38 @@ from interface.services.coi.iexchange_management_service import BaseExchangeMana
 
 class ExchangeManagementService(BaseExchangeManagementService):
 
+    def create_exchange_space(self, xs=None, org_id=''):
+        log.debug("create_exchange_space" + xs.name)
+        assert not hasattr(xs, "_id"), "ID already set"
+        xs_id,rev = self.clients.resource_registry.create(xs)
 
-
-    def create_exchange_space(self, name='', org_id=''):
-        xs = IonObject(RT.ExchangeSpace, dict(name=name))
-        res,rev = self.clients.resource_registry.create(xs)
-        aid = self.clients.resource_registry.create_association(org_id, AT.HAS_A, res)
+        aid = self.clients.resource_registry.create_association(org_id, AT.HAS_A, xs_id)
 
         # Now do the work
-        if name == "ioncore":
+        if xs.name == "ioncore":
+            # Bottom turtle initialization
+            pass
+        else:
+            # All other XS initialization
             pass
         
-        return res
+        return xs_id
 
-    def update_exchange_space(self, exchange_space_id={}):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
+    def update_exchange_space(self, xs=None):
+        log.debug("update_exchange_space" + xs.name)
+        assert hasattr(xs, "_id"), "ID not set"
+        xs_id,rev = self.clients.resource_registry.update(xs)
+        return True
 
-    def delete_exchange_space(self, exchange_space_id={}):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
+    def read_exchange_space(self, exchange_space_id=""):
+        xs = self.clients.resource_registry.read(exchange_space_id)
+        return xs
+
+    def delete_exchange_space(self, exchange_space_id=""):
+        raise NotImplementedError()
 
     def find_exchange_spaces(self, name='*'):
-        # Return Value
-        # ------------
-        # exchange_space_list: []
-        # 
-        pass
+        raise NotImplementedError()
 
     def create_exchange_name(self, name='', exchange_space={}):
         xn = IonObject(RT.ExchangeName, dict(name=name))
@@ -53,7 +50,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         return res
 
-    def update_exchange_name(self, exchange_name_id={}):
+    def update_exchange_name(self, exchange_name_id=""):
         # Return Value
         # ------------
         # null
@@ -61,98 +58,24 @@ class ExchangeManagementService(BaseExchangeManagementService):
         # 
         pass
 
-    def delete_exchange_name(self, exchange_name_id={}):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
+    def delete_exchange_name(self, exchange_name_id=""):
+        raise NotImplementedError()
 
     def find_exchange_names(self, name='*'):
-        # Return Value
-        # ------------
-        # exchange_name_list: []
-        # 
-        pass
+        raise NotImplementedError()
 
     def create_exchange_point(self, name=''):
         xp = IonObject(RT.ExchangePoint, dict(name=name))
         res,rev = self.clients.resource_registry.create(xp)
 
         #aid = self.clients.resource_registry.create_association(exchange_space, AT.HAS_A, res)
-
         return res
 
-
     def update_exchange_point(self, exchange_point_id=''):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
+        raise NotImplementedError()
 
     def delete_exchange_point(self, exchange_point_id=''):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
+        raise NotImplementedError()
 
     def find_exchange_points(self, name='*'):
-        # Return Value
-        # ------------
-        # exchange_point_list: []
-        # 
-        pass
-
-    def find_brokers(self, name='*'):
-        # Return Value
-        # ------------
-        # broker_list: []
-        # 
-        pass
-
-    def get_broker(self):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
-
-    def configure_broker(self):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
-
-    def delete_broker(self):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
-
-    def join_broker(self):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
-
-    def leave_broker(self):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
-
-
+        raise NotImplementedError()

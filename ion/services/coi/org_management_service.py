@@ -9,9 +9,9 @@ from interface.services.coi.iorg_management_service import BaseOrgManagementServ
 
 class OrgManagementService(BaseOrgManagementService):
 
-    def create_org(self, name=''):
-        log.debug("create_org" + name)
-        org = IonObject(RT.Org, dict(name=name))
+    def create_org(self, org=None):
+        log.debug("create_org" + org.name)
+        assert not hasattr(org, "_id"), "ID already set"
         rid,rev = self.clients.resource_registry.create(org)
         return rid
 
