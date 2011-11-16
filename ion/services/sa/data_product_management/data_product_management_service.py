@@ -8,7 +8,10 @@ from interface.services.sa.idata_product_management_service import BaseDataProdu
 
 class DataProductManagementService(BaseDataProductManagementService):
 
-    def define_data_product(self, product={}):
+    def create_data_product(self, data_product={}):
+        """
+        method docstring
+        """
         # DefineDataProduct will validate and register a new data product within the system
 
         # Validate - TBD by the work that Karen Stocks is driving with John Graybeal
@@ -22,7 +25,36 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Return a resource ref
         pass
 
+    def update_data_product(self, data_product={}):
+        """
+        method docstring
+        """
+        # Update metadata for a specific data product
+        # Return updated data product resource
+        pass
+
+    def read_data_product(self, data_product_id=''):
+        """
+        method docstring
+        """
+        # Retrieve all metadata for a specific data product
+        # Return data product resource
+        pass
+
+    def delete_data_product(self, data_product_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
     def find_data_products(self, filters={}):
+        """
+        method docstring
+        """
         # Validate the input filter and augment context as required
 
         # Define set of resource attributes to filter on, change parameter from "filter" to include attributes and filter values.
@@ -31,17 +63,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Call DM DiscoveryService to query the catalog for matches
 
         # Organize and return the list of matches with summary metadata (title, summary, keywords)
-        
+
         #find the item in the store
         pass
-
-    def get_data_product_detail(self, dataProductId=''):
-        # Retrieve all metadata for a specific data product
-        # Return data product resource
-        pass
-
-    def set_data_product_detail(self, dataProductId='', updates={}):
-        # Update metadata for a specific data product
-        # Return updated data product resource
-        pass
-  
