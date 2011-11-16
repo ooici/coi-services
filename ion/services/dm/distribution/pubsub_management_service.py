@@ -9,74 +9,193 @@ from interface.services.dm.ipubsub_management_service import BasePubsubManagemen
 class PubsubManagementService(BasePubsubManagementService):
 
 
-    def define_stream(self, stream={}):
+    def create_stream(self, stream={}):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # {status: true}
+        # {stream_id: ''}
         #
         pass
 
-    def define_subscription(self, query={}, queue={}):
+    def update_stream(self, stream={}):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # {subscriptionId: ''}
+        # {success: true}
         #
         pass
 
-    def activate_subscription(self, subscriptionId=''):
+    def read_stream(self, stream_id=''):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # {status: true}
+        # stream: {}
         #
         pass
 
-    def register_consumer(self, consumerid=''):
+    def delete_stream(self, stream_id=''):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # {status: true}
-        #
-        pass
-
-    def register_publisher(self, processid='', streamid=''):
-        # Return Value
-        # ------------
-        # {status: true}
+        # {success: true}
         #
         pass
 
     def find_streams(self, filter={}):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # result: []
+        # stream_list: []
         #
         pass
 
-    def find_stream_producers(self, streamid=''):
+    def find_streams_by_producer(self, producer_id=''):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # null
-        # ...
+        # stream_list: []
         #
         pass
 
-    def find_producers_stream(self, producerid=''):
+    def find_streams_by_consumer(self, consumer_id=''):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # streams: []
+        # stream_list: []
         #
         pass
 
-    def find_stream_consumers(self, streamid=''):
+    def create_subscription(self, subscription={}):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # consumers: []
+        # {subscription_id: ''}
         #
         pass
 
-    def find_consumers_stream(self, consumerid=''):
+    def update_subscription(self, subscription={}):
+        """
+        method docstring
+        """
         # Return Value
         # ------------
-        # streams: []
+        # {success: true}
+        #
+        pass
+
+    def read_subscription(self, subscription_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # subscription: {}
+        #
+        pass
+
+    def delete_subscription(self, subscription_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def activate_subscription(self, subscription_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def deactivate_subscription(self, subscription_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def register_consumer(self, exchange_name=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def unregister_consumer(self, exchange_name=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def find_consumers_by_stream(self, stream_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # consumer_list: []
+        #
+        pass
+
+    def register_producer(self, exchange_name='', stream_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def unregister_producer(self, exchange_name='', stream_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def find_producers_by_stream(self, stream_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # producer_list: []
         #
         pass
   
