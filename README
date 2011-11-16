@@ -125,8 +125,9 @@ Start development instance of the ION system with COI services:
     > bin/pycc --rel res/deploy/r2deploy.yml
 
 Run unittests:
-    > bin/unittest
+    > bin/nosetests -a unit
 
+Use nose to run unittest
 
 DEBUG
 =====
