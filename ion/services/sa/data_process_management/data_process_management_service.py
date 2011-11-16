@@ -8,23 +8,62 @@ from interface.services.sa.idata_process_management_service  import BaseDataProc
 
 class DataProcessManagementService(BaseDataProcessManagementService):
 
-    def attach_process(self, process=''):
-        # Connect the process to the input and output streams
-
-        # Call DM:DataTransformMgmtSvc:DefineTransform to configure
-
-        # Call DM:DataTransformMgmtSvc:BindTransform to connect transform and execute
+    def create_data_process(self, data_process={}):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {data_process_id: ''}
+        #
         pass
 
-    def define_data_process(self, process={}):
-        # TODO: Coordinate orchestration with CEI:ProcessMgmtSvc to define a process
+    def update_data_process(self, data_process={}):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
 
-        # Bind transform: starts subscription to the input parameters?
+    def read_data_process(self, data_process_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # data_process: {}
+        #
+        pass
 
-        # Schedule transform: With a good transform that is bound, schedule its execution pattern
-
+    def delete_data_process(self, data_process_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
         pass
 
     def find_data_process(self, filters={}):
-        # Locate a process based on metadata filters
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # data_process_list: []
+        #
+        pass
+
+    def attach_process(self, process=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
         pass
