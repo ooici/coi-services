@@ -8,24 +8,59 @@ from interface.services.dm.idataset_management_service import BaseDatasetManagem
 
 class DatasetManagementService(BaseDatasetManagementService):
 
-    def create_dataset_resource(self, dataset={}):
+    """
+    class docstring
+    """
+
+    def create_dataset(self, dataset={}):
+        """
+        method docstring
+        """
         # This method creates an empty dataset resource and returns its ID.
         # It assumes that the caller provides an Instrument Info Object in a Resource Configuration Request message which should be made into a resource.
-        pass
-
-    def find_dataset_resource(self, filter={}):
-        # This method returns a list of Dataset Resource References that match the request.
+        # Return Value
         # ------------
-        # status: []
+        # {dataset_id: ''}
         #
         pass
 
-    def get_metadata(self, datasetId=''):
-        # This method returns a Dataset Resource for the input id
+    def update_dataset(self, dataset={}):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def read_dataset(self, dataset_id=''):
+        """
+        method docstring
+        """
+        # Return Value
         # ------------
         # dataset: {}
         #
+        pass
+
+    def delete_dataset(self, dataset_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
         #
-        
+        pass
+
+    def find_datasets(self, view={}):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # dataset_list: []
+        #
         pass
   
