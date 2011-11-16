@@ -35,7 +35,10 @@ Install the following if not yet present:
     > easy_install --upgrade virtualenvwrapper
     Note: This may require Mac's XCode (use XCode 3.3 free version)
 - Install libevent, libyaml, zeromq, couchdb with Homebrew on Mac
-    > brew install libevent libyaml zeromq couchdb
+    > brew install libevent
+    > brew install libyaml
+    > brew install zeromq
+    > brew install couchdb
     - Be sure to read the pyon README for platform specific guidance to installing dependend libraries and packages.
     ** couchdb 1.1.0 (optional if memory mockdb is used)
     **   Linux: Note that many installs have much older versions installed by default. You will need to upgrade couchdb to at least 1.1.0.
