@@ -32,12 +32,13 @@ class TestTradeService(unittest.TestCase):
         self.mock_create.return_value = ['111']
         with switch_ionobj() as mock_ionobj:
             # test our function with our data
-            self.trade_service.exercise(order)
+            confirmation_obj = self.trade_service.exercise(order)
 
             # How is the test result
 
             # assert resource_registry.create did get called with correct
             # arguments
+            assert confirmation_obj is mock_ionobj.return_value
             self.mock_create.assert_called_once_with(order)
             # assert mock ion object is called
             confirmation_dict = {
@@ -53,7 +54,8 @@ class TestTradeService(unittest.TestCase):
         order.bond_amount = 156
         self.mock_create.return_value = ['123']
         with switch_ionobj() as mock_ionobj:
-            self.trade_service.exercise(order)
+            confirmation_obj = self.trade_service.exercise(order)
+            assert confirmation_obj is mock_ionobj.return_value
             self.mock_create.assert_called_once_with(order)
             confirmation_dict = {
                     'tracking_number' : '123',
@@ -61,3 +63,4 @@ class TestTradeService(unittest.TestCase):
                     'proceeds' : 156 * 1.56}
             mock_ionobj.assert_called_once_with('Confirmation',
                     confirmation_dict)
+
