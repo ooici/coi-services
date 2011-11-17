@@ -1,50 +1,63 @@
 #! /usr/bin/env python
 
 import unittest
-from mock import Mock, patch
+from mock import Mock
 from nose.plugins.attrib import attr
 
 from examples.bank.trade_service import TradeService
+from examples.bank import trade_service
 
-class _ANY(object):
-    def __eq__(self, other):
-        return True
+from contextlib import contextmanager
+@contextmanager
+def switch_ionobj():
+    old_ionobj = trade_service.__dict__['IonObject']
+    mock_ionobj = Mock()
+    trade_service.__dict__['IonObject'] = mock_ionobj
+    yield mock_ionobj
+    trade_service.__dict__['IonObject'] = old_ionobj
 
 @attr('unit')
-@patch('pyon.core.object.IonObjectBase')
 class TestTradeService(unittest.TestCase):
-    """
-    Shows examples of patch class decorator, mock data, and mock calls
-    """
 
     def setUp(self):
         self.trade_service = TradeService()
-        mock_clients = Mock()
-        self.trade_service.clients = mock_clients
-        self.mock_resource_registry = mock_clients.resource_registry
+        self.trade_service.clients = Mock()
+        self.mock_create = self.trade_service.clients.resource_registry.create
 
-    @unittest.skip("no time to do this")
-    def test_exercise_sell(self, mock_ionobj):
-        pass
-
-    def test_exercise_buy(self, mock_ionobj):
+    def test_exercise_buy(self):
         # set up order
         order = Mock()
         order.type = 'buy'
         order.cash_amount = 156
-        # Mock create return value
-        mock_create = self.mock_resource_registry.create
-        mock_create.return_value = ['111']
-        # test our function with our data
-        confirmation_obj = self.trade_service.exercise(order)
-        # How is the test result
-        # assert resource_registry.create did get called with correct
-        # arguments
-        mock_create.assert_called_once_with(order)
-        # assert ion object was created with the correct dict
-        asserted_dict = {
-                'tracking_number' : '111',
-                'status' : 'complete',
-                'proceeds' : 100.0}
-        mock_ionobj.assert_called_once_with(_ANY(),
-                asserted_dict)
+        self.mock_create.return_value = ['111']
+        with switch_ionobj() as mock_ionobj:
+            # test our function with our data
+            self.trade_service.exercise(order)
+
+            # How is the test result
+
+            # assert resource_registry.create did get called with correct
+            # arguments
+            self.mock_create.assert_called_once_with(order)
+            # assert mock ion object is called
+            confirmation_dict = {
+                    'tracking_number' : '111',
+                    'status' : 'complete',
+                    'proceeds' : 156 / 1.56}
+            mock_ionobj.assert_called_once_with('Confirmation',
+                     confirmation_dict)
+
+    def test_exercise_sell(self):
+        order = Mock()
+        order.type = 'sell'
+        order.bond_amount = 156
+        self.mock_create.return_value = ['123']
+        with switch_ionobj() as mock_ionobj:
+            self.trade_service.exercise(order)
+            self.mock_create.assert_called_once_with(order)
+            confirmation_dict = {
+                    'tracking_number' : '123',
+                    'status' : 'complete',
+                    'proceeds' : 156 * 1.56}
+            mock_ionobj.assert_called_once_with('Confirmation',
+                    confirmation_dict)
