@@ -4,41 +4,26 @@ __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
 
-from interface.services.dm.itransform_management_service import BaseTransformManagementService
+from interface.services.dm.iindex_management_service import BaseIndexManagementService
 
-class TransformManagementService(BaseTransformManagementService):
 
-    def create_transform(self, transform={}):
+class IndexManagementService(BaseIndexManagementService):
+
+    """
+    class docstring
+    """
+
+    def create_index(self, index={}):
         """
         method docstring
         """
         # Return Value
         # ------------
-        # {transform_id: ''}
+        # {index_id: ''}
         #
         pass
 
-    def update_transform(self, transform={}):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def read_transform(self, transform_id=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # transform: {}
-        #
-        pass
-
-    def delete_transform(self, transform_id=''):
+    def update_index(self, index={}):
         """
         method docstring
         """
@@ -48,7 +33,17 @@ class TransformManagementService(BaseTransformManagementService):
         #
         pass
 
-    def bind_transform(self, transform_id=''):
+    def read_index(self, index_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # index: {}
+        #
+        pass
+
+    def delete_index(self, index_id=''):
         """
         method docstring
         """
@@ -58,12 +53,14 @@ class TransformManagementService(BaseTransformManagementService):
         #
         pass
 
-    def schedule_transform(self, transform_id=''):
+    def list_indexes(self):
         """
         method docstring
         """
         # Return Value
         # ------------
-        # {success: true}
+        # list: []
         #
         pass
+
+  

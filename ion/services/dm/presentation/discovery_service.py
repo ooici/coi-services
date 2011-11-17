@@ -4,41 +4,26 @@ __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
 
-from interface.services.dm.itransform_management_service import BaseTransformManagementService
+from interface.services.dm.idiscovery_service import BaseDiscoveryService
 
-class TransformManagementService(BaseTransformManagementService):
 
-    def create_transform(self, transform={}):
+class DiscoveryService(BaseDiscoveryService):
+
+    """
+    class docstring
+    """
+
+    def create_view(self, view={}):
         """
         method docstring
         """
         # Return Value
         # ------------
-        # {transform_id: ''}
+        # {view_id: ''}
         #
         pass
 
-    def update_transform(self, transform={}):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def read_transform(self, transform_id=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # transform: {}
-        #
-        pass
-
-    def delete_transform(self, transform_id=''):
+    def update_view(self, view={}):
         """
         method docstring
         """
@@ -48,7 +33,17 @@ class TransformManagementService(BaseTransformManagementService):
         #
         pass
 
-    def bind_transform(self, transform_id=''):
+    def read_view(self, view_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # view: {}
+        #
+        pass
+
+    def delete_view(self, view_id=''):
         """
         method docstring
         """
@@ -58,7 +53,7 @@ class TransformManagementService(BaseTransformManagementService):
         #
         pass
 
-    def schedule_transform(self, transform_id=''):
+    def define_search(self, query=''):
         """
         method docstring
         """
@@ -67,3 +62,24 @@ class TransformManagementService(BaseTransformManagementService):
         # {success: true}
         #
         pass
+
+    def find_by_metadata(self, filters={}):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # results: []
+        #
+        pass
+
+    def find_by_type(self, filters={}):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # results: []
+        #
+        pass
+  
