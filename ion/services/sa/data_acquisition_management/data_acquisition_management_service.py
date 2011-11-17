@@ -10,15 +10,29 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def define_data_agent(self, basics={}):
         # Register the data agent; create resource with metadata and associations
-        pass
+        raise NotImplementedError()
 
-    def define_data_producer(self, basics={}):
-        # Register the data producer; create and store the resource and associations (eg instrument or process that is producing)
+    def define_data_producer(self, producer=None):
+        log.debug("define_data_producer" + producer.name)
+        assert not hasattr(producer, "_id"), "ID already set"
 
 
-        # Coordinate creation of the stream channel; call PubsubMgmtSvc with characterization of data stream to define the topic and the producer
+        # coordinate creation of the stream channel; call PubsubMgmtSvc with characterization of data stream to define the topic and the producer
+        stream = {}
+        stream["name"] = producer.name
+        stream["roles"] = ""
+        strm_id = self.clients.pubsub_management.create_stream(stream)
 
+        producer.streamid = strm_id
+
+        # create and store the resource and associations (eg instrument or process that is producing)
+        dp_id,rev = self.clients.resource_registry.create(producer)
+        #aid = self.clients.resource_registry.create_association(org_id, AT.HAS_A, xs_id)
+
+        #register the data producer
+        credentials = self.clients.pubsub_management.register_producer('sci_data', strm_id)
+        producer.credentials = credentials
 
         # Return the XP information to the data agent
-        
-        pass
+        return dp_id
+

@@ -9,15 +9,20 @@ from interface.services.dm.ipubsub_management_service import BasePubsubManagemen
 class PubsubManagementService(BasePubsubManagementService):
 
 
-    def create_stream(self, stream={}):
+    def create_stream(self, stream=None):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {stream_id: ''}
-        #
-        pass
+        log.debug("create_stream" + stream.name)
+        assert not hasattr(stream, "_id"), "ID already set"
+        # Register the stream; create and store the resource and associations
+        stream_id,rev = self.clients.resource_registry.create(stream)
+        #aid = self.clients.resource_registry.create_association(...)
+
+        # More biz logic here....
+
+        # Return the stream id
+        return stream_id
 
     def update_stream(self, stream={}):
         """
@@ -173,11 +178,9 @@ class PubsubManagementService(BasePubsubManagementService):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        # logic to create credentials for a publisher to use to place data onto stream.
+        # return mock credentials
+        return "credentials"
 
     def unregister_producer(self, exchange_name='', stream_id=''):
         """
