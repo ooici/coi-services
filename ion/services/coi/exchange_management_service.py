@@ -10,8 +10,8 @@ from interface.services.coi.iexchange_management_service import BaseExchangeMana
 class ExchangeManagementService(BaseExchangeManagementService):
 
     def create_exchange_space(self, xs=None, org_id=''):
-        log.debug("create_exchange_space" + xs.name)
-        assert not hasattr(xs, "_id"), "ID already set"
+        log.debug("create_exchange_space(%s, org_id=%s)" % (xs, org_id))
+        assert xs and org_id, "Arguments not set"
         xs_id,rev = self.clients.resource_registry.create(xs)
 
         aid = self.clients.resource_registry.create_association(org_id, AT.HAS_A, xs_id)
@@ -27,8 +27,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         return xs_id
 
     def update_exchange_space(self, xs=None):
-        log.debug("update_exchange_space" + xs.name)
-        assert hasattr(xs, "_id"), "ID not set"
+        log.debug("update_exchange_space(%s)" % xs)
         xs_id,rev = self.clients.resource_registry.update(xs)
         return True
 
@@ -42,23 +41,15 @@ class ExchangeManagementService(BaseExchangeManagementService):
     def find_exchange_spaces(self, name='*'):
         raise NotImplementedError()
 
-    def create_exchange_name(self, name='', exchange_space={}):
-        xn = IonObject(RT.ExchangeName, dict(name=name))
-        res,rev = self.clients.resource_registry.create(xn)
+
+    def declare_exchange_name(exchange_name=None, exchange_space_id=''):
+        res,rev = self.clients.resource_registry.create(exchange_name)
 
         aid = self.clients.resource_registry.create_association(exchange_space, AT.HAS_A, res)
 
         return res
 
-    def update_exchange_name(self, exchange_name_id=""):
-        # Return Value
-        # ------------
-        # null
-        # ...
-        # 
-        pass
-
-    def delete_exchange_name(self, exchange_name_id=""):
+    def undeclare_exchange_name(canonical_name='', exchange_space_id=''):
         raise NotImplementedError()
 
     def find_exchange_names(self, name='*'):

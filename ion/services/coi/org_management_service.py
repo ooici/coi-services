@@ -11,7 +11,6 @@ class OrgManagementService(BaseOrgManagementService):
 
     def create_org(self, org=None):
         log.debug("create_org" + org.name)
-        assert not hasattr(org, "_id"), "ID already set"
         rid,rev = self.clients.resource_registry.create(org)
         return rid
 
