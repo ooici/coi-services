@@ -3,8 +3,10 @@
 __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
+from pyon.public import log
 
 from interface.services.dm.ipubsub_management_service import BasePubsubManagementService
+from pyon.core.bootstrap import IonObject
 
 class PubsubManagementService(BasePubsubManagementService):
 
@@ -13,16 +15,22 @@ class PubsubManagementService(BasePubsubManagementService):
         """
         method docstring
         """
-        log.debug("create_stream" + stream.name)
-        assert not hasattr(stream, "_id"), "ID already set"
-        # Register the stream; create and store the resource and associations
-        stream_id,rev = self.clients.resource_registry.create(stream)
-        #aid = self.clients.resource_registry.create_association(...)
+#        log.debug("create_stream" + stream.name)
+#        assert not hasattr(stream, "_id"), "ID already set"
+#        # Register the stream; create and store the resource and associations
+#        stream_id,rev = self.clients.resource_registry.create(stream)
+#        #aid = self.clients.resource_registry.create_association(...)
+#
+#        # More biz logic here....
+#
+#        # Return the stream id
+#        return stream_id
 
-        # More biz logic here....
 
-        # Return the stream id
-        return stream_id
+        stream_obj = IonObject("Stream", stream)
+        id,rev = self.clients.resource_registry.create(stream_obj)
+
+        return id,rev
 
     def update_stream(self, stream={}):
         """
@@ -42,7 +50,10 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream: {}
         #
-        pass
+        stream_obj = self.clients.resource_registry.read(stream_id)
+        if stream_obj is None:
+            raise NotFound("Stream %d does not exist" % stream_id)
+        return stream_obj
 
     def delete_stream(self, stream_id=''):
         """
@@ -52,7 +63,10 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        stream_obj = self.read_stream(stream_id)
+        if stream_obj is not None:
+            self.clients.resource_registry.delete(stream_obj)
+
 
     def find_streams(self, filter={}):
         """
