@@ -5,17 +5,7 @@ from mock import Mock
 from nose.plugins.attrib import attr
 
 from examples.bank.trade_service import TradeService
-
-from contextlib import contextmanager
-@contextmanager
-def switch_ionobj(module_name):
-    import sys
-    module = sys.modules[module_name]
-    old_ionobj = module.__dict__['IonObject']
-    mock_ionobj = Mock()
-    module.__dict__['IonObject'] = mock_ionobj
-    yield mock_ionobj
-    module.__dict__['IonObject'] = old_ionobj
+from pyon.util.test_utils import switch_ref
 
 @attr('unit')
 class TestTradeService(unittest.TestCase):
@@ -31,7 +21,7 @@ class TestTradeService(unittest.TestCase):
         order.type = 'buy'
         order.cash_amount = 156
         self.mock_create.return_value = ['111']
-        with switch_ionobj('examples.bank.trade_service') as mock_ionobj:
+        with switch_ref('examples.bank.trade_service', 'IonObject') as mock_ionobj:
             # test our function with our data
             confirmation_obj = self.trade_service.exercise(order)
 
@@ -54,7 +44,7 @@ class TestTradeService(unittest.TestCase):
         order.type = 'sell'
         order.bond_amount = 156
         self.mock_create.return_value = ['123']
-        with switch_ionobj('examples.bank.trade_service') as mock_ionobj:
+        with switch_ref('examples.bank.trade_service', 'IonObject') as mock_ionobj:
             confirmation_obj = self.trade_service.exercise(order)
             assert confirmation_obj is mock_ionobj.return_value
             self.mock_create.assert_called_once_with(order)
@@ -64,4 +54,3 @@ class TestTradeService(unittest.TestCase):
                     'proceeds' : 156 * 1.56}
             mock_ionobj.assert_called_once_with('Confirmation',
                     confirmation_dict)
-
