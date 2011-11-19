@@ -41,28 +41,28 @@ class BankService(BaseBankService):
 
         return account_id
 
-    def deposit(self, account_id=-1, amount=0.0):
+    def deposit(self, account_id='', amount=0.0):
         account_obj = self.clients.resource_registry.read(account_id)
         if account_obj is None:
-            raise NotFound("Account %d does not exist" % account_id)
+            raise NotFound("Account %s does not exist" % account_id)
         account_obj.cash_balance += amount
         self.clients.resource_registry.update(account_obj)
         return "Balance after cash deposit: %s" % (str(account_obj.cash_balance))
 
-    def withdraw(self, account_id=-1, amount=0.0):
+    def withdraw(self, account_id='', amount=0.0):
         account_obj = self.clients.resource_registry.read(account_id)
         if account_obj is None:
-            raise NotFound("Account %d does not exist" % account_id)
+            raise NotFound("Account %s does not exist" % account_id)
         if account_obj.cash_balance < amount:
             raise BadRequest("Insufficient funds")
         account_obj.cash_balance -= amount
         self.clients.resource_registry.update(account_obj)
-        return "Balance after cash withdrawl: %s" % (str(account_obj.cash_balance))
+        return "Balance after cash withdraw: %s" % (str(account_obj.cash_balance))
 
-    def get_balances(self, account_id=-1):
+    def get_balances(self, account_id=''):
         account_obj = self.clients.resource_registry.read(account_id)
         if account_obj is None:
-            raise NotFound("Account %d does not exist" % account_id)
+            raise NotFound("Account %s does not exist" % account_id)
         return account_obj.cash_balance, account_obj.bond_balance
 
     def buy_bonds(self, account_id='', cash_amount=0.0):
@@ -72,7 +72,7 @@ class BankService(BaseBankService):
         """
         account_obj = self.clients.resource_registry.read(account_id)
         if account_obj is None:
-            raise NotFound("Account %d does not exist" % account_id)
+            raise NotFound("Account %s does not exist" % account_id)
         if account_obj.cash_balance < cash_amount:
             raise BadRequest("Insufficient funds")
 
@@ -99,7 +99,7 @@ class BankService(BaseBankService):
         """
         account_obj = self.clients.resource_registry.read(account_id)
         if account_obj is None:
-            raise NotFound("Account %d does not exist" % account_id)
+            raise NotFound("Account %s does not exist" % account_id)
         if account_obj.bond_balance < quantity:
             raise BadRequest("Insufficient bonds")
 
