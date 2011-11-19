@@ -89,7 +89,7 @@ class BankService(BaseBankService):
             account_obj.cash_balance -= cash_amount
             account_obj.bond_balance += confirmation_obj.proceeds
             self.clients.resource_registry.update(account_obj)
-            return "Balances after bond purchase: cash %f    bonds: %s" % (account_obj.cash_balance,account_obj.bond_balance)
+            return "Balances after bond purchase: cash %f, bonds: %s" % (account_obj.cash_balance,account_obj.bond_balance)
         return "Bond purchase status is: %s" % confirmation_obj.status
 
     def sell_bonds(self, account_id='', quantity=0):
@@ -116,7 +116,7 @@ class BankService(BaseBankService):
             account_obj.cash_balance += confirmation_obj.proceeds
             account_obj.bond_balance -= quantity
             self.clients.resource_registry.update(account_obj)
-            return "Balances after bond sales: cash %f    bonds: %s" % (account_obj.cash_balance,account_obj.bond_balance)
+            return "Balances after bond sales: cash %f, bonds: %s" % (account_obj.cash_balance,account_obj.bond_balance)
         return "Bond sales status is: %s" % confirmation_obj.status
 
     def list_accounts(self, name=''):
