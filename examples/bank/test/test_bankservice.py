@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import unittest
-from mock import Mock, patch
+from mock import Mock, patch, sentinel
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, NotFound
@@ -313,9 +313,9 @@ class TestBankService(unittest.TestCase):
         self.mock_resource_registry.find = mock_find
         mock_customer_obj = Mock()
         mock_customer_obj._id = 'id_244'
-        mock_accounts = Mock()
         # Use mock side effect to simulate two different return results
-        results = [mock_accounts, [mock_customer_obj]]
+        # also an examples of using sentinel
+        results = [sentinel.accounts, [mock_customer_obj]]
         def side_effect(*args, **kwargs):
             return results.pop()
         mock_find.side_effect = side_effect
@@ -330,4 +330,4 @@ class TestBankService(unittest.TestCase):
         mock_find.assert_called_once_with([("type_", DataStore.EQUAL,
             "BankCustomer"), DataStore.AND, ("name", DataStore.EQUAL,
                 'Roger')])
-        self.assertTrue(accounts is mock_accounts)
+        self.assertEqual(accounts, sentinel.accounts)
