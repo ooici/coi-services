@@ -14,7 +14,8 @@ class TestTradeService(unittest.TestCase):
         self.trade_service.clients = Mock(name='mock_clients')
         # Force mock create to use signature, an exception will be thrown
         # if you are calling a method with wrong number of args from the
-        # interface spec, for examples you are calling an outdated method
+        # interface spec. For example, you are calling an outdated method
+        # against a service spec.
         self.mock_create = mocksignature(BaseResourceRegistryService.create,
                 mock=Mock(name='mock_create'),
                 skipfirst=True)

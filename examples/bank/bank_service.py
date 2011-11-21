@@ -42,7 +42,7 @@ class BankService(BaseBankService):
         return account_id
 
     def deposit(self, account_id='', amount=0.0):
-        account_obj = self.clients.resource_registry.read(account_id)
+        account_obj = self.clients.resource_registry.read(account_id, '')
         if account_obj is None:
             raise NotFound("Account %s does not exist" % account_id)
         account_obj.cash_balance += amount
@@ -50,7 +50,7 @@ class BankService(BaseBankService):
         return "Balance after cash deposit: %s" % (str(account_obj.cash_balance))
 
     def withdraw(self, account_id='', amount=0.0):
-        account_obj = self.clients.resource_registry.read(account_id)
+        account_obj = self.clients.resource_registry.read(account_id, '')
         if account_obj is None:
             raise NotFound("Account %s does not exist" % account_id)
         if account_obj.cash_balance < amount:
@@ -60,7 +60,7 @@ class BankService(BaseBankService):
         return "Balance after cash withdraw: %s" % (str(account_obj.cash_balance))
 
     def get_balances(self, account_id=''):
-        account_obj = self.clients.resource_registry.read(account_id)
+        account_obj = self.clients.resource_registry.read(account_id, '')
         if account_obj is None:
             raise NotFound("Account %s does not exist" % account_id)
         return account_obj.cash_balance, account_obj.bond_balance
@@ -70,7 +70,7 @@ class BankService(BaseBankService):
         Purchase the specified amount of bonds.  Check is first made
         that the cash account has sufficient funds.
         """
-        account_obj = self.clients.resource_registry.read(account_id)
+        account_obj = self.clients.resource_registry.read(account_id, '')
         if account_obj is None:
             raise NotFound("Account %s does not exist" % account_id)
         if account_obj.cash_balance < cash_amount:
@@ -97,7 +97,7 @@ class BankService(BaseBankService):
         Sell the specified amount of bonds.  Check is first made
         that the account has sufficient bonds.
         """
-        account_obj = self.clients.resource_registry.read(account_id)
+        account_obj = self.clients.resource_registry.read(account_id, '')
         if account_obj is None:
             raise NotFound("Account %s does not exist" % account_id)
         if account_obj.bond_balance < quantity:
