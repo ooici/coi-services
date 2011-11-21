@@ -45,6 +45,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.read(object_id, rev_id)
 
     def update(self, object={}):
+        # Do an check whether LCS has been modified
+        res_obj = self.read(object._id, object._rev)
+        assert res_obj.lcstate == object.lcstate, "Cannot modify life cycle state in update!"
         return self.resource_registry.update(object)
 
     def delete(self, object={}):

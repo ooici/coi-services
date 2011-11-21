@@ -11,14 +11,12 @@ class DirectoryService(BaseDirectoryService):
     def on_init(self):
         self.directory = Directory()
 
-    def add(self, parent='/', key='foo', value={}):
-        return self.directory.add(parent, key, value)
+    def register(self, parent='/', key='', attributes={}):
+        return self.directory.register(parent, key, **attributes)
 
-    def update(self, parent='/', key='foo', value={}):
-        return self.directory.update(parent, key, value)
+    def unregister(self, parent='/', key=''):
+        return self.directory.unregister(parent, key)
 
-    def read(self, parent='/', key='foo'):
-        return self.directory.read(parent, key)
+    def read(self, qualified_key='/'):
+        return self.directory.read(qualified_key)
 
-    def remove(self, parent='/', key='foo'):
-        return self.directory.remove(parent, key)
