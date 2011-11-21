@@ -1,18 +1,24 @@
 #! /usr/bin/env python
 
 import unittest
-from mock import Mock, patch
+from mock import Mock, patch, mocksignature
 from nose.plugins.attrib import attr
 
 from examples.bank.trade_service import TradeService
-
+from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 @attr('unit')
 class TestTradeService(unittest.TestCase):
 
     def setUp(self):
         self.trade_service = TradeService()
-        self.trade_service.clients = Mock()
-        self.mock_create = self.trade_service.clients.resource_registry.create
+        self.trade_service.clients = Mock(name='mock_clients')
+        # Force mock create to use signature, an exception will be thrown
+        # if you are calling a method with wrong number of args from the
+        # interface spec, for examples you are calling an outdated method
+        self.mock_create = mocksignature(BaseResourceRegistryService.create,
+                mock=Mock(name='mock_create'),
+                skipfirst=True)
+        self.trade_service.clients.resource_registry.create = self.mock_create
 
     @patch('examples.bank.trade_service.IonObject')
     def test_exercise_buy(self, mock_ionobj):
