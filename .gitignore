@@ -37,5 +37,4 @@ control_cc
 obj
 pycc
 pyon
-scripts
 cc-pid*
