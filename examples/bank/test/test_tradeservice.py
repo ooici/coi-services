@@ -2,17 +2,21 @@
 
 import unittest
 from mock import Mock, patch
+from pyon.util.test_utils import PyonUnitTestCase
 from nose.plugins.attrib import attr
 
 from examples.bank.trade_service import TradeService
-
+from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 @attr('unit')
-class TestTradeService(unittest.TestCase):
+class TestTradeService(PyonUnitTestCase):
 
     def setUp(self):
+        self._create_service_mock('resource_registry',
+                BaseResourceRegistryService, ['create'])
+        self.mock_create = self.resource_registry.create
+
         self.trade_service = TradeService()
-        self.trade_service.clients = Mock()
-        self.mock_create = self.trade_service.clients.resource_registry.create
+        self.trade_service.clients = self.clients
 
     @patch('examples.bank.trade_service.IonObject')
     def test_exercise_buy(self, mock_ionobj):
