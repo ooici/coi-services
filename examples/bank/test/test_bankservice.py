@@ -1,61 +1,37 @@
 #!/usr/bin/env python
 
 import unittest
-from mock import Mock, patch, sentinel, mocksignature
+from mock import Mock, sentinel
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, NotFound
 from examples.bank.bank_service import BankService
 from pyon.datastore.datastore import DataStore
-from pyon.util.test_utils import pop_last_call
+from pyon.util.test_utils import pop_last_call, PyonUnitTestCase
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 from interface.services.examples.bank.itrade_service import BaseTradeService
 
 @attr('unit')
-class TestBankService(unittest.TestCase):
-
-    def create_patch(self, name):
-        patcher = patch(name)
-        thing = patcher.start()
-        self.addCleanup(patcher.stop)
-        return thing
+class TestBankService(PyonUnitTestCase):
 
     def setUp(self):
-        self.mock_ionobj = self.create_patch('examples.bank.bank_service.IonObject')
+        self._create_service_mock('resource_registry',
+                BaseResourceRegistryService, ['create', 'find', 'read', 'update'])
+        self.mock_create = self.resource_registry.create
+        self.mock_find = self.resource_registry.find
+        self.mock_read = self.resource_registry.read
+        self.mock_update = self.resource_registry.update
+
+        self._create_service_mock('trade',
+                BaseTradeService, ['exercise'])
+        self.mock_exercise = self.trade.exercise
+
+        self.mock_ionobj = self._create_patch('examples.bank.bank_service.IonObject')
+
         self.bank_service = BankService()
-        mock_clients = Mock()
-        self.bank_service.clients = mock_clients
-        mock_resource_registry = mock_clients.resource_registry
-
-        # Force mock create to use signature, an exception will be thrown
-        # if you are calling a method with wrong number of args from the
-        # interface spec. For example, you are calling an outdated method
-        # against a service spec.
-        self.mock_create = mocksignature(BaseResourceRegistryService.create,
-                mock=Mock(name='mock_create'),
-                skipfirst=True)
-        self.mock_find = mocksignature(BaseResourceRegistryService.find,
-                mock=Mock(name='mock_find'),
-                skipfirst=True)
-        self.mock_read = mocksignature(BaseResourceRegistryService.read,
-                mock=Mock(name='mock_read'),
-                skipfirst=True)
-        self.mock_update = mocksignature(BaseResourceRegistryService.update,
-                mock=Mock(name='mock_update'),
-                skipfirst=True)
-        mock_resource_registry.create = self.mock_create
-        mock_resource_registry.find = self.mock_find
-        mock_resource_registry.read = self.mock_read
-        mock_resource_registry.update = self.mock_update
-
-        mock_trade = mock_clients.trade
-        self.mock_exercise = mocksignature(BaseTradeService.exercise,
-                mock=Mock(name='mock_exercise'),
-                skipfirst=True)
-        mock_trade.exercise = self.mock_exercise
+        self.bank_service.clients = self.clients
 
     def test_new_acct_existing_customer(self):
-
         mock_result = Mock()
         mock_result._id = 'id_5'
         self.mock_find.return_value = [mock_result]
