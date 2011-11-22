@@ -11,6 +11,7 @@ from interface.services.coi.iresource_registry_service import BaseResourceRegist
 class TestTradeService(PyonUnitTestCase):
 
     def setUp(self):
+        self.mock_ionobj = self._create_object_mock('examples.bank.trade_service.IonObject')
         self._create_service_mock('resource_registry',
                 BaseResourceRegistryService, ['create'])
         self.mock_create = self.resource_registry.create
@@ -18,8 +19,7 @@ class TestTradeService(PyonUnitTestCase):
         self.trade_service = TradeService()
         self.trade_service.clients = self.clients
 
-    @patch('examples.bank.trade_service.IonObject')
-    def test_exercise_buy(self, mock_ionobj):
+    def test_exercise_buy(self):
         # set up order
         order = Mock()
         order.type = 'buy'
@@ -32,28 +32,27 @@ class TestTradeService(PyonUnitTestCase):
 
         # assert resource_registry.create did get called with correct
         # arguments
-        assert confirmation_obj is mock_ionobj.return_value
+        assert confirmation_obj is self.mock_ionobj.return_value
         self.mock_create.assert_called_once_with(order)
         # assert mock ion object is called
         confirmation_dict = {
                 'tracking_number' : '111',
                 'status' : 'complete',
                 'proceeds' : 156 / 1.56}
-        mock_ionobj.assert_called_once_with('Confirmation',
+        self.mock_ionobj.assert_called_once_with('Confirmation',
                  confirmation_dict)
 
-    @patch('examples.bank.trade_service.IonObject')
-    def test_exercise_sell(self, mock_ionobj):
+    def test_exercise_sell(self):
         order = Mock()
         order.type = 'sell'
         order.bond_amount = 156
         self.mock_create.return_value = ['123']
         confirmation_obj = self.trade_service.exercise(order)
-        assert confirmation_obj is mock_ionobj.return_value
+        assert confirmation_obj is self.mock_ionobj.return_value
         self.mock_create.assert_called_once_with(order)
         confirmation_dict = {
                 'tracking_number' : '123',
                 'status' : 'complete',
                 'proceeds' : 156 * 1.56}
-        mock_ionobj.assert_called_once_with('Confirmation',
+        self.mock_ionobj.assert_called_once_with('Confirmation',
                 confirmation_dict)

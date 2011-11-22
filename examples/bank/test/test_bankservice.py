@@ -15,6 +15,8 @@ from interface.services.examples.bank.itrade_service import BaseTradeService
 class TestBankService(PyonUnitTestCase):
 
     def setUp(self):
+        self.mock_ionobj = self._create_object_mock('examples.bank.bank_service.IonObject')
+
         self._create_service_mock('resource_registry',
                 BaseResourceRegistryService, ['create', 'find', 'read', 'update'])
         self.mock_create = self.resource_registry.create
@@ -25,8 +27,6 @@ class TestBankService(PyonUnitTestCase):
         self._create_service_mock('trade',
                 BaseTradeService, ['exercise'])
         self.mock_exercise = self.trade.exercise
-
-        self.mock_ionobj = self._create_patch('examples.bank.bank_service.IonObject')
 
         self.bank_service = BankService()
         self.bank_service.clients = self.clients
