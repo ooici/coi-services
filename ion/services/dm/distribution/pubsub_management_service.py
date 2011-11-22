@@ -25,12 +25,11 @@ class PubsubManagementService(BasePubsubManagementService):
 #
 #        # Return the stream id
 #        return stream_id
-
-
+        
         stream_obj = IonObject("Stream", stream)
-        id,rev = self.clients.resource_registry.create(stream_obj)
+        id, rev = self.clients.resource_registry.create(stream_obj)
 
-        return id,rev
+        return id
 
     def update_stream(self, stream={}):
         """
@@ -40,7 +39,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        return self.clients.resource_registry.update(stream)
 
     def read_stream(self, stream_id=''):
         """
@@ -50,7 +49,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream: {}
         #
-        stream_obj = self.clients.resource_registry.read(stream_id)
+        stream_obj = self.clients.resource_registry.find(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
         return stream_obj
@@ -66,6 +65,9 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_obj = self.read_stream(stream_id)
         if stream_obj is not None:
             self.clients.resource_registry.delete(stream_obj)
+            return True
+        else:
+            return False
 
 
     def find_streams(self, filter={}):

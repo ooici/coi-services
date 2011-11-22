@@ -4,13 +4,15 @@ from pyon.public import Container
 from pyon.test.pyontest import PyonTestCase
 from interface.services.dm.ipubsub_management_service import IPubsubManagementService
 from pyon.core.bootstrap import IonObject
-
+from pyon.util.log import log
 
 from pyon.public import log
 
 
 class FakeProcess(object):
     name = ''
+    def get_context(self):
+        pass
 
 class Test_PubSub(PyonTestCase):
 
@@ -32,52 +34,43 @@ class Test_PubSub(PyonTestCase):
     def runTest(self):
         pass
 
-    def test_runTests(self, container):
+    def runStream(self, container):
         # Now create client to pubsub service
         client = ProcessRPCClient(node=container.node, name="pubsub", iface=IPubsubManagementService, process=FakeProcess())
 
-        self.test_createPubSub(client, container)
-        self.test_readPubSub(client, container)
-        self.test_deletePubSub(client, container)
+        #log.debug("****************************************************************************************")
+        #log.debug("*****************************************CREATE*****************************************")
+        #log.debug("****************************************************************************************")
+        self.createPubSubStream(client, container)
+        #log.debug("****************************************************************************************")
+        #log.debug("*****************************************READ*******************************************")
+        #log.debug("****************************************************************************************")
+        self.readPubSubStream(client, container)
+        #log.debug("****************************************************************************************")
+        #log.debug("*****************************************UPDATE*****************************************")
+        #log.debug("****************************************************************************************")
+        self.updatePubSubStream(client, container)
+        #log.debug("****************************************************************************************")
+        #log.debug("*****************************************DELETE*****************************************")
+        #log.debug("****************************************************************************************")
+        self.deletePubSubStream(client, container)
 
-    def test_createPubSub(self, client, container):
+    def createPubSubStream(self, client, container):
         archive = {}
-        stream_resource_dict = {"mimetype": "", "encoding": "", "archive" : archive, "url" : ""}
+        #stream_resource_dict = {"mimetype": "", "encoding": "", "archive" : archive, "url" : "", "name" : "SampleStream", "description" : "Sample Stream In PubSub"}
+        stream_resource_dict = {"mimetype": "", "name" : "SampleStream", "description" : "Sample Stream In PubSub"}
 
-        self.streamID,self.streamRev = client.create_stream(stream_resource_dict)
-
-    def test_readPubSub(self, client, container):
+        self.streamID = client.create_stream(stream_resource_dict)
+        
+    def readPubSubStream(self, client, container):
         stream_obj = client.read_stream(self.streamID)
 
-    def test_deletePubSub(self, client, container):
+    def updatePubSubStream(self, client, container):
+        stream_obj = client.read_stream(self.streamID)
+        stream_obj.name = "SampleStream2"
+        stream_obj.description = "Updated Sample Stream"
+        client.update_stream(stream_obj)
+        stream_obj = client.read_stream(self.streamID)
+
+    def deletePubSubStream(self, client, container):
         client.delete_stream(self.streamID)
-
-    """
-    def test_bank(self):
-        
-        # Send some requests
-        print 'Creating savings account'
-        savingsAcctNum = self.client.new_account('kurt', 'Savings')
-        print "New savings account number: " + str(savingsAcctNum)
-        print "Starting savings balance %s" % str(self.client.get_balances(savingsAcctNum))
-        self.client.deposit(savingsAcctNum, 99999999)
-        print "Savings balance after deposit %s" % str(self.client.get_balances(savingsAcctNum))
-        self.client.withdraw(savingsAcctNum, 1000)
-        print "Savings balance after withdrawl %s" % str(self.client.get_balances(savingsAcctNum))
-
-        print "Buying 1000 savings bonds"
-        self.client.buy_bonds(savingsAcctNum, 1000)
-        print "Savings balance after bond purchase %s" % str(self.client.get_balances(savingsAcctNum))
-
-        checkingAcctNum = self.client.new_account('kurt', 'Checking')
-        print "New checking account number: " + str(checkingAcctNum)
-        print "Starting checking balance %s" % str(self.client.get_balances(checkingAcctNum))
-        self.client.deposit(checkingAcctNum, 99999999)
-        print "Confirming checking balance after deposit %s" % str(self.client.get_balances(checkingAcctNum))
-        self.client.withdraw(checkingAcctNum, 1000)
-        print "Confirming checking balance after withdrawl %s" % str(self.client.get_balances(checkingAcctNum))
-
-        acctList = self.client.list_accounts('kurt')
-        self.assertTrue(len(acctList) == 2)
-
-    """
