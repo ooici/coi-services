@@ -23,6 +23,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Call Data Aquisition Mgmt Svc:define_data_producer to coordinate creation of topic and connection to source
 
         # Return a resource ref
+        print "DataProductManagementService:create_data_product"
         pass
 
     def update_data_product(self, data_product={}):
