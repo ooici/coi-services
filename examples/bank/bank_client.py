@@ -1,7 +1,8 @@
 from pyon.net.endpoint import ProcessRPCClient
 from interface.services.examples.bank.ibank_service import IBankService
+from pyon.util.context import LocalContextMixin
 
-class FakeProcess(object):
+class FakeProcess(LocalContextMixin):
     name = ''
 
 def run_client(container):
