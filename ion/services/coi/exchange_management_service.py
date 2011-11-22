@@ -14,7 +14,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         assert xs and org_id, "Arguments not set"
         xs_id,rev = self.clients.resource_registry.create(xs)
 
-        aid = self.clients.resource_registry.create_association(org_id, AT.HAS_A, xs_id)
+        aid = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, xs_id)
 
         # Now do the work
         if xs.name == "ioncore":
@@ -45,7 +45,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
     def declare_exchange_name(exchange_name=None, exchange_space_id=''):
         res,rev = self.clients.resource_registry.create(exchange_name)
 
-        aid = self.clients.resource_registry.create_association(exchange_space, AT.HAS_A, res)
+        aid = self.clients.resource_registry.create_association(exchange_space, AT.hasExchangeName, res)
 
         return res
 
@@ -59,7 +59,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         xp = IonObject(RT.ExchangePoint, dict(name=name))
         res,rev = self.clients.resource_registry.create(xp)
 
-        #aid = self.clients.resource_registry.create_association(exchange_space, AT.HAS_A, res)
+        #aid = self.clients.resource_registry.create_association(exchange_space, AT.hasExchangePoint, res)
         return res
 
     def update_exchange_point(self, exchange_point_id=''):

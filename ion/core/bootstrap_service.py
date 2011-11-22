@@ -66,6 +66,9 @@ class BootstrapService(BaseBootstrapService):
         (cid, cv) = self.clients.datastore.create_doc(cookie, cookie_name)
 
     def post_directory(self, config):
+        # Load service definitions into directory
+        # Load resource types into directory
+        # Load object types into directory
         pass
 
     def post_resource_registry(self, config):
@@ -89,16 +92,16 @@ class BootstrapService(BaseBootstrapService):
 
     def post_startup(self):
         # Do some sanity tests across the board
-        org_ids, _ = self.clients.resource_registry.find_res_bytype(RT.Org, None, True)
+        org_ids, _ = self.clients.resource_registry.find_res_by_type(RT.Org, None, True)
         assert len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined"
 
-        xs_ids, _ = self.clients.resource_registry.find_res_bytype(RT.ExchangeSpace, None, True)
+        xs_ids, _ = self.clients.resource_registry.find_res_by_type(RT.ExchangeSpace, None, True)
         assert len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined"
 
-        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.HAS_A, RT.ExchangeSpace, True)
+        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.hasExchangeSpace, RT.ExchangeSpace, True)
         assert len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated"
 
-        res_ids, _ = self.clients.resource_registry.find_subjects(self.xs_id, AT.HAS_A, RT.Org, True)
+        res_ids, _ = self.clients.resource_registry.find_subjects(self.xs_id, AT.hasExchangeSpace, RT.Org, True)
         assert len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated"
 
     def on_quit(self):
@@ -106,7 +109,6 @@ class BootstrapService(BaseBootstrapService):
 
 
 def start(container, starttype, app_definition, config):
-    print "****", config
     level = config.get("level", 0)
     log.debug("Bootstrap Trigger Level: %s" % level)
     bootstrap_instance.trigger_level(level, config)
