@@ -16,20 +16,17 @@ class TestBankService(PyonUnitTestCase):
 
     def setUp(self):
         self.mock_ionobj = self._create_object_mock('examples.bank.bank_service.IonObject')
+        self._create_service_mock('bank'),
 
-        self._create_service_mock('resource_registry',
-                BaseResourceRegistryService, ['create', 'find', 'read', 'update'])
+        self.bank_service = BankService()
+        self.bank_service.clients = self.clients
+
+        # Rename to save some typing
         self.mock_create = self.resource_registry.create
         self.mock_find = self.resource_registry.find
         self.mock_read = self.resource_registry.read
         self.mock_update = self.resource_registry.update
-
-        self._create_service_mock('trade',
-                BaseTradeService, ['exercise'])
         self.mock_exercise = self.trade.exercise
-
-        self.bank_service = BankService()
-        self.bank_service.clients = self.clients
 
     def test_new_acct_existing_customer(self):
         mock_result = Mock()
