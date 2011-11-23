@@ -92,10 +92,10 @@ class BootstrapService(BaseBootstrapService):
 
     def post_startup(self):
         # Do some sanity tests across the board
-        org_ids, _ = self.clients.resource_registry.find_res_by_type(RT.Org, None, True)
+        org_ids, _ = self.clients.resource_registry.find_by_type(RT.Org, None, True)
         assert len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined"
 
-        xs_ids, _ = self.clients.resource_registry.find_res_by_type(RT.ExchangeSpace, None, True)
+        xs_ids, _ = self.clients.resource_registry.find_by_type(RT.ExchangeSpace, None, True)
         assert len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined"
 
         res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.hasExchangeSpace, RT.ExchangeSpace, True)

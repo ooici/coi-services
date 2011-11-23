@@ -53,20 +53,11 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def delete(self, object={}):
         return self.resource_registry.delete_doc(object)
 
-    def find(self, criteria=[]):
-        return self.resource_registry.find(criteria)
-
     def execute_lifecycle_transition(resource_id='', lcstate=''):
         res_obj = self.read(resource_id)
         res_obj.lcstate = lcstate
         assert lcstate in LCS, "Unknown life-cycle state %s" % lcstate
         return self.update(res_obj)
-
-    def define_resource_lifecycle(self):
-        return True
-
-    def delete_resource_lifecycle(self):
-        return True
 
     def create_association(self, subject=None, predicate=None, object=None):
         return self.resource_registry.create_association(subject, predicate, object)
@@ -74,17 +65,20 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def delete_association(self, association=''):
         return self.resource_registry.delete_association(association, datastore_name)
 
+    def find(self, **kwargs):
+        raise NotImplementedError("Do not use find. Use a specific find operation instead.")
+
     def find_objects(self, subject=None, predicate=None, object_type=None, id_only=False):
         return self.resource_registry.find_objects(subject, predicate, object_type, id_only=id_only)
 
     def find_subjects(self, object=None, predicate=None, subject_type=None, id_only=False):
         return self.resource_registry.find_subjects(object, predicate, subject_type, id_only=id_only)
 
-    def find_res_by_type(self, restype, lcstate=None, id_only=False):
+    def find_by_type(self, restype, lcstate=None, id_only=False):
         return self.resource_registry.find_res_by_type(restype, lcstate, id_only=id_only)
 
-    def find_res_by_lcstate(self, lcstate, restype=None, id_only=False):
+    def find_by_lcstate(self, lcstate, restype=None, id_only=False):
         return self.resource_registry.find_res_by_lcstate(lcstate, restype, id_only=id_only)
 
-    def find_res_by_name(self, name, restype=None, id_only=False):
+    def find_by_name(self, name, restype=None, id_only=False):
         return self.resource_registry.find_res_by_name(name, restype, id_only=id_only)
