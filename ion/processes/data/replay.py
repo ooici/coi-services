@@ -28,6 +28,7 @@ class ReplayProcess(StreamProcess):
 
     def on_quit(self, *args, **kwargs):
         # We are getting interrupted
+        pass
 
     def process(self, packet):
         # We don't receive any input nominally
