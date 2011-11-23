@@ -1,14 +1,14 @@
 from pyon.container.cc import IContainerAgent
 from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container
-from pyon.test.pyontest import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from interface.services.examples.bank.ibank_service import IBankService
 
 class FakeProcess(LocalContextMixin):
     name = ''
 
-class Test_Bank(PyonTestCase):
+class Test_Bank(IonIntegrationTestCase):
 
     def test_bank(self):
         # Start container
