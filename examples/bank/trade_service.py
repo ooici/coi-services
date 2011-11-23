@@ -18,14 +18,7 @@ class TradeService(BaseTradeService):
         order_create_tuple = self.clients.resource_registry.create(order)
 
         # Create confirmation response object
-        confirmation_info = {}
-        confirmation_info["tracking_number"] = order_create_tuple[0]
-        confirmation_info["status"] = "complete"
-        if order.type == 'buy':
-            confirmation_info["proceeds"] = order.cash_amount / bond_price
-        else:
-            confirmation_info["proceeds"] = order.bond_amount * bond_price
-
-        confirmation_obj = IonObject("Confirmation", confirmation_info)
+        proceeds = order.cash_amount / bond_price if order.type == 'buy' else order.bond_amount * bond_price
+        confirmation_obj = IonObject("Confirmation", tracking_number=order_create_tuple[0], status="complete", proceeds=proceeds)
 
         return confirmation_obj
