@@ -4,10 +4,7 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.ion.public import RT, LCS, AT
-from pyon.public import CFG, IonObject, log, sys_name
-
-from ion.core.streamproc import StreamProcess
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, AT, StreamProcess
 
 class ReplayProcess(StreamProcess):
     def on_init(self, *args, **kwargs):

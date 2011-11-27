@@ -2,8 +2,7 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.public import CFG, IonObject, log
-from pyon.ion.public import RT, AT
+from pyon.public import CFG, IonObject, log, RT, AT
 
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 

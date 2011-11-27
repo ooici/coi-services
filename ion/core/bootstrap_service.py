@@ -4,9 +4,7 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.ion.resource import RT_LIST
-from pyon.ion.public import RT, LCS, AT
-from pyon.public import CFG, IonObject, log, sys_name
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, AT
 
 from interface.services.ibootstrap_service import BaseBootstrapService
 
@@ -63,7 +61,7 @@ class BootstrapService(BaseBootstrapService):
         # Now set the secret cookie
         import time
         cookie = dict(container=self.container.id, time=time.time())
-        (cid, cv) = self.clients.datastore.create_doc(cookie, cookie_name)
+        cid, _ = self.clients.datastore.create_doc(cookie, cookie_name)
 
     def post_directory(self, config):
         # Load service definitions into directory
@@ -72,7 +70,7 @@ class BootstrapService(BaseBootstrapService):
         pass
 
     def post_resource_registry(self, config):
-        for res in RT_LIST:
+        for res in RT.keys():
             rt = IonObject("ResourceType", name=res)
             #self.clients.datastore.create(rt)
 

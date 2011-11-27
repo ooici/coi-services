@@ -7,7 +7,7 @@ from pyon.core.bootstrap import sys_name
 from pyon.core.exception import NotFound
 from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.datastore.mockdb.mockdb_datastore import MockDB_DataStore
-from pyon.ion.public import LCS
+from pyon.public import LCS
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
