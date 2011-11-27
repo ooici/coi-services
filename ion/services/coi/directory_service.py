@@ -17,6 +17,6 @@ class DirectoryService(BaseDirectoryService):
     def unregister(self, parent='/', key=''):
         return self.directory.unregister(parent, key)
 
-    def read(self, qualified_key='/'):
-        return self.directory.read(qualified_key)
+    def lookup(self, qualified_key='/'):
+        return self.directory.lookup(qualified_key)
 
