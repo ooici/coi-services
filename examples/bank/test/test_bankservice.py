@@ -133,7 +133,7 @@ class TestBankService(PyonTestCase):
 
         # exercise code
         with self.assertRaises(NotFound) as cm:
-            self.bank_service.withdraw('id_5')
+            self.bank_service.get_balances('id_5')
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Account id_5 does not exist')
