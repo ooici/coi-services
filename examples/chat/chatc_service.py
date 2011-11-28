@@ -2,10 +2,7 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import CFG
-from pyon.util.log import log
-from pyon.util.containers import DotDict
 
 from interface.services.examples.chat.ichatc_service import BaseChatcService
 

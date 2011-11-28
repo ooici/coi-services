@@ -4,9 +4,7 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.ion.resource import RT_LIST
-from pyon.ion.public import RT, LCS, AT
-from pyon.public import CFG, IonObject, log, sys_name
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, AT
 
 from interface.services.ibootstrap_service import BaseBootstrapService
 
@@ -63,7 +61,7 @@ class BootstrapService(BaseBootstrapService):
         # Now set the secret cookie
         import time
         cookie = dict(container=self.container.id, time=time.time())
-        (cid, cv) = self.clients.datastore.create_doc(cookie, cookie_name)
+        cid, _ = self.clients.datastore.create_doc(cookie, cookie_name)
 
     def post_directory(self, config):
         # Load service definitions into directory
@@ -72,7 +70,7 @@ class BootstrapService(BaseBootstrapService):
         pass
 
     def post_resource_registry(self, config):
-        for res in RT_LIST:
+        for res in RT.keys():
             rt = IonObject("ResourceType", name=res)
             #self.clients.datastore.create(rt)
 
@@ -92,10 +90,10 @@ class BootstrapService(BaseBootstrapService):
 
     def post_startup(self):
         # Do some sanity tests across the board
-        org_ids, _ = self.clients.resource_registry.find_res_by_type(RT.Org, None, True)
+        org_ids, _ = self.clients.resource_registry.find_by_type(RT.Org, None, True)
         assert len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined"
 
-        xs_ids, _ = self.clients.resource_registry.find_res_by_type(RT.ExchangeSpace, None, True)
+        xs_ids, _ = self.clients.resource_registry.find_by_type(RT.ExchangeSpace, None, True)
         assert len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined"
 
         res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.hasExchangeSpace, RT.ExchangeSpace, True)

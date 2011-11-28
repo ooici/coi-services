@@ -31,14 +31,13 @@
     <target name="compile" depends="init" description="Compile the source">
         <py-compile dir="${src}" pythonpath="${src}" optimize="0"/>
         <py-compile dir="scripts" pythonpath="${src}" optimize="0"/>
-        <py-compile dir="prototype" pythonpath="${src}" optimize="0"/>
     </target>
 
     <target name="clean" description="clean up">
         <delete failonerror="false">
             <fileset dir="${src}" includes="**/*.pyc"/>
             <fileset dir="scripts" includes="**/*.pyc"/>
-            <fileset dir="prototype" includes="**/*.pyc"/>
+            <fileset dir="examples" includes="**/*.pyc"/>
         </delete>
         <delete dir="interface" failonerror="false"/>
         <delete dir="${build}" failonerror="false"/>

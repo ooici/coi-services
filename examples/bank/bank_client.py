@@ -1,7 +1,8 @@
 from pyon.net.endpoint import ProcessRPCClient
 from interface.services.examples.bank.ibank_service import IBankService
+from pyon.util.context import LocalContextMixin
 
-class FakeProcess(object):
+class FakeProcess(LocalContextMixin):
     name = ''
 
 def run_client(container):
@@ -18,7 +19,7 @@ def run_client(container):
     client.deposit(savingsAcctNum, 99999999)
     print "Savings balance after deposit %s" % str(client.get_balances(savingsAcctNum))
     client.withdraw(savingsAcctNum, 1000)
-    print "Savings balance after withdrawl %s" % str(client.get_balances(savingsAcctNum))
+    print "Savings balance after withdrawal %s" % str(client.get_balances(savingsAcctNum))
 
     print "Buying 1000 savings bonds"
     client.buy_bonds(savingsAcctNum, 1000)
@@ -30,7 +31,7 @@ def run_client(container):
     client.deposit(checkingAcctNum, 99999999)
     print "Confirming checking balance after deposit %s" % str(client.get_balances(checkingAcctNum))
     client.withdraw(checkingAcctNum, 1000)
-    print "Confirming checking balance after withdrawl %s" % str(client.get_balances(checkingAcctNum))
+    print "Confirming checking balance after withdrawal %s" % str(client.get_balances(checkingAcctNum))
 
     acctList = client.list_accounts('kurt')
     for acct_obj in acctList:
