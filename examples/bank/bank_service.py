@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-"""
+'''
 Example service that provides basic banking functionality.
 This service tracks customers and their accounts (checking or saving)
-"""
+'''
 
 __author__ = 'Thomas R. Lennan'
 
@@ -14,8 +14,19 @@ from pyon.util.log import log
 from interface.services.examples.bank.ibank_service import BaseBankService
 
 class BankService(BaseBankService):
+    '''A demo class, it's really just for demonstration'''
 
     def new_account(self, name='', account_type='Checking'):
+        '''Create a new bank account.
+
+        If customer does not exist, create a customer account first before
+        creating a bank account.
+
+        @param name Customer name
+        @param account_type Checking or Savings
+        @retval account_id Newly created bank account id
+        '''
+
         find_res, _ = self.clients.resource_registry.find_by_name(name, "BankCustomer", True)
         if len(find_res) == 0:
             # Create customer info entry
@@ -31,6 +42,14 @@ class BankService(BaseBankService):
         return account_id
 
     def deposit(self, account_id='', amount=0.0):
+        '''Deposits cash into an account
+
+        @param account_id bank account id
+        @param amount Cash deposit amount
+        @retval status A string specifying balance after cash deposit
+        @throws NotFound when account id doesn't exist
+        '''
+
         account_obj = self.clients.resource_registry.read(account_id)
         if not account_obj:
             raise NotFound("Account %s does not exist" % account_id)
