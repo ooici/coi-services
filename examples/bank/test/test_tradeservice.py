@@ -1,5 +1,11 @@
 #! /usr/bin/env python
 
+'''
+@file examples/bank/test/test_tradeservice.py
+@author Jamie Chen
+@test examples.bank.trade_service Unit test suite to cover all trade service code
+'''
+
 import unittest
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase

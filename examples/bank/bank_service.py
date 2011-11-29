@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
 '''
-Example service that provides basic banking functionality.
+@package examples.bank.bank_service Implementation of IBankService inteface
+@file examples/bank/bank_service.py
+@author Thomas R. Lennan
+@brief Example service that provides basic banking functionality.
 This service tracks customers and their accounts (checking or saving)
 '''
-
-__author__ = 'Thomas R. Lennan'
 
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import IonObject
@@ -13,13 +14,16 @@ from pyon.util.log import log
 
 from interface.services.examples.bank.ibank_service import BaseBankService
 
+__author__ = 'Thomas R. Lennan'
+
 class BankService(BaseBankService):
-    '''A demo class, it's really just for demonstration'''
+    '''A demo class, it's really just for demonstration.  This class uses
+    resource registry client and a trade client.'''
 
     def new_account(self, name='', account_type='Checking'):
         '''Create a new bank account.
 
-        If customer does not exist, create a customer account first before
+        @note If customer does not exist, create a customer account first before
         creating a bank account.
 
         @param name Customer name
