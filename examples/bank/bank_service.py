@@ -9,7 +9,7 @@ This service tracks customers and their accounts (checking or saving)
 '''
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import IonObject
+from pyon.public import IonObject, AT
 from pyon.util.log import log
 
 from interface.services.examples.bank.ibank_service import BaseBankService
@@ -40,8 +40,11 @@ class BankService(BaseBankService):
             customer_id = find_res[0]
 
         # Create account entry
-        account_obj = IonObject("BankAccount", account_type=account_type, owner=customer_id)
+        account_obj = IonObject("BankAccount", account_type=account_type)
         account_id, _ = self.clients.resource_registry.create(account_obj)
+
+        # Create association
+        self.clients.resource_registry.create_association(customer_id, AT.hasAccount, account_id)
 
         return account_id
 
@@ -91,8 +94,10 @@ class BankService(BaseBankService):
         if account_obj.cash_balance < cash_amount:
             raise BadRequest("Insufficient funds")
 
+        owner_obj = self.clients.resource_registry.find_subjects(account_obj, AT.hasAccount, "BankCustomer", False)[0][0]
+
         # Create order object and call trade service
-        order_obj = IonObject("Order", type="buy", on_behalf=account_obj.owner, cash_amount=cash_amount)
+        order_obj = IonObject("Order", type="buy", on_behalf=owner_obj.name, cash_amount=cash_amount)
 
         # Make the call to trade service
         confirmation_obj = self.clients.trade.exercise(order_obj)
@@ -115,8 +120,10 @@ class BankService(BaseBankService):
         if account_obj.bond_balance < quantity:
             raise BadRequest("Insufficient bonds")
 
+        owner_obj = self.clients.resource_registry.find_subjects(account_obj, AT.hasAccount, "BankCustomer", False)[0][0]
+
         # Create order object and call trade service
-        order_obj = IonObject("Order", type="sell", on_behalf=account_obj.owner, bond_amount=quantity)
+        order_obj = IonObject("Order", type="sell", on_behalf=owner_obj.name, bond_amount=quantity)
 
         confirmation_obj = self.clients.trade.exercise(order_obj)
 
@@ -136,6 +143,6 @@ class BankService(BaseBankService):
             log.error("No customers found")
             return []
         customer_obj = customer_list[0]
-        accounts_all, _ = self.clients.resource_registry.find_by_type("BankAccount")
-        accounts = [acc for acc in accounts_all if acc.owner == customer_obj._id]
+
+        accounts, _ = self.clients.resource_registry.find_objects(customer_obj, AT.hasAccount, "BankAccount", False)
         return accounts
