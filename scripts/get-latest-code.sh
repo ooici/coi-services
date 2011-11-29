@@ -32,4 +32,4 @@ echo "\n\n=== BUILDING OUT ===\n"
 bin/buildout
 
 echo "\n\n=== GENERATING INTERFACES ===\n"
-bin/generate_interfaces
+bin/generate_interfaces --force
