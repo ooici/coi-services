@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+'''
+@file examples/bank/test/test_bankservice.py
+@author Jamie Chen
+@test examples.bank.bank_service Unit test suite to cover all bank service code
+'''
+
 import unittest
 from mock import Mock, sentinel
 from nose.plugins.attrib import attr
