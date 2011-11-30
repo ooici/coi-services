@@ -17,6 +17,10 @@ git pull --rebase
 echo "\n\n=== UPDATING COI-SERVICES ===\n"
 cd $THISDIR
 git pull --rebase
+if [ $? -ne 0 ]; then
+    echo "\n$(basename $0) aborting because pull failed (probably have unstashed changes)"
+    exit 1
+fi
 
 echo "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
 cd extern/ion-definitions
