@@ -1,0 +1,8 @@
+[run]
+source =
+    ion
+    examples
+[report]
+
+[html]
+directory = coverage_results
