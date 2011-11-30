@@ -6,46 +6,46 @@
 @test examples.bank.bank_service Unit test suite to cover all bank service code
 '''
 
-import unittest
 from mock import Mock, sentinel
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, NotFound
+from pyon.public import AT
 from examples.bank.bank_service import BankService
-from pyon.datastore.datastore import DataStore
 from pyon.util.unit_test import pop_last_call, PyonTestCase
-from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
-from interface.services.examples.bank.itrade_service import BaseTradeService
 
 @attr('unit')
 class TestBankService(PyonTestCase):
 
     def setUp(self):
         self.mock_ionobj = self._create_object_mock('examples.bank.bank_service.IonObject')
-        self._create_service_mock('bank'),
+        self._create_service_mock('bank')
 
         self.bank_service = BankService()
         self.bank_service.clients = self.clients
 
         # Rename to save some typing
         self.mock_create = self.resource_registry.create
+        self.mock_create_association = self.resource_registry.create_association
         self.mock_read = self.resource_registry.read
         self.mock_update = self.resource_registry.update
         self.mock_find_by_name = self.resource_registry.find_by_name
         self.mock_find_by_type = self.resource_registry.find_by_type
+        self.mock_find_objects = self.resource_registry.find_objects
+        self.mock_find_subjects = self.resource_registry.find_subjects
         self.mock_exercise = self.trade.exercise
 
     def test_new_acct_existing_customer(self):
         self.mock_find_by_name.return_value = (['id_5'], 'I do not care')
         self.mock_create.return_value = ('id_2', 'I do not care')
 
+        # Execute the service operation call
         account_id = self.bank_service.new_account('John')
 
-        self.mock_find_by_name.assert_called_once_with('John',
-                'BankCustomer', True)
-        self.mock_ionobj.assert_called_once_with('BankAccount',
-                account_type='Checking', owner='id_5')
+        self.mock_find_by_name.assert_called_once_with('John', 'BankCustomer', True)
+        self.mock_ionobj.assert_called_once_with('BankAccount', account_type='Checking')
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
+        self.mock_create_association.assert_called_once_with('id_5', AT.hasAccount, 'id_2')
         self.assertEqual(account_id, 'id_2')
 
     def test_new_acct_new_customer(self):
@@ -57,14 +57,13 @@ class TestBankService(PyonTestCase):
             return results.pop()
         self.mock_create.side_effect = side_effect
 
+        # Execute the service operation call
         account_id = self.bank_service.new_account('John')
 
-        self.mock_find_by_name.assert_called_once_with('John',
-                'BankCustomer', True)
+        self.mock_find_by_name.assert_called_once_with('John', 'BankCustomer', True)
         # assert last call first, pop the stack, assert the previous one
         self.assertEqual(self.mock_ionobj.call_count, 2)
-        self.mock_ionobj.assert_called_with('BankAccount',
-                account_type='Checking', owner='cust_id_1')
+        self.mock_ionobj.assert_called_with('BankAccount', account_type='Checking')
         pop_last_call(self.mock_ionobj)
         self.mock_ionobj.assert_called_once_with('BankCustomer', name='John')
         # assert last call first, pop the stack, assert the previous one
@@ -72,6 +71,7 @@ class TestBankService(PyonTestCase):
         self.mock_create.assert_called_with(self.mock_ionobj.return_value)
         pop_last_call(self.mock_create)
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
+        self.mock_create_association.assert_called_once_with('id_5', AT.hasAccount, account_id)
         self.assertEqual(account_id, 'acct_id_2')
 
     def test_deposit_not_found(self):
