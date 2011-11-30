@@ -18,7 +18,7 @@ from pyon.util.unit_test import pop_last_call, PyonTestCase
 class TestBankService(PyonTestCase):
 
     def setUp(self):
-        self.mock_ionobj = self._create_object_mock('examples.bank.bank_service.IonObject')
+        self.mock_ionobj = self._create_IonObject_mock('examples.bank.bank_service.IonObject')
         self._create_service_mock('bank')
 
         self.bank_service = BankService()
