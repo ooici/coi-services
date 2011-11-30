@@ -21,7 +21,7 @@ git pull --rebase
 echo "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
 cd extern/ion-definitions
 git checkout master
-if [[ $? -ne 0 ]]; then
+if [ $? -ne 0 ]; then
     echo "\n$(basename $0) aborting due to inability to switch branches"
     exit 1
 fi
