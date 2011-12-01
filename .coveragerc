@@ -2,6 +2,9 @@
 source =
     ion
     examples
+omit =
+    */test/*
+
 [report]
 
 [html]
