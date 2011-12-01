@@ -72,7 +72,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.find_objects(subject, predicate, object_type, id_only=id_only)
 
     def find_subjects(self, subject_type=None, predicate=None, object=None, id_only=False):
-        return self.resource_registry.find_subjects(object, predicate, subject_type, id_only=id_only)
+        return self.resource_registry.find_subjects(subject_type, predicate, object, id_only=id_only)
 
     def find_associations(self, subject=None, predicate=None, object=None, id_only=False):
         return self.resource_registry.find_associations(subject, predicate, object, id_only=id_only)
