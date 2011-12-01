@@ -45,7 +45,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             DataStreamId = ''        # TODO: what data_acquisition_management operation gets this value?
             # TODO: make associations between data_producer and data_product
             
-        return dataProduct_id  
+        return dataProduct_id
 
 
     def update_data_product(self, data_product={}):
@@ -54,6 +54,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         # Update metadata for a specific data product
         # Return updated data product resource
+ 
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
         
         result = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", id_only=False)
@@ -67,7 +68,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         except Conflict as ex:
             raise ex
             
-        return dataProduct  
+        return dataProduct
 
 
     def read_data_product(self, data_product_id=''):
@@ -76,13 +77,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         # Retrieve all metadata for a specific data product
         # Return data product resource
+
         log.debug("DataProductManagementService:read_data_product: %s" % str(data_product_id))
         
         try:
             result = self.clients.resource_registry.read(data_product_id)
         except NotFound:
             raise BadRequest("The data product with id '%s' does not exists" % str(data_product_id))  
-        return result  
+        return result
 
 
     def delete_data_product(self, data_product_id=''):
@@ -93,6 +95,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # ------------
         # {success: true}
         #
+
         log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
         
         try:
