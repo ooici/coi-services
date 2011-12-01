@@ -29,7 +29,6 @@ setup(  name = 'coi-services',
         ],
         test_suite = 'pyon',
         install_requires = [
-            'pyon',
-            'mock'
+            'pyon'
         ],
      )
