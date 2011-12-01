@@ -16,7 +16,7 @@ class FakeProcess(object):
         pass
 
 
-class Test_PubSub(PyonTestCase):
+class PubSubTest(PyonTestCase):
 
     def setUp(self):
         # Start container

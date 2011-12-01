@@ -16,6 +16,7 @@ from interface.services.dm.ipubsub_management_service import \
 from pyon.core.exception import NotFound
 from pyon.core.bootstrap import IonObject, AT
 from pyon.datastore.datastore import DataStore
+from pyon.public import log
 
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -39,6 +40,7 @@ class PubsubManagementService(BasePubsubManagementService):
 #
 #        # Return the stream id
 #        return stream_id
+        log.debug("Creating stream object")
         stream_obj = IonObject("Stream", stream)
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
 
@@ -55,6 +57,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
+        log.debug("Updating stream object")
         return self.clients.resource_registry.update(stream)
 
     def read_stream(self, stream_id=''):
@@ -69,6 +72,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream: {}
         #
+        log.debug("Reading stream object")
         stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
@@ -86,6 +90,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
+        log.debug("Deleting stream")
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
@@ -136,6 +141,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {subscription_id: ''}
         #
+        log.debug("Creating subscription")
         subscription_obj = IonObject("Subscription", subscription)
         id, rev = self.clients.resource_registry.create(subscription_obj)
 
@@ -152,6 +158,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
+        log.debug("Updating subscription")
         return self.clients.resource_registry.update(subscription)
 
     def read_subscription(self, subscription_id=''):
@@ -166,6 +173,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # subscription: {}
         #
+        log.debug("Reading subscription")
         subscription_obj = self.clients.resource_registry.read(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %d does not exist" % subscription_id)
@@ -183,6 +191,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
+        log.debug("Deleting subscription")
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %d does not exist" % subscription_id)
@@ -201,6 +210,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
+        log.debug("Activating subscription")
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %d does not exist" % subscription_id)
@@ -217,6 +227,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
+        log.debug("Deactivating subscription")
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %d does not exist" % subscription_id)
@@ -263,6 +274,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # logic to create credentials for a publisher to use
         # to place data onto stream.
         # return mock credentials
+        log.debug("Registering producer with stream")
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
@@ -283,6 +295,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
+        log.debug("Unregistering producer with stream")
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
@@ -302,6 +315,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # producer_list: []
         #
+        log.debug("Finding producers by stream")
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
