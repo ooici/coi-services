@@ -103,10 +103,13 @@ class DataStoreService(BaseDatastoreService):
         return self.datastore.create_association(subject, predicate, object)
 
     def delete_association(self, association=''):
-        return self.datastore.delete_association(association, datastore_name)
+        return self.datastore.delete_association(association)
 
     def find_objects(self, subject=None, predicate=None, object_type=None, id_only=False):
         return self.datastore.find_objects(subject, predicate, object_type, id_only=id_only)
 
-    def find_subjects(self, object=None, predicate=None, subject_type=None, id_only=False):
-        return self.datastore.find_subjects(object, predicate, subject_type, id_only=id_only)
+    def find_subjects(self, subject_type=None, predicate=None, object=None, id_only=False):
+        return self.datastore.find_subjects(subject_type, predicate, object, id_only=id_only)
+
+    def find_associations(self, subject=None, predicate=None, object=None, id_only=False):
+        return self.datastore.find_associations(subject, predicate, object, id_only=id_only)
