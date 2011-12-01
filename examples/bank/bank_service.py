@@ -31,7 +31,7 @@ class BankService(BaseBankService):
         @retval account_id Newly created bank account id
         '''
 
-        find_res, _ = self.clients.resource_registry.find_by_name(name, "BankCustomer", True)
+        find_res, _ = self.clients.resource_registry.find_resources("BankCustomer", None, name, True)
         if len(find_res) == 0:
             # Create customer info entry
             customer_obj = IonObject("BankCustomer", name=name)
@@ -94,8 +94,7 @@ class BankService(BaseBankService):
         if account_obj.cash_balance < cash_amount:
             raise BadRequest("Insufficient funds")
 
-        owner_obj = self.clients.resource_registry.find_subjects(account_obj, AT.hasAccount, "BankCustomer", False)[0][0]
-
+        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", AT.hasAccount, account_obj, False)[0][0]
         # Create order object and call trade service
         order_obj = IonObject("Order", type="buy", on_behalf=owner_obj.name, cash_amount=cash_amount)
 
@@ -120,7 +119,7 @@ class BankService(BaseBankService):
         if account_obj.bond_balance < quantity:
             raise BadRequest("Insufficient bonds")
 
-        owner_obj = self.clients.resource_registry.find_subjects(account_obj, AT.hasAccount, "BankCustomer", False)[0][0]
+        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", AT.hasAccount, account_obj, False)[0][0]
 
         # Create order object and call trade service
         order_obj = IonObject("Order", type="sell", on_behalf=owner_obj.name, bond_amount=quantity)
@@ -138,7 +137,7 @@ class BankService(BaseBankService):
         """
         Find all accounts (optionally of type) owned by user
         """
-        customer_list, _ = self.clients.resource_registry.find_by_name(name, "BankCustomer")
+        customer_list, _ = self.clients.resource_registry.find_resources("BankCustomer", None, name)
         if len(customer_list) == 0:
             log.error("No customers found")
             return []

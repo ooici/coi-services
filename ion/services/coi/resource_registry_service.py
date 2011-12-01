@@ -4,7 +4,7 @@ __author__ = 'Thomas R. Lennan, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 from pyon.core.bootstrap import sys_name
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, Inconsistent
 from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.datastore.mockdb.mockdb_datastore import MockDB_DataStore
 from pyon.public import LCS
@@ -71,14 +71,19 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def find_objects(self, subject=None, predicate=None, object_type=None, id_only=False):
         return self.resource_registry.find_objects(subject, predicate, object_type, id_only=id_only)
 
-    def find_subjects(self, object=None, predicate=None, subject_type=None, id_only=False):
-        return self.resource_registry.find_subjects(object, predicate, subject_type, id_only=id_only)
+    def find_subjects(self, subject_type=None, predicate=None, object=None, id_only=False):
+        return self.resource_registry.find_subjects(subject_type, predicate, object, id_only=id_only)
 
-    def find_by_type(self, restype, lcstate=None, id_only=False):
-        return self.resource_registry.find_res_by_type(restype, lcstate, id_only=id_only)
+    def find_associations(self, subject=None, predicate=None, object=None, id_only=False):
+        return self.resource_registry.find_associations(subject, predicate, object, id_only=id_only)
 
-    def find_by_lcstate(self, lcstate, restype=None, id_only=False):
-        return self.resource_registry.find_res_by_lcstate(lcstate, restype, id_only=id_only)
+    def get_association(self, subject=None, predicate=None, object=None):
+        assoc = self.resource_registry.find_associations(subject, predicate, object, id_only=True)
+        if not assoc:
+            raise NotFound()
+        elif len(assoc) > 1:
+            raise Inconsistent()
+        return assoc[0]
 
-    def find_by_name(self, name, restype=None, id_only=False):
-        return self.resource_registry.find_res_by_name(name, restype, id_only=id_only)
+    def find_resources(self, restype=None, lcstate=None, name=None, id_only=False):
+        return self.resource_registry.find_resources(restype, lcstate, id_only=id_only)
