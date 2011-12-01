@@ -39,7 +39,7 @@ class TestBankService(PyonTestCase):
         self.mock_find_by_name.return_value = (['id_5'], 'I do not care')
         self.mock_create.return_value = ('id_2', 'I do not care')
 
-        # Execute the service operation call
+        # TEST: Execute the service operation call
         account_id = self.bank_service.new_account('John')
 
         self.mock_find_by_name.assert_called_once_with('John', 'BankCustomer', True)
@@ -57,7 +57,7 @@ class TestBankService(PyonTestCase):
             return results.pop()
         self.mock_create.side_effect = side_effect
 
-        # Execute the service operation call
+        # TEST: Execute the service operation call
         account_id = self.bank_service.new_account('John')
 
         self.mock_find_by_name.assert_called_once_with('John', 'BankCustomer', True)
@@ -71,13 +71,13 @@ class TestBankService(PyonTestCase):
         self.mock_create.assert_called_with(self.mock_ionobj.return_value)
         pop_last_call(self.mock_create)
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
-        self.mock_create_association.assert_called_once_with('id_5', AT.hasAccount, account_id)
+        self.mock_create_association.assert_called_once_with('cust_id_1', AT.hasAccount, 'acct_id_2')
         self.assertEqual(account_id, 'acct_id_2')
 
     def test_deposit_not_found(self):
         self.mock_read.return_value = None
 
-        # exercise code
+        # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.bank_service.deposit('id_5')
 
@@ -88,7 +88,7 @@ class TestBankService(PyonTestCase):
     def test_deposit_okay(self):
         self.mock_read.return_value.cash_balance = 10
 
-        # exercise code in test
+        # TEST: Execute the service operation call
         status = self.bank_service.deposit(account_id='id_5', amount=5)
 
         self.assertEqual(status, 'Balance after cash deposit: 15')
@@ -99,7 +99,7 @@ class TestBankService(PyonTestCase):
     def test_withdraw_not_found(self):
         self.mock_read.return_value = None
 
-        # exercise code
+        # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.bank_service.withdraw('id_5')
 
@@ -110,7 +110,7 @@ class TestBankService(PyonTestCase):
     def test_withdraw_insufficient_funds(self):
         self.mock_read.return_value.cash_balance = 3
 
-        # exercise code in test
+        # TEST: Execute the service operation call
         with self.assertRaises(BadRequest) as cm:
             self.bank_service.withdraw('id_5', 5)
 
@@ -126,7 +126,7 @@ class TestBankService(PyonTestCase):
     def test_withdraw_okay(self):
         self.mock_read.return_value.cash_balance = 10
 
-        # exercise code in test
+        # TEST: Execute the service operation call
         status = self.bank_service.withdraw(account_id='id_5', amount=4)
 
         self.assertEqual(status, 'Balance after cash withdraw: 6')
@@ -137,7 +137,7 @@ class TestBankService(PyonTestCase):
     def test_get_balances_not_found(self):
         self.mock_read.return_value = None
 
-        # exercise code
+        # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.bank_service.get_balances('id_5')
 
@@ -149,7 +149,7 @@ class TestBankService(PyonTestCase):
         self.mock_read.return_value.cash_balance = 10
         self.mock_read.return_value.bond_balance = 5
 
-        # exercise code in test
+        # TEST: Execute the service operation call
         cash_balance, bond_balance = self.bank_service.get_balances('id_5')
 
         self.assertEqual(cash_balance, 10)
@@ -159,7 +159,7 @@ class TestBankService(PyonTestCase):
     def test_buy_bonds_not_found(self):
         self.mock_read.return_value = None
 
-        # exercise code
+        # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.bank_service.buy_bonds('id_5', '')
 
@@ -170,7 +170,7 @@ class TestBankService(PyonTestCase):
     def test_buy_bonds_insufficient_funds(self):
         self.mock_read.return_value.cash_balance = 3
 
-        # exercise code in test
+        # TEST: Execute the service operation call
         with self.assertRaises(BadRequest) as cm:
             self.bank_service.buy_bonds('id_5', 5)
 
@@ -187,10 +187,12 @@ class TestBankService(PyonTestCase):
         mock_account_obj.cash_balance = 10
         mock_account_obj.owner = 'David'
         mock_account_obj.bond_balance = 30
+
+        self.mock_find_subjects.return_value = ([], "Ignore")
         self.mock_exercise.return_value.proceeds = 20
         self.mock_exercise.return_value.status = 'complete'
 
-        # exercise code in test
+        # TEST: Execute the service operation call
         status = self.bank_service.buy_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
@@ -208,7 +210,8 @@ class TestBankService(PyonTestCase):
         mock_account_obj.bond_balance = 30
         self.mock_exercise.return_value.proceeds = 20
         self.mock_exercise.return_value.status = 'pending'
-        # exercise code in test
+
+        # TEST: Execute the service operation call
         status = self.bank_service.buy_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
