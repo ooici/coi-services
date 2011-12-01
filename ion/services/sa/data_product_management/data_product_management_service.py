@@ -11,8 +11,6 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 
 class DataProductManagementService(BaseDataProductManagementService):
 
-    DATA_PRODUCER = 'data_producer'
-
     
     def create_data_product(self, data_product={}, data_producer={}):
         """
@@ -32,11 +30,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
         
-        result = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", id_only=True)
+        result, asso = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", True)
+        print "result = ", result
         if len(result) != 0:
             raise BadRequest("A data product named '%s' already exists" % data_product["name"])  
 
-        dataProduct_id, revision = self.clients.resource_registry.create(data_product)
+        #dp_obj = IonObject("DataProduct", name=data_product["name"], description=data_product["description"])
+        dp_obj = IonObject("DataProduct", name=data_product["name"])
+        dataProduct_id, revision = self.clients.resource_registry.create(dp_obj)
             
         if len(data_producer) != 0:
             result = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
