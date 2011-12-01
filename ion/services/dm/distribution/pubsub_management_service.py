@@ -27,8 +27,8 @@ class PubsubManagementService(BasePubsubManagementService):
     def create_stream(self, stream=None):
         '''Create a new stream.
 
-        @param stream New stream properties
-        @retval id New stream id
+        @param stream New stream properties.
+        @retval id New stream id.
         '''
 #        log.debug("create_stream" + stream.name)
 #        assert not hasattr(stream, "_id"), "ID already set"
@@ -50,8 +50,8 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         Update an existing stream.
 
-        @param stream The stream object with updated properties
-        @retval success Boolean to indicate successful update
+        @param stream The stream object with updated properties.
+        @retval success Boolean to indicate successful update.
         '''
         # Return Value
         # ------------
@@ -62,11 +62,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def read_stream(self, stream_id=''):
         '''
-        Get an existing stream object
+        Get an existing stream object.
 
-        @param stream_id The id of the stream
-        @retval stream The stream object
-        @throws NotFound when stream doesn't exist
+        @param stream_id The id of the stream.
+        @retval stream The stream object.
+        @throws NotFound when stream doesn't exist.
         '''
         # Return Value
         # ------------
@@ -80,11 +80,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def delete_stream(self, stream_id=''):
         '''
-        Delete an existing stream
+        Delete an existing stream.
 
-        @param stream_id The id of the stream
-        @retval success Boolean to indicate successful deletion
-        @throws NotFound when stream doesn't exist
+        @param stream_id The id of the stream.
+        @retval success Boolean to indicate successful deletion.
+        @throws NotFound when stream doesn't exist.
         '''
         # Return Value
         # ------------
@@ -132,10 +132,10 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def create_subscription(self, subscription={}):
         '''
-        Create a new subscription
+        Create a new subscription.
 
-        @param subscription New subscription properties
-        @retval id The id of the the new subscription
+        @param subscription New subscription properties.
+        @retval id The id of the the new subscription.
         '''
         # Return Value
         # ------------
@@ -149,10 +149,10 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def update_subscription(self, subscription={}):
         '''
-        Update an existing subscription
+        Update an existing subscription.
 
-        @param subscription The subscription object with updated properties
-        @retval success Boolean to indicate successful update
+        @param subscription The subscription object with updated properties.
+        @retval success Boolean to indicate successful update.
         '''
         # Return Value
         # ------------
@@ -163,11 +163,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def read_subscription(self, subscription_id=''):
         '''
-        Get an existing subscription object
+        Get an existing subscription object.
 
-        @param subscription_id The id of the subscription
-        @retval subscription The subscription object
-        @throws NotFound when subscription doesn't exist
+        @param subscription_id The id of the subscription.
+        @retval subscription The subscription object.
+        @throws NotFound when subscription doesn't exist.
         '''
         # Return Value
         # ------------
@@ -181,11 +181,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def delete_subscription(self, subscription_id=''):
         '''
-        Delete an existing subscription
+        Delete an existing subscription.
 
-        @param subscription_id The id of the subscription
-        @retval success Boolean to indicate successful deletion
-        @throws NotFound when subscription doesn't exist
+        @param subscription_id The id of the subscription.
+        @retval success Boolean to indicate successful deletion.
+        @throws NotFound when subscription doesn't exist.
         '''
         # Return Value
         # ------------
@@ -200,11 +200,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def activate_subscription(self, subscription_id=''):
         '''
-        Activate a subscription
+        Activate a subscription.
 
-        @param subscription_id The id of the subscription
-        @retval success Boolean to indicate successful activation
-        @throws NotFound when subscription doesn't exist
+        @param subscription_id The id of the subscription.
+        @retval success Boolean to indicate successful activation.
+        @throws NotFound when subscription doesn't exist.
         '''
         # Return Value
         # ------------
@@ -217,11 +217,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def deactivate_subscription(self, subscription_id=''):
         '''
-        Deactivate a subscription
+        Deactivate a subscription.
 
-        @param subscription_id The id of the subscription
-        @retval success Boolean to indicate successful deactivation
-        @throws NotFound when subscription doesn't exist
+        @param subscription_id The id of the subscription.
+        @retval success Boolean to indicate successful deactivation.
+        @throws NotFound when subscription doesn't exist.
         '''
         # Return Value
         # ------------
@@ -264,12 +264,12 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def register_producer(self, exchange_name='', stream_id=''):
         '''
-        Register a producer with a stream
+        Register a producer with a stream.
 
-        @param exchange_name The producer exchange name to register
-        @param stream_id The id of the stream
-        @retval credentials Credentials for a publisher to use
-        @throws NotFound when stream doesn't exist
+        @param exchange_name The producer exchange name to register.
+        @param stream_id The id of the stream.
+        @retval credentials Credentials for a publisher to use.
+        @throws NotFound when stream doesn't exist.
         '''
         # logic to create credentials for a publisher to use
         # to place data onto stream.
@@ -284,12 +284,12 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def unregister_producer(self, exchange_name='', stream_id=''):
         '''
-        Unregister a producer with a stream
+        Unregister a producer with a stream.
 
-        @param exchange_name The producer exchange name to unregister
-        @param stream_id The id of the stream
-        @retval success Boolean to indicate successful unregistration
-        @throws NotFound when stream doesn't exist
+        @param exchange_name The producer exchange name to unregister.
+        @param stream_id The id of the stream.
+        @retval success Boolean to indicate successful unregistration.
+        @throws NotFound when stream doesn't exist.
         '''
         # Return Value
         # ------------
@@ -305,11 +305,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def find_producers_by_stream(self, stream_id=''):
         '''
-        Return the list of producers for a stream
+        Return the list of producers for a stream.
 
-        @param stream_id The id of the stream
-        @retval producer_list List of producers for the stream
-        @throws NotFound when stream doesn't exist
+        @param stream_id The id of the stream.
+        @retval producer_list List of producers for the stream.
+        @throws NotFound when stream doesn't exist.
         '''
         # Return Value
         # ------------
