@@ -17,8 +17,20 @@ git pull --rebase
 echo "\n\n=== UPDATING COI-SERVICES ===\n"
 cd $THISDIR
 git pull --rebase
+if [ $? -ne 0 ]; then
+    echo "\n$(basename $0) aborting because pull failed (probably have unstashed changes)"
+    exit 1
+fi
 
 echo "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
+cd extern/ion-definitions
+git checkout master
+if [ $? -ne 0 ]; then
+    echo "\n$(basename $0) aborting due to inability to switch branches"
+    exit 1
+fi
+git pull --rebase origin master
+cd $THISDIR
 git submodule update
 
 echo "\n\n=== CLEANING UP ===\n"
@@ -32,4 +44,4 @@ echo "\n\n=== BUILDING OUT ===\n"
 bin/buildout
 
 echo "\n\n=== GENERATING INTERFACES ===\n"
-bin/generate_interfaces
+bin/generate_interfaces --force

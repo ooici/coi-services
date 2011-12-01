@@ -18,7 +18,7 @@ from pyon.util.unit_test import pop_last_call, PyonTestCase
 class TestBankService(PyonTestCase):
 
     def setUp(self):
-        self.mock_ionobj = self._create_object_mock('examples.bank.bank_service.IonObject')
+        self.mock_ionobj = self._create_IonObject_mock('examples.bank.bank_service.IonObject')
         self._create_service_mock('bank')
 
         self.bank_service = BankService()
@@ -29,27 +29,26 @@ class TestBankService(PyonTestCase):
         self.mock_create_association = self.resource_registry.create_association
         self.mock_read = self.resource_registry.read
         self.mock_update = self.resource_registry.update
-        self.mock_find_by_name = self.resource_registry.find_by_name
-        self.mock_find_by_type = self.resource_registry.find_by_type
         self.mock_find_objects = self.resource_registry.find_objects
         self.mock_find_subjects = self.resource_registry.find_subjects
+        self.mock_find_resources = self.resource_registry.find_resources
         self.mock_exercise = self.trade.exercise
 
     def test_new_acct_existing_customer(self):
-        self.mock_find_by_name.return_value = (['id_5'], 'I do not care')
+        self.mock_find_resources.return_value = (['id_5'], 'I do not care')
         self.mock_create.return_value = ('id_2', 'I do not care')
 
         # TEST: Execute the service operation call
         account_id = self.bank_service.new_account('John')
 
-        self.mock_find_by_name.assert_called_once_with('John', 'BankCustomer', True)
+        self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'John', True)
         self.mock_ionobj.assert_called_once_with('BankAccount', account_type='Checking')
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
         self.mock_create_association.assert_called_once_with('id_5', AT.hasAccount, 'id_2')
         self.assertEqual(account_id, 'id_2')
 
     def test_new_acct_new_customer(self):
-        self.mock_find_by_name.return_value = ([], 'I do not care')
+        self.mock_find_resources.return_value = ([], 'I do not care')
         # Use mock side effect to simulate two different return results
         results = [('acct_id_2', 'I do not care'),
                 ('cust_id_1', 'I do not care')]
@@ -60,7 +59,7 @@ class TestBankService(PyonTestCase):
         # TEST: Execute the service operation call
         account_id = self.bank_service.new_account('John')
 
-        self.mock_find_by_name.assert_called_once_with('John', 'BankCustomer', True)
+        self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'John', True)
         # assert last call first, pop the stack, assert the previous one
         self.assertEqual(self.mock_ionobj.call_count, 2)
         self.mock_ionobj.assert_called_with('BankAccount', account_type='Checking')
@@ -191,13 +190,17 @@ class TestBankService(PyonTestCase):
         self.mock_find_subjects.return_value = ([], "Ignore")
         self.mock_exercise.return_value.proceeds = 20
         self.mock_exercise.return_value.status = 'complete'
+        mock_owner_obj = Mock()
+        mock_owner_obj.name = 'Tim'
+        self.mock_find_subjects.return_value = [[mock_owner_obj]]
 
         # TEST: Execute the service operation call
         status = self.bank_service.buy_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
+        self.mock_find_subjects('BankCustomer', AT.hasAccount, mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='buy',
-                on_behalf='David', cash_amount=4)
+                on_behalf='Tim', cash_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
         self.mock_update.assert_called_once_with(mock_account_obj)
         self.assertEqual(status, 'Balances after bond purchase: cash %f, bonds: %s' %  (10 - 4, 30 + 20))
@@ -206,17 +209,20 @@ class TestBankService(PyonTestCase):
         mock_account_obj = Mock()
         self.mock_read.return_value = mock_account_obj
         mock_account_obj.cash_balance = 10
-        mock_account_obj.owner = 'David'
         mock_account_obj.bond_balance = 30
         self.mock_exercise.return_value.proceeds = 20
         self.mock_exercise.return_value.status = 'pending'
+        mock_owner_obj = Mock()
+        mock_owner_obj.name = 'Tim'
+        self.mock_find_subjects.return_value = [[mock_owner_obj]]
 
         # TEST: Execute the service operation call
         status = self.bank_service.buy_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
+        self.mock_find_subjects('BankCustomer', AT.hasAccount, mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='buy',
-                on_behalf='David', cash_amount=4)
+                on_behalf='Tim', cash_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
         # update should not be called
         self.assertEqual(self.mock_update.call_count, 0)
@@ -251,17 +257,20 @@ class TestBankService(PyonTestCase):
         mock_account_obj = Mock()
         self.mock_read.return_value = mock_account_obj
         mock_account_obj.cash_balance = 10
-        mock_account_obj.owner = 'David'
         mock_account_obj.bond_balance = 30
         self.mock_exercise.return_value.proceeds = 20
         self.mock_exercise.return_value.status = 'complete'
+        mock_owner_obj = Mock()
+        mock_owner_obj.name = 'Tim'
+        self.mock_find_subjects.return_value = [[mock_owner_obj]]
 
         # exercise code in test
         status = self.bank_service.sell_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
+        self.mock_find_subjects('BankCustomer', AT.hasAccount,mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='sell',
-                on_behalf='David', bond_amount=4)
+                on_behalf='Tim', bond_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
         self.mock_update.assert_called_once_with(mock_account_obj)
         self.assertEqual(status, 'Balances after bond sales: cash %f, bonds: %s' % (10 + 20, 30 - 4))
@@ -270,8 +279,10 @@ class TestBankService(PyonTestCase):
         mock_account_obj = Mock()
         self.mock_read.return_value = mock_account_obj
         mock_account_obj.cash_balance = 10
-        mock_account_obj.owner = 'David'
         mock_account_obj.bond_balance = 30
+        mock_owner_obj = Mock()
+        mock_owner_obj.name = 'Tim'
+        self.mock_find_subjects.return_value = [[mock_owner_obj]]
         self.mock_exercise.return_value.proceeds = 20
         self.mock_exercise.return_value.status = 'pending'
 
@@ -279,38 +290,29 @@ class TestBankService(PyonTestCase):
         status = self.bank_service.sell_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
+        self.mock_find_subjects('BankCustomer', AT.hasAccount, mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='sell',
-                on_behalf='David', bond_amount=4)
+                on_behalf='Tim', bond_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
         # update should not be called
         self.assertEqual(self.mock_update.call_count, 0)
         self.assertEqual(status, 'Bond sales status is: pending')
 
     def test_list_accounts_no_customers(self):
-        self.mock_find_by_name.return_value = ([], 'I do not care')
+        self.mock_find_resources.return_value = ([], 'I do not care')
 
         accounts = self.bank_service.list_accounts('Roger')
 
         self.assertEqual(accounts, [])
-        self.mock_find_by_name.assert_called_once_with('Roger',
-                'BankCustomer', False)
+        self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'Roger', False)
 
     def test_list_accounts_ok(self):
-        # Use mock side effect to simulate exception thrown
-        mock_customer_obj = Mock()
-        mock_customer_obj._id = 'id_244'
-        self.mock_find_by_name.return_value = ([mock_customer_obj], 'I do not care')
-        mock_account1 = Mock()
-        mock_account1.owner = 'not_good'
-        mock_account2 = Mock()
-        mock_account2.owner = 'id_244'
-        mock_accounts = [mock_account1, mock_account2]
-        self.mock_find_by_type.return_value = (mock_accounts, 'I do not care')
+        self.mock_find_resources.return_value = ([sentinel.customer_obj], 'I do not care')
+        self.mock_find_objects.return_value = (sentinel.accounts, 'I do not care')
 
         accounts = self.bank_service.list_accounts('Roger')
 
-        self.mock_find_by_name.assert_called_once_with('Roger', 'BankCustomer',
-                False)
-        self.mock_find_by_type.assert_called_once_with('BankAccount', '',
-                False)
-        self.assertEqual(accounts, [mock_account2])
+        self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'Roger', False)
+        self.mock_find_objects.assert_called_once_with(sentinel.customer_obj,
+                AT.hasAccount, 'BankAccount', False)
+        self.assertEqual(accounts, sentinel.accounts)
