@@ -23,32 +23,37 @@ Pyon: The main dependency of this repository is the pyon Capability Container. F
 steps to install the minimal needed dependencies to run pyon on a Mac. For more details and Linux
 install instructions, check out the pyon README: https://github.com/ooici/pyon/blob/master/README
 
+
+
 Install the following if not yet present:
-- python 2.7: Download Mac installer run
-- git 1.7.7: Download the Mac installer and run
+- git 1.7.7: Download the Mac or Linux installer and run it
+
+
+* OS Packages and package management:
+For Mac, use homebrew
+    > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
+- python 2.7
+- couchdb 1.1.0 (optional if memory mockdb is used)
+- rabbitmq 2.6.1 or later (recommended, but can use rabbitmq on amoeba)
+    Download generic Linux version and unpack into a suitable directory.
+    Note: May need erl (Erlang) and some dependencies installed before
+- Install libevent, libyaml, zeromq, couchdb, python, and rabbitmq with Homebrew
+    > brew install libevent libyaml zeromq couchdb python rabbitmq
+    You can even reinstall git using brew to clean up your /usr/local directory
+    Be sure to read the pyon README for platform specific guidance to installing
+    dependent libraries and packages.
+    Linux: Note that many installs have much older versions installed by default.
+    You will need to upgrade couchdb to at least 1.1.0.
+
+* python packages and environment management:
 - pip
     > easy_install pip
-- homebrew
-    > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
 - virtualenv and virtualenvwrapper modules for your python 2.7 installation
     > easy_install --upgrade virtualenv
     > easy_install --upgrade virtualenvwrapper
     Note: This may require Mac's XCode (use XCode 3.3 free version)
-- Install libevent, libyaml, zeromq, couchdb with Homebrew on Mac
-    > brew install libevent
-    > brew install libyaml
-    > brew install zeromq
-    > brew install couchdb
-    - Be sure to read the pyon README for platform specific guidance to installing dependend libraries and packages.
-    ** couchdb 1.1.0 (optional if memory mockdb is used)
-    **   Linux: Note that many installs have much older versions installed by default. You will need to upgrade couchdb to at least 1.1.0.
 
-- rabbitmq 2.6.1 (recommended, but can use rabbitmq on amoeba)
-    Download generic Linux version and unpack into a suitable directory.
-    Note: May need erl (Erlang) and some dependencies installed before
-
-
-Setup a virtualenv to run COI-services (use any name you like):
+* Setup a virtualenv to run COI-services (use any name you like):
     > mkvirtualenv --no-site-packages --python=python2.7 coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
 
@@ -96,6 +101,7 @@ RABBITMQ (MESSAGE BROKER):
 
 Run RabbitMQ in second terminal before starting the container or running tests:
 Note: optional. RabbitMQ on amoeba us used by default for new developers.
+    > cd rabbitmq_server-2.x.x
     > sudo sbin/rabbitmq-server
 
 
@@ -118,16 +124,17 @@ List supported Pyon Capability Container arguments:
     > bin/pycc --help
 
 Start an example (bank) locally:
-    > bin/pycc --rel res/deploy/ex/bank_all.yml
+    > bin/pycc --rel res/deploy/examples/bank_complete.yml
     Note: It does not do anything but start by itself. You need to use a client to trigger actions.
 
-Start development instance of the ION system with COI services:
+Start development instance of the ION system with all services:
     > bin/pycc --rel res/deploy/r2deploy.yml
 
 Run unittests:
     > bin/nosetests -a unit
 
 Use nose to run unittest
+
 
 DEBUG
 =====
@@ -139,10 +146,12 @@ export PYTHONPATH=.:/Applications/PyCharm\ 1.5.2.app/pycharm-debug.egg
 
 Set your debugger to start the bin/pycc script, with the arguments you like.
 
-Remote debugging of services in a running container is possible too. Setup a remote debugging configuration to use the localhost and port 8585.
-First start the remote debuging server, then start the container from the command line below using the pyccd script ( the -n seems to be required )
+Remote debugging of services in a running container is possible too. Setup a remote debugging
+configuration to use the localhost and port 8585. First start the remote debuging server, then
+start the container from the command line below using the pyccd script ( the -n seems to be required )
 
-    bin/pyccd -n --rel res/deploy/xxx.yml
+    > bin/pyccd -n --rel res/deploy/xxx.yml
+
 
 DEVELOPMENT
 ===========
@@ -163,9 +172,9 @@ Once in a while, service interfaces change. Generate interfaces frequently (espe
 
 Before define objects, services in ./obj, define app and deploy files in /res, checkout master:
     > cd extern/ion-definitions
-    > git status            # Just to see what's going on
-    > git checkout master   # To track the master branch (enables update and later push)
-    > git pull              # To get latest from the server
+    > git status              # Just to see what's going on
+    > git checkout master     # To track the master branch (enables update and later push)
+    > git pull origin master  # To get latest from the server
 
 *See below for an automated approach to git-submodules*
 Note: The res/ and obj/ dirs are symlinks to a subdirectory in a git submodule. Beware of the pitfalls
@@ -180,6 +189,7 @@ must be pushed, submodule first:
     > git push
 
 Put your services in ion/services/<subsystem>/... (subdirectories are allowed).
+
 
 GIT SUBMODULE HOOKS
 ===================
@@ -197,9 +207,8 @@ Clone this repository:
 Use the provided install script:
     > sh gitutils/submodule-hooks/install.sh /path/to/your/pyon/or/coi-services/dir
 
-*OR*
 
-Copy the scripts into your working copy:
+The install script does the following (you can also do it manually):
     > cd /your/pyon/.git/hooks
     > cp /your/tmp/gitutils/submodule-hooks/pre-commit pre-commit
     > cp /your/tmp/gitutils/submodule-hooks/post-merge-commit post-merge
