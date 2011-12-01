@@ -17,7 +17,7 @@ from interface.services.coi.iresource_registry_service import BaseResourceRegist
 class TestTradeService(PyonTestCase):
 
     def setUp(self):
-        self.mock_ionobj = self._create_object_mock('examples.bank.trade_service.IonObject')
+        self.mock_ionobj = self._create_IonObject_mock('examples.bank.trade_service.IonObject')
         self._create_service_mock('trade')
 
         self.trade_service = TradeService()

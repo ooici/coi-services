@@ -99,7 +99,7 @@ class BootstrapService(BaseBootstrapService):
         res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.hasExchangeSpace, RT.ExchangeSpace, True)
         assert len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated"
 
-        res_ids, _ = self.clients.resource_registry.find_subjects(self.xs_id, AT.hasExchangeSpace, RT.Org, True)
+        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, AT.hasExchangeSpace, self.xs_id, True)
         assert len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated"
 
     def on_quit(self):

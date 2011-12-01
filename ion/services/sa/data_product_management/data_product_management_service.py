@@ -39,7 +39,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         dataProduct_id, revision = self.clients.resource_registry.create(data_product)
             
         if len(data_producer) != 0:
-            result = yield self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
+            result = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
             log.info("DataProductManagementService.define_data_product create_data_producer result: %s " % str(result))
             DataProducerId = result
             DataStreamId = ''        # TODO: what data_acquisition_management operation gets this value?
