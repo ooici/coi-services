@@ -54,6 +54,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval[resource_label] = resource
         return retval
 
+    # return a valid message from a delete
+    def _return_update(self, success_bool):
+        retval = {}
+        retval["success"] = success_bool
+        return retval
+
     
     ##########################################################################
     #
@@ -106,17 +112,24 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_read("InstrumentAgent", "instrument_agent_info", instrument_agent_id)
 
 
-    def delete_instrument_agent(self, instrument_agent_id='', reason=''):
+    def delete_instrument_agent(self, instrument_agent_id=''):
         """
         method docstring
         """
+
+        instrument_agent_obj = self._get_resource("InstrumentAgent", instrument_agent_id)        
+        
+        self.clients.resource_registry.delete(instrument_agent_obj)
+        
+        return self._return_delete(True)
+
         # Return Value
         # ------------
         # {success: true}
         #
         pass
 
-    def find_instrument_agent(self, filters={}):
+    def find_instrument_agents(self, filters={}):
         """
         method docstring
         """
@@ -193,7 +206,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def delete_instrument_model(self, instrument_model_id='', reason=''):
+    def delete_instrument_model(self, instrument_model_id=''):
         """
         method docstring
         """
@@ -203,7 +216,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def find_instrument_model(self, filters={}):
+    def find_instrument_models(self, filters={}):
         """
         method docstring
         """
@@ -257,7 +270,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def delete_instrument_device(self, instrument_device_id='', reason=''):
+    def delete_instrument_device(self, instrument_device_id=''):
         """
         method docstring
         """
@@ -267,7 +280,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def find_instrument_device(self, filters={}):
+    def find_instrument_devices(self, filters={}):
         """
         method docstring
         """
@@ -307,29 +320,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-
-    def request_direct_access(self, instrument_id=''):
-        """
-        method docstring
-        """
-        # Validate request; current instrument state, policy, and other
-
-        # Retrieve and save current instrument settings
-
-        # Request DA channel, save reference
-
-        # Return direct access channel
-        pass
-
-    def stop_direct_access(self, instrument_id=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
 
 
 
@@ -376,7 +366,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def delete_instrument(self, instrument_id='', reason=''):
+    def delete_instrument(self, instrument_id=''):
         """
         method docstring
         """
@@ -386,7 +376,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def find_instrument(self, filters={}):
+    def find_instruments(self, filters={}):
         """
         method docstring
         """
@@ -396,10 +386,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
+
+    ##
+    ##
+    ##  DIRECT ACCESS
+    ##
+    ##
+
     def request_direct_access(self, instrument_id=''):
         """
         method docstring
         """
+        
+        # determine whether id is for physical or logical instrument
+        # look up instrument if not
+        
         # Validate request; current instrument state, policy, and other
 
         # Retrieve and save current instrument settings
@@ -418,8 +419,5 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # {success: true}
         #
         pass
-
-
-
 
 
