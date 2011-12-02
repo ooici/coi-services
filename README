@@ -130,11 +130,12 @@ Start an example (bank) locally:
 Start development instance of the ION system with all services:
     > bin/pycc --rel res/deploy/r2deploy.yml
 
-Run unittests:
-    > bin/nosetests -a unit
+Run unit tests:
+    > bin/nosetests -a UNIT
 
-Use nose to run unittest
+Use integration tests:
 
+    > bin/nosetests -a INT
 
 DEBUG
 =====
