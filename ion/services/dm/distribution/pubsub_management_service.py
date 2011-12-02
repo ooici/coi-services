@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 
-__author__ = 'Maurice Manning'
-__license__ = 'Apache 2.0'
-
 '''
 @package ion.services.dm.distribution.pubsub_management_service Implementation of IPubsubManagementService interface
 @file ion/services/dm/distribution/pubsub_management_service.py
@@ -14,10 +11,9 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
-from pyon.core.bootstrap import IonObject, AT
-from pyon.datastore.datastore import DataStore
+from pyon.core.bootstrap import IonObject #, AT
+#from pyon.datastore.datastore import DataStore
 from pyon.public import log
-
 
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
@@ -30,17 +26,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @param stream New stream properties.
         @retval id New stream id.
         '''
-#        log.debug("create_stream" + stream.name)
-#        assert not hasattr(stream, "_id"), "ID already set"
-#        # Register the stream; create and store the resource and associations
-#        stream_id,rev = self.clients.resource_registry.create(stream)
-#        #aid = self.clients.resource_registry.create_association(...)
-#
-#        # More biz logic here....
-#
-#        # Return the stream id
-#        return stream_id
-        log.debug("Creating stream object: %s" % stream.name)
+        log.debug("Creating stream object")
         stream_obj = IonObject("Stream", stream)
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
 
@@ -52,6 +38,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         @param stream The stream object with updated properties.
         @retval success Boolean to indicate successful update.
+        @todo Add logic to validate optional attributes. Is this interface correct?
         '''
         # Return Value
         # ------------
@@ -72,7 +59,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream: {}
         #
-        log.debug("Reading stream object id: %d" % stream_id)
+        log.debug("Reading stream object id: %s" % stream_id)
         stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
@@ -90,7 +77,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        log.debug("Deleting stream id: %d" % stream_id)
+        log.debug("Deleting stream id: %s" % stream_id)
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
@@ -141,10 +128,14 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {subscription_id: ''}
         #
-        log.debug("Creating subscription object: %s" % subscription.name)
+        log.debug("Creating subscription object")
         subscription_obj = IonObject("Subscription", subscription)
         id, rev = self.clients.resource_registry.create(subscription_obj)
 
+        #we need the stream_id to create the association between the
+        #subscription and stream. Should it be passed in here,
+        #or create a new method to create the association?
+        #self.clients.resource_registry.create_association(subscription_id, AT.hasStream, stream_id)
         return id
 
     def update_subscription(self, subscription={}):
@@ -173,10 +164,10 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # subscription: {}
         #
-        log.debug("Reading subscription object id: %d" % subscription_id)
+        log.debug("Reading subscription object id: %s" % subscription_id)
         subscription_obj = self.clients.resource_registry.read(subscription_id)
         if subscription_obj is None:
-            raise NotFound("Subscription %d does not exist" % subscription_id)
+            raise NotFound("Subscription %s does not exist" % subscription_id)
         return subscription_obj
 
     def delete_subscription(self, subscription_id=''):
@@ -191,10 +182,10 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        log.debug("Deleting subscription id: %d" % subscription_id)
+        log.debug("Deleting subscription id: %s" % subscription_id)
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
-            raise NotFound("Subscription %d does not exist" % subscription_id)
+            raise NotFound("Subscription %s does not exist" % subscription_id)
 
         return self.clients.resource_registry.delete(subscription_obj)
 
@@ -205,6 +196,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @param subscription_id The id of the subscription.
         @retval success Boolean to indicate successful activation.
         @throws NotFound when subscription doesn't exist.
+        @todo Add binding operation
         '''
         # Return Value
         # ------------
@@ -213,7 +205,8 @@ class PubsubManagementService(BasePubsubManagementService):
         log.debug("Activating subscription")
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
-            raise NotFound("Subscription %d does not exist" % subscription_id)
+            raise NotFound("Subscription %s does not exist" % subscription_id)
+        #bind will happen here
 
     def deactivate_subscription(self, subscription_id=''):
         '''
@@ -222,6 +215,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @param subscription_id The id of the subscription.
         @retval success Boolean to indicate successful deactivation.
         @throws NotFound when subscription doesn't exist.
+        @todo Add unbinding operation
         '''
         # Return Value
         # ------------
@@ -231,6 +225,7 @@ class PubsubManagementService(BasePubsubManagementService):
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %d does not exist" % subscription_id)
+        #unbind will happen here
 
     def register_consumer(self, exchange_name=''):
         """
@@ -277,7 +272,7 @@ class PubsubManagementService(BasePubsubManagementService):
         log.debug("Registering producer with stream")
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
-            raise NotFound("Stream %d does not exist" % stream_id)
+            raise NotFound("Stream %s does not exist" % stream_id)
 
         stream_obj.producers.append(exchange_name)
         return "credentials"
@@ -290,6 +285,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @param stream_id The id of the stream.
         @retval success Boolean to indicate successful unregistration.
         @throws NotFound when stream doesn't exist.
+        @todo Catch ValueError if exchange_name doesn't exist
         '''
         # Return Value
         # ------------
@@ -298,7 +294,7 @@ class PubsubManagementService(BasePubsubManagementService):
         log.debug("Unregistering producer with stream")
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
-            raise NotFound("Stream %d does not exist" % stream_id)
+            raise NotFound("Stream %s does not exist" % stream_id)
 
         stream_obj.producers.remove(exchange_name)
         return True
@@ -318,7 +314,7 @@ class PubsubManagementService(BasePubsubManagementService):
         log.debug("Finding producers by stream")
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
-            raise NotFound("Stream %d does not exist" % stream_id)
+            raise NotFound("Stream %s does not exist" % stream_id)
 
         return stream_obj.producers
         
