@@ -40,12 +40,12 @@ class TestTradeService(PyonTestCase):
         # How is the test result
         # assert resource_registry.create did get called with correct
         # arguments
-        assert confirmation_obj is self.mock_ionobj.return_value
         self.mock_create.assert_called_once_with(order)
         # assert mock ion object is called
         self.mock_ionobj.assert_called_once_with('Confirmation',
                 status='complete', tracking_number='111', proceeds=156 /
                 1.56)
+        assert confirmation_obj is self.mock_ionobj.return_value
 
     def test_exercise_sell(self):
         order = Mock()
