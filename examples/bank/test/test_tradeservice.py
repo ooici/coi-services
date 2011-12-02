@@ -34,7 +34,7 @@ class TestTradeService(PyonTestCase):
         order.cash_amount = 156
         self.mock_create.return_value = ['111']
 
-       # test our function with our data
+        # TEST: Execute the service operation call
         confirmation_obj = self.trade_service.exercise(order)
 
         # How is the test result
