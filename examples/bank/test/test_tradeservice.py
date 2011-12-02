@@ -55,8 +55,8 @@ class TestTradeService(PyonTestCase):
 
         confirmation_obj = self.trade_service.exercise(order)
 
-        assert confirmation_obj is self.mock_ionobj.return_value
         self.mock_create.assert_called_once_with(order)
         self.mock_ionobj.assert_called_once_with('Confirmation',
                 status='complete', tracking_number='123',
                 proceeds= 156 * 1.56)
+        assert confirmation_obj is self.mock_ionobj.return_value
