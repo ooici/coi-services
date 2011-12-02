@@ -16,27 +16,99 @@ from pyon.util.log import log
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 class InstrumentManagementService(BaseInstrumentManagementService):
+    
+    # find whether a resource with the same type and name already exists
+    def _check_name(self, resource_type, name):
+        try:
+            found_res, _ = self.clients.resource_registry.find_resources(resource_type, None, name, True)
+        except NotFound:
+            # New after all.  PROCEED.
+            pass
+        else:
+            if 0 < len(found_res):
+                raise BadRequest("%s resource named '%s' already exists" % (resource_type, name))
+        
+    # try to get a resource
+    def _get_resource(self, resource_type, resource_id):
+        resource = self.clients.resource_registry.read(resource_id)
+        if not resource:
+            raise NotFound("%s %s does not exist" % (resource_type, resource_id))
+        return resource
 
+    # return a valid message from a create
+    def _return_create(self, resource_label, resource_id):
+        retval = {}
+        retval[resource_label] = resource_id
+        return retval
 
+    # return a valid message from an update
+    def _return_update(self, success_bool):
+        retval = {}
+        retval["success"] = success_bool
+        return retval
 
+    # return a valid message from a read
+    def _return_read(self, resource_type, resource_label, resource_id):
+        retval = {}
+        resource = self._get_resource(resource_type, resource_id)
+        retval[resource_label] = resource
+        return retval
 
+    
     ##########################################################################
     #
-    # Instrument
+    # INSTRUMENT AGENT
     #
     ##########################################################################
 
-    def create_instrument_device(self, instrument_device={}):
-        """method docstring
+    def create_instrument_agent(self, instrument_agent_info={}):
         """
-        # Return Value
-        # ------------
-        # {instrument_device_id: ''}
-        #
-        pass
+        method docstring
+        """
+        # Validate the input filter and augment context as required
+        self._check_name("InstrumentAgent", name)
 
-    def update_instrument_device(self, instrument_device={}):
-        """method docstring
+        #FIXME: more validation?
+
+        #persist
+        instrument_agent_obj = IonObject("InstrumentAgent", instrument_agent_info)
+        instrument_agent_id, _ = self.clients.resource_registry.create(instrument_agent_obj)
+
+        return self._return_create("instrument_agent_id", instrument_agent_id)
+
+
+    def update_instrument_agent(self, instrument_agent_id='', instrument_agent_info={}):
+        """
+        method docstring
+        """
+        instrument_agent_obj = self._get_resource("InstrumentAgent", instrument_agent_id)        
+
+        # Validate the input 
+        
+        #if the name is being changed, make sure it's not being changed to a duplicate
+        self._check_name("InstrumentAgent", instrument_agent_info.name)
+
+        # update some list of fields
+        
+        #persist
+        self.clients.resource_registry.update(instrument_agent_obj)
+
+
+        return self._return_update(True)
+
+        
+
+    def read_instrument_agent(self, instrument_agent_id=''):
+        """
+        method docstring
+        """
+
+        return self._return_read("InstrumentAgent", "instrument_agent_info", instrument_agent_id)
+
+
+    def delete_instrument_agent(self, instrument_agent_id='', reason=''):
+        """
+        method docstring
         """
         # Return Value
         # ------------
@@ -44,89 +116,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def read_instrument_device(self, instrument_device_id=''):
-        """method docstring
+    def find_instrument_agent(self, filters={}):
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # instrument_device: {}
+        # instrument_agent_info_list: []
         #
         pass
 
-    def delete_instrument_device(self, instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def find_instrument_devices(self, filters={}):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # instrument_device_list: []
-        #
-        pass
-
-    def assign_instrument_device(self, instrument_id='', instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def unassign_instrument_device(self, instrument_id='', instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def activate_instrument_device(self, instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def request_direct_access(self, instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def stop_direct_access(self, instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def request_command(self, instrument_device_id='', command={}):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
 
     def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance={}):
-        """method docstring
+        """
+        method docstring
         """
         # Return Value
         # ------------
@@ -135,7 +138,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         pass
 
     def unassign_instrument_agent(self, instrument_agent_id='', instrument_id=''):
-        """method docstring
+        """
+        method docstring
         """
         # Return Value
         # ------------
@@ -143,17 +147,35 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def create_instrument_model(self, instrument_model={}):
-        """method docstring
+
+    
+    ##########################################################################
+    #
+    # INSTRUMENT MODEL
+    #
+    ##########################################################################
+
+    def create_instrument_model(self, instrument_model_info={}):
         """
-        # Return Value
-        # ------------
-        # {instrument_model_id: ''}
-        #
+        method docstring
+        """
+        # Validate the input filter and augment context as required
+
+        # Define YAML/params from
+        # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
+
+        # Create instrument resource, set initial state, persist
+
+        # Create associations
+
+        # Return a resource ref
+
+
         pass
 
-    def update_instrument_model(self, instrument_model={}):
-        """method docstring
+    def update_instrument_model(self, instrument_id='', instrument_model_info={}):
+        """
+        method docstring
         """
         # Return Value
         # ------------
@@ -162,16 +184,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         pass
 
     def read_instrument_model(self, instrument_model_id=''):
-        """method docstring
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # instrument_model: {}
+        # instrument_model_info: {}
         #
         pass
 
-    def delete_instrument_model(self, instrument_model_id=''):
-        """method docstring
+    def delete_instrument_model(self, instrument_model_id='', reason=''):
+        """
+        method docstring
         """
         # Return Value
         # ------------
@@ -180,68 +204,42 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         pass
 
     def find_instrument_model(self, filters={}):
-        """method docstring
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # instrument_model_list: []
+        # instrument_model_info_list: []
         #
         pass
 
-    def assign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
 
-    def unassign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+
+
+
 
 
     ##########################################################################
     #
-    # Sensor
+    # PHYSICAL INSTRUMENT
     #
     ##########################################################################
 
-    def create_sensor_device(self, sensor_device={}):
-        """method docstring
+
+
+    def create_instrument_device(self, instrument_device_info={}):
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # {sensor_device_id: ''}
+        # {instrument_device_id: ''}
         #
         pass
 
-    def update_sensor_device(self, sensor_device={}):
-        """method docstring
+    def update_instrument_device(self, instrument_device_id='', instrument_device_info={}):
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def read_sensor_device(self, sensor_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # sensor_device: {}
-        #
-        pass
-
-    def delete_sensor_device(self, sensor_device_id=''):
-        """method docstring
+        method docstring
         """
         # Return Value
         # ------------
@@ -249,26 +247,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def find_sensor_device(self, filters={}):
-        """method docstring
+    def read_instrument_device(self, instrument_device_id=''):
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # sensor_device_list: []
+        # instrument_device_info: {}
         #
         pass
 
-    def create_sensor_model(self, sensor_model={}):
-        """method docstring
+    def delete_instrument_device(self, instrument_device_id='', reason=''):
         """
-        # Return Value
-        # ------------
-        # {sensor_model_id: ''}
-        #
-        pass
-
-    def update_sensor_model(self, sensor_model={}):
-        """method docstring
+        method docstring
         """
         # Return Value
         # ------------
@@ -276,35 +267,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def read_sensor_model(self, sensor_model_id=''):
-        """method docstring
+    def find_instrument_device(self, filters={}):
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # sensor_model: {}
+        # instrument_device_info_list: []
         #
         pass
 
-    def delete_sensor_model(self, sensor_model_id=''):
-        """method docstring
+    def assign_instrument_device(self, instrument_id='', instrument_device_id=''):
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def find_sensor_model(self, filters={}):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # sensor_model_list: []
-        #
-        pass
-
-    def assign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
-        """method docstring
+        method docstring
         """
         # Return Value
         # ------------
@@ -312,8 +287,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def unassign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
-        """method docstring
+    def unassign_instrument_device(self, instrument_id='', instrument_device_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def activate_instrument_device(self, instrument_device_id=''):
+        """
+        method docstring
         """
         # Return Value
         # ------------
@@ -322,41 +308,57 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         pass
 
 
+    def request_direct_access(self, instrument_id=''):
+        """
+        method docstring
+        """
+        # Validate request; current instrument state, policy, and other
+
+        # Retrieve and save current instrument settings
+
+        # Request DA channel, save reference
+
+        # Return direct access channel
+        pass
+
+    def stop_direct_access(self, instrument_id=''):
+        """
+        method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+
+
+    
     ##########################################################################
     #
-    # Platform
+    # LOGICAL INSTRUMENT
     #
     ##########################################################################
 
-    def create_platform_device(self, platform_device={}):
-        """method docstring
+    def create_instrument(self, instrument_info={}):
         """
-        # Return Value
-        # ------------
-        # {platform_device_id: ''}
-        #
+        method docstring
+        """
+        # Validate the input filter and augment context as required
+
+        # Define YAML/params from
+        # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
+
+        # Create instrument resource, set initial state, persist
+
+        # Create associations
+
+        # Return a resource ref
         pass
 
-    def update_platform_device(self, platform_device={}):
-        """method docstring
+    def update_instrument(self, instrument_id='', instrument_info={}):
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def read_platform_device(self, platform_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # platform_device: {}
-        #
-        pass
-
-    def delete_platform_device(self, platform_device_id=''):
-        """method docstring
+        method docstring
         """
         # Return Value
         # ------------
@@ -364,26 +366,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def find_platform_devices(self, filters={}):
-        """method docstring
+    def read_instrument(self, instrument_id=''):
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # platform_device_list: []
+        # instrument_info: {}
         #
         pass
 
-    def assign_platform_agent(self, platform_agent_id='', platform_id='', platform_agent_instance={}):
-        """method docstring
+    def delete_instrument(self, instrument_id='', reason=''):
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def unassign_agent(self, platform_agent_id='', platform_id=''):
-        """method docstring
+        method docstring
         """
         # Return Value
         # ------------
@@ -391,62 +386,32 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         pass
 
-    def create_platform_model(self, platform_model={}):
-        """method docstring
+    def find_instrument(self, filters={}):
+        """
+        method docstring
         """
         # Return Value
         # ------------
-        # {platform_model_id: ''}
+        # instrument_info_list: []
         #
         pass
 
-    def update_platform_model(self, platform_model={}):
-        """method docstring
+    def request_direct_access(self, instrument_id=''):
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def read_platform_model(self, platform_model_id=''):
-        """method docstring
+        method docstring
         """
-        # Return Value
-        # ------------
-        # platform_model: {}
-        #
+        # Validate request; current instrument state, policy, and other
+
+        # Retrieve and save current instrument settings
+
+        # Request DA channel, save reference
+
+        # Return direct access channel
         pass
 
-    def delete_platform_model(self, platform_model_id=''):
-        """method docstring
+    def stop_direct_access(self, instrument_id=''):
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def find_platform_model(self, filters={}):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # platform_model_list: []
-        #
-        pass
-
-    def assign_platform_model(self, platform_model_id='', platform_device_id=''):
-        """method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def unassign_platform_model(self, platform_model_id='', platform_device_id=''):
-        """method docstring
+        method docstring
         """
         # Return Value
         # ------------

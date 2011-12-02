@@ -14,7 +14,7 @@ from pyon.public import AT
 from examples.bank.bank_service import BankService
 from pyon.util.unit_test import pop_last_call, PyonTestCase
 
-@attr('unit')
+@attr('UNIT')
 class TestBankService(PyonTestCase):
 
     def setUp(self):

@@ -5,9 +5,12 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from interface.services.examples.bank.ibank_service import IBankService
 
+from nose.plugins.attrib import attr
+
 class FakeProcess(LocalContextMixin):
     name = ''
 
+@attr('INT')
 class Test_Bank(IonIntegrationTestCase):
 
     def test_bank(self):

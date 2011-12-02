@@ -11,8 +11,6 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 
 class DataProductManagementService(BaseDataProductManagementService):
 
-    DATA_PRODUCER = 'data_producer'
-
     
     def create_data_product(self, data_product={}, data_producer={}):
         """
@@ -32,11 +30,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
         
-        result = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", id_only=True)
+        result, asso = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", True)
         if len(result) != 0:
             raise BadRequest("A data product named '%s' already exists" % data_product["name"])  
 
-        dataProduct_id, revision = self.clients.resource_registry.create(data_product)
+        dp_obj = IonObject("DataProduct", name=data_product["name"], 
+                           description=data_product["description"])
+        dataProduct_id, revision = self.clients.resource_registry.create(dp_obj)
             
         if len(data_producer) != 0:
             result = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
@@ -45,7 +45,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             DataStreamId = ''        # TODO: what data_acquisition_management operation gets this value?
             # TODO: make associations between data_producer and data_product
             
-        return dataProduct_id  
+        return dataProduct_id
 
 
     def update_data_product(self, data_product={}):
@@ -54,20 +54,28 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         # Update metadata for a specific data product
         # Return updated data product resource
+ 
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
         
-        result = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", id_only=False)
+        result, asso = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", True)
         if len(result) == 0:
-            raise BadRequest("The data product named '%s' does not exists" % data_product["name"])
-        
+            raise BadRequest("The data product named '%s' does not exists" % data_product["name"])       
+        log.debug("DataProductManagementService:update_data_product: found dp %s" % result[0])
+
+        dp_id = str(result[0])
+        dataProduct = self.clients.resource_registry.read(dp_id)
+        if not dataProduct:
+            raise NotFound("The data product %s does not exist" % result[0])
+        log.debug("DataProductManagementService:update_data_product: read dp %s" % str(dataProduct))
+
         try:  
-            dataProduct = self.clients.resource_registry.update(data_product)
+            dataProduct = self.clients.resource_registry.update(dataProduct)
         except BadRequest as ex:
             raise ex
         except Conflict as ex:
             raise ex
             
-        return dataProduct  
+        return dataProduct
 
 
     def read_data_product(self, data_product_id=''):
@@ -76,13 +84,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         # Retrieve all metadata for a specific data product
         # Return data product resource
+
         log.debug("DataProductManagementService:read_data_product: %s" % str(data_product_id))
         
         try:
             result = self.clients.resource_registry.read(data_product_id)
         except NotFound:
             raise BadRequest("The data product with id '%s' does not exists" % str(data_product_id))  
-        return result  
+        return result
 
 
     def delete_data_product(self, data_product_id=''):
@@ -93,6 +102,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # ------------
         # {success: true}
         #
+
         log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
         
         try:
