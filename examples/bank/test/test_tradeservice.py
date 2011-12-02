@@ -45,7 +45,7 @@ class TestTradeService(PyonTestCase):
         self.mock_ionobj.assert_called_once_with('Confirmation',
                 status='complete', tracking_number='111', proceeds=156 /
                 1.56)
-        assert confirmation_obj is self.mock_ionobj.return_value
+        self.assertTrue(confirmation_obj is self.mock_ionobj.return_value)
 
     def test_exercise_sell(self):
         order = Mock()
@@ -59,4 +59,4 @@ class TestTradeService(PyonTestCase):
         self.mock_ionobj.assert_called_once_with('Confirmation',
                 status='complete', tracking_number='123',
                 proceeds= 156 * 1.56)
-        assert confirmation_obj is self.mock_ionobj.return_value
+        self.assertTrue(confirmation_obj is self.mock_ionobj.return_value)
