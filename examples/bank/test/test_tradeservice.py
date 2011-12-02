@@ -13,7 +13,8 @@ from nose.plugins.attrib import attr
 
 from examples.bank.trade_service import TradeService
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
-@attr('unit')
+
+@attr('UNIT')
 class TestTradeService(PyonTestCase):
 
     def setUp(self):
