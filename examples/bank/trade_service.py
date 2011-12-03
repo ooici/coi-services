@@ -5,7 +5,7 @@ object in a trade log and responding to the caller in
 the affirmative.
 """
 
-from pyon.core.bootstrap import IonObject
+from pyon.public import IonObject
 
 from interface.services.examples.bank.itrade_service import BaseTradeService
 
