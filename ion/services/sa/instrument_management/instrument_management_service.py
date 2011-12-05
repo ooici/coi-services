@@ -73,10 +73,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return retval
 
     # return a valid message from a delete
-    def _return_update(self, success_bool):
+    def _return_delete(self, success_bool):
         retval = {}
         retval["success"] = success_bool
         return retval
+
+    # return a valid message from an activate
+    def _return_activate(self, success_bool):
+        retval = {}
+        retval["success"] = success_bool
+        return retval
+
 
     
     ##########################################################################
@@ -185,6 +192,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         raise NotImplementedError()
         pass
+
 
 
     
@@ -298,9 +306,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_device_obj = IonObject("InstrumentDevice", instrument_device_info)
         instrument_device_id, _ = self.clients.resource_registry.create(instrument_device_obj)
 
-        #self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_agent_id, 
-        #                                                            lcstate='ACTIVE')
-
         # Create data product (products?)
 
         # associate data product with instrument
@@ -387,12 +392,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        raise NotImplementedError()
-        pass
+
+        #FIXME: validate somehow
+
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='ACTIVE')
+
+        self._return_activate(True)
 
 
 
