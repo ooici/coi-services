@@ -9,7 +9,7 @@ from interface.services.dm.ipubsub_management_service import BasePubsubManagemen
 class PubsubManagementService(BasePubsubManagementService):
 
 
-    def create_stream(self, stream=None):
+    def create_stream(self, stream={}):
         """
         method docstring
         """

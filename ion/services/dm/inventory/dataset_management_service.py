@@ -31,7 +31,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         # Return Value
         # ------------
         # {success: true}
-        #
+        # 
         pass
 
     def read_dataset(self, dataset_id=''):
@@ -54,7 +54,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         #
         pass
 
-    def find_datasets(self, view={}):
+    def find_datasets(self, filters={}):
         """
         method docstring
         """

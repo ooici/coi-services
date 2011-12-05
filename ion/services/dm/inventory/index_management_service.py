@@ -63,4 +63,11 @@ class IndexManagementService(BaseIndexManagementService):
         #
         pass
 
-  
+    def find_indexes(self, filters={}):
+        """method docstring
+        """
+        # Return Value
+        # ------------
+        # index_list: []
+        #
+        pass
