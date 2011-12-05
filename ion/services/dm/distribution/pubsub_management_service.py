@@ -11,7 +11,8 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
-from pyon.core.bootstrap import IonObject #, AT
+from pyon.core.bootstrap import IonObject
+from pyon.public import AT
 #from pyon.datastore.datastore import DataStore
 from pyon.public import log
 
@@ -135,7 +136,7 @@ class PubsubManagementService(BasePubsubManagementService):
         #we need the stream_id to create the association between the
         #subscription and stream. Should it be passed in here,
         #or create a new method to create the association?
-        #self.clients.resource_registry.create_association(subscription_id, AT.hasStream, stream_id)
+        #self.clients.resource_registry.create_association(id, AT.hasStream, subscription.query.stream_id)
         return id
 
     def update_subscription(self, subscription={}):
