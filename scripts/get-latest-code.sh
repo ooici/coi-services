@@ -23,8 +23,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 git pull --rebase origin master
-cd $THISDIR
-git submodule update
 
 echo "\n\n=== UPDATING COI-SERVICES ===\n"
 cd $THISDIR
@@ -34,6 +32,7 @@ if [ $? -ne 0 ]; then
     echo "\n$(basename $0) aborting because pull failed (probably have unstashed changes)"
     exit 1
 fi
+git submodule update
 
 echo "\n\n=== CLEANING UP ===\n"
 ant clean
