@@ -12,6 +12,24 @@ from pyon.datastore.datastore import DataStore
 from pyon.util.log import log
 
 
+######
+"""
+now TODO
+
+ - implement find methods
+
+
+Later TODO
+
+ - fix create methods to copy fields
+ - fix update methods -- something big will change
+ - fix lifecycle states... how?
+ - 
+
+"""
+######
+
+
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -79,7 +97,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #persist
         instrument_agent_obj = IonObject("InstrumentAgent", instrument_agent_info)
         instrument_agent_id, _ = self.clients.resource_registry.create(instrument_agent_obj)
-~
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_agent_id, 
+                                                                    lcstate='ACTIVE')
+
         return self._return_create("instrument_agent_id", instrument_agent_id)
 
 
@@ -189,6 +209,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create instrument resource, set initial state, persist
         instrument_model_obj = IonObject("InstrumentModel", instrument_model_info)
         instrument_model_id, _ = self.clients.resource_registry.create(instrument_model_obj)
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_model_id, 
+                                                                    lcstate='ACTIVE')
 
         # Create associations
         # ??????? WHAT ASSOCIATIONS?
@@ -275,6 +297,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create instrument resource, set initial state, persist
         instrument_device_obj = IonObject("InstrumentDevice", instrument_device_info)
         instrument_device_id, _ = self.clients.resource_registry.create(instrument_device_obj)
+
+        #self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_agent_id, 
+        #                                                            lcstate='ACTIVE')
 
         # Create data product (products?)
 
@@ -395,6 +420,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create instrument resource, set initial state, persist
         instrument_logical_obj = IonObject("InstrumentLogical", instrument_logical_info)
         instrument_logical_id, _ = self.clients.resource_registry.create(instrument_logical_obj)
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_logical_id, 
+                                                                    lcstate='ACTIVE')
+
 
         # Create data product (products?)
 
