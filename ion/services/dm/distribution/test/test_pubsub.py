@@ -6,6 +6,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.public import log
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from pyon.core.bootstrap import IonObject
+from nose.plugins.attrib import attr
 
 class FakeProcess(object):
     name = ''
@@ -21,6 +22,7 @@ from ion.services.dm.distribution.test.test_pubsub import PubSubTest
 instance = PubSubTest()
 instance.test_runStream(cc)
 '''
+@attr('INT', group='dm')
 class PubSubTest(PyonTestCase):
 
     def setUp(self):
@@ -39,9 +41,6 @@ class PubSubTest(PyonTestCase):
         self.container.quit()
 
     def test_noop(self):
-        pass
-
-    def runTest(self):
         pass
 
     def test_runStream(self, container):
