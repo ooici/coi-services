@@ -26,6 +26,7 @@ class BootstrapService(BaseBootstrapService):
         log.info("Bootstrap service START: System start")
 
     def trigger_level(self, level, config):
+        print "YYYYYYYYYYYYYYYYYYY level: %s config: %s" % (str(level),str(config))
         if level in self.level_seen:
             log.error("Bootstrap level already triggered: %s" % level)
             return
@@ -37,6 +38,8 @@ class BootstrapService(BaseBootstrapService):
             self.post_directory(config)
         elif level == "resource_registry":
             self.post_resource_registry(config)
+        elif level == "identity_management":
+            self.post_identity_management(config)
         elif level == "org_management":
             self.post_org_management(config)
         elif level == "exchange_management":
@@ -74,6 +77,10 @@ class BootstrapService(BaseBootstrapService):
             rt = IonObject("ResourceType", name=res)
             #self.clients.datastore.create(rt)
 
+    def post_identity_management(self, config):
+        # TBD
+        pass
+
     def post_org_management(self, config):
         # Create root Org: ION
         org = IonObject(RT.Org, name="ION", description="ION Root Org")
@@ -90,10 +97,10 @@ class BootstrapService(BaseBootstrapService):
 
     def post_startup(self):
         # Do some sanity tests across the board
-        org_ids, _ = self.clients.resource_registry.find_by_type(RT.Org, None, True)
+        org_ids, _ = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
         assert len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined"
 
-        xs_ids, _ = self.clients.resource_registry.find_by_type(RT.ExchangeSpace, None, True)
+        xs_ids, _ = self.clients.resource_registry.find_resources(RT.ExchangeSpace, None, None, True)
         assert len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined"
 
         res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.hasExchangeSpace, RT.ExchangeSpace, True)
@@ -107,6 +114,7 @@ class BootstrapService(BaseBootstrapService):
 
 
 def start(container, starttype, app_definition, config):
+    print "XXXXXXXXXXXXXX starttype: %s app_definition: %s config: %s" % (str(starttype),str(app_definition),str(config))
     level = config.get("level", 0)
     log.debug("Bootstrap Trigger Level: %s" % level)
     bootstrap_instance.trigger_level(level, config)
