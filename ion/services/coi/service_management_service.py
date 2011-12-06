@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+
+__author__ = 'Stephen P. Henrie'
+__license__ = 'Apache 2.0'
+
+
+from interface.services.coi.iservice_management_service import BaseServiceManagementService
+
+class ServiceManagementService(BaseServiceManagementService):
+
+    def create_service_definition(self, service_definition={}):
+        """ Should receive a ServiceDefinition object
+        """
+        # Return Value
+        # ------------
+        # {service_definition_id: ''}
+        #
+        pass
+
+    def update_service_definition(self, service_definition={}):
+        """ Should receive a ServiceDefinition object
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def read_service_definition(self, service_definition_id=''):
+        """ Should return a ServiceDefinition object
+        """
+        # Return Value
+        # ------------
+        # service_definition: {}
+        #
+        pass
+
+    def delete_service_definition(self, service_definition_id=''):
+        """method docstring
+        """
+        # Return Value
+        # ------------
+        # {success: true}
+        #
+        pass
+
+    def find_services(self, filters={}):
+        """ Should receive a ResourceFilter object
+        """
+        # Return Value
+        # ------------
+        # service_definition_list: []
+        #
+        pass
+
+
