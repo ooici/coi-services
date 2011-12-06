@@ -12,6 +12,24 @@ from pyon.datastore.datastore import DataStore
 from pyon.util.log import log
 
 
+######
+"""
+now TODO
+
+ - implement find methods
+
+
+Later TODO
+
+ - fix create methods to copy fields
+ - fix update methods -- something big will change
+ - fix lifecycle states... how?
+ - 
+
+"""
+######
+
+
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -54,6 +72,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval[resource_label] = resource
         return retval
 
+    # return a valid message from a delete
+    def _return_delete(self, success_bool):
+        retval = {}
+        retval["success"] = success_bool
+        return retval
+
+    # return a valid message from an activate
+    def _return_activate(self, success_bool):
+        retval = {}
+        retval["success"] = success_bool
+        return retval
+
+
     
     ##########################################################################
     #
@@ -73,6 +104,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #persist
         instrument_agent_obj = IonObject("InstrumentAgent", instrument_agent_info)
         instrument_agent_id, _ = self.clients.resource_registry.create(instrument_agent_obj)
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_agent_id, 
+                                                                    lcstate='ACTIVE')
 
         return self._return_create("instrument_agent_id", instrument_agent_id)
 
@@ -102,21 +135,30 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         method docstring
         """
-
         return self._return_read("InstrumentAgent", "instrument_agent_info", instrument_agent_id)
 
 
-    def delete_instrument_agent(self, instrument_agent_id='', reason=''):
+
+    def delete_instrument_agent(self, instrument_agent_id=''):
         """
         method docstring
         """
+
+        instrument_agent_obj = self._get_resource("InstrumentAgent", instrument_agent_id)        
+        
+        self.clients.resource_registry.delete(instrument_agent_obj)
+        
+        return self._return_delete(True)
+
         # Return Value
         # ------------
         # {success: true}
         #
         pass
 
-    def find_instrument_agent(self, filters={}):
+
+
+    def find_instrument_agents(self, filters={}):
         """
         method docstring
         """
@@ -124,7 +166,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # instrument_agent_info_list: []
         #
+        raise NotImplementedError()
         pass
+
 
 
     def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance={}):
@@ -135,6 +179,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # {success: true}
         #
+        raise NotImplementedError()
         pass
 
     def unassign_instrument_agent(self, instrument_agent_id='', instrument_id=''):
@@ -145,7 +190,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # {success: true}
         #
+        raise NotImplementedError()
         pass
+
 
 
     
@@ -159,51 +206,66 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         method docstring
         """
-        # Validate the input filter and augment context as required
-
         # Define YAML/params from
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
+        # Validate the input filter and augment context as required
+        self._check_name("InstrumentModel", name)
+
+        #FIXME: more validation?
+
         # Create instrument resource, set initial state, persist
+        instrument_model_obj = IonObject("InstrumentModel", instrument_model_info)
+        instrument_model_id, _ = self.clients.resource_registry.create(instrument_model_obj)
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_model_id, 
+                                                                    lcstate='ACTIVE')
 
         # Create associations
+        # ??????? WHAT ASSOCIATIONS?
 
-        # Return a resource ref
+        return self._return_create("instrument_model_id", instrument_model_id)
 
-
-        pass
 
     def update_instrument_model(self, instrument_id='', instrument_model_info={}):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+
+        instrument_model_obj = self._get_resource("Instrumentmodel", instrument_model_id)        
+
+        # Validate the input 
+        
+        #if the name is being changed, make sure it's not being changed to a duplicate
+        self._check_name("Instrumentmodel", instrument_model_info.name)
+
+        # update some list of fields
+        
+        #persist
+        self.clients.resource_registry.update(instrument_model_obj)
+
+        return self._return_update(True)
+
+    
 
     def read_instrument_model(self, instrument_model_id=''):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # instrument_model_info: {}
-        #
-        pass
+        return self._return_read("InstrumentModel", "instrument_model_info", instrument_model_id)
 
-    def delete_instrument_model(self, instrument_model_id='', reason=''):
+
+    def delete_instrument_model(self, instrument_model_id=''):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        instrument_model_obj = self._get_resource("InstrumentModel", instrument_model_id)        
+        
+        self.clients.resource_registry.delete(instrument_model_obj)
+        
+        return self._return_delete(True)
 
-    def find_instrument_model(self, filters={}):
+
+    def find_instrument_models(self, filters={}):
         """
         method docstring
         """
@@ -211,6 +273,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # instrument_model_info_list: []
         #
+        raise NotImplementedError()
         pass
 
 
@@ -231,43 +294,68 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {instrument_device_id: ''}
-        #
-        pass
+        # Define YAML/params from
+        # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
-    def update_instrument_device(self, instrument_device_id='', instrument_device_info={}):
+        # Validate the input filter and augment context as required
+        self._check_name("InstrumentDevice", name)
+
+        #FIXME: more validation?
+
+        # Create instrument resource, set initial state, persist
+        instrument_device_obj = IonObject("InstrumentDevice", instrument_device_info)
+        instrument_device_id, _ = self.clients.resource_registry.create(instrument_device_obj)
+
+        # Create data product (products?)
+
+        # associate data product with instrument
+        #_ = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, xs_id)
+
+        return self._return_create("instrument_device_id", instrument_device_id)
+
+
+
+    def update_instrument_device(self, instrument_id='', instrument_device_info={}):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+
+        instrument_device_obj = self._get_resource("Instrumentdevice", instrument_device_id)        
+
+        # Validate the input 
+        
+        #if the name is being changed, make sure it's not being changed to a duplicate
+        self._check_name("Instrumentdevice", instrument_device_info.name)
+
+        # update some list of fields
+        
+        #persist
+        self.clients.resource_registry.update(instrument_device_obj)
+
+        return self._return_update(True)
+
+    
 
     def read_instrument_device(self, instrument_device_id=''):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # instrument_device_info: {}
-        #
-        pass
+        return self._return_read("InstrumentDevice", "instrument_device_info", instrument_device_id)
 
-    def delete_instrument_device(self, instrument_device_id='', reason=''):
+
+    def delete_instrument_device(self, instrument_device_id=''):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        instrument_device_obj = self._get_resource("InstrumentDevice", instrument_device_id)        
+        
+        self.clients.resource_registry.delete(instrument_device_obj)
+        
+        return self._return_delete(True)
 
-    def find_instrument_device(self, filters={}):
+
+
+    def find_instrument_devices(self, filters={}):
         """
         method docstring
         """
@@ -275,6 +363,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # instrument_device_info_list: []
         #
+        raise NotImplementedError()
         pass
 
     def assign_instrument_device(self, instrument_id='', instrument_device_id=''):
@@ -285,6 +374,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # {success: true}
         #
+        raise NotImplementedError()
         pass
 
     def unassign_instrument_device(self, instrument_id='', instrument_device_id=''):
@@ -295,41 +385,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # {success: true}
         #
+        raise NotImplementedError()
         pass
 
     def activate_instrument_device(self, instrument_device_id=''):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
 
+        #FIXME: validate somehow
 
-    def request_direct_access(self, instrument_id=''):
-        """
-        method docstring
-        """
-        # Validate request; current instrument state, policy, and other
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='ACTIVE')
 
-        # Retrieve and save current instrument settings
+        self._return_activate(True)
 
-        # Request DA channel, save reference
-
-        # Return direct access channel
-        pass
-
-    def stop_direct_access(self, instrument_id=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
 
 
 
@@ -340,66 +410,100 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument(self, instrument_info={}):
+
+    def create_instrument_logical(self, instrument_logical_info={}):
         """
         method docstring
         """
-        # Validate the input filter and augment context as required
-
         # Define YAML/params from
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
+        # Validate the input filter and augment context as required
+        self._check_name("InstrumentLogical", name)
+
+        #FIXME: more validation?
+
         # Create instrument resource, set initial state, persist
+        instrument_logical_obj = IonObject("InstrumentLogical", instrument_logical_info)
+        instrument_logical_id, _ = self.clients.resource_registry.create(instrument_logical_obj)
+        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_logical_id, 
+                                                                    lcstate='ACTIVE')
 
-        # Create associations
 
-        # Return a resource ref
-        pass
+        # Create data product (products?)
 
-    def update_instrument(self, instrument_id='', instrument_info={}):
+        # associate data product with instrument
+        #_ = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, xs_id)
+
+        return self._return_create("instrument_logical_id", instrument_logical_id)
+
+
+
+    def update_instrument_logical(self, instrument_id='', instrument_logical_info={}):
+        """
+        method docstring
+        """
+
+        instrument_logical_obj = self._get_resource("Instrumentlogical", instrument_logical_id)        
+
+        # Validate the input 
+        
+        #if the name is being changed, make sure it's not being changed to a duplicate
+        self._check_name("Instrumentlogical", instrument_logical_info.name)
+
+        # update some list of fields
+        
+        #persist
+        self.clients.resource_registry.update(instrument_logical_obj)
+
+        return self._return_update(True)
+
+    
+
+    def read_instrument_logical(self, instrument_logical_id=''):
+        """
+        method docstring
+        """
+        return self._return_read("InstrumentLogical", "instrument_logical_info", instrument_logical_id)
+
+
+    def delete_instrument_logical(self, instrument_logical_id=''):
+        """
+        method docstring
+        """
+        instrument_logical_obj = self._get_resource("InstrumentLogical", instrument_logical_id)        
+        
+        self.clients.resource_registry.delete(instrument_logical_obj)
+        
+        return self._return_delete(True)
+
+
+    def find_instrument_logical(self, filters={}):
         """
         method docstring
         """
         # Return Value
         # ------------
-        # {success: true}
+        # instrument_logical_info_list: []
         #
+        raise NotImplementedError()
         pass
 
-    def read_instrument(self, instrument_id=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # instrument_info: {}
-        #
-        pass
 
-    def delete_instrument(self, instrument_id='', reason=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def find_instrument(self, filters={}):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # instrument_info_list: []
-        #
-        pass
+    ##
+    ##
+    ##  DIRECT ACCESS
+    ##
+    ##
 
     def request_direct_access(self, instrument_id=''):
         """
         method docstring
         """
+        
+        # determine whether id is for physical or logical instrument
+        # look up instrument if not
+        
         # Validate request; current instrument state, policy, and other
 
         # Retrieve and save current instrument settings
@@ -407,6 +511,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Request DA channel, save reference
 
         # Return direct access channel
+        raise NotImplementedError()
         pass
 
     def stop_direct_access(self, instrument_id=''):
@@ -417,9 +522,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # {success: true}
         #
+        raise NotImplementedError()
         pass
-
-
-
 
 

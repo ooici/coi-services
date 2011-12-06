@@ -8,6 +8,7 @@ from pyon.core.exception import NotFound, Inconsistent
 from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.datastore.mockdb.mockdb_datastore import MockDB_DataStore
 from pyon.public import LCS
+from pyon.util.containers import current_time_millis
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
@@ -39,6 +40,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
             self.resource_registry.create_datastore(resource_registry_name)
 
     def create(self, object={}):
+        cur_time = current_time_millis()
+        object.ts_create = cur_time
+        object.ts_update = cur_time
         return self.resource_registry.create(object)
 
     def read(self, object_id='', rev_id=''):
@@ -48,15 +52,17 @@ class ResourceRegistryService(BaseResourceRegistryService):
         # Do an check whether LCS has been modified
         res_obj = self.read(object._id, object._rev)
         assert res_obj.lcstate == object.lcstate, "Cannot modify life cycle state in update!"
+        object.ts_update = current_time_millis()
         return self.resource_registry.update(object)
 
     def delete(self, object={}):
-        return self.resource_registry.delete_doc(object)
+        return self.resource_registry.delete(object)
 
     def execute_lifecycle_transition(resource_id='', lcstate=''):
+        assert lcstate in LCS, "Unknown life-cycle state %s" % lcstate
         res_obj = self.read(resource_id)
         res_obj.lcstate = lcstate
-        assert lcstate in LCS, "Unknown life-cycle state %s" % lcstate
+        res_obj.ts_update = current_time_millis()
         return self.update(res_obj)
 
     def create_association(self, subject=None, predicate=None, object=None):

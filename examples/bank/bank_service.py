@@ -9,8 +9,7 @@ This service tracks customers and their accounts (checking or saving)
 '''
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import IonObject, AT
-from pyon.util.log import log
+from pyon.public import IonObject, AT, log
 
 from interface.services.examples.bank.ibank_service import BaseBankService
 

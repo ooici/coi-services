@@ -34,18 +34,18 @@ class TestTradeService(PyonTestCase):
         order.cash_amount = 156
         self.mock_create.return_value = ['111']
 
-       # test our function with our data
+        # TEST: Execute the service operation call
         confirmation_obj = self.trade_service.exercise(order)
 
         # How is the test result
         # assert resource_registry.create did get called with correct
         # arguments
-        assert confirmation_obj is self.mock_ionobj.return_value
         self.mock_create.assert_called_once_with(order)
         # assert mock ion object is called
         self.mock_ionobj.assert_called_once_with('Confirmation',
                 status='complete', tracking_number='111', proceeds=156 /
                 1.56)
+        self.assertTrue(confirmation_obj is self.mock_ionobj.return_value)
 
     def test_exercise_sell(self):
         order = Mock()
@@ -55,8 +55,8 @@ class TestTradeService(PyonTestCase):
 
         confirmation_obj = self.trade_service.exercise(order)
 
-        assert confirmation_obj is self.mock_ionobj.return_value
         self.mock_create.assert_called_once_with(order)
         self.mock_ionobj.assert_called_once_with('Confirmation',
                 status='complete', tracking_number='123',
                 proceeds= 156 * 1.56)
+        self.assertTrue(confirmation_obj is self.mock_ionobj.return_value)
