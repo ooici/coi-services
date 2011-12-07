@@ -10,9 +10,8 @@ and the relationships between them
 
 from interface.services.sa.idata_acquisition_management_service import BaseDataAcquisitionManagementService
 from pyon.core.exception import NotFound
-from pyon.core.bootstrap import IonObject
+from pyon.public import CFG, IonObject, log, RT, AT, LCS
 
-from pyon.public import log
 
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
@@ -100,59 +99,121 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #
         pass
 
+
+    # -----------------
+    # The following operations register different types of data producers
+    # -----------------
+
+        # try to get a resource
+    def _create_producer_resource(self, attrs={}):
+        log.debug("Creating DataProducer object")
+        data_producer_obj = IonObject("DataProducer", attrs)
+
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+        return data_producer_id
+
+    def _remove_producer(self, resource_id='', producers={}):
+        log.debug("Removing DataProducer objects and links")
+        for x in producers:
+            # List all association ids with given subject, predicate, object triples
+            assoc_ids, _ = self.clients.resource_registry.find_associations(resource_id, AT.hasDataProducer, x, True)
+            for y in assoc_ids:
+                self.clients.resource_registry.delete_association(y)
+
+            self.clients.resource_registry.delete(x)
+        return True
+
     def register_data_source(self, data_source_id=''):
         """Register an existing data source as data producer
         """
-        # Return Value
-        # ------------
-        # {data_source_id: ''}
-        #
-        pass
+        # retrieve the data_source object
+        data_source_obj = self.clients.resource_registry.read(data_source_id)
+        if data_source_obj is None:
+            raise NotFound("Data Source %d does not exist" % data_source_id)
+
+        #create data producer resource and associate to this data_source_id
+        data_producer = {'name':data_source_obj.name, 'description':data_source_obj.description}
+        data_producer_id = self._create_producer_resource(data_producer)
+
+        # Create association
+        self.clients.resource_registry.create_association(data_source_id, AT.hasDataProducer, data_producer_id)
+
+        return data_producer_id
 
     def unregister_data_source(self, data_source_id=''):
-        """method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        Remove the associated DataProducer
+
+        """
+        # List all resource ids that are objects for this data_source and has the hasDataProducer link
+        res_ids, _ = self.clients.resource_registry.find_objects(data_source_id, AT.hasDataProducer, None, True)
+        if res_ids is None:
+            raise NotFound("Data Producer for Data Source %d does not exist" % data_source_id)
+
+        return self._remove_producer(data_source_id, res_ids)
+
+
 
     def register_process(self, data_process_id=''):
-        """Register an existing data process as data producer
         """
-        # Return Value
-        # ------------
-        # {data_producer_id: ''}
-        #
-        pass
+        Register an existing data process as data producer
+        """
+
+        # retrieve the data_process object
+        data_process_obj = self.clients.resource_registry.read(data_process_id)
+        if data_process_obj is None:
+            raise NotFound("Data Process %d does not exist" % data_process_id)
+
+        #create data producer resource and associate to this data_process_id
+        data_producer = {'name':data_process_obj.name, 'description':data_process_obj.description}
+        data_producer_id = self._create_producer_resource(data_producer)
+
+        # Create association
+        self.clients.resource_registry.create_association(data_process_id, AT.hasDataProducer, data_producer_id)
+
+        return data_producer_id
 
     def unregister_process(self, data_process_id=''):
-        """method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        Remove the associated DataProcess
+
+        """
+        # List all resource ids that are objects for this data_source and has the hasDataProducer link
+        res_ids, _ = self.clients.resource_registry.find_objects(data_process_id, AT.hasDataProducer, None, True)
+        if res_ids is None:
+            raise NotFound("Data Producer for Data Process %d does not exist" % data_process_id)
+
+        return self._remove_producer(data_process_id, res_ids)
 
     def register_instrument(self, instrument_id=''):
-        """Register an existing instrument as data producer
         """
-        # Return Value
-        # ------------
-        # {data_producer_id: ''}
-        #
-        pass
+        Register an existing instrument as data producer
+        """
+        # retrieve the data_process object
+        instrument_obj = self.clients.resource_registry.read(instrument_id)
+        if instrument_obj is None:
+            raise NotFound("Data Process %d does not exist" % instrument_id)
+
+        #create data producer resource and associate to this data_process_id
+        data_producer = {'name':instrument_obj.name, 'description':instrument_obj.description}
+        data_producer_id = self._create_producer_resource(data_producer)
+
+        # Create association
+        self.clients.resource_registry.create_association(instrument_id, AT.hasDataProducer, data_producer_id)
+
+        return data_producer_id
 
     def unregister_instrument(self, instrument_id=''):
-        """method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        Remove the associated DataProcess
+
+        """
+        # List all resource ids that are objects for this data_source and has the hasDataProducer link
+        res_ids, _ = self.clients.resource_registry.find_objects(instrument_id, AT.hasDataProducer, None, True)
+        if res_ids is None:
+            raise NotFound("Data Producer for Instrument %d does not exist" % instrument_id)
+
+        return self._remove_producer(instrument_id, res_ids)
 
     def create_data_producer(self, data_producer={}):
         '''
