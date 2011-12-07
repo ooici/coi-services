@@ -17,8 +17,7 @@ from interface.services.coi.iresource_registry_service import BaseResourceRegist
 class TestIdentityManagementService(PyonTestCase):
 
     def setUp(self):
-        self.mock_ionobj = self._create_IonObject_mock('examples.bank.trade_service.IonObject')
-        self._create_service_mock('trade')
+        self._create_service_mock('identity_management')
 
         self.identity_management_service = IdentityManagementService()
         self.identity_management_service.clients = self.clients
