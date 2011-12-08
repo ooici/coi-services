@@ -315,4 +315,4 @@ class TestBankService(PyonTestCase):
         self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'Roger', False)
         self.mock_find_objects.assert_called_once_with(sentinel.customer_obj,
                 AT.hasAccount, 'BankAccount', False)
-        self.assertEqual(accounts, sentinel.accounts)
+        assert accounts is sentinel.accounts
