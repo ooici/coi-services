@@ -107,17 +107,15 @@ class TestIdentityManagementService(PyonTestCase):
 
         self.mock_update.return_value = ['111', 2]
         
-        result = self.identity_management_service.update_user_identity(user_identity)
+        self.identity_management_service.update_user_identity(user_identity)
 
-        assert result == True
         self.mock_update.assert_called_once_with(user_identity)        
 
     def test_delete_user_identity(self):
         self.mock_read.return_value = self.user_identity
         
-        result = self.identity_management_service.delete_user_identity('111')
+        self.identity_management_service.delete_user_identity('111')
 
-        assert result == True
         self.mock_read.assert_called_once_with('111', '')
         self.mock_delete.assert_called_once_with(self.user_identity)        
  
@@ -148,9 +146,8 @@ class TestIdentityManagementService(PyonTestCase):
 
         self.mock_create_association.return_value = ['333', 1]
         
-        result = self.identity_management_service.register_user_credentials('111', self.user_credentials)
+        self.identity_management_service.register_user_credentials('111', self.user_credentials)
 
-        assert result == True
         self.mock_create.assert_called_once_with(self.user_credentials)
         self.mock_create_association.assert_called_once_with('111', AT.hasCredentials, '222')
 
@@ -159,9 +156,8 @@ class TestIdentityManagementService(PyonTestCase):
 
         self.mock_find_objects.return_value = ([self.user_credentials], [self.user_identity_to_credentials_association])
         
-        result = self.identity_management_service.unregister_user_credentials('111', "Bogus subject")
+        self.identity_management_service.unregister_user_credentials('111', "Bogus subject")
 
-        assert result == True
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, self.user_credentials.name, False)
         self.mock_find_objects.assert_called_once_with('111', AT.hasCredentials, RT.UserCredentials, False)
         self.mock_delete_association.assert_called_once_with('333')
@@ -228,9 +224,8 @@ class TestIdentityManagementService(PyonTestCase):
 
         self.mock_update.return_value = ['444', 2]
         
-        result = self.identity_management_service.update_user_info(user_info)
+        self.identity_management_service.update_user_info(user_info)
 
-        assert result == True
         self.mock_update.assert_called_once_with(user_info)        
 
     def test_delete_user_info(self):
@@ -238,9 +233,8 @@ class TestIdentityManagementService(PyonTestCase):
 
         self.mock_find_subjects.return_value = ([self.user_identity], [self.user_identity_to_info_association])
         
-        result = self.identity_management_service.delete_user_info('444')
+        self.identity_management_service.delete_user_info('444')
 
-        assert result == True
         self.mock_find_subjects.assert_called_once_with('444', AT.hasInfo, RT.UserIdentity, False)
         self.mock_delete_association.assert_called_once_with('555')
         self.mock_delete.assert_called_once_with(self.user_info)
