@@ -86,9 +86,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def get_association(self, subject=None, predicate=None, object=None):
         assoc = self.resource_registry.find_associations(subject, predicate, object, id_only=True)
         if not assoc:
-            raise NotFound()
+            raise NotFound("Association for subject/predicate/object %s/%s/%s not found" % (str(subject),str(predicate),str(object)))
         elif len(assoc) > 1:
-            raise Inconsistent()
+            raise Inconsistent("Duplicate associations found for subject/predicate/object %s/%s/%s" % (str(subject),str(predicate),str(object)))
         return assoc[0]
 
     def find_resources(self, restype=None, lcstate=None, name=None, id_only=False):
