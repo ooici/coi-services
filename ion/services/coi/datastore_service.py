@@ -35,6 +35,9 @@ class DataStoreService(BaseDatastoreService):
                 pass
         if not self.datastore_exists(datastore_name):
             self.datastore.create_datastore(datastore_name)
+        # For easier interactive debugging
+        self.dss = self.datastore.server[datastore_name] if persistent else None
+        self.ds = self.datastore
 
     def create_datastore(self, datastore_name=''):
         return self.datastore.create_datastore(datastore_name)

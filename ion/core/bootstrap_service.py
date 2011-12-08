@@ -26,7 +26,7 @@ class BootstrapService(BaseBootstrapService):
         log.info("Bootstrap service START: System start")
 
     def trigger_level(self, level, config):
-        print "YYYYYYYYYYYYYYYYYYY level: %s config: %s" % (str(level),str(config))
+        #print "Bootstrap level: %s config: %s" % (str(level),str(config))
         if level in self.level_seen:
             log.error("Bootstrap level already triggered: %s" % level)
             return
@@ -114,7 +114,7 @@ class BootstrapService(BaseBootstrapService):
 
 
 def start(container, starttype, app_definition, config):
-    print "XXXXXXXXXXXXXX starttype: %s app_definition: %s config: %s" % (str(starttype),str(app_definition),str(config))
+    #print "Bootstrap starttype: %s app_definition: %s config: %s" % (str(starttype),str(app_definition),str(config))
     level = config.get("level", 0)
     log.debug("Bootstrap Trigger Level: %s" % level)
     bootstrap_instance.trigger_level(level, config)

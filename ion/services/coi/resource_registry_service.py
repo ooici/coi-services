@@ -38,6 +38,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
                 pass
         if not self.resource_registry.datastore_exists(resource_registry_name):
             self.resource_registry.create_datastore(resource_registry_name)
+        # For easier interactive debugging
+        self.dss = self.resource_registry.server[resource_registry_name] if persistent else None
+        self.ds = self.resource_registry
 
     def create(self, object={}):
         cur_time = get_ion_ts()
