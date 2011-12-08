@@ -8,6 +8,7 @@ from interface.services.sa.idata_product_management_service import BaseDataProdu
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.public import RT, AT, LCS
 
 class DataProductManagementService(BaseDataProductManagementService):
 
@@ -30,22 +31,22 @@ class DataProductManagementService(BaseDataProductManagementService):
         
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
         
-        result, asso = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", True)
+        result, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, data_product["name"], True)
         if len(result) != 0:
             raise BadRequest("A data product named '%s' already exists" % data_product["name"])  
 
-        dp_obj = IonObject("DataProduct", name=data_product["name"], 
+        dp_obj = IonObject(RT.DataProduct, name=data_product["name"], 
                            description=data_product["description"])
-        dataProduct_id, revision = self.clients.resource_registry.create(dp_obj)
+        data_product_id, version = self.clients.resource_registry.create(dp_obj)
             
         if len(data_producer) != 0:
             result = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
             log.info("DataProductManagementService.define_data_product create_data_producer result: %s " % str(result))
-            DataProducerId = result
-            DataStreamId = ''        # TODO: what data_acquisition_management operation gets this value?
+            data_producer_id = result
+            data_stream_id = ''        # TODO: what data_acquisition_management operation gets this value?
             # TODO: make associations between data_producer and data_product
             
-        return dataProduct_id
+        return data_product_id
 
 
     def update_data_product(self, data_product={}):
@@ -57,25 +58,26 @@ class DataProductManagementService(BaseDataProductManagementService):
  
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
         
-        result, asso = self.clients.resource_registry.find_by_name(data_product["name"], "DataProduct", True)
-        if len(result) == 0:
+        """
+        resource_ids, - = self.clients.resource_registry.find_resources(RT.DataProduct, None, data_product["name"], True)
+        if len(resource_ids) == 0:
             raise BadRequest("The data product named '%s' does not exists" % data_product["name"])       
-        log.debug("DataProductManagementService:update_data_product: found dp %s" % result[0])
+        log.debug("DataProductManagementService:update_data_product: found dp %s" % resource_ids[0])
 
-        dp_id = str(result[0])
-        dataProduct = self.clients.resource_registry.read(dp_id)
-        if not dataProduct:
+        data_product_obj = self.clients.resource_registry.read(resource_ids[0])
+        if not data_product:
             raise NotFound("The data product %s does not exist" % result[0])
-        log.debug("DataProductManagementService:update_data_product: read dp %s" % str(dataProduct))
-
+        log.debug("DataProductManagementService:update_data_product: dp before update %s" % str(data_product))
+        """
+        
         try:  
-            dataProduct = self.clients.resource_registry.update(dataProduct)
+            data_product_id = self.clients.resource_registry.update(data_product)
         except BadRequest as ex:
             raise ex
         except Conflict as ex:
             raise ex
             
-        return dataProduct
+        return True
 
 
     def read_data_product(self, data_product_id=''):
@@ -105,14 +107,10 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
         
-        try:
-            result = self.clients.resource_registry.read(data_product_id)
-        except NotFound:
-            raise BadRequest("The data product with id '%s' does not exists" % str(data_product_id))  
-        try:
-            self.clients.resource_registry.delete(result)
-        except NotFound:
-            raise BadRequest("The data product with id '%s' does not exists" % str(data_product_id))  
+        # Attempt to change the life cycle state of data product
+        delete_result = self.clients.resource_registry.delete(data_product_id)
+
+        return delete_result
 
 
     def find_data_products(self, filters={}):
