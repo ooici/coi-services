@@ -27,16 +27,35 @@ class ServiceGatewayService(BaseServiceGatewayService):
    # running_container = None
     def on_init(self):
 
-        #probably need to specify the host name and port in configuration file and need to figure out how to redirect HTTP logging to a file
-        self.http_server = WSGIServer(('', 5000), app)
-        self.http_server.start()
+        self.http_server = None
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
         service_gateway_instance = self
 
+        #probably need to specify the host name and port in configuration file and need to figure out how to redirect HTTP logging to a file
+        self.start_service('',5000)
+
     def on_quit(self):
+        self.stop_service()
+
+
+    def start_service(self, hostname='', port=5000):
+
+        if self.http_server != None:
+            self.stop_service()
+
+        """Responsible for starting the gevent based web service."""
+        self.http_server = WSGIServer((hostname, port), app)
+        self.http_server.start()
+
+        return True
+
+    def stop_service(self):
+        """Responsible for stoping the gevent based web service."""
         self.http_server.stop()
+        return True
+
         
 
 #This is a service operation for handling generic service operation calls with arguments passed as query string parameters; like this:
