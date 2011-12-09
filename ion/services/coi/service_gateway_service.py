@@ -41,18 +41,18 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
 
     def start_service(self, hostname='', port=5000):
+        """Responsible for starting the gevent based web server."""
 
         if self.http_server != None:
             self.stop_service()
 
-        """Responsible for starting the gevent based web service."""
         self.http_server = WSGIServer((hostname, port), app)
         self.http_server.start()
 
         return True
 
     def stop_service(self):
-        """Responsible for stoping the gevent based web service."""
+        """Responsible for stopping the gevent based web server."""
         self.http_server.stop()
         return True
 
