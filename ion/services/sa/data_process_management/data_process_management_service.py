@@ -8,9 +8,8 @@ from interface.services.sa.idata_process_management_service  import BaseDataProc
 
 class DataProcessManagementService(BaseDataProcessManagementService):
 
-    def create_data_process(self, data_process={}):
-        """
-        method docstring
+    def create_data_process(self, data_process={}, in_subscription_id='', out_data_product_id=''):
+        """method docstring
         """
         # Return Value
         # ------------
@@ -19,8 +18,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         pass
 
     def update_data_process(self, data_process={}):
-        """
-        method docstring
+        """method docstring
         """
         # Return Value
         # ------------
@@ -29,8 +27,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         pass
 
     def read_data_process(self, data_process_id=''):
-        """
-        method docstring
+        """method docstring
         """
         # Return Value
         # ------------
@@ -39,8 +36,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         pass
 
     def delete_data_process(self, data_process_id=''):
-        """
-        method docstring
+        """method docstring
         """
         # Return Value
         # ------------
@@ -49,8 +45,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         pass
 
     def find_data_process(self, filters={}):
-        """
-        method docstring
+        """method docstring
         """
         # Return Value
         # ------------
@@ -59,8 +54,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         pass
 
     def attach_process(self, process=''):
-        """
-        method docstring
+        """method docstring
         """
         # Return Value
         # ------------

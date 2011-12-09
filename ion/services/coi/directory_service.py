@@ -10,6 +10,13 @@ class DirectoryService(BaseDirectoryService):
 
     def on_init(self):
         self.directory = Directory()
+        # For easier interactive debugging
+        self.dss = None
+        self.ds = self.directory.datastore
+        try:
+            self.dss = self.directory.datastore.server[self.directory.datastore.datastore_name]
+        except Exception:
+            pass
 
     def register(self, parent='/', key='', attributes={}):
         return self.directory.register(parent, key, **attributes)
