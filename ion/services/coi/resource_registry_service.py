@@ -93,4 +93,4 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def find_resources(self, restype="", lcstate="", name="", id_only=False):
         
-        return self.resource_registry.find_resources(restype, lcstate, id_only=id_only)
+        return self.resource_registry.find_resources(restype, lcstate, name, id_only=id_only)
