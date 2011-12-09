@@ -51,15 +51,15 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def update(self, object={}):
         # Do an check whether LCS has been modified
         res_obj = self.read(object._id, object._rev)
-        assert res_obj.lcstate == object.lcstate, "Cannot modify life cycle state in update!"
+        self.assert_condition(res_obj.lcstate == object.lcstate, "Cannot modify life cycle state in update!")
         object.ts_updated = str(current_time_millis())
         return self.resource_registry.update(object)
 
     def delete(self, object={}):
         return self.resource_registry.delete(object)
 
-    def execute_lifecycle_transition(resource_id='', lcstate=''):
-        assert lcstate in LCS, "Unknown life-cycle state %s" % lcstate
+    def execute_lifecycle_transition(self, resource_id='', lcstate=''):
+        self.assert_condition(lcstate in LCS, "Unknown life-cycle state %s" % lcstate)
         res_obj = self.read(resource_id)
         res_obj.lcstate = lcstate
         res_obj.ts_updated = str(current_time_millis())
@@ -77,13 +77,13 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def find_objects(self, subject=None, predicate=None, object_type=None, id_only=False):
         return self.resource_registry.find_objects(subject, predicate, object_type, id_only=id_only)
 
-    def find_subjects(self, subject_type=None, predicate=None, object=None, id_only=False):
+    def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
         return self.resource_registry.find_subjects(subject_type, predicate, object, id_only=id_only)
 
-    def find_associations(self, subject=None, predicate=None, object=None, id_only=False):
+    def find_associations(self, subject="", predicate="", object="", id_only=False):
         return self.resource_registry.find_associations(subject, predicate, object, id_only=id_only)
 
-    def get_association(self, subject=None, predicate=None, object=None):
+    def get_association(self, subject="", predicate="", object=""):
         assoc = self.resource_registry.find_associations(subject, predicate, object, id_only=True)
         if not assoc:
             raise NotFound("Association for subject/predicate/object %s/%s/%s not found" % (str(subject),str(predicate),str(object)))
@@ -91,5 +91,6 @@ class ResourceRegistryService(BaseResourceRegistryService):
             raise Inconsistent("Duplicate associations found for subject/predicate/object %s/%s/%s" % (str(subject),str(predicate),str(object)))
         return assoc[0]
 
-    def find_resources(self, restype=None, lcstate=None, name=None, id_only=False):
+    def find_resources(self, restype="", lcstate="", name="", id_only=False):
+        
         return self.resource_registry.find_resources(restype, lcstate, id_only=id_only)
