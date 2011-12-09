@@ -10,7 +10,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
     def create_exchange_space(self, xs=None, org_id=''):
         log.debug("create_exchange_space(%s, org_id=%s)" % (xs, org_id))
-        assert xs and org_id, "Arguments not set"
+        self.assert_condition(xs and org_id, "Arguments not set")
         xs_id,rev = self.clients.resource_registry.create(xs)
 
         aid = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, xs_id)
