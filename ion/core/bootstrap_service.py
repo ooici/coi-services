@@ -98,16 +98,16 @@ class BootstrapService(BaseBootstrapService):
     def post_startup(self):
         # Do some sanity tests across the board
         org_ids, _ = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
-        assert len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined"
+        self.assert_condition(len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined")
 
         xs_ids, _ = self.clients.resource_registry.find_resources(RT.ExchangeSpace, None, None, True)
-        assert len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined"
+        self.assert_condition(len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined")
 
         res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.hasExchangeSpace, RT.ExchangeSpace, True)
-        assert len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated"
+        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated")
 
         res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, AT.hasExchangeSpace, self.xs_id, True)
-        assert len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated"
+        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated")
 
     def on_quit(self):
         log.info("Bootstrap service QUIT: System quit")
