@@ -31,13 +31,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
         
-        result, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, data_product["name"], True)
+        result, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, data_product.name, True)
         if len(result) != 0:
-            raise BadRequest("A data product named '%s' already exists" % data_product["name"])  
+            raise BadRequest("A data product named '%s' already exists" % data_product.name)  
 
-        dp_obj = IonObject(RT.DataProduct, name=data_product["name"], 
-                           description=data_product["description"])
-        data_product_id, version = self.clients.resource_registry.create(dp_obj)
+        if ('_id' in data_product):
+            raise BadRequest("The _id field was already set in a new data product object")         
+        
+        data_product_id, version = self.clients.resource_registry.create(data_product)
             
         if len(data_producer) != 0:
             result = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
@@ -70,6 +71,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug("DataProductManagementService:update_data_product: dp before update %s" % str(data_product))
         """
         
+        if ('_id' not in data_product):
+            raise BadRequest("The _id field was not set in data product object")         
+        
         try:  
             data_product_id = self.clients.resource_registry.update(data_product)
         except BadRequest as ex:
@@ -92,7 +96,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         try:
             result = self.clients.resource_registry.read(data_product_id)
         except NotFound:
-            raise BadRequest("The data product with id '%s' does not exists" % str(data_product_id))  
+            raise ex
+        if (result == None):  
+            raise NotFound("The data product with id '%s' does not exists" % str(data_product_id))
         return result
 
 
