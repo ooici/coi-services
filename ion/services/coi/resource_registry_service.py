@@ -74,7 +74,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def find(self, **kwargs):
         raise NotImplementedError("Do not use find. Use a specific find operation instead.")
 
-    def find_objects(self, subject=None, predicate=None, object_type=None, id_only=False):
+    def find_objects(self, subject="", predicate="", object_type="", id_only=False):
         return self.resource_registry.find_objects(subject, predicate, object_type, id_only=id_only)
 
     def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
