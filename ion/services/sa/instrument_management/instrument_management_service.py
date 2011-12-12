@@ -21,8 +21,6 @@ now TODO
 
 Later TODO
 
- - fix create methods to copy fields
- - fix update methods -- something big will change
  - fix lifecycle states... how?
  - 
 
@@ -96,13 +94,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_agent(self, instrument_agent_info={}):
+    def create_instrument_agent(self, instrument_agent_info=None):
         """
         method docstring
         """
         # Validate the input filter and augment context as required
-        name = instrument_agent_info["name"]
-        self._check_name("InstrumentAgent", name)
+        self._check_name("InstrumentAgent", instrument_agent_info.name)
 
         #FIXME: more validation?
 
@@ -115,7 +112,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_create("instrument_agent_id", instrument_agent_id)
 
 
-    def update_instrument_agent(self, instrument_agent_id='', instrument_agent_info={}):
+    def update_instrument_agent(self, instrument_agent_id='', instrument_agent_info=None):
         """
         method docstring
         """
@@ -164,7 +161,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def find_instrument_agents(self, filters={}):
+    def find_instrument_agents(self, filters=None):
         """
         method docstring
         """
@@ -177,7 +174,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance={}):
+    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance=None):
         """
         method docstring
         """
@@ -185,6 +182,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # {success: true}
         #
+        
+        # activate_instrument_device
+
         raise NotImplementedError()
         pass
 
@@ -196,6 +196,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # ------------
         # {success: true}
         #
+
+        # deactivate_instrument_device
+
         raise NotImplementedError()
         pass
 
@@ -208,7 +211,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_model(self, instrument_model_info={}):
+    def create_instrument_model(self, instrument_model_info=None):
         """
         method docstring
         """
@@ -216,8 +219,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
-        name = instrument_model_info["name"]
-        self._check_name("InstrumentModel", name)
+        self._check_name("InstrumentModel", instrument_model_info.name)
 
         #FIXME: more validation?
 
@@ -233,7 +235,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_create("instrument_model_id", instrument_model_id)
 
 
-    def update_instrument_model(self, instrument_id='', instrument_model_info={}):
+    def update_instrument_model(self, instrument_id='', instrument_model_info=None):
         """
         method docstring
         """
@@ -272,7 +274,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_delete(True)
 
 
-    def find_instrument_models(self, filters={}):
+    def find_instrument_models(self, filters=None):
         """
         method docstring
         """
@@ -297,7 +299,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def create_instrument_device(self, instrument_device_info={}):
+    def create_instrument_device(self, instrument_device_info=None):
         """
         method docstring
         """
@@ -305,8 +307,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
-        name = instrument_device_info["name"]
-        self._check_name("InstrumentDevice", name)
+        self._check_name("InstrumentDevice", instrument_device_info.name)
 
         #FIXME: more validation?
 
@@ -314,39 +315,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_device_obj = IonObject("InstrumentDevice", instrument_device_info)
         instrument_device_id, _ = self.RR.create(instrument_device_obj)
 
-
-        #get data producer id from maurice
-        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
-
-        # associate data product with instrument
-        _ = self.RR.create_association(instrument_device_id, AT.hasDataProducer, pducer_id)
-        
-        #get data product id from bill
-        dpms_pduct_obj = IonObject("DataProduct", 
-                                   name=str(name + " L0 Product")
-                                   description=str("DataProduct for " + name))
-
-        dpms_pducer_obj = IonObject("DataProducer", 
-                                    name=str(name + " L0 Producer")
-                                    description=str("DataProducer for " + name))
-
-        pduct_id = self.DPMS.(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
-
-
-        # get data product's data produceer (via association)
-        assoc_ids, _ = self.RR.find_associations(pduct_id, AT.hasDataProducer, None, True)
-        # (FIXME: there should only be one assoc_id.  what error to raise?)
-        # FIXME: what error to raise if there are no assoc ids?
-
-        # instrument data producer is the parent of the data product producer
-        _ = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
-
         return self._return_create("instrument_device_id", instrument_device_id)
 
 
 
 
-    def update_instrument_device(self, instrument_id='', instrument_device_info={}):
+    def update_instrument_device(self, instrument_id='', instrument_device_info=None):
         """
         method docstring
         """
@@ -386,7 +360,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def find_instrument_devices(self, filters={}):
+    def find_instrument_devices(self, filters=None):
         """
         method docstring
         """
@@ -396,6 +370,157 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         raise NotImplementedError()
         pass
+
+
+    ##################### INSTRUMENT LIFECYCLE METHODS
+
+    def plan_instrument_device(self, name='', description='', instrument_model_id=''):
+        """
+        Plan an instrument: at this point, we know only its name, description, and model
+        """
+
+        #create the new resource
+        new_inst_obj = IonObject("InstrumentDevice",
+                                 name=name,
+                                 description=description)
+        instrument_device_id = self.create_instrument_device(instrument_device_info=new_inst_obj)
+
+        #associate the model
+        _ = self.RR.create_association(instrument_device_id, AT.hasModel, instrument_model_id)
+        
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='PLANNED')
+
+        return self._return_create("instrument_device_id", instrument_device_id)
+        
+
+    def acquire_instrument_device(self, instrument_device_id='', serialnumber='', firmwareversion='', hardwareversion=''):
+        """
+        When physical instrument is acquired, create all data products
+        """
+
+        #read instrument
+        inst_obj = self.read_instrument_device(instrument_device_id=instrument_device_id)
+
+        #update instrument with new params
+        inst_obj.serialnumber     = serialnumber
+        inst_obj.firmwareversion  = firmwareversion
+        inst_obj.hardwareversion  = hardwareversion
+
+        #FIXME: check this for an error
+        self.update_instrument_device(instrument_device_id, inst_obj)
+
+        
+        #get data producer id from data acquisition management service
+        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
+
+        # associate data product with instrument
+        _ = self.RR.create_association(instrument_device_id, AT.hasDataProducer, pducer_id)
+        
+        #get data product id from data product management service
+        dpms_pduct_obj = IonObject("DataProduct", 
+                                   name=str(instrument_device_info.name + " L0 Product")
+                                   description=str("DataProduct for " + instrument_device_info.name))
+
+        dpms_pducer_obj = IonObject("DataProducer", 
+                                    name=str(instrument_device_info.name + " L0 Producer")
+                                    description=str("DataProducer for " + instrument_device_info.name))
+
+        pduct_id = self.DPMS.(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
+
+
+        # get data product's data produceer (via association)
+        assoc_ids, _ = self.RR.find_associations(pduct_id, AT.hasDataProducer, None, True)
+        # (FIXME: there should only be one assoc_id.  what error to raise?)
+        # FIXME: what error to raise if there are no assoc ids?
+
+        # instrument data producer is the parent of the data product producer
+        _ = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
+
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='ACQUIRED')
+
+        #FIXME: error checking
+
+        return self._return_update(True)
+
+
+    def develop_instrument_device(self, instrument_device_id='', instrument_agent_id=''):
+        """
+        Assign an instrument agent (just the type, not the instance) to an instrument
+        """
+        #FIXME: only valid in 'ACQUIRED' state!
+
+        _ = self.RR.create_association(instrument_device_id, AT.hasAgent, instrument_agent_id)
+
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='DEVELOPED')
+        #FIXME: error checking
+
+        return self._return_update(True)
+
+
+    def commission_instrument_device(self, instrument_device_id='', platform_device_id=''):
+        #FIXME: only valid in 'DEVELOPED' state!
+
+        #FIXME: there seems to be no association between instruments and platforms
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='COMMISSIONED')
+        return self._return_update(True)
+
+
+    def decommission_instrument_device(self, instrument_device_id=''):
+        #FIXME: only valid in 'COMMISSIONED' state!
+
+        #FIXME: there seems to be no association between instruments and platforms
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='DEVELOPED')
+
+        return self._return_update(True)
+
+
+    def activate_instrument_device(self, instrument_device_id='', instrument_agent_instance_id=''):
+        """
+        method docstring
+        """
+        #FIXME: only valid in 'COMMISSIONED' state!
+
+        #FIXME: validate somehow
+
+        _ = self.RR.create_association(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
+
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='ACTIVE')
+
+        self._return_activate(True)
+
+
+    def deactivate_instrument_device(self, instrument_device_id=''):
+
+        #FIXME: only valid in 'ACTIVE' state!
+
+        #FIXME: remove association
+        
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                                                    lcstate='DEVELOPED')
+
+        return self._return_update(True)
+        
+
+    def retire_instrument_device(self, instrument_device_id=''):
+        """
+        Retire an instrument
+        """
+
+        #FIXME: what happens to logical instrument, platform, etc
+
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
+                                             lcstate='RETIRED')
+        
+        return self._return_update(True)
+
+
+
 
     def assign_instrument_device(self, instrument_id='', instrument_device_id=''):
         """
@@ -419,18 +544,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         raise NotImplementedError()
         pass
 
-    def activate_instrument_device(self, instrument_device_id=''):
-        """
-        method docstring
-        """
-
-        #FIXME: validate somehow
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='ACTIVE')
-
-        self._return_activate(True)
-
 
 
 
@@ -442,7 +555,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
-    def create_instrument_logical(self, instrument_logical_info={}):
+    def create_instrument_logical(self, instrument_logical_info=None):
         """
         method docstring
         """
@@ -450,8 +563,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
-        name = instrument_logical_info["name"]
-        self._check_name("InstrumentLogical", name)
+        self._check_name("InstrumentLogical", instrument_logical_info.name)
 
         #FIXME: more validation?
 
@@ -471,7 +583,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def update_instrument_logical(self, instrument_id='', instrument_logical_info={}):
+    def update_instrument_logical(self, instrument_id='', instrument_logical_info=None):
         """
         method docstring
         """
@@ -510,7 +622,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_delete(True)
 
 
-    def find_instrument_logical(self, filters={}):
+    def find_instrument_logical(self, filters=None):
         """
         method docstring
         """
