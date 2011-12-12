@@ -5,9 +5,10 @@ __license__ = 'Apache 2.0'
 
 
 #from pyon.public import Container
+from pyon.public import AT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
-from pyon.datastore.datastore import DataStore
+#from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 
@@ -235,7 +236,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_create("instrument_model_id", instrument_model_id)
 
 
-    def update_instrument_model(self, instrument_id='', instrument_model_info=None):
+    def update_instrument_model(self, instrument_model_id='', instrument_model_info=None):
         """
         method docstring
         """
@@ -320,7 +321,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def update_instrument_device(self, instrument_id='', instrument_device_info=None):
+    def update_instrument_device(self, instrument_device_id='', instrument_device_info=None):
         """
         method docstring
         """
@@ -386,7 +387,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_device_id = self.create_instrument_device(instrument_device_info=new_inst_obj)
 
         #associate the model
-        _ = self.RR.create_association(instrument_device_id, AT.hasModel, instrument_model_id)
+        associate_success = self.RR.create_association(instrument_device_id, AT.hasModel, instrument_model_id)
+        log.debug("Create hasModel Association: %s" % str(associate_success))
         
         self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
                                                                     lcstate='PLANNED')
@@ -419,14 +421,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         
         #get data product id from data product management service
         dpms_pduct_obj = IonObject("DataProduct", 
-                                   name=str(instrument_device_info.name + " L0 Product")
-                                   description=str("DataProduct for " + instrument_device_info.name))
+                                   name=str(inst_obj.name + " L0 Product"),
+                                   description=str("DataProduct for " + inst_obj.name))
 
         dpms_pducer_obj = IonObject("DataProducer", 
-                                    name=str(instrument_device_info.name + " L0 Producer")
-                                    description=str("DataProducer for " + instrument_device_info.name))
+                                    name=str(inst_obj.name + " L0 Producer"),
+                                    description=str("DataProducer for " + inst_obj.name))
 
-        pduct_id = self.DPMS.(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
+        pduct_id = self.DPMS.create_data_product(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
 
 
         # get data product's data produceer (via association)
@@ -435,7 +437,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # FIXME: what error to raise if there are no assoc ids?
 
         # instrument data producer is the parent of the data product producer
-        _ = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
+        associate_success = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
+        log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
+        
 
         self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
                                                                     lcstate='ACQUIRED')
@@ -451,7 +455,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         #FIXME: only valid in 'ACQUIRED' state!
 
-        _ = self.RR.create_association(instrument_device_id, AT.hasAgent, instrument_agent_id)
+        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgent, instrument_agent_id)
+        log.debug("Create hasAgent Association: %s" % str(associate_success))
+
 
         self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
                                                                     lcstate='DEVELOPED')
@@ -487,7 +493,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #FIXME: validate somehow
 
-        _ = self.RR.create_association(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
+        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
+        log.debug("Create hasAgentInstance Association: %s" % str(associate_success))
+
 
         self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
                                                                     lcstate='ACTIVE')
@@ -583,7 +591,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def update_instrument_logical(self, instrument_id='', instrument_logical_info=None):
+    def update_instrument_logical(self, instrument_logical_id='', instrument_logical_info=None):
         """
         method docstring
         """
