@@ -16,6 +16,7 @@ from pyon.util.log import log
 """
 now TODO
 
+ - convert dicts to objects
  - implement find methods
 
 
@@ -96,13 +97,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_agent(self, instrument_agent_info={}):
+    def create_instrument_agent(self, instrument_agent_info=None):
         """
         method docstring
         """
         # Validate the input filter and augment context as required
-        name = instrument_agent_info["name"]
-        self._check_name("InstrumentAgent", name)
+        self._check_name("InstrumentAgent", instrument_agent_info.name)
 
         #FIXME: more validation?
 
@@ -115,7 +115,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_create("instrument_agent_id", instrument_agent_id)
 
 
-    def update_instrument_agent(self, instrument_agent_id='', instrument_agent_info={}):
+    def update_instrument_agent(self, instrument_agent_id='', instrument_agent_info=None):
         """
         method docstring
         """
@@ -164,7 +164,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def find_instrument_agents(self, filters={}):
+    def find_instrument_agents(self, filters=None):
         """
         method docstring
         """
@@ -177,7 +177,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance={}):
+    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance=None):
         """
         method docstring
         """
@@ -208,7 +208,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_model(self, instrument_model_info={}):
+    def create_instrument_model(self, instrument_model_info=None):
         """
         method docstring
         """
@@ -216,8 +216,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
-        name = instrument_model_info["name"]
-        self._check_name("InstrumentModel", name)
+        self._check_name("InstrumentModel", instrument_model_info.name)
 
         #FIXME: more validation?
 
@@ -233,7 +232,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_create("instrument_model_id", instrument_model_id)
 
 
-    def update_instrument_model(self, instrument_id='', instrument_model_info={}):
+    def update_instrument_model(self, instrument_id='', instrument_model_info=None):
         """
         method docstring
         """
@@ -272,7 +271,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_delete(True)
 
 
-    def find_instrument_models(self, filters={}):
+    def find_instrument_models(self, filters=None):
         """
         method docstring
         """
@@ -297,7 +296,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def create_instrument_device(self, instrument_device_info={}):
+    def create_instrument_device(self, instrument_device_info=None):
         """
         method docstring
         """
@@ -305,8 +304,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
-        name = instrument_device_info["name"]
-        self._check_name("InstrumentDevice", name)
+        self._check_name("InstrumentDevice", instrument_device_info.name)
 
         #FIXME: more validation?
 
@@ -323,12 +321,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         
         #get data product id from bill
         dpms_pduct_obj = IonObject("DataProduct", 
-                                   name=str(name + " L0 Product")
-                                   description=str("DataProduct for " + name))
+                                   name=str(instrument_device_info.name + " L0 Product")
+                                   description=str("DataProduct for " + instrument_device_info.name))
 
         dpms_pducer_obj = IonObject("DataProducer", 
-                                    name=str(name + " L0 Producer")
-                                    description=str("DataProducer for " + name))
+                                    name=str(instrument_device_info.name + " L0 Producer")
+                                    description=str("DataProducer for " + instrument_device_info.name))
 
         pduct_id = self.DPMS.(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
 
@@ -346,7 +344,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def update_instrument_device(self, instrument_id='', instrument_device_info={}):
+    def update_instrument_device(self, instrument_id='', instrument_device_info=None):
         """
         method docstring
         """
@@ -386,7 +384,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def find_instrument_devices(self, filters={}):
+    def find_instrument_devices(self, filters=None):
         """
         method docstring
         """
@@ -442,7 +440,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
-    def create_instrument_logical(self, instrument_logical_info={}):
+    def create_instrument_logical(self, instrument_logical_info=None):
         """
         method docstring
         """
@@ -450,8 +448,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
-        name = instrument_logical_info["name"]
-        self._check_name("InstrumentLogical", name)
+        self._check_name("InstrumentLogical", instrument_logical_info.name)
 
         #FIXME: more validation?
 
@@ -471,7 +468,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def update_instrument_logical(self, instrument_id='', instrument_logical_info={}):
+    def update_instrument_logical(self, instrument_id='', instrument_logical_info=None):
         """
         method docstring
         """
@@ -510,7 +507,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._return_delete(True)
 
 
-    def find_instrument_logical(self, filters={}):
+    def find_instrument_logical(self, filters=None):
         """
         method docstring
         """
