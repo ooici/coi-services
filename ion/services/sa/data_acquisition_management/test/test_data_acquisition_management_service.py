@@ -10,7 +10,8 @@ from mock import Mock, sentinel, patch
 from pyon.util.unit_test import PyonTestCase
 from ion.services.sa.data_acquisition_management.data_acquisition_management_service import DataAcquisitionManagementService
 from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound
+
+from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 import unittest
 
 @attr('UNIT', group='mmm')
@@ -27,14 +28,38 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.mock_create = self.resource_registry.create
         self.mock_update = self.resource_registry.update
         self.mock_delete = self.resource_registry.delete
+        self.mock_read = self.resource_registry.read
+
+        self.data_source = Mock()
+        self.data_source.name = 'dsname'
+        self.data_source.type = 'foo'
+        self.data_source.connection_params = {'param1':'111'}
+
+        self.data_source = {"type": "foo", "connection_params": {}}
 
     def test_create_data_source(self):
-        self.mock_create.return_value = ('id_2', 'I do not care')
-        source = {"type": "", "connection_params":{'p1':'one'}}
+        self.mock_create.return_value = ('111', 'bla')
 
-        stream_id = self.data_acquisition_mgmt_service.create_data_source(source)
+        data_source_id = self.data_acquisition_mgmt_service.create_data_source(self.data_source)
 
-        self.mock_ionobj.assert_called_once_with('DataSource', source)
-        self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
-        self.assertEqual(stream_id, 'id_2')
-  
+        #self.mock_ionobj.assert_called_once_with('DataSource', self.ds)
+        self.mock_create.assert_called_once_with(self.data_source)
+        self.assertEqual(data_source_id, '111')
+
+
+
+    def test_read_and_update_data_source(self):
+        self.mock_read.return_value = self.data_source
+
+        dsrc = self.data_acquisition_mgmt_service.read_data_source('111')
+
+        assert dsrc is self.mock_read.return_value
+        self.mock_read.assert_called_once_with('111', '')
+
+        #dsrc.type = 'Bar'
+
+        #self.mock_update.return_value = ['111', 2]
+
+        #self.data_acquisition_mgmt_service.update_data_source(dsrc)
+
+        #self.mock_update.assert_called_once_with(dsrc)
