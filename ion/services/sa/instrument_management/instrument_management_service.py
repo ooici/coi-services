@@ -35,10 +35,14 @@ from interface.services.sa.iinstrument_management_service import BaseInstrumentM
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     
+    def __init__(self):
+        self.RR    = self.clients.resource_registry
+        self.DAMS  = self.clients.data_acquisition_management_service
+
     # find whether a resource with the same type and name already exists
     def _check_name(self, resource_type, name):
         try:
-            found_res, _ = self.clients.resource_registry.find_resources(resource_type, None, name, True)
+            found_res, _ = self.RR.find_resources(resource_type, None, name, True)
         except NotFound:
             # New after all.  PROCEED.
             pass
@@ -48,7 +52,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         
     # try to get a resource
     def _get_resource(self, resource_type, resource_id):
-        resource = self.clients.resource_registry.read(resource_id)
+        resource = self.RR.read(resource_id)
         if not resource:
             raise NotFound("%s %s does not exist" % (resource_type, resource_id))
         return resource
@@ -97,14 +101,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         method docstring
         """
         # Validate the input filter and augment context as required
+        name = instrument_agent_info["name"]
         self._check_name("InstrumentAgent", name)
 
         #FIXME: more validation?
 
         #persist
         instrument_agent_obj = IonObject("InstrumentAgent", instrument_agent_info)
-        instrument_agent_id, _ = self.clients.resource_registry.create(instrument_agent_obj)
-        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_agent_id, 
+        instrument_agent_id, _ = self.RR.create(instrument_agent_obj)
+        self.RR.execute_lifecycle_transition(resource_id=instrument_agent_id, 
                                                                     lcstate='ACTIVE')
 
         return self._return_create("instrument_agent_id", instrument_agent_id)
@@ -121,10 +126,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #if the name is being changed, make sure it's not being changed to a duplicate
         self._check_name("InstrumentAgent", instrument_agent_info.name)
 
-        # update some list of fields
+        # copy all fields except the resource_id field into the new object
+        #  ... is there going to be a convenience method for this?
         
         #persist
-        self.clients.resource_registry.update(instrument_agent_obj)
+        self.RR.update(instrument_agent_obj)
 
 
         return self._return_update(True)
@@ -146,7 +152,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_obj = self._get_resource("InstrumentAgent", instrument_agent_id)        
         
-        self.clients.resource_registry.delete(instrument_agent_obj)
+        self.RR.delete(instrument_agent_obj)
         
         return self._return_delete(True)
 
@@ -210,14 +216,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
+        name = instrument_model_info["name"]
         self._check_name("InstrumentModel", name)
 
         #FIXME: more validation?
 
         # Create instrument resource, set initial state, persist
         instrument_model_obj = IonObject("InstrumentModel", instrument_model_info)
-        instrument_model_id, _ = self.clients.resource_registry.create(instrument_model_obj)
-        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_model_id, 
+        instrument_model_id, _ = self.RR.create(instrument_model_obj)
+        self.RR.execute_lifecycle_transition(resource_id=instrument_model_id, 
                                                                     lcstate='ACTIVE')
 
         # Create associations
@@ -241,7 +248,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # update some list of fields
         
         #persist
-        self.clients.resource_registry.update(instrument_model_obj)
+        self.RR.update(instrument_model_obj)
 
         return self._return_update(True)
 
@@ -260,7 +267,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_model_obj = self._get_resource("InstrumentModel", instrument_model_id)        
         
-        self.clients.resource_registry.delete(instrument_model_obj)
+        self.RR.delete(instrument_model_obj)
         
         return self._return_delete(True)
 
@@ -298,20 +305,44 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
+        name = instrument_device_info["name"]
         self._check_name("InstrumentDevice", name)
 
         #FIXME: more validation?
 
         # Create instrument resource, set initial state, persist
         instrument_device_obj = IonObject("InstrumentDevice", instrument_device_info)
-        instrument_device_id, _ = self.clients.resource_registry.create(instrument_device_obj)
+        instrument_device_id, _ = self.RR.create(instrument_device_obj)
 
-        # Create data product (products?)
+
+        #get data producer id from maurice
+        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
 
         # associate data product with instrument
-        #_ = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, xs_id)
+        _ = self.RR.create_association(instrument_device_id, AT.hasDataProducer, pducer_id)
+        
+        #get data product id from bill
+        dpms_pduct_obj = IonObject("DataProduct", 
+                                   name=str(name + " L0 Product")
+                                   description=str("DataProduct for " + name))
+
+        dpms_pducer_obj = IonObject("DataProducer", 
+                                    name=str(name + " L0 Producer")
+                                    description=str("DataProducer for " + name))
+
+        pduct_id = self.DPMS.(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
+
+
+        # get data product's data produceer (via association)
+        assoc_ids, _ = self.RR.find_associations(pduct_id, AT.hasDataProducer, None, True)
+        # (FIXME: there should only be one assoc_id.  what error to raise?)
+        # FIXME: what error to raise if there are no assoc ids?
+
+        # instrument data producer is the parent of the data product producer
+        _ = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
 
         return self._return_create("instrument_device_id", instrument_device_id)
+
 
 
 
@@ -330,7 +361,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # update some list of fields
         
         #persist
-        self.clients.resource_registry.update(instrument_device_obj)
+        self.RR.update(instrument_device_obj)
 
         return self._return_update(True)
 
@@ -349,7 +380,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_device_obj = self._get_resource("InstrumentDevice", instrument_device_id)        
         
-        self.clients.resource_registry.delete(instrument_device_obj)
+        self.RR.delete(instrument_device_obj)
         
         return self._return_delete(True)
 
@@ -395,7 +426,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #FIXME: validate somehow
 
-        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_device_id, 
+        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
                                                                     lcstate='ACTIVE')
 
         self._return_activate(True)
@@ -419,21 +450,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
 
         # Validate the input filter and augment context as required
+        name = instrument_logical_info["name"]
         self._check_name("InstrumentLogical", name)
 
         #FIXME: more validation?
 
         # Create instrument resource, set initial state, persist
         instrument_logical_obj = IonObject("InstrumentLogical", instrument_logical_info)
-        instrument_logical_id, _ = self.clients.resource_registry.create(instrument_logical_obj)
-        self.clients.resource_registry.execute_lifecycle_transition(resource_id=instrument_logical_id, 
+        instrument_logical_id, _ = self.RR.create(instrument_logical_obj)
+        self.RR.execute_lifecycle_transition(resource_id=instrument_logical_id, 
                                                                     lcstate='ACTIVE')
 
 
         # Create data product (products?)
 
         # associate data product with instrument
-        #_ = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, xs_id)
+        #_ = self.RR.create_association(org_id, AT.hasExchangeSpace, xs_id)
 
         return self._return_create("instrument_logical_id", instrument_logical_id)
 
@@ -454,7 +486,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # update some list of fields
         
         #persist
-        self.clients.resource_registry.update(instrument_logical_obj)
+        self.RR.update(instrument_logical_obj)
 
         return self._return_update(True)
 
@@ -473,7 +505,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_logical_obj = self._get_resource("InstrumentLogical", instrument_logical_id)        
         
-        self.clients.resource_registry.delete(instrument_logical_obj)
+        self.RR.delete(instrument_logical_obj)
         
         return self._return_delete(True)
 

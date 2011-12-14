@@ -16,7 +16,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @brief      Implementation of the data process management service
     """
 
-    def create_data_process(self, data_process={}, transform={}, data_product_in=[], data_product_out={}):
+    def create_data_process(self, data_process={}, in_subscription_id='', out_data_product_id=''):
+        """method docstring
         """
         @param      data_process dict defining the general resource and the specific transform
         @param      transform    dict specifying which existing transform definition to apply
@@ -36,6 +37,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         pass
 
     def update_data_process(self, data_process={}):
+        """method docstring
         """
         @param      data_process dict which defines the general resource and the specific transform
         @retval     {success: True or False}

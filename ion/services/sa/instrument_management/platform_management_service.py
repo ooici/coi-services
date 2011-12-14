@@ -83,6 +83,7 @@ class PlatformManagementService(BasePlatformManagementService):
         method docstring
         """
         # Validate the input filter and augment context as required
+        name = platform_agent_info["name"]
         self._check_name("PlatformAgent", name)
 
         #FIXME: more validation?
@@ -90,6 +91,8 @@ class PlatformManagementService(BasePlatformManagementService):
         #persist
         platform_agent_obj = IonObject("PlatformAgent", platform_agent_info)
         platform_agent_id, _ = self.clients.resource_registry.create(platform_agent_obj)
+
+        #start LCS
         self.clients.resource_registry.execute_lifecycle_transition(resource_id=platform_agent_id, 
                                                                     lcstate='ACTIVE')
 
@@ -183,73 +186,6 @@ class PlatformManagementService(BasePlatformManagementService):
 
 
 
-
-
-    ##########################################################################
-    #
-    # PHYSICAL PLATFORM
-    #
-    ##########################################################################
-
-
-
-    def create_platform_device(self, platform_device_info={}):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {platform_device_id: ''}
-        #
-        pass
-
-    def update_platform_device(self, platform_device_id='', platform_device_info={}):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def read_platform_device(self, platform_device_id=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # platform_device_info: {}
-        #
-        pass
-
-    def delete_platform_device(self, platform_device_id='', reason=''):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-    def find_platform_device(self, filters={}):
-        """
-        method docstring
-        """
-        # Return Value
-        # ------------
-        # platform_device_info_list: []
-        #
-        pass
-
-
-
-
-
-
-
-
     ##########################################################################
     #
     # PHYSICAL PLATFORM
@@ -266,6 +202,7 @@ class PlatformManagementService(BasePlatformManagementService):
         # Platform metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Platform+Instance
 
         # Validate the input filter and augment context as required
+        name = platform_device_info["name"]
         self._check_name("PlatformDevice", name)
 
         #FIXME: more validation?
@@ -391,6 +328,7 @@ class PlatformManagementService(BasePlatformManagementService):
         # Platform metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Platform+Instance
 
         # Validate the input filter and augment context as required
+        name = platform_logical_info["name"]
         self._check_name("PlatformLogical", name)
 
         #FIXME: more validation?

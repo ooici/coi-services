@@ -19,7 +19,6 @@ class IdentityManagementService(BaseIdentityManagementService):
     def update_user_identity(self, user_identity={}):
         # Overwrite UserIdentity object
         self.clients.resource_registry.update(user_identity)
-        return True
 
     def read_user_identity(self, user_id=''):
         # Read UserIdentity object with _id matching passed user id
@@ -34,14 +33,12 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not user_identity:
             raise NotFound("UserIdentity %s does not exist" % user_id)
         self.clients.resource_registry.delete(user_identity)
-        return True
 
     def register_user_credentials(self, user_id='', credentials={}):
         # Create UserCredentials object
         credentials_obj_id, version = self.clients.resource_registry.create(credentials)
         # Create association with user identity object
         self.clients.resource_registry.create_association(user_id, AT.hasCredentials, credentials_obj_id)
-        return True
 
     def unregister_user_credentials(self, user_id='', credentials_name=''):
         # Read UserCredentials
@@ -56,7 +53,6 @@ class IdentityManagementService(BaseIdentityManagementService):
         self.clients.resource_registry.delete_association(association_id)
         # Delete the UserCredentials
         self.clients.resource_registry.delete(credentials_obj)
-        return True
 
     def create_user_info(self, user_id="", user_info={}):
         # Ensure UserInfo association does not already exist
@@ -72,7 +68,6 @@ class IdentityManagementService(BaseIdentityManagementService):
     def update_user_info(self, user_info={}):
         # Overwrite UserInfo object
         self.clients.resource_registry.update(user_info)
-        return True
 
     def read_user_info(self, user_info_id=''):
         # Read UserInfo object with _id matching passed user id
@@ -80,7 +75,6 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not user_info:
             raise NotFound("UserInfo %s does not exist" % user_info_id)
         return user_info
-
 
     def delete_user_info(self, user_info_id=''):
         # Read UserInfo
@@ -95,7 +89,6 @@ class IdentityManagementService(BaseIdentityManagementService):
         self.clients.resource_registry.delete_association(association_id)
         # Delete the UserInfo
         self.clients.resource_registry.delete(user_info)
-        return True
 
     def find_user_info_by_id(self, user_id=''):
         # Look up UserInfo via association with UserIdentity
@@ -142,7 +135,6 @@ class IdentityManagementService(BaseIdentityManagementService):
     def update_resource_identity(self, resource_identity={}):
         # Overwrite ResourceIdentity object
         self.clients.resource_registry.update(resource_identity)
-        return True
 
     def read_resource_identity(self, resource_identity_id=''):
         # Read ResourceIdentity object with _id matching passed user id
@@ -152,4 +144,3 @@ class IdentityManagementService(BaseIdentityManagementService):
         # Read and delete specified ResourceIdentity object
         resource_identity = self.clients.resource_registry.read(resource_identity_id)
         self.clients.resource_registry.delete(resource_identity)
-        return True

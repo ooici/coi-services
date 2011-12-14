@@ -35,6 +35,9 @@ class DataStoreService(BaseDatastoreService):
                 pass
         if not self.datastore_exists(datastore_name):
             self.datastore.create_datastore(datastore_name)
+        # For easier interactive debugging
+        self.dss = self.datastore.server[datastore_name] if persistent else None
+        self.ds = self.datastore
 
     def create_datastore(self, datastore_name=''):
         return self.datastore.create_datastore(datastore_name)
@@ -105,11 +108,11 @@ class DataStoreService(BaseDatastoreService):
     def delete_association(self, association=''):
         return self.datastore.delete_association(association)
 
-    def find_objects(self, subject=None, predicate=None, object_type=None, id_only=False):
+    def find_objects(self, subject="", predicate="", object_type="", id_only=False):
         return self.datastore.find_objects(subject, predicate, object_type, id_only=id_only)
 
-    def find_subjects(self, subject_type=None, predicate=None, object=None, id_only=False):
+    def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
         return self.datastore.find_subjects(subject_type, predicate, object, id_only=id_only)
 
-    def find_associations(self, subject=None, predicate=None, object=None, id_only=False):
+    def find_associations(self, subject="", predicate="", object="", id_only=False):
         return self.datastore.find_associations(subject, predicate, object, id_only=id_only)
