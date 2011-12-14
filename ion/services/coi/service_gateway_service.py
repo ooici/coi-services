@@ -7,9 +7,9 @@ __license__ = 'Apache 2.0'
 
 from flask import Flask, request
 from gevent.wsgi import WSGIServer
-import inspect
+import inspect, json
 
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, Inconsistent
 from pyon.container.cc import Container
 from pyon.net.endpoint import ProcessRPCClient
 
@@ -58,12 +58,17 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
         
 
-#This is a service operation for handling generic service operation calls with arguments passed as query string parameters; like this:
-#http://hostname:port/ion-service/resource_registry/find_resources?restype=BankAccount&id_only=False
-#A different method should be implemented to handle POST requests with the parameters passed in posted JSON object - maybe leave this one for
-#debugging purposes, since it is easier to use a browser URL GET than a POST by hand.
+# This is a service operation for handling generic service operation calls with arguments passed as query string parameters; like this:
+# http://hostname:port/ion-service/resource_registry/find_resources?restype=BankAccount&id_only=False
+# Shows how to handle POST requests with the parameters passed in posted JSON object, though has both since it is easier to use a browser URL GET than a POST by hand.
 
-@app.route('/ion-service/<service_name>/<operation>', methods=['GET'])
+# An example post of json data using wget
+# wget -o out.txt --post-data 'payload={"serviceRequest": { "serviceName": "resource_registry", "serviceOp": "find_resources",
+# "params": { "restype": "BankAccount", "lcstate": "", "name": "", "id_only": true } } }' http://localhost:5000/ion-service/resource_registry/find_resources
+#
+# Probably should make this service smarter to respond to the mime type in the request data ( ie. json vs text )
+#
+@app.route('/ion-service/<service_name>/<operation>', methods=['GET','POST'])
 def process_gateway_request(service_name, operation):
 
 
@@ -72,13 +77,25 @@ def process_gateway_request(service_name, operation):
     target_service = service.get_service_by_name(service_name)
 
     if not target_service:
-        return "Unknown service named: " + service_name
+        raise NotFound("Target service name not found in the URL")
 
     if operation == '':
-        return "Operation not specified."
-
+        raise NotFound("Service operation not specified in the URL")
 
     try:
+
+        jsonParms = None
+        if request.method == "POST":
+            payload = request.form['payload']
+            #debug only
+            #payload = '{"serviceRequest": { "serviceName": "resource_registry", "serviceOp": "find_resources", "params": { "restype": "BankAccount", "lcstate": "", "name": "", "id_only": false } } }'
+            jsonParms = json.loads(payload)
+
+            if jsonParms['serviceRequest']['serviceName'] != target_service.name:
+                 raise Inconsistent("Target service name in the JSON request (%s) does not match service name in URL (%s)" % (str(jsonParms['serviceRequest']['serviceName']), target_service.name ) )
+
+            if jsonParms['serviceRequest']['serviceOp'] != operation:
+                 raise Inconsistent("Target service operation in the JSON request (%s) does not match service name in URL (%s)" % ( str(jsonParms['serviceRequest']['serviceOp']), operation ) )
 
 
         #Build parameter list - operation parameters must be in the proper order. Should replace this once unordered method invocation is
@@ -87,11 +104,14 @@ def process_gateway_request(service_name, operation):
         method_args = inspect.getargspec(getattr(target_service,operation))
         for arg in method_args[0]:
             if arg == 'self': continue # skip self
-            if request.args.has_key(arg):
-                parm_list.append(request.args[arg])  # should be fixed to convert to proper type when necessary; ie "True" -> True
-            else:
-                parm_list.append('')  # should be fixed to pass the actual default value for the parameter
 
+            if not jsonParms:
+                if request.args.has_key(arg):
+                    parm_list.append(request.args[arg])  # should be fixed to convert to proper type when necessary; ie "True" -> True
+                else:
+                    parm_list.append('')  # should be fixed to pass the actual default value for the parameter
+            else:
+                parm_list.append(jsonParms['serviceRequest']['params'][arg])
 
         client = ProcessRPCClient(node=Container.instance.node, name=service_name, iface=target_service, process=service_gateway_instance)
 
@@ -102,6 +122,7 @@ def process_gateway_request(service_name, operation):
         ret =  "Error: %s" % e
 
 
+    #Returns a string but this should probably be recoded to return json ( and json mime type
     return ret
 
 
@@ -156,8 +177,6 @@ def list_resources(resource_type):
 
 
     return ret
-
-
 
 
 
