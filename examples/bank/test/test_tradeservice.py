@@ -19,13 +19,13 @@ class TestTradeService(PyonTestCase):
 
     def setUp(self):
         self.mock_ionobj = self._create_IonObject_mock('examples.bank.trade_service.IonObject')
-        self._create_service_mock('trade')
+        mock_clients = self._create_service_mock('trade')
 
         self.trade_service = TradeService()
-        self.trade_service.clients = self.clients
+        self.trade_service.clients = mock_clients
 
         # Rename to save some typing
-        self.mock_create = self.resource_registry.create
+        self.mock_create = mock_clients.resource_registry.create
 
     def test_exercise_buy(self):
         # set up order

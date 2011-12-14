@@ -19,16 +19,16 @@ class TestDataAcquisitionManagement(PyonTestCase):
 
     def setUp(self):
         self.mock_ionobj = self._create_IonObject_mock('ion.services.sa.data_acquisition_management.data_acquisition_management_service.IonObject')
-        self._create_service_mock('data_acquisition_management')
+        mock_clients = self._create_service_mock('data_acquisition_management')
 
         self.data_acquisition_mgmt_service = DataAcquisitionManagementService()
-        self.data_acquisition_mgmt_service.clients = self.clients
+        self.data_acquisition_mgmt_service.clients = mock_clients
 
         # save some typing
-        self.mock_create = self.resource_registry.create
-        self.mock_update = self.resource_registry.update
-        self.mock_delete = self.resource_registry.delete
-        self.mock_read = self.resource_registry.read
+        self.mock_create = mock_clients.resource_registry.create
+        self.mock_update = mock_clients.resource_registry.update
+        self.mock_delete = mock_clients.resource_registry.delete
+        self.mock_read = mock_clients.resource_registry.read
 
         self.data_source = Mock()
         self.data_source.name = 'dsname'
