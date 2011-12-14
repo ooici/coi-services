@@ -24,7 +24,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @retval id New data_source id.
         '''
         log.debug("Creating data_source object")
-        #data_source_obj = IonObject("DataSource", data_source)
+
         data_source_id, rev = self.clients.resource_registry.create(data_source)
 
         return data_source_id
@@ -37,11 +37,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @retval success Boolean to indicate successful update.
         @todo Add logic to validate optional attributes. Is this interface correct?
         '''
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        #log.debug("Updating DataSource object: %s" % data_source.name)
+
         return self.clients.resource_registry.update(data_source)
 
     def read_data_source(self, data_source_id=''):
@@ -52,10 +48,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @retval data_source_obj The data_source object.
         @throws NotFound when data_source doesn't exist.
         '''
-        # Return Value
-        # ------------
-        # stream: {}
-        #
+
         log.debug("Reading DataSource object id: %s" % data_source_id)
         data_source_obj = self.clients.resource_registry.read(data_source_id)
         if not data_source_obj:
