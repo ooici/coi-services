@@ -226,18 +226,18 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #data_producer_obj = IonObject("DataProducer", data_producer)
 
         # create the stream for this data producer
-        producers = [data_producer]
-        stream_resource_dict = {"mimetype": "", "name": data_producer_obj.name, "description": data_producer_obj.description, "producers": producers}
+        producers = []
+        stream_resource_dict = {"mimetype": "", "name": data_producer.name, "description": data_producer.description, "producers": producers}
         self.streamID = self.clients.pubsub_management.create_stream(stream_resource_dict)
 
         # register the data producer with the PubSub service
-        self.StreamRoute = self.clients.pubsub_management.register_producer(data_producer_obj.name, self.streamID)
-        data_producer_obj.stream_id = self.streamID
-        data_producer_obj.routing_key = self.StreamRoute.routing_key
-        data_producer_obj.exchange_name = self.StreamRoute.exchange_name
-        data_producer_obj.credentials = self.StreamRoute.credentials
+        self.StreamRoute = self.clients.pubsub_management.register_producer(data_producer.name, self.streamID)
+        data_producer.stream_id = self.streamID
+        data_producer.routing_key = self.StreamRoute.routing_key
+        data_producer.exchange_name = self.StreamRoute.exchange_name
+        data_producer.credentials = self.StreamRoute.credentials
 
-        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer)
 
         return data_producer_id
 
