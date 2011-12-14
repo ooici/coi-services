@@ -78,13 +78,12 @@ class PlatformManagementService(BasePlatformManagementService):
     #
     ##########################################################################
 
-    def create_platform_agent(self, platform_agent_info={}):
+    def create_platform_agent(self, platform_agent_info=None):
         """
         method docstring
         """
         # Validate the input filter and augment context as required
-        name = platform_agent_info["name"]
-        self._check_name("PlatformAgent", name)
+        self._check_name("PlatformAgent", platform_agent_info.name)
 
         #FIXME: more validation?
 
@@ -194,7 +193,7 @@ class PlatformManagementService(BasePlatformManagementService):
 
 
 
-    def create_platform_device(self, platform_device_info={}):
+    def create_platform_device(self, platform_device_info=None):
         """
         method docstring
         """
@@ -202,8 +201,7 @@ class PlatformManagementService(BasePlatformManagementService):
         # Platform metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Platform+Instance
 
         # Validate the input filter and augment context as required
-        name = platform_device_info["name"]
-        self._check_name("PlatformDevice", name)
+        self._check_name("PlatformDevice", platform_device_info.name)
 
         #FIXME: more validation?
 
@@ -223,7 +221,7 @@ class PlatformManagementService(BasePlatformManagementService):
 
 
 
-    def update_platform_device(self, platform_id='', platform_device_info={}):
+    def update_platform_device(self, platform_id='', platform_device_info=None):
         """
         method docstring
         """
@@ -263,7 +261,7 @@ class PlatformManagementService(BasePlatformManagementService):
 
 
 
-    def find_platform_devices(self, filters={}):
+    def find_platform_devices(self, filters=None):
         """
         method docstring
         """
@@ -320,7 +318,7 @@ class PlatformManagementService(BasePlatformManagementService):
     ##########################################################################
 
 
-    def create_platform_logical(self, platform_logical_info={}):
+    def create_platform_logical(self, platform_logical_info=None):
         """
         method docstring
         """
@@ -328,8 +326,7 @@ class PlatformManagementService(BasePlatformManagementService):
         # Platform metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Platform+Instance
 
         # Validate the input filter and augment context as required
-        name = platform_logical_info["name"]
-        self._check_name("PlatformLogical", name)
+        self._check_name("PlatformLogical", platform_logical_info.name)
 
         #FIXME: more validation?
 
@@ -349,7 +346,7 @@ class PlatformManagementService(BasePlatformManagementService):
 
 
 
-    def update_platform_logical(self, platform_id='', platform_logical_info={}):
+    def update_platform_logical(self, platform_id='', platform_logical_info=None):
         """
         method docstring
         """
@@ -388,7 +385,7 @@ class PlatformManagementService(BasePlatformManagementService):
         return self._return_delete(True)
 
 
-    def find_platform_logical(self, filters={}):
+    def find_platform_logical(self, filters=None):
         """
         method docstring
         """
