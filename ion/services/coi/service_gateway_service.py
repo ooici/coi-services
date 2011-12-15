@@ -21,26 +21,42 @@ app = Flask(__name__)
 #Retain a module level reference to the service class for use with Process RPC calls below
 service_gateway_instance = None
 
+DEFAULT_WEB_SERVER_HOSTNAME = ""
+DEFAULT_WEB_SERVER_PORT = 5000
+
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
 
    # running_container = None
     def on_init(self):
 
+        #defaults
         self.http_server = None
+        self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
+        self.server_port = DEFAULT_WEB_SERVER_PORT
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
         service_gateway_instance = self
 
+        #get configuration settings if specified
+        if 'web_server' in self.CFG:
+            web_server_cfg = self.CFG['web_server']
+            if 'hostname' in web_server_cfg:
+                self.server_hostname = web_server_cfg['hostname']
+            if 'port' in web_server_cfg:
+                self.server_port = web_server_cfg['port']
+
+
+
         #probably need to specify the host name and port in configuration file and need to figure out how to redirect HTTP logging to a file
-        self.start_service('',5000)
+        self.start_service(self.server_hostname,self.server_port)
 
     def on_quit(self):
         self.stop_service()
 
 
-    def start_service(self, hostname='', port=5000):
+    def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
         """Responsible for starting the gevent based web server."""
 
         if self.http_server != None:
