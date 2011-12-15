@@ -42,10 +42,11 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #get configuration settings if specified
         if 'web_server' in self.CFG:
             web_server_cfg = self.CFG['web_server']
-            if 'hostname' in web_server_cfg:
-                self.server_hostname = web_server_cfg['hostname']
-            if 'port' in web_server_cfg:
-                self.server_port = web_server_cfg['port']
+            if web_server_cfg is not None:
+                if 'hostname' in web_server_cfg:
+                    self.server_hostname = web_server_cfg['hostname']
+                if 'port' in web_server_cfg:
+                    self.server_port = web_server_cfg['port']
 
 
 
