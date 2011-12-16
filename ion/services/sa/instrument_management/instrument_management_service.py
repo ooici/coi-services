@@ -13,10 +13,12 @@ from pyon.core.bootstrap import IonObject #even though pyflakes complains
 #from pyon.util.log import log
 
 from ion.services.sa.instrument_management.instrument_agent_worker import InstrumentAgentWorker
+from ion.services.sa.instrument_management.instrument_agent_instance_worker import InstrumentAgentInstanceWorker
 from ion.services.sa.instrument_management.instrument_model_worker import InstrumentModelWorker
 from ion.services.sa.instrument_management.instrument_device_worker import InstrumentDeviceWorker
 
 from ion.services.sa.instrument_management.platform_agent_worker import PlatformAgentWorker
+from ion.services.sa.instrument_management.platform_agent_instance_worker import PlatformAgentInstanceWorker
 from ion.services.sa.instrument_management.platform_model_worker import PlatformModelWorker
 from ion.services.sa.instrument_management.platform_device_worker import PlatformDeviceWorker
 
@@ -56,13 +58,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.RR    = self.clients.resource_registry
         self.DAMS  = self.clients.data_acquisition_management_service
 
-        self.instrument_agent    = InstrumentAgentWorker(self.clients)
-        self.instrument_model    = InstrumentModelWorker(self.clients)
-        self.instrument_device   = InstrumentDeviceWorker(self.clients)
+        self.instrument_agent           = InstrumentAgentWorker(self.clients)
+        self.instrument_agent_instance  = InstrumentAgentInstanceWorker(self.clients)
+        self.instrument_model           = InstrumentModelWorker(self.clients)
+        self.instrument_device          = InstrumentDeviceWorker(self.clients)
 
-        self.platform_agent    = PlatformAgentWorker(self.clients)
-        self.platform_model    = PlatformModelWorker(self.clients)
-        self.platform_device   = PlatformDeviceWorker(self.clients)
+        self.platform_agent           = PlatformAgentWorker(self.clients)
+        self.platform_agent_instance  = PlatformAgentInstanceWorker(self.clients)
+        self.platform_model           = PlatformModelWorker(self.clients)
+        self.platform_device          = PlatformDeviceWorker(self.clients)
 
         self.sensor_model    = SensorModelWorker(self.clients)
         self.sensor_device   = SensorDeviceWorker(self.clients)

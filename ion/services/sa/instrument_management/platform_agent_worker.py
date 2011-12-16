@@ -15,8 +15,15 @@ class PlatformAgentWorker(IMSsimple):
     def _primary_object_label(self):
         return "platform_agent"
 
-    def assign(self, platform_agent_id='', platform_device_id='', platform_agent_instance=''):
+    def link_instance(self, platform_agent_id='', platform_agent_instance=''):
         raise NotImplementedError()
 
-    def unassign(self, platform_agent_id='', platform_device_id='', platform_agent_instance=''):
+    def unlink_instance(self, platform_agent_id='', platform_agent_instance=''):
         raise NotImplementedError()
+
+    def link_model(self, platform_agent_id='', platform_model_id=''):
+        raise NotImplementedError()
+
+    def unlink_model(self, platform_agent_id='', platform_model_id=''):
+        raise NotImplementedError()
+

@@ -15,8 +15,3 @@ class SensorModelWorker(IMSsimple):
     def _primary_object_label(self):
         return "sensor_model"
 
-    def assign(self, sensor_model_id='', sensor_device_id=''):
-        raise NotImplementedError()
-
-    def unassign(self, sensor_model_id='', sensor_device_id=''):
-        raise NotImplementedError()
