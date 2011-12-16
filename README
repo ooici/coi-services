@@ -24,19 +24,17 @@ steps to install the minimal needed dependencies to run pyon on a Mac. For more 
 install instructions, check out the pyon README: https://github.com/ooici/pyon/blob/master/README
 
 
-
 Install the following if not yet present:
-- git 1.7.7: Download the Mac or Linux installer and run it
-
 
 * OS Packages and package management:
 For Mac, use homebrew
     > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
-- python 2.7
+- python 2.7.2
+- git 1.7.7: Use brew or download the Mac or Linux installer and run it
 - couchdb 1.1.0 (optional if memory mockdb is used)
 - rabbitmq 2.6.1 or later (recommended, but can use rabbitmq on amoeba)
-    Download generic Linux version and unpack into a suitable directory.
-    Note: May need erl (Erlang) and some dependencies installed before
+    Use brew.
+    Alternative: download generic Linux version and unpack into a suitable directory.
 - Install libevent, libyaml, zeromq, couchdb, python, and rabbitmq with Homebrew
     > brew install libevent libyaml zeromq couchdb python rabbitmq
     You can even reinstall git using brew to clean up your /usr/local directory
