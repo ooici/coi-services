@@ -34,6 +34,40 @@ class InstrumentDeviceWorker(IMSworker):
     def _primary_object_label(self):
         return "instrument_device"
 
+    ### associations
+    
+    def link_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
+        raise NotImplementedError()
+
+    def unlink_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
+        raise NotImplementedError()
+
+    def link_assignment(self, instrument_device_id='', logical_instrument_id=''):
+        raise NotImplementedError()
+
+    def unlink_assignment(self, instrument_device_id='', logical_instrument_id=''):
+        raise NotImplementedError()
+
+    def link_data_producer(self, instrument_device_id='', data_producer_id=''):
+        raise NotImplementedError()
+
+    def unlink_data_producer(self, instrument_device_id='', data_producer_id=''):
+        raise NotImplementedError()
+
+    def link_model(self, instrument_device_id='', instrument_model_id=''):
+        raise NotImplementedError()
+
+    def unlink_model(self, instrument_device_id='', instrument_model_id=''):
+        raise NotImplementedError()
+
+    def link_sensor(self, instrument_device_id='', sensor_device_id=''):
+        raise NotImplementedError()
+
+    def unlink_sensor(self, instrument_device_id='', sensor_device_id=''):
+        raise NotImplementedError()
+
+
+
     ##################### INSTRUMENT LIFECYCLE METHODS
 
     def plan(self, name='', description='', instrument_model_id=''):

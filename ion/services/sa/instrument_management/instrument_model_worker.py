@@ -15,8 +15,9 @@ class InstrumentModelWorker(IMSsimple):
     def _primary_object_label(self):
         return "instrument_model"
 
-    def assign(self, instrument_model_id='', instrument_device_id=''):
+    def link_agent(self, instrument_model_id='', instrument_agent_instance_id=''):
         raise NotImplementedError()
 
-    def unassign(self, instrument_model_id='', instrument_device_id=''):
+    def unlink_agent(self, instrument_model_id='', instrument_agent_instance_id=''):
         raise NotImplementedError()
+
