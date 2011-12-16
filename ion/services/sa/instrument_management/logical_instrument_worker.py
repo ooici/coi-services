@@ -7,11 +7,11 @@ __license__ = 'Apache 2.0'
 
 from ion.services.sa.instrument_management.ims_simple import IMSsimple
 
-class InstrumentLogicalWorker(IMSsimple):
+class LogicalInstrumentWorker(IMSsimple):
 
     def _primary_object_name(self):
-        return "InstrumentLogical"
+        return "LogicalInstrument"
 
     def _primary_object_label(self):
-        return "instrument_logical"
+        return "logical_instrument"
 

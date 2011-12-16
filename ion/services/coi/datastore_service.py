@@ -102,8 +102,8 @@ class DataStoreService(BaseDatastoreService):
     def resolve_idref_doc(self, subject="", predicate="", object="", datastore_name=""):
         return self.datastore.resolve_idref_doc(subject, predicate, object, datastore_name)
 
-    def create_association(self, subject=None, predicate=None, object=None):
-        return self.datastore.create_association(subject, predicate, object)
+    def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
+        return self.datastore.create_association(subject, predicate, object, assoc_type)
 
     def delete_association(self, association=''):
         return self.datastore.delete_association(association)

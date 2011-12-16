@@ -68,8 +68,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         res_obj.ts_updated = get_ion_ts()
         return self.update(res_obj)
 
-    def create_association(self, subject=None, predicate=None, object=None):
-        return self.resource_registry.create_association(subject, predicate, object)
+    def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
+        return self.resource_registry.create_association(subject, predicate, object, assoc_type)
 
     def delete_association(self, association=''):
         return self.resource_registry.delete_association(association, datastore_name)
