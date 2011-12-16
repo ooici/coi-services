@@ -9,7 +9,7 @@
 THISDIR=$(git rev-parse --show-toplevel)
 cd $THISDIR
 
-echo "\nRemoving old pyc files in $THISDIR"
+echo "\nRemoving old pyc files in $THISDIR/ion"
 
 #get all pyc in the root
 for PYC in $(find ion | grep \.pyc$)
