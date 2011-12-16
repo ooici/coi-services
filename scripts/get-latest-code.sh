@@ -37,6 +37,7 @@ git submodule update
 echo "\n\n=== CLEANING UP ===\n"
 ant clean
 sh scripts/cc-cleanup.sh
+sh scripts/pyc-cleanup.sh
 
 echo "\n\n=== BOOTSTRAPPING ===\n"
 python bootstrap.py
