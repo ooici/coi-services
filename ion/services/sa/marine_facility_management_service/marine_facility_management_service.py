@@ -41,7 +41,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @todo Add logic to validate optional attributes. Is this interface correct?
         '''
 
-        return self.clients.resource_registry.update(data_source)
+        return self.clients.resource_registry.update(marine_facility)
 
 
     def read_marine_facility(self, marine_facility_id=''):
@@ -56,7 +56,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         log.debug("Reading Marine Facility object id: %s" % marine_facility_id)
         marine_facility_obj = self.clients.resource_registry.read(marine_facility_id)
         if not marine_facility_obj:
-            raise NotFound("Marine Facility %d does not exist" % marine_facility_id)
+            raise NotFound("Marine Facility %s does not exist" % marine_facility_id)
         return marine_facility_obj
 
     def delete_marine_facility(self, marine_facility_id=''):
