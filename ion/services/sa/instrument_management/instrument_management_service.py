@@ -5,25 +5,27 @@ __license__ = 'Apache 2.0'
 
 
 #from pyon.public import Container
-from pyon.public import AT
-from pyon.core.bootstrap import IonObject
+#from pyon.public import AT
+from pyon.core.bootstrap import IonObject #even though pyflakes complains
 #from pyon.core.exception import BadRequest #, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
-from pyon.util.log import log
+#from pyon.util.log import log
 
 from ion.services.sa.instrument_management.instrument_agent_worker import InstrumentAgentWorker
 from ion.services.sa.instrument_management.instrument_model_worker import InstrumentModelWorker
 from ion.services.sa.instrument_management.instrument_device_worker import InstrumentDeviceWorker
-from ion.services.sa.instrument_management.instrument_logical_worker import InstrumentLogicalWorker
 
 from ion.services.sa.instrument_management.platform_agent_worker import PlatformAgentWorker
 from ion.services.sa.instrument_management.platform_model_worker import PlatformModelWorker
 from ion.services.sa.instrument_management.platform_device_worker import PlatformDeviceWorker
-from ion.services.sa.instrument_management.platform_logical_worker import PlatformLogicalWorker
 
 from ion.services.sa.instrument_management.sensor_model_worker import SensorModelWorker
 from ion.services.sa.instrument_management.sensor_device_worker import SensorDeviceWorker
+
+from ion.services.sa.instrument_management.logical_instrument_worker import LogicalInstrumentWorker
+from ion.services.sa.instrument_management.logical_platform_worker import LogicalPlatformWorker
+
 
 ######
 """
@@ -57,15 +59,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent    = InstrumentAgentWorker(self.clients)
         self.instrument_model    = InstrumentModelWorker(self.clients)
         self.instrument_device   = InstrumentDeviceWorker(self.clients)
-        self.instrument_logical  = InstrumentLogicalWorker(self.clients)
 
         self.platform_agent    = PlatformAgentWorker(self.clients)
         self.platform_model    = PlatformModelWorker(self.clients)
         self.platform_device   = PlatformDeviceWorker(self.clients)
-        self.platform_logical  = PlatformLogicalWorker(self.clients)
 
         self.sensor_model    = SensorModelWorker(self.clients)
         self.sensor_device   = SensorDeviceWorker(self.clients)
+
+        self.logical_instrument  = LogicalInstrumentWorker(self.clients)
+        self.logical_platform    = LogicalPlatformWorker(self.clients)
 
     
     ##########################################################################
@@ -309,36 +312,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_logical(self, instrument_logical={}):
+    def create_logical_instrument(self, logical_instrument={}):
         """
         method docstring
         """
-        return self.instrument_logical.create_one(instrument_logical)
+        return self.logical_instrument.create_one(logical_instrument)
 
-    def update_instrument_logical(self, instrument_logical={}):
+    def update_logical_instrument(self, logical_instrument={}):
         """
         method docstring
         """
-        return self.instrument_logical.update_one(instrument_logical)
+        return self.logical_instrument.update_one(logical_instrument)
         
 
-    def read_instrument_logical(self, instrument_logical_id=''):
+    def read_logical_instrument(self, logical_instrument_id=''):
         """
         method docstring
         """
-        return self.instrument_logical.read_one(instrument_logical_id)
+        return self.logical_instrument.read_one(logical_instrument_id)
 
-    def delete_instrument_logical(self, instrument_logical_id=''):
+    def delete_logical_instrument(self, logical_instrument_id=''):
         """
         method docstring
         """
-        return self.instrument_logical.delete_one(instrument_logical_id)
+        return self.logical_instrument.delete_one(logical_instrument_id)
 
-    def find_instrument_logicals(self, filters={}):
+    def find_logical_instruments(self, filters={}):
         """
         method docstring
         """
-        return self.instrument_logical.find_some(filters)
+        return self.logical_instrument.find_some(filters)
 
 
 
