@@ -15,3 +15,9 @@ class LogicalInstrumentWorker(IMSsimple):
     def _primary_object_label(self):
         return "logical_instrument"
 
+    def link_agent(self, logical_instrument_id='', instrument_agent_id=''):
+        raise NotImplementedError()
+
+    def unlink_agent(self, logical_instrument_id='', instrument_agent_id=''):
+        raise NotImplementedError()
+

@@ -15,3 +15,9 @@ class SensorDeviceWorker(IMSworker):
     def _primary_object_label(self):
         return "sensor_device"
 
+    def link_model(self, sensor_device_id='', sensor_model_id=''):
+        raise NotImplementedError()
+
+    def unlink_model(self, sensor_device_id='', sensor_model_id=''):
+        raise NotImplementedError()
+

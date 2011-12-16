@@ -32,6 +32,7 @@ For Mac, use homebrew
 - python 2.7.2
 - git 1.7.7: Use brew or download the Mac or Linux installer and run it
 - couchdb 1.1.0 (optional if memory mockdb is used)
+    You will need to upgrade couchdb to at least 1.1.0.
 - rabbitmq 2.6.1 or later (recommended, but can use rabbitmq on amoeba)
     Use brew.
     Alternative: download generic Linux version and unpack into a suitable directory.
@@ -41,7 +42,6 @@ For Mac, use homebrew
     Be sure to read the pyon README for platform specific guidance to installing
     dependent libraries and packages.
     Linux: Note that many installs have much older versions installed by default.
-    You will need to upgrade couchdb to at least 1.1.0.
 
 * python packages and environment management:
 - pip
