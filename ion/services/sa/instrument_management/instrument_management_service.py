@@ -7,22 +7,37 @@ __license__ = 'Apache 2.0'
 #from pyon.public import Container
 from pyon.public import AT
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import BadRequest, NotFound
+#from pyon.core.exception import BadRequest #, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 
+from ion.services.sa.instrument_management.instrument_agent_worker import InstrumentAgentWorker
+from ion.services.sa.instrument_management.instrument_model_worker import InstrumentModelWorker
+from ion.services.sa.instrument_management.instrument_device_worker import InstrumentDeviceWorker
+from ion.services.sa.instrument_management.instrument_logical_worker import InstrumentLogicalWorker
+
+from ion.services.sa.instrument_management.platform_agent_worker import PlatformAgentWorker
+from ion.services.sa.instrument_management.platform_model_worker import PlatformModelWorker
+from ion.services.sa.instrument_management.platform_device_worker import PlatformDeviceWorker
+from ion.services.sa.instrument_management.platform_logical_worker import PlatformLogicalWorker
+
+from ion.services.sa.instrument_management.sensor_model_worker import SensorModelWorker
+from ion.services.sa.instrument_management.sensor_device_worker import SensorDeviceWorker
 
 ######
 """
 now TODO
 
- - implement find methods
+ - docstrings
 
 
-Later TODO
+Later TODO (need new methods spec'd out)
 
- - fix lifecycle states... how?
+ - logical and physical stuff?
+ - direct access
+ - platform direct access
+ - attachments
  - 
 
 """
@@ -30,63 +45,27 @@ Later TODO
 
 
 
+
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     
-    def __init__(self):
+    def on_init(self):
         self.RR    = self.clients.resource_registry
         self.DAMS  = self.clients.data_acquisition_management_service
 
-    # find whether a resource with the same type and name already exists
-    def _check_name(self, resource_type, name):
-        try:
-            found_res, _ = self.RR.find_resources(resource_type, None, name, True)
-        except NotFound:
-            # New after all.  PROCEED.
-            pass
-        else:
-            if 0 < len(found_res):
-                raise BadRequest("%s resource named '%s' already exists" % (resource_type, name))
-        
-    # try to get a resource
-    def _get_resource(self, resource_type, resource_id):
-        resource = self.RR.read(resource_id)
-        if not resource:
-            raise NotFound("%s %s does not exist" % (resource_type, resource_id))
-        return resource
+        self.instrument_agent    = InstrumentAgentWorker(self.clients)
+        self.instrument_model    = InstrumentModelWorker(self.clients)
+        self.instrument_device   = InstrumentDeviceWorker(self.clients)
+        self.instrument_logical  = InstrumentLogicalWorker(self.clients)
 
-    # return a valid message from a create
-    def _return_create(self, resource_label, resource_id):
-        retval = {}
-        retval[resource_label] = resource_id
-        return retval
+        self.platform_agent    = PlatformAgentWorker(self.clients)
+        self.platform_model    = PlatformModelWorker(self.clients)
+        self.platform_device   = PlatformDeviceWorker(self.clients)
+        self.platform_logical  = PlatformLogicalWorker(self.clients)
 
-    # return a valid message from an update
-    def _return_update(self, success_bool):
-        retval = {}
-        retval["success"] = success_bool
-        return retval
-
-    # return a valid message from a read
-    def _return_read(self, resource_type, resource_label, resource_id):
-        retval = {}
-        resource = self._get_resource(resource_type, resource_id)
-        retval[resource_label] = resource
-        return retval
-
-    # return a valid message from a delete
-    def _return_delete(self, success_bool):
-        retval = {}
-        retval["success"] = success_bool
-        return retval
-
-    # return a valid message from an activate
-    def _return_activate(self, success_bool):
-        retval = {}
-        retval["success"] = success_bool
-        return retval
-
+        self.sensor_model    = SensorModelWorker(self.clients)
+        self.sensor_device   = SensorDeviceWorker(self.clients)
 
     
     ##########################################################################
@@ -95,113 +74,54 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_agent(self, instrument_agent_info=None):
+    def create_instrument_agent(self, instrument_agent={}):
         """
         method docstring
         """
-        # Validate the input filter and augment context as required
-        self._check_name("InstrumentAgent", instrument_agent_info.name)
+        return self.instrument_agent.create_one(instrument_agent)
 
-        #FIXME: more validation?
-
-        #persist
-        instrument_agent_obj = IonObject("InstrumentAgent", instrument_agent_info)
-        instrument_agent_id, _ = self.RR.create(instrument_agent_obj)
-        self.RR.execute_lifecycle_transition(resource_id=instrument_agent_id, 
-                                                                    lcstate='ACTIVE')
-
-        return self._return_create("instrument_agent_id", instrument_agent_id)
-
-
-    def update_instrument_agent(self, instrument_agent_id='', instrument_agent_info=None):
+    def update_instrument_agent(self, instrument_agent={}):
         """
         method docstring
         """
-        instrument_agent_obj = self._get_resource("InstrumentAgent", instrument_agent_id)        
-
-        # Validate the input 
-        
-        #if the name is being changed, make sure it's not being changed to a duplicate
-        self._check_name("InstrumentAgent", instrument_agent_info.name)
-
-        # copy all fields except the resource_id field into the new object
-        #  ... is there going to be a convenience method for this?
-        
-        #persist
-        self.RR.update(instrument_agent_obj)
-
-
-        return self._return_update(True)
-
+        return self.instrument_agent.update_one(instrument_agent)
         
 
     def read_instrument_agent(self, instrument_agent_id=''):
         """
         method docstring
         """
-        return self._return_read("InstrumentAgent", "instrument_agent_info", instrument_agent_id)
-
-
+        return self.instrument_agent.read_one(instrument_agent_id)
 
     def delete_instrument_agent(self, instrument_agent_id=''):
         """
         method docstring
         """
+        return self.instrument_agent.delete_one(instrument_agent_id)
 
-        instrument_agent_obj = self._get_resource("InstrumentAgent", instrument_agent_id)        
-        
-        self.RR.delete(instrument_agent_obj)
-        
-        return self._return_delete(True)
-
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
-
-
-    def find_instrument_agents(self, filters=None):
+    def find_instrument_agents(self, filters={}):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # instrument_agent_info_list: []
-        #
-        raise NotImplementedError()
-        pass
+        return self.instrument_agent.find_some(filters)
 
-
-
-    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance=None):
+    #FIXME: args need to change
+    def assign_instrument_agent(self, instrument_agent_id='', instrument_device_id='', instrument_agent_instance={}):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        
-        # activate_instrument_device
-
         raise NotImplementedError()
-        pass
+        return self.instrument_agent.assign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
 
-    def unassign_instrument_agent(self, instrument_agent_id='', instrument_id=''):
+    #FIXME: args need to change
+    def unassign_instrument_agent(self, instrument_agent_id='', instrument_device_id='', instrument_agent_instance={}):
+
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-
-        # deactivate_instrument_device
-
         raise NotImplementedError()
-        pass
+        return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
+
 
 
 
@@ -212,79 +132,49 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_model(self, instrument_model_info=None):
+    def create_instrument_model(self, instrument_model={}):
         """
         method docstring
         """
-        # Define YAML/params from
-        # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
+        return self.instrument_model.create_one(instrument_model)
 
-        # Validate the input filter and augment context as required
-        self._check_name("InstrumentModel", instrument_model_info.name)
-
-        #FIXME: more validation?
-
-        # Create instrument resource, set initial state, persist
-        instrument_model_obj = IonObject("InstrumentModel", instrument_model_info)
-        instrument_model_id, _ = self.RR.create(instrument_model_obj)
-        self.RR.execute_lifecycle_transition(resource_id=instrument_model_id, 
-                                                                    lcstate='ACTIVE')
-
-        # Create associations
-        # ??????? WHAT ASSOCIATIONS?
-
-        return self._return_create("instrument_model_id", instrument_model_id)
-
-
-    def update_instrument_model(self, instrument_model_id='', instrument_model_info=None):
+    def update_instrument_model(self, instrument_model={}):
         """
         method docstring
         """
-
-        instrument_model_obj = self._get_resource("Instrumentmodel", instrument_model_id)        
-
-        # Validate the input 
+        return self.instrument_model.update_one(instrument_model)
         
-        #if the name is being changed, make sure it's not being changed to a duplicate
-        self._check_name("Instrumentmodel", instrument_model_info.name)
-
-        # update some list of fields
-        
-        #persist
-        self.RR.update(instrument_model_obj)
-
-        return self._return_update(True)
-
-    
 
     def read_instrument_model(self, instrument_model_id=''):
         """
         method docstring
         """
-        return self._return_read("InstrumentModel", "instrument_model_info", instrument_model_id)
-
+        return self.instrument_model.read_one(instrument_model_id)
 
     def delete_instrument_model(self, instrument_model_id=''):
         """
         method docstring
         """
-        instrument_model_obj = self._get_resource("InstrumentModel", instrument_model_id)        
-        
-        self.RR.delete(instrument_model_obj)
-        
-        return self._return_delete(True)
+        return self.instrument_model.delete_one(instrument_model_id)
 
-
-    def find_instrument_models(self, filters=None):
+    def find_instrument_models(self, filters={}):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # instrument_model_info_list: []
-        #
-        raise NotImplementedError()
-        pass
+        return self.instrument_model.find_some(filters)
+
+    def assign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
+        """
+        method docstring
+        """
+        return self.instrument_model.assign(instrument_model_id, instrument_device_id)
+
+    def unassign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
+        """
+        method docstring
+        """
+        return self.instrument_model.assign(instrument_model_id, instrument_device_id)
+
 
 
 
@@ -298,79 +188,38 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-
-
-    def create_instrument_device(self, instrument_device_info=None):
+    def create_instrument_device(self, instrument_device={}):
         """
         method docstring
         """
-        # Define YAML/params from
-        # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
+        return self.instrument_device.create_one(instrument_device)
 
-        # Validate the input filter and augment context as required
-        self._check_name("InstrumentDevice", instrument_device_info.name)
-
-        #FIXME: more validation?
-
-        # Create instrument resource, set initial state, persist
-        instrument_device_obj = IonObject("InstrumentDevice", instrument_device_info)
-        instrument_device_id, _ = self.RR.create(instrument_device_obj)
-
-        return self._return_create("instrument_device_id", instrument_device_id)
-
-
-
-
-    def update_instrument_device(self, instrument_device_id='', instrument_device_info=None):
+    def update_instrument_device(self, instrument_device={}):
         """
         method docstring
         """
-
-        instrument_device_obj = self._get_resource("Instrumentdevice", instrument_device_id)        
-
-        # Validate the input 
+        return self.instrument_device.update_one(instrument_device)
         
-        #if the name is being changed, make sure it's not being changed to a duplicate
-        self._check_name("Instrumentdevice", instrument_device_info.name)
-
-        # update some list of fields
-        
-        #persist
-        self.RR.update(instrument_device_obj)
-
-        return self._return_update(True)
-
-    
 
     def read_instrument_device(self, instrument_device_id=''):
         """
         method docstring
         """
-        return self._return_read("InstrumentDevice", "instrument_device_info", instrument_device_id)
-
+        return self.instrument_device.read_one(instrument_device_id)
 
     def delete_instrument_device(self, instrument_device_id=''):
         """
         method docstring
         """
-        instrument_device_obj = self._get_resource("InstrumentDevice", instrument_device_id)        
-        
-        self.RR.delete(instrument_device_obj)
-        
-        return self._return_delete(True)
+        return self.instrument_device.delete_one(instrument_device_id)
 
-
-
-    def find_instrument_devices(self, filters=None):
+    def find_instrument_devices(self, filters={}):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # instrument_device_info_list: []
-        #
-        raise NotImplementedError()
-        pass
+        return self.instrument_device.find_some(filters)
+
+
 
 
     ##################### INSTRUMENT LIFECYCLE METHODS
@@ -379,151 +228,49 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Plan an instrument: at this point, we know only its name, description, and model
         """
-
-        #create the new resource
-        new_inst_obj = IonObject("InstrumentDevice",
-                                 name=name,
-                                 description=description)
-        instrument_device_id = self.create_instrument_device(instrument_device_info=new_inst_obj)
-
-        #associate the model
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasModel, instrument_model_id)
-        log.debug("Create hasModel Association: %s" % str(associate_success))
-        
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='PLANNED')
-
-        return self._return_create("instrument_device_id", instrument_device_id)
-        
+        return self.instrument_device.plan(name, description, instrument_model_id)
 
     def acquire_instrument_device(self, instrument_device_id='', serialnumber='', firmwareversion='', hardwareversion=''):
         """
         When physical instrument is acquired, create all data products
         """
-
-        #read instrument
-        inst_obj = self.read_instrument_device(instrument_device_id=instrument_device_id)
-
-        #update instrument with new params
-        inst_obj.serialnumber     = serialnumber
-        inst_obj.firmwareversion  = firmwareversion
-        inst_obj.hardwareversion  = hardwareversion
-
-        #FIXME: check this for an error
-        self.update_instrument_device(instrument_device_id, inst_obj)
-
-        
-        #get data producer id from data acquisition management service
-        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
-
-        # associate data product with instrument
-        _ = self.RR.create_association(instrument_device_id, AT.hasDataProducer, pducer_id)
-        
-        #get data product id from data product management service
-        dpms_pduct_obj = IonObject("DataProduct", 
-                                   name=str(inst_obj.name + " L0 Product"),
-                                   description=str("DataProduct for " + inst_obj.name))
-
-        dpms_pducer_obj = IonObject("DataProducer", 
-                                    name=str(inst_obj.name + " L0 Producer"),
-                                    description=str("DataProducer for " + inst_obj.name))
-
-        pduct_id = self.DPMS.create_data_product(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
-
-
-        # get data product's data produceer (via association)
-        assoc_ids, _ = self.RR.find_associations(pduct_id, AT.hasDataProducer, None, True)
-        # (FIXME: there should only be one assoc_id.  what error to raise?)
-        # FIXME: what error to raise if there are no assoc ids?
-
-        # instrument data producer is the parent of the data product producer
-        associate_success = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
-        log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
-        
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='ACQUIRED')
-
-        #FIXME: error checking
-
-        return self._return_update(True)
-
+        return self.instrument_device.acquire(instrument_device_id, serialnumber, firmwareversion, hardwareversion)
 
     def develop_instrument_device(self, instrument_device_id='', instrument_agent_id=''):
         """
         Assign an instrument agent (just the type, not the instance) to an instrument
         """
-        #FIXME: only valid in 'ACQUIRED' state!
-
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgent, instrument_agent_id)
-        log.debug("Create hasAgent Association: %s" % str(associate_success))
-
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-        #FIXME: error checking
-
-        return self._return_update(True)
-
+        return self.instrument_device.develop(instrument_device_id, instrument_agent_id)
 
     def commission_instrument_device(self, instrument_device_id='', platform_device_id=''):
-        #FIXME: only valid in 'DEVELOPED' state!
-
-        #FIXME: there seems to be no association between instruments and platforms
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='COMMISSIONED')
-        return self._return_update(True)
-
+        """
+        method docstring
+        """
+        return self.instrument_device.commission(instrument_device_id, platform_device_id)
 
     def decommission_instrument_device(self, instrument_device_id=''):
-        #FIXME: only valid in 'COMMISSIONED' state!
-
-        #FIXME: there seems to be no association between instruments and platforms
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-
-        return self._return_update(True)
-
+        """
+        method docstring
+        """
+        return self.instrument_device.decommission(instrument_device_id)
 
     def activate_instrument_device(self, instrument_device_id='', instrument_agent_instance_id=''):
         """
         method docstring
         """
-        #FIXME: only valid in 'COMMISSIONED' state!
-
-        #FIXME: validate somehow
-
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
-        log.debug("Create hasAgentInstance Association: %s" % str(associate_success))
-
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='ACTIVE')
-
-        self._return_activate(True)
-
+        return self.instrument_device.activate(instrument_device_id, instrument_agent_instance_id)
 
     def deactivate_instrument_device(self, instrument_device_id=''):
-
-        #FIXME: only valid in 'ACTIVE' state!
-
-        #FIXME: remove association
-        
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-
-        return self._return_update(True)
-        
+        """
+        method docstring
+        """
+        return self.instrument_device.deactivate(instrument_device_id)        
 
     def retire_instrument_device(self, instrument_device_id=''):
         """
         Retire an instrument
         """
-
-        #FIXME: what happens to logical instrument, platform, etc
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                             lcstate='RETIRED')
+        return self.instrument_device.retire(instrument_device_id)
         
         return self._return_update(True)
 
@@ -562,84 +309,38 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-
-    def create_instrument_logical(self, instrument_logical_info=None):
+    def create_instrument_logical(self, instrument_logical={}):
         """
         method docstring
         """
-        # Define YAML/params from
-        # Instrument metadata draft: https://confluence.oceanobservatories.org/display/CIDev/R2+Resource+Page+for+Instrument+Instance
+        return self.instrument_logical.create_one(instrument_logical)
 
-        # Validate the input filter and augment context as required
-        self._check_name("InstrumentLogical", instrument_logical_info.name)
-
-        #FIXME: more validation?
-
-        # Create instrument resource, set initial state, persist
-        instrument_logical_obj = IonObject("InstrumentLogical", instrument_logical_info)
-        instrument_logical_id, _ = self.RR.create(instrument_logical_obj)
-        self.RR.execute_lifecycle_transition(resource_id=instrument_logical_id, 
-                                                                    lcstate='ACTIVE')
-
-
-        # Create data product (products?)
-
-        # associate data product with instrument
-        #_ = self.RR.create_association(org_id, AT.hasExchangeSpace, xs_id)
-
-        return self._return_create("instrument_logical_id", instrument_logical_id)
-
-
-
-    def update_instrument_logical(self, instrument_logical_id='', instrument_logical_info=None):
+    def update_instrument_logical(self, instrument_logical={}):
         """
         method docstring
         """
-
-        instrument_logical_obj = self._get_resource("Instrumentlogical", instrument_logical_id)        
-
-        # Validate the input 
+        return self.instrument_logical.update_one(instrument_logical)
         
-        #if the name is being changed, make sure it's not being changed to a duplicate
-        self._check_name("Instrumentlogical", instrument_logical_info.name)
-
-        # update some list of fields
-        
-        #persist
-        self.RR.update(instrument_logical_obj)
-
-        return self._return_update(True)
-
-    
 
     def read_instrument_logical(self, instrument_logical_id=''):
         """
         method docstring
         """
-        return self._return_read("InstrumentLogical", "instrument_logical_info", instrument_logical_id)
-
+        return self.instrument_logical.read_one(instrument_logical_id)
 
     def delete_instrument_logical(self, instrument_logical_id=''):
         """
         method docstring
         """
-        instrument_logical_obj = self._get_resource("InstrumentLogical", instrument_logical_id)        
-        
-        self.RR.delete(instrument_logical_obj)
-        
-        return self._return_delete(True)
+        return self.instrument_logical.delete_one(instrument_logical_id)
 
-
-    def find_instrument_logical(self, filters=None):
+    def find_instrument_logicals(self, filters={}):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # instrument_logical_info_list: []
-        #
-        raise NotImplementedError()
-        pass
+        return self.instrument_logical.find_some(filters)
+
+
 
 
     ##
@@ -648,7 +349,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##
     ##
 
-    def request_direct_access(self, instrument_id=''):
+    def request_direct_access(self, instrument_device_id=''):
         """
         method docstring
         """
@@ -666,7 +367,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         raise NotImplementedError()
         pass
 
-    def stop_direct_access(self, instrument_id=''):
+    def stop_direct_access(self, instrument_device_id=''):
         """
         method docstring
         """
@@ -676,5 +377,270 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         raise NotImplementedError()
         pass
+
+
+
+
+
+
+
+
+
+
+    
+    ##########################################################################
+    #
+    # PLATFORM AGENT
+    #
+    ##########################################################################
+
+
+    def create_platform_agent(self, platform_agent={}):
+        """
+        method docstring
+        """
+        return self.platform_agent.create_one(platform_agent)
+
+    def update_platform_agent(self, platform_agent={}):
+        """
+        method docstring
+        """
+        return self.platform_agent.update_one(platform_agent)
+        
+
+    def read_platform_agent(self, platform_agent_id=''):
+        """
+        method docstring
+        """
+        return self.platform_agent.read_one(platform_agent_id)
+
+    def delete_platform_agent(self, platform_agent_id=''):
+        """
+        method docstring
+        """
+        return self.platform_agent.delete_one(platform_agent_id)
+
+    def find_platform_agents(self, filters={}):
+        """
+        method docstring
+        """
+        return self.platform_agent.find_some(filters)
+
+    #FIXME: args need to change
+    def assign_platform_agent(self, platform_agent_id='', platform_device_id='', platform_agent_instance={}):
+        """
+        method docstring
+        """
+        raise NotImplementedError()
+        return self.platform_agent.assign(platform_agent_id, platform_device_id, platform_agent_instance)
+
+    #FIXME: args need to change
+    def unassign_platform_agent(self, platform_agent_id='', platform_device_id='', platform_agent_instance={}):
+
+        """
+        method docstring
+        """
+        raise NotImplementedError()
+        return self.platform_agent.unassign(platform_agent_id, platform_device_id, platform_agent_instance)
+
+
+
+    
+    ##########################################################################
+    #
+    # PLATFORM MODEL
+    #
+    ##########################################################################
+
+
+    def create_platform_model(self, platform_model={}):
+        """
+        method docstring
+        """
+        return self.platform_model.create_one(platform_model)
+
+    def update_platform_model(self, platform_model={}):
+        """
+        method docstring
+        """
+        return self.platform_model.update_one(platform_model)
+        
+
+    def read_platform_model(self, platform_model_id=''):
+        """
+        method docstring
+        """
+        return self.platform_model.read_one(platform_model_id)
+
+    def delete_platform_model(self, platform_model_id=''):
+        """
+        method docstring
+        """
+        return self.platform_model.delete_one(platform_model_id)
+
+    def find_platform_models(self, filters={}):
+        """
+        method docstring
+        """
+        return self.platform_model.find_some(filters)
+
+    def assign_platform_model(self, platform_model_id='', platform_device_id=''):
+        """
+        method docstring
+        """
+        return self.platform_model.assign(platform_model_id, platform_device_id)
+
+    def unassign_platform_model(self, platform_model_id='', platform_device_id=''):
+        """
+        method docstring
+        """
+        return self.platform_model.assign(platform_model_id, platform_device_id)
+
+
+
+
+
+
+    ##########################################################################
+    #
+    # PHYSICAL PLATFORM
+    #
+    ##########################################################################
+
+
+
+    def create_platform_device(self, platform_device={}):
+        """
+        method docstring
+        """
+        return self.platform_device.create_one(platform_device)
+
+    def update_platform_device(self, platform_device={}):
+        """
+        method docstring
+        """
+        return self.platform_device.update_one(platform_device)
+        
+
+    def read_platform_device(self, platform_device_id=''):
+        """
+        method docstring
+        """
+        return self.platform_device.read_one(platform_device_id)
+
+    def delete_platform_device(self, platform_device_id=''):
+        """
+        method docstring
+        """
+        return self.platform_device.delete_one(platform_device_id)
+
+    def find_platform_devices(self, filters={}):
+        """
+        method docstring
+        """
+        return self.platform_device.find_some(filters)
+
+
+
+
+
+    
+    ##########################################################################
+    #
+    # SENSOR MODEL
+    #
+    ##########################################################################
+
+
+    def create_sensor_model(self, sensor_model={}):
+        """
+        method docstring
+        """
+        return self.sensor_model.create_one(sensor_model)
+
+    def update_sensor_model(self, sensor_model={}):
+        """
+        method docstring
+        """
+        return self.sensor_model.update_one(sensor_model)
+        
+
+    def read_sensor_model(self, sensor_model_id=''):
+        """
+        method docstring
+        """
+        return self.sensor_model.read_one(sensor_model_id)
+
+    def delete_sensor_model(self, sensor_model_id=''):
+        """
+        method docstring
+        """
+        return self.sensor_model.delete_one(sensor_model_id)
+
+    def find_sensor_models(self, filters={}):
+        """
+        method docstring
+        """
+        return self.sensor_model.find_some(filters)
+
+    def assign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
+        """
+        method docstring
+        """
+        return self.sensor_model.assign(sensor_model_id, sensor_device_id)
+
+    def unassign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
+        """
+        method docstring
+        """
+        return self.sensor_model.unassign(sensor_model_id, sensor_device_id)
+
+
+
+
+    ##########################################################################
+    #
+    # PHYSICAL SENSOR
+    #
+    ##########################################################################
+
+
+
+    def create_sensor_device(self, sensor_device={}):
+        """
+        method docstring
+        """
+        return self.sensor_device.create_one(sensor_device)
+
+    def update_sensor_device(self, sensor_device={}):
+        """
+        method docstring
+        """
+        return self.sensor_device.update_one(sensor_device)
+        
+
+    def read_sensor_device(self, sensor_device_id=''):
+        """
+        method docstring
+        """
+        return self.sensor_device.read_one(sensor_device_id)
+
+    def delete_sensor_device(self, sensor_device_id=''):
+        """
+        method docstring
+        """
+        return self.sensor_device.delete_one(sensor_device_id)
+
+    def find_sensor_devices(self, filters={}):
+        """
+        method docstring
+        """
+        return self.sensor_device.find_some(filters)
+
+
+
+
+
+    
 
 

@@ -24,7 +24,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @retval id New data_source id.
         '''
         log.debug("Creating data_source object")
-        #data_source_obj = IonObject("DataSource", data_source)
+
         data_source_id, rev = self.clients.resource_registry.create(data_source)
 
         return data_source_id
@@ -37,11 +37,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @retval success Boolean to indicate successful update.
         @todo Add logic to validate optional attributes. Is this interface correct?
         '''
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        #log.debug("Updating DataSource object: %s" % data_source.name)
+
         return self.clients.resource_registry.update(data_source)
 
     def read_data_source(self, data_source_id=''):
@@ -52,14 +48,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @retval data_source_obj The data_source object.
         @throws NotFound when data_source doesn't exist.
         '''
-        # Return Value
-        # ------------
-        # stream: {}
-        #
+
         log.debug("Reading DataSource object id: %s" % data_source_id)
         data_source_obj = self.clients.resource_registry.read(data_source_id)
         if not data_source_obj:
-            raise NotFound("DataSource %d does not exist" % data_source_id)
+            raise NotFound("DataSource %s does not exist" % data_source_id)
         return data_source_obj
 
     def delete_data_source(self, data_source_id=''):
@@ -129,11 +122,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # retrieve the data_source object
         data_source_obj = self.clients.resource_registry.read(data_source_id)
         if data_source_obj is None:
-            raise NotFound("Data Source %d does not exist" % data_source_id)
+            raise NotFound("Data Source %s does not exist" % data_source_id)
 
         #create data producer resource and associate to this data_source_id
-        data_producer = {'name':data_source_obj.name, 'description':data_source_obj.description}
-        data_producer_id = self._create_producer_resource(data_producer)
+        dp = IonObject(RT.DataSource, {'name':data_source_obj.name, 'description':data_source_obj.description})
+        data_producer_id = self._create_producer_resource(dp)
 
         # Create association
         self.clients.resource_registry.create_association(data_source_id, AT.hasDataProducer, data_producer_id)
@@ -162,11 +155,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # retrieve the data_process object
         data_process_obj = self.clients.resource_registry.read(data_process_id)
         if data_process_obj is None:
-            raise NotFound("Data Process %d does not exist" % data_process_id)
+            raise NotFound("Data Process %s does not exist" % data_process_id)
 
         #create data producer resource and associate to this data_process_id
-        data_producer = {'name':data_process_obj.name, 'description':data_process_obj.description}
-        data_producer_id = self._create_producer_resource(data_producer)
+        dp = IonObject(RT.DataProducer, {'name':data_process_obj.name, 'description':data_process_obj.description})
+        data_producer_id = self._create_producer_resource(dp)
 
         # Create association
         self.clients.resource_registry.create_association(data_process_id, AT.hasDataProducer, data_producer_id)
@@ -192,11 +185,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # retrieve the data_process object
         instrument_obj = self.clients.resource_registry.read(instrument_id)
         if instrument_obj is None:
-            raise NotFound("Data Process %d does not exist" % instrument_id)
+            raise NotFound("Instrument %s does not exist" % instrument_id)
 
         #create data producer resource and associate to this data_process_id
-        data_producer = {'name':instrument_obj.name, 'description':instrument_obj.description}
-        data_producer_id = self._create_producer_resource(data_producer)
+        inst = IonObject(RT.DataProducer, {'name':instrument_obj.name, 'description':instrument_obj.description})
+        data_producer_id = self._create_producer_resource(inst)
 
         # Create association
         self.clients.resource_registry.create_association(instrument_id, AT.hasDataProducer, data_producer_id)
@@ -271,7 +264,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         log.debug("Reading data_producer object id: %s" % data_producer_id)
         data_producer_obj = self.clients.resource_registry.read(data_producer_id)
         if data_producer_obj is None:
-            raise NotFound("Stream %d does not exist" % data_producer_id)
+            raise NotFound("Data producer %s does not exist" % data_producer_id)
         return data_producer_obj
 
     def delete_data_producer(self, data_producer_id=''):
@@ -286,10 +279,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # ------------
         # {success: true}
         #
-        log.debug("Deleting stream id: %s" % data_producer_id)
+        log.debug("Deleting data_producer id: %s" % data_producer_id)
         data_producer_obj = self.read_data_producer(data_producer_id)
         if data_producer_obj is None:
-            raise NotFound("Stream %d does not exist" % data_producer_id)
+            raise NotFound("Data producer %d does not exist" % data_producer_id)
 
         #Unregister the data producer with PubSub
         self.clients.pubsub_management.unregister_producer(data_producer_obj.name, data_producer_obj.stream_id)

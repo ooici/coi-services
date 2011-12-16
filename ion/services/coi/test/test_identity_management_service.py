@@ -17,21 +17,21 @@ from interface.services.coi.iresource_registry_service import BaseResourceRegist
 class TestIdentityManagementService(PyonTestCase):
 
     def setUp(self):
-        self._create_service_mock('identity_management')
+        mock_clients = self._create_service_mock('identity_management')
 
         self.identity_management_service = IdentityManagementService()
-        self.identity_management_service.clients = self.clients
+        self.identity_management_service.clients = mock_clients
 
         # Rename to save some typing
-        self.mock_create = self.resource_registry.create
-        self.mock_read = self.resource_registry.read
-        self.mock_update = self.resource_registry.update
-        self.mock_delete = self.resource_registry.delete
-        self.mock_create_association = self.resource_registry.create_association
-        self.mock_delete_association = self.resource_registry.delete_association
-        self.mock_find_objects = self.resource_registry.find_objects
-        self.mock_find_resources = self.resource_registry.find_resources
-        self.mock_find_subjects = self.resource_registry.find_subjects
+        self.mock_create = mock_clients.resource_registry.create
+        self.mock_read = mock_clients.resource_registry.read
+        self.mock_update = mock_clients.resource_registry.update
+        self.mock_delete = mock_clients.resource_registry.delete
+        self.mock_create_association = mock_clients.resource_registry.create_association
+        self.mock_delete_association = mock_clients.resource_registry.delete_association
+        self.mock_find_objects = mock_clients.resource_registry.find_objects
+        self.mock_find_resources = mock_clients.resource_registry.find_resources
+        self.mock_find_subjects = mock_clients.resource_registry.find_subjects
 
         # UserIdentity
         self.user_identity = Mock()

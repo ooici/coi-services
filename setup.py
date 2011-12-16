@@ -29,6 +29,7 @@ setup(  name = 'coi-services',
         ],
         test_suite = 'pyon',
         install_requires = [
-            'pyon'
+            'pyon',
+            'Flask==0.8'
         ],
      )

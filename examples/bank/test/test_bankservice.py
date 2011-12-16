@@ -19,20 +19,20 @@ class TestBankService(PyonTestCase):
 
     def setUp(self):
         self.mock_ionobj = self._create_IonObject_mock('examples.bank.bank_service.IonObject')
-        self._create_service_mock('bank')
+        mock_clients = self._create_service_mock('bank')
 
         self.bank_service = BankService()
-        self.bank_service.clients = self.clients
+        self.bank_service.clients = mock_clients
 
         # Rename to save some typing
-        self.mock_create = self.resource_registry.create
-        self.mock_create_association = self.resource_registry.create_association
-        self.mock_read = self.resource_registry.read
-        self.mock_update = self.resource_registry.update
-        self.mock_find_objects = self.resource_registry.find_objects
-        self.mock_find_subjects = self.resource_registry.find_subjects
-        self.mock_find_resources = self.resource_registry.find_resources
-        self.mock_exercise = self.trade.exercise
+        self.mock_create = mock_clients.resource_registry.create
+        self.mock_create_association = mock_clients.resource_registry.create_association
+        self.mock_read = mock_clients.resource_registry.read
+        self.mock_update = mock_clients.resource_registry.update
+        self.mock_find_objects = mock_clients.resource_registry.find_objects
+        self.mock_find_subjects = mock_clients.resource_registry.find_subjects
+        self.mock_find_resources = mock_clients.resource_registry.find_resources
+        self.mock_exercise = mock_clients.trade.exercise
 
     def test_new_acct_existing_customer(self):
         self.mock_find_resources.return_value = (['id_5'], 'I do not care')
