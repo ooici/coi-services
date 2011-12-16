@@ -20,3 +20,10 @@ class InstrumentAgentWorker(IMSsimple):
 
     def unlink_instance(self, instrument_agent_id='', instrument_agent_instance=''):
         raise NotImplementedError()
+
+    def link_model(self, instrument_agent_id='', instrument_model_id=''):
+        raise NotImplementedError()
+
+    def unlink_model(self, instrument_agent_id='', instrument_model_id=''):
+        raise NotImplementedError()
+
