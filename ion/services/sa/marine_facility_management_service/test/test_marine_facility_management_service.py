@@ -176,7 +176,7 @@ class TestMarineFacilityManagement(PyonTestCase):
     def test_assign_site(self):
         self.marine_facility_mgmt_service.assign_site('111', '222')
 
-        self.mock_create_association.assert_called_once_with('222', AT.hasSite, '111')
+        self.mock_create_association.assert_called_once_with('222', AT.hasSite, '111', None)
 
 
 
@@ -243,7 +243,7 @@ class TestMarineFacilityManagement(PyonTestCase):
     def test_assign_platform(self):
         self.marine_facility_mgmt_service.assign_platform('111', '222')
 
-        self.mock_create_association.assert_called_once_with('222', AT.hasPlatform, '111')
+        self.mock_create_association.assert_called_once_with('222', AT.hasPlatform, '111', None)
 
 
     ##############################################################################################
@@ -310,4 +310,4 @@ class TestMarineFacilityManagement(PyonTestCase):
     def test_assign_instrument(self):
         self.marine_facility_mgmt_service.assign_instrument('111', '222')
 
-        self.mock_create_association.assert_called_once_with('222', AT.hasInstrument, '111')
+        self.mock_create_association.assert_called_once_with('222', AT.hasInstrument, '111', None)

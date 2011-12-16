@@ -183,7 +183,7 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.data_acquisition_mgmt_service.register_process('111')
 
         self.mock_read.assert_called_once_with('111', '')
-        self.mock_create_association.assert_called_once_with('111', AT.hasDataProducer, '222')
+        self.mock_create_association.assert_called_once_with('111', AT.hasDataProducer, '222', None)
 
     def test_register_process_not_found(self):
         self.mock_read.return_value = None
@@ -205,7 +205,7 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.data_acquisition_mgmt_service.register_data_source('111')
 
         self.mock_read.assert_called_once_with('111', '')
-        self.mock_create_association.assert_called_once_with('111', AT.hasDataProducer, '222')
+        self.mock_create_association.assert_called_once_with('111', AT.hasDataProducer, '222', None)
 
     def test_register_data_source_not_found(self):
         self.mock_read.return_value = None
@@ -227,7 +227,7 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.data_acquisition_mgmt_service.register_instrument('111')
 
         self.mock_read.assert_called_once_with('111', '')
-        self.mock_create_association.assert_called_once_with('111', AT.hasDataProducer, '222')
+        self.mock_create_association.assert_called_once_with('111', AT.hasDataProducer, '222', None)
 
 
     def test_register_instrument_not_found(self):
