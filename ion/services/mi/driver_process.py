@@ -5,6 +5,7 @@ __license__ = 'Apache 2.0'
 
 
 from multiprocessing import Process
+import os
 import time
 import zmq
 
@@ -13,12 +14,11 @@ class DriverProcess(Process):
     class docstring
     """
     
-    def __init__(self, host, port):
+    def __init__(self, port):
         """
         method docstring
         """
         Process.__init__(self)
-        self.host = host
         self.port = port
        
     def init_messaging(self):
@@ -26,12 +26,10 @@ class DriverProcess(Process):
         """        
         self.zmq_context = zmq.Context()
         self.zmq_socket = self.zmq_context.socket(zmq.REP)
-        #host_string = 'tcp://'+self.host+':'+self.port
-        host_string = 'tcp://*:5562'
+        host_string = 'tcp://*:'+str(self.port)
         print 'binding to: ' + host_string
         self.zmq_socket.bind(host_string)
-
-
+        
     def run(self):
         """
         method docstring
@@ -40,8 +38,11 @@ class DriverProcess(Process):
         while True:
             msg = self.zmq_socket.recv()
             reply = 'The driver process is sending it back to you: ' + msg
-            print 'sending: ' + reply
-            self.zmq_socket.send(reply, copy=False)
+            self.zmq_socket.send(reply)
+            if msg == 'done':
+                break
+        
+        print 'driver process done' 
     
 class DriverClient(object):
     """

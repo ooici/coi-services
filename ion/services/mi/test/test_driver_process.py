@@ -3,14 +3,11 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-
-
-from mock import Mock, sentinel, patch
-from pyon.util.unit_test import PyonTestCase
-#from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
-from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound
 import unittest
+from mock import Mock, sentinel, patch
+from nose.plugins.attrib import attr
+from pyon.util.unit_test import PyonTestCase
+from pyon.core.exception import NotFound
 
 from ion.services.mi.driver_process import DriverProcess
 from ion.services.mi.driver_process import DriverClient
@@ -26,5 +23,6 @@ class DriverProcessTest(PyonTestCase):
     def test_driver_process(self):
         """
         """
-        #pass
-        self.assertEqual(4, 2+2)   
+        dp = DriverProcess(5562)
+        self.assertIsInstance(dp, DriverProcess)
+        
