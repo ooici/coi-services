@@ -114,21 +114,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.instrument_agent.find_some(filters)
 
     #FIXME: args need to change
-    def assign_instrument_agent(self, instrument_agent_id='', instrument_device_id='', instrument_agent_instance={}):
+    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance={}):
         """
         method docstring
         """
         raise NotImplementedError()
-        return self.instrument_agent.assign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
+        #return self.instrument_agent.assign(instrument_agent_id, instrument_id, instrument_agent_instance)
 
     #FIXME: args need to change
-    def unassign_instrument_agent(self, instrument_agent_id='', instrument_device_id='', instrument_agent_instance={}):
+    def unassign_instrument_agent(self, instrument_agent_id='', instrument_id=''):
 
         """
         method docstring
         """
         raise NotImplementedError()
-        return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
+        #return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
 
 
 
@@ -435,21 +435,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.platform_agent.find_some(filters)
 
     #FIXME: args need to change
-    def assign_platform_agent(self, platform_agent_id='', platform_device_id='', platform_agent_instance={}):
+    def assign_platform_agent(self, platform_agent_id='', platform_id='', platform_agent_instance={}):
         """
         method docstring
         """
         raise NotImplementedError()
-        return self.platform_agent.assign(platform_agent_id, platform_device_id, platform_agent_instance)
+        #return self.platform_agent.assign(platform_agent_id, platform_id, platform_agent_instance)
 
     #FIXME: args need to change
-    def unassign_platform_agent(self, platform_agent_id='', platform_device_id='', platform_agent_instance={}):
+    def unassign_platform_agent(self, platform_agent_id='', platform_id=''):
 
         """
         method docstring
         """
         raise NotImplementedError()
-        return self.platform_agent.unassign(platform_agent_id, platform_device_id, platform_agent_instance)
+        #return self.platform_agent.unassign(platform_agent_id, platform_device_id, platform_agent_instance)
 
 
 
