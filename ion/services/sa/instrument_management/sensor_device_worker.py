@@ -4,6 +4,7 @@ __author__ = 'Ian Katz'
 __license__ = 'Apache 2.0'
 
 #from pyon.core.exception import BadRequest, NotFound
+from pyon.public import AT
 
 from ion.services.sa.instrument_management.ims_worker import IMSworker
 
@@ -16,8 +17,8 @@ class SensorDeviceWorker(IMSworker):
         return "sensor_device"
 
     def link_model(self, sensor_device_id='', sensor_model_id=''):
-        raise NotImplementedError()
+        return self.link_resources(sensor_device_id, AT.hasModel, sensor_model_id)
 
     def unlink_model(self, sensor_device_id='', sensor_model_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(sensor_device_id, AT.hasModel, sensor_model_id)
 

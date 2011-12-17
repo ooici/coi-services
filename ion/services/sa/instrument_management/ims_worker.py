@@ -5,6 +5,8 @@ __license__ = 'Apache 2.0'
 
 from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
+from pyon.public import AT
+from pyon.util.log import log
 
 ######
 """
@@ -202,3 +204,41 @@ class IMSworker(object):
         pass
 
 
+    #########################################################
+    #
+    # ASSOCIATION METHODS
+    #
+    #########################################################
+
+    def _assn_name(self, association_type):
+        return {
+            AT.hasModel              : lambda: "hasModel",
+            AT.hasAssignment         : lambda: "hasAssignment",
+            AT.hasPlatform           : lambda: "hasPlatform",
+            AT.hasAgentInstance      : lambda: "hasAgentInstance",
+            AT.hasAgent              : lambda: "hasAgent",
+            AT.hasInstrument         : lambda: "hasInstrument",
+            AT.hasSensor             : lambda: "hasSensor",
+            AT.hasInstance           : lambda: "hasInstance",
+            AT.hasDataProducer       : lambda: "hasDataProducer",
+            AT.hasChildDataProducer  : lambda: "hasChildDataProducer",
+            }[association_type]()
+
+
+    def link_resources(self, subject_id='', association_type='', object_id=''):
+        associate_success = self.RR.create_association(subject_id, 
+                                                       association_type, 
+                                                       object_id)
+
+        log.debug("Create %s Association: %s" % (self._assn_name(association_type), 
+                                                 str(associate_success)))
+        return associate_success
+
+    def unlink_resources(self, subject_id='', association_type='', object_id=''):
+        
+        assoc = self.RR.get_association(subject=subject_id, predicate=association_type, object=object_id)
+        dessociate_success = self.RR.delete_association(assoc)
+
+        log.debug("Delete %s Association: %s" % (self._assn_name(association_type), 
+                                                 str(dessociate_success)))
+        return dessociate_success

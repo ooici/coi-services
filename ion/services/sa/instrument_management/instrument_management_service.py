@@ -74,6 +74,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.logical_instrument  = LogicalInstrumentWorker(self.clients)
         self.logical_platform    = LogicalPlatformWorker(self.clients)
 
+        IonObject() # suppress pyflakes error
     
     ##########################################################################
     #

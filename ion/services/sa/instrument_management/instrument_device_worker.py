@@ -37,34 +37,34 @@ class InstrumentDeviceWorker(IMSworker):
     ### associations
     
     def link_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
 
     def unlink_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
 
     def link_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasAssignment, logical_instrument_id)
 
     def unlink_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasAssignment, logical_instrument_id)
 
     def link_data_producer(self, instrument_device_id='', data_producer_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasDataProducer, data_producer_id)
 
     def unlink_data_producer(self, instrument_device_id='', data_producer_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasDataProducer, data_producer_id)
 
     def link_model(self, instrument_device_id='', instrument_model_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasModel, instrument_model_id)
 
     def unlink_model(self, instrument_device_id='', instrument_model_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasModel, instrument_model_id)
 
     def link_sensor(self, instrument_device_id='', sensor_device_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasSensor, sensor_device_id)
 
     def unlink_sensor(self, instrument_device_id='', sensor_device_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasSensor, sensor_device_id)
 
 
 
