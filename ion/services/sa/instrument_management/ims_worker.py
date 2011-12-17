@@ -30,11 +30,11 @@ class IMSworker(object):
     def __init__(self, clients):
         self.clients = clients
 
-        self.RR    = self.clients.resource_registry
-        self.DAMS  = self.clients.data_acquisition_management_service
-
         self.iontype  = self._primary_object_name()
         self.ionlabel = self._primary_boject_label()
+
+        self.RR = self.clients.resource_registry
+        self._worker_init()
 
 
     ##################################################
@@ -42,6 +42,9 @@ class IMSworker(object):
     #    STUFF THAT SHOULD BE OVERRIDDEN
     #
     ##################################################
+
+    def _worker_init():
+        return
 
     def _primary_object_name(self):
         return "YOU MUST SET THIS" #like InstrumentAgent
@@ -126,6 +129,10 @@ class IMSworker(object):
         """
         method docstring
         """
+        # make sure ID isn't set
+        if hasattr(primary_object, "_id"):
+            raise BadRequest("ID field was pre-defined for a create %s operation" % self.iontype)
+
         # Validate the input filter and augment context as required
         self._check_name(self.iontype, primary_object, "to be created")
 
@@ -146,7 +153,7 @@ class IMSworker(object):
         method docstring
         """
         if not hasattr(primary_object, "_id"):
-            raise BadRequest("The _id field was not set in the resource to be updated")
+            raise BadRequest("The _id field was not set in the %s resource to be updated" % self.iontype)
 
         #primary_object_id = primary_object._id
         #

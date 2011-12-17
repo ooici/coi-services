@@ -11,6 +11,7 @@ from ion.services.sa.instrument_management.ims_worker import IMSworker
 
 
 class IMSsimple(IMSworker):
+
     
     def _post_create(self, obj_id, obj):
         # simple resources go into active lifecycle state immediately upon creation

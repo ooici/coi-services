@@ -28,6 +28,10 @@ from ion.services.sa.instrument_management.ims_worker import IMSworker
 
 class InstrumentDeviceWorker(IMSworker):
 
+    def _worker_init(self):
+        #data acquisition management pointer
+        self.DAMS = self.clients.data_acquisition_management_service
+
     def _primary_object_name(self):
         return "InstrumentDevice"
 
@@ -82,8 +86,7 @@ class InstrumentDeviceWorker(IMSworker):
         instrument_device_id = self.create_one(instrument_device=new_inst_obj)
 
         #associate the model
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasModel, instrument_model_id)
-        log.debug("Create hasModel Association: %s" % str(associate_success))
+        self.link_model(instrument_device_id, instrument_model_id)
         
         self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
                                                                     lcstate='PLANNED')
@@ -112,8 +115,21 @@ class InstrumentDeviceWorker(IMSworker):
         pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
 
         # associate data product with instrument
-        _ = self.RR.create_association(instrument_device_id, AT.hasDataProducer, pducer_id)
+        self.link_data_producer(instrument_device_id, pducer_id)
         
+        # set up the rest of the associations
+        setup_dp_result = self.setup_data_production_chain(instrument_device_id)
+
+        return self._return_update(setup_dp_result)
+
+
+    def setup_data_production_chain(self, instrument_device_id=''):
+        
+        #get instrument object and instrument's data producer
+        inst_obj = self.read_one(instrument_device_id)
+        assoc_ids, _ = self.RR.find_associations(instrument_device_id, AT.hasDataProducer, None, True)
+        pducer_id = assoc_ids[0]
+
         #get data product id from data product management service
         dpms_pduct_obj = IonObject("DataProduct", 
                                    name=str(inst_obj.name + " L0 Product"),
@@ -150,6 +166,7 @@ class InstrumentDeviceWorker(IMSworker):
         """
         #FIXME: only valid in 'ACQUIRED' state!
 
+        
         associate_success = self.RR.create_association(instrument_device_id, AT.hasAgent, instrument_agent_id)
         log.debug("Create hasAgent Association: %s" % str(associate_success))
 
@@ -183,14 +200,13 @@ class InstrumentDeviceWorker(IMSworker):
     def activate(self, instrument_device_id='', instrument_agent_instance_id=''):
         """
         method docstring
+        @todo Validate and check retvals 
         """
         #FIXME: only valid in 'COMMISSIONED' state!
 
         #FIXME: validate somehow
 
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
-        log.debug("Create hasAgentInstance Association: %s" % str(associate_success))
-
+        self.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
 
         self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
                                                                     lcstate='ACTIVE')
