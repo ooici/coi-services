@@ -14,7 +14,7 @@ __license__ = 'Apache 2.0'
 
 
 #from pyon.public import Container
-#from pyon.public import AT
+from pyon.public import LCS #, AT
 from pyon.core.bootstrap import IonObject #even though pyflakes complains
 #from pyon.core.exception import BadRequest #, NotFound
 #from pyon.datastore.datastore import DataStore
@@ -158,7 +158,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-
     
     ##########################################################################
     #
@@ -290,65 +289,148 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    ##################### INSTRUMENT LIFECYCLE METHODS
+    ##################### INSTRUMENT LIFECYCLE ADVANCEMENT_ACTIONS
+
+
+
 
     def plan_instrument_device(self, name='', description='', instrument_model_id=''):
         """
         Plan an instrument: at this point, we know only its name, description, and model
         @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.plan(name, description, instrument_model_id)
+
+        #create the new resource
+        new_inst_obj = IonObject("InstrumentDevice",
+                                 name=name,
+                                 description=description)
+        instrument_device_id = self.instrument_device.create_one(instrument_device=new_inst_obj)
+
+        #associate the model
+        self.link_model(instrument_device_id, instrument_model_id)
+        
+        #move the association
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.PLANNED)
+
+        return self.instrument_device._return_create("instrument_device_id", instrument_device_id)
+        
 
     def acquire_instrument_device(self, instrument_device_id='', serialnumber='', firmwareversion='', hardwareversion=''):
         """
         When physical instrument is acquired, create all data products
         @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.acquire(instrument_device_id, serialnumber, firmwareversion, hardwareversion)
+
+        #read instrument
+        inst_obj = self.instrument_device.read(instrument_device_id=instrument_device_id)
+
+        #update instrument with new params
+        inst_obj.serialnumber     = serialnumber
+        inst_obj.firmwareversion  = firmwareversion
+        inst_obj.hardwareversion  = hardwareversion
+
+        #FIXME: check this for an error
+        self.instrument_device.update(instrument_device_id, inst_obj)
+
+        
+        #get data producer id from data acquisition management service
+        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
+
+        # associate data product with instrument
+        self.instrument_device.link_data_producer(instrument_device_id, pducer_id)
+        
+        # set up the rest of the associations
+        setup_dp_result = self.instrument_device.setup_data_production_chain(instrument_device_id)
+
+        #FIXME: lifecycle state transition?
+
+        return self.instrument_device._return_update(setup_dp_result)
+
 
     def develop_instrument_device(self, instrument_device_id='', instrument_agent_id=''):
         """
         Assign an instrument agent (just the type, not the instance) to an instrument
         @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.develop(instrument_device_id, instrument_agent_id)
+
+        #FIXME: only valid in 'ACQUIRED' state!
+
+        #FIXME: what to associate here?
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+
+        #FIXME: error checking
+
+        return self.instrument_device._return_update(True)
+
 
     def commission_instrument_device(self, instrument_device_id='', platform_device_id=''):
         """
         @todo this state may no longer be valid due to changes in available lifecycle states
         
         """
-        return self.instrument_device.commission(instrument_device_id, platform_device_id)
+        #FIXME: only valid in 'DEVELOPED' state!
+
+        #FIXME: there seems to be no association between instruments and platforms
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.COMMISSIONED)
+
+        return self.instrument_device._return_update(True)
+
 
     def decommission_instrument_device(self, instrument_device_id=''):
         """
         @todo this state may no longer be valid due to changes in available lifecycle states
         
         """
-        return self.instrument_device.decommission(instrument_device_id)
+        #FIXME: only valid in 'COMMISSIONED' state!
+
+        #FIXME: there seems to be no association between instruments and platforms
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+
+        return self.instrument_device_return_update(True)
+
 
     def activate_instrument_device(self, instrument_device_id='', instrument_agent_instance_id=''):
         """
         @todo this state may no longer be valid due to changes in available lifecycle states
         
         """
-        return self.instrument_device.activate(instrument_device_id, instrument_agent_instance_id)
+        #FIXME: only valid in 'COMMISSIONED' state!
+
+        #FIXME: validate somehow
+
+        self.instrument_device.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.ACTIVE)
+
+        self.instrument_device._return_activate(True)
 
     def deactivate_instrument_device(self, instrument_device_id=''):
         """
         @todo this state may no longer be valid due to changes in available lifecycle states
         
         """
-        return self.instrument_device.deactivate(instrument_device_id)        
+
+        #FIXME: only valid in 'ACTIVE' state!
+
+        #FIXME: remove association
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+
+        return self.instrument_device._return_update(True)
 
     def retire_instrument_device(self, instrument_device_id=''):
         """
         Retire an instrument
         @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.retire(instrument_device_id)
+
+        #FIXME: what happens to logical instrument, platform, etc
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.RETIRED)
         
-        return self._return_update(True)
+        return self.instrument_device._return_update(True)
 
 
 

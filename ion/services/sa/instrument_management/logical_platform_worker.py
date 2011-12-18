@@ -4,14 +4,14 @@ __author__ = 'Ian Katz'
 __license__ = 'Apache 2.0'
 
 #from pyon.core.exception import BadRequest, NotFound
-from pyon.public import AT
+from pyon.public import AT, RT
 
 from ion.services.sa.instrument_management.ims_simple import IMSsimple
 
 class LogicalPlatformWorker(IMSsimple):
 
     def _primary_object_name(self):
-        return "LogicalPlatform"
+        return RT.LogicalPlatform
 
     def _primary_object_label(self):
         return "logical_platform"

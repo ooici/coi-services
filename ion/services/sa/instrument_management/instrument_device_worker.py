@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import IonObject
-from pyon.public import AT
+from pyon.public import AT, RT
 from pyon.util.log import log
 
 ######
@@ -28,12 +28,12 @@ from ion.services.sa.instrument_management.ims_worker import IMSworker
 
 class InstrumentDeviceWorker(IMSworker):
 
-    def _worker_init(self):
+    def on_worker_init(self):
         #data acquisition management pointer
         self.DAMS = self.clients.data_acquisition_management_service
 
     def _primary_object_name(self):
-        return "InstrumentDevice"
+        return RT.InstrumentDevice
 
     def _primary_object_label(self):
         return "instrument_device"
@@ -70,57 +70,37 @@ class InstrumentDeviceWorker(IMSworker):
     def unlink_sensor(self, instrument_device_id='', sensor_device_id=''):
         return self.unlink_resources(instrument_device_id, AT.hasSensor, sensor_device_id)
 
+    
+    def lcs_precondition_PLANNED(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_DEVELOPED(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_TESTED(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_INTEGRATED(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_COMMISSIONED(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_DEPLOYED(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_ACTIVE(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_INACTIVE(self, instrument_device_id):
+        return True
+
+    def lcs_precondition_RETIRED(self, instrument_device_id):
+        return True
 
 
-    ##################### INSTRUMENT LIFECYCLE METHODS
 
-    def plan(self, name='', description='', instrument_model_id=''):
-        """
-        Plan an instrument: at this point, we know only its name, description, and model
-        """
-
-        #create the new resource
-        new_inst_obj = IonObject("InstrumentDevice",
-                                 name=name,
-                                 description=description)
-        instrument_device_id = self.create_one(instrument_device=new_inst_obj)
-
-        #associate the model
-        self.link_model(instrument_device_id, instrument_model_id)
-        
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='PLANNED')
-
-        return self._return_create("instrument_device_id", instrument_device_id)
-        
-
-    def acquire(self, instrument_device_id='', serialnumber='', firmwareversion='', hardwareversion=''):
-        """
-        When physical instrument is acquired, create all data products
-        """
-
-        #read instrument
-        inst_obj = self.read(instrument_device_id=instrument_device_id)
-
-        #update instrument with new params
-        inst_obj.serialnumber     = serialnumber
-        inst_obj.firmwareversion  = firmwareversion
-        inst_obj.hardwareversion  = hardwareversion
-
-        #FIXME: check this for an error
-        self.update(instrument_device_id, inst_obj)
-
-        
-        #get data producer id from data acquisition management service
-        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
-
-        # associate data product with instrument
-        self.link_data_producer(instrument_device_id, pducer_id)
-        
-        # set up the rest of the associations
-        setup_dp_result = self.setup_data_production_chain(instrument_device_id)
-
-        return self._return_update(setup_dp_result)
+    ##### SPECIAL METHODS
 
 
     def setup_data_production_chain(self, instrument_device_id=''):
@@ -152,90 +132,8 @@ class InstrumentDeviceWorker(IMSworker):
         log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
         
 
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='ACQUIRED')
-
         #FIXME: error checking
 
-        return self._return_update(True)
-
-
-    def develop(self, instrument_device_id='', instrument_agent_id=''):
-        """
-        Assign an instrument agent (just the type, not the instance) to an instrument
-        """
-        #FIXME: only valid in 'ACQUIRED' state!
-
-        
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgent, instrument_agent_id)
-        log.debug("Create hasAgent Association: %s" % str(associate_success))
-
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-        #FIXME: error checking
-
-        return self._return_update(True)
-
-
-    def commission(self, instrument_device_id='', platform_device_id=''):
-        #FIXME: only valid in 'DEVELOPED' state!
-
-        #FIXME: there seems to be no association between instruments and platforms
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='COMMISSIONED')
-        return self._return_update(True)
-
-
-    def decommission(self, instrument_device_id=''):
-        #FIXME: only valid in 'COMMISSIONED' state!
-
-        #FIXME: there seems to be no association between instruments and platforms
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-
-        return self._return_update(True)
-
-
-    def activate(self, instrument_device_id='', instrument_agent_instance_id=''):
-        """
-        method docstring
-        @todo Validate and check retvals 
-        """
-        #FIXME: only valid in 'COMMISSIONED' state!
-
-        #FIXME: validate somehow
-
-        self.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='ACTIVE')
-
-        self._return_activate(True)
-
-
-    def deactivate(self, instrument_device_id=''):
-
-        #FIXME: only valid in 'ACTIVE' state!
-
-        #FIXME: remove association
-        
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-
-        return self._return_update(True)
-        
-
-    def retire(self, instrument_device_id=''):
-        """
-        Retire an instrument
-        """
-
-        #FIXME: what happens to logical instrument, platform, etc
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                             lcstate='RETIRED')
-        
         return self._return_update(True)
 
 

@@ -4,14 +4,14 @@ __author__ = 'Ian Katz'
 __license__ = 'Apache 2.0'
 
 #from pyon.core.exception import BadRequest, NotFound
-from pyon.public import AT
+from pyon.public import AT, RT
 
 from ion.services.sa.instrument_management.ims_worker import IMSworker
 
 class PlatformDeviceWorker(IMSworker):
 
     def _primary_object_name(self):
-        return "PlatformDevice"
+        return RT.PlatformDevice
 
     def _primary_object_label(self):
         return "platform_device"

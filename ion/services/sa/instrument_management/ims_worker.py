@@ -34,7 +34,7 @@ class IMSworker(object):
         self.ionlabel = self._primary_boject_label()
 
         self.RR = self.clients.resource_registry
-        self._worker_init()
+        self.on_worker_init()
 
 
     ##################################################
@@ -43,28 +43,72 @@ class IMSworker(object):
     #
     ##################################################
 
-    def _worker_init():
-        return
-
     def _primary_object_name(self):
-        return "YOU MUST SET THIS" #like InstrumentAgent
+        return "YOU MUST SET THIS" #like "InstrumentAgent" or (better) RT.InstrumentAgent
 
     def _primary_object_label(self):
-        return "YOU MUST SET THIS" #like instrument_agent
+        return "YOU MUST SET THIS" #like "instrument_agent"
 
-    def _pre_create(self, obj):
+    def on_worker_init():
+        return
+ 
+    def on_pre_create(self, obj):
         return 
 
-    def _post_create(self, obj_id, obj):
+    def on_post_create(self, obj_id, obj):
         return 
 
-    def _pre_update(self, obj):
+    def on_pre_update(self, obj):
         return
     
-    def _post_update(self, obj):
+    def on_post_update(self, obj):
         return
         
+    ##################################################
+    #
+    #   LIFECYCLE TRANSITION ... THIS IS IMPORTANT
+    #
+    ##################################################
 
+    def advance_lcs(self, resource_id, newstate):
+        """
+        attempt to advance the lifecycle state of a resource
+        @resource_id the resource id
+        @newstate the new lifecycle state
+        @todo check that this resource is of the same type as this worker class!
+        """
+        necessary_method = "lcs_precondition_" + str(newstate)
+        if not hasattr(self, necessary_method):
+            raise NotImplementedError("Lifecycle precondition method '%s' not defined for %s!" 
+                                      % (newstate, self.iontype))
+
+        #FIXME: make sure that the resource type matches self.iontype
+
+        precondition_fn = getattr(self, necessary_method)
+
+        #call the precondition function and react
+        if precondition_fn(self, resource_id):
+            log.debug("Moving %s resource to state %s" % (self.iontype, newstate))
+            self.RR.execute_lifecycle_transition(resource_id=resource_id, lcstate=newstate)
+        else:
+            raise BadRequest("Couldn't transition %s to state %s; failed precondition" 
+                             % (self.iontype, newstate))
+
+    # so, for example if you want to transition to "NEW", you'll need this:
+    #
+    def lcs_precondition_NEW(self, resource_id): 
+        return True
+
+
+
+
+
+
+    ##################################################
+    #
+    #    HELPER METHODS
+    #
+    ###################################################
 
     # find whether a resource with the same type and name already exists
     def _check_name(self, resource_type, primary_object, verb):
@@ -137,13 +181,13 @@ class IMSworker(object):
         self._check_name(self.iontype, primary_object, "to be created")
 
         #FIXME: more validation?
-        self._pre_create(primary_object)
+        self.on_pre_create(primary_object)
 
         #persist
         #primary_object_obj = IonObject(self.iontype, primary_object)
         primary_object_id, _ = self.RR.create(primary_object)
 
-        self._post_create(primary_object_id, primary_object)
+        self.on_post_create(primary_object_id, primary_object)
 
         return self._return_create("%s_id" % self.ionlabel, primary_object_id)
 
@@ -160,13 +204,15 @@ class IMSworker(object):
         #primary_object_obj = self._get_resource(self.iontype, primary_object_id)        
 
         # Validate the input 
-        self._pre_update(primary_object)
+        self.on_pre_update(primary_object)
         
         #if the name is being changed, make sure it's not being changed to a duplicate
         self._check_name(self.iontype, primary_object, "to be updated")
 
         #persist
         self.RR.update(primary_object)
+
+        self.on_post_update(primary_object)
 
         return self._return_update(True)
 
@@ -249,3 +295,4 @@ class IMSworker(object):
         log.debug("Delete %s Association: %s" % (self._assn_name(association_type), 
                                                  str(dessociate_success)))
         return dessociate_success
+
