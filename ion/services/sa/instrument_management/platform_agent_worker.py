@@ -27,3 +27,16 @@ class PlatformAgentWorker(IMSsimple):
 
     def unlink_model(self, platform_agent_id='', platform_model_id=''):
         return self.unlink_resources(platform_agent_id, AT.hasModel, platform_model_id)
+
+    def find_having_instance(self, platform_agent_instance_id):
+        return self._find_having(AT.hasInstance, platform_agent_instance_id)
+
+    def find_stemming_instance(self, platform_agent_id):
+        return self._find_stemming(platform_agent_id, AT.hasInstance, RT.PlatformAgentInstance)
+
+    def find_having_model(self, platform_model_id):
+        return self._find_having(AT.hasModel, platform_model_id)
+    
+    def find_stemming_model(self, platform_agent_id):
+        return self._find_stemming(platform_agent_id, AT.hasModel, RT.PlatformModel)
+

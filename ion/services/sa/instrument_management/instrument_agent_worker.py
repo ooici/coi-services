@@ -29,3 +29,15 @@ class InstrumentAgentWorker(IMSsimple):
     def unlink_model(self, instrument_agent_id='', instrument_model_id=''):
         return self.unlink_resources(instrument_agent_id, AT.hasInstance, instrument_model_id)
 
+    def find_having_instance(self, instrument_agent_instance_id):
+        return self._find_having(AT.hasInstance, instrument_agent_instance_id)
+
+    def find_stemming_instance(self, instrument_agent_id):
+        return self._find_stemming(instrument_agent_id, AT.hasInstance, RT.InstrumentAgentInstance)
+
+    def find_having_model(self, instrument_model_id):
+        return self._find_having(AT.hasModel, instrument_model_id)
+    
+    def find_stemming_model(self, instrument_agent_id):
+        return self._find_stemming(instrument_agent_id, AT.hasModel, RT.InstrumentModel)
+

@@ -64,6 +64,15 @@ from interface.services.sa.iinstrument_management_service import BaseInstrumentM
 class InstrumentManagementService(BaseInstrumentManagementService):
     
     def on_init(self):
+        IonObject() # suppress pyflakes error
+
+        self.override_clients(self.clients)
+
+    def override_clients(self, new_clients):
+        """
+        Replaces the service clients with a new set of them... and makes sure they go to the right places
+        """
+
         #shortcut names for the import sub-services
         self.RR    = self.clients.resource_registry
         self.DAMS  = self.clients.data_acquisition_management_service
@@ -86,7 +95,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.logical_instrument  = LogicalInstrumentWorker(self.clients)
         self.logical_platform    = LogicalPlatformWorker(self.clients)
 
-        IonObject() # suppress pyflakes error
     
     ##########################################################################
     #

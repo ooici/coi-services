@@ -22,3 +22,9 @@ class SensorDeviceWorker(IMSworker):
     def unlink_model(self, sensor_device_id='', sensor_model_id=''):
         return self.unlink_resources(sensor_device_id, AT.hasModel, sensor_model_id)
 
+    def find_having_model(self, sensor_model_id):
+        return self._find_having(AT.hasModel, sensor_model_id)
+    
+    def find_stemming_model(self, sensor_device_id):
+        return self._find_stemming(sensor_device_id, AT.hasModel, RT.SensorModel)
+

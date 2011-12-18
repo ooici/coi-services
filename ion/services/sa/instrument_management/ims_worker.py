@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
-from pyon.public import AT
+#from pyon.public import AT
 from pyon.util.log import log
 
 ######
@@ -44,12 +44,21 @@ class IMSworker(object):
     ##################################################
 
     def _primary_object_name(self):
+        """
+        the IonObject type that this worker controls
+        """
         return "YOU MUST SET THIS" #like "InstrumentAgent" or (better) RT.InstrumentAgent
 
     def _primary_object_label(self):
+        """
+        the argument label that this worker controls
+        """
         return "YOU MUST SET THIS" #like "instrument_agent"
 
     def on_worker_init():
+        """
+        called on initialization of class, after parent service's clients have been passed in
+        """
         return
  
     def on_pre_create(self, obj):
@@ -110,8 +119,14 @@ class IMSworker(object):
     #
     ###################################################
 
-    # find whether a resource with the same type and name already exists
     def _check_name(self, resource_type, primary_object, verb):
+        """
+        determine whether a resource with the same type and name already exists
+        @param resource_type the IonObject type
+        @param primary_object the resource to be checked
+        @param verb future tense of what is happening with this object (like "to be created")
+        @raises BadRequest if the name exists already or was not set in the incoming message
+        """
         if not hasattr(primary_object, "name"):
             raise BadRequest("The name field was not set in the resource %s" % verb)
 
@@ -125,27 +140,45 @@ class IMSworker(object):
             if 0 < len(found_res):
                 raise BadRequest("%s resource named '%s' already exists" % (resource_type, name))
         
-    # try to get a resource
     def _get_resource(self, resource_type, resource_id):
+        """
+        try to get a resource
+        @param resource_type the IonObject type 
+        @param resource_id 
+        @raises NotFound 
+        """
         resource = self.RR.read(resource_id)
         if not resource:
             raise NotFound("%s %s does not exist" % (resource_type, resource_id))
         return resource
 
-    # return a valid message from a create
+
     def _return_create(self, resource_label, resource_id):
+        """
+        return a valid response to a create operation
+        @param resource_label what goes in the return value name
+        @param resource_id what goes in the return value's value
+        """
         retval = {}
         retval[resource_label] = resource_id
         return retval
 
-    # return a valid message from an update
     def _return_update(self, success_bool):
+        """
+        return a valid response to an update operation
+        @param success_bool whether to report success
+        """
         retval = {}
         retval["success"] = success_bool
         return retval
 
-    # return a valid message from a read
     def _return_read(self, resource_type, resource_label, resource_id):
+        """
+        return a valid response from a read operation
+        @param resource_type the IonObject type
+        @param resource_label what goes in the return value name
+        @param resource_id the ID of the resource to be returned
+        """
         retval = {}
         resource = self._get_resource(resource_type, resource_id)
         retval[resource_label] = resource
@@ -153,6 +186,10 @@ class IMSworker(object):
 
     # return a valid message from a delete
     def _return_delete(self, success_bool):
+        """
+        return a valid response from a delete operation
+        @param success_bool whether to report success
+        """
         retval = {}
         retval["success"] = success_bool
         return retval
@@ -171,7 +208,9 @@ class IMSworker(object):
 
     def create_one(self, primary_object={}):
         """
-        method docstring
+        create a single object of the predefined type
+        @param primary_object an IonObject resource of the proper type
+        @retval the resource ID
         """
         # make sure ID isn't set
         if hasattr(primary_object, "_id"):
@@ -194,7 +233,8 @@ class IMSworker(object):
 
     def update_one(self, primary_object={}):
         """
-        method docstring
+        update a single object of the predefined type
+        @param primary_object the updated resource
         """
         if not hasattr(primary_object, "_id"):
             raise BadRequest("The _id field was not set in the %s resource to be updated" % self.iontype)
@@ -220,7 +260,8 @@ class IMSworker(object):
 
     def read_one(self, primary_object_id=''):
         """
-        method docstring
+        read a single object of the predefined type
+        @param primary_object_id the id to be retrieved
         """
         return self._return_read(self.iontype, self.ionlabel, primary_object_id)
 
@@ -228,7 +269,8 @@ class IMSworker(object):
 
     def delete_one(self, primary_object_id=''):
         """
-        method docstring
+        delete a single object of the predefined type AND its history (i.e., NOT retiring!)
+        @param primary_object_id the id to be deleted 
         """
 
         primary_object_obj = self._get_resource(self.iontype, primary_object_id)        
@@ -237,24 +279,37 @@ class IMSworker(object):
         
         return self._return_delete(True)
 
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
-
 
 
     def find_some(self, filters={}):
         """
-        method docstring
+        find method
+        @todo receive definition of the filters object
         """
         # Return Value
         # ------------
         # primary_object_list: []
         #
         raise NotImplementedError()
-        pass
+
+
+    def _find_having(self, association_predicate, some_object):
+        """
+        find resource IDs of the predefined type that have the given association attached
+        @param association_predicate one of the association types
+        @param some_object the object "owned" by the association type
+        """
+        return self.RR.find_subjects(self.iontype, association_predicate, some_object, True)
+
+    def _find_stemming(self, primary_object_id, association_predicate, some_object_type):
+        """
+        find resource IDs of the given object type that are associated with the primary object
+        @param primary_object_id the id of the primary object
+        @param association_prediate the association type
+        @param some_object_type the type of associated object
+        """
+        return self.RR.find_objects(primary_object_id, association_predicate, some_object_type, True)
+    
 
 
     #########################################################
@@ -264,21 +319,23 @@ class IMSworker(object):
     #########################################################
 
     def _assn_name(self, association_type):
-        return {
-            AT.hasModel              : lambda: "hasModel",
-            AT.hasAssignment         : lambda: "hasAssignment",
-            AT.hasPlatform           : lambda: "hasPlatform",
-            AT.hasAgentInstance      : lambda: "hasAgentInstance",
-            AT.hasAgent              : lambda: "hasAgent",
-            AT.hasInstrument         : lambda: "hasInstrument",
-            AT.hasSensor             : lambda: "hasSensor",
-            AT.hasInstance           : lambda: "hasInstance",
-            AT.hasDataProducer       : lambda: "hasDataProducer",
-            AT.hasChildDataProducer  : lambda: "hasChildDataProducer",
-            }[association_type]()
+        """
+        return the name of an association type
+        @param association_type the association type
+        @retval the association name
+        """
+        return str(association_type)
 
 
     def link_resources(self, subject_id='', association_type='', object_id=''):
+        """
+        create an association
+        @param subject_id the resource ID of the predefined type
+        @param association_type the predicate
+        @param object_id the resource ID of the type to be joined
+        @todo check for errors
+        """
+        
         associate_success = self.RR.create_association(subject_id, 
                                                        association_type, 
                                                        object_id)
@@ -288,6 +345,13 @@ class IMSworker(object):
         return associate_success
 
     def unlink_resources(self, subject_id='', association_type='', object_id=''):
+        """
+        delete an association
+        @param subject_id the resource ID of the predefined type
+        @param association_type the predicate
+        @param object_id the resource ID of the type to be joined
+        @todo check for errors
+        """
         
         assoc = self.RR.get_association(subject=subject_id, predicate=association_type, object=object_id)
         dessociate_success = self.RR.delete_association(assoc)
