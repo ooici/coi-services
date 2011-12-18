@@ -37,7 +37,6 @@ class InstrumentAgentWorker(IMSsimple):
 
     def find_having_model(self, instrument_model_id):
         return self._find_having(AT.hasModel, instrument_model_id)
-    
+
     def find_stemming_model(self, instrument_agent_id):
         return self._find_stemming(instrument_agent_id, AT.hasModel, RT.InstrumentModel)
-

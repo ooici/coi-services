@@ -15,4 +15,3 @@ class PlatformModelWorker(IMSsimple):
 
     def _primary_object_label(self):
         return "platform_model"
-

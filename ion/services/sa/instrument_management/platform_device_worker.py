@@ -45,25 +45,24 @@ class PlatformDeviceWorker(IMSworker):
 
     def find_having_agent_instance(self, platform_agent_instance_id):
         return self._find_having(AT.hasAgentInstance, platform_agent_instance_id)
-    
+
     def find_stemming_agent_instance(self, platform_device_id):
         return self._find_stemming(platform_device_id, AT.hasAgentInstance, RT.PlatformAgentInstance)
 
     def find_having_assignment(self, logical_platform_id):
         return self._find_having(AT.hasAssignment, logical_platform_id)
-    
+
     def find_stemming_assignment(self, platform_device_id):
         return self._find_stemming(platform_device_id, AT.hasAssignment, RT.LogicalPlatform)
 
     def find_having_model(self, platform_model_id):
         return self._find_having(AT.hasModel, platform_model_id)
-    
+
     def find_stemming_model(self, platform_device_id):
         return self._find_stemming(platform_device_id, AT.hasModel, RT.PlatformModel)
 
     def find_having_instrument(self, instrument_device_id):
         return self._find_having(AT.hasInstrument, instrument_device_id)
-    
+
     def find_stemming_instrument(self, platform_device_id):
         return self._find_stemming(platform_device_id, AT.hasInstrument, RT.InstrumentDevice)
-

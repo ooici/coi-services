@@ -24,7 +24,6 @@ class LogicalInstrumentWorker(IMSsimple):
 
     def find_having_agent(self, instrument_agent_id):
         return self._find_having(AT.hasAgent, instrument_agent_id)
-    
+
     def find_stemming_agent(self, logical_instrument_id):
         return self._find_stemming(logical_instrument_id, AT.hasAgent, RT.InstrumentAgent)
-

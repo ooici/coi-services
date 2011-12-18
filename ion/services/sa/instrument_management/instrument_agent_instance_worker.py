@@ -15,4 +15,3 @@ class InstrumentAgentInstanceWorker(IMSsimple):
 
     def _primary_object_label(self):
         return "instrument_agent_instance"
-

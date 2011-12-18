@@ -15,4 +15,3 @@ class SensorModelWorker(IMSsimple):
 
     def _primary_object_label(self):
         return "sensor_model"
-

@@ -10,14 +10,16 @@ from pyon.public import LCS
 from ion.services.sa.instrument_management.ims_worker import IMSworker
 
 
-
 class IMSsimple(IMSworker):
 
     def on_post_create(self, obj_id, obj):
-        # simple resources go into active lifecycle state immediately upon creation
+        """
+        this is for simple resources ...
+        they go into active lifecycle state immediately upon creation
+        """
         self.advance_lcs(obj_id, LCS.ACTIVE)
 
-        return 
+        return
 
     def lcs_precondition_ACTIVE(self, resource_id):
         return True

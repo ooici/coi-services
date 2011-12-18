@@ -15,4 +15,3 @@ class PlatformAgentInstanceWorker(IMSsimple):
 
     def _primary_object_label(self):
         return "platform_agent_instance"
-

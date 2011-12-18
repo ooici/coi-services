@@ -36,7 +36,6 @@ class PlatformAgentWorker(IMSsimple):
 
     def find_having_model(self, platform_model_id):
         return self._find_having(AT.hasModel, platform_model_id)
-    
+
     def find_stemming_model(self, platform_agent_id):
         return self._find_stemming(platform_agent_id, AT.hasModel, RT.PlatformModel)
-

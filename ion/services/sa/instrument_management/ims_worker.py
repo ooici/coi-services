@@ -8,6 +8,7 @@ from pyon.core.exception import BadRequest, NotFound
 #from pyon.public import AT
 from pyon.util.log import log
 
+
 ######
 """
 now TODO
@@ -17,16 +18,14 @@ now TODO
 
 Later TODO
 
- - 
+ -
 
 """
 ######
 
 
-
-
 class IMSworker(object):
-    
+
     def __init__(self, clients):
         self.clients = clients
 
@@ -35,7 +34,6 @@ class IMSworker(object):
 
         self.RR = self.clients.resource_registry
         self.on_worker_init()
-
 
     ##################################################
     #
@@ -47,32 +45,35 @@ class IMSworker(object):
         """
         the IonObject type that this worker controls
         """
-        return "YOU MUST SET THIS" #like "InstrumentAgent" or (better) RT.InstrumentAgent
+        #like "InstrumentAgent" or (better) RT.InstrumentAgent
+        return "YOU MUST SET THIS"
 
     def _primary_object_label(self):
         """
         the argument label that this worker controls
         """
-        return "YOU MUST SET THIS" #like "instrument_agent"
+        #like "instrument_agent"
+        return "YOU MUST SET THIS"
 
     def on_worker_init():
         """
-        called on initialization of class, after parent service's clients have been passed in
+        called on initialization of class, after
+        parent service's clients have been passed in
         """
         return
- 
+
     def on_pre_create(self, obj):
-        return 
+        return
 
     def on_post_create(self, obj_id, obj):
-        return 
+        return
 
     def on_pre_update(self, obj):
         return
-    
+
     def on_post_update(self, obj):
         return
-        
+
     ##################################################
     #
     #   LIFECYCLE TRANSITION ... THIS IS IMPORTANT
@@ -88,7 +89,7 @@ class IMSworker(object):
         """
         necessary_method = "lcs_precondition_" + str(newstate)
         if not hasattr(self, necessary_method):
-            raise NotImplementedError("Lifecycle precondition method '%s' not defined for %s!" 
+            raise NotImplementedError("Lifecycle precondition method '%s' not defined for %s!"
                                       % (newstate, self.iontype))
 
         #FIXME: make sure that the resource type matches self.iontype
@@ -100,18 +101,13 @@ class IMSworker(object):
             log.debug("Moving %s resource to state %s" % (self.iontype, newstate))
             self.RR.execute_lifecycle_transition(resource_id=resource_id, lcstate=newstate)
         else:
-            raise BadRequest("Couldn't transition %s to state %s; failed precondition" 
+            raise BadRequest("Couldn't transition %s to state %s; failed precondition"
                              % (self.iontype, newstate))
 
     # so, for example if you want to transition to "NEW", you'll need this:
     #
-    def lcs_precondition_NEW(self, resource_id): 
+    def lcs_precondition_NEW(self, resource_id):
         return True
-
-
-
-
-
 
     ##################################################
     #
@@ -139,19 +135,18 @@ class IMSworker(object):
         else:
             if 0 < len(found_res):
                 raise BadRequest("%s resource named '%s' already exists" % (resource_type, name))
-        
+
     def _get_resource(self, resource_type, resource_id):
         """
         try to get a resource
-        @param resource_type the IonObject type 
-        @param resource_id 
-        @raises NotFound 
+        @param resource_type the IonObject type
+        @param resource_id
+        @raises NotFound
         """
         resource = self.RR.read(resource_id)
         if not resource:
             raise NotFound("%s %s does not exist" % (resource_type, resource_id))
         return resource
-
 
     def _return_create(self, resource_label, resource_id):
         """
@@ -241,11 +236,11 @@ class IMSworker(object):
 
         #primary_object_id = primary_object._id
         #
-        #primary_object_obj = self._get_resource(self.iontype, primary_object_id)        
+        #primary_object_obj = self._get_resource(self.iontype, primary_object_id)
 
-        # Validate the input 
+        # Validate the input
         self.on_pre_update(primary_object)
-        
+
         #if the name is being changed, make sure it's not being changed to a duplicate
         self._check_name(self.iontype, primary_object, "to be updated")
 
@@ -256,7 +251,7 @@ class IMSworker(object):
 
         return self._return_update(True)
 
-        
+
 
     def read_one(self, primary_object_id=''):
         """
@@ -266,19 +261,17 @@ class IMSworker(object):
         return self._return_read(self.iontype, self.ionlabel, primary_object_id)
 
 
-
     def delete_one(self, primary_object_id=''):
         """
         delete a single object of the predefined type AND its history (i.e., NOT retiring!)
-        @param primary_object_id the id to be deleted 
+        @param primary_object_id the id to be deleted
         """
 
-        primary_object_obj = self._get_resource(self.iontype, primary_object_id)        
-        
-        self.RR.delete(primary_object_obj)
-        
-        return self._return_delete(True)
+        primary_object_obj = self._get_resource(self.iontype, primary_object_id)
 
+        self.RR.delete(primary_object_obj)
+
+        return self._return_delete(True)
 
 
     def find_some(self, filters={}):
@@ -309,8 +302,6 @@ class IMSworker(object):
         @param some_object_type the type of associated object
         """
         return self.RR.find_objects(primary_object_id, association_predicate, some_object_type, True)
-    
-
 
     #########################################################
     #
@@ -335,12 +326,12 @@ class IMSworker(object):
         @param object_id the resource ID of the type to be joined
         @todo check for errors
         """
-        
-        associate_success = self.RR.create_association(subject_id, 
-                                                       association_type, 
+
+        associate_success = self.RR.create_association(subject_id,
+                                                       association_type,
                                                        object_id)
 
-        log.debug("Create %s Association: %s" % (self._assn_name(association_type), 
+        log.debug("Create %s Association: %s" % (self._assn_name(association_type),
                                                  str(associate_success)))
         return associate_success
 
@@ -352,11 +343,10 @@ class IMSworker(object):
         @param object_id the resource ID of the type to be joined
         @todo check for errors
         """
-        
+
         assoc = self.RR.get_association(subject=subject_id, predicate=association_type, object=object_id)
         dessociate_success = self.RR.delete_association(assoc)
 
-        log.debug("Delete %s Association: %s" % (self._assn_name(association_type), 
+        log.debug("Delete %s Association: %s" % (self._assn_name(association_type),
                                                  str(dessociate_success)))
         return dessociate_success
-

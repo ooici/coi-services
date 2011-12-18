@@ -36,7 +36,7 @@ class LogicalPlatformWorker(IMSsimple):
 
     def find_having_agent(self, platform_agent_id):
         return self._find_having(AT.hasAgent, platform_agent_id)
-    
+
     def find_stemming_agent(self, logical_platform_id):
         return self._find_stemming(logical_platform_id, AT.hasAgent, RT.PlatformAgent)
 
@@ -51,5 +51,3 @@ class LogicalPlatformWorker(IMSsimple):
 
     def find_stemming_platform(self, logical_platform_id):
         return self._find_stemming(logical_platform_id, AT.hasPlatform, RT.LogicalPlatform)
-
-

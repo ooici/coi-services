@@ -12,7 +12,6 @@ class InstrumentModelWorker(IMSsimple):
 
     def _primary_object_name(self):
         return RT.InstrumentModel
-    
+
     def _primary_object_label(self):
         return "instrument_model"
-
