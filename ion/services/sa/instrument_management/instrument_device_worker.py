@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import IonObject
-from pyon.public import AT
+from pyon.public import AT, RT
 from pyon.util.log import log
 
 ######
@@ -16,7 +16,7 @@ now TODO
 Later TODO
 
  - fix lifecycle states... how?
- - 
+ -
 
 """
 ######
@@ -28,98 +28,130 @@ from ion.services.sa.instrument_management.ims_worker import IMSworker
 
 class InstrumentDeviceWorker(IMSworker):
 
+    def on_worker_init(self):
+        #data acquisition management pointer
+        self.DAMS = self.clients.data_acquisition_management_service
+
     def _primary_object_name(self):
-        return "InstrumentDevice"
+        return RT.InstrumentDevice
 
     def _primary_object_label(self):
         return "instrument_device"
 
     ### associations
-    
+
     def link_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
 
     def unlink_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
 
     def link_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasAssignment, logical_instrument_id)
 
     def unlink_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasAssignment, logical_instrument_id)
 
     def link_data_producer(self, instrument_device_id='', data_producer_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasDataProducer, data_producer_id)
 
     def unlink_data_producer(self, instrument_device_id='', data_producer_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasDataProducer, data_producer_id)
 
     def link_model(self, instrument_device_id='', instrument_model_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasModel, instrument_model_id)
 
     def unlink_model(self, instrument_device_id='', instrument_model_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasModel, instrument_model_id)
 
     def link_sensor(self, instrument_device_id='', sensor_device_id=''):
-        raise NotImplementedError()
+        return self.link_resources(instrument_device_id, AT.hasSensor, sensor_device_id)
 
     def unlink_sensor(self, instrument_device_id='', sensor_device_id=''):
-        raise NotImplementedError()
+        return self.unlink_resources(instrument_device_id, AT.hasSensor, sensor_device_id)
+
+
+    ### finds
+
+    def find_having_agent_instance(self, instrument_agent_instance_id):
+        return self._find_having(AT.hasAgentInstance, instrument_agent_instance_id)
+
+    def find_stemming_agent_instance(self, instrument_device_id):
+        return self._find_stemming(instrument_device_id, AT.hasAgentInstance, RT.InstrumentAgentInstance)
+
+    def find_having_assignment(self, logical_instrument_id):
+        return self._find_having(AT.hasAssignment, logical_instrument_id)
+
+    def find_stemming_assignment(self, instrument_device_id):
+        return self._find_stemming(instrument_device_id, AT.hasAssignment, RT.LogicalInstrument)
+
+    def find_having_data_producer(self, data_producer_id):
+        return self._find_having(AT.hasDataProducer, data_producer_id)
+
+    def find_stemming_data_producer(self, instrument_device_id):
+        return self._find_stemming(instrument_device_id, AT.hasDataProducer, RT.DataProducer)
+
+    def find_having_model(self, instrument_model_id):
+        return self._find_having(AT.hasModel, instrument_model_id)
+
+    def find_stemming_model(self, instrument_device_id):
+        return self._find_stemming(instrument_device_id, AT.hasModel, RT.InstrumentModel)
+
+    def find_having_sensor(self, sensor_device_id):
+        return self._find_having(AT.hasSensor, sensor_device_id)
+
+    def find_stemming_sensor(self, instrument_device_id):
+        return self._find_stemming(instrument_device_id, AT.hasSensor, RT.SensorDevice)
 
 
 
-    ##################### INSTRUMENT LIFECYCLE METHODS
+    ### lifecycles
 
-    def plan(self, name='', description='', instrument_model_id=''):
-        """
-        Plan an instrument: at this point, we know only its name, description, and model
-        """
+    def lcs_precondition_PLANNED(self, instrument_device_id):
+        return True
 
-        #create the new resource
-        new_inst_obj = IonObject("InstrumentDevice",
-                                 name=name,
-                                 description=description)
-        instrument_device_id = self.create_one(instrument_device=new_inst_obj)
+    def lcs_precondition_DEVELOPED(self, instrument_device_id):
+        return True
 
-        #associate the model
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasModel, instrument_model_id)
-        log.debug("Create hasModel Association: %s" % str(associate_success))
-        
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='PLANNED')
+    def lcs_precondition_TESTED(self, instrument_device_id):
+        return True
 
-        return self._return_create("instrument_device_id", instrument_device_id)
-        
+    def lcs_precondition_INTEGRATED(self, instrument_device_id):
+        return True
 
-    def acquire(self, instrument_device_id='', serialnumber='', firmwareversion='', hardwareversion=''):
-        """
-        When physical instrument is acquired, create all data products
-        """
+    def lcs_precondition_COMMISSIONED(self, instrument_device_id):
+        return True
 
-        #read instrument
-        inst_obj = self.read(instrument_device_id=instrument_device_id)
+    def lcs_precondition_DEPLOYED(self, instrument_device_id):
+        return True
 
-        #update instrument with new params
-        inst_obj.serialnumber     = serialnumber
-        inst_obj.firmwareversion  = firmwareversion
-        inst_obj.hardwareversion  = hardwareversion
+    def lcs_precondition_ACTIVE(self, instrument_device_id):
+        return True
 
-        #FIXME: check this for an error
-        self.update(instrument_device_id, inst_obj)
+    def lcs_precondition_INACTIVE(self, instrument_device_id):
+        return True
 
-        
-        #get data producer id from data acquisition management service
-        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
+    def lcs_precondition_RETIRED(self, instrument_device_id):
+        return True
 
-        # associate data product with instrument
-        _ = self.RR.create_association(instrument_device_id, AT.hasDataProducer, pducer_id)
-        
+
+
+    ##### SPECIAL METHODS
+
+
+    def setup_data_production_chain(self, instrument_device_id=''):
+
+        #get instrument object and instrument's data producer
+        inst_obj = self.read_one(instrument_device_id)
+        assoc_ids, _ = self.RR.find_associations(instrument_device_id, AT.hasDataProducer, None, True)
+        pducer_id = assoc_ids[0]
+
         #get data product id from data product management service
-        dpms_pduct_obj = IonObject("DataProduct", 
+        dpms_pduct_obj = IonObject("DataProduct",
                                    name=str(inst_obj.name + " L0 Product"),
                                    description=str("DataProduct for " + inst_obj.name))
 
-        dpms_pducer_obj = IonObject("DataProducer", 
+        dpms_pducer_obj = IonObject("DataProducer",
                                     name=str(inst_obj.name + " L0 Producer"),
                                     description=str("DataProducer for " + inst_obj.name))
 
@@ -134,92 +166,8 @@ class InstrumentDeviceWorker(IMSworker):
         # instrument data producer is the parent of the data product producer
         associate_success = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
         log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
-        
 
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='ACQUIRED')
 
         #FIXME: error checking
 
         return self._return_update(True)
-
-
-    def develop(self, instrument_device_id='', instrument_agent_id=''):
-        """
-        Assign an instrument agent (just the type, not the instance) to an instrument
-        """
-        #FIXME: only valid in 'ACQUIRED' state!
-
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgent, instrument_agent_id)
-        log.debug("Create hasAgent Association: %s" % str(associate_success))
-
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-        #FIXME: error checking
-
-        return self._return_update(True)
-
-
-    def commission(self, instrument_device_id='', platform_device_id=''):
-        #FIXME: only valid in 'DEVELOPED' state!
-
-        #FIXME: there seems to be no association between instruments and platforms
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='COMMISSIONED')
-        return self._return_update(True)
-
-
-    def decommission(self, instrument_device_id=''):
-        #FIXME: only valid in 'COMMISSIONED' state!
-
-        #FIXME: there seems to be no association between instruments and platforms
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-
-        return self._return_update(True)
-
-
-    def activate(self, instrument_device_id='', instrument_agent_instance_id=''):
-        """
-        method docstring
-        """
-        #FIXME: only valid in 'COMMISSIONED' state!
-
-        #FIXME: validate somehow
-
-        associate_success = self.RR.create_association(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
-        log.debug("Create hasAgentInstance Association: %s" % str(associate_success))
-
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='ACTIVE')
-
-        self._return_activate(True)
-
-
-    def deactivate(self, instrument_device_id=''):
-
-        #FIXME: only valid in 'ACTIVE' state!
-
-        #FIXME: remove association
-        
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                                                    lcstate='DEVELOPED')
-
-        return self._return_update(True)
-        
-
-    def retire(self, instrument_device_id=''):
-        """
-        Retire an instrument
-        """
-
-        #FIXME: what happens to logical instrument, platform, etc
-
-        self.RR.execute_lifecycle_transition(resource_id=instrument_device_id, 
-                                             lcstate='RETIRED')
-        
-        return self._return_update(True)
-
-

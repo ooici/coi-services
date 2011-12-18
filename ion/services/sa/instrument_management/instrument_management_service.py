@@ -4,9 +4,19 @@ __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
 
+"""
+@package ion.services.sa.instrument_management.instrument_management_service Implementation of IInstrumentManagementService interface
+@file ion/services/sa/instrument_management/instrument_management_service.py
+@author Ian Katz
+@brief Service to manage instrument, platform, and sensor resources, their relationships, and direct access
+"""
+
+
+
 #from pyon.public import Container
+from pyon.public import LCS
 #from pyon.public import AT
-from pyon.core.bootstrap import IonObject #even though pyflakes complains
+from pyon.core.bootstrap import IonObject
 #from pyon.core.exception import BadRequest #, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
@@ -42,7 +52,7 @@ Later TODO (need new methods spec'd out)
  - direct access
  - platform direct access
  - attachments
- - 
+ -
 
 """
 ######
@@ -53,10 +63,22 @@ Later TODO (need new methods spec'd out)
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 class InstrumentManagementService(BaseInstrumentManagementService):
-    
+
     def on_init(self):
+        IonObject()  # suppress pyflakes error
+
+        self.override_clients(self.clients)
+
+    def override_clients(self, new_clients):
+        """
+        Replaces the service clients with a new set of them... and makes sure they go to the right places
+        """
+
+        #shortcut names for the import sub-services
         self.RR    = self.clients.resource_registry
         self.DAMS  = self.clients.data_acquisition_management_service
+
+        #farm everything out to the workers
 
         self.instrument_agent           = InstrumentAgentWorker(self.clients)
         self.instrument_agent_instance  = InstrumentAgentInstanceWorker(self.clients)
@@ -74,7 +96,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.logical_instrument  = LogicalInstrumentWorker(self.clients)
         self.logical_platform    = LogicalPlatformWorker(self.clients)
 
-    
+
     ##########################################################################
     #
     # INSTRUMENT AGENT
@@ -83,56 +105,69 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_instrument_agent(self, instrument_agent={}):
         """
-        method docstring
+        create a new instance
+        @param instrument_agent the object to be created as a resource
+        @retval instrument_agent_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_agent.create_one(instrument_agent)
 
     def update_instrument_agent(self, instrument_agent={}):
         """
-        method docstring
+        update an existing instance
+        @param instrument_agent the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_agent.update_one(instrument_agent)
-        
+
 
     def read_instrument_agent(self, instrument_agent_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param instrument_agent_id the id of the object to be fetched
+        @retval InstrumentAgent resource
         """
         return self.instrument_agent.read_one(instrument_agent_id)
 
     def delete_instrument_agent(self, instrument_agent_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param instrument_agent_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.instrument_agent.delete_one(instrument_agent_id)
 
     def find_instrument_agents(self, filters={}):
         """
-        method docstring
+
         """
         return self.instrument_agent.find_some(filters)
 
     #FIXME: args need to change
-    def assign_instrument_agent(self, instrument_agent_id='', instrument_device_id='', instrument_agent_instance={}):
+    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance={}):
         """
-        method docstring
+        @todo the arguments for this function seem incorrect and/or mismatched
         """
         raise NotImplementedError()
-        return self.instrument_agent.assign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
+        #return self.instrument_agent.assign(instrument_agent_id, instrument_id, instrument_agent_instance)
 
     #FIXME: args need to change
-    def unassign_instrument_agent(self, instrument_agent_id='', instrument_device_id='', instrument_agent_instance={}):
+    def unassign_instrument_agent(self, instrument_agent_id='', instrument_id=''):
 
         """
-        method docstring
+        @todo the arguments for this function seem incorrect and/or mismatched
+
         """
         raise NotImplementedError()
-        return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
+        #return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
 
 
 
 
-    
     ##########################################################################
     #
     # INSTRUMENT MODEL
@@ -141,46 +176,66 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_instrument_model(self, instrument_model={}):
         """
-        method docstring
+        create a new instance
+        @param instrument_model the object to be created as a resource
+        @retval instrument_model_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_model.create_one(instrument_model)
 
     def update_instrument_model(self, instrument_model={}):
         """
-        method docstring
+        update an existing instance
+        @param instrument_model the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_model.update_one(instrument_model)
-        
+
 
     def read_instrument_model(self, instrument_model_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param instrument_model_id the id of the object to be fetched
+        @retval InstrumentModel resource
         """
         return self.instrument_model.read_one(instrument_model_id)
 
     def delete_instrument_model(self, instrument_model_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param instrument_model_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.instrument_model.delete_one(instrument_model_id)
 
     def find_instrument_models(self, filters={}):
         """
-        method docstring
+
         """
         return self.instrument_model.find_some(filters)
 
     def assign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
         """
-        method docstring
+        Assign a model to a device type
+        @param instrument_model_id the model id
+        @param instrument_device_id the device id
+        @retval success whether there was success
         """
-        return self.instrument_model.assign(instrument_model_id, instrument_device_id)
+        return self.instrument_device.link_model(instrument_device_id, instrument_model_id)
 
     def unassign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
         """
-        method docstring
+        Assign a model from a device type
+        @param instrument_model_id the model id
+        @param instrument_device_id the device id
+        @retval success whether there was success
+
         """
-        return self.instrument_model.assign(instrument_model_id, instrument_device_id)
+        return self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
 
 
 
@@ -197,119 +252,230 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_instrument_device(self, instrument_device={}):
         """
-        method docstring
+        create a new instance
+        @param instrument_device the object to be created as a resource
+        @retval instrument_device_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_device.create_one(instrument_device)
 
     def update_instrument_device(self, instrument_device={}):
         """
-        method docstring
+        update an existing instance
+        @param instrument_device the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_device.update_one(instrument_device)
-        
+
 
     def read_instrument_device(self, instrument_device_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param instrument_device_id the id of the object to be fetched
+        @retval InstrumentDevice resource
+
         """
         return self.instrument_device.read_one(instrument_device_id)
 
     def delete_instrument_device(self, instrument_device_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param instrument_device_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.instrument_device.delete_one(instrument_device_id)
 
     def find_instrument_devices(self, filters={}):
         """
-        method docstring
+
         """
         return self.instrument_device.find_some(filters)
 
 
 
 
-    ##################### INSTRUMENT LIFECYCLE METHODS
+    ##################### INSTRUMENT LIFECYCLE ADVANCEMENT_ACTIONS
+
+
+
 
     def plan_instrument_device(self, name='', description='', instrument_model_id=''):
         """
         Plan an instrument: at this point, we know only its name, description, and model
+        @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.plan(name, description, instrument_model_id)
+
+        #create the new resource
+        new_inst_obj = IonObject("InstrumentDevice",
+                                 name=name,
+                                 description=description)
+        instrument_device_id = self.instrument_device.create_one(instrument_device=new_inst_obj)
+
+        #associate the model
+        self.link_model(instrument_device_id, instrument_model_id)
+
+        #move the association
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.PLANNED)
+
+        return self.instrument_device._return_create("instrument_device_id", instrument_device_id)
+
 
     def acquire_instrument_device(self, instrument_device_id='', serialnumber='', firmwareversion='', hardwareversion=''):
         """
         When physical instrument is acquired, create all data products
+        @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.acquire(instrument_device_id, serialnumber, firmwareversion, hardwareversion)
+
+        #read instrument
+        inst_obj = self.instrument_device.read(instrument_device_id=instrument_device_id)
+
+        #update instrument with new params
+        inst_obj.serialnumber     = serialnumber
+        inst_obj.firmwareversion  = firmwareversion
+        inst_obj.hardwareversion  = hardwareversion
+
+        #FIXME: check this for an error
+        self.instrument_device.update(instrument_device_id, inst_obj)
+
+
+        #get data producer id from data acquisition management service
+        pducer_id = self.DAMS.register_instrument(instrument_id=instrument_device_id)
+
+        # associate data product with instrument
+        self.instrument_device.link_data_producer(instrument_device_id, pducer_id)
+
+        # set up the rest of the associations
+        setup_dp_result = self.instrument_device.setup_data_production_chain(instrument_device_id)
+
+        #FIXME: lifecycle state transition?
+
+        return self.instrument_device._return_update(setup_dp_result)
+
 
     def develop_instrument_device(self, instrument_device_id='', instrument_agent_id=''):
         """
         Assign an instrument agent (just the type, not the instance) to an instrument
+        @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.develop(instrument_device_id, instrument_agent_id)
+
+        #FIXME: only valid in 'ACQUIRED' state!
+
+        #FIXME: what to associate here?
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+
+        #FIXME: error checking
+
+        return self.instrument_device._return_update(True)
+
 
     def commission_instrument_device(self, instrument_device_id='', platform_device_id=''):
         """
-        method docstring
+        @todo this state may no longer be valid due to changes in available lifecycle states
+
         """
-        return self.instrument_device.commission(instrument_device_id, platform_device_id)
+        #FIXME: only valid in 'DEVELOPED' state!
+
+        #FIXME: there seems to be no association between instruments and platforms
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.COMMISSIONED)
+
+        return self.instrument_device._return_update(True)
+
 
     def decommission_instrument_device(self, instrument_device_id=''):
         """
-        method docstring
+        @todo this state may no longer be valid due to changes in available lifecycle states
+
         """
-        return self.instrument_device.decommission(instrument_device_id)
+        #FIXME: only valid in 'COMMISSIONED' state!
+
+        #FIXME: there seems to be no association between instruments and platforms
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+
+        return self.instrument_device_return_update(True)
+
 
     def activate_instrument_device(self, instrument_device_id='', instrument_agent_instance_id=''):
         """
-        method docstring
+        @todo this state may no longer be valid due to changes in available lifecycle states
+
         """
-        return self.instrument_device.activate(instrument_device_id, instrument_agent_instance_id)
+        #FIXME: only valid in 'COMMISSIONED' state!
+
+        #FIXME: validate somehow
+
+        self.instrument_device.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.ACTIVE)
+
+        self.instrument_device._return_activate(True)
 
     def deactivate_instrument_device(self, instrument_device_id=''):
         """
-        method docstring
+        @todo this state may no longer be valid due to changes in available lifecycle states
+
         """
-        return self.instrument_device.deactivate(instrument_device_id)        
+
+        #FIXME: only valid in 'ACTIVE' state!
+
+        #FIXME: remove association
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+
+        return self.instrument_device._return_update(True)
 
     def retire_instrument_device(self, instrument_device_id=''):
         """
         Retire an instrument
+        @todo this state may no longer be valid due to changes in available lifecycle states
         """
-        return self.instrument_device.retire(instrument_device_id)
-        
-        return self._return_update(True)
+
+        #FIXME: what happens to logical instrument, platform, etc
+
+        self.instrument_device.advance_lcs(instrument_device_id, LCS.RETIRED)
+
+        return self.instrument_device._return_update(True)
 
 
 
 
     def assign_instrument_device(self, instrument_id='', instrument_device_id=''):
         """
-        method docstring
+        @todo the arguments to this function have the wrong names
+
         """
         # Return Value
         # ------------
         # {success: true}
         #
         raise NotImplementedError()
-        pass
+        logical_instrument_id = ''
+        return self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
 
     def unassign_instrument_device(self, instrument_id='', instrument_device_id=''):
         """
-        method docstring
+        @todo the arguments to this function have the wrong names
+
         """
         # Return Value
         # ------------
         # {success: true}
         #
         raise NotImplementedError()
-        pass
+        logical_instrument_id = ''
+        return self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
 
 
 
 
-    
+
+
+
     ##########################################################################
     #
     # LOGICAL INSTRUMENT
@@ -318,32 +484,46 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_logical_instrument(self, logical_instrument={}):
         """
-        method docstring
+        create a new instance
+        @param logical_instrument the object to be created as a resource
+        @retval logical_instrument_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.logical_instrument.create_one(logical_instrument)
 
     def update_logical_instrument(self, logical_instrument={}):
         """
-        method docstring
+        update an existing instance
+        @param logical_instrument the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.logical_instrument.update_one(logical_instrument)
-        
+
 
     def read_logical_instrument(self, logical_instrument_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param logical_instrument_id the id of the object to be fetched
+        @retval LogicalInstrument resource
+
         """
         return self.logical_instrument.read_one(logical_instrument_id)
 
     def delete_logical_instrument(self, logical_instrument_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param logical_instrument_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.logical_instrument.delete_one(logical_instrument_id)
 
     def find_logical_instruments(self, filters={}):
         """
-        method docstring
+
         """
         return self.logical_instrument.find_some(filters)
 
@@ -358,12 +538,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def request_direct_access(self, instrument_device_id=''):
         """
-        method docstring
+
         """
-        
+
         # determine whether id is for physical or logical instrument
         # look up instrument if not
-        
+
         # Validate request; current instrument state, policy, and other
 
         # Retrieve and save current instrument settings
@@ -376,7 +556,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def stop_direct_access(self, instrument_device_id=''):
         """
-        method docstring
+
         """
         # Return Value
         # ------------
@@ -394,7 +574,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    
+
     ##########################################################################
     #
     # PLATFORM AGENT
@@ -404,55 +584,71 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_platform_agent(self, platform_agent={}):
         """
-        method docstring
+        create a new instance
+        @param platform_agent the object to be created as a resource
+        @retval platform_agent_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.platform_agent.create_one(platform_agent)
 
     def update_platform_agent(self, platform_agent={}):
         """
-        method docstring
+        update an existing instance
+        @param platform_agent the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+
         """
         return self.platform_agent.update_one(platform_agent)
-        
+
 
     def read_platform_agent(self, platform_agent_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param platform_agent_id the id of the object to be fetched
+        @retval PlatformAgent resource
+
         """
         return self.platform_agent.read_one(platform_agent_id)
 
     def delete_platform_agent(self, platform_agent_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param platform_agent_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.platform_agent.delete_one(platform_agent_id)
 
     def find_platform_agents(self, filters={}):
         """
-        method docstring
+
         """
         return self.platform_agent.find_some(filters)
 
     #FIXME: args need to change
-    def assign_platform_agent(self, platform_agent_id='', platform_device_id='', platform_agent_instance={}):
+    def assign_platform_agent(self, platform_agent_id='', platform_id='', platform_agent_instance={}):
         """
-        method docstring
+        @todo the arguments for this function seem incorrect and/or mismatched
         """
         raise NotImplementedError()
-        return self.platform_agent.assign(platform_agent_id, platform_device_id, platform_agent_instance)
+        #return self.platform_agent.assign(platform_agent_id, platform_id, platform_agent_instance)
 
     #FIXME: args need to change
-    def unassign_platform_agent(self, platform_agent_id='', platform_device_id='', platform_agent_instance={}):
+    def unassign_platform_agent(self, platform_agent_id='', platform_id=''):
 
         """
-        method docstring
+        @todo the arguments for this function seem incorrect and/or mismatched
+
         """
         raise NotImplementedError()
-        return self.platform_agent.unassign(platform_agent_id, platform_device_id, platform_agent_instance)
+        #return self.platform_agent.unassign(platform_agent_id, platform_device_id, platform_agent_instance)
 
 
 
-    
+
     ##########################################################################
     #
     # PLATFORM MODEL
@@ -462,44 +658,58 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_platform_model(self, platform_model={}):
         """
-        method docstring
+        create a new instance
+        @param platform_model the object to be created as a resource
+        @retval platform_model_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.platform_model.create_one(platform_model)
 
     def update_platform_model(self, platform_model={}):
         """
-        method docstring
+        update an existing instance
+        @param platform_model the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.platform_model.update_one(platform_model)
-        
+
 
     def read_platform_model(self, platform_model_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param platform_model_id the id of the object to be fetched
+        @retval PlatformModel resource
+
         """
         return self.platform_model.read_one(platform_model_id)
 
     def delete_platform_model(self, platform_model_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param platform_model_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.platform_model.delete_one(platform_model_id)
 
     def find_platform_models(self, filters={}):
         """
-        method docstring
+
         """
         return self.platform_model.find_some(filters)
 
     def assign_platform_model(self, platform_model_id='', platform_device_id=''):
         """
-        method docstring
+        @todo this seems backwards
         """
         return self.platform_model.assign(platform_model_id, platform_device_id)
 
     def unassign_platform_model(self, platform_model_id='', platform_device_id=''):
         """
-        method docstring
+        @todo this seems backwards
         """
         return self.platform_model.assign(platform_model_id, platform_device_id)
 
@@ -518,32 +728,47 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_platform_device(self, platform_device={}):
         """
-        method docstring
+        create a new instance
+        @param platform_device the object to be created as a resource
+        @retval platform_device_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.platform_device.create_one(platform_device)
 
     def update_platform_device(self, platform_device={}):
         """
-        method docstring
+        update an existing instance
+        @param platform_device the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+
         """
         return self.platform_device.update_one(platform_device)
-        
+
 
     def read_platform_device(self, platform_device_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param platform_device_id the id of the object to be fetched
+        @retval PlatformDevice resource
+
         """
         return self.platform_device.read_one(platform_device_id)
 
     def delete_platform_device(self, platform_device_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param platform_device_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.platform_device.delete_one(platform_device_id)
 
     def find_platform_devices(self, filters={}):
         """
-        method docstring
+
         """
         return self.platform_device.find_some(filters)
 
@@ -551,7 +776,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    
+
     ##########################################################################
     #
     # SENSOR MODEL
@@ -561,44 +786,60 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_sensor_model(self, sensor_model={}):
         """
-        method docstring
+        create a new instance
+        @param sensor_model the object to be created as a resource
+        @retval sensor_model_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.sensor_model.create_one(sensor_model)
 
     def update_sensor_model(self, sensor_model={}):
         """
-        method docstring
+        update an existing instance
+        @param sensor_model the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+
         """
         return self.sensor_model.update_one(sensor_model)
-        
+
 
     def read_sensor_model(self, sensor_model_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param sensor_model_id the id of the object to be fetched
+        @retval SensorModel resource
+
         """
         return self.sensor_model.read_one(sensor_model_id)
 
     def delete_sensor_model(self, sensor_model_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param sensor_model_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.sensor_model.delete_one(sensor_model_id)
 
     def find_sensor_models(self, filters={}):
         """
-        method docstring
+
         """
         return self.sensor_model.find_some(filters)
 
     def assign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
         """
-        method docstring
+        @todo this seems backwards... should be device, model
         """
         return self.sensor_model.assign(sensor_model_id, sensor_device_id)
 
     def unassign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
         """
-        method docstring
+        @todo this seems backwards... should be device, model
+
         """
         return self.sensor_model.unassign(sensor_model_id, sensor_device_id)
 
@@ -615,39 +856,46 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def create_sensor_device(self, sensor_device={}):
         """
-        method docstring
+        create a new instance
+        @param sensor_device the object to be created as a resource
+        @retval sensor_device_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
         """
         return self.sensor_device.create_one(sensor_device)
 
     def update_sensor_device(self, sensor_device={}):
         """
-        method docstring
+        update an existing instance
+        @param sensor_device the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+
         """
         return self.sensor_device.update_one(sensor_device)
-        
+
 
     def read_sensor_device(self, sensor_device_id=''):
         """
-        method docstring
+        fetch a resource by ID
+        @param sensor_device_id the id of the object to be fetched
+        @retval SensorDevice resource
+
         """
         return self.sensor_device.read_one(sensor_device_id)
 
     def delete_sensor_device(self, sensor_device_id=''):
         """
-        method docstring
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param sensor_device_id the id of the object to be deleted
+        @retval success whether it succeeded
+
         """
         return self.sensor_device.delete_one(sensor_device_id)
 
     def find_sensor_devices(self, filters={}):
         """
-        method docstring
+
         """
         return self.sensor_device.find_some(filters)
-
-
-
-
-
-    
-
-

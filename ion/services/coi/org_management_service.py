@@ -8,7 +8,7 @@ from interface.services.coi.iorg_management_service import BaseOrgManagementServ
 
 class OrgManagementService(BaseOrgManagementService):
 
-    def create_org(self, org=None):
+    def create_org(self, org={}):
         log.debug("create_org" + org.name)
         rid,rev = self.clients.resource_registry.create(org)
         return rid
