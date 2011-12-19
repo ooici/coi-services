@@ -34,9 +34,11 @@ class ResourceWorker(object):
         self.clients = clients
 
         self.iontype  = self._primary_object_name()
-        self.ionlabel = self._primary_boject_label()
+        self.ionlabel = self._primary_object_label()
 
-        self.RR = self.clients.resource_registry
+        if hasattr(self, "RR"):
+            self.RR = self.clients.resource_registry
+
         self.on_worker_init()
 
     ##################################################
@@ -59,7 +61,7 @@ class ResourceWorker(object):
         #like "instrument_agent"
         return "YOU MUST SET THIS"
 
-    def on_worker_init():
+    def on_worker_init(self):
         """
         called on initialization of class, after
         parent service's clients have been passed in
