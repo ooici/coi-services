@@ -18,10 +18,10 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     @unittest.skip('Not done yet.')
     def test_register_producer_and_send(self):
-        # One liner describing the test
+        # Register an instrument in coordination with DM PubSub: create stream, register and create producer object
         pass
 
     @unittest.skip('Not done yet.')
     def test_register_process_and_send(self):
-        # One liner describing the test
+        # Register a transform in coordination with DM PubSub: create stream, register and create producer object
         pass
