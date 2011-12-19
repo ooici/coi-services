@@ -1,16 +1,10 @@
 #!/usr/bin/env python
 
-__author__ = 'Maurice Manning'
-__license__ = 'Apache 2.0'
-
-
 """
-@package ion.services.sa.instrument_management.instrument_management_service Implementation of IInstrumentManagementService interface
-@file ion/services/sa/instrument_management/instrument_management_service.py
-@author Ian Katz
-@brief Service to manage instrument, platform, and sensor resources, their relationships, and direct access
+@package  ion.services.sa.instrument_management.instrument_management_service
+@author   Maurice Manning
+@author   Ian Katz
 """
-
 
 
 #from pyon.public import Container
@@ -63,7 +57,10 @@ Later TODO (need new methods spec'd out)
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 class InstrumentManagementService(BaseInstrumentManagementService):
+    """
+    @brief Service to manage instrument, platform, and sensor resources, their relationships, and direct access
 
+    """
     def on_init(self):
         IonObject()  # suppress pyflakes error
 

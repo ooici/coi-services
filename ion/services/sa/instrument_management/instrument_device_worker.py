@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
-__author__ = 'Ian Katz'
-__license__ = 'Apache 2.0'
+"""
+@package  ion.services.sa.instrument_management.instrument_device_worker
+@author   Ian Katz
+"""
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import IonObject
@@ -24,10 +26,13 @@ Later TODO
 
 
 
-from ion.services.sa.instrument_management.ims_worker import IMSworker
+from ion.services.sa.resource_worker import ResourceWorker
 
-class InstrumentDeviceWorker(IMSworker):
-
+class InstrumentDeviceWorker(ResourceWorker):
+    """
+    @brief resource management for InstrumentDevice resources
+    """
+    
     def on_worker_init(self):
         #data acquisition management pointer
         self.DAMS = self.clients.data_acquisition_management_service

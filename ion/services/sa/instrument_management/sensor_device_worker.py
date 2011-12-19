@@ -1,14 +1,19 @@
 #!/usr/bin/env python
 
-__author__ = 'Ian Katz'
-__license__ = 'Apache 2.0'
+"""
+@package  ion.services.sa.instrument_management.sensor_device_worker
+@author   Ian Katz
+"""
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import AT, RT
 
-from ion.services.sa.instrument_management.ims_worker import IMSworker
+from ion.services.sa.resource_worker import ResourceWorker
 
-class SensorDeviceWorker(IMSworker):
+class SensorDeviceWorker(ResourceWorker):
+    """
+    @brief resource management for SensorDevice resources
+    """
 
     def _primary_object_name(self):
         return RT.SensorDevice

@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
-__author__ = 'Ian Katz'
-__license__ = 'Apache 2.0'
+"""
+@package  ion.services.sa.resource_worker
+@file     ion/services/sa/resource_worker.py
+@author   Ian Katz
+@brief    A base class for CRUD, LCS, and association ops on any ION resource
+"""
 
 from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
@@ -24,7 +28,7 @@ Later TODO
 ######
 
 
-class IMSworker(object):
+class ResourceWorker(object):
 
     def __init__(self, clients):
         self.clients = clients
