@@ -85,12 +85,13 @@ class IMSworker(object):
         attempt to advance the lifecycle state of a resource
         @resource_id the resource id
         @newstate the new lifecycle state
-        @todo check that this resource is of the same type as this worker class!
+        @todo check that this resource is of the same type as this worker class
         """
         necessary_method = "lcs_precondition_" + str(newstate)
         if not hasattr(self, necessary_method):
-            raise NotImplementedError("Lifecycle precondition method '%s' not defined for %s!"
-                                      % (newstate, self.iontype))
+            raise NotImplementedError(
+                "Lifecycle precondition method '%s' not defined for %s!"
+                % (newstate, self.iontype))
 
         #FIXME: make sure that the resource type matches self.iontype
 
@@ -98,10 +99,13 @@ class IMSworker(object):
 
         #call the precondition function and react
         if precondition_fn(self, resource_id):
-            log.debug("Moving %s resource to state %s" % (self.iontype, newstate))
-            self.RR.execute_lifecycle_transition(resource_id=resource_id, lcstate=newstate)
+            log.debug("Moving %s resource to state %s"
+                      % (self.iontype, newstate))
+            self.RR.execute_lifecycle_transition(resource_id=resource_id,
+                                                 lcstate=newstate)
         else:
-            raise BadRequest("Couldn't transition %s to state %s; failed precondition"
+            raise BadRequest(("Couldn't transition %s to state %s; "
+                              + "failed precondition")
                              % (self.iontype, newstate))
 
     # so, for example if you want to transition to "NEW", you'll need this:
@@ -120,21 +124,26 @@ class IMSworker(object):
         determine whether a resource with the same type and name already exists
         @param resource_type the IonObject type
         @param primary_object the resource to be checked
-        @param verb future tense of what is happening with this object (like "to be created")
-        @raises BadRequest if the name exists already or was not set in the incoming message
+        @param verb what will happen to this  object (like "to be created")
+        @raises BadRequest if name exists already or wasn't set
         """
         if not hasattr(primary_object, "name"):
-            raise BadRequest("The name field was not set in the resource %s" % verb)
+            raise BadRequest("The name field was not set in the resource %s"
+                             % verb)
 
         name = primary_object.name
         try:
-            found_res, _ = self.RR.find_resources(resource_type, None, name, True)
+            found_res, _ = self.RR.find_resources(resource_type,
+                                                  None,
+                                                  name,
+                                                  True)
         except NotFound:
             # New after all.  PROCEED.
             pass
         else:
             if 0 < len(found_res):
-                raise BadRequest("%s resource named '%s' already exists" % (resource_type, name))
+                raise BadRequest("%s resource named '%s' already exists"
+                                 % (resource_type, name))
 
     def _get_resource(self, resource_type, resource_id):
         """
@@ -145,7 +154,8 @@ class IMSworker(object):
         """
         resource = self.RR.read(resource_id)
         if not resource:
-            raise NotFound("%s %s does not exist" % (resource_type, resource_id))
+            raise NotFound("%s %s does not exist"
+                           % (resource_type, resource_id))
         return resource
 
     def _return_create(self, resource_label, resource_id):
@@ -209,7 +219,8 @@ class IMSworker(object):
         """
         # make sure ID isn't set
         if hasattr(primary_object, "_id"):
-            raise BadRequest("ID field was pre-defined for a create %s operation" % self.iontype)
+            raise BadRequest("ID field present in a create %s operation"
+                             % self.iontype)
 
         # Validate the input filter and augment context as required
         self._check_name(self.iontype, primary_object, "to be created")
@@ -232,16 +243,15 @@ class IMSworker(object):
         @param primary_object the updated resource
         """
         if not hasattr(primary_object, "_id"):
-            raise BadRequest("The _id field was not set in the %s resource to be updated" % self.iontype)
+            raise BadRequest("The _id field was not set in the "
+                             + "%s resource to be updated" % self.iontype)
 
-        #primary_object_id = primary_object._id
-        #
-        #primary_object_obj = self._get_resource(self.iontype, primary_object_id)
 
         # Validate the input
         self.on_pre_update(primary_object)
 
-        #if the name is being changed, make sure it's not being changed to a duplicate
+        #if the name is being changed, make sure it's not
+        # being changed to a duplicate
         self._check_name(self.iontype, primary_object, "to be updated")
 
         #persist
@@ -252,23 +262,25 @@ class IMSworker(object):
         return self._return_update(True)
 
 
-
     def read_one(self, primary_object_id=''):
         """
         read a single object of the predefined type
         @param primary_object_id the id to be retrieved
         """
-        return self._return_read(self.iontype, self.ionlabel, primary_object_id)
+        return self._return_read(self.iontype,
+                                 self.ionlabel,
+                                 primary_object_id)
 
 
     def delete_one(self, primary_object_id=''):
         """
-        delete a single object of the predefined type AND its history (i.e., NOT retiring!)
+        delete a single object of the predefined type AND its history
+        (i.e., NOT retiring!)
         @param primary_object_id the id to be deleted
         """
 
-        primary_object_obj = self._get_resource(self.iontype, primary_object_id)
-
+        primary_object_obj = self._get_resource(self.iontype,
+                                                primary_object_id)
         self.RR.delete(primary_object_obj)
 
         return self._return_delete(True)
@@ -288,20 +300,30 @@ class IMSworker(object):
 
     def _find_having(self, association_predicate, some_object):
         """
-        find resource IDs of the predefined type that have the given association attached
+        find resources having ____:
+          find resource IDs of the predefined type that
+          have the given association attached
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        return self.RR.find_subjects(self.iontype, association_predicate, some_object, True)
+        return self.RR.find_subjects(self.iontype,
+                                     association_predicate,
+                                     some_object,
+                                     True)
 
     def _find_stemming(self, primary_object_id, association_predicate, some_object_type):
         """
-        find resource IDs of the given object type that are associated with the primary object
+        find resources stemming from _____:
+          find resource IDs of the given object type that
+          are associated with the primary object
         @param primary_object_id the id of the primary object
         @param association_prediate the association type
         @param some_object_type the type of associated object
         """
-        return self.RR.find_objects(primary_object_id, association_predicate, some_object_type, True)
+        return self.RR.find_objects(primary_object_id,
+                                    association_predicate,
+                                    some_object_type,
+                                    True)
 
     #########################################################
     #
@@ -331,9 +353,11 @@ class IMSworker(object):
                                                        association_type,
                                                        object_id)
 
-        log.debug("Create %s Association: %s" % (self._assn_name(association_type),
-                                                 str(associate_success)))
+        log.debug("Create %s Association: %s"
+                  % (self._assn_name(association_type),
+                     str(associate_success)))
         return associate_success
+
 
     def unlink_resources(self, subject_id='', association_type='', object_id=''):
         """
@@ -344,9 +368,12 @@ class IMSworker(object):
         @todo check for errors
         """
 
-        assoc = self.RR.get_association(subject=subject_id, predicate=association_type, object=object_id)
+        assoc = self.RR.get_association(subject=subject_id,
+                                        predicate=association_type,
+                                        object=object_id)
         dessociate_success = self.RR.delete_association(assoc)
 
-        log.debug("Delete %s Association: %s" % (self._assn_name(association_type),
-                                                 str(dessociate_success)))
+        log.debug("Delete %s Association: %s"
+                  % (self._assn_name(association_type),
+                     str(dessociate_success)))
         return dessociate_success
