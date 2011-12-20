@@ -11,6 +11,7 @@ from pyon.util.unit_test import PyonTestCase
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound
+from pyon.public import log, AT
 import unittest
 from pyon.public import CFG, IonObject, log, RT, AT, LCS
 
@@ -18,7 +19,6 @@ from pyon.public import CFG, IonObject, log, RT, AT, LCS
 class PubSubTest(PyonTestCase):
 
     def setUp(self):
-        self.mock_ionobj = self._create_IonObject_mock('ion.services.dm.distribution.pubsub_management_service.IonObject')
         mock_clients = self._create_service_mock('pubsub_management')
         self.pubsub_service = PubsubManagementService()
         self.pubsub_service.clients = mock_clients
@@ -28,27 +28,41 @@ class PubSubTest(PyonTestCase):
         self.mock_update = mock_clients.resource_registry.update
         self.mock_delete = mock_clients.resource_registry.delete
         self.mock_read = mock_clients.resource_registry.read
+        self.mock_create_association = mock_clients.resource_registry.create_association
+        self.mock_delete_association = mock_clients.resource_registry.delete_association
+        self.mock_find_subjects = mock_clients.resource_registry.find_subjects
 
-        # UserIdentity
+        # Stream
+        self.stream_id = "stream_id"
         self.stream = Mock()
         self.stream.name = "SampleStream"
         self.stream.description = "Sample Stream In PubSub"
         self.stream.mimetype = ""
         self.stream.producers = ['producer1', 'producer2', 'producer3']
 
+        #Subscription
+        self.subscription_id = "subscription_id"
+        self.subscription = Mock()
+        self.subscription.name = "SampleSubscription"
+        self.subscription.description = "Sample Subscription In PubSub"
+        self.subscription.query = {"stream_id" : self.stream_id}
+
+        #Subscription Has Stream Association
+        self.association_id = "association_id"
+
     def test_create_stream(self):
-        self.mock_create.return_value = ['id_2', 1]
+        self.mock_create.return_value = [self.stream_id, 1]
 
         stream_id = self.pubsub_service.create_stream(self.stream)
 
         self.mock_create.assert_called_once_with(self.stream)
-        self.assertEqual(stream_id, 'id_2')
+        self.assertEqual(stream_id, self.stream_id)
 
     def test_read_and_update_stream(self):
         self.mock_read.return_value = self.stream
-        stream_obj = self.pubsub_service.read_stream('id_2')
+        stream_obj = self.pubsub_service.read_stream(self.stream_id)
 
-        self.mock_update.return_value = ['id_2', 2]
+        self.mock_update.return_value = [self.stream_id, 2]
         stream_obj.name = "UpdatedSampleStream"
         self.pubsub_service.update_stream(stream_obj)
 
@@ -56,22 +70,40 @@ class PubSubTest(PyonTestCase):
 
     def test_read_stream(self):
         self.mock_read.return_value = self.stream
-        stream_obj = self.pubsub_service.read_stream('id_2')
+        stream_obj = self.pubsub_service.read_stream(self.stream_id)
 
         assert stream_obj is self.mock_read.return_value
-        self.mock_read.assert_called_once_with('id_2', '')
+        self.mock_read.assert_called_once_with(self.stream_id, '')
 
-    @unittest.skip('Nothing to test')
     def test_read_stream_not_found(self):
-        stream_obj = self.pubsub_service.read_stream()
+        self.mock_read.return_value = None
 
-    @unittest.skip('Nothing to test')
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.read_stream('notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Stream notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
+
     def test_delete_stream(self):
-        self.pubsub_service.delete_stream()
+        self.mock_read.return_value = self.stream
 
-    @unittest.skip('Nothing to test')
+        self.pubsub_service.delete_stream(self.stream_id)
+
+        self.mock_read.assert_called_once_with(self.stream_id, '')
+        self.mock_delete.assert_called_once_with(self.stream)
+
     def test_delete_stream_not_found(self):
-        self.pubsub_service.delete_stream()
+        self.mock_read.return_value = None
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.delete_stream('notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Stream notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
 
     @unittest.skip('Nothing to test')
     def test_find_stream(self):
@@ -85,57 +117,64 @@ class PubSubTest(PyonTestCase):
     def test_find_streams_by_consumer(self):
         self.pubsub_service.find_streams_by_consumer()
 
-    @unittest.skip('Nothing to test')
     def test_create_subscription(self):
-        self.mock_create.return_value = ('id_2', 'I do not care')
-        subscription = IonObject(RT.Subscription , {'name':'SampleSubscription', 'description':'Sample Subscription In PubSub', 'query':{"stream_id": 'id_5'}})
+        self.mock_create.return_value = [self.subscription_id, 1]
+        self.mock_create_association.return_value = [self.association_id, 1]
 
-        id = self.pubsub_service.create_subscription(subscription)
+        id = self.pubsub_service.create_subscription(self.subscription)
+        self.mock_create.assert_called_once_with(self.subscription)
+        self.mock_create_association.assert_called_once_with(self.subscription_id, AT.hasStream, self.stream_id, None)
+        self.assertEqual(id, self.subscription_id)
 
-        self.mock_create.assert_called_once_with(subscription)
-        self.assertEqual(id, 'id_2')
+    def test_read_and_update_subscription(self):
+        self.mock_read.return_value = self.subscription
+        subscription_obj = self.pubsub_service.read_subscription(self.subscription_id)
 
-    @unittest.skip('Nothing to test')
-    def test_update_subscription(self):
-        self.pubsub_service.update_subscription(sentinel.subscription)
+        self.mock_update.return_value = [self.subscription_id, 2]
+        subscription_obj.name = "UpdatedSampleSubscription"
+        self.pubsub_service.update_stream(subscription_obj)
 
-        self.mock_update.assert_called_once_with(sentinel.subscription)
+        self.mock_update.assert_called_once_with(subscription_obj)
 
-    @unittest.skip('Nothing to test')
     def test_read_subscription(self):
-        subscription_obj = self.pubsub_service.read_subscription()
+        self.mock_read.return_value = self.subscription
+        subscription_obj = self.pubsub_service.read_subscription(self.subscription_id)
 
-    @unittest.skip('Nothing to test')
+        assert subscription_obj is self.mock_read.return_value
+        self.mock_read.assert_called_once_with(self.subscription_id, '')
+
     def test_read_subscription_not_found(self):
-        subscription_obj = self.pubsub_service.read_subscription()
+        self.mock_read.return_value = None
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.read_subscription('notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Subscription notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
 
     @unittest.skip('Nothing to test')
     def test_delete_subscription(self):
-        # Temporarily patch and unpatch read_subscription function of
-        # self.pubsub_service
-        with patch.object(self.pubsub_service, 'read_subscription',
-                mocksignature=True) as mock_read_subscription:
+        self.mock_read.return_value = self.subscription
 
-            value = self.pubsub_service.delete_subscription('id_2')
+        self.pubsub_service.delete_subscription(self.subscription_id)
 
-            mock_read_subscription.assert_called_once_with('id_2')
-            self.mock_delete.assert_called_once_with(mock_read_subscription.return_value)
-            self.assertEqual(value, self.mock_delete.return_value)
+        self.mock_read.assert_called_once_with(self.subscription_id, '')
+        self.mock_find_subjects.assert_called_once_with(self.subscription_id, AT.hasStream, self.subscription.query['stream_id'], False)
+        self.mock_delete_association.assert_called_once_with(self.association_id)
+        self.mock_delete.assert_called_once_with(self.subscription)
 
-    @unittest.skip('Nothing to test')
     def test_delete_subscription_not_found(self):
-        # Temporarily patch and unpatch read_subscription function of
-        # self.pubsub_service
-        with patch.object(self.pubsub_service, 'read_subscription',
-                mocksignature=True) as mock_read_subscription:
-            mock_read_subscription.return_value = None
+        self.mock_read.return_value = None
 
-            with self.assertRaises(NotFound) as cm:
-                value = self.pubsub_service.delete_subscription('id_2')
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.delete_subscription('notfound')
 
-            mock_read_subscription.assert_called_once_with('id_2')
-            ex = cm.exception
-            self.assertEqual(ex.message, 'Subscription id_2 does not exist')
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Subscription notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '') #
 
     @unittest.skip('Nothing to test')
     def test_activate_subscription(self):

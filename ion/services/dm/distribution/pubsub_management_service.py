@@ -11,9 +11,7 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
-from pyon.core.bootstrap import IonObject
-from pyon.public import AT
-from pyon.public import log
+from pyon.public import AT, log
 
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
@@ -63,7 +61,7 @@ class PubsubManagementService(BasePubsubManagementService):
         log.debug("Reading stream object id: %s" % stream_id)
         stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
-            raise NotFound("Stream %d does not exist" % stream_id)
+            raise NotFound("Stream %s does not exist" % stream_id)
         return stream_obj
 
     def delete_stream(self, stream_id=''):
@@ -73,6 +71,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @param stream_id The id of the stream.
         @retval success Boolean to indicate successful deletion.
         @throws NotFound when stream doesn't exist.
+        @todo Determine if operation was successful for return value
         '''
         # Return Value
         # ------------
@@ -83,7 +82,8 @@ class PubsubManagementService(BasePubsubManagementService):
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
 
-        return self.clients.resource_registry.delete(stream_obj)
+        self.clients.resource_registry.delete(stream_obj)
+        return True
 
     def find_streams(self, filter={}):
         """
@@ -130,14 +130,13 @@ class PubsubManagementService(BasePubsubManagementService):
         # {subscription_id: ''}
         #
         log.debug("Creating subscription object")
-        #subscription_obj = IonObject("Subscription", subscription)
-        id, rev = self.clients.resource_registry.create(subscription)
+        subscription_id, rev = self.clients.resource_registry.create(subscription)
 
         #we need the stream_id to create the association between the
         #subscription and stream. Should it be passed in here,
         #or create a new method to create the association?
-        self.clients.resource_registry.create_association(id, AT.hasStream, subscription.query.stream_id)
-        return id
+        self.clients.resource_registry.create_association(subscription_id, AT.hasStream, subscription.query['stream_id'])
+        return subscription_id
 
     def update_subscription(self, subscription={}):
         '''
@@ -178,6 +177,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @param subscription_id The id of the subscription.
         @retval success Boolean to indicate successful deletion.
         @throws NotFound when subscription doesn't exist.
+        @todo Determine if operation was successful for return value
         '''
         # Return Value
         # ------------
@@ -188,7 +188,15 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        return self.clients.resource_registry.delete(subscription_obj)
+        # Find and break association with UserIdentity
+        subjects, assocs = self.clients.resource_registry.find_subjects(subscription_id, AT.hasStream, subscription_id.query['stream_id'])
+        if not assocs:
+            raise NotFound("Subscription to Stream association for subscription id %s does not exist" % subscription_id)
+        association_id = assocs[0]._id
+        self.clients.resource_registry.delete_association(association_id)
+        # Delete the Subscription
+        self.clients.resource_registry.delete(subscription_obj)
+        return True
 
     def activate_subscription(self, subscription_id=''):
         '''
