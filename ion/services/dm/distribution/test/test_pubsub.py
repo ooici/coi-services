@@ -12,6 +12,7 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound
 import unittest
+from pyon.public import CFG, IonObject, log, RT, AT, LCS
 
 @attr('UNIT', group='dm')
 class PubSubTest(PyonTestCase):
@@ -69,15 +70,11 @@ class PubSubTest(PyonTestCase):
 
     def test_create_subscription(self):
         self.mock_create.return_value = ('id_2', 'I do not care')
-        subscription = {"name": "SampleSubscription",
-                "description": "Sample Subscription In PubSub",
-                "query": {"stream_id": 'id_5'}}
+        subscription = IonObject(RT.Subscription , {'name':'SampleSubscription', 'description':'Sample Subscription In PubSub', 'query':{"stream_id": 'id_5'}})
 
         id = self.pubsub_service.create_subscription(subscription)
 
-        self.mock_ionobj.assert_called_once_with('Subscription',
-                subscription)
-        self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
+        self.mock_create.assert_called_once_with(subscription)
         self.assertEqual(id, 'id_2')
 
     def test_update_subscription(self):

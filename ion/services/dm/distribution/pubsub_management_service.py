@@ -130,8 +130,8 @@ class PubsubManagementService(BasePubsubManagementService):
         # {subscription_id: ''}
         #
         log.debug("Creating subscription object")
-        subscription_obj = IonObject("Subscription", subscription)
-        id, rev = self.clients.resource_registry.create(subscription_obj)
+        #subscription_obj = IonObject("Subscription", subscription)
+        id, rev = self.clients.resource_registry.create(subscription)
 
         #we need the stream_id to create the association between the
         #subscription and stream. Should it be passed in here,
