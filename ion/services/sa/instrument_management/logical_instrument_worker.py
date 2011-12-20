@@ -23,10 +23,10 @@ class LogicalInstrumentWorker(IMSsimple):
         return "logical_instrument"
 
     def link_agent(self, logical_instrument_id='', instrument_agent_id=''):
-        return self.link_resources(logical_instrument_id, AT.hasAgent, instrument_agent_id)
+        return self._link_resources(logical_instrument_id, AT.hasAgent, instrument_agent_id)
 
     def unlink_agent(self, logical_instrument_id='', instrument_agent_id=''):
-        return self.unlink_resources(logical_instrument_id, AT.hasAgent, instrument_agent_id)
+        return self._unlink_resources(logical_instrument_id, AT.hasAgent, instrument_agent_id)
 
     def find_having_agent(self, instrument_agent_id):
         return self._find_having(AT.hasAgent, instrument_agent_id)

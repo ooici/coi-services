@@ -63,7 +63,7 @@ class ResourceWorkerMetatest(object):
             extras = []
             for k, v in resource_params.iteritems():
                 extras.append("%s='%s'" % (k, v))
-            sample_resource_extras = "with " + ", ".join(extras)
+            sample_resource_extras = "(with %s)" % ", ".join(extras)
             sample_resource_md5 = "_%s" % hashlib.sha224(sample_resource_extras).hexdigest()[:7]
     
         self.sample_resource_extras  = sample_resource_extras
@@ -535,7 +535,77 @@ class ResourceWorkerMetatest(object):
             add_test_method(name, doc, fun)
 
             
+        def gen_tests_associations():
+            gen_tests_links()
+            gen_tests_unlinks()
 
+        def gen_tests_links():
+            """
+            create a test for each of the create_association tests in the worker
+            """
+            for k in dir(worker_instance):
+                parts = k.split("_", 1)
+                if "link" == parts[0]:
+
+                    def freeze(parts):
+                        """
+                        must freeze this so the loop doesn't overwrite the parts varible
+                        """
+                        assn_type = parts[1]
+                        link_name = "_".join(parts)
+
+                        def fun(self):
+                            svc = self._rwm_getservice()
+                            myworker = getattr(svc, worker_attr)
+                            mylink = getattr(myworker, link_name)
+
+                            #set up Mock
+                            reply = ('333', 'bla')
+                            svc.clients.resource_registry.create_association.return_value = reply
+
+                            #call the worker
+                            response = mylink("111", "222")
+                            self.assertEqual(reply, response)
+
+                        name = make_name("resource_worker_association_%s_link" % assn_type)
+                        doc  = make_doc("Checking create_association of a %s resource with its %s" % (worker_instance.iontype, assn_type))
+                        add_test_method(name, doc, fun)
+
+                    freeze(parts)
+
+
+        def gen_tests_unlinks():
+            """
+            create a test for each of the delete_association tests in the worker
+            """
+            for k in dir(worker_instance):
+                parts = k.split("_", 1)
+                if "unlink" == parts[0]:
+
+                    def freeze(parts):
+                        """
+                        must freeze this so the loop doesn't overwrite the parts varible
+                        """
+                        assn_type = parts[1]
+                        link_name = "_".join(parts)
+
+                        def fun(self):
+                            svc = self._rwm_getservice()
+                            myworker = getattr(svc, worker_attr)
+                            myunlink = getattr(myworker, link_name)
+                            
+                            svc.clients.resource_registry.create_association.return_value = None
+
+                            #call the worker
+                            response = myunlink("111", "222")
+                            
+                            #there is no response, self.assertEqual("f", str(response))
+
+                        name = make_name("resource_worker_association_%s_unlink" % assn_type)
+                        doc  = make_doc("Checking delete_association of a %s resource from its %s" % (worker_instance.iontype, assn_type))
+                        add_test_method(name, doc, fun)
+
+                    freeze(parts)
 
 
 
@@ -554,5 +624,6 @@ class ResourceWorkerMetatest(object):
         gen_test_update_bad_dupname()
         gen_test_delete()
         gen_test_delete_notfound()
+        gen_tests_associations()
         
 

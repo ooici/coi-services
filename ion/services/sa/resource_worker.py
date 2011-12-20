@@ -346,7 +346,7 @@ class ResourceWorker(object):
         return str(association_type)
 
 
-    def link_resources(self, subject_id='', association_type='', object_id=''):
+    def _link_resources(self, subject_id='', association_type='', object_id=''):
         """
         create an association
         @param subject_id the resource ID of the predefined type
@@ -365,7 +365,7 @@ class ResourceWorker(object):
         return associate_success
 
 
-    def unlink_resources(self, subject_id='', association_type='', object_id=''):
+    def _unlink_resources(self, subject_id='', association_type='', object_id=''):
         """
         delete an association
         @param subject_id the resource ID of the predefined type
