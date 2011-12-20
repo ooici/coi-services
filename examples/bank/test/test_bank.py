@@ -1,14 +1,11 @@
-from pyon.container.cc import IContainerAgent
-from pyon.net.endpoint import ProcessRPCClient
+from interface.services.icontainer_agent import ContainerAgentClient
+from pyon.net.endpoint import RPCClient
 from pyon.public import Container
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from interface.services.examples.bank.ibank_service import IBankService
 
 from nose.plugins.attrib import attr
-
-class FakeProcess(LocalContextMixin):
-    name = ''
 
 @attr('INT')
 class Test_Bank(IonIntegrationTestCase):
@@ -18,11 +15,11 @@ class Test_Bank(IonIntegrationTestCase):
         self._start_container()
 
         # Establish endpoint with container
-        container_client = ProcessRPCClient(node=self.container.node, name=self.container.name, iface=IContainerAgent, process=FakeProcess())
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
         container_client.start_rel_from_url('res/deploy/examples/bank_complete.yml')
 
         # Now create client to bank service
-        client = ProcessRPCClient(node=self.container.node, name="bank", iface=IBankService, process=FakeProcess())
+        client = RPCClient(node=self.container.node, name="bank", iface=IBankService)
 
         # Send some requests
         print 'Creating savings account'
