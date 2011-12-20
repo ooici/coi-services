@@ -27,8 +27,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @retval id New stream id.
         '''
         log.debug("Creating stream object")
-        stream_obj = IonObject("Stream", stream)
-        stream_id, rev = self.clients.resource_registry.create(stream_obj)
+        stream_id, rev = self.clients.resource_registry.create(stream)
 
         return stream_id
 
@@ -39,13 +38,15 @@ class PubsubManagementService(BasePubsubManagementService):
         @param stream The stream object with updated properties.
         @retval success Boolean to indicate successful update.
         @todo Add logic to validate optional attributes. Is this interface correct?
+        @todo Determine if operation was successful for return value
         '''
         # Return Value
         # ------------
         # {success: true}
         #
         log.debug("Updating stream object: %s" % stream.name)
-        return self.clients.resource_registry.update(stream)
+        id, rev = self.clients.resource_registry.update(stream)
+        return True
 
     def read_stream(self, stream_id=''):
         '''
@@ -135,7 +136,7 @@ class PubsubManagementService(BasePubsubManagementService):
         #we need the stream_id to create the association between the
         #subscription and stream. Should it be passed in here,
         #or create a new method to create the association?
-        #self.clients.resource_registry.create_association(id, AT.hasStream, subscription.query.stream_id)
+        self.clients.resource_registry.create_association(id, AT.hasStream, subscription.query.stream_id)
         return id
 
     def update_subscription(self, subscription={}):
