@@ -13,7 +13,6 @@ from interface.services.dm.ipubsub_management_service import \
 from pyon.core.exception import NotFound
 from pyon.core.bootstrap import IonObject
 from pyon.public import AT
-#from pyon.datastore.datastore import DataStore
 from pyon.public import log
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -276,6 +275,7 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Stream %s does not exist" % stream_id)
 
         stream_obj.producers.append(exchange_name)
+        self.update_stream(stream_obj)
         return "credentials"
 
     def unregister_producer(self, exchange_name='', stream_id=''):
@@ -298,6 +298,7 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Stream %s does not exist" % stream_id)
 
         stream_obj.producers.remove(exchange_name)
+        self.update_stream(stream_obj)
         return True
 
     def find_producers_by_stream(self, stream_id=''):
