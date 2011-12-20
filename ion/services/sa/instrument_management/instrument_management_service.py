@@ -62,7 +62,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     """
     def on_init(self):
-        IonObject()  # suppress pyflakes error
+        IonObject("Resource")  # suppress pyflakes error
 
         self.override_clients(self.clients)
 
@@ -72,8 +72,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
 
         #shortcut names for the import sub-services
-        self.RR    = self.clients.resource_registry
-        self.DAMS  = self.clients.data_acquisition_management_service
+        if hasattr(self.clients, "resource_registry"):
+            self.RR    = self.clients.resource_registry
+            
+        if hasattr(self.clients, "data acquisition_management_service"):
+            self.DAMS  = self.clients.data_acquisition_management_service
 
         #farm everything out to the workers
 

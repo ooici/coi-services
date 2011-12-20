@@ -36,7 +36,7 @@ class ResourceWorker(object):
         self.iontype  = self._primary_object_name()
         self.ionlabel = self._primary_object_label()
 
-        if hasattr(self, "RR"):
+        if hasattr(clients, "resource_registry"):
             self.RR = self.clients.resource_registry
 
         self.on_worker_init()
@@ -104,7 +104,7 @@ class ResourceWorker(object):
         precondition_fn = getattr(self, necessary_method)
 
         #call the precondition function and react
-        if precondition_fn(self, resource_id):
+        if precondition_fn(resource_id):
             log.debug("Moving %s resource to state %s"
                       % (self.iontype, newstate))
             self.RR.execute_lifecycle_transition(resource_id=resource_id,
@@ -133,7 +133,7 @@ class ResourceWorker(object):
         @param verb what will happen to this  object (like "to be created")
         @raises BadRequest if name exists already or wasn't set
         """
-        if not hasattr(primary_object, "name"):
+        if not (hasattr(primary_object, "name") and "" != primary_object.name):
             raise BadRequest("The name field was not set in the resource %s"
                              % verb)
 
@@ -158,6 +158,7 @@ class ResourceWorker(object):
         @param resource_id
         @raises NotFound
         """
+        #FIXME: this happens automatically from below
         resource = self.RR.read(resource_id)
         if not resource:
             raise NotFound("%s %s does not exist"
@@ -224,9 +225,9 @@ class ResourceWorker(object):
         @retval the resource ID
         """
         # make sure ID isn't set
-        if hasattr(primary_object, "_id"):
-            raise BadRequest("ID field present in a create %s operation"
-                             % self.iontype)
+        if hasattr(primary_object, "_id") and "" != primary_object._id:
+            raise BadRequest("ID field present in a create %s operation - {%s}"
+                             % (self.iontype, str(primary_object.__dict__)))
 
         # Validate the input filter and augment context as required
         self._check_name(self.iontype, primary_object, "to be created")
@@ -248,10 +249,9 @@ class ResourceWorker(object):
         update a single object of the predefined type
         @param primary_object the updated resource
         """
-        if not hasattr(primary_object, "_id"):
+        if not hasattr(primary_object, "_id") or "" == primary_object._id:
             raise BadRequest("The _id field was not set in the "
                              + "%s resource to be updated" % self.iontype)
-
 
         # Validate the input
         self.on_pre_update(primary_object)

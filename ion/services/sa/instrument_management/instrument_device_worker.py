@@ -35,7 +35,8 @@ class InstrumentDeviceWorker(ResourceWorker):
     
     def on_worker_init(self):
         #data acquisition management pointer
-        self.DAMS = self.clients.data_acquisition_management_service
+        if hasattr(self.clients, "data_acquisition_management_service"):
+            self.DAMS = self.clients.data_acquisition_management_service
 
     def _primary_object_name(self):
         return RT.InstrumentDevice
