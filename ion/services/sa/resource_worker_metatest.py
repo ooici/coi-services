@@ -531,7 +531,7 @@ class ResourceWorkerMetatest(object):
                 self.assertRaises(NotFound, myworker.delete_one, "111")
             
             name = make_name("resource_worker_delete_notfound")
-            doc  = make_doc("Deleteing a %s resource that doesn't exist" % worker_instance.iontype)
+            doc  = make_doc("Deleting a %s resource that doesn't exist" % worker_instance.iontype)
             add_test_method(name, doc, fun)
 
             
