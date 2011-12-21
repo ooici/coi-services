@@ -46,9 +46,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         if len(result) != 0:
             raise BadRequest("A data product named '%s' already exists" % data_product.name)  
 
-        if ('_id' in data_product):
-            raise BadRequest("The _id field was already set in a new data product object")         
-        
         data_product_id, version = self.clients.resource_registry.create(data_product)
             
         if data_producer != {}:
@@ -60,6 +57,20 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                               data_producer_id)
             
         return data_product_id
+
+
+    def read_data_product(self, data_product_id=''):
+        """
+        method docstring
+        """
+        # Retrieve all metadata for a specific data product
+        # Return data product resource
+
+        log.debug("DataProductManagementService:read_data_product: %s" % str(data_product_id))
+        
+        result = self.clients.resource_registry.read(data_product_id)
+        
+        return result
 
 
     def update_data_product(self, data_product={}):
@@ -77,19 +88,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_id = self.clients.resource_registry.update(data_product)
             
         return True
-
-
-    def read_data_product(self, data_product_id=''):
-        """
-        method docstring
-        """
-        # Retrieve all metadata for a specific data product
-        # Return data product resource
-
-        log.debug("DataProductManagementService:read_data_product: %s" % str(data_product_id))
-        
-        result = self.clients.resource_registry.read(data_product_id)
-        return result
 
 
     def delete_data_product(self, data_product_id=''):
