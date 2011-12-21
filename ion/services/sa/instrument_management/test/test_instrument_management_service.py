@@ -52,17 +52,17 @@ class TestInstrumentManagement(PyonTestCase):
 rwm = ResourceWorkerMetatest(TestInstrumentManagement, InstrumentManagementService, log)
 
 rwm.add_resource_worker_unittests(InstrumentAgentInstanceWorker, {"exchange-name": "rhubarb"})
-rwm.add_resource_worker_unittests(InstrumentAgentWorker, {})
-rwm.add_resource_worker_unittests(InstrumentDeviceWorker, {})
-rwm.add_resource_worker_unittests(InstrumentModelWorker, {})
+rwm.add_resource_worker_unittests(InstrumentAgentWorker, {"agent_version": "3", "time_source": "the universe"})
+rwm.add_resource_worker_unittests(InstrumentDeviceWorker, {"serialnumber": "123", "firmwareversion": "x"})
+rwm.add_resource_worker_unittests(InstrumentModelWorker, {"model": "redundant?", "weight": 20000})
 rwm.add_resource_worker_unittests(LogicalInstrumentWorker, {})
-rwm.add_resource_worker_unittests(LogicalPlatformWorker, {})
-rwm.add_resource_worker_unittests(PlatformAgentInstanceWorker, {})
-rwm.add_resource_worker_unittests(PlatformAgentWorker, {})
-rwm.add_resource_worker_unittests(PlatformDeviceWorker, {})
-rwm.add_resource_worker_unittests(PlatformModelWorker, {})
-rwm.add_resource_worker_unittests(SensorDeviceWorker, {})
-rwm.add_resource_worker_unittests(SensorModelWorker, {})
+rwm.add_resource_worker_unittests(LogicalPlatformWorker, {"buoyname": "steve", "buoyheight": "3"})
+rwm.add_resource_worker_unittests(PlatformAgentInstanceWorker, {"exchange-name": "sausage"})
+rwm.add_resource_worker_unittests(PlatformAgentWorker, {"tbd": "the big donut"})
+rwm.add_resource_worker_unittests(PlatformDeviceWorker, {"serial_number": "2345"})
+rwm.add_resource_worker_unittests(PlatformModelWorker, {"tbd": "tammy breathed deeply"})
+rwm.add_resource_worker_unittests(SensorDeviceWorker, {"serialnumber": "123"})
+rwm.add_resource_worker_unittests(SensorModelWorker, {"model": "redundant field?", "weight": 2})
 
 
 """
