@@ -1,9 +1,10 @@
 from pyon.util.log import log
-from pyon.container.cc import IContainerAgent
+from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.data_product_management.data_product_management_service import DataProductManagementService
+from interface.services.sa.idata_product_management_service import IDataProductManagementService
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.core.bootstrap import IonObject
@@ -68,7 +69,8 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.data_acquisition_management.create_data_producer.assert_called_once_with(dpr_obj)
         self.resource_registry.create_association.assert_called_once_with('SOME_RR_ID1',
                                                                           AT.hasDataProducer,
-                                                                          'SOME_RR_ID2')
+                                                                          'SOME_RR_ID2',
+                                                                          None)
 
     def test_createDataProduct_and_DataProducer_stream_NotFound(self):
         # setup
@@ -206,26 +208,28 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
     
 
 @attr('INT', group='sa')
-@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+#@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
 class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
 
     def test_createDataProduct(self):
         # Start container
         #print 'instantiating container'
-        container = Container()
+        self._start_container()
+        #container = Container()
         #print 'starting container'
-        container.start()
+        #container.start()
         #print 'started container'
 
         # Establish endpoint with container
-        container_client = ProcessRPCClient(node=container.node, name=container.name, iface=IContainerAgent, process=FakeProcess())
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+        #container_client = ProcessRPCClient(node=container.node, name=container.name, iface=IContainerAgent, process=FakeProcess())
         #print 'got CC client'
         container_client.start_rel_from_url('res/deploy/r2dpms.yml')
         
         print 'started services'
 
         # Now create client to DataProductManagementService
-        client = ProcessRPCClient(node=container.node, name="data_product_management", iface=IDataProductManagementService, process=FakeProcess())
+        client = ProcessRPCClient(node=self.container.node, name="data_product_management", iface=IDataProductManagementService)
 
         # test creating a new data product w/o a data producer
         print 'Creating new data product w/o a data producer'
