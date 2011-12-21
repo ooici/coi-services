@@ -306,9 +306,12 @@ class PubsubManagementService(BasePubsubManagementService):
         if stream_obj is None:
             raise NotFound("Stream %s does not exist" % stream_id)
 
-        stream_obj.producers.remove(exchange_name)
-        self.update_stream(stream_obj)
-        return True
+        if (exchange_name in stream_obj.producers):
+            stream_obj.producers.remove(exchange_name)
+            self.update_stream(stream_obj)
+            return True
+        else:
+            return False
 
     def find_producers_by_stream(self, stream_id=''):
         '''

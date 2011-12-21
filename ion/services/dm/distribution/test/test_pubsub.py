@@ -204,60 +204,105 @@ class PubSubTest(PyonTestCase):
     def test_find_consumers_by_stream(self):
         self.pubsub_service.find_consumers_by_stream()
 
-    @unittest.skip('Nothing to test')
     def test_register_producer(self):
-        # Temporarily patch and unpatch read_stream function of
-        # self.pubsub_service
-        with patch.object(self.pubsub_service, 'read_stream',
-                mocksignature=True) as mock_read_stream:
-            mock_stream_obj = Mock()
-            mock_stream_obj.producers = []
-            mock_read_stream.return_value = mock_stream_obj
+        self.mock_read.return_value = self.stream
+        self.mock_update.return_value = [self.stream_id, 2]
+        ret = self.pubsub_service.register_producer("Test Producer", self.stream_id)
 
-            credentials = self.pubsub_service.register_producer("Test Producer", 'id_2')
+        self.assert_("Test Producer" in self.stream.producers)
+        self.assertEqual(ret, 'credentials')
+        self.mock_read.assert_called_once_with(self.stream_id, '')
 
-            mock_read_stream.assert_called_once_with('id_2')
-            # side effect
-            self.assertEqual(mock_stream_obj.producers, ['Test Producer'])
-            # @todo this is a placeholder. Change to the real thing
-            self.assertEqual(credentials, 'credentials')
+        ## Temporarily patch and unpatch read_stream function of
+        ## self.pubsub_service
+        #with patch.object(self.pubsub_service, 'read_stream',
+        #        mocksignature=True) as mock_read_stream:
+        #    mock_stream_obj = Mock()
+        #    mock_stream_obj.producers = []
+        #    mock_read_stream.return_value = mock_stream_obj
+        #
+        #    credentials = self.pubsub_service.register_producer("Test Producer", self.stream_id)
+        #
+        #    mock_read_stream.assert_called_once_with('id_2')
+        #    # side effect
+        #    self.assertEqual(mock_stream_obj.producers, ['Test Producer'])
+        #    # @todo this is a placeholder. Change to the real thing
+        #    self.assertEqual(credentials, 'credentials')
 
-    @unittest.skip('Nothing to test')
-    def test_register_producer_not_found(self):
-        self.pubsub_service.register_producer("Test Producer", '')
+    def test_register_producer_stream_not_found(self):
+        self.mock_read.return_value = None
 
-    @unittest.skip('Nothing to test')
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.register_producer('Test Producer', 'notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Stream notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
+
     def test_unregister_producer(self):
-        self.pubsub_service.unregister_producer("Test Producer", '')
+        self.mock_read.return_value = self.stream
+        self.mock_update.return_value = [self.stream_id, 2]
+        ret = self.pubsub_service.unregister_producer('producer1', self.stream_id)
 
-    @unittest.skip('Nothing to test')
+        self.assert_('producer1' not in self.stream.producers)
+        self.assertEqual(ret, True)
+        self.mock_read.assert_called_once_with(self.stream_id, '')
+
+    def test_unregister_producer_stream_not_found(self):
+        self.mock_read.return_value = None
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.register_producer('Test Producer', 'notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Stream notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
+
     def test_unregister_producer_not_found(self):
-        self.pubsub_service.unregister_producer("Test Producer", '')
+        self.mock_read.return_value = self.stream
+        ret = self.pubsub_service.unregister_producer('Test Producer', self.stream_id)
 
-    @unittest.skip('Nothing to test')
+        self.assertEqual(ret, False)
+        self.mock_read.assert_called_once_with(self.stream_id, '')
+
     def test_find_producers_by_stream(self):
-        # Temporarily patch and unpatch read_stream function of
-        # self.pubsub_service
-        with patch.object(self.pubsub_service, 'read_stream',
-                mocksignature=True) as mock_read_stream:
-            mock_read_stream.return_value = sentinel
+        ## Temporarily patch and unpatch read_stream function of
+        ## self.pubsub_service
+        #with patch.object(self.pubsub_service, 'read_stream',
+        #        mocksignature=True) as mock_read_stream:
+        #    mock_read_stream.return_value = sentinel
+        #
+        #    producers = self.pubsub_service.find_producers_by_stream('id_2')
+        #
+        #    mock_read_stream.assert_called_once_with('id_2')
+        #    self.assertEqual(producers, sentinel.producers)
+        self.mock_read.return_value = self.stream
+        producers = self.pubsub_service.find_producers_by_stream(self.stream_id)
 
-            producers = self.pubsub_service.find_producers_by_stream('id_2')
+        assert producers is self.stream.producers
+        self.mock_read.assert_called_once_with(self.stream_id, '')
 
-            mock_read_stream.assert_called_once_with('id_2')
-            self.assertEqual(producers, sentinel.producers)
-
-    @unittest.skip('Nothing to test')
     def test_find_producers_by_stream_not_found(self):
-        # Temporarily patch and unpatch read_stream function of
-        # self.pubsub_service
-        with patch.object(self.pubsub_service, 'read_stream',
-                mocksignature=True) as mock_read_stream:
-            mock_read_stream.return_value = None
+        ## Temporarily patch and unpatch read_stream function of
+        ## self.pubsub_service
+        #with patch.object(self.pubsub_service, 'read_stream',
+        #        mocksignature=True) as mock_read_stream:
+        #    mock_read_stream.return_value = None
+        #
+        #    with self.assertRaises(NotFound) as cm:
+        #        producers = self.pubsub_service.find_producers_by_stream('id_2')
+        #
+        #    mock_read_stream.assert_called_once_with('id_2')
+        #    ex = cm.exception
+        #    self.assertEqual(ex.message, 'Stream id_2 does not exist')
+        self.mock_read.return_value = None
 
-            with self.assertRaises(NotFound) as cm:
-                producers = self.pubsub_service.find_producers_by_stream('id_2')
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.find_producers_by_stream('notfound')
 
-            mock_read_stream.assert_called_once_with('id_2')
-            ex = cm.exception
-            self.assertEqual(ex.message, 'Stream id_2 does not exist')
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Stream notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
