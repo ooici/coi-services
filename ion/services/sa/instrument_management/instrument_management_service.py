@@ -99,6 +99,59 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     ##########################################################################
     #
+    # INSTRUMENT AGENT INSTANCE
+    #
+    ##########################################################################
+
+    def create_instrument_agent_instance(self, instrument_agent_instance={}):
+        """
+        create a new instance
+        @param instrument_agent_instance the object to be created as a resource
+        @retval instrument_agent_instance_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.instrument_agent_instance.create_one(instrument_agent_instance)
+
+    def update_instrument_agent_instance(self, instrument_agent_instance={}):
+        """
+        update an existing instance
+        @param instrument_agent_instance the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.instrument_agent_instance.update_one(instrument_agent_instance)
+
+
+    def read_instrument_agent_instance(self, instrument_agent_instance_id=''):
+        """
+        fetch a resource by ID
+        @param instrument_agent_instance_id the id of the object to be fetched
+        @retval InstrumentAgentInstance resource
+        """
+        return self.instrument_agent_instance.read_one(instrument_agent_instance_id)
+
+    def delete_instrument_agent_instance(self, instrument_agent_instance_id=''):
+        """
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param instrument_agent_instance_id the id of the object to be deleted
+        @retval success whether it succeeded
+
+        """
+        return self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+
+    def find_instrument_agent_instances(self, filters={}):
+        """
+
+        """
+        return self.instrument_agent_instance.find_some(filters)
+
+
+
+
+    ##########################################################################
+    #
     # INSTRUMENT AGENT
     #
     ##########################################################################
@@ -529,6 +582,59 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
+    ##########################################################################
+    #
+    # LOGICAL PLATFORM
+    #
+    ##########################################################################
+
+    def create_logical_platform(self, logical_platform={}):
+        """
+        create a new instance
+        @param logical_platform the object to be created as a resource
+        @retval logical_platform_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.logical_platform.create_one(logical_platform)
+
+    def update_logical_platform(self, logical_platform={}):
+        """
+        update an existing instance
+        @param logical_platform the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.logical_platform.update_one(logical_platform)
+
+
+    def read_logical_platform(self, logical_platform_id=''):
+        """
+        fetch a resource by ID
+        @param logical_platform_id the id of the object to be fetched
+        @retval LogicalPlatform resource
+
+        """
+        return self.logical_platform.read_one(logical_platform_id)
+
+    def delete_logical_platform(self, logical_platform_id=''):
+        """
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param logical_platform_id the id of the object to be deleted
+        @retval success whether it succeeded
+
+        """
+        return self.logical_platform.delete_one(logical_platform_id)
+
+    def find_logical_platforms(self, filters={}):
+        """
+
+        """
+        return self.logical_platform.find_some(filters)
+
+
+
 
     ##
     ##
@@ -569,6 +675,57 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
+
+
+    ##########################################################################
+    #
+    # PLATFORM AGENT INSTANCE
+    #
+    ##########################################################################
+
+    def create_platform_agent_instance(self, platform_agent_instance={}):
+        """
+        create a new instance
+        @param platform_agent_instance the object to be created as a resource
+        @retval platform_agent_instance_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.platform_agent_instance.create_one(platform_agent_instance)
+
+    def update_platform_agent_instance(self, platform_agent_instance={}):
+        """
+        update an existing instance
+        @param platform_agent_instance the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.platform_agent_instance.update_one(platform_agent_instance)
+
+
+    def read_platform_agent_instance(self, platform_agent_instance_id=''):
+        """
+        fetch a resource by ID
+        @param platform_agent_instance_id the id of the object to be fetched
+        @retval PlatformAgentInstance resource
+        """
+        return self.platform_agent_instance.read_one(platform_agent_instance_id)
+
+    def delete_platform_agent_instance(self, platform_agent_instance_id=''):
+        """
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param platform_agent_instance_id the id of the object to be deleted
+        @retval success whether it succeeded
+
+        """
+        return self.platform_agent_instance.delete_one(platform_agent_instance_id)
+
+    def find_platform_agent_instances(self, filters={}):
+        """
+
+        """
+        return self.platform_agent_instance.find_some(filters)
 
 
 
@@ -899,3 +1056,5 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.sensor_device.find_some(filters)
+
+
