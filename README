@@ -138,17 +138,18 @@ Use integration tests:
 DEBUG
 =====
 
-USE Pycharm or any other Python IDE to start in debug mode. Breakpoints and step-by-step are possible.
+USE Pycharm or any other Python IDE to debug; breakpoints and step-by-step are possible.
+Set the executable to the bin/pycc and set the working directory to the repository root.
+Use the -n option to avoid the interactive ipython shell. It does not work property with the debugger.
 
 You will need to make sure the Pycharm debug egg is available in your path, something like:
-export PYTHONPATH=.:/Applications/PyCharm\ 1.5.2.app/pycharm-debug.egg
+    > export PYTHONPATH=.:/Applications/PyCharm\ 1.5.2.app/pycharm-debug.egg
 
 Set your debugger to start the bin/pycc script, with the arguments you like.
 
 Remote debugging of services in a running container is possible too. Setup a remote debugging
 configuration to use the localhost and port 8585. First start the remote debuging server, then
 start the container from the command line below using the pyccd script ( the -n seems to be required )
-
     > bin/pyccd -n --rel res/deploy/xxx.yml
 
 

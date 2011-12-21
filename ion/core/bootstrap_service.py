@@ -4,7 +4,7 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, AT
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, AT, iex
 
 from interface.services.ibootstrap_service import BaseBootstrapService
 
@@ -56,10 +56,12 @@ class BootstrapService(BaseBootstrapService):
         # Make sure to detect that system was already bootstrapped.
         # Look in datastore for secret cookie\
         cookie_name = sys_name + ".ION_INIT"
-        res = self.clients.datastore.read_doc(cookie_name)
-        if res:
+        try:
+            res = self.clients.datastore.read_doc(cookie_name)
             log.error("System %s already initialized: %s" % (sys_name, res))
             return
+        except iex.NotFound:
+            pass
 
         # Now set the secret cookie
         import time

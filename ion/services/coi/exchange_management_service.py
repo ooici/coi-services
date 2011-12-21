@@ -8,7 +8,7 @@ from interface.services.coi.iexchange_management_service import BaseExchangeMana
 
 class ExchangeManagementService(BaseExchangeManagementService):
 
-    def create_exchange_space(self, xs=None, org_id=''):
+    def create_exchange_space(self, xs={}, org_id=''):
         log.debug("create_exchange_space(%s, org_id=%s)" % (xs, org_id))
         self.assert_condition(xs and org_id, "Arguments not set")
         xs_id,rev = self.clients.resource_registry.create(xs)
@@ -25,7 +25,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         
         return xs_id
 
-    def update_exchange_space(self, xs=None):
+    def update_exchange_space(self, xs={}):
         log.debug("update_exchange_space(%s)" % xs)
         xs_id,rev = self.clients.resource_registry.update(xs)
         return True
