@@ -9,7 +9,7 @@
 
 from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
-#from pyon.public import AT
+from pyon.public import AT, RT
 from pyon.util.log import log
 
 
@@ -52,14 +52,14 @@ class ResourceWorker(object):
         the IonObject type that this worker controls
         """
         #like "InstrumentAgent" or (better) RT.InstrumentAgent
-        return "YOU MUST SET THIS"
+        raise NotImplementedError("Extender of the class must set this!")
 
     def _primary_object_label(self):
         """
         the argument label that this worker controls
         """
         #like "instrument_agent"
-        return "YOU MUST SET THIS"
+        raise NotImplementedError("Extender of the class must set this!")
 
     def on_worker_init(self):
         """
@@ -339,6 +339,22 @@ class ResourceWorker(object):
                                     some_object_type,
                                     True)
 
+
+    # def find_having_attachment(self, attachment_id):
+    #     """
+    #     find resource having the specified attachment
+    #     @param attachment_id the id of the attachment
+    #     """
+    #     return self._find_having(AT.hasAttachment, attachment_id)
+
+    # def find_stemming_attachment(self, resource_id):
+    #     """
+    #     find attachments attached to the specified resource
+    #     @param resource_id the id of the resource
+    #     """
+    #     return self._find_stemming(resource_id, AT.hasAttachment, RT.Attachment)
+        
+
     #########################################################
     #
     # ASSOCIATION METHODS
@@ -391,3 +407,11 @@ class ResourceWorker(object):
                   % (self._assn_name(association_type),
                      str(dessociate_success)))
         return dessociate_success
+
+
+    # def link_attachment(self, resource_id='', attachment_id=''):
+    #     return self._link_resources(resource_id, AT.hasAttachment, attachment_id)
+
+    # def unlink_attachment(self, resource_id='', attachment_id=''):
+    #     return self._unlink_resources(resource_id, AT.hasAttachment, attachment_id)
+

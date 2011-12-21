@@ -7,7 +7,7 @@
 """
 import hashlib
 
-from mock import Mock  #, sentinel, patch
+# from mock import Mock, sentinel, patch
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
@@ -566,8 +566,81 @@ class ResourceWorkerMetatest(object):
             add_test_method(name, doc, fun)
 
 
+        def gen_tests_associated_finds():
+            gen_tests_find_having()
+            gen_tests_find_stemming()
 
 
+        def gen_tests_find_having():
+            """
+            create a test for each of the find_having_* methods in the worker
+            """
+            for k in dir(worker_instance):
+                parts = k.split("_", 2)
+                if "find" == parts[0] and "having" == parts[1]:
+
+                    def freeze(parts):
+                        """
+                        must freeze this so the loop doesn't overwrite the parts varible
+                        """
+                        assn_type = parts[2]
+                        find_name = "_".join(parts)
+
+                        def fun(self):
+                            svc = self._rwm_getservice()
+                            myworker = getattr(svc, worker_attr)
+                            myfind = getattr(myworker, find_name)
+
+                            #set up Mock
+                            reply = (['333'], ['444'])
+                            svc.clients.resource_registry.find_subjects.return_value = reply
+
+                            #call the worker
+                            response = myfind("111")
+                            self.assertEqual(reply, response)
+                        
+                        name = make_name("resource_worker_find_having_%s_link" % assn_type)
+                        doc  = make_doc("Checking find %s having %s" % (worker_instance.iontype, assn_type))
+                        add_test_method(name, doc, fun)
+
+                    freeze(parts)
+
+
+        def gen_tests_find_stemming():
+            """
+            create a test for each of the find_stemming_* methods in the worker
+            """
+            for k in dir(worker_instance):
+                parts = k.split("_", 2)
+                if "find" == parts[0] and "stemming" == parts[1]:
+
+                    def freeze(parts):
+                        """
+                        must freeze this so the loop doesn't overwrite the parts varible
+                        """
+                        assn_type = parts[2]
+                        find_name = "_".join(parts)
+
+                        def fun(self):
+                            svc = self._rwm_getservice()
+                            myworker = getattr(svc, worker_attr)
+                            myfind = getattr(myworker, find_name)
+
+                            #set up Mock
+                            reply = (['333'], ['444'])
+                            svc.clients.resource_registry.find_objects.return_value = reply
+
+                            #call the worker
+                            response = myfind("111")
+                            self.assertEqual(reply, response)
+                        
+                        name = make_name("resource_worker_find_stemming_%s_links" % assn_type)
+                        doc  = make_doc("Checking find %s stemming from %s" % (assn_type, worker_instance.iontype))
+                        add_test_method(name, doc, fun)
+
+                    freeze(parts)
+
+        
             
         def gen_tests_associations():
             gen_tests_links()
@@ -660,5 +733,5 @@ class ResourceWorkerMetatest(object):
         gen_test_delete_notfound()
         gen_test_find()
         gen_tests_associations()
-        
+        gen_tests_associated_finds()
 
