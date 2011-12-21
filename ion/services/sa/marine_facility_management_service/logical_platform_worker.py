@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument_management.logical_platform_worker
+@package  ion.services.sa.marine_facility_management.logical_platform_worker
 @author   Ian Katz
 """
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import AT, RT
 
-from ion.services.sa.instrument_management.ims_simple import IMSsimple
+from ion.services.sa.marine_facility_management_service.mpms_simple import MPMSsimple
 
-class LogicalPlatformWorker(IMSsimple):
+class LogicalPlatformWorker(MPMSsimple):
     """
     @brief resource management for LogicalPlatform resources
     """

@@ -15,16 +15,12 @@ from pyon.util.log import log
 
 #from pyon.core.bootstrap import IonObject
 
-#from ion.services.sa.resource_worker_metatest import add_resource_worker_unittests
 from ion.services.sa.resource_worker_metatest import ResourceWorkerMetatest
 
 from ion.services.sa.instrument_management.instrument_agent_instance_worker import InstrumentAgentInstanceWorker
-
 from ion.services.sa.instrument_management.instrument_agent_worker import InstrumentAgentWorker
 from ion.services.sa.instrument_management.instrument_device_worker import InstrumentDeviceWorker
 from ion.services.sa.instrument_management.instrument_model_worker import InstrumentModelWorker
-from ion.services.sa.instrument_management.logical_instrument_worker import LogicalInstrumentWorker
-from ion.services.sa.instrument_management.logical_platform_worker import LogicalPlatformWorker
 from ion.services.sa.instrument_management.platform_agent_instance_worker import PlatformAgentInstanceWorker
 from ion.services.sa.instrument_management.platform_agent_worker import PlatformAgentWorker
 from ion.services.sa.instrument_management.platform_device_worker import PlatformDeviceWorker
@@ -55,8 +51,6 @@ rwm.add_resource_worker_unittests(InstrumentAgentInstanceWorker, {"exchange-name
 rwm.add_resource_worker_unittests(InstrumentAgentWorker, {"agent_version": "3", "time_source": "the universe"})
 rwm.add_resource_worker_unittests(InstrumentDeviceWorker, {"serialnumber": "123", "firmwareversion": "x"})
 rwm.add_resource_worker_unittests(InstrumentModelWorker, {"model": "redundant?", "weight": 20000})
-rwm.add_resource_worker_unittests(LogicalInstrumentWorker, {})
-rwm.add_resource_worker_unittests(LogicalPlatformWorker, {"buoyname": "steve", "buoyheight": "3"})
 rwm.add_resource_worker_unittests(PlatformAgentInstanceWorker, {"exchange-name": "sausage"})
 rwm.add_resource_worker_unittests(PlatformAgentWorker, {"tbd": "the big donut"})
 rwm.add_resource_worker_unittests(PlatformDeviceWorker, {"serial_number": "2345"})
@@ -65,10 +59,3 @@ rwm.add_resource_worker_unittests(SensorDeviceWorker, {"serialnumber": "123"})
 rwm.add_resource_worker_unittests(SensorModelWorker, {"model": "redundant field?", "weight": 2})
 
 
-"""
-add_resource_worker_unittests(InstrumentAgentInstanceWorker, 
-                              TestInstrumentManagement, 
-                              InstrumentManagementService,
-                              log, 
-                              {"exchange_name": "rhubarb"})
-"""

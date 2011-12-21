@@ -2,16 +2,21 @@
 
 '''
 @package ion.services.sa.marine_facility_management.marine_facility_management_service Implementation of IMarineFacilityManagementService interface
-@file ion/services/sa/marine_facility_management/marine_facility_management_service.py
+@file ion/services/sa/marine_facility_management_service/marine_facility_management_service.py
 @author M Manning
 @brief Marine Facility Management service to keep track of Marine Facilities, sites, logical platforms, etc
 and the relationships between them
 '''
 
-from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService 
 from pyon.core.exception import NotFound
 from pyon.public import CFG, IonObject, log, RT, AT, LCS
 
+
+
+from ion.services.sa.marine_facility_management_service.logical_instrument_worker import LogicalInstrumentWorker
+from ion.services.sa.marine_facility_management_service.logical_platform_worker import LogicalPlatformWorker
+from ion.services.sa.marine_facility_management_service.marine_facility_worker import MarineFacilityWorker
+from ion.services.sa.marine_facility_management_service.site_worker import SiteWorker
 
 
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService
@@ -20,86 +25,268 @@ from interface.services.sa.imarine_facility_management_service import BaseMarine
 class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
 
+    def on_init(self):
+        IonObject("Resource")  # suppress pyflakes error
+
+        self.override_clients(self.clients)
+
+
+    def override_clients(self, new_clients):
+        """
+        Replaces the service clients with a new set of them... and makes sure they go to the right places
+        """
+
+        #shortcut names for the import sub-services
+        if hasattr(self.clients, "resource_registry"):
+            self.RR    = self.clients.resource_registry
+            
+
+        #farm everything out to the workers
+
+        self.logical_instrument  = LogicalInstrumentWorker(self.clients)
+        self.logical_platform    = LogicalPlatformWorker(self.clients)
+        self.marine_facility     = MarineFacilityWorker(self.clients)
+        self.site                = SiteWorker(self.clients)
+
+
+
+
+
+    ##########################################################################
+    #
+    # MARINE FACILITY
+    #
+    ##########################################################################
+
     def create_marine_facility(self, marine_facility={}):
-        '''
-        Create a new marine_facility.
-
-        @param marine_facility New marine facility properties.
-        @retval id New data_source id.
-        '''
-        log.debug("Creating marine_facility object")
-        marine_facility_id, rev = self.clients.resource_registry.create(marine_facility)
-
-        return marine_facility_id
+        """
+        create a new instance
+        @param marine_facility the object to be created as a resource
+        @retval marine_facility_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.marine_facility.create_one(marine_facility)
 
     def update_marine_facility(self, marine_facility={}):
-        '''
-        Update an existing marine_facility.
-
-        @param marine_facility The marine_facility object with updated properties.
-        @retval success Boolean to indicate successful update.
-        @todo Add logic to validate optional attributes. Is this interface correct?
-        '''
-
-        return self.clients.resource_registry.update(marine_facility)
+        """
+        update an existing instance
+        @param marine_facility the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.marine_facility.update_one(marine_facility)
 
 
     def read_marine_facility(self, marine_facility_id=''):
-        '''
-        Get an existing marine_facility object.
+        """
+        fetch a resource by ID
+        @param marine_facility_id the id of the object to be fetched
+        @retval LogicalInstrument resource
 
-        @param marine_facility_id The id of the stream.
-        @retval marine_facility_obj The marine_facility object.
-        @throws NotFound when data_source doesn't exist.
-        '''
-
-        log.debug("Reading Marine Facility object id: %s" % marine_facility_id)
-        marine_facility_obj = self.clients.resource_registry.read(marine_facility_id)
-        if not marine_facility_obj:
-            raise NotFound("Marine Facility %s does not exist" % marine_facility_id)
-        return marine_facility_obj
+        """
+        return self.marine_facility.read_one(marine_facility_id)
 
     def delete_marine_facility(self, marine_facility_id=''):
-        # Read and delete specified Marine Facility object
-        marine_facility = self.clients.resource_registry.read(marine_facility_id)
-        if not marine_facility:
-            raise NotFound("Marine Facility %s does not exist" % marine_facility_id)
-        self.clients.resource_registry.delete(marine_facility)
+        """
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param marine_facility_id the id of the object to be deleted
+        @retval success whether it succeeded
+
+        """
+        return self.marine_facility.delete_one(marine_facility_id)
 
     def find_marine_facilities(self, filters={}):
-        # Find marine_facilities - as list of resource objects
-        # todo : add filtering
-        marine_facility_list, _ = self.clients.resource_registry.find_resources(RT.MarineFacility, None, None, False)
-        return marine_facility_list
+        """
+
+        """
+        return self.marine_facility.find_some(filters)
+
+
+    ##########################################################################
+    #
+    # SITE
+    #
+    ##########################################################################
 
     def create_site(self, site={}):
-        # Persist Site object and return object _id as OOI id
-        site_id, version = self.clients.resource_registry.create(site)
-        return site_id
+        """
+        create a new instance
+        @param site the object to be created as a resource
+        @retval site_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.site.create_one(site)
 
     def update_site(self, site={}):
-        # Overwrite Site object
-        self.clients.resource_registry.update(site)
+        """
+        update an existing instance
+        @param site the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.site.update_one(site)
+
 
     def read_site(self, site_id=''):
-        # Read Site object with _id matching passed site id
-        site = self.clients.resource_registry.read(site_id)
-        if not site:
-            raise NotFound("Site %s does not exist" % site_id)
-        return site
+        """
+        fetch a resource by ID
+        @param site_id the id of the object to be fetched
+        @retval LogicalInstrument resource
+
+        """
+        return self.site.read_one(site_id)
 
     def delete_site(self, site_id=''):
-        # Read and delete specified Site object
-        site = self.clients.resource_registry.read(site_id)
-        if not site:
-            raise NotFound("Site %s does not exist" % site_id)
-        self.clients.resource_registry.delete(site)
+        """
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param site_id the id of the object to be deleted
+        @retval success whether it succeeded
+
+        """
+        return self.site.delete_one(site_id)
 
     def find_sites(self, filters={}):
-        # Find sites - as list of resource objects
-        # todo : add filtering
-        site_list, _ = self.clients.resource_registry.find_resources(RT.Site, None, None, False)
-        return site_list
+        """
+
+        """
+        return self.site.find_some(filters)
+
+
+
+
+
+
+
+    ##########################################################################
+    #
+    # LOGICAL INSTRUMENT
+    #
+    ##########################################################################
+
+    def create_logical_instrument(self, logical_instrument={}):
+        """
+        create a new instance
+        @param logical_instrument the object to be created as a resource
+        @retval logical_instrument_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.logical_instrument.create_one(logical_instrument)
+
+    def update_logical_instrument(self, logical_instrument={}):
+        """
+        update an existing instance
+        @param logical_instrument the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.logical_instrument.update_one(logical_instrument)
+
+
+    def read_logical_instrument(self, logical_instrument_id=''):
+        """
+        fetch a resource by ID
+        @param logical_instrument_id the id of the object to be fetched
+        @retval LogicalInstrument resource
+
+        """
+        return self.logical_instrument.read_one(logical_instrument_id)
+
+    def delete_logical_instrument(self, logical_instrument_id=''):
+        """
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param logical_instrument_id the id of the object to be deleted
+        @retval success whether it succeeded
+
+        """
+        return self.logical_instrument.delete_one(logical_instrument_id)
+
+    def find_logical_instruments(self, filters={}):
+        """
+
+        """
+        return self.logical_instrument.find_some(filters)
+
+
+
+    ##########################################################################
+    #
+    # LOGICAL PLATFORM
+    #
+    ##########################################################################
+
+    def create_logical_platform(self, logical_platform={}):
+        """
+        create a new instance
+        @param logical_platform the object to be created as a resource
+        @retval logical_platform_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.logical_platform.create_one(logical_platform)
+
+    def update_logical_platform(self, logical_platform={}):
+        """
+        update an existing instance
+        @param logical_platform the object to be created as a resource
+        @retval success whether we succeeded
+        @throws BadRequest if the incoming _id field is not set
+        @throws BadReqeust if the incoming name already exists
+        """
+        return self.logical_platform.update_one(logical_platform)
+
+
+    def read_logical_platform(self, logical_platform_id=''):
+        """
+        fetch a resource by ID
+        @param logical_platform_id the id of the object to be fetched
+        @retval LogicalPlatform resource
+
+        """
+        return self.logical_platform.read_one(logical_platform_id)
+
+    def delete_logical_platform(self, logical_platform_id=''):
+        """
+        delete a resource, including its history (for less ominous deletion, use retire)
+        @param logical_platform_id the id of the object to be deleted
+        @retval success whether it succeeded
+
+        """
+        return self.logical_platform.delete_one(logical_platform_id)
+
+    def find_logical_platforms(self, filters={}):
+        """
+
+        """
+        return self.logical_platform.find_some(filters)
+
+
+
+
+
+
+
+    #FIXME: args need to change
+    def assign_platform(self, logical_platform_id='', parent_site_id=''):
+        """
+        @todo the arguments for this function seem incorrect and/or mismatched
+        """
+        raise NotImplementedError()
+        #return self.instrument_agent.assign(instrument_agent_id, instrument_id, instrument_agent_instance)
+
+    #FIXME: args need to change
+    def unassign_platform(self, logical_platform_id='', parent_stie_id=''):
+        """
+        @todo the arguments for this function seem incorrect and/or mismatched
+        """
+        raise NotImplementedError()
+        #return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
+
 
     def assign_site(self, child_site_id='', parent_site_id=''):
         assert child_site_id and parent_site_id, "Arguments not set"
@@ -115,77 +302,6 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         aid = self.clients.resource_registry.delete_association(assoc_id)
         return True
 
-    def create_logical_platform(self, logical_platform={}):
-        # Persist logical platform object and return object _id as OOI id
-        logical_platform_id, version = self.clients.resource_registry.create(logical_platform)
-        return logical_platform_id
-
-    def update_logical_platform(self, logical_platform={}):
-        # Overwrite logical platform object
-        self.clients.resource_registry.update(logical_platform)
-
-    def read_logical_platform(self, logical_platform_id=''):
-        # Read logical platform object with _id matching passed logical platform id
-        logical_platform = self.clients.resource_registry.read(logical_platform_id)
-        if not logical_platform:
-            raise NotFound("Logical platform %s does not exist" % logical_platform_id)
-        return logical_platform
-
-    def delete_logical_platform(self, logical_platform_id=''):
-        # Read and delete specified logical platform object
-        logical_platform = self.clients.resource_registry.read(logical_platform_id)
-        if not logical_platform:
-            raise NotFound("Logical platform %s does not exist" % logical_platform_id)
-        self.clients.resource_registry.delete(logical_platform)
-
-    def find_logical_platforms(self, filters={}):
-        # Find logical_platforms - as list of resource objects
-        # todo : add filtering
-        logical_platforms_list, _ = self.clients.resource_registry.find_resources(RT.LogicalPlatform, None, None, False)
-        return logical_platforms_list
-
-    def assign_platform(self, logical_platform_id='', parent_site_id=''):
-        assert logical_platform_id and parent_site_id, "Arguments not set"
-        aid = self.clients.resource_registry.create_association(parent_site_id, AT.hasPlatform, logical_platform_id)
-        return True
-
-    def unassign_platform(self, logical_platform_id='', parent_site_id=''):
-        assert logical_platform_id and parent_site_id, "Arguments not set"
-        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, AT.hasPlatform, logical_platform_id, True)
-        if not assoc_id:
-            raise NotFound("Association Site hasPlatform LogicalPlatfrom does not exist: site: %s  platfrom: %s" % parent_site_id, logical_platform_id)
-
-        aid = self.clients.resource_registry.delete_association(assoc_id)
-        return True
-
-    def create_logical_instrument(self, logical_instrument={}):
-        # Persist logical instrument object and return object _id as OOI id
-        logical_instrument_id, version = self.clients.resource_registry.create(logical_instrument)
-        return logical_instrument_id
-
-    def update_logical_instrument(self, logical_instrument={}):
-        # Overwrite logical instrument object
-        self.clients.resource_registry.update(logical_instrument)
-
-    def read_logical_instrument(self, logical_instrument_id=''):
-        # Read logical instrument object with _id matching passed logical instrument id
-        logical_instrument = self.clients.resource_registry.read(logical_instrument_id)
-        if not logical_instrument:
-            raise NotFound("Logical instrument %s does not exist" % logical_instrument_id)
-        return logical_instrument
-
-    def delete_logical_instrument(self, logical_instrument_id=''):
-        # Read and delete specified logical instrument object
-        logical_instrument = self.clients.resource_registry.read(logical_instrument_id)
-        if not logical_instrument:
-            raise NotFound("Logical instrument %s does not exist" % logical_instrument_id)
-        self.clients.resource_registry.delete(logical_instrument)
-
-    def find_logical_instruments(self, filters={}):
-        # Find logical_instruments - as list of resource objects
-        # todo : add filtering
-        logical_instruments_list, _ = self.clients.resource_registry.find_resources(RT.LogicalInstrument, None, None, False)
-        return logical_instruments_list
 
     def assign_instrument(self, logical_instrument_id='', parent_site_id=''):
         #todo: is platform associated with a Site?

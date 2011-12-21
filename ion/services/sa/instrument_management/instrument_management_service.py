@@ -29,9 +29,6 @@ from ion.services.sa.instrument_management.platform_device_worker import Platfor
 from ion.services.sa.instrument_management.sensor_model_worker import SensorModelWorker
 from ion.services.sa.instrument_management.sensor_device_worker import SensorDeviceWorker
 
-from ion.services.sa.instrument_management.logical_instrument_worker import LogicalInstrumentWorker
-from ion.services.sa.instrument_management.logical_platform_worker import LogicalPlatformWorker
-
 
 ######
 """
@@ -93,8 +90,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.sensor_model    = SensorModelWorker(self.clients)
         self.sensor_device   = SensorDeviceWorker(self.clients)
 
-        self.logical_instrument  = LogicalInstrumentWorker(self.clients)
-        self.logical_platform    = LogicalPlatformWorker(self.clients)
 
 
     ##########################################################################
@@ -523,115 +518,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         logical_instrument_id = ''
         return self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
 
-
-
-
-
-
-
-    ##########################################################################
-    #
-    # LOGICAL INSTRUMENT
-    #
-    ##########################################################################
-
-    def create_logical_instrument(self, logical_instrument={}):
-        """
-        create a new instance
-        @param logical_instrument the object to be created as a resource
-        @retval logical_instrument_id the id of the new object
-        @throws BadRequest if the incoming _id field is set
-        @throws BadReqeust if the incoming name already exists
-        """
-        return self.logical_instrument.create_one(logical_instrument)
-
-    def update_logical_instrument(self, logical_instrument={}):
-        """
-        update an existing instance
-        @param logical_instrument the object to be created as a resource
-        @retval success whether we succeeded
-        @throws BadRequest if the incoming _id field is not set
-        @throws BadReqeust if the incoming name already exists
-        """
-        return self.logical_instrument.update_one(logical_instrument)
-
-
-    def read_logical_instrument(self, logical_instrument_id=''):
-        """
-        fetch a resource by ID
-        @param logical_instrument_id the id of the object to be fetched
-        @retval LogicalInstrument resource
-
-        """
-        return self.logical_instrument.read_one(logical_instrument_id)
-
-    def delete_logical_instrument(self, logical_instrument_id=''):
-        """
-        delete a resource, including its history (for less ominous deletion, use retire)
-        @param logical_instrument_id the id of the object to be deleted
-        @retval success whether it succeeded
-
-        """
-        return self.logical_instrument.delete_one(logical_instrument_id)
-
-    def find_logical_instruments(self, filters={}):
-        """
-
-        """
-        return self.logical_instrument.find_some(filters)
-
-
-
-    ##########################################################################
-    #
-    # LOGICAL PLATFORM
-    #
-    ##########################################################################
-
-    def create_logical_platform(self, logical_platform={}):
-        """
-        create a new instance
-        @param logical_platform the object to be created as a resource
-        @retval logical_platform_id the id of the new object
-        @throws BadRequest if the incoming _id field is set
-        @throws BadReqeust if the incoming name already exists
-        """
-        return self.logical_platform.create_one(logical_platform)
-
-    def update_logical_platform(self, logical_platform={}):
-        """
-        update an existing instance
-        @param logical_platform the object to be created as a resource
-        @retval success whether we succeeded
-        @throws BadRequest if the incoming _id field is not set
-        @throws BadReqeust if the incoming name already exists
-        """
-        return self.logical_platform.update_one(logical_platform)
-
-
-    def read_logical_platform(self, logical_platform_id=''):
-        """
-        fetch a resource by ID
-        @param logical_platform_id the id of the object to be fetched
-        @retval LogicalPlatform resource
-
-        """
-        return self.logical_platform.read_one(logical_platform_id)
-
-    def delete_logical_platform(self, logical_platform_id=''):
-        """
-        delete a resource, including its history (for less ominous deletion, use retire)
-        @param logical_platform_id the id of the object to be deleted
-        @retval success whether it succeeded
-
-        """
-        return self.logical_platform.delete_one(logical_platform_id)
-
-    def find_logical_platforms(self, filters={}):
-        """
-
-        """
-        return self.logical_platform.find_some(filters)
 
 
 
