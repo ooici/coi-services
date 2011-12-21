@@ -206,6 +206,17 @@ class ResourceWorker(object):
         retval["success"] = success_bool
         return retval
 
+    def _return_find(self, resource_label, resource_ids):
+        """
+        return a valid response from a read operation
+        @param resource_type the IonObject type
+        @param resource_label what goes in the return value name
+        @param resource_id the ID of the resource to be returned
+        """
+        retval = {}
+        retval["%s_list" % resource_label] = resource_ids
+        return retval
+
     # return a valid message from an activate
     def _return_activate(self, success_bool):
         retval = {}
@@ -297,11 +308,8 @@ class ResourceWorker(object):
         find method
         @todo receive definition of the filters object
         """
-        # Return Value
-        # ------------
-        # primary_object_list: []
-        #
-        raise NotImplementedError()
+        results, _ = self.RR.find_resources(self.iontype, None, None, True)
+        return self._return_find(self.ionlabel, results)
 
 
     def _find_having(self, association_predicate, some_object):

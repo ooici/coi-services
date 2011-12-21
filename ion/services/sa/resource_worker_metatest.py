@@ -263,7 +263,7 @@ class ResourceWorkerMetatest(object):
 
                 response = myworker.create_one(good_sample_resource)
                 idfield = "%s_id" % worker_instance.ionlabel
-                assert(idfield in response)
+                self.assertIn(idfield, response)
                 sample_resource_id = response[idfield]
 
                 svc.clients.resource_registry.create.assert_called_once_with(good_sample_resource)
@@ -374,7 +374,7 @@ class ResourceWorkerMetatest(object):
 
                 response = myworker.read_one("111")
                 svc.clients.resource_registry.read.assert_called_once_with("111", "")
-                assert(worker_instance.ionlabel in response)
+                self.assertIn(worker_instance.ionlabel, response)
                 self.assertEqual(response[worker_instance.ionlabel], myret)
                 #self.assertDictEqual(response[worker_instance.ionlabel].__dict__,
                 #                     sample_resource().__dict__)
@@ -428,8 +428,8 @@ class ResourceWorkerMetatest(object):
                 svc.clients.resource_registry.find_resources.return_value = ([], [])
 
                 response = myworker.update_one(good_sample_resource)
-                assert("success" in response)
-                assert(response["success"])
+                self.assertIn("success", response)
+                self.assertTrue(response["success"])
 
                 svc.clients.resource_registry.update.assert_called_once_with(good_sample_resource)
 
@@ -502,8 +502,8 @@ class ResourceWorkerMetatest(object):
                 svc.clients.resource_registry.delete.return_value = None
 
                 response = myworker.delete_one("111")
-                assert("success" in response)
-                assert(response["success"])
+                self.assertIn("success", response)
+                self.assertTrue(response["success"])
                 svc.clients.resource_registry.read.assert_called_once_with("111", "")
                 svc.clients.resource_registry.delete.assert_called_once_with(myret)
 
@@ -533,6 +533,40 @@ class ResourceWorkerMetatest(object):
             name = make_name("resource_worker_delete_notfound")
             doc  = make_doc("Deleting a %s resource that doesn't exist" % worker_instance.iontype)
             add_test_method(name, doc, fun)
+
+
+        def gen_test_find():
+            """
+            generate the function to test the find op
+            """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                # get objects
+                svc = self._rwm_getservice()
+                myworker = getattr(svc, worker_attr)                 
+                                
+                #configure Mock
+                svc.clients.resource_registry.find_resources.return_value = ([0], [0])
+
+                response = myworker.find_some({})
+                out_list = "%s_list" % worker_instance.ionlabel
+                self.assertIn(out_list, response)
+                self.assertIsInstance(response[out_list], list)
+                self.assertNotEqual(0, len(response[out_list]))
+                svc.clients.resource_registry.find_resources.assert_called_once_with(worker_instance.iontype,
+                                                                                     None,
+                                                                                     None,
+                                                                                     True)
+
+                
+            name = make_name("resource_worker_find")
+            doc  = make_doc("Finding (all) %s resources" % worker_instance.iontype)
+            add_test_method(name, doc, fun)
+
+
+
 
             
         def gen_tests_associations():
@@ -624,6 +658,7 @@ class ResourceWorkerMetatest(object):
         gen_test_update_bad_dupname()
         gen_test_delete()
         gen_test_delete_notfound()
+        gen_test_find()
         gen_tests_associations()
         
 
