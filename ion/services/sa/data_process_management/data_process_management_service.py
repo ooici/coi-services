@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Maurice Manning'
+__author__ = 'Alon Yaari'
 __license__ = 'Apache 2.0'
 
 import time
