@@ -69,7 +69,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @param policy_id    str
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        raise NotImplementedError()
 
 
     def disable_policy(self, policy_id=''):
@@ -79,7 +79,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @param policy_id    str
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        raise NotImplementedError()
 
     def create_role(self, user_role={}):
         """Persists the provided UserRole object. The id string returned
@@ -116,7 +116,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws NotFound    object with specified id does not exist
         """
         user_role = self.clients.resource_registry.read(user_role_id)
-        if not role:
+        if not user_role:
             raise NotFound("Role %s does not exist" % user_role_id)
         return user_role
 
@@ -143,7 +143,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @param scope    RoleScope
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        raise NotImplementedError()
 
     def revoke_role(self, org_id='', user_id='', user_role_id=''):
         """Revokes a defined role within an organization to a specific user. Will throw a not NotFound exception
@@ -154,7 +154,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @param user_role_id    str
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        raise NotImplementedError()
 
     def find_roles_by_user(self, org_id='', user_id=''):
         """Returns a list of organization roles for a specific user. Will throw a not NotFound exception
@@ -165,7 +165,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval user_role_list    []
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        raise NotImplementedError()
 
 
     def has_permission(self, org_id='', user_id='', action_id='', resource_id=''):
@@ -179,5 +179,5 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval has_permission    bool
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        raise NotImplementedError()
 
