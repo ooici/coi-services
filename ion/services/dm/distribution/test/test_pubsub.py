@@ -46,9 +46,12 @@ class PubSubTest(PyonTestCase):
         self.subscription.name = "SampleSubscription"
         self.subscription.description = "Sample Subscription In PubSub"
         self.subscription.query = {"stream_id" : self.stream_id}
+        self.subscription.exchange_name = "ExchangeName"
 
         #Subscription Has Stream Association
         self.association_id = "association_id"
+        self.subscription_to_stream_association = Mock()
+        self.subscription_to_stream_association._id = self.association_id
 
     def test_create_stream(self):
         self.mock_create.return_value = [self.stream_id, 1]
@@ -154,12 +157,12 @@ class PubSubTest(PyonTestCase):
         self.assertEqual(ex.message, 'Subscription notfound does not exist')
         self.mock_read.assert_called_once_with('notfound', '')
 
-    @unittest.skip('Nothing to test')
     def test_delete_subscription(self):
         self.mock_read.return_value = self.subscription
+        self.mock_find_subjects.return_value = ("", [self.subscription_to_stream_association])
+        ret = self.pubsub_service.delete_subscription(self.subscription_id)
 
-        self.pubsub_service.delete_subscription(self.subscription_id)
-
+        self.assertEqual(ret, True)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
         self.mock_find_subjects.assert_called_once_with(self.subscription_id, AT.hasStream, self.subscription.query['stream_id'], False)
         self.mock_delete_association.assert_called_once_with(self.association_id)
@@ -262,9 +265,11 @@ class PubSubTest(PyonTestCase):
 
     def test_unregister_producer_not_found(self):
         self.mock_read.return_value = self.stream
-        ret = self.pubsub_service.unregister_producer('Test Producer', self.stream_id)
 
-        self.assertEqual(ret, False)
+        # TEST: Execute the service operation call
+        with self.assertRaises(ValueError) as cm:
+            self.pubsub_service.unregister_producer('Test Producer', self.stream_id)
+
         self.mock_read.assert_called_once_with(self.stream_id, '')
 
     def test_find_producers_by_stream(self):

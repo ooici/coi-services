@@ -12,12 +12,14 @@ from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
 from pyon.public import AT, log
+from pyon.net.channel import RecvChannel
 
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
         to create streams and subscriptions.
     '''
 
+    XP = 'Science.Data'
     def create_stream(self, stream=None):
         '''Create a new stream.
 
@@ -58,7 +60,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream: {}
         #
-        log.debug("Reading stream object id: %s" % stream_id)
+        log.debug("Reading stream object id: %s", stream_id)
         stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %s does not exist" % stream_id)
@@ -77,7 +79,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        log.debug("Deleting stream id: %s" % stream_id)
+        log.debug("Deleting stream id: %s", stream_id)
         stream_obj = self.read_stream(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
@@ -149,7 +151,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        log.debug("Updating subscription object: %s" % subscription.name)
+        log.debug("Updating subscription object: %s", subscription.name)
         return self.clients.resource_registry.update(subscription)
 
     def read_subscription(self, subscription_id=''):
@@ -164,7 +166,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # subscription: {}
         #
-        log.debug("Reading subscription object id: %s" % subscription_id)
+        log.debug("Reading subscription object id: %s", subscription_id)
         subscription_obj = self.clients.resource_registry.read(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
@@ -183,13 +185,13 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        log.debug("Deleting subscription id: %s" % subscription_id)
+        log.debug("Deleting subscription id: %s", subscription_id)
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
         # Find and break association with UserIdentity
-        subjects, assocs = self.clients.resource_registry.find_subjects(subscription_id, AT.hasStream, subscription_id.query['stream_id'])
+        subjects, assocs = self.clients.resource_registry.find_subjects(subscription_id, AT.hasStream, subscription_obj.query['stream_id'])
         if not assocs:
             raise NotFound("Subscription to Stream association for subscription id %s does not exist" % subscription_id)
         association_id = assocs[0]._id
@@ -215,7 +217,9 @@ class PubsubManagementService(BasePubsubManagementService):
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
-        #bind will happen here
+
+        #channel = RecvChannel()
+        #channel.setup_listener((subscription_obj.exchange_name))
 
     def deactivate_subscription(self, subscription_id=''):
         '''
@@ -276,7 +280,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @throws NotFound when stream doesn't exist.
         '''
         # logic to create credentials for a publisher to use
-        # to place data onto stream.
+        # to place data onto stream (StreamRoute object).
         # return mock credentials
         log.debug("Registering producer with stream")
         stream_obj = self.read_stream(stream_id)
@@ -311,7 +315,7 @@ class PubsubManagementService(BasePubsubManagementService):
             self.update_stream(stream_obj)
             return True
         else:
-            return False
+            raise ValueError('Producer %s not found in stream %s' % (exchange_name, stream_id))
 
     def find_producers_by_stream(self, stream_id=''):
         '''
