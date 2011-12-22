@@ -51,7 +51,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_producer != {}:
             log.debug("DataProductManagementService:create_data_product: data producer = %s" % str(data_producer))
             data_producer_id = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
-            log.info("DataProductManagementService.define_data_product create_data_producer result: %s " % data_producer_id)
+            log.debug("DataProductManagementService.define_data_product create_data_producer result: %s " % data_producer_id)
             self.clients.resource_registry.create_association(data_product_id, 
                                                               AT.hasDataProducer, 
                                                               data_producer_id)
