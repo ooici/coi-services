@@ -340,19 +340,19 @@ class ResourceWorker(object):
                                     True)
 
 
-    # def find_having_attachment(self, attachment_id):
-    #     """
-    #     find resource having the specified attachment
-    #     @param attachment_id the id of the attachment
-    #     """
-    #     return self._find_having(AT.hasAttachment, attachment_id)
+    def find_having_attachment(self, attachment_id):
+        """
+        find resource having the specified attachment
+        @param attachment_id the id of the attachment
+        """
+        return self._find_having(AT.hasAttachment, attachment_id)
 
-    # def find_stemming_attachment(self, resource_id):
-    #     """
-    #     find attachments attached to the specified resource
-    #     @param resource_id the id of the resource
-    #     """
-    #     return self._find_stemming(resource_id, AT.hasAttachment, RT.Attachment)
+    def find_stemming_attachment(self, resource_id):
+        """
+        find attachments attached to the specified resource
+        @param resource_id the id of the resource
+        """
+        return self._find_stemming(resource_id, AT.hasAttachment, RT.Attachment)
         
 
     #########################################################
@@ -409,9 +409,9 @@ class ResourceWorker(object):
         return dessociate_success
 
 
-    # def link_attachment(self, resource_id='', attachment_id=''):
-    #     return self._link_resources(resource_id, AT.hasAttachment, attachment_id)
+    def link_attachment(self, resource_id='', attachment_id=''):
+        return self._link_resources(resource_id, AT.hasAttachment, attachment_id)
 
-    # def unlink_attachment(self, resource_id='', attachment_id=''):
-    #     return self._unlink_resources(resource_id, AT.hasAttachment, attachment_id)
+    def unlink_attachment(self, resource_id='', attachment_id=''):
+        return self._unlink_resources(resource_id, AT.hasAttachment, attachment_id)
 
