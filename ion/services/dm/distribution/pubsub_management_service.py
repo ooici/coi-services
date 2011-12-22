@@ -339,8 +339,10 @@ class PubsubManagementService(BasePubsubManagementService):
     def _bind_subscription(self, exchange_point, exchange_name):
         channel = RecvChannel()
         channel.setup_listener((exchange_point, exchange_name))
+        channel.start_consume()
 
     def _unbind_subscription(self, exchange_point, exchange_name):
         channel = RecvChannel()
         channel._recv_name = (exchange_point, exchange_name)
+        channel.stop_consume()
         channel.destroy_listener()
