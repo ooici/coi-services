@@ -218,8 +218,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        #channel = RecvChannel()
-        #channel.setup_listener((subscription_obj.exchange_name))
+        self._bind_subscription(self.XP, subscription_obj.exchange_name)
 
     def deactivate_subscription(self, subscription_id=''):
         '''
@@ -238,7 +237,8 @@ class PubsubManagementService(BasePubsubManagementService):
         subscription_obj = self.read_subscription(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %d does not exist" % subscription_id)
-        #unbind will happen here
+
+        self._unbind_subscription(self.XP, subscription_obj.exchange_name)
 
     def register_consumer(self, exchange_name=''):
         """
@@ -335,4 +335,12 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Stream %s does not exist" % stream_id)
 
         return stream_obj.producers
-        
+
+    def _bind_subscription(self, exchange_point, exchange_name):
+        channel = RecvChannel()
+        channel.setup_listener((exchange_point, exchange_name))
+
+    def _unbind_subscription(self, exchange_point, exchange_name):
+        channel = RecvChannel()
+        channel._recv_name = (exchange_point, exchange_name)
+        channel.destroy_listener()
