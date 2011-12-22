@@ -106,7 +106,7 @@ class TestPolicyManagementService(PyonTestCase):
         assert role_id == '123'
         self.mock_create.assert_called_once_with(self.user_role)
 
-    def test_read_and_update_policy(self):
+    def test_read_and_update_user_role(self):
         self.mock_read.return_value = self.user_role
 
         user_role = self.policy_management_service.read_role('123')
@@ -122,7 +122,7 @@ class TestPolicyManagementService(PyonTestCase):
 
         self.mock_update.assert_called_once_with(user_role)
 
-    def test_delete_policy(self):
+    def test_delete_user_role(self):
         self.mock_read.return_value = self.user_role
 
         self.policy_management_service.delete_role('123')
@@ -130,7 +130,7 @@ class TestPolicyManagementService(PyonTestCase):
         self.mock_read.assert_called_once_with('123', '')
         self.mock_delete.assert_called_once_with(self.user_role)
 
-    def test_read_policy_not_found(self):
+    def test_read_user_role_not_found(self):
         self.mock_read.return_value = None
 
         # TEST: Execute the service operation call
@@ -141,7 +141,7 @@ class TestPolicyManagementService(PyonTestCase):
         self.assertEqual(ex.message, 'Role bad role does not exist')
         self.mock_read.assert_called_once_with('bad role', '')
 
-    def test_delete_policy_not_found(self):
+    def test_delete_user_role_not_found(self):
         self.mock_read.return_value = None
 
         # TEST: Execute the service operation call
