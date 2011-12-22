@@ -1,12 +1,11 @@
-from pyon.util.log import log
-from pyon.container.cc import IContainerAgent
+#from pyon.container.cc import IContainerAgent
+from interface.services.icontainer_agent import IContainerAgent
 from pyon.net.endpoint import ProcessRPCClient
-from pyon.public import Container
+from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.data_product_management.data_product_management_service import DataProductManagementService
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.core.bootstrap import IonObject
 from pyon.public import RT, AT, LCS
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
@@ -21,7 +20,7 @@ class FakeProcess(LocalContextMixin):
 class Test_DataProductManagementService_Unit(PyonTestCase):
     
     def setUp(self):
-        self._create_service_mock('data_product_management')
+        self.clients = self._create_service_mock('data_product_management')
 
         self.data_product_management_service = DataProductManagementService()
         self.data_product_management_service.clients = self.clients
