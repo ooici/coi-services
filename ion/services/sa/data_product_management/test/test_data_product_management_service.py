@@ -1,9 +1,9 @@
 from interface.services.icontainer_agent import ContainerAgentClient
-from pyon.net.endpoint import ProcessRPCClient
+#from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.data_product_management.data_product_management_service import DataProductManagementService
-from interface.services.sa.idata_product_management_service import IDataProductManagementService
+from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, AT, LCS
@@ -227,7 +227,8 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
         print 'started services'
 
         # Now create client to DataProductManagementService
-        client = ProcessRPCClient(node=self.container.node, name="data_product_management", iface=IDataProductManagementService)
+        #client = ProcessRPCClient(node=self.container.node, name="data_product_management", iface=IDataProductManagementService)
+        client = DataProductManagementServiceClient(node=self.container.node)
 
         # test creating a new data product w/o a data producer
         print 'Creating new data product w/o a data producer'
