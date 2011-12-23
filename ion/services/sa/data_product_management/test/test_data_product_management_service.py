@@ -204,6 +204,35 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, "Create cannot create document with Rev: ")
     
+    def test_readDataProduct_success(self):
+        # setup
+        # Data Product
+        dp_obj = IonObject(RT.DataProduct,
+                           _id='SOME_RR_ID1',
+                           name='DP_X', 
+                           description='some new dp')
+        self.resource_registry.read.return_value = (dp_obj)
+        
+        # test call
+        returned_dp_obj = self.data_product_management_service.read_data_product('SOME_RR_ID1')
+        
+        # check results
+        self.assertEqual(returned_dp_obj, dp_obj)
+        self.resource_registry.read.assert_called_once_with('SOME_RR_ID1', '')
+
+    def test_readDataProduct_NotFound(self):
+        # setup
+        self.resource_registry.read.side_effect = NotFound("Object with id SOME_RR_ID1 does not exist.")
+        
+        # test call
+        with self.assertRaises(NotFound) as cm:
+            returned_dp_obj = self.data_product_management_service.read_data_product('SOME_RR_ID1')
+        
+        # check results
+        self.resource_registry.read.assert_called_once_with('SOME_RR_ID1', '')
+        ex = cm.exception
+        self.assertEqual(ex.message, "Object with id SOME_RR_ID1 does not exist.")
+
 
 @attr('INT', group='sa')
 #@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
