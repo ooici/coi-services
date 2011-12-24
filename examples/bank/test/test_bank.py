@@ -3,7 +3,7 @@ from pyon.net.endpoint import RPCClient
 from pyon.public import Container
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from interface.services.examples.bank.ibank_service import IBankService
+from interface.services.examples.bank.ibank_service import BankServiceClient
 
 from nose.plugins.attrib import attr
 
@@ -22,7 +22,7 @@ class Test_Bank(IonIntegrationTestCase):
         container_client.start_rel_from_url('res/deploy/examples/bank_complete.yml')
 
         # Now create client to bank service
-        client = RPCClient(node=self.container.node, name="bank", iface=IBankService)
+        client = BankServiceClient(node=self.container.node)
 
         # Send some requests
         print 'Creating savings account'

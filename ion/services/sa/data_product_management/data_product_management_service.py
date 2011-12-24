@@ -48,7 +48,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         data_product_id, version = self.clients.resource_registry.create(data_product)
             
-        if data_producer != {}:
+        if data_producer != {} and data_producer != None:
             log.debug("DataProductManagementService:create_data_product: data producer = %s" % str(data_producer))
             data_producer_id = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
             log.debug("DataProductManagementService.define_data_product create_data_producer result: %s " % data_producer_id)
