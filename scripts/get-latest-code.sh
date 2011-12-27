@@ -10,6 +10,14 @@
 THISDIR=$(git rev-parse --show-toplevel)
 cd $THISDIR
 
+if [ -r "scripts/get-latest-code-local-hooks.sh" ]; then
+    echo "\n\n=== EXECUTING LOCAL HOOK ===\n"
+    sh scripts/get-latest-code-local-hooks.sh
+else
+    echo "\n\nLooked for a script named scripts/get-latest-code-local-hooks.sh"
+    echo "  (containing your local pre-update commands) but it didn't exist."
+fi
+
 echo "\n\n=== UPDATING PYON ===\n"
 cd ../pyon
 git pull --rebase
