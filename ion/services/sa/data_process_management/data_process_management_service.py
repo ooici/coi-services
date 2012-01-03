@@ -12,6 +12,8 @@ from pyon.public import   log, RT, AT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
+from ion.services.sa.data_process_management.data_process_dryer import DataProcessDryer
+
 
 class DataProcessManagementService(BaseDataProcessManagementService):
     """ @author Alon Yaari
@@ -19,6 +21,31 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                     data_process_management/data_process_management_service.py
         @brief  Implementation of the data process management service
     """
+
+    def on_init(self):
+        IonObject("Resource")  # suppress pyflakes error
+
+        self.override_clients(self.clients)
+
+    def override_clients(self, new_clients):
+        """
+        Replaces the service clients with a new set of them... and makes sure they go to the right places
+        """
+
+        #shortcut names for the import sub-services
+        if hasattr(self.clients, "resource_registry"):
+            self.RR   = self.clients.resource_registry
+            
+        if hasattr(self.clients, "transform_management_service"):
+            self.TMS  = self.clients.transform_management_service
+
+
+        #farm everything out to the dryers
+
+        self.data_process = DataProcessDryer(self.clients)
+
+
+
 
     def create_data_process_definition(self, data_process_definition={}):
         """
@@ -154,8 +181,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Validate inputs
         if not data_process_id:
             raise BadRequest("Missing ID of data process to update.")
-        if not data_process_definition_id:
-            and not in_subscription_id
+        if not data_process_definition_id \
+            and not in_subscription_id \
             and not out_data_product_id:
             raise BadRequest("No values provided to update.")
         if data_process_definition_id:
