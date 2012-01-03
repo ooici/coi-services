@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.resource_worker
-@file     ion/services/sa/resource_worker.py
+@package  ion.services.sa.resource_dryer
+@file     ion/services/sa/resource_dryer.py
 @author   Ian Katz
-@brief    A base class for CRUD, LCS, and association ops on any ION resource
+@brief    DRY = Don't Repeat Yourself; base class for CRUD, LCS, and association ops on any ION resource
 """
 
 from pyon.core.exception import BadRequest, NotFound
@@ -17,8 +17,6 @@ from pyon.util.log import log
 """
 now TODO
 
- - implement find methods
-
 
 Later TODO
 
@@ -28,7 +26,7 @@ Later TODO
 ######
 
 
-class ResourceWorker(object):
+class ResourceDryer(object):
 
     def __init__(self, clients):
         self.clients = clients
@@ -39,7 +37,7 @@ class ResourceWorker(object):
         if hasattr(clients, "resource_registry"):
             self.RR = self.clients.resource_registry
 
-        self.on_worker_init()
+        self.on_dryer_init()
 
     ##################################################
     #
@@ -49,19 +47,19 @@ class ResourceWorker(object):
 
     def _primary_object_name(self):
         """
-        the IonObject type that this worker controls
+        the IonObject type that this dryer controls
         """
         #like "InstrumentAgent" or (better) RT.InstrumentAgent
         raise NotImplementedError("Extender of the class must set this!")
 
     def _primary_object_label(self):
         """
-        the argument label that this worker controls
+        the argument label that this dryer controls
         """
         #like "instrument_agent"
         raise NotImplementedError("Extender of the class must set this!")
 
-    def on_worker_init(self):
+    def on_dryer_init(self):
         """
         called on initialization of class, after
         parent service's clients have been passed in
@@ -91,7 +89,7 @@ class ResourceWorker(object):
         attempt to advance the lifecycle state of a resource
         @resource_id the resource id
         @newstate the new lifecycle state
-        @todo check that this resource is of the same type as this worker class
+        @todo check that this resource is of the same type as this dryer class
         """
         necessary_method = "lcs_precondition_" + str(newstate)
         if not hasattr(self, necessary_method):

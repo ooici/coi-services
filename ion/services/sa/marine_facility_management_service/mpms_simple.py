@@ -9,10 +9,10 @@
 #from pyon.core.bootstrap import IonObject
 from pyon.public import LCS
 
-from ion.services.sa.resource_worker import ResourceWorker
+from ion.services.sa.resource_dryer import ResourceDryer
 
 
-class MPMSsimple(ResourceWorker):
+class MPMSsimple(ResourceDryer):
     """
     @brief A base class for management of ION resources in MPMS that have a simple LCS
     """

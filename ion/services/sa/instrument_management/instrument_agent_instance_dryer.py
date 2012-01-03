@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument_management.sensor_model_worker
+@package  ion.services.sa.instrument_management.instrument_agent_instance_dryer
 @author   Ian Katz
 """
 
@@ -10,13 +10,13 @@ from pyon.public import RT
 
 from ion.services.sa.instrument_management.ims_simple import IMSsimple
 
-class SensorModelWorker(IMSsimple):
+class InstrumentAgentInstanceDryer(IMSsimple):
     """
-    @brief resource management for SensorModel resources
+    @brief Resource management for InstrumentAgentInstance
     """
 
     def _primary_object_name(self):
-        return RT.SensorModel
+        return RT.InstrumentAgentInstance
 
     def _primary_object_label(self):
-        return "sensor_model"
+        return "instrument_agent_instance"

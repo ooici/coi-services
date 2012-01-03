@@ -13,10 +13,10 @@ from pyon.public import CFG, IonObject, log, RT, AT, LCS
 
 
 
-from ion.services.sa.marine_facility_management_service.logical_instrument_worker import LogicalInstrumentWorker
-from ion.services.sa.marine_facility_management_service.logical_platform_worker import LogicalPlatformWorker
-from ion.services.sa.marine_facility_management_service.marine_facility_worker import MarineFacilityWorker
-from ion.services.sa.marine_facility_management_service.site_worker import SiteWorker
+from ion.services.sa.marine_facility_management_service.logical_instrument_dryer import LogicalInstrumentDryer
+from ion.services.sa.marine_facility_management_service.logical_platform_dryer import LogicalPlatformDryer
+from ion.services.sa.marine_facility_management_service.marine_facility_dryer import MarineFacilityDryer
+from ion.services.sa.marine_facility_management_service.site_dryer import SiteDryer
 
 
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService
@@ -41,12 +41,12 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
             self.RR    = self.clients.resource_registry
             
 
-        #farm everything out to the workers
+        #farm everything out to the dryers
 
-        self.logical_instrument  = LogicalInstrumentWorker(self.clients)
-        self.logical_platform    = LogicalPlatformWorker(self.clients)
-        self.marine_facility     = MarineFacilityWorker(self.clients)
-        self.site                = SiteWorker(self.clients)
+        self.logical_instrument  = LogicalInstrumentDryer(self.clients)
+        self.logical_platform    = LogicalPlatformDryer(self.clients)
+        self.marine_facility     = MarineFacilityDryer(self.clients)
+        self.site                = SiteDryer(self.clients)
 
 
 

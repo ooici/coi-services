@@ -15,18 +15,18 @@ from pyon.util.log import log
 
 #from pyon.core.bootstrap import IonObject
 
-from ion.services.sa.resource_worker_metatest import ResourceWorkerMetatest
+from ion.services.sa.resource_dryer_metatest import ResourceDryerMetatest
 
-from ion.services.sa.instrument_management.instrument_agent_instance_worker import InstrumentAgentInstanceWorker
-from ion.services.sa.instrument_management.instrument_agent_worker import InstrumentAgentWorker
-from ion.services.sa.instrument_management.instrument_device_worker import InstrumentDeviceWorker
-from ion.services.sa.instrument_management.instrument_model_worker import InstrumentModelWorker
-from ion.services.sa.instrument_management.platform_agent_instance_worker import PlatformAgentInstanceWorker
-from ion.services.sa.instrument_management.platform_agent_worker import PlatformAgentWorker
-from ion.services.sa.instrument_management.platform_device_worker import PlatformDeviceWorker
-from ion.services.sa.instrument_management.platform_model_worker import PlatformModelWorker
-from ion.services.sa.instrument_management.sensor_device_worker import SensorDeviceWorker
-from ion.services.sa.instrument_management.sensor_model_worker import SensorModelWorker
+from ion.services.sa.instrument_management.instrument_agent_instance_dryer import InstrumentAgentInstanceDryer
+from ion.services.sa.instrument_management.instrument_agent_dryer import InstrumentAgentDryer
+from ion.services.sa.instrument_management.instrument_device_dryer import InstrumentDeviceDryer
+from ion.services.sa.instrument_management.instrument_model_dryer import InstrumentModelDryer
+from ion.services.sa.instrument_management.platform_agent_instance_dryer import PlatformAgentInstanceDryer
+from ion.services.sa.instrument_management.platform_agent_dryer import PlatformAgentDryer
+from ion.services.sa.instrument_management.platform_device_dryer import PlatformDeviceDryer
+from ion.services.sa.instrument_management.platform_model_dryer import PlatformModelDryer
+from ion.services.sa.instrument_management.sensor_device_dryer import SensorDeviceDryer
+from ion.services.sa.instrument_management.sensor_model_dryer import SensorModelDryer
 
 #from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 #import unittest
@@ -45,17 +45,17 @@ class TestInstrumentManagement(PyonTestCase):
         # must call this manually
         self.instrument_mgmt_service.on_init()
 
-rwm = ResourceWorkerMetatest(TestInstrumentManagement, InstrumentManagementService, log)
+rwm = ResourceDryerMetatest(TestInstrumentManagement, InstrumentManagementService, log)
 
-rwm.add_resource_worker_unittests(InstrumentAgentInstanceWorker, {"exchange-name": "rhubarb"})
-rwm.add_resource_worker_unittests(InstrumentAgentWorker, {"agent_version": "3", "time_source": "the universe"})
-rwm.add_resource_worker_unittests(InstrumentDeviceWorker, {"serialnumber": "123", "firmwareversion": "x"})
-rwm.add_resource_worker_unittests(InstrumentModelWorker, {"model": "redundant?", "weight": 20000})
-rwm.add_resource_worker_unittests(PlatformAgentInstanceWorker, {"exchange-name": "sausage"})
-rwm.add_resource_worker_unittests(PlatformAgentWorker, {"tbd": "the big donut"})
-rwm.add_resource_worker_unittests(PlatformDeviceWorker, {"serial_number": "2345"})
-rwm.add_resource_worker_unittests(PlatformModelWorker, {"tbd": "tammy breathed deeply"})
-rwm.add_resource_worker_unittests(SensorDeviceWorker, {"serialnumber": "123"})
-rwm.add_resource_worker_unittests(SensorModelWorker, {"model": "redundant field?", "weight": 2})
+rwm.add_resource_dryer_unittests(InstrumentAgentInstanceDryer, {"exchange-name": "rhubarb"})
+rwm.add_resource_dryer_unittests(InstrumentAgentDryer, {"agent_version": "3", "time_source": "the universe"})
+rwm.add_resource_dryer_unittests(InstrumentDeviceDryer, {"serialnumber": "123", "firmwareversion": "x"})
+rwm.add_resource_dryer_unittests(InstrumentModelDryer, {"model": "redundant?", "weight": 20000})
+rwm.add_resource_dryer_unittests(PlatformAgentInstanceDryer, {"exchange-name": "sausage"})
+rwm.add_resource_dryer_unittests(PlatformAgentDryer, {"tbd": "the big donut"})
+rwm.add_resource_dryer_unittests(PlatformDeviceDryer, {"serial_number": "2345"})
+rwm.add_resource_dryer_unittests(PlatformModelDryer, {"tbd": "tammy breathed deeply"})
+rwm.add_resource_dryer_unittests(SensorDeviceDryer, {"serialnumber": "123"})
+rwm.add_resource_dryer_unittests(SensorModelDryer, {"model": "redundant field?", "weight": 2})
 
 

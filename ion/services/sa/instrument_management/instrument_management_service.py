@@ -16,18 +16,18 @@ from pyon.core.bootstrap import IonObject
 #from pyon.net.endpoint import RPCClient
 #from pyon.util.log import log
 
-from ion.services.sa.instrument_management.instrument_agent_worker import InstrumentAgentWorker
-from ion.services.sa.instrument_management.instrument_agent_instance_worker import InstrumentAgentInstanceWorker
-from ion.services.sa.instrument_management.instrument_model_worker import InstrumentModelWorker
-from ion.services.sa.instrument_management.instrument_device_worker import InstrumentDeviceWorker
+from ion.services.sa.instrument_management.instrument_agent_dryer import InstrumentAgentDryer
+from ion.services.sa.instrument_management.instrument_agent_instance_dryer import InstrumentAgentInstanceDryer
+from ion.services.sa.instrument_management.instrument_model_dryer import InstrumentModelDryer
+from ion.services.sa.instrument_management.instrument_device_dryer import InstrumentDeviceDryer
 
-from ion.services.sa.instrument_management.platform_agent_worker import PlatformAgentWorker
-from ion.services.sa.instrument_management.platform_agent_instance_worker import PlatformAgentInstanceWorker
-from ion.services.sa.instrument_management.platform_model_worker import PlatformModelWorker
-from ion.services.sa.instrument_management.platform_device_worker import PlatformDeviceWorker
+from ion.services.sa.instrument_management.platform_agent_dryer import PlatformAgentDryer
+from ion.services.sa.instrument_management.platform_agent_instance_dryer import PlatformAgentInstanceDryer
+from ion.services.sa.instrument_management.platform_model_dryer import PlatformModelDryer
+from ion.services.sa.instrument_management.platform_device_dryer import PlatformDeviceDryer
 
-from ion.services.sa.instrument_management.sensor_model_worker import SensorModelWorker
-from ion.services.sa.instrument_management.sensor_device_worker import SensorDeviceWorker
+from ion.services.sa.instrument_management.sensor_model_dryer import SensorModelDryer
+from ion.services.sa.instrument_management.sensor_device_dryer import SensorDeviceDryer
 
 
 ######
@@ -75,20 +75,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if hasattr(self.clients, "data acquisition_management_service"):
             self.DAMS  = self.clients.data_acquisition_management_service
 
-        #farm everything out to the workers
+        #farm everything out to the dryers
 
-        self.instrument_agent           = InstrumentAgentWorker(self.clients)
-        self.instrument_agent_instance  = InstrumentAgentInstanceWorker(self.clients)
-        self.instrument_model           = InstrumentModelWorker(self.clients)
-        self.instrument_device          = InstrumentDeviceWorker(self.clients)
+        self.instrument_agent           = InstrumentAgentDryer(self.clients)
+        self.instrument_agent_instance  = InstrumentAgentInstanceDryer(self.clients)
+        self.instrument_model           = InstrumentModelDryer(self.clients)
+        self.instrument_device          = InstrumentDeviceDryer(self.clients)
 
-        self.platform_agent           = PlatformAgentWorker(self.clients)
-        self.platform_agent_instance  = PlatformAgentInstanceWorker(self.clients)
-        self.platform_model           = PlatformModelWorker(self.clients)
-        self.platform_device          = PlatformDeviceWorker(self.clients)
+        self.platform_agent           = PlatformAgentDryer(self.clients)
+        self.platform_agent_instance  = PlatformAgentInstanceDryer(self.clients)
+        self.platform_model           = PlatformModelDryer(self.clients)
+        self.platform_device          = PlatformDeviceDryer(self.clients)
 
-        self.sensor_model    = SensorModelWorker(self.clients)
-        self.sensor_device   = SensorDeviceWorker(self.clients)
+        self.sensor_model    = SensorModelDryer(self.clients)
+        self.sensor_device   = SensorDeviceDryer(self.clients)
 
 
 
