@@ -6,12 +6,12 @@ from pyon.util.context import LocalContextMixin
 class FakeProcess(LocalContextMixin):
     name = ''
 
-def run_client(container):
+def run_client(container, process=FakeProcess()):
     """
     This method will establish a Process RPC client endpoint to the Bank service and send a series of requests.
     """
     #client = ProcessRPCClient(node=container.node, name="bank", iface=IBankService, process=FakeProcess())
-    client = BankServiceProcessClient(node=container.node, process=FakeProcess())
+    client = BankServiceProcessClient(node=container.node, process=process)
     print 'Process RPC endpoint created'
 
     print 'Creating savings account'

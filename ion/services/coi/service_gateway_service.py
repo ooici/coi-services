@@ -136,7 +136,7 @@ def process_gateway_request(service_name, operation):
         ret = str(result)
 
     except Exception, e:
-        ret =  "Error: %s" % e
+        ret =  "Error: %s" % e.message
 
 
     #Returns a string but this should probably be recoded to return json ( and json mime type
@@ -170,8 +170,12 @@ def get_resource(resource_id):
 @app.route('/ion-service/rest/create')
 def create_accounts():
     from examples.bank.bank_client import run_client
-    run_client(Container.instance)
-    return list_resources("BankAccount")
+    try:
+        run_client(Container.instance, process=service_gateway_instance)
+        return list_resources("BankAccount")
+
+    except Exception, e:
+        ret =  "Error: %s" % e
 
 #Example operation to return a list of resources of a specific type like
 #http://hostname:port/ion-service/rest/list/BankAccount
@@ -183,10 +187,10 @@ def list_resources(resource_type):
     client = ProcessRPCClient(node=Container.instance.node, name='resource_registry', iface=IResourceRegistryService, process=service_gateway_instance)
 
     try:
-        reslist = client.find_resources(resource_type)
+        reslist,_ = client.find_resources(restype=resource_type)
         str_list = []
-        for obj in reslist:
-            str_list.append(str(obj))
+        for res in reslist:
+            str_list.append(str(res) + "<BR>")
 
         ret = ''.join(str_list)
     except Exception, e:
