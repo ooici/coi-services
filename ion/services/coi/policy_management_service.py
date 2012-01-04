@@ -11,6 +11,10 @@ from pyon.util.log import log
 
 class PolicyManagementService(BasePolicyManagementService):
 
+    """
+    Provides the interface to define and manage policy and a repository to store and retrieve policy and templates for
+    policy definitions, aka attribute authority.
+    """
     def create_policy(self, policy={}, org_id=''):
         """Persists the provided Policy object for the specified Org id. The id string returned
         is the internal id by which Policy will be indentified in the data store.

@@ -27,7 +27,11 @@ DEFAULT_WEB_SERVER_PORT = 5000
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
 
-   # running_container = None
+    """
+	The Service Gateway Service is the service that uses a gevent web server and Flask to bridge HTTP requests to AMQP RPC ION process service calls.
+	
+    """
+
     def on_init(self):
 
         #defaults

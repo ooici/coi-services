@@ -7,6 +7,10 @@ from interface.services.coi.iresource_management_service import BaseResourceMana
 
 class ResourceManagementService(BaseResourceManagementService):
 
+    """
+    The Resource Management Service is the service that manages the Resource Types and Lifecycles associated with all Resources
+    """
+    
     def create_resource_type(self, resource_type={}):
         """ Should receive a ResourceType object
         """

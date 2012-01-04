@@ -14,6 +14,11 @@ from interface.services.coi.iresource_registry_service import BaseResourceRegist
 
 class ResourceRegistryService(BaseResourceRegistryService):
 
+    """
+    Service that manages the definition of types of resources and all cross-cutting concerns of all system resources.
+    The resource registry uses the underlying push and pull ops of the datastore to fetch, retrieve and create
+    resource objects.
+    """
     def on_init(self):
         resource_registry_name = sys_name + "_resources"
         resource_registry_name = resource_registry_name.lower()

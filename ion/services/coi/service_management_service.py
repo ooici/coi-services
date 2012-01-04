@@ -9,6 +9,9 @@ from interface.services.coi.iservice_management_service import BaseServiceManage
 
 class ServiceManagementService(BaseServiceManagementService):
 
+    """
+	The Service Management Service is the service that manages the service definitions for all of the services running in the system
+	"""
     def create_service_definition(self, service_definition={}):
         """ Should receive a ServiceDefinition object
         """

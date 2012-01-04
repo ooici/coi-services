@@ -11,6 +11,10 @@ from interface.services.coi.iidentity_management_service import BaseIdentityMana
 
 class IdentityManagementService(BaseIdentityManagementService):
 
+    """
+    A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a	A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a
+    """
+    
     def create_user_identity(self, user_identity={}):
         # Persist UserIdentity object and return object _id as OOI id
         user_id, version = self.clients.resource_registry.create(user_identity)

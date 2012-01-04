@@ -9,6 +9,10 @@ from interface.services.coi.iobject_management_service import BaseObjectManageme
 class ObjectManagementService(BaseObjectManagementService):
 
 
+    """
+    A service for defining and managing object types used as resource, messages, etc.
+    """
+    
     def create_object_type(self, object_type={}):
         """ Should receive an ObjectType object
         """
