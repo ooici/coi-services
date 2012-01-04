@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from interface.services.coi.iresource_registry_service import IResourceRegistryService
 
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
@@ -14,6 +13,7 @@ from pyon.container.cc import Container
 from pyon.net.endpoint import ProcessRPCClient
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
+from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
 
 #Initialize the flask app
 app = Flask(__name__)
@@ -99,6 +99,17 @@ def process_gateway_request(service_name, operation):
     if operation == '':
         raise NotFound("Service operation not specified in the URL")
 
+
+    #Find the concrete client class for making the RPC calls.
+    target_client = None
+    for name, cls in inspect.getmembers(inspect.getmodule(target_service),inspect.isclass):
+        if issubclass(cls, ProcessRPCClient) and not name.endswith('ProcessRPCClient'):
+            target_client = cls
+            break
+
+    if not target_client:
+        raise NotFound("Service operation not correctly specified in the URL")
+
     try:
 
         jsonParms = None
@@ -117,22 +128,21 @@ def process_gateway_request(service_name, operation):
 
         #Build parameter list - operation parameters must be in the proper order. Should replace this once unordered method invocation is
         # allowed in the container, but good enough for demonstration purposes.
-        parm_list = []
-        method_args = inspect.getargspec(getattr(target_service,operation))
+        parm_list = {}
+        method_args = inspect.getargspec(getattr(target_client,operation))
         for arg in method_args[0]:
             if arg == 'self': continue # skip self
 
             if not jsonParms:
                 if request.args.has_key(arg):
-                    parm_list.append(request.args[arg])  # should be fixed to convert to proper type when necessary; ie "True" -> True
-                else:
-                    parm_list.append('')  # should be fixed to pass the actual default value for the parameter
+                    parm_list[arg] = request.args[arg]  # should be fixed to convert to proper type when necessary; ie "True" -> True
             else:
-                parm_list.append(jsonParms['serviceRequest']['params'][arg])
+                if jsonParms['serviceRequest']['params'].has_key(arg):
+                    parm_list[arg] = jsonParms['serviceRequest']['params'][arg]
 
-        client = ProcessRPCClient(node=Container.instance.node, name=service_name, iface=target_service, process=service_gateway_instance)
-
-        result = client.request({'method': operation, 'args': parm_list})
+        client = target_client(node=Container.instance.node, process=service_gateway_instance)
+        methodToCall = getattr(client, operation)
+        result = methodToCall(**parm_list)
         ret = str(result)
 
     except Exception, e:
@@ -152,7 +162,8 @@ def process_gateway_request(service_name, operation):
 def get_resource(resource_id):
     ret = "get" + str(resource_id)
 
-    client = ProcessRPCClient(node=Container.instance.node, name='resource_registry', iface=IResourceRegistryService, process=service_gateway_instance)
+    #client = ProcessRPCClient(node=Container.instance.node, name='resource_registry', iface=IResourceRegistryService, process=service_gateway_instance)
+    client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
             res = client.read(resource_id)
@@ -184,8 +195,7 @@ def list_resources(resource_type):
 
     ret = "list"
 
-    client = ProcessRPCClient(node=Container.instance.node, name='resource_registry', iface=IResourceRegistryService, process=service_gateway_instance)
-
+    client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
         reslist,_ = client.find_resources(restype=resource_type)
         str_list = []
