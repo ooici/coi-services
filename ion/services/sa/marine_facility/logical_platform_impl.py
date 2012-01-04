@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.marine_facility_management.logical_platform_dryer
+@package  ion.services.sa.marine_facility_management.logical_platform_impl
 @author   Ian Katz
 """
 
@@ -10,7 +10,7 @@ from pyon.public import AT, RT
 
 from ion.services.sa.marine_facility.mpms_simple import MPMSsimple
 
-class LogicalPlatformDryer(MPMSsimple):
+class LogicalPlatformImpl(MPMSsimple):
     """
     @brief resource management for LogicalPlatform resources
     """

@@ -13,10 +13,10 @@ from pyon.public import CFG, IonObject, log, RT, AT, LCS
 
 
 
-from ion.services.sa.marine_facility.logical_instrument_dryer import LogicalInstrumentDryer
-from ion.services.sa.marine_facility.logical_platform_dryer import LogicalPlatformDryer
-from ion.services.sa.marine_facility.marine_facility_dryer import MarineFacilityDryer
-from ion.services.sa.marine_facility.site_dryer import SiteDryer
+from ion.services.sa.marine_facility.logical_instrument_impl import LogicalInstrumentImpl
+from ion.services.sa.marine_facility.logical_platform_impl import LogicalPlatformImpl
+from ion.services.sa.marine_facility.marine_facility_impl import MarineFacilityImpl
+from ion.services.sa.marine_facility.site_dryer import SiteImpl
 
 
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService
@@ -43,10 +43,10 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
         #farm everything out to the dryers
 
-        self.logical_instrument  = LogicalInstrumentDryer(self.clients)
-        self.logical_platform    = LogicalPlatformDryer(self.clients)
-        self.marine_facility     = MarineFacilityDryer(self.clients)
-        self.site                = SiteDryer(self.clients)
+        self.logical_instrument  = LogicalInstrumentImpl(self.clients)
+        self.logical_platform    = LogicalPlatformImpl(self.clients)
+        self.marine_facility     = MarineFacilityImpl(self.clients)
+        self.site                = SiteImpl(self.clients)
 
 
 
@@ -279,13 +279,16 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         raise NotImplementedError()
         #return self.instrument_agent.assign(instrument_agent_id, instrument_id, instrument_agent_instance)
 
-    #FIXME: args need to change
-    def unassign_platform(self, logical_platform_id='', parent_stie_id=''):
-        """
-        @todo the arguments for this function seem incorrect and/or mismatched
+    def unassign_platform(self, logical_platform_id='', parent_site_id=''):
+        """@todo document this interface!!!
+
+        @param logical_platform_id    str
+        @param parent_site_id    str
+        @retval success    bool
         """
         raise NotImplementedError()
         #return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
+
 
 
     def assign_site(self, child_site_id='', parent_site_id=''):

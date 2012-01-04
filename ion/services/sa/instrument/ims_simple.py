@@ -9,10 +9,10 @@
 #from pyon.core.bootstrap import IonObject
 from pyon.public import LCS
 
-from ion.services.sa.resource_dryer import ResourceDryer
+from ion.services.sa.resource_impl import ResourceImpl
 
 
-class IMSsimple(ResourceDryer):
+class IMSsimple(ResourceImpl):
     """
     @brief A base class for management of ION resources in IMS that have a simple LCS
     """

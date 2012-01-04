@@ -18,12 +18,12 @@ import unittest
 
 from pyon.util.log import log
 
-from ion.services.sa.resource_dryer_metatest import ResourceDryerMetatest
+from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
 
-from ion.services.sa.marine_facility.logical_instrument_dryer import LogicalInstrumentDryer
-from ion.services.sa.marine_facility.logical_platform_dryer import LogicalPlatformDryer
-from ion.services.sa.marine_facility.marine_facility_dryer import MarineFacilityDryer
-from ion.services.sa.marine_facility.site_dryer import SiteDryer
+from ion.services.sa.marine_facility.logical_instrument_impl import LogicalInstrumentImpl
+from ion.services.sa.marine_facility.logical_platform_impl import LogicalPlatformImpl
+from ion.services.sa.marine_facility.marine_facility_impl import MarineFacilityImpl
+from ion.services.sa.marine_facility.site_dryer import SiteImpl
 
 
 @attr('UNIT', group='sa')
@@ -48,11 +48,11 @@ class TestMarineFacilityManagement(PyonTestCase):
 
         self.marine_facility_mgmt_service.clients.resource_registry.create_association.assert_called_once_with('222', AT.hasInstrument, '111', None)
 
-rwm = ResourceDryerMetatest(TestMarineFacilityManagement, MarineFacilityManagementService, log)
+rwm = ResourceImplMetatest(TestMarineFacilityManagement, MarineFacilityManagementService, log)
 
-rwm.add_resource_dryer_unittests(LogicalInstrumentDryer, {})
-rwm.add_resource_dryer_unittests(LogicalPlatformDryer, {"buoyname": "steve", "buoyheight": "3"})
-rwm.add_resource_dryer_unittests(MarineFacilityDryer, {})
-rwm.add_resource_dryer_unittests(SiteDryer, {})
+rwm.add_resource_impl_unittests(LogicalInstrumentImpl, {})
+rwm.add_resource_impl_unittests(LogicalPlatformImpl, {"buoyname": "steve", "buoyheight": "3"})
+rwm.add_resource_impl_unittests(MarineFacilityImpl, {})
+rwm.add_resource_impl_unittests(SiteImpl, {})
 
 

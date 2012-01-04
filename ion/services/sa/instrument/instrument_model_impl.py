@@ -1,22 +1,24 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.sensor_model_dryer
+@package  ion.services.sa.instrument.instrument_model_impl
 @author   Ian Katz
 """
+
+
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT
 
 from ion.services.sa.instrument.ims_simple import IMSsimple
 
-class SensorModelDryer(IMSsimple):
+class InstrumentModelImpl(IMSsimple):
     """
-    @brief resource management for SensorModel resources
+    @brief resource management for InstrumentModel resources
     """
 
     def _primary_object_name(self):
-        return RT.SensorModel
+        return RT.InstrumentModel
 
     def _primary_object_label(self):
-        return "sensor_model"
+        return "instrument_model"

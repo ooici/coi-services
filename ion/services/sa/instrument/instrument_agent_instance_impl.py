@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.instrument_agent_instance_dryer
+@package  ion.services.sa.instrument.instrument_agent_instance_impl
 @author   Ian Katz
 """
 
@@ -10,7 +10,7 @@ from pyon.public import RT
 
 from ion.services.sa.instrument.ims_simple import IMSsimple
 
-class InstrumentAgentInstanceDryer(IMSsimple):
+class InstrumentAgentInstanceImpl(IMSsimple):
     """
     @brief Resource management for InstrumentAgentInstance
     """
