@@ -12,7 +12,7 @@ from pyon.public import   log, RT, AT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
-from ion.services.sa.process.data_process_dryer import DataProcessDryer
+from ion.services.sa.process.data_process_impl import DataProcessImpl
 
 
 class DataProcessManagementService(BaseDataProcessManagementService):
@@ -42,7 +42,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         #farm everything out to the dryers
 
-        self.data_process = DataProcessDryer(self.clients)
+        self.data_process = DataProcessImpl(self.clients)
 
 
 

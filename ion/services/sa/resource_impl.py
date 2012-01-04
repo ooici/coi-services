@@ -2,7 +2,7 @@
 
 """
 @package  ion.services.sa.resource_dryer
-@file     ion/services/sa/resource_dryer.py
+@file     ion/services/sa/resource_impl.py
 @author   Ian Katz
 @brief    DRY = Don't Repeat Yourself; base class for CRUD, LCS, and association ops on any ION resource
 """
@@ -26,7 +26,7 @@ Later TODO
 ######
 
 
-class ResourceDryer(object):
+class ResourceImpl(object):
 
     def __init__(self, clients):
         self.clients = clients
@@ -37,7 +37,7 @@ class ResourceDryer(object):
         if hasattr(clients, "resource_registry"):
             self.RR = self.clients.resource_registry
 
-        self.on_dryer_init()
+        self.on_impl_init()
 
     ##################################################
     #
@@ -59,7 +59,7 @@ class ResourceDryer(object):
         #like "instrument_agent"
         raise NotImplementedError("Extender of the class must set this!")
 
-    def on_dryer_init(self):
+    def on_impl_init(self):
         """
         called on initialization of class, after
         parent service's clients have been passed in

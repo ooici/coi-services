@@ -15,18 +15,18 @@ from pyon.util.log import log
 
 #from pyon.core.bootstrap import IonObject
 
-from ion.services.sa.resource_dryer_metatest import ResourceDryerMetatest
+from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
 
-from ion.services.sa.instrument.instrument_agent_instance_dryer import InstrumentAgentInstanceDryer
-from ion.services.sa.instrument.instrument_agent_dryer import InstrumentAgentDryer
-from ion.services.sa.instrument.instrument_device_dryer import InstrumentDeviceDryer
-from ion.services.sa.instrument.instrument_model_dryer import InstrumentModelDryer
-from ion.services.sa.instrument.platform_agent_instance_dryer import PlatformAgentInstanceDryer
-from ion.services.sa.instrument.platform_agent_dryer import PlatformAgentDryer
-from ion.services.sa.instrument.platform_device_dryer import PlatformDeviceDryer
-from ion.services.sa.instrument.platform_model_dryer import PlatformModelDryer
-from ion.services.sa.instrument.sensor_device_dryer import SensorDeviceDryer
-from ion.services.sa.instrument.sensor_model_dryer import SensorModelDryer
+from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
+from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
+from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 
 #from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 #import unittest
@@ -45,17 +45,17 @@ class TestInstrumentManagement(PyonTestCase):
         # must call this manually
         self.instrument_mgmt_service.on_init()
 
-rwm = ResourceDryerMetatest(TestInstrumentManagement, InstrumentManagementService, log)
+rwm = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
 
-rwm.add_resource_dryer_unittests(InstrumentAgentInstanceDryer, {"exchange-name": "rhubarb"})
-rwm.add_resource_dryer_unittests(InstrumentAgentDryer, {"agent_version": "3", "time_source": "the universe"})
-rwm.add_resource_dryer_unittests(InstrumentDeviceDryer, {"serialnumber": "123", "firmwareversion": "x"})
-rwm.add_resource_dryer_unittests(InstrumentModelDryer, {"model": "redundant?", "weight": 20000})
-rwm.add_resource_dryer_unittests(PlatformAgentInstanceDryer, {"exchange-name": "sausage"})
-rwm.add_resource_dryer_unittests(PlatformAgentDryer, {"tbd": "the big donut"})
-rwm.add_resource_dryer_unittests(PlatformDeviceDryer, {"serial_number": "2345"})
-rwm.add_resource_dryer_unittests(PlatformModelDryer, {"tbd": "tammy breathed deeply"})
-rwm.add_resource_dryer_unittests(SensorDeviceDryer, {"serialnumber": "123"})
-rwm.add_resource_dryer_unittests(SensorModelDryer, {"model": "redundant field?", "weight": 2})
+rwm.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange-name": "rhubarb"})
+rwm.add_resource_impl_unittests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
+rwm.add_resource_impl_unittests(InstrumentDeviceImpl, {"serialnumber": "123", "firmwareversion": "x"})
+rwm.add_resource_impl_unittests(InstrumentModelImpl, {"model": "redundant?", "weight": 20000})
+rwm.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange-name": "sausage"})
+rwm.add_resource_impl_unittests(PlatformAgentImpl, {"tbd": "the big donut"})
+rwm.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
+rwm.add_resource_impl_unittests(PlatformModelImpl, {"tbd": "tammy breathed deeply"})
+rwm.add_resource_impl_unittests(SensorDeviceImpl, {"serialnumber": "123"})
+rwm.add_resource_impl_unittests(SensorModelImpl, {"model": "redundant field?", "weight": 2})
 
 

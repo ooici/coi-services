@@ -16,18 +16,18 @@ from pyon.core.bootstrap import IonObject
 #from pyon.net.endpoint import RPCClient
 #from pyon.util.log import log
 
-from ion.services.sa.instrument.instrument_agent_dryer import InstrumentAgentDryer
-from ion.services.sa.instrument.instrument_agent_instance_dryer import InstrumentAgentInstanceDryer
-from ion.services.sa.instrument.instrument_model_dryer import InstrumentModelDryer
-from ion.services.sa.instrument.instrument_device_dryer import InstrumentDeviceDryer
+from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 
-from ion.services.sa.instrument.platform_agent_dryer import PlatformAgentDryer
-from ion.services.sa.instrument.platform_agent_instance_dryer import PlatformAgentInstanceDryer
-from ion.services.sa.instrument.platform_model_dryer import PlatformModelDryer
-from ion.services.sa.instrument.platform_device_dryer import PlatformDeviceDryer
+from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
+from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
-from ion.services.sa.instrument.sensor_model_dryer import SensorModelDryer
-from ion.services.sa.instrument.sensor_device_dryer import SensorDeviceDryer
+from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
+from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 
 ######
@@ -77,18 +77,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #farm everything out to the dryers
 
-        self.instrument_agent           = InstrumentAgentDryer(self.clients)
-        self.instrument_agent_instance  = InstrumentAgentInstanceDryer(self.clients)
-        self.instrument_model           = InstrumentModelDryer(self.clients)
-        self.instrument_device          = InstrumentDeviceDryer(self.clients)
+        self.instrument_agent           = InstrumentAgentImpl(self.clients)
+        self.instrument_agent_instance  = InstrumentAgentInstanceImpl(self.clients)
+        self.instrument_model           = InstrumentModelImpl(self.clients)
+        self.instrument_device          = InstrumentDeviceImpl(self.clients)
 
-        self.platform_agent           = PlatformAgentDryer(self.clients)
-        self.platform_agent_instance  = PlatformAgentInstanceDryer(self.clients)
-        self.platform_model           = PlatformModelDryer(self.clients)
-        self.platform_device          = PlatformDeviceDryer(self.clients)
+        self.platform_agent           = PlatformAgentImpl(self.clients)
+        self.platform_agent_instance  = PlatformAgentInstanceImpl(self.clients)
+        self.platform_model           = PlatformModelImpl(self.clients)
+        self.platform_device          = PlatformDeviceImpl(self.clients)
 
-        self.sensor_model    = SensorModelDryer(self.clients)
-        self.sensor_device   = SensorDeviceDryer(self.clients)
+        self.sensor_model    = SensorModelImpl(self.clients)
+        self.sensor_device   = SensorDeviceImpl(self.clients)
 
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.marine_facility_management.logical_instrument_dryer
+@package  ion.services.sa.marine_facility_management.logical_instrument_impl
 @author   Ian Katz
 """
 
@@ -11,7 +11,7 @@ from pyon.public import AT, RT
 
 from ion.services.sa.marine_facility.mpms_simple import MPMSsimple
 
-class LogicalInstrumentDryer(MPMSsimple):
+class LogicalInstrumentImpl(MPMSsimple):
     """
     @brief resource management for LogicalInstrument resources
     """

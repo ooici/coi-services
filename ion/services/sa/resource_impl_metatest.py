@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file ion/services/sa/test/resource_dryer_metatest.py
+@file ion/services/sa/test/resource_impl_metatest.py
 @author Ian Katz
 
 """
@@ -12,18 +12,18 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
 
-class ResourceDryerMetatest(object):
+class ResourceImplMetatest(object):
     """
     This function adds test methods for CRUD and associations in the given 
     resource dryer class.
 
     For example, OUTSIDE and AFTER the TestInstrumentManagement class, write this:
 
-        rwm = ResourceDryerMetatest(TestInstrumentManagement,
+        rwm = ResourceImplMetatest(TestInstrumentManagement,
                                      InstrumentManagementService,
                                      log)
 
-        rwm.add_resource_dryer_unittests(InstrumentAgentInstanceDryer, 
+        rwm.add_resource_impl_unittests(InstrumentAgentInstanceImpl,
                                           {"exchange_name": "rhubarb"}
 
     The dryer object MUST be available as a class variable in the service under test!
@@ -103,7 +103,7 @@ class ResourceDryerMetatest(object):
                 ret = k
         return ret
 
-    def find_dryer_attribute(self, dryer):
+    def find_impl_attribute(self, dryer):
         """
         determine which class variable in the service is the dryer class
         @param dryer an instance of the dryer
@@ -118,7 +118,7 @@ class ResourceDryerMetatest(object):
         return dryer_attr
 
         
-    def add_resource_dryer_unittests(self, 
+    def add_resource_impl_unittests(self,
                                       resource_dryer_class, 
                                       resource_params):
         """
@@ -132,7 +132,7 @@ class ResourceDryerMetatest(object):
 
         self.build_test_descriptors(resource_params)
 
-        dryer_attr  = self.find_dryer_attribute(dryer_instance)
+        dryer_attr  = self.find_impl_attribute(dryer_instance)
 
         #this is convoluted but it helps me debug by 
         #  being able to inject text into the sample_resource_extras

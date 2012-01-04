@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.platform_agent_dryer
+@package  ion.services.sa.instrument.platform_agent_impl
 @author   Ian Katz
 """
 
@@ -10,7 +10,7 @@ from pyon.public import AT, RT
 
 from ion.services.sa.instrument.ims_simple import IMSsimple
 
-class PlatformAgentDryer(IMSsimple):
+class PlatformAgentImpl(IMSsimple):
     """
     @brief resource management for PlatformAgent resources
     """

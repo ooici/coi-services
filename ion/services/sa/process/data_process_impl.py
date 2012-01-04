@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.process.data_process_dryer
+@package  ion.services.sa.process.data_process_impl
 @author   Ian Katz
 """
 
@@ -26,14 +26,14 @@ Later TODO
 
 
 
-from ion.services.sa.resource_dryer import ResourceDryer
+from ion.services.sa.resource_impl import ResourceImpl
 
-class DataProcessDryer(ResourceDryer):
+class DataProcessImpl(ResourceImpl):
     """
     @brief resource management for InstrumentDevice resources
     """
     
-    def on_dryer_init(self):
+    def on_impl_init(self):
         pass
 
     def _primary_object_name(self):
