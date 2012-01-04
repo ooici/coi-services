@@ -18,12 +18,12 @@ import unittest
 
 from pyon.util.log import log
 
-from ion.services.sa.resource_worker_metatest import ResourceWorkerMetatest
+from ion.services.sa.resource_dryer_metatest import ResourceDryerMetatest
 
-from ion.services.sa.marine_facility_management_service.logical_instrument_worker import LogicalInstrumentWorker
-from ion.services.sa.marine_facility_management_service.logical_platform_worker import LogicalPlatformWorker
-from ion.services.sa.marine_facility_management_service.marine_facility_worker import MarineFacilityWorker
-from ion.services.sa.marine_facility_management_service.site_worker import SiteWorker
+from ion.services.sa.marine_facility_management_service.logical_instrument_dryer import LogicalInstrumentDryer
+from ion.services.sa.marine_facility_management_service.logical_platform_dryer import LogicalPlatformDryer
+from ion.services.sa.marine_facility_management_service.marine_facility_dryer import MarineFacilityDryer
+from ion.services.sa.marine_facility_management_service.site_dryer import SiteDryer
 
 
 @attr('UNIT', group='sa')
@@ -47,11 +47,11 @@ class TestMarineFacilityManagement(PyonTestCase):
 
         self.marine_facility_mgmt_service.clients.resource_registry.create_association.assert_called_once_with('222', AT.hasInstrument, '111', None)
 
-rwm = ResourceWorkerMetatest(TestMarineFacilityManagement, MarineFacilityManagementService, log)
+rwm = ResourceDryerMetatest(TestMarineFacilityManagement, MarineFacilityManagementService, log)
 
-rwm.add_resource_worker_unittests(LogicalInstrumentWorker, {})
-rwm.add_resource_worker_unittests(LogicalPlatformWorker, {"buoyname": "steve", "buoyheight": "3"})
-rwm.add_resource_worker_unittests(MarineFacilityWorker, {})
-rwm.add_resource_worker_unittests(SiteWorker, {})
+rwm.add_resource_dryer_unittests(LogicalInstrumentDryer, {})
+rwm.add_resource_dryer_unittests(LogicalPlatformDryer, {"buoyname": "steve", "buoyheight": "3"})
+rwm.add_resource_dryer_unittests(MarineFacilityDryer, {})
+rwm.add_resource_dryer_unittests(SiteDryer, {})
 
 

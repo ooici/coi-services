@@ -1,22 +1,24 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument_management.platform_agent_instance_worker
+@package  ion.services.sa.instrument_management.instrument_model_dryer
 @author   Ian Katz
 """
+
+
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT
 
 from ion.services.sa.instrument_management.ims_simple import IMSsimple
 
-class PlatformAgentInstanceWorker(IMSsimple):
+class InstrumentModelDryer(IMSsimple):
     """
-    @brief resource management for PlatformAgentInstance resources
+    @brief resource management for InstrumentModel resources
     """
 
     def _primary_object_name(self):
-        return RT.PlatformAgentInstance
+        return RT.InstrumentModel
 
     def _primary_object_label(self):
-        return "platform_agent_instance"
+        return "instrument_model"

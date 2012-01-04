@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.marine_facility_management.marine_facility_worker
+@package  ion.services.sa.marine_facility_management.marine_facility_dryer
 @author   Ian Katz
 """
 
@@ -11,7 +11,7 @@ from pyon.public import AT, RT
 
 from ion.services.sa.marine_facility_management_service.mpms_simple import MPMSsimple
 
-class MarineFacilityWorker(MPMSsimple):
+class MarineFacilityDryer(MPMSsimple):
     """
     @brief resource management for Marine_Facility resources
     """

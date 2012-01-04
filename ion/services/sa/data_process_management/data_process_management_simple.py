@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument_management.ims_simple
+@package  ion.services.sa.data_process_management_service.data_processs_management_simple
 @author   Ian Katz
 """
 
@@ -12,9 +12,9 @@ from pyon.public import LCS
 from ion.services.sa.resource_dryer import ResourceDryer
 
 
-class IMSsimple(ResourceDryer):
+class DataProductManagementSimple(ResourceDryer):
     """
-    @brief A base class for management of ION resources in IMS that have a simple LCS
+    @brief A base class for management of ION resources in DPrMS that have a simple LCS
     """
     
     def on_post_create(self, obj_id, obj):

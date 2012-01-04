@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument_management.sensor_device_worker
+@package  ion.services.sa.instrument_management.sensor_device_dryer
 @author   Ian Katz
 """
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import AT, RT
 
-from ion.services.sa.resource_worker import ResourceWorker
+from ion.services.sa.resource_dryer import ResourceDryer
 
-class SensorDeviceWorker(ResourceWorker):
+class SensorDeviceDryer(ResourceDryer):
     """
     @brief resource management for SensorDevice resources
     """

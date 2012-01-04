@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument_management.instrument_device_worker
+@package  ion.services.sa.instrument_management.instrument_device_dryer
 @author   Ian Katz
 """
 
@@ -26,14 +26,14 @@ Later TODO
 
 
 
-from ion.services.sa.resource_worker import ResourceWorker
+from ion.services.sa.resource_dryer import ResourceDryer
 
-class InstrumentDeviceWorker(ResourceWorker):
+class InstrumentDeviceDryer(ResourceDryer):
     """
     @brief resource management for InstrumentDevice resources
     """
     
-    def on_worker_init(self):
+    def on_dryer_init(self):
         #data acquisition management pointer
         if hasattr(self.clients, "data_acquisition_management_service"):
             self.DAMS = self.clients.data_acquisition_management_service
