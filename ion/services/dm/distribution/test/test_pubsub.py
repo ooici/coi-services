@@ -54,6 +54,9 @@ class PubSubTest(PyonTestCase):
         self.subscription_to_stream_association = Mock()
         self.subscription_to_stream_association._id = self.association_id
 
+        self.stream_route = Mock()
+        self.stream_route.routing_key = self.stream_id + '.data'
+
     def test_create_stream(self):
         self.mock_create.return_value = [self.stream_id, 1]
 
@@ -68,9 +71,10 @@ class PubSubTest(PyonTestCase):
 
         self.mock_update.return_value = [self.stream_id, 2]
         stream_obj.name = "UpdatedSampleStream"
-        self.pubsub_service.update_stream(stream_obj)
+        ret = self.pubsub_service.update_stream(stream_obj)
 
         self.mock_update.assert_called_once_with(stream_obj)
+        self.assertTrue(ret)
 
     def test_read_stream(self):
         self.mock_read.return_value = self.stream
@@ -93,10 +97,11 @@ class PubSubTest(PyonTestCase):
     def test_delete_stream(self):
         self.mock_read.return_value = self.stream
 
-        self.pubsub_service.delete_stream(self.stream_id)
+        ret = self.pubsub_service.delete_stream(self.stream_id)
 
         self.mock_read.assert_called_once_with(self.stream_id, '')
         self.mock_delete.assert_called_once_with(self.stream)
+        self.assertTrue(ret)
 
     def test_delete_stream_not_found(self):
         self.mock_read.return_value = None
@@ -108,6 +113,7 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Stream notfound does not exist')
         self.mock_read.assert_called_once_with('notfound', '')
+        self.assertEqual(self.mock_delete.call_count, 0)
 
     @unittest.skip('Nothing to test')
     def test_find_stream(self):
@@ -139,9 +145,10 @@ class PubSubTest(PyonTestCase):
 
         self.mock_update.return_value = [self.subscription_id, 2]
         subscription_obj.name = "UpdatedSampleSubscription"
-        self.pubsub_service.update_stream(subscription_obj)
+        ret = self.pubsub_service.update_subscription(subscription_obj)
 
         self.mock_update.assert_called_once_with(subscription_obj)
+        self.assertTrue(ret)
 
     def test_read_subscription(self):
         self.mock_read.return_value = self.subscription
@@ -181,7 +188,9 @@ class PubSubTest(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Subscription notfound does not exist')
-        self.mock_read.assert_called_once_with('notfound', '') #
+        self.mock_read.assert_called_once_with('notfound', '')
+        self.assertEqual(self.mock_delete_association.call_count, 0)
+        self.assertEqual(self.mock_delete.call_count, 0)
 
     @unittest.skip('Nothing to test')
     def test_activate_subscription(self):
@@ -217,24 +226,8 @@ class PubSubTest(PyonTestCase):
         ret = self.pubsub_service.register_producer("Test Producer", self.stream_id)
 
         self.assert_("Test Producer" in self.stream.producers)
-        self.assertEqual(ret, 'credentials')
+        self.assertEqual(ret.routing_key, self.stream_route.routing_key)
         self.mock_read.assert_called_once_with(self.stream_id, '')
-
-        ## Temporarily patch and unpatch read_stream function of
-        ## self.pubsub_service
-        #with patch.object(self.pubsub_service, 'read_stream',
-        #        mocksignature=True) as mock_read_stream:
-        #    mock_stream_obj = Mock()
-        #    mock_stream_obj.producers = []
-        #    mock_read_stream.return_value = mock_stream_obj
-        #
-        #    credentials = self.pubsub_service.register_producer("Test Producer", self.stream_id)
-        #
-        #    mock_read_stream.assert_called_once_with('id_2')
-        #    # side effect
-        #    self.assertEqual(mock_stream_obj.producers, ['Test Producer'])
-        #    # @todo this is a placeholder. Change to the real thing
-        #    self.assertEqual(credentials, 'credentials')
 
     def test_register_producer_stream_not_found(self):
         self.mock_read.return_value = None
@@ -277,16 +270,6 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with(self.stream_id, '')
 
     def test_find_producers_by_stream(self):
-        ## Temporarily patch and unpatch read_stream function of
-        ## self.pubsub_service
-        #with patch.object(self.pubsub_service, 'read_stream',
-        #        mocksignature=True) as mock_read_stream:
-        #    mock_read_stream.return_value = sentinel
-        #
-        #    producers = self.pubsub_service.find_producers_by_stream('id_2')
-        #
-        #    mock_read_stream.assert_called_once_with('id_2')
-        #    self.assertEqual(producers, sentinel.producers)
         self.mock_read.return_value = self.stream
         producers = self.pubsub_service.find_producers_by_stream(self.stream_id)
 
@@ -294,18 +277,6 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with(self.stream_id, '')
 
     def test_find_producers_by_stream_not_found(self):
-        ## Temporarily patch and unpatch read_stream function of
-        ## self.pubsub_service
-        #with patch.object(self.pubsub_service, 'read_stream',
-        #        mocksignature=True) as mock_read_stream:
-        #    mock_read_stream.return_value = None
-        #
-        #    with self.assertRaises(NotFound) as cm:
-        #        producers = self.pubsub_service.find_producers_by_stream('id_2')
-        #
-        #    mock_read_stream.assert_called_once_with('id_2')
-        #    ex = cm.exception
-        #    self.assertEqual(ex.message, 'Stream id_2 does not exist')
         self.mock_read.return_value = None
 
         # TEST: Execute the service operation call
@@ -315,3 +286,23 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Stream notfound does not exist')
         self.mock_read.assert_called_once_with('notfound', '')
+
+
+@attr('INT', group='dm')
+class PubSubIntTest(PyonTestCase):
+
+    def setUp(self):
+        #create binding
+        pass
+
+    def test_bind_subscription(self):
+        pass
+
+    def test_unbind_subscription(self):
+        pass
+
+    def test_bind_already_bound_subscription(self):
+        pass
+
+    def test_unbind_unbound_subscription(self):
+        pass

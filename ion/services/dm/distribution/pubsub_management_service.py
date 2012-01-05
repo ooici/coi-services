@@ -11,8 +11,9 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
-from pyon.public import RT, AT, log
+from pyon.public import RT, AT, log, IonObject
 from pyon.net.channel import RecvChannel
+
 
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
@@ -20,6 +21,7 @@ class PubsubManagementService(BasePubsubManagementService):
     '''
 
     XP = 'Science.Data'
+
     def create_stream(self, stream=None):
         '''Create a new stream.
 
@@ -158,7 +160,8 @@ class PubsubManagementService(BasePubsubManagementService):
         # {success: true}
         #
         log.debug("Updating subscription object: %s", subscription.name)
-        return self.clients.resource_registry.update(subscription)
+        id, rev = self.clients.resource_registry.update(subscription)
+        return True
 
     def read_subscription(self, subscription_id=''):
         '''
@@ -293,7 +296,8 @@ class PubsubManagementService(BasePubsubManagementService):
 
         stream_obj.producers.append(exchange_name)
         self.update_stream(stream_obj)
-        return "credentials"
+        stream_route_obj = IonObject("StreamRoute", routing_key=stream_id + '.data')
+        return stream_route_obj
 
     def unregister_producer(self, exchange_name='', stream_id=''):
         '''
