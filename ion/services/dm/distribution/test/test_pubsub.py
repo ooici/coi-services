@@ -30,6 +30,7 @@ class PubSubTest(PyonTestCase):
         self.mock_read = mock_clients.resource_registry.read
         self.mock_create_association = mock_clients.resource_registry.create_association
         self.mock_delete_association = mock_clients.resource_registry.delete_association
+        self.mock_find_resources = mock_clients.resource_registry.find_resources
         self.mock_find_subjects = mock_clients.resource_registry.find_subjects
 
         # Stream
@@ -112,9 +113,12 @@ class PubSubTest(PyonTestCase):
     def test_find_stream(self):
         self.pubsub_service.find_streams()
 
-    @unittest.skip('Nothing to test')
     def test_find_streams_by_producer(self):
-        self.pubsub_service.find_streams_by_producer()
+        self.mock_find_resources.return_value = [self.stream]
+        streams = self.pubsub_service.find_streams_by_producer("producer1")
+
+        self.mock_find_resources.assert_called_once_with(RT.Stream, None, None, False)
+        self.assertEqual(streams, [self.stream])
 
     @unittest.skip('Nothing to test')
     def test_find_streams_by_consumer(self):

@@ -11,7 +11,7 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
-from pyon.public import AT, log
+from pyon.public import RT, AT, log
 from pyon.net.channel import RecvChannel
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -108,7 +108,13 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream_list: []
         #
-        pass
+        result = []
+        objects = self.clients.resource_registry.find_resources(RT.Stream, None, None, False)
+        for obj in objects:
+            if producer_id in obj.producers:
+                result.append(obj)
+
+        return result
     
     def find_streams_by_consumer(self, consumer_id=''):
         """
@@ -207,7 +213,6 @@ class PubsubManagementService(BasePubsubManagementService):
         @param subscription_id The id of the subscription.
         @retval success Boolean to indicate successful activation.
         @throws NotFound when subscription doesn't exist.
-        @todo Add binding operation
         '''
         # Return Value
         # ------------
@@ -227,7 +232,6 @@ class PubsubManagementService(BasePubsubManagementService):
         @param subscription_id The id of the subscription.
         @retval success Boolean to indicate successful deactivation.
         @throws NotFound when subscription doesn't exist.
-        @todo Add unbinding operation
         '''
         # Return Value
         # ------------
