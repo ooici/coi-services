@@ -214,19 +214,39 @@ class PubSubTest(PyonTestCase):
 
     @unittest.skip('Nothing to test')
     def test_activate_subscription(self):
-        self.pubsub_service.activate_subscription()
+        self.mock_read.return_value = self.subscription
+        ret = self.pubsub_service.activate_subscription(self.subscription_id)
 
-    @unittest.skip('Nothing to test')
+        self.assertTrue(ret)
+
     def test_activate_subscription_not_found(self):
-        self.pubsub_service.activate_subscription()
+        self.mock_read.return_value = None
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.activate_subscription('notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Subscription notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
 
     @unittest.skip('Nothing to test')
     def test_deactivate_subscription(self):
-        self.pubsub_service.deactivate_subscription()
+        self.mock_read.return_value = self.subscription
+        ret = self.pubsub_service.deactivate_subscription(self.subscription_id)
 
-    @unittest.skip('Nothing to test')
+        self.assertTrue(ret)
+
     def test_deactivate_subscription_not_found(self):
-        self.pubsub_service.deactivate_subscription()
+        self.mock_read.return_value = None
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.deactivate_subscription('notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Subscription notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
 
     def test_register_consumer(self):
         with self.assertRaises(NotImplementedError) as cm:

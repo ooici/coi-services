@@ -238,6 +238,7 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
         self._bind_subscription(self.XP, subscription_obj.exchange_name)
+        return True
 
     def deactivate_subscription(self, subscription_id=''):
         '''
