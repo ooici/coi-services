@@ -78,14 +78,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         method docstring
         """
         # Update metadata for a specific data product
-        # Return updated data product resource
+        # Return True for success
  
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
-        
-        if ('_id' not in data_product):
-            raise BadRequest("The _id field was not set in data product object")         
-        
-        data_product_id = self.clients.resource_registry.update(data_product)
+               
+        self.clients.resource_registry.update(data_product)
             
         return True
 
@@ -96,7 +93,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         # Return Value
         # ------------
-        # {success: true}
+        # {success: True}
         #
 
         log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
@@ -119,5 +116,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Organize and return the list of matches with summary metadata (title, summary, keywords)
 
-        #find the item in the store
-        pass
+        #find the items in the store
+        if filters == {}:
+            objects, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
+        else:  # TODO: code for all the filter types
+            objects = []
+        return objects
