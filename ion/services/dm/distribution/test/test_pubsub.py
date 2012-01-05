@@ -143,9 +143,12 @@ class PubSubTest(PyonTestCase):
         self.mock_find_resources.assert_called_once_with(RT.Stream, None, None, False)
         self.assertEqual(streams, [self.stream])
 
-    @unittest.skip('Nothing to test')
     def test_find_streams_by_consumer(self):
-        self.pubsub_service.find_streams_by_consumer()
+        with self.assertRaises(NotImplementedError) as cm:
+            self.pubsub_service.find_streams_by_consumer(None)
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'find_streams_by_consumer not implemented.')
 
     def test_create_subscription(self):
         self.mock_create.return_value = [self.subscription_id, 1]
@@ -225,17 +228,26 @@ class PubSubTest(PyonTestCase):
     def test_deactivate_subscription_not_found(self):
         self.pubsub_service.deactivate_subscription()
 
-    @unittest.skip('Nothing to test')
     def test_register_consumer(self):
-        self.pubsub_service.register_consumer()
+        with self.assertRaises(NotImplementedError) as cm:
+            self.pubsub_service.register_consumer(None)
 
-    @unittest.skip('Nothing to test')
+        ex = cm.exception
+        self.assertEqual(ex.message, 'register_consumer not implemented.')
+
     def test_unregister_consumer(self):
-        self.pubsub_service.unregister_consumer()
+        with self.assertRaises(NotImplementedError) as cm:
+            self.pubsub_service.unregister_consumer(None)
 
-    @unittest.skip('Nothing to test')
+        ex = cm.exception
+        self.assertEqual(ex.message, 'unregister_consumer not implemented.')
+
     def test_find_consumers_by_stream(self):
-        self.pubsub_service.find_consumers_by_stream()
+        with self.assertRaises(NotImplementedError) as cm:
+            self.pubsub_service.find_consumers_by_stream(None)
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'find_consumers_by_stream not implemented.')
 
     def test_register_producer(self):
         self.mock_read.return_value = self.stream

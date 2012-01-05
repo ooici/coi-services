@@ -137,7 +137,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream_list: []
         #
-        pass
+        raise NotImplementedError("find_streams_by_consumer not implemented.")
 
     def create_subscription(self, subscription={}):
         '''
@@ -266,7 +266,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        raise NotImplementedError("register_consumer not implemented.")
 
     def unregister_consumer(self, exchange_name=''):
         """
@@ -276,7 +276,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        raise NotImplementedError("unregister_consumer not implemented.")
 
     def find_consumers_by_stream(self, stream_id=''):
         """
@@ -286,7 +286,7 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # consumer_list: []
         #
-        pass
+        raise NotImplementedError("find_consumers_by_stream not implemented.")
 
     def register_producer(self, exchange_name='', stream_id=''):
         '''
