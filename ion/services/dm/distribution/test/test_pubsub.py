@@ -115,9 +115,26 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with('notfound', '')
         self.assertEqual(self.mock_delete.call_count, 0)
 
-    @unittest.skip('Nothing to test')
     def test_find_stream(self):
-        self.pubsub_service.find_streams()
+        self.mock_find_resources.return_value = [self.stream]
+        filter = {'name' : 'SampleStream', 'description' : 'Sample Stream In PubSub'}
+        streams = self.pubsub_service.find_streams(filter)
+
+        self.assertEqual(streams, [self.stream])
+
+    def test_find_stream_not_found(self):
+        self.mock_find_resources.return_value = [self.stream]
+        filter = {'name' : 'StreamNotFound', 'description' : 'Sample Stream In PubSub'}
+        streams = self.pubsub_service.find_streams(filter)
+
+        self.assertEqual(streams, [])
+
+    def test_find_stream_no_streams_registered(self):
+        self.mock_find_resources.return_value = []
+        filter = {'name' : 'SampleStream', 'description' : 'Sample Stream In PubSub'}
+        streams = self.pubsub_service.find_streams(filter)
+
+        self.assertEqual(streams, [])
 
     def test_find_streams_by_producer(self):
         self.mock_find_resources.return_value = [self.stream]
@@ -267,7 +284,10 @@ class PubSubTest(PyonTestCase):
         with self.assertRaises(ValueError) as cm:
             self.pubsub_service.unregister_producer('Test Producer', self.stream_id)
 
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Producer Test Producer not found in stream stream_id')
         self.mock_read.assert_called_once_with(self.stream_id, '')
+        self.assertEqual(self.mock_update.call_count, 0)
 
     def test_find_producers_by_stream(self):
         self.mock_read.return_value = self.stream

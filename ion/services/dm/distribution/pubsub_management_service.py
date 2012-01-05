@@ -97,7 +97,16 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream_list: []
         #
-        pass
+        result = []
+        objects = self.clients.resource_registry.find_resources(RT.Stream, None, None, False)
+        for obj in objects:
+            match = True
+            for key in filter.keys():
+                if (getattr(obj, key) != filter[key]):
+                    match = False
+            if (match):
+                result.append(obj)
+        return result
 
     def find_streams_by_producer(self, producer_id=''):
         '''
@@ -110,12 +119,14 @@ class PubsubManagementService(BasePubsubManagementService):
         # ------------
         # stream_list: []
         #
-        result = []
-        objects = self.clients.resource_registry.find_resources(RT.Stream, None, None, False)
-        for obj in objects:
+        def containsProducer(obj):
             if producer_id in obj.producers:
-                result.append(obj)
+                return True
+            else:
+                return False
 
+        objects = self.clients.resource_registry.find_resources(RT.Stream, None, None, False)
+        result = filter(containsProducer, objects)
         return result
     
     def find_streams_by_consumer(self, consumer_id=''):
