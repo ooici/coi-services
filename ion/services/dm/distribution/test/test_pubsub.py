@@ -212,6 +212,21 @@ class PubSubTest(PyonTestCase):
         self.assertEqual(self.mock_delete_association.call_count, 0)
         self.assertEqual(self.mock_delete.call_count, 0)
 
+    def test_delete_subscription_association_not_found(self):
+        self.mock_read.return_value = self.subscription
+        self.mock_find_subjects.return_value = ("", None)
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.delete_subscription(self.subscription_id)
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Subscription to Stream association for subscription id subscription_id does not exist')
+        self.mock_read.assert_called_once_with(self.subscription_id, '')
+        self.mock_find_subjects.assert_called_once_with(self.subscription_id, AT.hasStream, self.subscription.query['stream_id'], False)
+        self.assertEqual(self.mock_delete_association.call_count, 0)
+        self.assertEqual(self.mock_delete.call_count, 0)
+
     @unittest.skip('Nothing to test')
     def test_activate_subscription(self):
         self.mock_read.return_value = self.subscription
