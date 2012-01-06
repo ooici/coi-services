@@ -18,7 +18,7 @@ import unittest
 mockDataProcessObj = 'ion.services.sa.process.' + \
                      'data_process_management_service.IonObject'
 @attr('UNIT', group='sa')
-@unittest.skip('all operations not working yet for integration tests to pass')
+@unittest.skip('all operations not working yet for unit tests to pass')
 class Test_DataProcessManagementService_Unit(PyonTestCase):
 
     def setUp(self):
