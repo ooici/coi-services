@@ -10,9 +10,6 @@ from nose.plugins.attrib import attr
 @attr('INT')
 class Test_Bank(IonIntegrationTestCase):
 
-    def setUp(self):
-        self._turn_on_queue_auto_delete()
-
     def test_bank(self):
         # Start container
         self._start_container()
