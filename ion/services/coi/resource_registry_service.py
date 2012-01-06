@@ -7,6 +7,7 @@ from pyon.core.bootstrap import sys_name
 from pyon.core.exception import NotFound, Inconsistent
 from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.datastore.mockdb.mockdb_datastore import MockDB_DataStore
+from pyon.ion.resource import lcs_workflows
 from pyon.public import LCS
 from pyon.util.containers import get_ion_ts
 
@@ -66,12 +67,28 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def delete(self, object={}):
         return self.resource_registry.delete(object)
 
-    def execute_lifecycle_transition(self, resource_id='', lcstate=''):
-        self.assert_condition(lcstate in LCS, "Unknown life-cycle state %s" % lcstate)
+    def execute_lifecycle_transition(self, resource_id='', transition_event='', current_lcstate=''):
+        self.assert_condition(not current_lcstate or current_lcstate in LCS, "Unknown life-cycle state %s" % current_lcstate)
         res_obj = self.read(resource_id)
-        res_obj.lcstate = lcstate
+
+        if current_lcstate and res_obj.lcstate != current_lcstate:
+            raise Inconsistent("Resource id=%s lcstate is %s, expected was %s" % (
+                                resource_id, res_obj.lcstate, current_lcstate))
+
+        restype = res_obj._def.type.name
+        restype_workflow = lcs_workflows.get(restype, None)
+        if not restype_workflow:
+            restype_workflow = lcs_workflows['Resource']
+
+        new_state = restype_workflow.get_successor(res_obj.lcstate, transition_event)
+        if not new_state:
+            raise Inconsistent("Resource id=%s, type=%s, lcstate=%s has no transition for event %s" % (
+                                resource_id, restype, res_obj.lcstate, transition_event))
+
+        res_obj.lcstate = new_state
         res_obj.ts_updated = get_ion_ts()
-        return self.update(res_obj)
+        updres = self.resource_registry.update(res_obj)
+        return new_state
 
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.resource_registry.create_association(subject, predicate, object, assoc_type)
