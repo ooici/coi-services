@@ -357,12 +357,17 @@ class PubsubManagementService(BasePubsubManagementService):
         return stream_obj.producers
 
     def _bind_subscription(self, exchange_point, exchange_name):
-        channel = RecvChannel()
-        channel.setup_listener((exchange_point, exchange_name))
+        channel = SubscriptionChannel()
+        channel.setup_listener((exchange_point, exchange_name), binding)
         channel.start_consume()
 
     def _unbind_subscription(self, exchange_point, exchange_name):
-        channel = RecvChannel()
+        channel = SubscriptionChannel()
         channel._recv_name = (exchange_point, exchange_name)
         channel.stop_consume()
-        channel.destroy_listener()
+        channel.destroy_binding()
+
+    class SubscriptionChannel(RecvChannel):
+
+        def _declare_queue(self):
+            noop
