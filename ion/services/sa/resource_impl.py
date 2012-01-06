@@ -84,18 +84,18 @@ class ResourceImpl(object):
     #
     ##################################################
 
-    def advance_lcs(self, resource_id, newstate):
+    def advance_lcs(self, resource_id, transition_event):
         """
         attempt to advance the lifecycle state of a resource
         @resource_id the resource id
         @newstate the new lifecycle state
         @todo check that this resource is of the same type as this dryer class
         """
-        necessary_method = "lcs_precondition_" + str(newstate)
+        necessary_method = "lcs_precondition_" + str(transition_event)
         if not hasattr(self, necessary_method):
             raise NotImplementedError(
                 "Lifecycle precondition method '%s' not defined for %s!"
-                % (newstate, self.iontype))
+                % (transition_event, self.iontype))
 
         #FIXME: make sure that the resource type matches self.iontype
 
@@ -103,18 +103,18 @@ class ResourceImpl(object):
 
         #call the precondition function and react
         if precondition_fn(resource_id):
-            log.debug("Moving %s resource to state %s"
-                      % (self.iontype, newstate))
+            log.debug("Moving %s resource life cycle with transition event %s"
+                      % (self.iontype, transition_event))
             self.RR.execute_lifecycle_transition(resource_id=resource_id,
-                                                 lcstate=newstate)
+                                                 transition_event=transition_event)
         else:
-            raise BadRequest(("Couldn't transition %s to state %s; "
+            raise BadRequest(("Couldn't transition %s with event %s; "
                               + "failed precondition")
-                             % (self.iontype, newstate))
+                             % (self.iontype, transition_event))
 
-    # so, for example if you want to transition to "NEW", you'll need this:
+    # so, for example if you want to transition with event "register", you'll need this:
     #
-    def lcs_precondition_NEW(self, resource_id):
+    def lcs_precondition_register(self, resource_id):
         return True
 
     ##################################################

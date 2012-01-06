@@ -8,7 +8,7 @@
 
 
 #from pyon.public import Container
-from pyon.public import LCS
+from pyon.public import LCS, LCE
 #from pyon.public import AT
 from pyon.core.bootstrap import IonObject
 #from pyon.core.exception import BadRequest #, NotFound
@@ -367,7 +367,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.link_model(instrument_device_id, instrument_model_id)
 
         #move the association
-        self.instrument_device.advance_lcs(instrument_device_id, LCS.PLANNED)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.register)
 
         return self.instrument_device._return_create("instrument_device_id", instrument_device_id)
 
@@ -414,7 +414,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #FIXME: what to associate here?
 
-        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.develop)
 
         #FIXME: error checking
 
@@ -430,7 +430,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #FIXME: there seems to be no association between instruments and platforms
 
-        self.instrument_device.advance_lcs(instrument_device_id, LCS.COMMISSIONED)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.commission)
 
         return self.instrument_device._return_update(True)
 
@@ -443,7 +443,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #FIXME: only valid in 'COMMISSIONED' state!
 
         #FIXME: there seems to be no association between instruments and platforms
-        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.decommission)
 
         return self.instrument_device_return_update(True)
 
@@ -459,7 +459,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.instrument_device.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
 
-        self.instrument_device.advance_lcs(instrument_device_id, LCS.ACTIVE)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.activate)
 
         self.instrument_device._return_activate(True)
 
@@ -473,7 +473,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #FIXME: remove association
 
-        self.instrument_device.advance_lcs(instrument_device_id, LCS.DEVELOPED)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.deactivate)
 
         return self.instrument_device._return_update(True)
 
@@ -485,7 +485,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #FIXME: what happens to logical instrument, platform, etc
 
-        self.instrument_device.advance_lcs(instrument_device_id, LCS.RETIRED)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.retire)
 
         return self.instrument_device._return_update(True)
 

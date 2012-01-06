@@ -7,7 +7,7 @@
 
 #from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
-from pyon.public import LCS
+from pyon.public import LCE
 
 from ion.services.sa.resource_impl import ResourceImpl
 
@@ -24,11 +24,11 @@ class MPMSsimple(ResourceImpl):
         @param obj_id an object id
         @param obj the object itself (not needed in this case)
         """
-        self.advance_lcs(obj_id, LCS.ACTIVE)
+        self.advance_lcs(obj_id, LCE.register)
 
         return
 
-    def lcs_precondition_ACTIVE(self, resource_id):
+    def lcs_precondition_register(self, resource_id):
         """
         preconditions for going active (none)
         @param resource_id the id of the resource in question

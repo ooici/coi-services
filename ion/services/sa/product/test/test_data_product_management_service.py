@@ -315,8 +315,7 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         dp_obj = IonObject(RT.DataProduct,
                            _id="SOME_RR_ID1",
                            _rev = "SOME_REV",
-                           lcstate=LCS.DEPLOYED,
-                           name='DP_X', 
+                           name='DP_X',
                            description='some existing dp')
         result = None
         
@@ -354,8 +353,7 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         dp_obj = IonObject(RT.DataProduct,
                            _id="SOME_RR_ID1",
                            _rev = "SOME_REV",
-                           lcstate=LCS.DEPLOYED,
-                           name='DP_X', 
+                           name='DP_X',
                            description='some existing dp')
         result = None
         
@@ -375,8 +373,7 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         dp_obj = IonObject(RT.DataProduct,
                            _id="SOME_RR_ID1",
                            _rev = "SOME_REV",
-                           lcstate=LCS.DEPLOYED,
-                           name='DP_X', 
+                           name='DP_X',
                            description='some existing dp')
         self.resource_registry.find_resources.return_value = ([dp_obj], [])
         
