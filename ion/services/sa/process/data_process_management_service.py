@@ -5,9 +5,10 @@
 @author  Alon Yaari
 """
 
+from pyon.util.log import log
 import time
 from interface.services.sa.idata_process_management_service \
-    import BaseDataProcessManagementService
+import BaseDataProcessManagementService
 from pyon.public import   log, RT, AT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
@@ -44,9 +45,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.data_process = DataProcessImpl(self.clients)
 
-
-
-
     def create_data_process_definition(self, data_process_definition={}):
         """
         @param      data_process_definition: dict with parameters to define
@@ -54,7 +52,18 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval     data_process_definition_id: ID of the newly registered
                         data process def.
         """
-        pass
+        log.debug("DataProcessManagementService:create_data_process_definition: %s" % str(data_process_definition))
+        
+        result, _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
+        if len(result) != 0:
+            raise BadRequest("A data process definition named '%s' already exists" % data_process_definition.name)  
+
+        if not data_process_definition.process_source:
+            raise BadRequest("Data process definition has invalid process source.")
+        
+        data_process_definition_id, version = self.clients.resource_registry.create(data_process_definition)
+
+        return data_process_definition_id
 
     def update_data_process_definition(self, data_process_definition={}):
         """
@@ -70,7 +79,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                         definition that defines the transform to read
         @retval     data process definition object
         """
-        pass
+        log.debug("DataProcessManagementService:read_data_process_definition: %s" % str(data_process_definition_id))
+        
+        result = self.clients.resource_registry.read(data_process_definition_id)
+        
+        return result
 
     def delete_data_process_definition(self, data_process_definition_id=''):
         """
@@ -105,24 +118,27 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                  "To create output Product: "+str(out_data_product_id)
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
-
+        
+        """  TODO: should these validations be performed here or in the interceptor?
         # Validate inputs
         if not data_process_definition_id:
             raise BadRequest("Missing data definition.")
-        data_def_obj = \
-            self.read_data_process_definition(data_process_definition_id)
-        if not data_def_obj.process_source:
-            raise BadRequest("Data definition has invalid process source.")
         if not in_subscription_id:
             raise BadRequest("Missing input data product ID.")
         if not out_data_product_id:
             raise BadRequest("Missing output data product ID.")
+        """
 
+        # Create and store a new DataProcess with the resource registry
+        data_process_def_obj = \
+            self.read_data_process_definition(data_process_definition_id)
+        data_process_name = "process_" + data_process_def_obj.name
+        data_process = IonObject(RT.DataProcess, name=data_process_name)
+        data_process_id, version = self.clients.resource_registry.create(data_process)        
+            
         # Assemble transform input data
-        transform_name = str(data_process.atbd_reference) + \
-                         " - " + \
-                         str(out_data_product_id) + \
-                         time.ctime()
+        transform_name = str(data_process.name) + " - calculates " + \
+                         str(out_data_product_id) + time.ctime()
         transform_object = IonObject(RT.Transform, name=transform_name)
         transform_object.process_definition_id = data_process_definition_id
         transform_object.in_subscription_id = in_subscription_id
@@ -130,23 +146,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Register the transform with the transform mgmt service
         transform_id =\
-            self.clients.transform_management_service.\
-                create_transform(transform_object)
-
-        # Create and store a new DataProcess with the resource registry
-        data_process_id, version =\
-            self.clients.resource_registry.\
-                create(data_process)
+            self.clients.transform_management_service.create_transform(transform_object)
 
         # TODO: Flesh details of transform mgmt svc schedule and bind methods
-        self.clients.transform_management_service.\
-            schedule_transform(transform_id)
-        self.clients.transform_management_service.\
-            bind_transform(transform_id)
+        self.clients.transform_management_service.schedule_transform(transform_id)
+        self.clients.transform_management_service.bind_transform(transform_id)
 
         # Register data process as a producer
-        self.clients.data_acquisition_management.\
-            register_process(data_process_id)
+        self.clients.data_acquisition_management.register_process(data_process_id)
 
         # Associations
         self.clients.resource_registry.create_association(data_process_id,
@@ -161,11 +168,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return data_process_id
 
+    """   TODO:  make this operation conform with the yaml
     def update_data_process(self,
                             data_process_id,
                             data_process_definition_id='',
                             in_subscription_id='',
                             out_data_product_id=''):
+    """
+    def update_data_process():
         """
         @param  data_process_id: ID of the data process object to update
         @param  data_process_definition_id: Object with definition of the
@@ -176,8 +186,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval {"success": boolean}
         """
         log.debug("DataProcessManagementService:update_data_process: " +
-                  str(data_process))
+                  str(data_process_id))
 
+        # TODO: should these validations be performed here or in the interceptor?    
         # Validate inputs
         if not data_process_id:
             raise BadRequest("Missing ID of data process to update.")
@@ -191,7 +202,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             if not data_def_obj.process_source:
                 raise BadRequest("Data definition has invalid process source.")
 
-        data_process_id = self.clients.resource_registry.update(data_process)
         transform_ids, _ = self.clients.resource_registry.\
             find_associations(data_process_id, AT.hasTransform)
         if not transform_ids:
@@ -225,14 +235,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         log.debug("DataProcessManagementService:read_data_process: " +
                   str(data_process_id))
-        data_process_obj, _ = self.clients.resource_registry.\
-            read(data_process_id)
-        if not data_process_obj:
-            raise NotFound("Data Process does not exist " +
-                            str(data_process_id))
-        return data_process_obj.data_process_definition_id, \
-               data_process_obj.in_subscription_id, \
-               data_process_obj.out_data_product_id
+        transform_ids, _ = self.clients.resource_registry.\
+            find_associations(data_process_id, AT.hasTransform)
+        if not transform_ids:
+            raise NotFound("No transform associated with data process ID " +
+                           str(data_process_id))
+            
+        return transform_ids[0].data_process_definition_id, \
+               transform_ids[0].in_subscription_id, \
+               transform_ids[0].out_data_product_id
 
     def delete_data_process(self, data_process_id=""):
         """
