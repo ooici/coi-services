@@ -4,7 +4,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
 import inspect, json, collections
 
@@ -184,12 +184,9 @@ def list_resource_types():
 
     ret_list = []
     for res in sorted(resultSet):
-        ret_list.append(str(res) + "<BR>")
+        ret_list.append(res)
 
-    ret = ''.join(ret_list)
-
-    #Returns a string but this should probably be recoded to return json ( and json mime type )
-    return ret
+    return jsonify(data=ret_list)
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -198,21 +195,19 @@ def list_resource_types():
 #http://hostname:port/ion-service/resource/c1b6fa6aadbd4eb696a9407a39adbdc8
 @app.route('/ion-service/resource/<resource_id>')
 def get_resource(resource_id):
-    ret = "get" + str(resource_id)
 
-    #client = ProcessRPCClient(node=Container.instance.node, name='resource_registry', iface=IResourceRegistryService, process=service_gateway_instance)
+    ret = None
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
-            res = client.read(resource_id)
-            if not res:
+            ret = client.read(resource_id)
+            if not ret:
                 raise NotFound("No resource found for id: %s " % resource_id)
-            ret = str(res)
 
         except Exception, e:
             ret =  "Error: %s" % e
 
-    return ret
+    return str(ret)   #TODO Need to figure out how to jsonify this
 
 
 #Example operation to return a list of resources of a specific type like
@@ -220,33 +215,28 @@ def get_resource(resource_id):
 @app.route('/ion-service/list_resources/<resource_type>')
 def list_resources_by_type(resource_type):
 
-    ret = "list"
+    ret = None
 
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
-        reslist,_ = client.find_resources(restype=resource_type)
-        str_list = []
-        for res in reslist:
-            str_list.append(str(res) + "<BR>")
+        res_list,_ = client.find_resources(restype=resource_type )
+        ret = []
+        for res in res_list:
+            ret.append(res)
 
-        ret = ''.join(str_list)
     except Exception, e:
         ret =  "Error: %s" % e
 
-
-    return ret
+    return str(ret)   #TODO Need to figure out how to jsonify this
 
 #Example restful call to a client function for another service like
 #http://hostname:port/ion-service/run_bank_client
 @app.route('/ion-service/run_bank_client')
 def create_accounts():
     from examples.bank.bank_client import run_client
-    try:
-        run_client(Container.instance, process=service_gateway_instance)
-        return list_resources_by_type("BankAccount")
+    run_client(Container.instance, process=service_gateway_instance)
+    return list_resources_by_type("BankAccount")
 
-    except Exception, e:
-        ret =  "Error: %s" % e
 
 
 
