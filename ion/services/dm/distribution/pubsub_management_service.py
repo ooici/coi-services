@@ -12,7 +12,8 @@ from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
 from pyon.public import RT, AT, log, IonObject
-from pyon.net.channel import RecvChannel
+from pyon.net.channel import SubscriberChannel
+from pyon.public import CFG
 
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -20,7 +21,10 @@ class PubsubManagementService(BasePubsubManagementService):
         to create streams and subscriptions.
     '''
 
-    XP = 'Science.Data'
+    XP = 'science.data' # CFG.exchanges.ioncore.exchange_points.science_data.name
+
+    def __init__(self, **kwargs):
+        BasePubsubManagementService.__init__(self, args=None, kwargs=kwargs)
 
     def create_stream(self, stream=None):
         '''Creates a new stream. The id string returned is the ID of the new stream
@@ -201,7 +205,11 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        self._bind_subscription(self.XP, subscription_obj.exchange_name)
+        ids, assocs = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+
+        for stream_id in ids:
+            print stream_id
+            self._bind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
         return True
 
     def deactivate_subscription(self, subscription_id=''):
@@ -293,9 +301,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return stream_obj.producers
 
-    def _bind_subscription(self, exchange_point, exchange_name):
+    def _bind_subscription(self, exchange_point, exchange_name, routing_key):
         channel = SubscriptionChannel()
-        channel.setup_listener((exchange_point, exchange_name), binding)
+        channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
         channel.start_consume()
 
     def _unbind_subscription(self, exchange_point, exchange_name):
@@ -304,7 +312,7 @@ class PubsubManagementService(BasePubsubManagementService):
         channel.stop_consume()
         channel.destroy_binding()
 
-    class SubscriptionChannel(RecvChannel):
+    class SubscriptionChannel(SubscriberChannel):
 
         def _declare_queue(self):
-            noop
+            pass
