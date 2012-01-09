@@ -16,7 +16,7 @@ from pyon.public import CFG, IonObject, log, RT, AT, LCS
 from ion.services.sa.marine_facility.logical_instrument_impl import LogicalInstrumentImpl
 from ion.services.sa.marine_facility.logical_platform_impl import LogicalPlatformImpl
 from ion.services.sa.marine_facility.marine_facility_impl import MarineFacilityImpl
-from ion.services.sa.marine_facility.site_dryer import SiteImpl
+from ion.services.sa.marine_facility.site_impl import SiteImpl
 
 
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService
@@ -41,7 +41,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
             self.RR    = self.clients.resource_registry
             
 
-        #farm everything out to the dryers
+        #farm everything out to the impls
 
         self.logical_instrument  = LogicalInstrumentImpl(self.clients)
         self.logical_platform    = LogicalPlatformImpl(self.clients)

@@ -41,7 +41,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.TMS  = self.clients.transform_management_service
 
 
-        #farm everything out to the dryers
+        #farm everything out to the impls
 
         self.data_process = DataProcessImpl(self.clients)
 

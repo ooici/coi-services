@@ -75,7 +75,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if hasattr(self.clients, "data_acquisition_management_service"):
             self.DAMS  = self.clients.data_acquisition_management_service
 
-        #farm everything out to the dryers
+        #farm everything out to the impls
 
         self.instrument_agent           = InstrumentAgentImpl(self.clients)
         self.instrument_agent_instance  = InstrumentAgentInstanceImpl(self.clients)

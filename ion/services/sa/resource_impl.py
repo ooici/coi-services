@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.resource_dryer
+@package  ion.services.sa.resource_impl
 @file     ion/services/sa/resource_impl.py
 @author   Ian Katz
 @brief    DRY = Don't Repeat Yourself; base class for CRUD, LCS, and association ops on any ION resource
@@ -47,14 +47,14 @@ class ResourceImpl(object):
 
     def _primary_object_name(self):
         """
-        the IonObject type that this dryer controls
+        the IonObject type that this impl controls
         """
         #like "InstrumentAgent" or (better) RT.InstrumentAgent
         raise NotImplementedError("Extender of the class must set this!")
 
     def _primary_object_label(self):
         """
-        the argument label that this dryer controls
+        the argument label that this impl controls
         """
         #like "instrument_agent"
         raise NotImplementedError("Extender of the class must set this!")
@@ -78,6 +78,12 @@ class ResourceImpl(object):
     def on_post_update(self, obj):
         return
 
+    def on_pre_delete(self, obj_id, obj):
+        return
+
+    def on_post_delete(self, obj_id, obj):
+        return
+
     ##################################################
     #
     #   LIFECYCLE TRANSITION ... THIS IS IMPORTANT
@@ -89,7 +95,7 @@ class ResourceImpl(object):
         attempt to advance the lifecycle state of a resource
         @resource_id the resource id
         @newstate the new lifecycle state
-        @todo check that this resource is of the same type as this dryer class
+        @todo check that this resource is of the same type as this impl class
         """
         necessary_method = "lcs_precondition_" + str(transition_event)
         if not hasattr(self, necessary_method):
@@ -173,15 +179,6 @@ class ResourceImpl(object):
         retval[resource_label] = resource_id
         return retval
 
-    def _return_update(self, success_bool):
-        """
-        return a valid response to an update operation
-        @param success_bool whether to report success
-        """
-        retval = {}
-        retval["success"] = success_bool
-        return retval
-
     def _return_read(self, resource_type, resource_label, resource_id):
         """
         return a valid response from a read operation
@@ -192,16 +189,6 @@ class ResourceImpl(object):
         retval = {}
         resource = self._get_resource(resource_type, resource_id)
         retval[resource_label] = resource
-        return retval
-
-    # return a valid message from a delete
-    def _return_delete(self, success_bool):
-        """
-        return a valid response from a delete operation
-        @param success_bool whether to report success
-        """
-        retval = {}
-        retval["success"] = success_bool
         return retval
 
     def _return_find(self, resource_label, resource_ids):
@@ -274,7 +261,7 @@ class ResourceImpl(object):
 
         self.on_post_update(primary_object)
 
-        return self._return_update(True)
+        return
 
 
     def read_one(self, primary_object_id=''):
@@ -296,9 +283,14 @@ class ResourceImpl(object):
 
         primary_object_obj = self._get_resource(self.iontype,
                                                 primary_object_id)
+
+        self.on_pre_delete(primary_object_id, primary_object_obj)
+        
         self.RR.delete(primary_object_obj)
 
-        return self._return_delete(True)
+        self.on_post_delete(primary_object_id, primary_object_obj)
+
+        return
 
 
     def find_some(self, filters={}):

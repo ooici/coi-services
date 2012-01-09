@@ -23,7 +23,7 @@ from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
 from ion.services.sa.marine_facility.logical_instrument_impl import LogicalInstrumentImpl
 from ion.services.sa.marine_facility.logical_platform_impl import LogicalPlatformImpl
 from ion.services.sa.marine_facility.marine_facility_impl import MarineFacilityImpl
-from ion.services.sa.marine_facility.site_dryer import SiteImpl
+from ion.services.sa.marine_facility.site_impl import SiteImpl
 
 
 @attr('UNIT', group='sa')
