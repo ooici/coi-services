@@ -3,7 +3,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
-from ion.services.sa.instrument_management.instrument_management_service import InstrumentManagementService
+from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
 from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
 
 from pyon.util.context import LocalContextMixin
@@ -19,7 +19,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-#@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
 class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
     def my_test_init(self):
