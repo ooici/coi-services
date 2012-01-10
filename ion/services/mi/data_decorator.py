@@ -16,7 +16,7 @@ __license__ = 'Apache 2.0'
 
 from ion.services.mi.exceptions import InstrumentDataException
 
-class DataDecorator():
+class DataDecorator(object):
     '''The base decorator class that all data decorators should extend
     
     Data flowing back from a driver should pass through a chain of decorator
@@ -28,8 +28,10 @@ class DataDecorator():
     into the agent that is operating on the data.
     '''
     
-    '''A link to the next decorator in the chain, None at the end'''
-    self.next_decorator = None
+    def __init__(self):
+        
+        '''A link to the next decorator in the chain, None at the end'''
+        self.next_decorator = None
     
     def handle_incoming_data(self, original_data=None, chained_data=None):
         '''Operate on the data being passed in

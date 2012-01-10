@@ -22,18 +22,16 @@ class InstrumentAgent(ResourceAgent):
     The Instrument Agent is responsible for interfacing the ION infrastructure
     with the individual instrument drivers that then talk to the instruments.
     '''
-
-    '''A list of errors that the Instrument Agent can return'''
-    self.instrument_agent_errors = None
     
-    '''The instrument driver used to communicate with the instrument'''
-    self.driver = None
-    
-    # May need some endpoint information in here somewhere.
-
     def __init__(self):
-        '''Initialize important values in the class'''
-        
+    
+        '''A list of errors that the Instrument Agent can return'''
+        self.instrument_agent_errors = None
+    
+        '''The instrument driver used to communicate with the instrument'''
+        self.driver = None
+    
+    # May need some endpoint information in here somewhere.    
         # Build an instrument driver when instantiated
         
     # Methods are placeholders for now. To be improved/documented during port

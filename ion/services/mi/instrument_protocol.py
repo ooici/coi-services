@@ -16,7 +16,7 @@ from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
 
-class InstrumentProtocol (Object):
+class InstrumentProtocol(object):
     '''The base class for an instrument protocol
     
     The classes derived from this class will carry out the specific
@@ -26,19 +26,16 @@ class InstrumentProtocol (Object):
     transport layer of the communications.
     '''
     
-    '''List of possible commands supported by the protocol'''
-    self.instrument_commands = None
-    
-    '''List of possible parameters supported by the protocol'''
-    self.instrument_parameters = None
-    
-    '''List of status parameters supported by the protocol'''
-    self.instrument_status_param = None
-    
     def __init__(self):
-        pass
-        # Fill in instance vars of commands and parameters from
-        # instrument-specific driver parameters
+        
+        '''List of possible commands supported by the protocol'''
+        self.instrument_commands = None
+    
+        '''List of possible parameters supported by the protocol'''
+        self.instrument_parameters = None
+    
+        '''List of status parameters supported by the protocol'''
+        self.instrument_status_param = None
         
     def get(self, params=[]):
         '''Get some parameters
@@ -161,30 +158,28 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     instrument.
     '''
     
-    '''The command keys to be used'''
-    self.command_list = None
-    
-    '''The response regex dict to be used to map a command's repsonse to
-    a specific format
-    '''
-    self.response_regex_list = None
-    
-    '''The separater string between the name and value when sending a
-    command. For example, a 'name = value' command would have ' = '
-    '''
-    self.send_name_value_delimiter = ""
-
-    '''The separater string between the name and value when receiving a
-    command. For example, a 'name = value' command would have ' = '
-    '''
-    self.receive_name_value_delimiter = ""
-
-    '''The end-of-line delimiter to use'''
-    self.eoln = None
-    
     def __init__(self):
-        # Initialize instance variables
-        pass
+        
+        '''The command keys to be used'''
+        self.command_list = None
+    
+        '''The response regex dict to be used to map a command's repsonse to
+        a specific format
+        '''
+        self.response_regex_list = None
+    
+        '''The separater string between the name and value when sending a
+        command. For example, a 'name = value' command would have ' = '
+        '''
+        self.send_name_value_delimiter = ""
+
+        '''The separater string between the name and value when receiving a
+        command. For example, a 'name = value' command would have ' = '
+        '''
+        self.receive_name_value_delimiter = ""
+
+        '''The end-of-line delimiter to use'''
+        self.eoln = None
     
     def _identify_response(self, response_str=""):
         '''Format the response to a command into a usable form
@@ -192,7 +187,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @param response_str The raw response string from the instrument
         @retval response A usably-formatted response structure. A dict?
         '''
-        assert(instanceof(response_str, string))
+        assert(isinstance(response_str, str))
         # Apply regexes, separators, delimiters, Eolns, etc.
         
     def _build_command(self, command=None):
@@ -202,5 +197,5 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         into a string for the instrument
         @retval command_str The string to send to the instrument
         '''
-        assert(instanceof(command, dict))
+        assert(isinstance(command, dict))
         # Apply regexes, separators, delimiters, Eolns, etc.

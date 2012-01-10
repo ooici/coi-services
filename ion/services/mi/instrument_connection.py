@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 
 from ion.services.mi.exceptions import InstrumentConnectionException 
 
-class InstrumentConnection(Object):
+class InstrumentConnection(object):
     '''The structure to handle connecting and disconnecting from instruments
     
     This class is a base structure for subclasses that connect and disconnect

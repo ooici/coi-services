@@ -14,7 +14,7 @@ __license__ = 'Apache 2.0'
 from ion.services.mi.exceptions import InstrumentConnectionException 
 from ion.services.mi.common import DEFAULT_TIMEOUT
 
-class InstrumentDriver(Object):
+class InstrumentDriver(object):
     '''The base instrument driver class
     
     This is intended to be extended where necessary to provide a coherent
@@ -24,42 +24,40 @@ class InstrumentDriver(Object):
     
     @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
     '''
-    
-    '''An object for manipulating connect and disconnect to an instrument'''
-    self.instrument_connection = None
-    
-    '''The instrument-specific protocol object'''
-    self.instrument_protocol = None
-    
-    '''The communications method formatting object'''
-    self.instrument_comms_method = None
-    
-    '''The instrument-specific command list'''
-    self.instrument_commands = None
-    
-    '''The instrument-specific metadata parameter list'''
-    self.instrument_metadata_parameters = None
-    
-    '''The instrument-specific parameter list'''
-    self.instrument_parameters = None
-    
-    '''The instrument-specific channel list'''
-    self.instrument_channels = None
-    
-    '''The instrument-specific error list'''
-    self.instrument_errors = None
-    
-    '''The instrument-specific capabilities list'''
-    self.instrument_capabilities = None
-    
-    '''The instrument-specific status list'''
-    self.instrument_status = None
-    
-    
+
     def __init__(self):
         # Setup instance variables with instrument-specific instances.
         # Some may be fed from the instrument protocol subclass.
-        pass
+        
+        '''An object for manipulating connect and disconnect to an instrument'''
+        self.instrument_connection = None
+    
+        '''The instrument-specific protocol object'''
+        self.instrument_protocol = None
+    
+        '''The communications method formatting object'''
+        self.instrument_comms_method = None
+    
+        '''The instrument-specific command list'''
+        self.instrument_commands = None
+    
+        '''The instrument-specific metadata parameter list'''
+        self.instrument_metadata_parameters = None
+    
+        '''The instrument-specific parameter list'''
+        self.instrument_parameters = None
+    
+        '''The instrument-specific channel list'''
+        self.instrument_channels = None
+    
+        '''The instrument-specific error list'''
+        self.instrument_errors = None
+    
+        '''The instrument-specific capabilities list'''
+        self.instrument_capabilities = None
+    
+        '''The instrument-specific status list'''
+        self.instrument_status = None
     
     def configure(self, params={}, timeout=DEFAULT_TIMEOUT):
         '''Configure the driver's parameters
