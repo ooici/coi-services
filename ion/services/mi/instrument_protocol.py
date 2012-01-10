@@ -12,7 +12,9 @@ nitty-gritty interaction with individual instruments in the system.
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
-# imports go here
+from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.services.mi.exceptions import InstrumentTimeoutException
+from ion.services.mi.exceptions import InstrumentStateException
 
 class InstrumentProtocol (Object):
     '''The base class for an instrument protocol
@@ -43,7 +45,11 @@ class InstrumentProtocol (Object):
         
         @param params A list of parameters to fetch. These must be in the
         fetchable parameter list
-        @throws
+        @throws InstrumentProtocolException Confusion dealing with the
+        physical device
+        @throws InstrumentStateException Unable to handle current or future
+        state properly
+        @throws InstrumentTimeoutException Timeout
         '''
         assert(isinstance(params, list))
 
@@ -52,7 +58,11 @@ class InstrumentProtocol (Object):
         
         @param params A dict with the parameters to fetch. Must be in the
         fetchable list
-        @throws
+        @throws InstrumentProtocolException Confusion dealing with the
+        physical device
+        @throws InstrumentStateException Unable to handle current or future
+        state properly
+        @throws InstrumentTimeoutException Timeout
         '''
         assert(isinstance(params, dict))
 
@@ -61,7 +71,11 @@ class InstrumentProtocol (Object):
         
         @param command A single command as a list with the command ID followed
         by the parameters for that command
-        @throws
+        @throws InstrumentProtocolException Confusion dealing with the
+        physical device
+        @throws InstrumentStateException Unable to handle current or future
+        state properly
+        @throws InstrumentTimeoutException Timeout
         '''
         assert(isinstance(command, list))
         
@@ -70,7 +84,11 @@ class InstrumentProtocol (Object):
         
         @retval config A dict with all of the device's parameters and values at a
         given moment in time.
-        @throws
+        @throws InstrumentProtocolException Confusion dealing with the
+        physical device, possibly due to interrupted communications
+        @throws InstrumentStateException Unable to handle current or future
+        state properly
+        @throws InstrumentTimeoutException Timeout
         '''
     
     def restore_config(self, config={}):
@@ -83,7 +101,11 @@ class InstrumentProtocol (Object):
         @param config A dict structure of the configuration that should be
         applied to the instrument. May have come directly from a call to
         get_config at some point before.
-        @throws
+        @throws InstrumentProtocolException Confusion dealing with the
+        physical device, possibly due to interrupted communications
+        @throws InstrumentStateException Unable to handle current or future
+        state properly
+        @throws InstrumentTimeoutException Timeout
         '''
         assert(isinstance(config, dict))
     

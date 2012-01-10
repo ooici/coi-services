@@ -14,6 +14,8 @@ modules as appropriate.
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
+from ion.services.mi.exceptions import InstrumentDataException
+
 class DataDecorator():
     '''The base decorator class that all data decorators should extend
     
@@ -41,7 +43,8 @@ class DataDecorator():
         @param original_data The unadulterated data stream that is to be
         operated on. This should not be modified along the way!
         @param chained_data The data that may have been modified along the
-        chain.   
+        chain.
+        @throws InstrumentDataException Problem handling data from the device
         '''
         self.next_decorator.handle_incoming_data(original_data, chained_data)
         

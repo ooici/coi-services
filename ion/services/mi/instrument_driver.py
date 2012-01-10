@@ -11,8 +11,8 @@ with individual instruments in the system.
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
-# imports go here
-import DEFAULT_TIMEOUT
+from ion.services.mi.exceptions import InstrumentConnectionException 
+from ion.services.mi.common import DEFAULT_TIMEOUT
 
 class InstrumentDriver(Object):
     '''The base instrument driver class
@@ -82,7 +82,7 @@ class InstrumentDriver(Object):
         ''' Connect to the device
         @param timeout Number of seconds before this operation times out
         @retval result Success/failure result
-        @throws
+        @throws InstrumentConnectionException
         @todo determine result if already connected
         '''
         # Something like self.InstrumentConnection.connect(), then set state
@@ -91,7 +91,7 @@ class InstrumentDriver(Object):
         '''
         @param timeout Number of seconds before this operation times out
         @retval result Success/failure result
-        @throws
+        @throws InstrumentConnectionException
         @todo determine result if already disconnected
         '''
         # Something like self.InstrumentConnection.disconnect(), then set state

@@ -1,16 +1,19 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.utilities Utility classes for MI work
-@file ion/services/mi/utilities.py
+@package ion.services.mi.common Common classes for MI work
+@file ion/services/mi/enum.py
 @author Steve Foley
-@brief Various utilities that assist with MI work
+@brief Common enumerations, constants, utilities used in the MI work
 """
 
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 # imports go here
+
+'''Default timeout value in seconds'''
+DEFAULT_TIMEOUT = 30
 
 class BaseEnum(object):
     """

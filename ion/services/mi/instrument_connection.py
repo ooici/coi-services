@@ -11,7 +11,7 @@ structure interactions with individual instruments.
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
-# imports go here
+from ion.services.mi.exceptions import InstrumentConnectionException 
 
 class InstrumentConnection(Object):
     '''The structure to handle connecting and disconnecting from instruments
@@ -25,13 +25,13 @@ class InstrumentConnection(Object):
         
         @param params Dict of parameters that define how the connection should
         be made. Parameter names are in the subclasses.
-        @throws Exception
+        @throws InstrumentConnectionException
         '''
         
     def disconnect(self):
         '''Disconnect from the instrument
         
-        @throws Exception
+        @throws InstrumentConnectionException
         '''
     
     def reset(self):
@@ -71,4 +71,24 @@ class EthernetInstrumentConnection(InstrumentConnection):
         pass
         
 
-
+class RS232InstrumentConnection(InstrumentConnection):
+    '''RS232-based instrument connection'''
+        
+    '''Enumeration name for the hardware port to connect to'''
+    PORT = "Port"
+        
+    def connect(self, params={}):
+        '''Connect with IP address and port parameters
+        
+        Possibly proxy info if needed in the future.
+        '''
+    
+    def disconnect(self):
+        pass
+    
+    def reset(self):
+        pass
+    
+    def get_state(self):
+        pass
+        
