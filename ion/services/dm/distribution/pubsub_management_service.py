@@ -23,9 +23,6 @@ class PubsubManagementService(BasePubsubManagementService):
 
     XP = 'science.data' # CFG.exchanges.ioncore.exchange_points.science_data.name
 
-    def __init__(self, **kwargs):
-        BasePubsubManagementService.__init__(self, args=None, kwargs=kwargs)
-
     def create_stream(self, stream=None):
         '''Creates a new stream. The id string returned is the ID of the new stream
                in the resource registry.
