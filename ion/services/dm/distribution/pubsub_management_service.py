@@ -21,18 +21,18 @@ class PubsubManagementService(BasePubsubManagementService):
         to create streams and subscriptions.
     '''
 
-    XP = 'science.data' # CFG.exchanges.ioncore.exchange_points.science_data.name
+    XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
 
-    def create_stream(self, stream=None):
+    def create_stream(self, stream={}):
         '''Creates a new stream. The id string returned is the ID of the new stream
                in the resource registry.
 
         @param stream New stream properties.
         @retval id New stream id.
         '''
-        log.debug("Creating stream object")
-        stream_id, rev = self.clients.resource_registry.create(stream)
-
+        print "Creating stream object"
+        stream_obj = IonObject(RT.Stream, stream)
+        stream_id, rev = self.clients.resource_registry.create(stream_obj)
         return stream_id
 
     def update_stream(self, stream={}):
