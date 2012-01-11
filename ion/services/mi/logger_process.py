@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 
+"""
+@package ion.services.mi.logger_process
+@file ion/services/mi/logger_process.py
+@author Edward Hunter
+@brief Daemon processes providing hardware specific device connections
+and logging.
+"""
+
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 

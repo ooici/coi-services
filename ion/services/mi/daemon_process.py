@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+"""
+@package ion.services.mi.daemon_process
+@file ion/services/mi/daemon_process.py
+@author Edward Hunter
+@brief Daemon process base class for device loggers.
+"""
+
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
