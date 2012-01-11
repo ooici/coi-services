@@ -190,6 +190,7 @@ class DaemonProcess(object):
         """
         The daemon process run loop. Override this function in subclasses.
         """
+                
         count = 0
         while True:
             time.sleep(1)
