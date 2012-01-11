@@ -4,7 +4,8 @@ __author__ = 'Thomas R. Lennan'
 __license__ = 'Apache 2.0'
 
 from pyon.core.exception import Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT
+from pyon.core.security.authentication import Authentication
+from pyon.public import AT, RT, IonObject
 from pyon.util.log import log
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
@@ -14,6 +15,9 @@ class IdentityManagementService(BaseIdentityManagementService):
     """
     A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a	A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a
     """
+
+    def on_init(self):
+        self.authentication = Authentication()
     
     def create_user_identity(self, user_identity={}):
         # Persist UserIdentity object and return object _id as OOI id
@@ -42,21 +46,24 @@ class IdentityManagementService(BaseIdentityManagementService):
         # Create UserCredentials object
         credentials_obj_id, version = self.clients.resource_registry.create(credentials)
         # Create association with user identity object
-        self.clients.resource_registry.create_association(user_id, AT.hasCredentials, credentials_obj_id)
+        res = self.clients.resource_registry.create_association(user_id, AT.hasCredentials, credentials_obj_id)
 
     def unregister_user_credentials(self, user_id='', credentials_name=''):
         # Read UserCredentials
-        credentials_obj = self.clients.resource_registry.find_resources(RT.UserCredentials, None, credentials_name, False)
-        if not credentials_obj:
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, credentials_name, False)
+        if not objects or len(objects) == 0:
             raise NotFound("UserCredentials %s does not exist" % credentials_name)
+        if len(objects) > 1:
+            raise Conflict("Multiple UserCredentials objects found for subject %s" % credentials_name)
+        user_credentials_id = objects[0]._id
         # Find and break association with UserIdentity
-        objects, assocs = self.clients.resource_registry.find_objects(user_id, AT.hasCredentials, RT.UserCredentials)
-        if not objects:
+        assocs = self.clients.resource_registry.find_associations(user_id, AT.hasCredentials, user_credentials_id)
+        if not assocs or len(assocs) == 0:
             raise NotFound("UserIdentity to UserCredentials association for user id %s to credential %s does not exist" % (user_id,credentials_name))
-        association_id = [assoc._id for obj,assoc in zip(objects, assocs) if obj._id == credentials_obj._id][0]
+        association_id = assocs[0]._id
         self.clients.resource_registry.delete_association(association_id)
         # Delete the UserCredentials
-        self.clients.resource_registry.delete(credentials_obj)
+        self.clients.resource_registry.delete(user_credentials_id)
 
     def create_user_info(self, user_id="", user_info={}):
         # Ensure UserInfo association does not already exist
@@ -65,6 +72,7 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise Conflict("UserInfo already exists for user id %s" % (user_id))
         # Create UserInfo object
         user_info_id, version = self.clients.resource_registry.create(user_info)
+        log.warn("user_info_id: %s" % user_info_id)
         # Create association with user identity object
         self.clients.resource_registry.create_association(user_id, AT.hasInfo, user_info_id)
         return user_info_id
@@ -86,10 +94,16 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not user_info:
             raise NotFound("UserInfo %s does not exist" % user_info_id)
         # Find and break association with UserIdentity
-        subjects, assocs = self.clients.resource_registry.find_subjects(user_info_id, AT.hasInfo, RT.UserIdentity)
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, AT.hasInfo, user_info_id)
+        if not assocs:
+            raise NotFound("UserIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
+        user_identity_id = subjects[0]._id
+
+        assocs = self.clients.resource_registry.find_associations(user_identity_id, AT.hasInfo, user_info_id)
         if not assocs:
             raise NotFound("UserIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
         association_id = assocs[0]._id
+        
         self.clients.resource_registry.delete_association(association_id)
         # Delete the UserInfo
         self.clients.resource_registry.delete(user_info)
@@ -103,7 +117,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         return user_info
 
     def find_user_info_by_name(self, name=''):
-        objects, assocs = self.clients.resource_registry.find_resources(RT.UserInfo, None, name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserInfo, None, name, False)
         if not objects:
             raise NotFound("UserInfo with name %s does not exist" % name)
         if len(objects) > 1:
@@ -112,16 +126,18 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def find_user_info_by_subject(self, subject=''):
         # Find UserCredentials
-        objects, assocs = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, False)      
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, False)      
         if not objects:
             raise NotFound("UserCredentials with subject %s does not exist" % subject)
         if len(objects) > 1:
             raise Inconsistent("Multiple UserCredentials with subject %s exist" % subject)
-        if not assocs:
+        user_credentials_id = objects[0]._id
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, AT.hasCredentials, user_credentials_id)
+        if not subjects or len(subjects) == 0:
             raise NotFound("UserIdentity to UserCredentials association for subject %s does not exist" % subject)
-        if len(assocs) > 1:
+        if len(subjects) > 1:
             raise Inconsistent("Multiple UserIdentity to UserCredentials associations for subject %s exist" % subject)
-        user_identity_id = assocs[0].s
+        user_identity_id = subjects[0]._id
         # Look up UserInfo via association with UserIdentity
         objects, assocs = self.clients.resource_registry.find_objects(user_identity_id, AT.hasInfo, RT.UserInfo)
         if not objects:
@@ -130,6 +146,52 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise Inconsistent("Multiple UserInfos for subject %s exist" % subject)
         user_info = objects[0]
         return user_info
+
+    def signon(self, certificate='', ignore_date_range=False):
+        # Check the certificate is currently valid
+        if not ignore_date_range:
+            if not self.authentication.is_certificate_within_date_range(certificate):
+                raise BadRequest("Certificate expired or not yet valid")
+
+        # Extract subject line
+        attributes = self.authentication.decode_certificate(certificate)
+        subject = attributes["subject"]
+        valid_until = attributes["not_valid_after"]
+
+        # Look for matching UserCredentials object
+        objects, assocs = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, True)
+        if len(objects) > 1:
+            raise Conflict("More than one UserCredentials object was found for subject %s" % subject)
+        if len(assocs) > 1:
+            raise Conflict("More than one UserIdentity object is associated with subject %s" % subject)
+        if len(objects) == 1:
+            # Known user, get UserIdentity object
+            user_credentials_id = objects[0]
+            log.warn("objects: %s" % str(objects))
+            log.warn("user_credentials_id: %s" % user_credentials_id)
+            subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, AT.hasCredentials, user_credentials_id)
+
+            if len(subjects) == 0:
+                raise Conflict("UserIdentity object with subject %s was previously created but is not associated with a UserIdentity object" % subject)
+            user_id = subjects[0]._id
+            log.warn("subjects: %s" % str(subjects))
+            log.warn("user_id: %s" % user_id)
+            # Find associated UserInfo
+            registered = True
+            try:
+                self.find_user_info_by_id(user_id)
+            except NotFound:
+                registered = False
+            return user_id, valid_until, registered
+        else:
+            # New user.  Create UserIdentity and UserCredentials
+            user_identity = IonObject("UserIdentity", {"name": subject})
+            user_id = self.create_user_identity(user_identity)
+
+            user_credentials = IonObject("UserCredentials", {"name": subject})
+            self.register_user_credentials(user_id, user_credentials)
+            return user_id, valid_until, False
+        
 
     def create_resource_identity(self, resource_identity={}):
         # Persist ResourceIdentity object and return object _id as OOI id
