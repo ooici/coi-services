@@ -1,8 +1,14 @@
 #!/usr/bin/env python
 
+"""
+@package ion.services.mi.driver_process
+@file ion/services/mi/driver_process.py
+@author Edward Hunter
+@brief Messaing enabled driver processes.
+"""
+
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
-
 
 from multiprocessing import Process
 import os
