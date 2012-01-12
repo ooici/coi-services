@@ -55,7 +55,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process_definition: %s" % str(data_process_definition))
         
         result, _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
-        if len(result) != 0:
+        if result:
             raise BadRequest("A data process definition named '%s' already exists" % data_process_definition.name)  
 
         if not data_process_definition.process_source:
@@ -134,8 +134,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.read_data_process_definition(data_process_definition_id)
         data_process_name = "process_" + data_process_def_obj.name
         data_process = IonObject(RT.DataProcess, name=data_process_name)
-        data_process_id, version = self.clients.resource_registry.create(data_process)        
-            
+        data_process_id, version = self.clients.resource_registry.create(data_process)
+        
         # Assemble transform input data
         transform_name = str(data_process.name) + " - calculates " + \
                          str(out_data_product_id) + time.ctime()
@@ -200,7 +200,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             data_def_obj =\
                 self.read_data_process_definition(data_process_definition_id)
             if not data_def_obj.process_source:
-                raise BadRequest("Data definition has invalid process source.")
+                raise BadRequest("Data definition has invalid process source code.")
 
         transform_ids, _ = self.clients.resource_registry.\
             find_associations(data_process_id, AT.hasTransform)
@@ -235,15 +235,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         log.debug("DataProcessManagementService:read_data_process: " +
                   str(data_process_id))
-        transform_ids, _ = self.clients.resource_registry.\
-            find_associations(data_process_id, AT.hasTransform)
+        transform_ids, _ = self.clients.resource_registry.find_associations(data_process_id, AT.hasTransform)
         if not transform_ids:
-            raise NotFound("No transform associated with data process ID " +
-                           str(data_process_id))
+            raise NotFound("No transform associated with data process ID " + str(data_process_id))
+        transform_obj = self.clients.transform_management_service.read_transform(transform_ids[0])
             
-        return transform_ids[0].data_process_definition_id, \
-               transform_ids[0].in_subscription_id, \
-               transform_ids[0].out_data_product_id
+        return transform_obj.data_process_definition_id, \
+               transform_obj.in_subscription_id, \
+               transform_obj.out_data_product_id
 
     def delete_data_process(self, data_process_id=""):
         """
@@ -254,6 +253,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                   str(data_process_id))
         if not data_process_id:
             raise BadRequest("Delete failed.  Missing data_process_id.")
+        
+        # TODO: does the DPMS need to call the TMS to inform it that the process is
+        # being deleted?
 
         # Delete associations of the data process
         associations, _ = self.clients.resource_registry.\

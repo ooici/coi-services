@@ -39,6 +39,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.out_product_A = "ID4OUTprodA"
         self.out_product_B = "ID4OUTprodB"
         self.data_proc_def_id = "ID4procDef"
+        self.data_prod_id = "ID4producer"
 
         self.data_process_name = "process_" + self.data_process_def_name
         self.data_process_object = IonObject(RT.DataProcess, name=self.data_process_name)
@@ -55,6 +56,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.resource_registry.read.return_value = (self.data_process_def_obj)
         self.resource_registry.create.return_value = (self.data_process_id, 'Version_1')
         self.transform_management_service.create_transform.return_value = self.transform_id
+        self.data_acquisition_management.register_process.return_value = self.data_prod_id
         # these are listed in reverse of chronological order 
         results = [self.transform_object,
                    self.data_process_object]
@@ -76,6 +78,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         pop_last_call(self.mock_ionobj)
         self.mock_ionobj.assert_called_once_with(RT.DataProcess, name=self.data_process_name)
         self.resource_registry.create.assert_called_once_with(self.data_process_object)
+        self.data_acquisition_management.register_process.assert_called_once_with(self.data_process_id)
         self.transform_management_service.create_transform.assert_called_once_with(self.transform_object)
         self.transform_management_service.schedule_transform.assert_called_once_with(self.transform_id)
         self.transform_management_service.bind_transform.assert_called_once_with(self.transform_id)
@@ -95,14 +98,21 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
                                                                           self.in_product_A,
                                                                           None)
 
-    @unittest.skip('all operations not working yet for unit tests to pass')
-    def test_update_data_process(self):
-        # Create a new data process
-        data_proc_name = "TestDataProcessDefIDstring"
-        dp_id = self.data_process_mgmt_service.create_data_process\
-            (self.data_proc_def_id,\
-             self.in_product_A,\
-             self.out_product_A)
-        # Update the data process with a new in and out
+    def test_read_data_process(self):
+        # setup
+        self.resource_registry.find_associations.return_value = ([self.transform_id], "don't care")
+        self.transform_object.data_process_definition_id = self.data_proc_def_id
+        self.transform_object.in_subscription_id = self.in_product_A
+        self.transform_object.out_data_product_id = self.out_product_A
+        self.transform_management_service.read_transform.return_value = self.transform_object
+         
+        # test call
+        dpd_id, in_id, out_id = self.data_process_mgmt_service.read_data_process(self.data_process_id)
 
-        
+        # verify results
+        self.assertEqual(dpd_id, self.data_proc_def_id)
+        self.assertEqual(in_id, self.in_product_A)
+        self.assertEqual(out_id, self.out_product_A)
+        self.resource_registry.find_associations.assert_called_once_with(self.data_process_id, AT.hasTransform, '', False)
+        self.transform_management_service.read_transform.assert_called_once_with(self.transform_id)
+
