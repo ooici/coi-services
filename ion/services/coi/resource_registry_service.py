@@ -94,7 +94,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.create_association(subject, predicate, object, assoc_type)
 
     def delete_association(self, association=''):
-        return self.resource_registry.delete_association(association, datastore_name)
+        return self.resource_registry.delete_association(association)
 
     def find(self, **kwargs):
         raise NotImplementedError("Do not use find. Use a specific find operation instead.")
