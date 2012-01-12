@@ -8,6 +8,10 @@ from interface.services.coi.idirectory_service import BaseDirectoryService
 
 class DirectoryService(BaseDirectoryService):
 
+    """
+    Provides a directory of services and other resources specific to an Org.
+    """
+
     def on_init(self):
         self.directory = Directory()
         # For easier interactive debugging
@@ -24,6 +28,8 @@ class DirectoryService(BaseDirectoryService):
     def unregister(self, parent='/', key=''):
         return self.directory.unregister(parent, key)
 
-    def lookup(self, qualified_key='/'):
+    def lookup(self, qualified_key=''):
         return self.directory.lookup(qualified_key)
 
+    def find(self, parent='/', pattern=''):
+        raise NotImplementedError()

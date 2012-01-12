@@ -11,6 +11,12 @@ from pyon.util.log import log
 
 class OrgManagementService(BaseOrgManagementService):
 
+    """
+    Services to define and administer a facility (synonymous Org, community), to enroll/remove members and to provide
+    access to the resources of an Org to enrolled or affiliated entities (identities). Contains contract
+    and commitment repository
+    """
+
     def create_org(self, org={}):
         """Persists the provided Org object. The id string returned
         is the internal id by which Org will be identified in the data store.

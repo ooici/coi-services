@@ -4,9 +4,9 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
-import inspect, json
+import inspect, json, collections
 
 from pyon.core.exception import NotFound, Inconsistent
 from pyon.container.cc import Container
@@ -27,7 +27,11 @@ DEFAULT_WEB_SERVER_PORT = 5000
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
 
-   # running_container = None
+    """
+	The Service Gateway Service is the service that uses a gevent web server and Flask to bridge HTTP requests to AMQP RPC ION process service calls.
+	
+    """
+
     def on_init(self):
 
         #defaults
@@ -149,65 +153,90 @@ def process_gateway_request(service_name, operation):
         ret =  "Error: %s" % e.message
 
 
-    #Returns a string but this should probably be recoded to return json ( and json mime type
+    #Returns a string but this should probably be recoded to return json ( and json mime type )
     return ret
 
+# This service method returns the list of registered resource objects sorted alphabetically. Optional query
+# string parameter will filter by extended type  i.e. type=InformationResource. All registered objects
+# will be returned if not filtered
+#
+# Examples:
+# http://hostname:port/ion-service/list_resource_types
+# http://hostname:port/ion-service/list_resource_types?type=InformationResource
+# http://hostname:port/ion-service/list_resource_types?type=TaskableResource
+#
+@app.route('/ion-service/list_resource_types', methods=['GET','POST'])
+def list_resource_types():
+
+
+    resultSet = set()
+    from pyon.core.object import IonObjectRegistry
+    base_type_list = IonObjectRegistry.extended_objects
+
+    #Look to see if a specific resource type has been specified - if not default to all
+    if request.args.has_key('type'):
+        resultSet = set(base_type_list.get(request.args['type'])) if base_type_list.get(request.args['type']) is not None else set()
+    else:
+        for res in base_type_list:
+            ext_types = base_type_list.get(res)
+            for res2 in ext_types:
+                resultSet.add(res2)
+
+    ret_list = []
+    for res in sorted(resultSet):
+        ret_list.append(res)
+
+    return jsonify(data=ret_list)
 
 
 #More RESTfull examples...should probably not use but here for example reference
 
 #This example calls the resource registry with an id passed in as part of the URL
-#http://hostname:port/ion-service/rest/get/c1b6fa6aadbd4eb696a9407a39adbdc8
-@app.route('/ion-service/rest/get/<resource_id>')
+#http://hostname:port/ion-service/resource/c1b6fa6aadbd4eb696a9407a39adbdc8
+@app.route('/ion-service/resource/<resource_id>')
 def get_resource(resource_id):
-    ret = "get" + str(resource_id)
 
-    #client = ProcessRPCClient(node=Container.instance.node, name='resource_registry', iface=IResourceRegistryService, process=service_gateway_instance)
+    ret = None
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
-            res = client.read(resource_id)
-            if not res:
+            ret = client.read(resource_id)
+            if not ret:
                 raise NotFound("No resource found for id: %s " % resource_id)
-            ret = str(res)
 
         except Exception, e:
             ret =  "Error: %s" % e
 
-    return ret
+    return str(ret)   #TODO Need to figure out how to jsonify this
 
-#Example restful call to a client function for another service like
-#http://hostname:port/ion-service/rest/create
-@app.route('/ion-service/rest/create')
-def create_accounts():
-    from examples.bank.bank_client import run_client
-    try:
-        run_client(Container.instance, process=service_gateway_instance)
-        return list_resources("BankAccount")
-
-    except Exception, e:
-        ret =  "Error: %s" % e
 
 #Example operation to return a list of resources of a specific type like
-#http://hostname:port/ion-service/rest/list/BankAccount
-@app.route('/ion-service/rest/list/<resource_type>')
-def list_resources(resource_type):
+#http://hostname:port/ion-service/list_resources/BankAccount
+@app.route('/ion-service/list_resources/<resource_type>')
+def list_resources_by_type(resource_type):
 
-    ret = "list"
+    ret = None
 
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
-        reslist,_ = client.find_resources(restype=resource_type)
-        str_list = []
-        for res in reslist:
-            str_list.append(str(res) + "<BR>")
+        res_list,_ = client.find_resources(restype=resource_type )
+        ret = []
+        for res in res_list:
+            ret.append(res)
 
-        ret = ''.join(str_list)
     except Exception, e:
         ret =  "Error: %s" % e
 
+    return str(ret)   #TODO Need to figure out how to jsonify this
 
-    return ret
+#Example restful call to a client function for another service like
+#http://hostname:port/ion-service/run_bank_client
+@app.route('/ion-service/run_bank_client')
+def create_accounts():
+    from examples.bank.bank_client import run_client
+    run_client(Container.instance, process=service_gateway_instance)
+    return list_resources_by_type("BankAccount")
+
 
 
 

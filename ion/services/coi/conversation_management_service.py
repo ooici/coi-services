@@ -7,6 +7,9 @@ from interface.services.coi.iconversation_management_service import BaseConversa
 
 class ConversationManagementService(BaseConversationManagementService):
 
+    """
+    The Conversation Management Service is the service that manages the Conversations and their types which are allowed in the system.
+    """
 
     def create_conversation(self, conversation={}):
         """ Should receive a Conversation object

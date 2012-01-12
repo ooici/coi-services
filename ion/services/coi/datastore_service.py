@@ -11,6 +11,12 @@ from interface.services.coi.idatastore_service import BaseDatastoreService
 
 class DataStoreService(BaseDatastoreService):
 
+    """
+    	The Data Store Service manages the persistence of Structured Objects (i.e. the "Business Objects") in the
+    	ION system, and the definition of Structured Object types. It makes use of DM Preservation services and
+    	components to persist the actual information on disk or in the network.
+    """
+
     def on_init(self):
         datastore_name = sys_name + "_scratch"
         datastore_name = datastore_name.lower()

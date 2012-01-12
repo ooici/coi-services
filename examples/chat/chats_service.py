@@ -28,11 +28,11 @@ class ChatServerService(BaseChatsService):
     def message(self, from_name, to_name, text=''):
         if to_name == "all":
             for cl in self.clients.values():
-                cl['client'].message(from_name, text)
+                cl['client'].message(from_name=from_name, text=text)
         else:
             client = self.clients.get(to_name, None)
             if client:
-                client.client.message(from_name, text)
+                client.client.message(from_name=from_name, text=text)
             else:
                 return "USER NOT FOUND"
         return "OK"

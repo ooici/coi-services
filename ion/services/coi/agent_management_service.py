@@ -7,6 +7,10 @@ from interface.services.coi.iagent_management_service import BaseAgentManagement
 
 class AgentManagementService(BaseAgentManagementService):
 
+    """
+    The Agent Management Service is the service that manages the Agent Definitions and the running Agents in the system.
+    """
+    
     def create_agent_definition(self, agent_definition={}):
         """ Should receive an AgentDefinition object
         """

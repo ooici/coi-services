@@ -11,6 +11,10 @@ from pyon.util.log import log
 
 class ExchangeManagementService(BaseExchangeManagementService):
 
+    """
+    The Exchange Management Service is the service that manages the Exchange and its associated resources, such as Exchange Spaces, Names, Points and Brokers.
+
+    """
     def create_exchange_space(self, exchange_space={}, org_id=''):
         """Creates an Exchange Space distributed resource from the parameter exchangespace object.
 
