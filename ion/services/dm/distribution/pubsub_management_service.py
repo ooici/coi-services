@@ -31,8 +31,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @retval id New stream id.
         '''
         print "Creating stream object"
-        stream_obj = IonObject(RT.Stream, stream)
-        stream_id, rev = self.clients.resource_registry.create(stream_obj)
+        stream_id, rev = self.clients.resource_registry.create(stream)
         return stream_id
 
     def update_stream(self, stream={}):
