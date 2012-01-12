@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-@package ion.services.mi.data_decorators Implementation of data decoration
+@package ion.services.mi.data_decorator Implementation of data decoration
    classes
 @file ion/services/mi/data_decorator.py
 @author Steve Foley
@@ -30,8 +30,8 @@ class DataDecorator(object):
     
     def __init__(self):
         
-        '''A link to the next decorator in the chain, None at the end'''
         self.next_decorator = None
+        '''A link to the next decorator in the chain, None at the end'''
     
     def handle_incoming_data(self, original_data=None, chained_data=None):
         '''Operate on the data being passed in

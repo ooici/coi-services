@@ -29,35 +29,35 @@ class InstrumentDriver(object):
         # Setup instance variables with instrument-specific instances.
         # Some may be fed from the instrument protocol subclass.
         
-        '''An object for manipulating connect and disconnect to an instrument'''
         self.instrument_connection = None
+        '''An object for manipulating connect and disconnect to an instrument'''
     
-        '''The instrument-specific protocol object'''
         self.instrument_protocol = None
+        '''The instrument-specific protocol object'''
     
-        '''The communications method formatting object'''
         self.instrument_comms_method = None
+        '''The communications method formatting object'''
     
-        '''The instrument-specific command list'''
         self.instrument_commands = None
+        '''The instrument-specific command list'''
     
-        '''The instrument-specific metadata parameter list'''
         self.instrument_metadata_parameters = None
+        '''The instrument-specific metadata parameter list'''
     
-        '''The instrument-specific parameter list'''
         self.instrument_parameters = None
+        '''The instrument-specific parameter list'''
     
-        '''The instrument-specific channel list'''
         self.instrument_channels = None
+        '''The instrument-specific channel list'''
     
-        '''The instrument-specific error list'''
         self.instrument_errors = None
+        '''The instrument-specific error list'''
     
-        '''The instrument-specific capabilities list'''
         self.instrument_capabilities = None
+        '''The instrument-specific capabilities list'''
     
-        '''The instrument-specific status list'''
         self.instrument_status = None
+        '''The instrument-specific status list'''
     
     def configure(self, params={}, timeout=DEFAULT_TIMEOUT):
         '''Configure the driver's parameters

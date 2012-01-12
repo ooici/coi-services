@@ -28,14 +28,14 @@ class InstrumentProtocol(object):
     
     def __init__(self):
         
-        '''List of possible commands supported by the protocol'''
         self.instrument_commands = None
+        '''List of possible commands supported by the protocol'''
     
-        '''List of possible parameters supported by the protocol'''
         self.instrument_parameters = None
+        '''List of possible parameters supported by the protocol'''
     
-        '''List of status parameters supported by the protocol'''
         self.instrument_status_param = None
+        '''List of status parameters supported by the protocol'''
         
     def get(self, params=[]):
         '''Get some parameters
@@ -199,26 +199,26 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     
     def __init__(self):
         
-        '''The command keys to be used'''
         self.command_list = None
+        '''The command keys to be used'''
     
+        self.response_regex_list = None
         '''The response regex dict to be used to map a command's repsonse to
         a specific format
         '''
-        self.response_regex_list = None
     
+        self.send_name_value_delimiter = ""
         '''The separater string between the name and value when sending a
         command. For example, a 'name = value' command would have ' = '
         '''
-        self.send_name_value_delimiter = ""
 
+        self.receive_name_value_delimiter = ""
         '''The separater string between the name and value when receiving a
         command. For example, a 'name = value' command would have ' = '
         '''
-        self.receive_name_value_delimiter = ""
 
-        '''The end-of-line delimiter to use'''
         self.eoln = None
+        '''The end-of-line delimiter to use'''
     
     def _identify_response(self, response_str=""):
         '''Format the response to a command into a usable form

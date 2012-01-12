@@ -25,11 +25,11 @@ class InstrumentAgent(ResourceAgent):
     
     def __init__(self):
     
-        '''A list of errors that the Instrument Agent can return'''
         self.instrument_agent_errors = None
+        '''A list of errors that the Instrument Agent can return'''
     
-        '''The instrument driver used to communicate with the instrument'''
         self.driver = None
+        '''The instrument driver used to communicate with the instrument'''
     
     # May need some endpoint information in here somewhere.    
         # Build an instrument driver when instantiated
