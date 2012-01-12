@@ -220,10 +220,6 @@ class ResourceImpl(object):
         @param primary_object an IonObject resource of the proper type
         @retval the resource ID
         """
-        # make sure ID isn't set
-        if hasattr(primary_object, "_id") and "" != primary_object._id:
-            raise BadRequest("ID field present in a create %s operation - {%s}"
-                             % (self.iontype, str(primary_object.__dict__)))
 
         # Validate the input filter and augment context as required
         self._check_name(self.iontype, primary_object, "to be created")
