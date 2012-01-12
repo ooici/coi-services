@@ -74,6 +74,10 @@ class UserNotificationService(BaseUserNotificationService):
         user_notification = self.clients.resource_registry.read(notification_id)
         if not user_notification:
             raise NotFound("UserNotification %s does not exist" % notification_id)
+
+        #first get the user that this notification is associated with then delete the association
+        # ....
+
         self.clients.resource_registry.delete(user_notification)
 
     def find_notifications_by_user(self, user_id=''):
@@ -85,8 +89,13 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         """
 
-        #
-        # Retrieve usr resource
+        # Retrieve user resource
+        #....
+
+        # find all associations to this user of type hasNotification
+        # ...
+
+        # return the list
 
         pass
 
