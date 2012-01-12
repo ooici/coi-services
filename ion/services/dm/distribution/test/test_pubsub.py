@@ -14,6 +14,11 @@ from pyon.core.exception import NotFound
 from pyon.public import log, AT
 import unittest
 from pyon.public import CFG, IonObject, log, RT, AT, LCS
+from pyon.public import Container
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.public import Container
+from interface.services.icontainer_agent import ContainerAgentClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
 @attr('UNIT', group='dm')
 class PubSubTest(PyonTestCase):
@@ -356,7 +361,7 @@ class PubSubTest(PyonTestCase):
 
 
 @attr('INT', group='dm')
-class PubSubIntTest(PyonTestCase):
+class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
         #create binding
