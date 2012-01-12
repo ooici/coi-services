@@ -71,8 +71,12 @@ class EthernetInstrumentConnection(InstrumentConnection):
         pass
         
 
-class RS232InstrumentConnection(InstrumentConnection):
-    '''RS232-based instrument connection'''
+class SerialInstrumentConnection(InstrumentConnection):
+    '''Serial instrument connection, regardless of RS-232/422/485 type
+    
+    Should there be RS-485 options that need to split out, a new class or
+    subclass can be built.
+    '''
         
     '''Enumeration name for the hardware port to connect to'''
     PORT = "Port"

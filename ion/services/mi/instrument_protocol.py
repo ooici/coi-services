@@ -149,6 +149,45 @@ class BinaryInstrumentProtocol(InstrumentProtocol):
         # Default implementation
         return packed_msg
     
+
+class ScriptInstrumentProtocol(InstrumentProtocol):
+    ''' A class to handle a simple scripted interaction with an instrument
+    
+    For instruments with a predictable interface (such as a menu or well
+    known paths through options), this class can be setup to follow a simple
+    script of interactions to manipulate the instrument. The script language
+    is currently as follows:
+    
+    * Commands are in name value pairs separated by an =, no whitespace
+        around the equals
+    * Commands are separated from each other by \n.
+    * Control keys are the letter preceeded by a ^ symbol.
+    * Use \ to protect a ^ or \n and include it in the string being sent.
+    * A final \n is optional.
+    * Commands will be executed in order
+    * The send command name is "S"
+    * The delay command is "D", delay measured in seconds, but is a
+        python formatted floating point value
+    
+    For example, the following script issues a Control-C, "3", "1", "val1\n", then a "0"
+    with a 1.5 second delay between to do something like walk through a menu,
+    select a parameter, name its value, then return to the previous menu:
+    "S=^C\nD=1.5\nS=3\nD=1.5\nS=1\nD=1.5\nS=val1\\nD=1.5\nS=0"
+
+    @todo Add a wait-for command?
+    '''
+    
+    def run_script(self, script):
+        '''Interpret the supplied script and apply it to the instrument
+        
+        @param script The script to execute in string form
+        @throws InstrumentProtocolException Confusion dealing with the
+        physical device, possibly due to interrupted communications
+        @throws InstrumentStateException Unable to handle current or future
+        state properly
+        @throws InstrumentTimeoutException Timeout
+        '''
+        
     
 class CommandResponseInstrumentProtocol(InstrumentProtocol):
     '''A baseclass for text-based command/response instruments
