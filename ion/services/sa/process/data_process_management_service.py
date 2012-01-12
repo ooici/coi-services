@@ -121,25 +121,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Create and store a new DataProcess with the resource registry
         data_process_def_obj = \
             self.read_data_process_definition(data_process_definition_id)
-        data_process_name = "process_" + data_process_def_obj.name
+        data_process_name = "process_" + data_process_def_obj.name \
+                            + " - calculates " + \
+                            str(out_data_product_id) + time.ctime()
         data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(data_process)
         
         # Assemble transform input data
-        transform_name = str(data_process.name) + " - calculates " + \
-                         str(out_data_product_id) + time.ctime()
-        transform_object = IonObject(RT.Transform, name=transform_name)
-        transform_object.process_definition_id = data_process_definition_id
         # TODO: create subscription from in_data_product here 
         in_subscription_id = ""
-        transform_object.in_subscription_id = in_subscription_id
-        # TODO: find strea_id from out_data_product here 
+        # TODO: get stream_id from out_data_product here 
         out_stream_id = ""
-        transform_object.out_data_product_id = out_stream_id
 
         # Register the transform with the transform mgmt service
         transform_id =\
-            self.clients.transform_management_service.create_transform(transform_object)
+            self.clients.transform_management_service.create_transform(data_process_definition_id,
+                                                                       in_subscription_id,
+                                                                       out_stream_id)
 
         # TODO: Flesh details of transform mgmt svc schedule and bind methods
         self.clients.transform_management_service.schedule_transform(transform_id)
