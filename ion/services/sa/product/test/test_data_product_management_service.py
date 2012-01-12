@@ -401,7 +401,7 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
         # Establish endpoint with container
         container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
         #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/r2dpms.yml')
+        container_client.start_rel_from_url('res/deploy/r2sa.yml')
         
         print 'started services'
 
