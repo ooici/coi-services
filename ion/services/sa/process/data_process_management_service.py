@@ -103,32 +103,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def create_data_process(self,
                             data_process_definition_id='',
-                            in_subscription_id='',
+                            in_data_product_id='',
                             out_data_product_id=''):
         """
         @param  data_process_definition_id: Object with definition of the
                     transform to apply to the input data product
-        @param  in_subscription_id: ID of the input data product
+        @param  in_data_product_id: ID of the input data product
         @param  out_data_product_id: ID of the output data product
         @retval data_process_id: ID of the newly created data process object
-        @throws BadRequest if missing any input values
         """
-        inform = "Input Data Product:       "+str(in_subscription_id)+\
+        inform = "Input Data Product:       "+str(in_data_product_id)+\
                  "Transformed by:           "+str(data_process_definition_id)+\
                  "To create output Product: "+str(out_data_product_id)
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
         
-        """  TODO: should these validations be performed here or in the interceptor?
-        # Validate inputs
-        if not data_process_definition_id:
-            raise BadRequest("Missing data definition.")
-        if not in_subscription_id:
-            raise BadRequest("Missing input data product ID.")
-        if not out_data_product_id:
-            raise BadRequest("Missing output data product ID.")
-        """
-
         # Create and store a new DataProcess with the resource registry
         data_process_def_obj = \
             self.read_data_process_definition(data_process_definition_id)
@@ -141,8 +130,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                          str(out_data_product_id) + time.ctime()
         transform_object = IonObject(RT.Transform, name=transform_name)
         transform_object.process_definition_id = data_process_definition_id
+        # TODO: create subscription from in_data_product here 
+        in_subscription_id = ""
         transform_object.in_subscription_id = in_subscription_id
-        transform_object.out_data_product_id = out_data_product_id
+        # TODO: find strea_id from out_data_product here 
+        out_stream_id = ""
+        transform_object.out_data_product_id = out_stream_id
 
         # Register the transform with the transform mgmt service
         transform_id =\
@@ -158,7 +151,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Associations
         self.clients.resource_registry.create_association(data_process_id,
                                                           AT.hasInputProduct,
-                                                          in_subscription_id)
+                                                          in_data_product_id)
         self.clients.resource_registry.create_association(data_process_id,
                                                           AT.hasOutputProduct,
                                                           out_data_product_id)
