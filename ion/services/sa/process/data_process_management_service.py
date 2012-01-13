@@ -134,7 +134,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         out_stream_id = ""
 
         # Register the transform with the transform mgmt service
-        transform_id =\
+        transform_id = \
             self.clients.transform_management_service.create_transform(data_process_definition_id,
                                                                        in_subscription_id,
                                                                        out_stream_id)
