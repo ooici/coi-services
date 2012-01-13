@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 
 from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
-import inspect, json, collections
+import inspect, json, simplejson
 
 from pyon.core.exception import NotFound, Inconsistent
 from pyon.container.cc import Container
@@ -147,14 +147,19 @@ def process_gateway_request(service_name, operation):
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
         result = methodToCall(**parm_list)
-        ret = str(result)
+
+
+        ret = simplejson.dumps(result, default=ion_object_encoder)
 
     except Exception, e:
         ret =  "Error: %s" % e.message
 
 
-    #Returns a string but this should probably be recoded to return json ( and json mime type )
-    return ret
+    return jsonify(data=ret)
+
+def ion_object_encoder(obj):
+    return obj.__dict__
+
 
 # This service method returns the list of registered resource objects sorted alphabetically. Optional query
 # string parameter will filter by extended type  i.e. type=InformationResource. All registered objects
@@ -193,26 +198,28 @@ def list_resource_types():
 
 #This example calls the resource registry with an id passed in as part of the URL
 #http://hostname:port/ion-service/resource/c1b6fa6aadbd4eb696a9407a39adbdc8
-@app.route('/ion-service/resource/<resource_id>')
+@app.route('/ion-service/rest/resource/<resource_id>')
 def get_resource(resource_id):
 
     ret = None
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
-            ret = client.read(resource_id)
-            if not ret:
+            result = client.read(resource_id)
+            if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
+
+            ret = simplejson.dumps(result, default=ion_object_encoder)
 
         except Exception, e:
             ret =  "Error: %s" % e
 
-    return str(ret)   #TODO Need to figure out how to jsonify this
+    return jsonify(data=ret)
 
 
 #Example operation to return a list of resources of a specific type like
 #http://hostname:port/ion-service/list_resources/BankAccount
-@app.route('/ion-service/list_resources/<resource_type>')
+@app.route('/ion-service/rest/list_resources/<resource_type>')
 def list_resources_by_type(resource_type):
 
     ret = None
@@ -220,14 +227,15 @@ def list_resources_by_type(resource_type):
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
         res_list,_ = client.find_resources(restype=resource_type )
-        ret = []
+        result = []
         for res in res_list:
-            ret.append(res)
+            result.append(res)
 
+        ret = simplejson.dumps(result, default=ion_object_encoder)
     except Exception, e:
         ret =  "Error: %s" % e
 
-    return str(ret)   #TODO Need to figure out how to jsonify this
+    return jsonify(data=ret)
 
 #Example restful call to a client function for another service like
 #http://hostname:port/ion-service/run_bank_client
