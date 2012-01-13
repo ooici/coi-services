@@ -8,7 +8,7 @@ from interface.services.dm.itransform_management_service import BaseTransformMan
 
 class TransformManagementService(BaseTransformManagementService):
 
-    def create_transform(self, transform={}):
+    def create_transform(self, in_subscription_id='', out_stream_id='', process_definition_id='', configuration={}):
         """
         method docstring
         """
@@ -18,7 +18,7 @@ class TransformManagementService(BaseTransformManagementService):
         #
         pass
 
-    def update_transform(self, transform={}):
+    def update_transform(self, configuration={}):
         """
         method docstring
         """
@@ -48,7 +48,7 @@ class TransformManagementService(BaseTransformManagementService):
         #
         pass
 
-    def bind_transform(self, transform_id=''):
+    def activate_transform(self, transform_id=''):
         """
         method docstring
         """
