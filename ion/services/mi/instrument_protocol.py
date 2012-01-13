@@ -206,16 +206,6 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         '''The response regex dict to be used to map a command's repsonse to
         a specific format
         '''
-    
-        self.send_name_value_delimiter = ""
-        '''The separater string between the name and value when sending a
-        command. For example, a 'name = value' command would have ' = '
-        '''
-
-        self.receive_name_value_delimiter = ""
-        '''The separater string between the name and value when receiving a
-        command. For example, a 'name = value' command would have ' = '
-        '''
 
         self.eoln = None
         '''The end-of-line delimiter to use'''
