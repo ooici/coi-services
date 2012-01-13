@@ -45,7 +45,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         #
         pass
 
-    def find_process_definitions(self, query={}):
+    def find_process_definitions(self, filters={}):
         """ Should receive a Query object
         """
         # Return Value

@@ -166,7 +166,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                             in_subscription_id='',
                             out_data_product_id=''):
     """
-    def update_data_process():
+    def update_data_process(self,):
         """
         @param  data_process_id: ID of the data process object to update
         @param  data_process_definition_id: Object with definition of the
