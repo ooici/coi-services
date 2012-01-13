@@ -25,7 +25,7 @@ class ChatServerService(BaseChatsService):
         del self.clients[user_name]
         return "OK"
 
-    def message(self, from_name, to_name, text=''):
+    def message(self, from_name='', to_name='', text=''):
         if to_name == "all":
             for cl in self.clients.values():
                 cl['client'].message(from_name=from_name, text=text)
