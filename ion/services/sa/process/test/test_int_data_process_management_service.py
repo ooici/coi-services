@@ -17,6 +17,7 @@ from pyon.public import RT, AT, LCS
 from pyon.core.exception import BadRequest, NotFound, Conflict
 
 @attr('INT', group='sa')
+@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
     def setUp(self):
