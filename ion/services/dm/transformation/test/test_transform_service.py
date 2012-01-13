@@ -3,9 +3,12 @@
 @file ion/services/dm/transformation/test_transform_service.py
 @description Unit Test for Transform Management Service
 '''
+
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
+from pyon.container.cc import Container
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.containers import DotDict
 from pyon.public import IonObject, RT, log, AT
@@ -142,33 +145,68 @@ class TransformManagementServiceTest(PyonTestCase):
 
 @attr('INT', group='dm')
 class TransformManagementServiceIntTest(IonIntegrationTestCase):
-    pass
-#    def setUp(self):
-#        # start the container
-#        self._start_container()
-#
-#        # Establish endpoint with container
-#        self.container_client = ContainerAgentClient(node=self.container.node,name=self.container.name)
-#        self.container_client.start_rel_from_url('res/deploy/r2deploy.yml')
-#
-#        self.tms_client = TransformManagementServiceClient(node=self.container.node)
-#        self.pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-#
-#    def test_createTransform(self):
-#        # Make an output stream with pubsub
-#        output_stream = IonObject(RT.Stream,name='test_product_stream_out')
-#        output_stream.original = True
-#        output_stream.producers = ['science.data']
-#
-#        output_stream_id = self.pubsub_client.create_stream(output_stream)
-#
-#        # Create the transform object
-#        transform = IonObject(RT.Transform,name='test_transform')
-#        transform.out_stream_id = output_stream_id
-#        transform_id = self.tms_client.create_transform(transform)
-#
-#        # Bind the transform object
-#        self.tms_client.bind_transform(transform_id)
-#
-#
-#
+
+    def setUp(self):
+        self._start_container()
+
+        self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
+
+        self.cc.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
+
+
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
+        self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
+        self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
+
+        self.ctd_output_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
+        self.ctd_output_stream.original = True
+        self.ctd_output_stream.mimetype = 'hdf'
+        self.ctd_output_stream.producers = ['science.data']
+        self.ctd_output_stream_id = self.pubsub_cli.create_stream(self.ctd_output_stream)
+
+        self.ctd_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')
+        self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
+        self.ctd_subscription.exchange_name = 'science.data'
+
+        self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
+
+
+
+        self.data_product_stream = IonObject(RT.Stream,name='self.data_product_stream1', descriptoin='a simple data product stream test')
+        self.data_product_stream.original = True
+        self.data_product_stream.producers = ['science.data']
+        self.data_product_stream_id = self.pubsub_cli.create_stream(self.data_product_stream)
+
+        self.process_definition = IonObject(RT.ProcessDefinition, name='transform process definition')
+        self.process_definition_id, _ = self.rr_cli.create(self.process_definition)
+        
+    def test_create_transform(self):
+        transform_id = self.tms_cli.create_transform(
+              self.ctd_subscription_id,
+              self.ctd_output_stream_id,
+              self.process_definition_id,
+                {'name':'basic transform'})
+
+        # test associations
+        predicates = [AT.hasSubscription, AT.hasOutStream, AT.hasProcessDefinition]
+        assocs = []
+        for p in predicates:
+            assocs += self.rr_cli.find_associations(transform_id,p,id_only=True)
+        self.assertEquals(len(assocs),3)
+
+    def test_read_transform(self):
+        transform_object = IonObject(RT.Transform,name='blank_transform')
+        transform_id, rev = self.rr_cli.create(transform_object)
+        res = self.tms_cli.read_transform(transform_id)
+        self.assertEquals(res._id,transform_id)
+
+    @unittest.skip('not implemented yet')
+    def test_bind_transform(self):
+        transform_id = self.tms_cli.create_transform(
+            self.ctd_subscription_id,
+            self.ctd_output_stream_id,
+            self.process_definition_id,
+                {'name':'basic transform'})
+        self.tms_cli.bind_transform(transform_id)

@@ -27,16 +27,16 @@ class TransformManagementService(BaseTransformManagementService):
 
         #@todo: un-mock
         # PubSub
-        self.clients.pubsub_management = DotDict()
-        self.clients.pubsub_management['XP'] = 'science.data'
-        self.clients.pubsub_management["create_subscription"] = Mock()
-        self.clients.pubsub_management.create_subscription.return_value = 'subscription_id'
-        self.clients.pubsub_management["register_producer"] = Mock()
-        self.clients.pubsub_management.register_producer.return_value = {'StreamRoute':'Mocked'}
-        self.clients.pubsub_management["create_stream"] = Mock()
-        self.clients.pubsub_management.create_stream.return_value = 'unique_stream_id'
-        self.clients.pubsub_management['activate_subscription'] = Mock()
-        self.clients.pubsub_management.activate_subscription.return_value = True
+        #self.clients.pubsub_management = DotDict()
+        #self.clients.pubsub_management['XP'] = 'science.data'
+        #self.clients.pubsub_management["create_subscription"] = Mock()
+        #self.clients.pubsub_management.create_subscription.return_value = 'subscription_id'
+        #self.clients.pubsub_management["register_producer"] = Mock()
+        #self.clients.pubsub_management.register_producer.return_value = {'StreamRoute':'Mocked'}
+        #self.clients.pubsub_management["create_stream"] = Mock()
+        #self.clients.pubsub_management.create_stream.return_value = 'unique_stream_id'
+        #self.clients.pubsub_management['activate_subscription'] = Mock()
+        #self.clients.pubsub_management.activate_subscription.return_value = True
         # ProcessDispatcher
         self.clients.process_dispatcher_service = DotDict()
         self.clients.process_dispatcher_service["create_process_definition"] = Mock()
