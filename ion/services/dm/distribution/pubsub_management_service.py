@@ -21,7 +21,11 @@ class PubsubManagementService(BasePubsubManagementService):
         to create streams and subscriptions.
     '''
 
-    XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
+    xs_dot_xp = CFG.core_xps.science_data
+    try:
+        XS, XP = xs_dot_xp.split('.')
+    except ValueError:
+        raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
     def create_stream(self, stream={}):
         '''Creates a new stream. The id string returned is the ID of the new stream

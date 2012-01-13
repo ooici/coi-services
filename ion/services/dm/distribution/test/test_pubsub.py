@@ -8,17 +8,21 @@
 
 from mock import Mock, sentinel, patch
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound
 from pyon.public import log, AT
 import unittest
-from pyon.public import CFG, IonObject, log, RT, AT, LCS
+from pyon.public import CFG, IonObject, log, RT, AT, LCS, StreamProcess
 from pyon.public import Container
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import Container
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+
+from pyon.ion.endpoint import StreamPublisherRegistrar, StreamSubscriberRegistrar
+
 
 @attr('UNIT', group='dm')
 class PubSubTest(PyonTestCase):
@@ -358,6 +362,33 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Stream notfound does not exist')
         self.mock_read.assert_called_once_with('notfound', '')
+
+
+@attr('INT', group='dm')
+class PublishSubscribeIntTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+
+        # Establish endpoint with container
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+        container_client.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        # Now create client to bank service
+        self.client = PubsubManagementServiceClient(node=self.container.node)
+
+        container_client.spawn_process(name='test_process', module='pyon.ion.streamproc',cls='StreamProcess',
+            process_type='stream_process', config={'process':{'type'}})
+
+
+
+    def test_create_publisher(self):
+
+        stream = IonObject(RT.Stream, name='test stream')
+        id = self.client.create_stream(stream)
+
+        self.publisher_registrar.create_publisher(stream_id=id)
+
 
 
 @attr('INT', group='dm')
