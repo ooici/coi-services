@@ -147,6 +147,7 @@ class TransformManagementServiceTest(PyonTestCase):
 class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
     def setUp(self):
+        # set up the container
         self._start_container()
 
         self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
@@ -160,6 +161,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
 
+        # Initialize the parameters that create_transform needs
         self.ctd_output_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
         self.ctd_output_stream.original = True
         self.ctd_output_stream.mimetype = 'hdf'
@@ -169,7 +171,6 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.ctd_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')
         self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
         self.ctd_subscription.exchange_name = 'science.data'
-
         self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
 
 
@@ -181,6 +182,15 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
         self.process_definition = IonObject(RT.ProcessDefinition, name='transform process definition')
         self.process_definition_id, _ = self.rr_cli.create(self.process_definition)
+
+    def tearDown(self):
+        # clean up resources alloced during set up
+        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+
+        self.pubsub_cli.delete_stream(self.data_product_stream_id)
+        self.rr_cli.delete(self.process_definition_id)
+        IonIntegrationTestCase.tearDown(self)
+
         
     def test_create_transform(self):
         transform_id = self.tms_cli.create_transform(
@@ -188,6 +198,11 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
               self.ctd_output_stream_id,
               self.process_definition_id,
                 {'name':'basic transform'})
+
+        # test transform creation in rr
+        transform = self.rr_cli.read(transform_id)
+        self.assertEquals(transform.name,'basic transform')
+
 
         # test associations
         predicates = [AT.hasSubscription, AT.hasOutStream, AT.hasProcessDefinition]
@@ -200,7 +215,12 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         transform_object = IonObject(RT.Transform,name='blank_transform')
         transform_id, rev = self.rr_cli.create(transform_object)
         res = self.tms_cli.read_transform(transform_id)
+
+        # test the object
         self.assertEquals(res._id,transform_id)
+
+        # clean up
+        self.rr_cli.delete(res)
 
     @unittest.skip('not implemented yet')
     def test_bind_transform(self):
