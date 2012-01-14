@@ -378,7 +378,7 @@ class PublishSubscribeIntTest(IonIntegrationTestCase):
         self.client = PubsubManagementServiceClient(node=self.container.node)
 
         container_client.spawn_process(name='test_process', module='pyon.ion.streamproc',cls='StreamProcess',
-            process_type='stream_process', config={'process':{'type'}})
+            process_type='stream_process', config={'process':{'listen_name':'ctd_data'}})
 
 
 
@@ -389,7 +389,7 @@ class PublishSubscribeIntTest(IonIntegrationTestCase):
 
         self.publisher_registrar.create_publisher(stream_id=id)
 
-
+"""
 
 @attr('INT', group='dm')
 class PubSubIntTest(IonIntegrationTestCase):
@@ -409,3 +409,5 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def test_unbind_unbound_subscription(self):
         pass
+
+        """

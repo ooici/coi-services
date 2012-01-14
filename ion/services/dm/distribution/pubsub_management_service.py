@@ -301,18 +301,23 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return stream_obj.producers
 
+    class BindingChannel(SubscriberChannel):
+
+        def _declare_queue(self):
+            self._recv_name = (self._recv_name[0], '.'.join(self._recv_name))
+
+
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
-        channel = SubscriptionChannel()
+
+        channel = self.container.node.channel(BindingChannel, BindingChannel)
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
         channel.start_consume()
 
     def _unbind_subscription(self, exchange_point, exchange_name):
-        channel = SubscriptionChannel()
+
+        channel = self.container.node.channel(BindingChannel, BindingChannel)
         channel._recv_name = (exchange_point, exchange_name)
         channel.stop_consume()
         channel.destroy_binding()
 
-    class SubscriptionChannel(SubscriberChannel):
 
-        def _declare_queue(self):
-            pass
