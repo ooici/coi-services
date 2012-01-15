@@ -11,169 +11,250 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 from multiprocessing import Process
+from threading import Thread
 import os
 import time
+
 import zmq
-from pyon.core.exception import BadRequest, NotFound
-from pyon.public import IonObject, log
+
+"""
+import ion.services.mi.driver_process as dp
+import ion.services.mi.driver_client as dc
+p = dp.ZmqDriverProcess(5556, 5557, 'ion.services.mi.sbe37_driver', 'SBE37Driver')
+c = dc.ZmqDriverClient('localhost', 5556, 5557)
+"""
 
 class DriverProcess(Process):
     """
-    class docstring
+    Base class for messaging enabled OS-level driver processes. Provides
+    run loop, dynamic driver import and construction and interface
+    for messaging implementation subclasses.
     """
     
     def __init__(self, driver_module, driver_class):
         """
-        method docstring
+        @param driver_module The python module containing the driver code.
+        @param driver_class The python driver class.
         """
         Process.__init__(self)
         self.driver_module = driver_module
         self.driver_class = driver_class
         self.driver = None
-       
-    def start_messaging(self):
-        """
-        """
-        pass
-
-    def stop_messaging(self):
-        """
-        method docstring
-        """
-        pass
-
+        self.events = []
+        
     def construct_driver(self):
         """
-        method docstring
+        Attempt to import and construct the driver object based on
+        configuration.
+        @retval True if successful, False otherwise.
         """
         import_str = 'import %s as dvr_mod' % self.driver_module
         ctor_str = 'driver = dvr_mod.%s()' % self.driver_class
         
         try:
-            log.info('importing driver: %s' % import_str)
+            #log.info('importing driver: %s' % import_str)
+            print('importing driver: %s' % import_str)
             exec import_str
-            log.info('constructing driver: %s' % ctor_str)
+            #log.info('constructing driver: %s' % ctor_str)
+            print('constructing driver: %s' % ctor_str)
             exec ctor_str
         except ImportError, NameError:
-            log.error('Could not import/construct driver, module %s, class %s' \
+            #log.error('Could not import/construct driver, module %s, class %s' \
+            #          % (self.driver_module, self.driver_class))
+            print('Could not import/construct driver, module %s, class %s' \
                       % (self.driver_module, self.driver_class))
+            return False
         else:
             self.driver = driver
-            self.driver.forward_event = self.forward_event
-            log.info('driver process %i driver constructed' % self.pid)
+            #log.info('driver process %i driver constructed' % self.pid)
+            print('driver process %i driver constructed' % self.pid)
+            return True
             
+    def start_messaging(self):
+        """
+        Initialize and start messaging resources for the driver, blocking
+        until messaging terminates. Overridden in subclasses for
+        specific messaging technologies. 
+        """
+        pass
+
+    def stop_messaging(self):
+        """
+        Close messaging resource for the driver. Overridden in subclasses
+        for specific messaging technologies.
+        """
+        pass
+
     def shutdown(self):
         """
-        method docstring
+        Shutdown function prior to process exit.
         """
-        log.info('driver process %i shutting down' % self.pid)
+        #log.info('driver process %i shutting down' % self.pid)
+        print('driver process %i shutting down' % self.pid)
         self.driver_module = None
         self.driver_class = None
         self.driver = None
 
-    def process_cmd_message(self):
+    def cmd_driver(self, msg):
         """
+        Process a command message against the driver. If the command
+        exists as a driver attribute, call it passing supplied args and
+        kwargs and returning the driver result. Special messages that are
+        not forwarded to the driver are:
+        'stop_driver_process' - signal to close messaging and terminate.
+        'test_events' - populate event queue with test data.
+        'process_echo' - echos the message back.
+        If the command is not found in the driver, an echo message is
+        replied to the client.
+        @param msg A driver command message.
+        @retval The driver command result.
         """
-        pass
-
-    def forward_event(self):
-        """
-        method docstring
-        """
-        pass
+        cmd = msg.get('cmd', None)
+        args = msg.get('args', None)
+        kwargs = msg.get('kwargs', None)
+        cmd_func = getattr(self.driver, cmd, None)
+        if cmd == 'stop_driver_process':
+            self.stop_messaging()
+            return'stop_driver_process'
+        elif cmd == 'test_events':
+            self.events.append('I am event number 1!')
+            self.events.append('And I am event number 2!')
+            reply = 'test_events'
+        elif cmd == 'process_echo':
+            reply = msg
+        elif cmd_func:
+            reply = cmd_func(*args, **kwargs)
+        else:
+            reply = 'Unknown driver command'
         
+        return reply        
+            
     def run(self):
         """
-        method docstring
+        Process entry point. Construct driver and start messaging loops.
+        Call shutdown when messaging terminates amd then end process.
         """
-        self.start_messaging()
-        self.construct_driver()
-        if self.driver:
-            while True:
-                done = self.process_cmd_message()
-                if done == True:
-                    break
-        self.stop_messaging()
+        
+        if self.construct_driver():
+            self.start_messaging()
+            
         self.shutdown()
-
+        
 class ZmqDriverProcess(DriverProcess):
     """
-    class docstring
+    A OS-level driver process that communicates with ZMQ sockets.
+    Command-REP and event-PUB sockets monitor and react to comms
+    needs in separate threads, which can be signaled to end
+    by setting boolean flags stop_cmd_thread and stop_evt_thread.
     """
     
-    def __init__(self, cmd_port, event_host, event_port, driver_module, \
-                 driver_class):
+    def __init__(self, cmd_port, event_port, driver_module, driver_class):
         """
-        method docstring
+        @param cmd_port Int IP port of the command REP socket.
+        @param event_port Int IP port of the event socket.
+        @param driver_module The python module containing the driver code.
+        @param driver_class The python driver class.
         """
         DriverProcess.__init__(self, driver_module, driver_class)
         self.cmd_port = cmd_port
         self.cmd_host_string = 'tcp://*:%i' % self.cmd_port
-        self.event_host = event_host
         self.event_port = event_port
-        self.event_host_string = 'tcp://%s:%i' % (self.event_host, \
-                                                  self.event_port)
+        self.event_host_string = 'tcp://*:%i' % self.event_port
+        self.evt_thread = None
+        self.stop_evt_thread = True
+        self.cmd_thread = None
+        self.stop_cmd_thread = True
 
     def start_messaging(self):
         """
-        method docstring
+        Initialize and start messaging resources for the driver, blocking
+        until messaging terminates. This ZMQ implementation starts and
+        joins command and event threads, managing nonblocking send/recv calls
+        on REP and PUB sockets, respectively. Terminate loops and close
+        sockets when stop flag is set in driver process.
         """
-        self.zmq_context = zmq.Context()
-        self.zmq_cmd_socket = self.zmq_context.socket(zmq.REP)
-        log.info('driver process %i cmd socket binding to %s' % \
-                 (self.pid,self.cmd_host_string))
-        self.zmq_cmd_socket.bind(self.cmd_host_string)
-        self.zmq_event_socket = self.zmq_context.socket(zmq.REQ)        
-        log.info('driver process %i event socket connecting to %s' % \
-                 (self.pid,self.event_host_string))
-        self.zmq_event_socket.connect(self.event_host_string)
-        log.info('driver process %i messaging started' % self.pid)
         
+        def recv_cmd_msg(zmq_driver_process):
+            """
+            Await commands on a ZMQ REP socket, forwaring them to the
+            driver for processing and returning the result.
+            """
+            context = zmq.Context()
+            sock = context.socket(zmq.REP)
+            sock.bind(zmq_driver_process.cmd_host_string)
+            print('driver process %i cmd socket bound to %s\n' % \
+                 (self.pid,zmq_driver_process.cmd_host_string))
+        
+            zmq_driver_process.stop_cmd_thread = False
+            while not zmq_driver_process.stop_cmd_thread:
+                try:
+                    msg = sock.recv_pyobj(flags=zmq.NOBLOCK)
+                    print 'cmd thread: processing message %s\n' % msg
+                    reply = zmq_driver_process.cmd_driver(msg)
+                    while reply:
+                        try:
+                            sock.send_pyobj(reply)
+                            reply = None
+                        except zmq.ZMQError:
+                            time.sleep(0)
+                except zmq.ZMQError:
+                    time.sleep(0)
+        
+            sock.close()
+            context.term()
+            print 'driver process %i cmd socket closed\n' % self.pid        
+        
+        def send_evt_msg(zmq_driver_process):
+            """
+            Await events on the driver process event queue and publish them
+            on a ZMQ PUB socket to the driver process client.
+            """
+            context = zmq.Context()
+            sock = context.socket(zmq.PUB)
+            sock.bind(zmq_driver_process.event_host_string)
+            #log.info('driver process %i event socket connected' % \
+            #     zmq_driver_process.pid)
+            print('driver process %i event socket bound to %s\n' % \
+                 (zmq_driver_process.pid, zmq_driver_process.event_host_string))
+
+            zmq_driver_process.stop_evt_thread = False
+            while not zmq_driver_process.stop_evt_thread:
+                try:
+                    evt = zmq_driver_process.events.pop(0)
+                    print 'event thread: sending event %s\n' % str(evt)
+                    while evt:
+                        try:
+                            sock.send_pyobj(evt, flags=zmq.NOBLOCK)
+                            evt = None
+                            print 'event sent!'
+                        except zmq.ZMQError:
+                            time.sleep(0)
+                            
+                except IndexError:
+                    time.sleep(0)
+
+            sock.close()
+            context.term()
+            print 'driver process %i evetn socket closed\n' % self.pid
+
+        self.cmd_thread = Thread(target=recv_cmd_msg, args=(self, ))
+        self.cmd_thread.start()        
+        self.evt_thread = Thread(target=send_evt_msg, args=(self, ))
+        self.evt_thread.start()        
+        self.cmd_thread.join()
+        self.evt_thread.join()
+    
     def stop_messaging(self):
         """
-        method docstring
+        Close messaging resource for the driver. Set flags to cause
+        command and event threads to close sockets and conclude.
         """
-        self.zmq_cmd_socket.close()
-        self.zmq_cmd_socket = None
-        self.zmq_event_socket.close()
-        self.zmq_event_socket = None
-        self.zmq_context = None
-        self.host_string = None
-        log.info('driver process %i messaging stopped' % self.pid)
+        self.stop_cmd_thread = True
+        self.stop_evt_thread = True
     
     def shutdown(self):
         """
-        method docstring
+        Shutdown function prior to process exit.
         """
         DriverProcess.shutdown(self)
     
-    def process_cmd_message(self):
-        """
-        method docstring
-        """
-        retval = False
-        msg = self.zmq_cmd_socket.recv()
-        if msg == "stop_driver_process":
-            reply = 'driver_stopping'
-            retval = True
-
-        elif hasattr(self.driver, msg):
-            cmd_func = getattr(self.driver, msg)
-            result = cmd_func()
-            reply = 'Command %s returned %s' % (msg, result)
-
-        else:
-            # This should be command not found error.
-            reply = 'The driver process is sending it back to you: ' + msg
-
-        self.zmq_cmd_socket.send(reply)
-        return retval
-
-    def forward_event(self, event):
-        """
-        method docstring
-        """
-        self.zmq_event_socket.send(event)
-        reply = self.zmq_event_socket.recv()
-    
-
