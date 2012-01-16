@@ -15,11 +15,11 @@ import random
 
 from ion.services.mi.driver_process import DriverProcess
 from ion.services.mi.instrument_driver import InstrumentDriver
-from pyon.core.exception import BadRequest, NotFound
-from pyon.public import IonObject, AT, log
-from pyon.agent.agent import ResourceAgent
+#from pyon.core.exception import BadRequest, NotFound
+#from pyon.public import IonObject, AT, log
+#from pyon.agent.agent import ResourceAgent
 
-from zope.interface import Interface, implements
+#from zope.interface import Interface, implements
 
 class SBE37Driver(InstrumentDriver):
     """

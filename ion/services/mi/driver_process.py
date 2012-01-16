@@ -14,6 +14,8 @@ from multiprocessing import Process
 from threading import Thread
 import os
 import time
+import logging
+import sys
 
 import zmq
 
@@ -23,6 +25,13 @@ import ion.services.mi.driver_client as dc
 p = dp.ZmqDriverProcess(5556, 5557, 'ion.services.mi.sbe37_driver', 'SBE37Driver')
 c = dc.ZmqDriverClient('localhost', 5556, 5557)
 """
+mi_logger = logging.getLogger('mi_logger')
+mi_logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s %(process)d %(threadName)s - %(message)s')
+handler.setFormatter(formatter)
+mi_logger.addHandler(handler)
 
 class DriverProcess(Process):
     """
@@ -48,26 +57,23 @@ class DriverProcess(Process):
         configuration.
         @retval True if successful, False otherwise.
         """
+        
         import_str = 'import %s as dvr_mod' % self.driver_module
         ctor_str = 'driver = dvr_mod.%s()' % self.driver_class
         
         try:
-            #log.info('importing driver: %s' % import_str)
-            print('importing driver: %s' % import_str)
             exec import_str
-            #log.info('constructing driver: %s' % ctor_str)
-            print('constructing driver: %s' % ctor_str)
+            mi_logger.info('Imported driver module %s', self.driver_module)
             exec ctor_str
-        except ImportError, NameError:
-            #log.error('Could not import/construct driver, module %s, class %s' \
-            #          % (self.driver_module, self.driver_class))
-            print('Could not import/construct driver, module %s, class %s' \
-                      % (self.driver_module, self.driver_class))
+            mi_logger.info('Constructed driver %s', self.driver_class)
+            
+        except (ImportError, NameError, AttributeError):
+            mi_logger.error('Could not import/construct driver module %s, class %s.',
+                      self.driver_module, self.driver_class)
             return False
+
         else:
             self.driver = driver
-            #log.info('driver process %i driver constructed' % self.pid)
-            print('driver process %i driver constructed' % self.pid)
             return True
             
     def start_messaging(self):
@@ -89,8 +95,7 @@ class DriverProcess(Process):
         """
         Shutdown function prior to process exit.
         """
-        #log.info('driver process %i shutting down' % self.pid)
-        print('driver process %i shutting down' % self.pid)
+        mi_logger.info('Driver process shutting down.')
         self.driver_module = None
         self.driver_class = None
         self.driver = None
@@ -134,7 +139,8 @@ class DriverProcess(Process):
         Process entry point. Construct driver and start messaging loops.
         Call shutdown when messaging terminates amd then end process.
         """
-        
+        mi_logger.info('Driver process started.')
+
         if self.construct_driver():
             self.start_messaging()
             
@@ -182,14 +188,14 @@ class ZmqDriverProcess(DriverProcess):
             context = zmq.Context()
             sock = context.socket(zmq.REP)
             sock.bind(zmq_driver_process.cmd_host_string)
-            print('driver process %i cmd socket bound to %s\n' % \
-                 (self.pid,zmq_driver_process.cmd_host_string))
+            mi_logger.info('Driver rpocess cmd socket bound to %s',
+                           zmq_driver_process.cmd_host_string)
         
             zmq_driver_process.stop_cmd_thread = False
             while not zmq_driver_process.stop_cmd_thread:
                 try:
                     msg = sock.recv_pyobj(flags=zmq.NOBLOCK)
-                    print 'cmd thread: processing message %s\n' % msg
+                    mi_logger.info('Processing message %s', str(msg))
                     reply = zmq_driver_process.cmd_driver(msg)
                     while reply:
                         try:
@@ -202,8 +208,8 @@ class ZmqDriverProcess(DriverProcess):
         
             sock.close()
             context.term()
-            print 'driver process %i cmd socket closed\n' % self.pid        
-        
+            mi_logger.info('Driver process cmd socket closed.')
+                           
         def send_evt_msg(zmq_driver_process):
             """
             Await events on the driver process event queue and publish them
@@ -212,21 +218,19 @@ class ZmqDriverProcess(DriverProcess):
             context = zmq.Context()
             sock = context.socket(zmq.PUB)
             sock.bind(zmq_driver_process.event_host_string)
-            #log.info('driver process %i event socket connected' % \
-            #     zmq_driver_process.pid)
-            print('driver process %i event socket bound to %s\n' % \
-                 (zmq_driver_process.pid, zmq_driver_process.event_host_string))
+            mi_logger.info('Driver process event socket bound to %s',
+                           zmq_driver_process.event_host_string)
 
             zmq_driver_process.stop_evt_thread = False
             while not zmq_driver_process.stop_evt_thread:
                 try:
                     evt = zmq_driver_process.events.pop(0)
-                    print 'event thread: sending event %s\n' % str(evt)
+                    mi_logger.info('Event thread sending event %s', str(evt))
                     while evt:
                         try:
                             sock.send_pyobj(evt, flags=zmq.NOBLOCK)
                             evt = None
-                            print 'event sent!'
+                            mi_logger.info('Event sent!')
                         except zmq.ZMQError:
                             time.sleep(0)
                             
@@ -235,7 +239,7 @@ class ZmqDriverProcess(DriverProcess):
 
             sock.close()
             context.term()
-            print 'driver process %i evetn socket closed\n' % self.pid
+            mi_logger.info('Driver process event socket closed')
 
         self.cmd_thread = Thread(target=recv_cmd_msg, args=(self, ))
         self.cmd_thread.start()        
