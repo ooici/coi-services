@@ -17,40 +17,36 @@ send data far and wide.
 class Ingestion(object):
     """
     This Class creates an instance of a science object and science object transport
-     to contain the data for use in inventory (interacts with the inventory as required),
-    defines a Transformation (interacts with the transformation management),
-    defines a Datastream (interacts with the pubsub management as required),
-    defines Preservation (interacts with Preservation)
+     to contain the data for use in inventory (interacts with the inventory as required).
+    It defines a Transformation (interacts with the transformation management),
+    defines a Datastream (interacts with the pubsub management as required), and
+    defines Preservation (interacts with Preservation).
 
     Instances of this class acts as Ingestion Workers
+    Each instance (i.e. Ingestion Worker) stores a list of configuration ids that it is working on.
+    There is a refresh_config_id_store() method that deletes all configuration ids stored.
+    Alternatively the instance can be killed and a new worker created.
     """
 
-    def __init__(self, ionobject = None):
-        self.ionobject = ionobject
-        self.params_from_metadata = self.read_params_from_metadata()
-        self.ingest()
+    def __init__(self):
+        # store a list of configuration id's
+        self.ingestion_config_ids = []
 
-    def ingest(self):
-        """
-        This method does everything ingestion is required to do for a particular ion object
-        """
-        science_object = self.define_science_object(self.ionobject) # define the science object
-        self.define_datastream_raw(science_object) # defines a datastream and pushes in the science object
+    def store_config_id(self, ingestion_configuration_id):
+        self.ingestion_config_ids.append(ingestion_configuration_id)
 
-        # Read the transformation params from the metadata in the science_object and define a transformation object
-        transform_params = self.params_from_metadata['transform params']
-        self.define_transformation(transform_params)
+    def refresh_config_id_store(self):
+        self.ingestion_config_ids = []
+
+    def take_science_object(self, ingestion_configuration_id, science_obj):
+        """
+        Accept an science object and an ingestion configuration id and do something
+        """
+
+        # Read the transformation params and define a transformation object
+
 
         # Do something for the preservation of the object
-        preservation_params = self.params_from_metadata['preservation params']
-        self.define_preservation(preservation_params)
-
-
-    def define_science_object(self, science_object = None):
-        """
-        Defines a science object and returns the science object id obtained from the inventory
-        """
-        self.science_object = ScienceObjectTransport(science_object)
 
 
     def define_datastream_raw(self, raw_samples_stream):
@@ -64,13 +60,6 @@ class Ingestion(object):
         Reads the params from the metadata attribute in the science object
         """
 
-
-    def define_transformation(self, transform_params):
-        """
-        Defines a transformation object
-        and returns the transform_id obtained from the transformation service
-        """
-
     def define_datastream_product(self, raw_product_stream_id):
         """
         Defines a raw product stream and returns the raw_product_stream_id obtained from the distribution service
@@ -81,7 +70,3 @@ class Ingestion(object):
         Defines a preservation object and returns a success/fail value obtained from the preservation service
         """
 
-    def update_science_object(self, science_object_id, metadata):
-        """
-        Updates the metadata content of a science object when provided the science object_id
-        """
