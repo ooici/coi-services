@@ -79,14 +79,7 @@ class TransformManagementService(BaseTransformManagementService):
         log.debug('read_subscription(%s)' % in_subscription_id)
         subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
 
-        listen_name = subscription.exchange_name
-
-        
-        # if it's not passed in configuration, create it
-        if not configuration.has_key('params'):
-            configuration['params'] = {}
-        configuration['params']['listen_name'] = listen_name
-        configuration['params']['out_stream_id'] = out_stream_id
+        configuration= {'process':{'type':"stream_process",'listen_name':'a_queue'}}
 
 
         #@todo: this is going to go somewhere
@@ -95,8 +88,7 @@ class TransformManagementService(BaseTransformManagementService):
         pid = self.container.spawn_process(name=transform_name,
                         module='ion.services.dm.transformation.example.transform_example',
                         cls='TransformExample',
-                        config=configuration,
-                        process_type='stream_process')
+                        config=configuration)
 
         transform_res.process_id = '%s.%s' % (self.container.id, str(pid))
         # ------------------------------------------------------------------------------------
