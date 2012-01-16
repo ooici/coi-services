@@ -53,7 +53,7 @@ class TransformManagementService(BaseTransformManagementService):
         @param process_definition_id The ProcessDefinition that holds the configuration for the process to be launched
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
-        @param configuration { name: Name of the transform process, module: module, cls: class name, params: {out_stream_id}}
+        @param configuration { name: Name of the transform process }
 
         @return The transform_id to the transform
         """
@@ -65,21 +65,23 @@ class TransformManagementService(BaseTransformManagementService):
 
         schedule = IonObject(RT.ProcessSchedule, name=transform_name+'_schedule')
 
-        #@todo: fill in process schedule stuff
-        # cei/process.yml
-        # --
-        # schedule.activation_mode =''
-        # schedule.schedule = {}
-
-        pid = self.clients.process_dispatcher_service.schedule_process(process_definition_id, schedule)
+#        #@todo: fill in process schedule stuff
+#        # cei/process.yml
+#        # --
+#        # schedule.activation_mode =''
+#        # schedule.schedule = {}
+#
+#        pid = self.clients.process_dispatcher_service.schedule_process(process_definition_id, schedule)
         transform_res = IonObject(RT.Transform,name=transform_name)
-        transform_res.process_id = pid
+#        transform_res.process_id = pid
+#
 
-        # exchange_name -> listen_name
-        log.debug('read_subscription(%s)' % in_subscription_id)
-        subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
+        listen_name = configuration.get('exchange_name',None)
+        if not listen_name:
+            subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
+            listen_name = subscription.exchange_name
 
-        configuration= {'process':{'type':"stream_process",'listen_name':'a_queue'}}
+        configuration= {'process':{'type':"stream_process",'listen_name':listen_name}}
 
 
         #@todo: this is going to go somewhere

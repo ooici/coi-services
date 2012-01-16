@@ -313,7 +313,6 @@ class PubsubManagementService(BasePubsubManagementService):
 
         channel = self.container.node.channel(BindingChannel, BindingChannel)
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
-        channel.start_consume()
 
     def _unbind_subscription(self, exchange_point, exchange_name):
 
