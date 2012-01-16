@@ -11,8 +11,6 @@ from mock import Mock
 from pyon.public import log, IonObject, RT, AT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import DotDict
-from ion.services.dm.transformation.example.transform_example import TransformExample
-from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
 
 class TransformManagementService(BaseTransformManagementService):
@@ -55,13 +53,14 @@ class TransformManagementService(BaseTransformManagementService):
         @param process_definition_id The ProcessDefinition that holds the configuration for the process to be launched
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
-        @param configuration { name: Name of the transform process, module: module, class: class name }
+        @param configuration { name: Name of the transform process, module: module, cls: class name, params: {out_stream_id}}
 
         @return The transform_id to the transform
         """
         #@todo: fix this
 
         transform_name=configuration['name']
+
 
 
         schedule = IonObject(RT.ProcessSchedule, name=transform_name+'_schedule')
@@ -76,8 +75,31 @@ class TransformManagementService(BaseTransformManagementService):
         transform_res = IonObject(RT.Transform,name=transform_name)
         transform_res.process_id = pid
 
+        # exchange_name -> listen_name
+        log.debug('read_subscription(%s)' % in_subscription_id)
+        subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
+
+        listen_name = subscription.exchange_name
+
+        
+        # if it's not passed in configuration, create it
+        if not configuration.has_key('params'):
+            configuration['params'] = {}
+        configuration['params']['listen_name'] = listen_name
+        configuration['params']['out_stream_id'] = out_stream_id
 
 
+        #@todo: this is going to go somewhere
+
+        # ----------------------------- Example Process Spawning -----------------------------
+        pid = self.container.spawn_process(name=transform_name,
+                        module='ion.services.dm.transformation.example.transform_example',
+                        cls='TransformExample',
+                        config=configuration,
+                        process_type='stream_process')
+
+        transform_res.process_id = '%s.%s' % (self.container.id, str(pid))
+        # ------------------------------------------------------------------------------------
 
         transform_id, _ = self.clients.resource_registry.create(transform_res)
         self.clients.resource_registry.create_association(transform_id,AT.hasProcessDefinition,process_definition_id)
@@ -133,6 +155,9 @@ class TransformManagementService(BaseTransformManagementService):
 
         # stop the transform process
         self.clients.process_dispatcher_service.cancel_process(process_id=pid)
+        self.container.proc_manager.terminate_process(pid)
+        log.debug('Terminated Process (%s)' % pid)
+
 
         # delete the associations
         for predicate in [AT.hasProcessDefinition, AT.hasSubscription, AT.hasOutStream]:
@@ -155,7 +180,7 @@ class TransformManagementService(BaseTransformManagementService):
 
 
 
-    def bind_transform(self, transform_id=''):
+    def activate_transform(self, transform_id=''):
         """Activate the subscription to bind (start) the transform
         @param transform_id
 
