@@ -15,6 +15,11 @@ from pyon.public import RT, AT, log, IonObject
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
 
+class BindingChannel(SubscriberChannel):
+
+    def _declare_queue(self, queue):
+        self._recv_name = (self._recv_name[0], '.'.join(self._recv_name))
+
 
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
@@ -301,10 +306,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return stream_obj.producers
 
-    class BindingChannel(SubscriberChannel):
 
-        def _declare_queue(self):
-            self._recv_name = (self._recv_name[0], '.'.join(self._recv_name))
 
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
