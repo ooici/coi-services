@@ -10,9 +10,12 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 from threading import Thread
+import logging
+import time
 
 import zmq
-import time
+
+mi_logger = logging.getLogger('mi_logger')
 
 class DriverClient(object):
     """
@@ -66,7 +69,7 @@ class DriverClient(object):
         reply = self.cmd_dvr('process_echo', data='zoom zoom boom boom')
         time.sleep(5)
         reply = self.cmd_dvr('test_events')
-        time.sleep(5)
+        time.sleep(3)
         self.done()
     
     
@@ -104,7 +107,8 @@ class ZmqDriverClient(DriverClient):
         self.zmq_context = zmq.Context()
         self.zmq_cmd_socket = self.zmq_context.socket(zmq.REQ)
         self.zmq_cmd_socket.connect(self.cmd_host_string)
-        print('driver client cmd socket connected to %s' % self.cmd_host_string)        
+        mi_logger.info('Driver client cmd socket connected to %s.',
+                       self.cmd_host_string)        
         
         def recv_evt_messages(driver_client):
             """
@@ -113,24 +117,23 @@ class ZmqDriverClient(DriverClient):
             sock = context.socket(zmq.SUB)
             sock.connect(driver_client.event_host_string)
             sock.setsockopt(zmq.SUBSCRIBE, '')
-            print('driver client event thread connected to %s'
-                  % driver_client.event_host_string)
+            mi_logger.info('Driver client event thread connected to %s.',
+                  driver_client.event_host_string)
 
             driver_client.stop_event_thread = False
             while not driver_client.stop_event_thread:
                 try:
                     evt = sock.recv_pyobj(flags=zmq.NOBLOCK)
-                    print 'got event: %s\n' % str(evt)
+                    mi_logger.debug('got event: %s', str(evt))
                 except zmq.ZMQError:
-                    print 'event thread sleeping\n'
-                    time.sleep(1)
+                    pass
 
             sock.close()
             context.term()
-            print('client event socket closed')
+            mi_logger.info('Client event socket closed.')
         self.event_thread = Thread(target=recv_evt_messages, args=(self,))
         self.event_thread.start()
-        print('driver client messaging started')
+        mi_logger.info('Driver client messaging started.')
         
     def stop_messaging(self):
         """
@@ -147,7 +150,7 @@ class ZmqDriverClient(DriverClient):
         self.stop_event_thread = True                    
         self.event_thread.join()
         self.event_thread = None
-        print('driver client messaging closed')        
+        mi_logger.info('Driver client messaging closed.')        
     
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
@@ -156,12 +159,12 @@ class ZmqDriverClient(DriverClient):
         to receive the reply. Return the driver reply.
         """
         msg = {'cmd':cmd,'args':args,'kwargs':kwargs}
-        print 'sending command %s\n' % str(msg)
+        mi_logger.debug('Sending command %s.', str(msg))
         self.zmq_cmd_socket.send_pyobj(msg)
         if msg == 'stop_driver_process':
             return 'driver stopping'
-        print 'awaiting reply'
+        mi_logger.debug('Awaiting reply.')
         reply = self.zmq_cmd_socket.recv_pyobj()
-        print 'reply: %s\n' % str(reply)
+        mi_logger.debug('Reply: %s.', str(reply))
         return reply
     

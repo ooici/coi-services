@@ -10,6 +10,8 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
+#import pyon.core.exception as pe
+
 from multiprocessing import Process
 from threading import Thread
 import os
@@ -20,18 +22,14 @@ import sys
 import zmq
 
 """
+import ion.services.mi.mi_logger
 import ion.services.mi.driver_process as dp
 import ion.services.mi.driver_client as dc
 p = dp.ZmqDriverProcess(5556, 5557, 'ion.services.mi.sbe37_driver', 'SBE37Driver')
 c = dc.ZmqDriverClient('localhost', 5556, 5557)
 """
+
 mi_logger = logging.getLogger('mi_logger')
-mi_logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler()
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(levelname)s %(process)d %(threadName)s - %(message)s')
-handler.setFormatter(formatter)
-mi_logger.addHandler(handler)
 
 class DriverProcess(Process):
     """
@@ -195,7 +193,7 @@ class ZmqDriverProcess(DriverProcess):
             while not zmq_driver_process.stop_cmd_thread:
                 try:
                     msg = sock.recv_pyobj(flags=zmq.NOBLOCK)
-                    mi_logger.info('Processing message %s', str(msg))
+                    mi_logger.debug('Processing message %s', str(msg))
                     reply = zmq_driver_process.cmd_driver(msg)
                     while reply:
                         try:
@@ -225,12 +223,12 @@ class ZmqDriverProcess(DriverProcess):
             while not zmq_driver_process.stop_evt_thread:
                 try:
                     evt = zmq_driver_process.events.pop(0)
-                    mi_logger.info('Event thread sending event %s', str(evt))
+                    mi_logger.debug('Event thread sending event %s', str(evt))
                     while evt:
                         try:
                             sock.send_pyobj(evt, flags=zmq.NOBLOCK)
                             evt = None
-                            mi_logger.info('Event sent!')
+                            mi_logger.debug('Event sent!')
                         except zmq.ZMQError:
                             time.sleep(0)
                             
