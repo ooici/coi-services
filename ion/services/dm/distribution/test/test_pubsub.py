@@ -380,7 +380,7 @@ class PublishSubscribeIntTest(IonIntegrationTestCase):
         stream = IonObject(RT.Stream, name='test stream')
         id = self.client.create_stream(stream)
 
-        self.publisher_registrar.create_publisher(stream_id=id)
+        #self.publisher_registrar.create_publisher(stream_id=id)
 
 """
 

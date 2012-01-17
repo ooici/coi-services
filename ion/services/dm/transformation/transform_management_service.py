@@ -89,7 +89,8 @@ class TransformManagementService(BaseTransformManagementService):
             subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
             listen_name = subscription.exchange_name
 
-        configuration= {'process':{'type':"stream_process",'listen_name':listen_name}}
+        configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name,
+                                   'publish_streams':{'out_stream':out_stream_id}}}
 
         pid = self.container.spawn_process(name=transform_name,
                         module='ion.services.dm.transformation.example.transform_example',
