@@ -8,7 +8,6 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
-from pyon.container.cc import Container
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.containers import DotDict
 from pyon.public import IonObject, RT, log, AT
@@ -17,6 +16,7 @@ from mock import Mock
 from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.transformation.transform_management_service import TransformManagementService
+from ion.services.dm.transformation.example.transform_example import TransformExample
 import unittest
 
 @attr('UNIT',group='dm')
@@ -25,7 +25,7 @@ class TransformManagementServiceTest(PyonTestCase):
 
     """
     def setUp(self):
-        mock_clients = self._create_service_mock('transform_management_service')
+        mock_clients = self._create_service_mock('transform_management')
         self.transform_service = TransformManagementService()
         self.transform_service.clients = mock_clients
         self.transform_service.clients.pubsub_management = DotDict()
@@ -34,6 +34,12 @@ class TransformManagementServiceTest(PyonTestCase):
         self.transform_service.clients.pubsub_management['create_subscription'] = Mock()
         self.transform_service.clients.pubsub_management['register_producer'] = Mock()
         self.transform_service.clients.pubsub_management['activate_subscription'] = Mock()
+        self.transform_service.clients.pubsub_management['read_subscription'] = Mock()
+        self.transform_service.container = DotDict()
+        self.transform_service.container['spawn_process'] = Mock()
+        self.transform_service.container['id'] = 'mock_container_id'
+        self.transform_service.container['proc_manager'] = DotDict()
+        self.transform_service.container.proc_manager['terminate_process'] = Mock()
         # CRUD Shortcuts
         self.mock_rr_create = self.transform_service.clients.resource_registry.create
         self.mock_rr_read = self.transform_service.clients.resource_registry.read
@@ -55,25 +61,30 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_ps_create_sub = self.transform_service.clients.pubsub_management.create_subscription
         self.mock_ps_register = self.transform_service.clients.pubsub_management.register_producer
         self.mock_ps_activate = self.transform_service.clients.pubsub_management.activate_subscription
+        self.mock_ps_read_sub = self.transform_service.clients.pubsub_management.read_subscription
+
+        self.mock_cc_spawn = self.transform_service.container.spawn_process
+        self.mock_cc_terminate = self.transform_service.container.proc_manager.terminate_process
 
     def test_create_transform(self):
+        '''This is currently set up to test the example spawning.
+        '''
         # mocks
-        self.mock_pd_schedule.return_value = 'mock_pid'
-        self.mock_rr_create.return_value = ('transform_id','rev')
-        predicates = [AT.hasProcessDefinition, AT.hasSubscription, AT.hasOutStream]
-        def create_assoc(*args, **kwargs):
-            self.assertEquals(args[1],predicates.pop(0))
-        self.mock_rr_create_assoc.side_effect = create_assoc
+        self.mock_cc_spawn.return_value = 'mock_pid'
+        self.mock_ps_read_sub.return_value = DotDict({'exchange_name':'mock_exchange'})
+        self.mock_rr_create.return_value = ('mock_transform_id','junk')
 
         # execution
+        configuration = {'name':'mock_transform'}
         res = self.transform_service.create_transform('subscription_id','out_stream','process_definition_id',
-                                                        {'name':'test_transform'})
+                                                        configuration)
 
         # assertions
-        # it should create the association between the ids and the transform_id
-        self.assertEquals(self.mock_rr_create_assoc.call_count,3)
-        # it should launch the process
-        self.assertTrue(self.mock_pd_schedule.called)
+        self.mock_ps_read_sub.assert_called_once_with(subscription_id='subscription_id')
+        #params are too complicated to mock and check for now
+        self.assertTrue(self.mock_cc_spawn.called)
+        self.assertTrue(self.mock_rr_create_assoc.called,3)
+        self.assertEquals(res,'mock_transform_id')
 
 
     def test_update_transform(self):
@@ -95,42 +106,36 @@ class TransformManagementServiceTest(PyonTestCase):
 
     def test_delete_transform(self):
         # mocks
-        mock_id_list = [(['proc_def_id'],'rev'),
-                        (['sub_id'],'rev'),
-                        (['stream_id'],'rev')]
-        def mock_ids(*args,**kwargs):
-            return mock_id_list.pop()
-        self.mock_rr_find.side_effect = mock_ids
-
         self.transform_service.read_transform = Mock()
-        self.transform_service.read_transform.return_value = DotDict({'process_id':'123'})
+        self.transform_service.read_transform.return_value = DotDict({'process_id':'pid'})
+        find_list = ['process_definition','subscription_id','stream_id']
+        def finds(*args, **kwargs):
+            return ([find_list.pop(0)],'junk')
+        self.mock_rr_find.side_effect = finds
+        association_list = ['one','two','three']
+        def associations(*args,**kwargs):
+            return [association_list.pop(0)]
+        self.mock_rr_assoc.side_effect = associations
 
-        associations=[['first'],['second'],['third']]
-        def mock_association(*args,**kwargs):
-            return associations.pop()
-        self.mock_rr_assoc.side_effect = mock_association
 
         # execution
-        self.transform_service.delete_transform('mock_transform_id')
+        ret = self.transform_service.delete_transform('mock_transform_id')
 
         # assertions
         self.transform_service.read_transform.assert_called_with(transform_id='mock_transform_id')
+        self.mock_cc_terminate.assert_called_with('pid')
         self.assertEquals(self.mock_rr_find.call_count,3)
-        self.mock_pd_cancel.assert_called_with('123')
         self.assertEquals(self.mock_rr_del_assoc.call_count,3)
         self.assertEquals(self.mock_rr_delete.call_count,4)
 
-        # ends case checking
-        #@todo: fill this out
-
             
 
-    def test_bind_transform(self):
+    def test_activate_transform(self):
         # mocks
         self.mock_rr_find.return_value = [['id'],'garbage']
 
         # execution
-        ret = self.transform_service.bind_transform('transform_id')
+        ret = self.transform_service.activate_transform('transform_id')
 
         # assertions
         self.mock_rr_find.assert_called_with('transform_id',AT.hasSubscription,RT.Subscription,True)
@@ -155,13 +160,9 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.cc.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
-
-
-        self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
 
-        # Initialize the parameters that create_transform needs
         self.ctd_output_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
         self.ctd_output_stream.original = True
         self.ctd_output_stream.mimetype = 'hdf'
@@ -170,26 +171,28 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
         self.ctd_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')
         self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
-        self.ctd_subscription.exchange_name = 'science.data'
+        self.ctd_subscription.exchange_name = 'a queue'
         self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
 
 
 
-        self.data_product_stream = IonObject(RT.Stream,name='self.data_product_stream1', descriptoin='a simple data product stream test')
+        self.data_product_stream = IonObject(RT.Stream,name='data_product_stream1', descriptoin='a simple data product stream test')
         self.data_product_stream.original = True
         self.data_product_stream.producers = ['science.data']
         self.data_product_stream_id = self.pubsub_cli.create_stream(self.data_product_stream)
 
-        self.process_definition = IonObject(RT.ProcessDefinition, name='transform process definition')
+        self.process_definition = IonObject(RT.ProcessDefinition, name='transform_process_definition')
         self.process_definition_id, _ = self.rr_cli.create(self.process_definition)
+        self.configuration = {'name':'basic transform', 'exchange_name':self.ctd_subscription.exchange_name }
 
-    def tearDown(self):
+
+#    def tearDown(self):
         # clean up resources alloced during set up
-        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
-
-        self.pubsub_cli.delete_stream(self.data_product_stream_id)
-        self.rr_cli.delete(self.process_definition_id)
-        IonIntegrationTestCase.tearDown(self)
+#        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+#
+#        self.pubsub_cli.delete_stream(self.data_product_stream_id)
+#        self.rr_cli.delete(self.process_definition_id)
+#        IonIntegrationTestCase.tearDown(self)
 
         
     def test_create_transform(self):
@@ -211,6 +214,12 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             assocs += self.rr_cli.find_associations(transform_id,p,id_only=True)
         self.assertEquals(len(assocs),3)
 
+        # test process creation
+        transform = self.tms_cli.read_transform(transform_id)
+        pid = transform.process_id
+        proc = self.container.proc_manager.procs[pid]
+        self.assertTrue(isinstance(proc,TransformExample))
+
     def test_read_transform(self):
         transform_object = IonObject(RT.Transform,name='blank_transform')
         transform_id, rev = self.rr_cli.create(transform_object)
@@ -222,11 +231,11 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         # clean up
         self.rr_cli.delete(res)
 
-    @unittest.skip('not implemented yet')
-    def test_bind_transform(self):
+
+    def test_activate_transform(self):
         transform_id = self.tms_cli.create_transform(
             self.ctd_subscription_id,
             self.ctd_output_stream_id,
             self.process_definition_id,
                 {'name':'basic transform'})
-        self.tms_cli.bind_transform(transform_id)
+        self.tms_cli.activate_transform(transform_id)

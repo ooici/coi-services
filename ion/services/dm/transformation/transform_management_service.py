@@ -76,6 +76,14 @@ class TransformManagementService(BaseTransformManagementService):
 #        transform_res.process_id = pid
 #
 
+
+
+
+        #@todo: this is going to go somewhere
+
+        # ----------------------------- Example Process Spawning -----------------------------
+
+
         listen_name = configuration.get('exchange_name',None)
         if not listen_name:
             subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
@@ -83,16 +91,12 @@ class TransformManagementService(BaseTransformManagementService):
 
         configuration= {'process':{'type':"stream_process",'listen_name':listen_name}}
 
-
-        #@todo: this is going to go somewhere
-
-        # ----------------------------- Example Process Spawning -----------------------------
         pid = self.container.spawn_process(name=transform_name,
                         module='ion.services.dm.transformation.example.transform_example',
                         cls='TransformExample',
                         config=configuration)
 
-        transform_res.process_id = '%s.%s' % (self.container.id, str(pid))
+        transform_res.process_id = '%s.%s' % (str(self.container.id), str(pid))
         # ------------------------------------------------------------------------------------
 
         transform_id, _ = self.clients.resource_registry.create(transform_res)
@@ -148,7 +152,7 @@ class TransformManagementService(BaseTransformManagementService):
 
 
         # stop the transform process
-        self.clients.process_dispatcher_service.cancel_process(process_id=pid)
+        #self.clients.process_dispatcher_service.cancel_process(process_id=pid)
         self.container.proc_manager.terminate_process(pid)
         log.debug('Terminated Process (%s)' % pid)
 
@@ -161,6 +165,7 @@ class TransformManagementService(BaseTransformManagementService):
 
 
         #@todo: should I delete the resources, or should dpms?
+        log.debug('id list: %s' % id_list)
         # iterate through the list and delete each
         for res_id in id_list:
             self.clients.resource_registry.delete(res_id)
