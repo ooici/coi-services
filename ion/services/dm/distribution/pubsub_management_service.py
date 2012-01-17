@@ -311,12 +311,12 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
-        channel = self.container.node.channel(BindingChannel, BindingChannel)
+        channel = self.container.node.channel(BindingChannel)
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
 
     def _unbind_subscription(self, exchange_point, exchange_name):
 
-        channel = self.container.node.channel(BindingChannel, BindingChannel)
+        channel = self.container.node.channel(BindingChannel)
         channel._recv_name = (exchange_point, exchange_name)
         channel.stop_consume()
         channel.destroy_binding()

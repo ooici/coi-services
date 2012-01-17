@@ -30,4 +30,11 @@ class TransformExample(StreamProcess):
     def process(self, packet):
         """Processes incoming data!!!!
         """
-        log.debug('transform example has received data')
+        with open('/tmp/transform_output', 'a') as f:
+            input = float(packet.get('num',0))
+            output = input + 1.0
+            f.write('Received Packet: %s\n' % packet)
+            f.write('  - Transform - %f\n' % output)
+            log.debug('Tranform: %f' % output)
+
+
