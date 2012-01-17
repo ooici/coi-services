@@ -20,9 +20,7 @@ import ion.services.mi.mi_logger
 import ion.services.mi.driver_process as dp
 import ion.services.mi.driver_client as dc
 
-
 mi_logger = logging.getLogger('mi_logger')
-
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/services/mi/test/test_driver_process.py
@@ -53,20 +51,42 @@ class DriverProcessTest(unittest.TestCase):
     def test_driver_process(self):
         """
         """
-        
         """
         driver_process = dp.ZmqDriverProcess(5556, 5557,
                             'ion.services.mi.sbe37_driver', 'SBE37Driver')
         driver_client = dc.ZmqDriverClient('localhost', 5556, 5557)
         driver_process.start()
         driver_client.start_messaging()
-        time.sleep(3)
+        time.sleep(1)
+
         reply = driver_client.cmd_dvr('process_echo', data='test 1 2 3')
-        time.sleep(1)
-        reply = driver_client.cmd_dvr('process_echo', data='zoom zoom boom boom')
-        time.sleep(1)
+        self.assertIsInstance(reply, dict)
+        self.assertTrue('cmd' in reply)
+        self.assertTrue('args' in reply)
+        self.assertTrue('kwargs' in reply)
+        self.assertTrue(reply['cmd'] == 'process_echo')
+        self.assertTrue(reply['args'] == ())
+        self.assertIsInstance(reply['kwargs'], dict)
+        self.assertTrue('data' in reply['kwargs'])
+        self.assertTrue(reply['kwargs']['data'], 'test 1 2 3')
+
+        reply = driver_client.cmd_dvr('process_echo',
+                                      data='zoom zoom boom boom')
+        self.assertIsInstance(reply, dict)
+        self.assertTrue('cmd' in reply)
+        self.assertTrue('args' in reply)
+        self.assertTrue('kwargs' in reply)
+        self.assertTrue(reply['cmd'] == 'process_echo')
+        self.assertTrue(reply['args'] == ())
+        self.assertIsInstance(reply['kwargs'], dict)
+        self.assertTrue('data' in reply['kwargs'])
+        self.assertTrue(reply['kwargs']['data'], 'test 1 2 3')
+
         reply = driver_client.cmd_dvr('test_events')
+        self.assertEqual(reply, 'test_events')
         time.sleep(1)
+        self.assertTrue(driver_client.events, ['I am event number 1!',
+                                               'And I am event number 2!'])
         driver_client.done()
         """
         pass

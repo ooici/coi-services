@@ -125,6 +125,7 @@ class ZmqDriverClient(DriverClient):
                 try:
                     evt = sock.recv_pyobj(flags=zmq.NOBLOCK)
                     mi_logger.debug('got event: %s', str(evt))
+                    driver_client.events.append(evt)
                 except zmq.ZMQError:
                     pass
 

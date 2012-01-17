@@ -141,9 +141,9 @@ class DriverProcess(Process):
 
         if self.construct_driver():
             self.start_messaging()
-            
+
         self.shutdown()
-        
+
 class ZmqDriverProcess(DriverProcess):
     """
     A OS-level driver process that communicates with ZMQ sockets.
@@ -240,8 +240,8 @@ class ZmqDriverProcess(DriverProcess):
             mi_logger.info('Driver process event socket closed')
 
         self.cmd_thread = Thread(target=recv_cmd_msg, args=(self, ))
-        self.cmd_thread.start()        
         self.evt_thread = Thread(target=send_evt_msg, args=(self, ))
+        self.cmd_thread.start()        
         self.evt_thread.start()        
         self.cmd_thread.join()
         self.evt_thread.join()
