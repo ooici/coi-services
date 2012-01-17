@@ -5,23 +5,16 @@
 @author Jamie Chen
 @test ion.services.dm.distribution.pubsub_management_service Unit test suite to cover all pub sub mgmt service code
 '''
-
-from mock import Mock, sentinel, patch
-from pyon.util.unit_test import PyonTestCase
-from pyon.util.int_test import IonIntegrationTestCase
-from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
-from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound
-from pyon.public import log, AT
-import unittest
-from pyon.public import CFG, IonObject, log, RT, AT, LCS, StreamProcess
-from pyon.public import Container
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import Container
-from interface.services.icontainer_agent import ContainerAgentClient
+from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-
-from pyon.ion.endpoint import StreamPublisherRegistrar, StreamSubscriberRegistrar
+from interface.services.icontainer_agent import ContainerAgentClient
+from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
+from pyon.core.exception import NotFound
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
+from pyon.public import AT, RT, IonObject
+from nose.plugins.attrib import attr
+import unittest
 
 
 @attr('UNIT', group='dm')
@@ -377,8 +370,8 @@ class PublishSubscribeIntTest(IonIntegrationTestCase):
         # Now create client to bank service
         self.client = PubsubManagementServiceClient(node=self.container.node)
 
-        container_client.spawn_process(name='test_process', module='pyon.ion.streamproc',cls='StreamProcess',
-            process_type='stream_process', config={'process':{'listen_name':'ctd_data'}})
+        self.container.spawn_process('test_process', 'pyon.ion.streamproc','StreamProcess',
+            config={'process':{'type':'stream_process','listen_name':'ctd_data'}})
 
 
 
