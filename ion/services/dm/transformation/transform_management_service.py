@@ -154,6 +154,7 @@ class TransformManagementService(BaseTransformManagementService):
 
         # stop the transform process
         #self.clients.process_dispatcher_service.cancel_process(process_id=pid)
+        #@note: terminate_process does not raise or confirm if there termination was successful or not
         self.container.proc_manager.terminate_process(pid)
         log.debug('Terminated Process (%s)' % pid)
 
@@ -168,8 +169,8 @@ class TransformManagementService(BaseTransformManagementService):
         #@todo: should I delete the resources, or should dpms?
         log.debug('id list: %s' % id_list)
         # iterate through the list and delete each
-        for res_id in id_list:
-            self.clients.resource_registry.delete(res_id)
+#        for res_id in id_list:
+#            self.clients.resource_registry.delete(res_id)
 
 
 

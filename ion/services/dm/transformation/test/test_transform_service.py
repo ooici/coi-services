@@ -126,7 +126,7 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_cc_terminate.assert_called_with('pid')
         self.assertEquals(self.mock_rr_find.call_count,3)
         self.assertEquals(self.mock_rr_del_assoc.call_count,3)
-        self.assertEquals(self.mock_rr_delete.call_count,4)
+        self.assertEquals(self.mock_rr_delete.call_count,1)
 
             
 
@@ -163,44 +163,41 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
 
-        self.ctd_output_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
-        self.ctd_output_stream.original = True
-        self.ctd_output_stream.mimetype = 'hdf'
-        self.ctd_output_stream.producers = ['science.data']
-        self.ctd_output_stream_id = self.pubsub_cli.create_stream(self.ctd_output_stream)
+        self.input_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
+        self.input_stream.original = True
+        self.input_stream.mimetype = 'hdf'
+        self.input_stream_id = self.pubsub_cli.create_stream(self.input_stream)
 
-        self.ctd_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')
-        self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
-        self.ctd_subscription.exchange_name = 'a queue'
-        self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
+        self.input_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')
+        self.input_subscription.query['stream_id'] = self.input_stream_id
+        self.input_subscription.exchange_name = 'a queue'
+        self.input_subscription_id = self.pubsub_cli.create_subscription(self.input_subscription)
 
-
-
-        self.data_product_stream = IonObject(RT.Stream,name='data_product_stream1', descriptoin='a simple data product stream test')
-        self.data_product_stream.original = True
-        self.data_product_stream.producers = ['science.data']
-        self.data_product_stream_id = self.pubsub_cli.create_stream(self.data_product_stream)
-
-        self.process_definition = IonObject(RT.ProcessDefinition, name='transform_process_definition')
-        self.process_definition_id, _ = self.rr_cli.create(self.process_definition)
-        self.configuration = {'name':'basic transform', 'exchange_name':self.ctd_subscription.exchange_name }
+        self.output_stream = IonObject(RT.Stream,name='transform output', description='output from the transform process')
+        self.output_stream.original = True
+        self.output_stream.mimetype='raw'
+        self.output_stream_id = self.pubsub_cli.create_stream(self.output_stream)
 
 
-#    def tearDown(self):
-        # clean up resources alloced during set up
-#        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
-#
-#        self.pubsub_cli.delete_stream(self.data_product_stream_id)
-#        self.rr_cli.delete(self.process_definition_id)
-#        IonIntegrationTestCase.tearDown(self)
+        self.process_definition = IonObject(RT.ProcessDefinition,name='transform_process')
+        self.process_definition_id, _= self.rr_cli.create(self.process_definition)
+
+
+    def tearDown(self):
+        #clean up resources alloced during set up
+        #self.pubsub_cli.delete_subscription(self.input_subscription_id)
+
+        self.pubsub_cli.delete_stream(self.output_stream_id)
+        self.rr_cli.delete(self.process_definition_id)
+        IonIntegrationTestCase.tearDown(self)
 
         
     def test_create_transform(self):
         transform_id = self.tms_cli.create_transform(
-              self.ctd_subscription_id,
-              self.ctd_output_stream_id,
-              self.process_definition_id,
-                {'name':'basic transform'})
+              in_subscription_id=self.input_subscription_id,
+              out_stream_id=self.output_stream_id,
+              process_definition_id=self.process_definition_id,
+              configuration= {'name':'basic transform'})
 
         # test transform creation in rr
         transform = self.rr_cli.read(transform_id)
@@ -220,22 +217,46 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         proc = self.container.proc_manager.procs[pid]
         self.assertTrue(isinstance(proc,TransformExample))
 
-    def test_read_transform(self):
-        transform_object = IonObject(RT.Transform,name='blank_transform')
-        transform_id, rev = self.rr_cli.create(transform_object)
-        res = self.tms_cli.read_transform(transform_id)
+    def test_read_transform_exists(self):
+        trans_obj = IonObject(RT.Transform,name='trans_obj')
+        trans_id, _ = self.rr_cli.create(trans_obj)
 
-        # test the object
-        self.assertEquals(res._id,transform_id)
+        res = self.tms_cli.read_transform(trans_id)
+        actual = self.rr_cli.read(trans_id)
 
-        # clean up
-        self.rr_cli.delete(res._id)
+        self.assertEquals(res._id,actual._id)
 
+    def test_read_transform_nonexist(self):
+        with self.assertRaises(NotFound) as e:
+            res = self.tms_cli.read_transform('123')
 
     def test_activate_transform(self):
         transform_id = self.tms_cli.create_transform(
-            self.ctd_subscription_id,
-            self.ctd_output_stream_id,
-            self.process_definition_id,
-                {'name':'basic transform'})
+            in_subscription_id=self.input_subscription_id,
+            out_stream_id=self.output_stream_id,
+            process_definition_id=self.process_definition_id,
+            configuration= {'name':'basic transform', 'exchange_name':self.input_subscription.exchange_name})
+
         self.tms_cli.activate_transform(transform_id)
+
+    def test_activate_transform_nonexist(self):
+        with self.assertRaises(NotFound):
+            self.tms_cli.activate_transform('1234')
+
+    def test_delete_transform(self):
+        transform_id = self.tms_cli.create_transform(
+            in_subscription_id=self.input_subscription_id,
+            out_stream_id=self.output_stream_id,
+            process_definition_id=self.process_definition_id,
+            configuration= {'name':'basic transform', 'exchange_name':self.input_subscription.exchange_name})
+        self.tms_cli.delete_transform(transform_id)
+
+        # assertions
+        with self.assertRaises(NotFound):
+            self.rr_cli.read(transform_id)
+
+
+    def test_delete_transform_nonexist(self):
+        with self.assertRaises(NotFound):
+            self.tms_cli.delete_transform('123')
+
