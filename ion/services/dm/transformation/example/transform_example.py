@@ -40,11 +40,12 @@ class TransformExample(StreamProcess):
         log.debug('(%s): Transform: %f' % (self.name,output))
         msg = dict(num=output)
         log.debug('(%s): Message Outgoing: %s' % (self.name, msg))
-        publisher.publish(msg)
+        if publisher:
+            publisher.publish(msg)
         with open('/tmp/transform_output', 'a') as f:
 
-            f.write('Received Packet: %s\n' % packet)
-            f.write('  - Transform - %d\n' % output)
+            f.write('(%s): Received Packet: %s\n' % (self.name,packet))
+            f.write('(%s):   - Transform - %d\n' % (self.name,output))
 
 
 
