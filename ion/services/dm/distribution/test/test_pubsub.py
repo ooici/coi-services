@@ -357,39 +357,59 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with('notfound', '')
 
 
-@attr('INT', group='dm')
-class PublishSubscribeIntTest(IonIntegrationTestCase):
+#@attr('INT', group='dm')
+#class PublishSubscribeIntTest(IonIntegrationTestCase):
+#
+#    def setUp(self):
+#        self._start_container()
+#
+#        # Establish endpoint with container
+#        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+#        container_client.start_rel_from_url('res/deploy/r2deploy.yml')
+#
+#        # Now create client to bank service
+#        self.client = PubsubManagementServiceClient(node=self.container.node)
+#
+#        self.container.spawn_process('test_process', 'pyon.ion.streamproc','StreamProcess',
+#            config={'process':{'type':'stream_process','listen_name':'ctd_data'}})
+#
+#
+#
+#    def test_create_publisher(self):
+#
+#        stream = IonObject(RT.Stream, name='test stream')
+#        id = self.client.create_stream(stream)
+#
+#        #self.publisher_registrar.create_publisher(stream_id=id)
 
-    def setUp(self):
-        self._start_container()
 
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2deploy.yml')
-
-        # Now create client to bank service
-        self.client = PubsubManagementServiceClient(node=self.container.node)
-
-        self.container.spawn_process('test_process', 'pyon.ion.streamproc','StreamProcess',
-            config={'process':{'type':'stream_process','listen_name':'ctd_data'}})
-
-
-
-    def test_create_publisher(self):
-
-        stream = IonObject(RT.Stream, name='test stream')
-        id = self.client.create_stream(stream)
-
-        #self.publisher_registrar.create_publisher(stream_id=id)
-
-"""
 
 @attr('INT', group='dm')
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
-        #create binding
-        pass
+        self._start_container()
+
+        self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
+
+        self.cc.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
+
+        self.ctd_output_stream = IonObject(RT.Stream, name='SampleStream', description='Sample Stream Description')
+        self.ctd_output_stream.original = True
+        self.ctd_output_stream.mimetype = 'hdf'
+        self.ctd_output_stream.producers = ['science.data']
+        self.ctd_output_stream_id = self.pubsub_cli.create_stream(self.ctd_output_stream)
+
+        #self.ctd_subscription = IonObject(RT.Subscription,name='SampleSubscription', description='Sample Subscription Description')
+        #self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
+        #self.ctd_subscription.exchange_name = 'a queue'
+        #self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
+
+    def tearDown(self):
+        #self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+        self.pubsub_cli.delete_stream(self.ctd_output_stream_id)
 
     def test_bind_subscription(self):
         pass
@@ -402,5 +422,3 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def test_unbind_unbound_subscription(self):
         pass
-
-        """
