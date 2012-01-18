@@ -141,6 +141,15 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_rr_find.assert_called_with('transform_id',AT.hasSubscription,RT.Subscription,True)
         self.mock_ps_activate.assert_called_with('id')
 
+        # ---
+    def test_activate_transform_nonexist(self):
+        # mocks
+        self.mock_rr_find.return_value = ([],'')
+
+        # execution
+        with self.assertRaises(NotFound):
+            ret = self.transform_service.activate_transform('transform_id')
+
 
 
     def test_schedule_transform(self):

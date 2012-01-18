@@ -21,30 +21,6 @@ class TransformManagementService(BaseTransformManagementService):
     """
     def __init__(self):
         BaseTransformManagementService.__init__(self)
-        # Mocking interfaces
-
-        #@todo: un-mock
-        # PubSub
-        #self.clients.pubsub_management = DotDict()
-        #self.clients.pubsub_management['XP'] = 'science.data'
-        #self.clients.pubsub_management["create_subscription"] = Mock()
-        #self.clients.pubsub_management.create_subscription.return_value = 'subscription_id'
-        #self.clients.pubsub_management["register_producer"] = Mock()
-        #self.clients.pubsub_management.register_producer.return_value = {'StreamRoute':'Mocked'}
-        #self.clients.pubsub_management["create_stream"] = Mock()
-        #self.clients.pubsub_management.create_stream.return_value = 'unique_stream_id'
-        #self.clients.pubsub_management['activate_subscription'] = Mock()
-        #self.clients.pubsub_management.activate_subscription.return_value = True
-        # ProcessDispatcher
-        self.clients.process_dispatcher_service = DotDict()
-        self.clients.process_dispatcher_service["create_process_definition"] = Mock()
-        self.clients.process_dispatcher_service.create_process_definition.return_value = 'process_definition_id'
-        self.clients.process_dispatcher_service["schedule_process"] = Mock()
-        self.clients.process_dispatcher_service.schedule_process.return_value = True
-        self.clients.process_dispatcher_service["cancel_process"] = Mock()
-        self.clients.process_dispatcher_service.cancel_process.return_value = True
-        self.clients.process_dispatcher_service["delete_process_definition"] = Mock()
-        self.clients.process_dispatcher_service.delete_process_definition.return_value = True
 
 
 
@@ -57,33 +33,16 @@ class TransformManagementService(BaseTransformManagementService):
 
         @return The transform_id to the transform
         """
-        #@todo: fix this
+        # Determine Transform Name
+        transform_name=configuration.get('name','transform')
 
-        transform_name=configuration['name']
+        #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
 
-
-
-        schedule = IonObject(RT.ProcessSchedule, name=transform_name+'_schedule')
-
-#        #@todo: fill in process schedule stuff
-#        # cei/process.yml
-#        # --
-#        # schedule.activation_mode =''
-#        # schedule.schedule = {}
-#
-#        pid = self.clients.process_dispatcher_service.schedule_process(process_definition_id, schedule)
         transform_res = IonObject(RT.Transform,name=transform_name)
-#        transform_res.process_id = pid
-#
-
-
-
-
-        #@todo: this is going to go somewhere
 
         # ----------------------------- Example Process Spawning -----------------------------
 
-
+        # If listen name wasn't passed in with config, determine it through subscription
         listen_name = configuration.get('exchange_name',None)
         if not listen_name:
             subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
@@ -123,7 +82,7 @@ class TransformManagementService(BaseTransformManagementService):
         @throws NotFound when transform doesn't exist
         """
 
-        log.debug('Reading Transform: %s' % transform_id)
+        log.debug('(%s): Reading Transform: %s' % (self.name,transform_id))
         transform = self.clients.resource_registry.read(object_id=transform_id,rev_id='')
         return transform
         
@@ -143,20 +102,17 @@ class TransformManagementService(BaseTransformManagementService):
                                 AT.hasProcessDefinition, RT.ProcessDefinition, True)
         in_subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
                                 AT.hasSubscription, RT.Subscription, True)
-        out_stream_ids, _ = self.clients.resource_registry.find_objects(transform_id, AT.hasOutStream, RT.Stream, True)
+        out_stream_ids, _ = self.clients.resource_registry.find_objects(transform_id,
+                                AT.hasOutStream, RT.Stream, True)
 
         # build a list of all the ids above
         id_list = process_definition_ids + in_subscription_ids + out_stream_ids
 
-
-
-
-
         # stop the transform process
-        #self.clients.process_dispatcher_service.cancel_process(process_id=pid)
+
         #@note: terminate_process does not raise or confirm if there termination was successful or not
         self.container.proc_manager.terminate_process(pid)
-        log.debug('Terminated Process (%s)' % pid)
+        log.debug('(%s): Terminated Process (%s)' % (self.name,pid))
 
 
         # delete the associations
@@ -167,24 +123,23 @@ class TransformManagementService(BaseTransformManagementService):
 
 
         #@todo: should I delete the resources, or should dpms?
-        log.debug('id list: %s' % id_list)
+
         # iterate through the list and delete each
-#        for res_id in id_list:
-#            self.clients.resource_registry.delete(res_id)
-
-
+        #for res_id in id_list:
+        #    self.clients.resource_registry.delete(res_id)
 
         self.clients.resource_registry.delete(transform_res)
         return True
 
 
 
-
+# ---------------------------------------------------------------------------
 
     def activate_transform(self, transform_id=''):
         """Activate the subscription to bind (start) the transform
         @param transform_id
-
+        @retval True on success
+        @throws NotFound if either the subscription doesn't exist or the transform object doesn't exist.
         """
         subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
                                                             AT.hasSubscription, RT.Subscription, True)
