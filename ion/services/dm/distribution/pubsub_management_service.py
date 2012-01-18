@@ -15,6 +15,7 @@ from pyon.public import RT, AT, log, IonObject
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
 
+
 class BindingChannel(SubscriberChannel):
 
     def _declare_queue(self, queue):
@@ -125,7 +126,7 @@ class PubsubManagementService(BasePubsubManagementService):
         objects = self.clients.resource_registry.find_resources(RT.Stream, None, None, False)
         result = filter(containsProducer, objects)
         return result
-    
+
     def find_streams_by_consumer(self, consumer_id=''):
         '''
         Not implemented here.
@@ -187,12 +188,12 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        # Find and break association with UserIdentity
-        subjects, assocs = self.clients.resource_registry.find_subjects(subscription_id, AT.hasStream, subscription_obj.query['stream_id'])
-        if not assocs:
-            raise NotFound("Subscription to Stream association for subscription id %s does not exist" % subscription_id)
-        association_id = assocs[0]._id
-        self.clients.resource_registry.delete_association(association_id)
+        assocs = self.clients.resource_registry.find_associations(subscription_id, AT.hasStream)
+        if assocs is None:
+            raise NotFound('Subscription to Stream association for subscription id %s does not exist' % subscription_id)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with Streams
+
         # Delete the Subscription
         self.clients.resource_registry.delete(subscription_obj)
         return True
@@ -305,9 +306,6 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Stream %s does not exist" % stream_id)
 
         return stream_obj.producers
-
-
-
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 

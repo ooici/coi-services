@@ -33,7 +33,7 @@ class PubSubTest(PyonTestCase):
         self.mock_create_association = mock_clients.resource_registry.create_association
         self.mock_delete_association = mock_clients.resource_registry.delete_association
         self.mock_find_resources = mock_clients.resource_registry.find_resources
-        self.mock_find_subjects = mock_clients.resource_registry.find_subjects
+        self.mock_find_associations = mock_clients.resource_registry.find_associations
 
         # Stream
         self.stream_id = "stream_id"
@@ -192,12 +192,12 @@ class PubSubTest(PyonTestCase):
 
     def test_delete_subscription(self):
         self.mock_read.return_value = self.subscription
-        self.mock_find_subjects.return_value = ("", [self.subscription_to_stream_association])
+        self.mock_find_associations.return_value = [self.subscription_to_stream_association]
         ret = self.pubsub_service.delete_subscription(self.subscription_id)
 
         self.assertEqual(ret, True)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_subjects.assert_called_once_with(self.subscription_id, AT.hasStream, self.subscription.query['stream_id'], False)
+        self.mock_find_associations.assert_called_once_with(self.subscription_id, AT.hasStream, '', False)
         self.mock_delete_association.assert_called_once_with(self.association_id)
         self.mock_delete.assert_called_once_with(self.subscription)
 
@@ -216,7 +216,7 @@ class PubSubTest(PyonTestCase):
 
     def test_delete_subscription_association_not_found(self):
         self.mock_read.return_value = self.subscription
-        self.mock_find_subjects.return_value = ("", None)
+        self.mock_find_associations.return_value = None
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
@@ -225,7 +225,7 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Subscription to Stream association for subscription id subscription_id does not exist')
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_subjects.assert_called_once_with(self.subscription_id, AT.hasStream, self.subscription.query['stream_id'], False)
+        self.mock_find_associations.assert_called_once_with(self.subscription_id, AT.hasStream, '', False)
         self.assertEqual(self.mock_delete_association.call_count, 0)
         self.assertEqual(self.mock_delete.call_count, 0)
 
@@ -402,14 +402,15 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.ctd_output_stream.producers = ['science.data']
         self.ctd_output_stream_id = self.pubsub_cli.create_stream(self.ctd_output_stream)
 
-        #self.ctd_subscription = IonObject(RT.Subscription,name='SampleSubscription', description='Sample Subscription Description')
-        #self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
-        #self.ctd_subscription.exchange_name = 'a queue'
-        #self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
+        self.ctd_subscription = IonObject(RT.Subscription, name='SampleSubscription', description='Sample Subscription Description')
+        self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
+        self.ctd_subscription.exchange_name = 'a queue'
+        self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
 
     def tearDown(self):
-        #self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
-        self.pubsub_cli.delete_stream(self.ctd_output_stream_id)
+        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+        #self.pubsub_cli.delete_stream(self.ctd_output_stream_id)
+        self._stop_container()
 
     def test_bind_subscription(self):
         pass
