@@ -263,6 +263,10 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.output_stream.mimetype='raw'
         self.output_stream_id = self.pubsub_cli.create_stream(self.output_stream)
 
+        self.data_product_stream = IonObject(RT.Stream,name='data_product_stream1', description='a simple data product stream test')
+        self.data_product_stream.original = True
+        self.data_product_stream.producers = ['science.data']
+        self.data_product_stream_id = self.pubsub_cli.create_stream(self.data_product_stream)
 
         self.process_definition = IonObject(RT.ProcessDefinition,name='transform_process')
         self.process_definition.executable = {'module': 'ion.services.dm.transformation.example.transform_example',
