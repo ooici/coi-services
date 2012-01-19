@@ -38,7 +38,6 @@ class TransformExample(StreamProcess):
         """
 
         if self.output_streams:
-            log.debug("---- DEBUG: %s", self.output_streams)
             publisher = getattr(self,self.output_streams[0],None)
         else:
             publisher = None
