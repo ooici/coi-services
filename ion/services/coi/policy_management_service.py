@@ -15,7 +15,7 @@ class PolicyManagementService(BasePolicyManagementService):
     Provides the interface to define and manage policy and a repository to store and retrieve policy and templates for
     policy definitions, aka attribute authority.
     """
-    def create_policy(self, policy={}, org_id=''):
+    def create_policy(self, policy=None, org_id=''):
         """Persists the provided Policy object for the specified Org id. The id string returned
         is the internal id by which Policy will be indentified in the data store.
 
@@ -27,7 +27,7 @@ class PolicyManagementService(BasePolicyManagementService):
         policy_id, version = self.clients.resource_registry.create(policy)
         return policy_id
 
-    def update_policy(self, policy={}):
+    def update_policy(self, policy=None):
         """Updates the provided Policy object.  Throws NotFound exception if
         an existing version of Policy is not found.  Throws Conflict if
         the provided Policy object is not based on the latest persisted
@@ -85,7 +85,7 @@ class PolicyManagementService(BasePolicyManagementService):
         """
         raise NotImplementedError()
 
-    def create_role(self, user_role={}):
+    def create_role(self, user_role=None):
         """Persists the provided UserRole object. The id string returned
         is the internal id by which a UserRole will be indentified in the data store.
 
@@ -96,7 +96,7 @@ class PolicyManagementService(BasePolicyManagementService):
         user_role_id, version = self.clients.resource_registry.create(user_role)
         return user_role_id
 
-    def update_role(self, user_role={}):
+    def update_role(self, user_role=None):
         """Updates the provided UserRole object.  Throws NotFound exception if
         an existing version of UserRole is not found.  Throws Conflict if
         the provided UserRole object is not based on the latest persisted
@@ -137,7 +137,7 @@ class PolicyManagementService(BasePolicyManagementService):
         self.clients.resource_registry.delete(user_role)
 
 
-    def grant_role(self, org_id='', user_id='', user_role_id='', scope={}):
+    def grant_role(self, org_id='', user_id='', user_role_id='', scope=None):
         """Grants a defined role within an organization to a specific user. Will throw a not NotFound exception
         if none of the specified ids do not exist.
 

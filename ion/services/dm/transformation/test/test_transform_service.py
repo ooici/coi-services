@@ -176,7 +176,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
 
 
-        self.data_product_stream = IonObject(RT.Stream,name='data_product_stream1', descriptoin='a simple data product stream test')
+        self.data_product_stream = IonObject(RT.Stream,name='data_product_stream1', description='a simple data product stream test')
         self.data_product_stream.original = True
         self.data_product_stream.producers = ['science.data']
         self.data_product_stream_id = self.pubsub_cli.create_stream(self.data_product_stream)

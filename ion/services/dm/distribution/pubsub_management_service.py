@@ -32,7 +32,7 @@ class PubsubManagementService(BasePubsubManagementService):
     except ValueError:
         raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    def create_stream(self, stream={}):
+    def create_stream(self, stream=None):
         '''Creates a new stream. The id string returned is the ID of the new stream
                in the resource registry.
 
@@ -43,7 +43,7 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_id, rev = self.clients.resource_registry.create(stream)
         return stream_id
 
-    def update_stream(self, stream={}):
+    def update_stream(self, stream=None):
         '''
         Update an existing stream.
 
@@ -91,7 +91,7 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.delete(stream_obj)
         return True
 
-    def find_streams(self, filter={}):
+    def find_streams(self, filter=None):
         '''
         Find a stream in the resource_registry based on the filters provided.
 
@@ -132,7 +132,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, subscription={}):
+    def create_subscription(self, subscription=None):
         '''
         Create a new subscription. The id string returned is the ID of the new subscription
                in the resource registry.
@@ -148,7 +148,7 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.create_association(subscription_id, AT.hasStream, subscription.query['stream_id'])
         return subscription_id
 
-    def update_subscription(self, subscription={}):
+    def update_subscription(self, subscription=None):
         '''
         Update an existing subscription.
 
