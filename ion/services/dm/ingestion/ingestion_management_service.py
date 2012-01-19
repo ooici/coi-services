@@ -28,8 +28,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_configuration_id    str
         """
         # create an ingestion_configuration instance and update the registry
-        ingestion_configuration = IonObject(RT.IngestionConfiguration,exchange_point_id = exchange_point_id, couch_storage, hfd_storage, \
-            number_of_workers, default_policy)
+        ingestion_configuration = IonObject(RT.IngestionConfiguration,exchange_point_id = exchange_point_id, \
+            couch_storage = couch_storage, hfd_storage = hfd_storage, \
+            number_of_workers = number_of_workers, default_policy = default_policy)
 
         id, rev = self.clients.resource_registry.create(ingestion_configuration)
 
@@ -44,7 +45,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         @param ingestion_configuration    IngestionConfiguration
         """
-        log.debug("Updating ingestion configuration at exchange point: %s" % ingestion_configuration['exchange_point_id'])
+        log.debug("Updating ingestion configuration")
         id, rev = self.clients.resource_registry.update(ingestion_configuration)
 
     def read_ingestion_configuration(self, ingestion_configuration_id=''):
