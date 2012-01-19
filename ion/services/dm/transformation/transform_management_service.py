@@ -38,6 +38,8 @@ class TransformManagementService(BaseTransformManagementService):
         # Configuration and Set Up
         # ------------------------------------------------------------------------------------
         # Determine Transform Name
+        if not configuration:
+            configuration = {}
         transform_name=configuration.get('name',None) or configuration.get('process',{}).get('name','transform')
 
         #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
@@ -45,7 +47,18 @@ class TransformManagementService(BaseTransformManagementService):
        
         # Get the Module and Class from the Process Definition Object
         # Default to ion.services.dm.transformation.example.transform_example, TransformExample
-        process_definition = self.clients.resource_registry.read(process_definition_id)
+
+        # A process definition isn't required but it is preferred
+        # If one doesn't exist, create it.
+        if process_definition_id:
+            process_definition = self.clients.resource_registry.read(process_definition_id)
+        else:
+            process_definition = IonObject(RT.ProcessDefinition,name='%s_definition' % transform_name)
+            process_definition.executable['module'] = 'ion.services.dm.transformation.example.transform_example'
+            process_definition.executable['class'] = 'TransformExample'
+
+
+
         module = process_definition.executable.get('module','ion.services.dm.transformation.example.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
 
@@ -56,7 +69,7 @@ class TransformManagementService(BaseTransformManagementService):
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
        
-       # If listen name wasn't passed in with config, determine it through subscription
+        # If listen name wasn't passed in with config, determine it through subscription
         listen_name = configuration.get('process',{}).get('listen_name',None) or \
                 configuration.get('process',{}).get('exchange_name',None)
 
@@ -65,13 +78,21 @@ class TransformManagementService(BaseTransformManagementService):
             listen_name = subscription.exchange_name
 
         if not configuration:
-                configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name}}
-                if out_stream_id:
-                    configuration['process']['publish_streams'] = {'out_stream' : out_stream_id}
+            configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name}}
+
+        if out_stream_id:
+            configuration['process']['publish_streams'] = {'out_stream' : out_stream_id}
+
 
         # Update the resource_registry with this process_definition's configuration
+
+
+
         process_definition.config = configuration
-        self.clients.resource_registry.update(process_definition)
+        if not process_definition_id:
+            process_definition_id, _ = self.clients.resource_registry.create(process_definition)
+        else:
+            self.clients.resource_registry.update(process_definition)
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
@@ -90,6 +111,8 @@ class TransformManagementService(BaseTransformManagementService):
         # Handle Resources
         # ------------------------------------------------------------------------------------
         transform_id, _ = self.clients.resource_registry.create(transform_res)
+
+
         self.clients.resource_registry.create_association(transform_id,AT.hasProcessDefinition,process_definition_id)
         self.clients.resource_registry.create_association(transform_id,AT.hasSubscription,in_subscription_id)
 
