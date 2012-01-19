@@ -36,7 +36,10 @@ class IdentityManagementService(BaseIdentityManagementService):
         return user_identity
 
     def delete_user_identity(self, user_id=''):
-        # Delete specified UserIdentity object
+        # Read and delete specified UserIdentity object
+        user_identity = self.clients.resource_registry.read(user_id)
+        if not user_identity:
+            raise NotFound("UserIdentity %s does not exist" % user_id)
         self.clients.resource_registry.delete(user_id)
 
     def register_user_credentials(self, user_id='', credentials={}):
@@ -204,5 +207,6 @@ class IdentityManagementService(BaseIdentityManagementService):
         return self.clients.resource_registry.read(resource_identity_id)
 
     def delete_resource_identity(self, resource_identity_id=''):
-        # Delete specified ResourceIdentity object
+        # Read and delete specified ResourceIdentity object
+        resource_identity = self.clients.resource_registry.read(resource_identity_id)
         self.clients.resource_registry.delete(resource_identity_id)
