@@ -229,7 +229,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(res._id,transform_id)
 
         # clean up
-        self.rr_cli.delete(res)
+        self.rr_cli.delete(res._id)
 
 
     def test_activate_transform(self):

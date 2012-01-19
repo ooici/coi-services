@@ -64,8 +64,11 @@ class ResourceRegistryService(BaseResourceRegistryService):
         object.ts_updated = get_ion_ts()
         return self.resource_registry.update(object)
 
-    def delete(self, object={}):
-        return self.resource_registry.delete(object)
+    def delete(self, object_id=''):
+        res_obj = self.read(object_id)
+        if not res_obj:
+            raise NotFound("Resource %s does not exist" % object_id)
+        return self.resource_registry.delete(res_obj)
 
     def execute_lifecycle_transition(self, resource_id='', transition_event='', current_lcstate=''):
         self.assert_condition(not current_lcstate or current_lcstate in LCS, "Unknown life-cycle state %s" % current_lcstate)
