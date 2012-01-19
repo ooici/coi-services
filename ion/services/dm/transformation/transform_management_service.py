@@ -26,43 +26,76 @@ class TransformManagementService(BaseTransformManagementService):
 
     def create_transform(self,in_subscription_id='', out_stream_id='', process_definition_id='', configuration={}):
         """Creates the transform and registers it with the resource registry
-        @param process_definition_id The ProcessDefinition that holds the configuration for the process to be launched
+        @param process_definition_id The process defintion contains the module and class of the process to be spawned
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
-        @param configuration { name: Name of the transform process }
+        @param configuration {'process': {'name' : <name>, 'type': <process_type>, 'listen_name': <exchange_name> }}
 
         @return The transform_id to the transform
         """
+
+        # ------------------------------------------------------------------------------------
+        # Configuration and Set Up
+        # ------------------------------------------------------------------------------------
         # Determine Transform Name
-        transform_name=configuration.get('name','transform')
+        transform_name=configuration.get('name',None) or configuration.get('process',{}).get('name','transform')
 
         #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
+        #@note: In the near future, Process Dispatcher will do all of this
+       
+        # Get the Module and Class from the Process Definition Object
+        # Default to ion.services.dm.transformation.example.transform_example, TransformExample
+        process_definition = self.clients.resource_registry.read(process_definition_id)
+        module = process_definition.executable.get('module','ion.services.dm.transformation.example.transform_example')
+        cls = process_definition.executable.get('class','TransformExample')
 
+        # Transform Resource for association management and pid
         transform_res = IonObject(RT.Transform,name=transform_name)
+        
+        # ------------------------------------------------------------------------------------
+        # Spawn Configuration and Parameters
+        # ------------------------------------------------------------------------------------
+       
+       # If listen name wasn't passed in with config, determine it through subscription
+        listen_name = configuration.get('process',{}).get('listen_name',None) or \
+                configuration.get('process',{}).get('exchange_name',None)
 
-        # ----------------------------- Example Process Spawning -----------------------------
-
-        # If listen name wasn't passed in with config, determine it through subscription
-        listen_name = configuration.get('exchange_name',None)
         if not listen_name:
             subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
             listen_name = subscription.exchange_name
 
-        configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name,
-                                   'publish_streams':{'out_stream':out_stream_id}}}
+        if not configuration:
+                configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name}}
+                if out_stream_id:
+                    configuration['process']['publish_streams'] = {'out_stream' : out_stream_id}
 
+        # Update the resource_registry with this process_definition's configuration
+        process_definition.config = configuration
+        self.clients.resource_registry.update(process_definition)
+
+        # ------------------------------------------------------------------------------------
+        # Process Spawning
+        # ------------------------------------------------------------------------------------
+
+
+        # Spawn the process
         pid = self.container.spawn_process(name=transform_name,
-                        module='ion.services.dm.transformation.example.transform_example',
-                        cls='TransformExample',
+                        module=module,
+                        cls=cls,
                         config=configuration)
 
         transform_res.process_id = '%s.%s' % (str(self.container.id), str(pid))
+        
         # ------------------------------------------------------------------------------------
-
+        # Handle Resources
+        # ------------------------------------------------------------------------------------
         transform_id, _ = self.clients.resource_registry.create(transform_res)
         self.clients.resource_registry.create_association(transform_id,AT.hasProcessDefinition,process_definition_id)
         self.clients.resource_registry.create_association(transform_id,AT.hasSubscription,in_subscription_id)
-        self.clients.resource_registry.create_association(transform_id,AT.hasOutStream, out_stream_id)
+
+        # Output stream is not necessary for a transform process
+        if out_stream_id:
+            self.clients.resource_registry.create_association(transform_id,AT.hasOutStream, out_stream_id)
 
         return transform_id
 

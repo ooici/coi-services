@@ -26,14 +26,23 @@ class TransformExample(StreamProcess):
         # randomize name if none provided
         self.name = self.CFG.get('process',{}).get('name','1234')
         log.debug('Transform Example started %s ' % self.CFG)
-        self.output_streams = list(k for k in self.CFG.get('process',{}).get('publish_streams',{}))
+        streams = self.CFG.get('process',{}).get('publish_streams',None)
+        if streams:
+            self.output_streams = list(k for k in streams)
+        else:
+            self.output_streams = None
 
 
     def process(self, packet):
         """Processes incoming data!!!!
         """
-        log.debug(self.output_streams)
-        publisher = getattr(self,self.output_streams[0],None)
+
+        if self.output_streams:
+            log.debug("---- DEBUG: %s", self.output_streams)
+            publisher = getattr(self,self.output_streams[0],None)
+        else:
+            publisher = None
+
         log.debug('%s' % publisher)
         input = int(packet.get('num',0))
         output = input + 1
