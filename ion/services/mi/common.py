@@ -1,22 +1,22 @@
 #!/usr/bin/env python
 
-'''
+"""
 @package ion.services.mi.common Common classes for MI work
 @file ion/services/mi/enum.py
 @author Steve Foley
 @brief Common enumerations, constants, utilities used in the MI work
-'''
+"""
 
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 # imports could go here
 
-'''Default timeout value in seconds'''
+"""Default timeout value in seconds"""
 DEFAULT_TIMEOUT = 30
 
 class BaseEnum(object):
-    '''Base class for enums.
+    """Base class for enums.
     
     Used to code agent and instrument states, events, commands and errors.
     To use, derive a class from this subclass and set values equal to it
@@ -33,18 +33,18 @@ class BaseEnum(object):
     coupled with what the drivers can do. By putting the values here, they
     are quicker to execute and more compartmentalized so that code can be
     re-used more easily outside of a capability container as needed.
-    '''
+    """
     
     @classmethod
     def list(cls):
-        '''List the values of this enum.'''
+        """List the values of this enum."""
         return [getattr(cls,attr) for attr in dir(cls) if \
             not callable(getattr(cls,attr)) and not attr.startswith('__')]
 
 
     @classmethod
     def has(cls, item):
-        '''Is the object defined in the class?
+        """Is the object defined in the class?
         
         Use this function to test
         a variable for enum membership. For example,
@@ -55,7 +55,7 @@ class BaseEnum(object):
         @param item The attribute value to test for.
         @retval True if one of the class attributes has value item, false
         otherwise.
-        '''
+        """
         return item in cls.list()
 
 ###############################################################################
@@ -64,111 +64,16 @@ class BaseEnum(object):
 # framework. 
 ##############################################################################
 
-class DriverChannel(BaseEnum):
-    '''Common channels for all sensors. Driver subclasses contain a subset.'''
-    INSTRUMENT = 'CHANNEL_INSTRUMENT'
-    ALL = 'CHANNEL_ALL'
-
-
-class DriverCommand(BaseEnum):
-    '''Common driver commands'''
-    
-    ACQUIRE_SAMPLE = 'DRIVER_CMD_ACQUIRE_SAMPLE'
-    START_AUTO_SAMPLING = 'DRIVER_CMD_START_AUTO_SAMPLING'
-    STOP_AUTO_SAMPLING = 'DRIVER_CMD_STOP_AUTO_SAMPLING'
-    TEST = 'DRIVER_CMD_TEST'
-    CALIBRATE = 'DRIVER_CMD_CALIBRATE'
-    RESET = 'DRIVER_CMD_RESET'
-    GET = 'DRIVER_CMD_GET'
-    SET = 'DRIVER_CMD_SET'
-    GET_STATUS = 'DRIVER_CMD_GET_STATUS'
-    GET_METADATA = 'DRIVER_CMD_GET_METADATA'
-    UPDATE_PARAMS = 'DRIVER_CMD_UPDATE_PARAMS'
-    TEST_ERRORS = 'DRIVER_CMD_TEST_ERRORS'    
-
-
-class DriverState(BaseEnum):
-    '''Common driver state enum'''
-    
-    UNCONFIGURED = 'DRIVER_STATE_UNCONFIGURED'
-    DISCONNECTED = 'DRIVER_STATE_DISCONNECTED'
-    CONNECTING = 'DRIVER_STATE_CONNECTING'
-    DISCONNECTING = 'DRIVER_STATE_DISCONNECTING'
-    CONNECTED = 'DRIVER_STATE_CONNECTED'
-    ACQUIRE_SAMPLE = 'DRIVER_STATE_ACQUIRE_SAMPLE'
-    UPDATE_PARAMS = 'DRIVER_STATE_UPDATE_PARAMS'
-    SET = 'DRIVER_STATE_SET'
-    AUTOSAMPLE = 'DRIVER_STATE_AUTOSAMPLE'
-    TEST = 'DRIVER_STATE_TEST'
-    CALIBRATE = 'DRIVER_STATE_CALIBRATE'
-
-
-class DriverEvent(BaseEnum):
-    '''Common driver event enum'''
-    
-    CONFIGURE = 'DRIVER_EVENT_CONFIGURE'
-    INITIALIZE = 'DRIVER_EVENT_INITIALIZE'
-    CONNECT = 'DRIVER_EVENT_CONNECT'
-    CONNECTION_COMPLETE = 'DRIVER_EVENT_CONNECTION_COMPLETE'
-    CONNECTION_FAILED = 'DRIVER_EVENT_CONNECTION_FAILED'
-    DISCONNECT = 'DRIVER_EVENT_DISCONNECT'
-    DISCONNECT_COMPLETE = 'DRIVER_EVENT_DISCONNECT_COMPLETE'
-    PROMPTED = 'DRIVER_EVENT_PROMPTED'
-    DATA_RECEIVED = 'DRIVER_EVENT_DATA_RECEIVED'
-    COMMAND_RECEIVED = 'DRIVER_EVENT_COMMAND_RECEIVED'
-    RESPONSE_TIMEOUT = 'DRIVER_EVENT_RESPONSE_TIMEOUT'
-    SET = 'DRIVER_EVENT_SET'
-    GET = 'DRIVER_EVENT_GET'
-    EXECUTE = 'DRIVER_EVENT_EXECUTE'
-    ACQUIRE_SAMPLE = 'DRIVER_EVENT_ACQUIRE_SAMPLE'
-    START_AUTOSAMPLE = 'DRIVER_EVENT_START_AUTOSAMPLE'
-    STOP_AUTOSAMPLE = 'DRIVER_EVENT_STOP_AUTOSAMPLE'
-    TEST = 'DRIVER_EVENT_TEST'
-    STOP_TEST = 'DRIVER_EVENT_STOP_TEST'
-    CALIBRATE = 'DRIVER_EVENT_CALIBRATE'
-    RESET = 'DRIVER_EVENT_RESET'
-    ENTER = 'DRIVER_EVENT_ENTER'
-    EXIT = 'DRIVER_EVENT_EXIT'
-    
-
-class DriverStatus(BaseEnum):
-    '''Common driver status enum'''
-    
-    DRIVER_VERSION = 'DRIVER_STATUS_DRIVER_VERSION'
-    DRIVER_STATE = 'DRIVER_STATUS_DRIVER_STATE'
-    OBSERVATORY_STATE = 'DRIVER_STATUS_OBSERVATORY_STATE'
-    DRIVER_ALARMS = 'DRIVER_STATUS_DRIVER_ALARMS'
-    ALL = 'DRIVER_STATUS_ALL'
-
-
-class DriverParameter(BaseEnum):
-    '''Common driver parameter enum'''
-    
-    ALL = 'DRIVER_PARAMETER_ALL'
-
-
-class ObservatoryState(BaseEnum):
-    '''The status of a device in observatory mode'''
-    
-    NONE = 'OBSERVATORY_STATUS_NONE'
-    STANDBY = 'OBSERVATORY_STATUS_STANDBY'
-    STREAMING = 'OBSERVATORY_STATUS_STREAMING'
-    TESTING = 'OBSERVATORY_STATUS_TESTING'
-    CALIBRATING = 'OBSERVATORY_STATUS_CALIBRATING'
-    UPDATING = 'OBSERVATORY_STATUS_UPDATING'
-    ACQUIRING = 'OBSERVATORY_STATUS_ACQUIRING'
-    UNKNOWN = 'OBSERVATORY_STATUS_UNKNOWN'
-
 
 ###############################################################################
 # Instrument agent constants.
 ##############################################################################
 
 class AgentState(BaseEnum):
-    '''Common agent state enum.
+    """Common agent state enum.
     
     Includes aggregate states of the agent state machine.
-    '''
+    """
     UNKNOWN = 'AGENT_STATE_UNKNOWN'
     POWERED_DOWN = 'AGENT_STATE_POWERED_DOWN'
     POWERED_UP = 'AGENT_STATE_POWERED_UP'
@@ -183,7 +88,7 @@ class AgentState(BaseEnum):
 
 
 class AgentEvent(BaseEnum):
-    '''Common agent event enum'''
+    """Common agent event enum"""
     
     GO_POWER_UP = 'AGENT_EVENT_GO_POWER_DOWN'
     GO_POWER_DOWN = 'AGENT_EVENT_GO_POWER_UP'
@@ -202,7 +107,7 @@ class AgentEvent(BaseEnum):
     
 
 class AgentCommand(BaseEnum):
-    ''' Common agent commands enum'''
+    """ Common agent commands enum"""
     
     TRANSITION = 'AGENT_CMD_TRANSITION'
     TRANSMIT_DATA = 'AGENT_CMD_TRANSMIT_DATA'
@@ -210,7 +115,7 @@ class AgentCommand(BaseEnum):
 
 
 class AgentParameter(BaseEnum):
-    '''Common agent parameters'''
+    """Common agent parameters"""
     
     EVENT_PUBLISHER_ORIGIN = 'AGENT_PARAM_EVENT_PUBLISHER_ORIGIN'
     TIME_SOURCE = 'AGENT_PARAM_TIME_SOURCE'
@@ -226,7 +131,7 @@ class AgentParameter(BaseEnum):
 
 
 class AgentStatus(BaseEnum):
-    '''Common agent status enum'''
+    """Common agent status enum"""
     
     AGENT_STATE = 'AGENT_STATUS_AGENT_STATE'
     CONNECTION_STATE = 'AGENT_STATUS_CONNECTION_STATE'
@@ -239,11 +144,11 @@ class AgentStatus(BaseEnum):
 
 
 class AgentConnectionState(BaseEnum):
-    '''Common agent connection state enum.
+    """Common agent connection state enum.
     
     Possible states of connection/disconnection an agent may be in, among the
     shore and wet side agent, the driver and the hardware iteself.
-    '''
+    """
     REMOTE_DISCONNECTED = 'AGENT_CONNECTION_STATE_REMOTE_DISCONNECTED'
     POWERED_DOWN = 'AGENT_CONNECTION_STATE_POWERED_DOWN'
     NO_DRIVER = 'AGENT_CONNECTION_STATE_NO_DRIVER'
@@ -253,7 +158,7 @@ class AgentConnectionState(BaseEnum):
 
 
 class Datatype(BaseEnum):
-    '''Common agent parameter and metadata types'''
+    """Common agent parameter and metadata types"""
     
     DATATYPE = 'TYPE_DATATYPE' # This type.
     INT = 'TYPE_INT' # int.
@@ -270,9 +175,9 @@ class Datatype(BaseEnum):
     ENUM = 'TYPE_ENUM' # str with valid values.
     PUBSUB_ORIGIN = 'TYPE_PUBSUB_ORIGIN'
 
-'''
+"""
 @todo Used by the existing drivers...need to fix.
-'''
+"""
 publish_msg_type = {
     'Error':'Error',
     'StateChange':'StateChange',
@@ -285,7 +190,7 @@ driver_client = "PLACEHOLDER"
 
 
 class DriverAnnouncement(BaseEnum):
-    '''Common publish message type enum'''
+    """Common publish message type enum"""
     
     ERROR = 'DRIVER_ANNOUNCEMENT_ERROR'          
     STATE_CHANGE = 'DRIVER_ANNOUNCEMENT_STATE_CHANGE'
@@ -295,7 +200,7 @@ class DriverAnnouncement(BaseEnum):
     
     
 class TimeSource(BaseEnum):
-    '''Common time source enum for the device fronted by the agent'''
+    """Common time source enum for the device fronted by the agent"""
     
     NOT_SPECIFIED = 'TIME_SOURCE_NOT_SPECIFIED'
     PTP_DIRECT = 'TIME_SOURCE_PTP_DIRECT' # IEEE 1588 PTP connection directly supported.
@@ -306,7 +211,7 @@ class TimeSource(BaseEnum):
     
 
 class ConnectionMethod(BaseEnum):
-    '''Common connection method to agent and device enum'''
+    """Common connection method to agent and device enum"""
     
     NOT_SPECIFIED = 'CONNECTION_METHOD_NOT_SPECIFIED'
     OFFLINE = 'CONNECTION_METHOD_OFFLINE' 
@@ -317,7 +222,7 @@ class ConnectionMethod(BaseEnum):
     
 
 class AlarmType(BaseEnum):
-    '''Common agent observatory alarm enum'''
+    """Common agent observatory alarm enum"""
     
     CANNOT_PUBLISH = ('ALARM_CANNOT_PUBLISH','Attempted to publish but cannot.')
     INSTRUMENT_UNREACHABLE = ('ALARM_INSTRUMENT_UNREACHABLE',
@@ -328,7 +233,7 @@ class AlarmType(BaseEnum):
    
 
 class ObservatoryCapability(BaseEnum):
-    '''Common agent observatory capabilies enum'''
+    """Common agent observatory capabilies enum"""
     
     OBSERVATORY_COMMANDS = 'CAP_OBSERVATORY_COMMANDS' 
     OBSERVATORY_PARAMS = 'CAP_OBSERVATORY_PARAMS' 
@@ -338,7 +243,7 @@ class ObservatoryCapability(BaseEnum):
     
 
 class DriverCapability(BaseEnum):
-    '''Common device capabilities enum'''
+    """Common device capabilities enum"""
     
     DEVICE_METADATA = 'CAP_DEVICE_METADATA' 
     DEVICE_COMMANDS = 'CAP_DEVICE_COMMANDS' 
@@ -349,13 +254,13 @@ class DriverCapability(BaseEnum):
     
 
 class InstrumentCapability(ObservatoryCapability,DriverCapability):
-    '''Comination of agent and device capabilities enum'''
+    """Comination of agent and device capabilities enum"""
     
     ALL = 'CAP_ALL'
 
 
 class MetadataParameter(BaseEnum):
-    '''Common metadata parameter names enum'''
+    """Common metadata parameter names enum"""
     
     DATATYPE = 'META_DATATYPE'
     PHYSICAL_PARAMETER_TYPE = 'META_PHYSICAL_PARAMETER_TYPE'
@@ -375,7 +280,7 @@ class MetadataParameter(BaseEnum):
 ##############################################################################
 
 class InstErrorCode(BaseEnum):
-    '''Error codes generated by instrument drivers and agents'''
+    """Error codes generated by instrument drivers and agents"""
     
     OK = ['OK']
     INVALID_DESTINATION = ['ERROR_INVALID_DESTINATION','Intended destination for a message or operation is not valid.']
@@ -431,12 +336,12 @@ class InstErrorCode(BaseEnum):
     
     @classmethod
     def is_ok(cls,x):
-        '''Success test functional synonym. Will need iterable type checking
+        """Success test functional synonym. Will need iterable type checking
         if success codes get additional info in the future.
 
         @param x a str, tuple or list to match to an error code success value.
         @retval True if x is a success value, False otherwise.
-        '''
+        """
         
         x = cls.get_list_val(x)
         
@@ -444,18 +349,18 @@ class InstErrorCode(BaseEnum):
     
     @classmethod
     def is_error(cls,x):
-        '''Generic error test.
+        """Generic error test.
         
         @param x a str, tuple or list to match to an error code error value.
         @retval True if x is an error value, False otherwise.
-        '''
+        """
         x = cls.get_list_val(x)
         
         return (cls.has(x) and x != cls.OK)
         
     @classmethod
     def is_equal(cls,val1,val2):
-        '''Compare error codes.
+        """Compare error codes.
         
         Used so we are insulated against the framework
         converting error codes to tuples or other iterables.
@@ -463,7 +368,7 @@ class InstErrorCode(BaseEnum):
         @param val1 str, tuple or list matching an error code value.
         @param val2 str, tuple or list matching an error code value.
         @retval True if val1 and val2 are equal and defined, False otherwise.
-        '''
+        """
 
         val1 = cls.get_list_val(val1)
         val2 = cls.get_list_val(val2)
@@ -472,11 +377,11 @@ class InstErrorCode(BaseEnum):
 
     @classmethod
     def get_list_val(cls,x):
-        '''Convert error code values to lists.
+        """Convert error code values to lists.
         
         The messaging framework can convert lists to tuples. Allow for simple
         strings to be compared also.
-        '''
+        """
         
         assert(isinstance(x,(str,tuple,list))), 'Expected a str, tuple or list \
         error code value.'
@@ -495,7 +400,7 @@ class InstErrorCode(BaseEnum):
 
     @classmethod
     def get_string(cls,x):
-        '''Convert an error code to a printable string'''
+        """Convert an error code to a printable string"""
         
         x = cls.get_list_val(x)
         if cls.has(x):
