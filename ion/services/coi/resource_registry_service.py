@@ -75,7 +75,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
             raise Inconsistent("Resource id=%s lcstate is %s, expected was %s" % (
                                 resource_id, res_obj.lcstate, current_lcstate))
 
-        restype = res_obj._def.type.name
+        restype = type(res_obj).__name__
         restype_workflow = lcs_workflows.get(restype, None)
         if not restype_workflow:
             restype_workflow = lcs_workflows['Resource']
