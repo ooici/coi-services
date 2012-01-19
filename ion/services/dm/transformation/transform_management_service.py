@@ -21,89 +21,104 @@ class TransformManagementService(BaseTransformManagementService):
     """
     def __init__(self):
         BaseTransformManagementService.__init__(self)
-        # Mocking interfaces
-
-        #@todo: un-mock
-        # PubSub
-        #self.clients.pubsub_management = DotDict()
-        #self.clients.pubsub_management['XP'] = 'science.data'
-        #self.clients.pubsub_management["create_subscription"] = Mock()
-        #self.clients.pubsub_management.create_subscription.return_value = 'subscription_id'
-        #self.clients.pubsub_management["register_producer"] = Mock()
-        #self.clients.pubsub_management.register_producer.return_value = {'StreamRoute':'Mocked'}
-        #self.clients.pubsub_management["create_stream"] = Mock()
-        #self.clients.pubsub_management.create_stream.return_value = 'unique_stream_id'
-        #self.clients.pubsub_management['activate_subscription'] = Mock()
-        #self.clients.pubsub_management.activate_subscription.return_value = True
-        # ProcessDispatcher
-        self.clients.process_dispatcher_service = DotDict()
-        self.clients.process_dispatcher_service["create_process_definition"] = Mock()
-        self.clients.process_dispatcher_service.create_process_definition.return_value = 'process_definition_id'
-        self.clients.process_dispatcher_service["schedule_process"] = Mock()
-        self.clients.process_dispatcher_service.schedule_process.return_value = True
-        self.clients.process_dispatcher_service["cancel_process"] = Mock()
-        self.clients.process_dispatcher_service.cancel_process.return_value = True
-        self.clients.process_dispatcher_service["delete_process_definition"] = Mock()
-        self.clients.process_dispatcher_service.delete_process_definition.return_value = True
 
 
 
     def create_transform(self,in_subscription_id='', out_stream_id='', process_definition_id='', configuration={}):
         """Creates the transform and registers it with the resource registry
-        @param process_definition_id The ProcessDefinition that holds the configuration for the process to be launched
+        @param process_definition_id The process defintion contains the module and class of the process to be spawned
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
-        @param configuration { name: Name of the transform process }
+        @param configuration {'process': {'name' : <name>, 'type': <process_type>, 'listen_name': <exchange_name> }}
 
         @return The transform_id to the transform
         """
-        #@todo: fix this
 
-        transform_name=configuration['name']
+        # ------------------------------------------------------------------------------------
+        # Configuration and Set Up
+        # ------------------------------------------------------------------------------------
+        # Determine Transform Name
+        if not configuration:
+            configuration = {}
+        transform_name=configuration.get('name',None) or configuration.get('process',{}).get('name','transform')
+
+        #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
+        #@note: In the near future, Process Dispatcher will do all of this
+       
+        # Get the Module and Class from the Process Definition Object
+        # Default to ion.services.dm.transformation.example.transform_example, TransformExample
+
+        # A process definition isn't required but it is preferred
+        # If one doesn't exist, create it.
+        if process_definition_id:
+            process_definition = self.clients.resource_registry.read(process_definition_id)
+        else:
+            process_definition = IonObject(RT.ProcessDefinition,name='%s_definition' % transform_name)
+            process_definition.executable['module'] = 'ion.services.dm.transformation.example.transform_example'
+            process_definition.executable['class'] = 'TransformExample'
 
 
 
-        schedule = IonObject(RT.ProcessSchedule, name=transform_name+'_schedule')
+        module = process_definition.executable.get('module','ion.services.dm.transformation.example.transform_example')
+        cls = process_definition.executable.get('class','TransformExample')
 
-#        #@todo: fill in process schedule stuff
-#        # cei/process.yml
-#        # --
-#        # schedule.activation_mode =''
-#        # schedule.schedule = {}
-#
-#        pid = self.clients.process_dispatcher_service.schedule_process(process_definition_id, schedule)
+        # Transform Resource for association management and pid
         transform_res = IonObject(RT.Transform,name=transform_name)
-#        transform_res.process_id = pid
-#
+        
+        # ------------------------------------------------------------------------------------
+        # Spawn Configuration and Parameters
+        # ------------------------------------------------------------------------------------
+       
+        # If listen name wasn't passed in with config, determine it through subscription
+        listen_name = configuration.get('process',{}).get('listen_name',None) or \
+                configuration.get('process',{}).get('exchange_name',None)
 
-
-
-
-        #@todo: this is going to go somewhere
-
-        # ----------------------------- Example Process Spawning -----------------------------
-
-
-        listen_name = configuration.get('exchange_name',None)
         if not listen_name:
             subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
             listen_name = subscription.exchange_name
 
-        configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name,
-                                   'publish_streams':{'out_stream':out_stream_id}}}
+        if not configuration:
+            configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name}}
 
+        if out_stream_id:
+            configuration['process']['publish_streams'] = {'out_stream' : out_stream_id}
+
+
+        # Update the resource_registry with this process_definition's configuration
+
+
+
+        process_definition.config = configuration
+        if not process_definition_id:
+            process_definition_id, _ = self.clients.resource_registry.create(process_definition)
+        else:
+            self.clients.resource_registry.update(process_definition)
+
+        # ------------------------------------------------------------------------------------
+        # Process Spawning
+        # ------------------------------------------------------------------------------------
+
+
+        # Spawn the process
         pid = self.container.spawn_process(name=transform_name,
-                        module='ion.services.dm.transformation.example.transform_example',
-                        cls='TransformExample',
+                        module=module,
+                        cls=cls,
                         config=configuration)
 
         transform_res.process_id = '%s.%s' % (str(self.container.id), str(pid))
+        
         # ------------------------------------------------------------------------------------
-
+        # Handle Resources
+        # ------------------------------------------------------------------------------------
         transform_id, _ = self.clients.resource_registry.create(transform_res)
+
+
         self.clients.resource_registry.create_association(transform_id,AT.hasProcessDefinition,process_definition_id)
         self.clients.resource_registry.create_association(transform_id,AT.hasSubscription,in_subscription_id)
-        self.clients.resource_registry.create_association(transform_id,AT.hasOutStream, out_stream_id)
+
+        # Output stream is not necessary for a transform process
+        if out_stream_id:
+            self.clients.resource_registry.create_association(transform_id,AT.hasOutStream, out_stream_id)
 
         return transform_id
 
@@ -123,7 +138,7 @@ class TransformManagementService(BaseTransformManagementService):
         @throws NotFound when transform doesn't exist
         """
 
-        log.debug('Reading Transform: %s' % transform_id)
+        log.debug('(%s): Reading Transform: %s' % (self.name,transform_id))
         transform = self.clients.resource_registry.read(object_id=transform_id,rev_id='')
         return transform
         
@@ -143,19 +158,17 @@ class TransformManagementService(BaseTransformManagementService):
                                 AT.hasProcessDefinition, RT.ProcessDefinition, True)
         in_subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
                                 AT.hasSubscription, RT.Subscription, True)
-        out_stream_ids, _ = self.clients.resource_registry.find_objects(transform_id, AT.hasOutStream, RT.Stream, True)
+        out_stream_ids, _ = self.clients.resource_registry.find_objects(transform_id,
+                                AT.hasOutStream, RT.Stream, True)
 
         # build a list of all the ids above
         id_list = process_definition_ids + in_subscription_ids + out_stream_ids
 
-
-
-
-
         # stop the transform process
-        #self.clients.process_dispatcher_service.cancel_process(process_id=pid)
+
+        #@note: terminate_process does not raise or confirm if there termination was successful or not
         self.container.proc_manager.terminate_process(pid)
-        log.debug('Terminated Process (%s)' % pid)
+        log.debug('(%s): Terminated Process (%s)' % (self.name,pid))
 
 
         # delete the associations
@@ -166,24 +179,23 @@ class TransformManagementService(BaseTransformManagementService):
 
 
         #@todo: should I delete the resources, or should dpms?
-        log.debug('id list: %s' % id_list)
+
         # iterate through the list and delete each
-        for res_id in id_list:
-            self.clients.resource_registry.delete(res_id)
+        #for res_id in id_list:
+        #    self.clients.resource_registry.delete(res_id)
 
-
-
-        self.clients.resource_registry.delete(transform_res)
+        self.clients.resource_registry.delete(transform_id)
         return True
 
 
 
-
+# ---------------------------------------------------------------------------
 
     def activate_transform(self, transform_id=''):
         """Activate the subscription to bind (start) the transform
         @param transform_id
-
+        @retval True on success
+        @throws NotFound if either the subscription doesn't exist or the transform object doesn't exist.
         """
         subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
                                                             AT.hasSubscription, RT.Subscription, True)
