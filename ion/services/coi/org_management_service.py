@@ -17,7 +17,7 @@ class OrgManagementService(BaseOrgManagementService):
     and commitment repository
     """
 
-    def create_org(self, org={}):
+    def create_org(self, org=None):
         """Persists the provided Org object. The id string returned
         is the internal id by which Org will be identified in the data store.
 
@@ -28,7 +28,7 @@ class OrgManagementService(BaseOrgManagementService):
         org_id, version = self.clients.resource_registry.create(org)
         return org_id
 
-    def update_org(self, org={}):
+    def update_org(self, org=None):
         """Updates the provided Org object.  Throws NotFound exception if
         an existing version of Org is not found.  Throws Conflict if
         the provided Policy object is not based on the latest persisted

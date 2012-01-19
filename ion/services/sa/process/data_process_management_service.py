@@ -45,7 +45,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.data_process = DataProcessImpl(self.clients)
 
-    def create_data_process_definition(self, data_process_definition={}):
+    def create_data_process_definition(self, data_process_definition=None):
         """
         @param      data_process_definition: dict with parameters to define
                         the data process def.
@@ -65,7 +65,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return data_process_definition_id
 
-    def update_data_process_definition(self, data_process_definition={}):
+    def update_data_process_definition(self, data_process_definition=None):
         """
         @param      data_process_definition: dict with parameters to update
                         the data process def.
@@ -93,7 +93,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         pass
 
-    def find_data_process_definitions(self, filters={}):
+    def find_data_process_definitions(self, filters=None):
         """
         @param      filters: dict of parameters to filter down
                         the list of possible data proc. defs
@@ -264,7 +264,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.delete(data_process_obj)
         return {"success": True}
 
-    def find_data_process(self, filters={}):
+    def find_data_process(self, filters=None):
         """
         @param      filters: dict of parameters to filter down
                         the list of possible data proc.

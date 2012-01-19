@@ -15,7 +15,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
     The Exchange Management Service is the service that manages the Exchange and its associated resources, such as Exchange Spaces, Names, Points and Brokers.
 
     """
-    def create_exchange_space(self, exchange_space={}, org_id=''):
+    def create_exchange_space(self, exchange_space=None, org_id=''):
         """Creates an Exchange Space distributed resource from the parameter exchangespace object.
 
         @param exchange_space    ExchangeSpace
@@ -39,7 +39,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         
         return exchange_space_id
 
-    def update_exchange_space(self, exchange_space={}):
+    def update_exchange_space(self, exchange_space=None):
         """Updates an existing Exchange Space resource with data passed in as a parameter.
 
         @param exchange_space    ExchangeSpace
@@ -73,7 +73,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
             raise NotFound("Exchange Space %s does not exist" % exchange_space_id)
         self.clients.resource_registry.delete(exchange_space)
 
-    def find_exchange_spaces(self, filters={}):
+    def find_exchange_spaces(self, filters=None):
         """Returns a list of Exchange Space resources for the given Resource Filter.
 
         @param filters    ResourceFilter
@@ -82,7 +82,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         raise NotImplementedError()
 
 
-    def declare_exchange_name(self, exchange_name={}, exchange_space_id=''):
+    def declare_exchange_name(self, exchange_name=None, exchange_space_id=''):
         """Create an Exchange Name resource resource
 
         @param exchange_name    ExchangeName
@@ -106,7 +106,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         raise NotImplementedError()
 
-    def find_exchange_names(self, filters={}):
+    def find_exchange_names(self, filters=None):
         """Returns a list of exchange name resources for the given resource filter.
 
         @param filters    ResourceFilter
@@ -114,7 +114,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         raise NotImplementedError()
 
-    def create_exchange_point(self, exchange_point={}, exchange_space_id=''):
+    def create_exchange_point(self, exchange_point=None, exchange_space_id=''):
         """Create an exchange point resource within the exchange space provided by the id.
 
         @param exchange_point    ExchangePoint
@@ -129,7 +129,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         return exchange_point_id
 
 
-    def update_exchange_point(self, exchange_point={}):
+    def update_exchange_point(self, exchange_point=None):
         """Update an existing exchange point resource.
 
         @param exchange_point    ExchangePoint
@@ -163,7 +163,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
             raise NotFound("Exchange Point %s does not exist" % exchange_point_id)
         self.clients.resource_registry.delete(exchange_point)
 
-    def find_exchange_points(self, filters={}):
+    def find_exchange_points(self, filters=None):
         """Returns a list of exchange point resources for the provided resource filter.
 
         @param filters    ResourceFilter
@@ -172,7 +172,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         raise NotImplementedError()
 
 
-    def create_exchange_broker(self, exchange_broker={}):
+    def create_exchange_broker(self, exchange_broker=None):
         """Creates an exchange broker resource
 
         @param exchange_broker    ExchangeBroker
@@ -182,7 +182,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
         return exchange_point_id
 
-    def update_exchange_broker(self, exchange_broker={}):
+    def update_exchange_broker(self, exchange_broker=None):
         """Updates an existing exchange broker resource.
 
         @param exchange_broker    ExchangeBroker
@@ -215,7 +215,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
             raise NotFound("Exchange Broker %s does not exist" % exchange_broker_id)
         self.clients.resource_registry.delete(exchange_broker)
 
-    def find_exchange_broker(self, filters={}):
+    def find_exchange_broker(self, filters=None):
         """Returns a list of exchange broker resources for the provided resource filter.
 
         @param filters    ResourceFilter

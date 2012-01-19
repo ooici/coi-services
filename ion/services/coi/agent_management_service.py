@@ -11,7 +11,7 @@ class AgentManagementService(BaseAgentManagementService):
     The Agent Management Service is the service that manages the Agent Definitions and the running Agents in the system.
     """
     
-    def create_agent_definition(self, agent_definition={}):
+    def create_agent_definition(self, agent_definition=None):
         """ Should receive an AgentDefinition object
         """
         # Return Value
@@ -20,7 +20,7 @@ class AgentManagementService(BaseAgentManagementService):
         #
         pass
 
-    def update_agent_definition(self, agent_definition={}):
+    def update_agent_definition(self, agent_definition=None):
         """ Should receive an AgentDefinition object
         """
         # Return Value

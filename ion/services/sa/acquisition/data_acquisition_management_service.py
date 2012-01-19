@@ -16,7 +16,7 @@ from pyon.public import CFG, IonObject, log, RT, AT, LCS
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
-    def create_data_source(self, data_source={}):
+    def create_data_source(self, data_source=None):
         '''
         Create a new data_source.
 
@@ -29,7 +29,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return data_source_id
 
-    def update_data_source(self, data_source={}):
+    def update_data_source(self, data_source=None):
         '''
         Update an existing data_source.
 
@@ -74,7 +74,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return self.clients.resource_registry.delete(data_source_obj)
 
-    def assign_data_agent(self, data_source_id='', agent_instance={}):
+    def assign_data_agent(self, data_source_id='', agent_instance=None):
         """Connect the agent instance description with a data source
         """
         # Return Value
@@ -98,14 +98,14 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     # -----------------
 
         # try to get a resource
-    def _create_producer_resource(self, data_producer={}):
+    def _create_producer_resource(self, data_producer=None):
         log.debug("Creating DataProducer object")
         #data_producer_obj = IonObject("DataProducer", attrs)
 
         data_producer_id, rev = self.clients.resource_registry.create(data_producer)
         return data_producer_id
 
-    def _remove_producer(self, resource_id='', producers={}):
+    def _remove_producer(self, resource_id='', producers=None):
         log.debug("Removing DataProducer objects and links")
         for x in producers:
             # List all association ids with given subject, predicate, object triples
@@ -208,7 +208,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return self._remove_producer(instrument_id, res_ids)
 
-    def create_data_producer(self, data_producer={}):
+    def create_data_producer(self, data_producer=None):
         '''
         Create a new data_producer.
 
@@ -234,7 +234,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return data_producer_id
 
-    def update_data_producer(self, data_producer={}):
+    def update_data_producer(self, data_producer=None):
         '''
         Update an existing data producer.
 
@@ -291,7 +291,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return self.clients.resource_registry.delete(data_producer_obj)
 
-    def create_external_data_provider(self, external_data_provider={}):
+    def create_external_data_provider(self, external_data_provider=None):
         """@todo document this interface!!!
 
         @param external_data_provider    ExternalDataProvider
@@ -299,7 +299,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         """
         pass
 
-    def update_external_data_provider(self, external_data_provider={}):
+    def update_external_data_provider(self, external_data_provider=None):
         """@todo document this interface!!!
 
         @param external_data_provider    ExternalDataProvider
@@ -323,7 +323,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         """
         pass
 
-    def create_external_dataset(self, external_dataset={}):
+    def create_external_dataset(self, external_dataset=None):
         """@todo document this interface!!!
 
         @param external_dataset    ExternalDataset
@@ -331,7 +331,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         """
         pass
 
-    def update_external_dataset(self, external_dataset={}):
+    def update_external_dataset(self, external_dataset=None):
         """@todo document this interface!!!
 
         @param external_dataset    ExternalDataset

@@ -9,7 +9,7 @@ from interface.services.dm.ipreservation_management_service import BasePreservat
 
 class PreservationManagementService(BasePreservationManagementService):
 
-    def create_datastore(self, datastore={}):
+    def create_datastore(self, datastore=None):
         """method docstring
         """
         # Return Value
@@ -18,7 +18,7 @@ class PreservationManagementService(BasePreservationManagementService):
         #
         pass
 
-    def update_datastore(self, datastore={}):
+    def update_datastore(self, datastore=None):
         """method docstring
         """
         # Return Value
@@ -45,7 +45,7 @@ class PreservationManagementService(BasePreservationManagementService):
         #
         pass
 
-    def create_persistent_archive(self, persistent_archive={}):
+    def create_persistent_archive(self, persistent_archive=None):
         """method docstring
         """
         # Return Value
@@ -54,7 +54,7 @@ class PreservationManagementService(BasePreservationManagementService):
         #
         pass
 
-    def update_persistent_archive(self, persistent_archive={}):
+    def update_persistent_archive(self, persistent_archive=None):
         """method docstring
         """
         # Return Value
