@@ -192,14 +192,6 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.process_definition_id, _= self.rr_cli.create(self.process_definition)
 
 
-    def tearDown(self):
-        #clean up resources alloced during set up
-        #self.pubsub_cli.delete_subscription(self.input_subscription_id)
-
-        self.pubsub_cli.delete_stream(self.output_stream_id)
-        self.rr_cli.delete(self.process_definition_id)
-        IonIntegrationTestCase.tearDown(self)
-
         
     def test_create_transform(self):
         transform_id = self.tms_cli.create_transform(

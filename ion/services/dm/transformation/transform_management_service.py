@@ -128,7 +128,7 @@ class TransformManagementService(BaseTransformManagementService):
         #for res_id in id_list:
         #    self.clients.resource_registry.delete(res_id)
 
-        self.clients.resource_registry.delete(transform_res)
+        self.clients.resource_registry.delete(transform_id)
         return True
 
 
