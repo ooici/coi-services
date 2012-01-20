@@ -20,10 +20,7 @@ class TransformExampleProducer(StreamProcess):
 
     def on_init(self):
         log.debug("StreamProducer init. Self.id=%s" % self.id)
-        self.pubsub_client = PubsubManagementServiceProcessClient(process=self, node=self.container.node)
-        stream = IonObject('Stream')
-        stream_id = self.pubsub_client.create_stream(stream)
-        self.CFG['process']['publish_streams'] = {'out_stream':stream_id}
+        
 
     def start(self):
 
