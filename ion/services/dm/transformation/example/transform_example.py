@@ -5,11 +5,9 @@
 '''
 import threading
 import time
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
-from pyon.ion.endpoint import ProcessPublisher
 from pyon.ion.streamproc import StreamProcess
 from pyon.public import log
-from pyon.public import IonObject
+from pyon.ion.transform_base import TransformBase
 
 
 class TransformExampleProducer(StreamProcess):
@@ -20,7 +18,7 @@ class TransformExampleProducer(StreamProcess):
 
     def on_init(self):
         log.debug("StreamProducer init. Self.id=%s" % self.id)
-        
+
 
     def start(self):
 
@@ -60,7 +58,7 @@ class TransformExampleProducer(StreamProcess):
             time.sleep(interval/1000.0)
 
 
-class TransformExample(StreamProcess):
+class TransformExample(TransformBase):
 
     def __init__(self, *args, **kwargs):
         super(TransformExample,self).__init__()
@@ -76,7 +74,7 @@ class TransformExample(StreamProcess):
 
 
     def on_start(self):
-        StreamProcess.on_start(self)
+        TransformBase.on_start(self)
         # randomize name if none provided
         self.name = self.CFG.get('process',{}).get('name','1234')
         log.debug('Transform Example started %s ' % self.CFG)
