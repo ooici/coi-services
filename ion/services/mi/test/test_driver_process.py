@@ -1,32 +1,39 @@
 #!/usr/bin/env python
 
+"""
+@package ion.services.mi.test.test_zmq_driver_process
+@file ion/services/mi/test_zmq_driver_process.py
+@author Edward Hunter
+@brief Test cases for ZmqDriverProcess processes.
+"""
+
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-#import pyon.core.exception as pe
+from gevent import monkey; monkey.patch_all()
 
 import time
 import unittest
 import logging
+from subprocess import Popen
 
 from nose.plugins.attrib import attr
-#from mock import Mock, sentinel, patch
 
-#from pyon.util.unit_test import PyonTestCase
-#from pyon.util.int_test import IonIntegrationTestCase
-#from pyon.core.exception import NotFound
-#from pyon.public import IonObject, log
+from pyon.util.unit_test import PyonTestCase
+
+from ion.services.mi.zmq_driver_client import ZmqDriverClient
+from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 import ion.services.mi.mi_logger
-import ion.services.mi.driver_process as dp
-import ion.services.mi.driver_client as dc
 
 mi_logger = logging.getLogger('mi_logger')
+
+#from pyon.public import log
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/services/mi/test/test_driver_process.py
 
 @attr('UNIT', group='mi')
-class DriverProcessTest(unittest.TestCase):    
+class DriverProcessTest(PyonTestCase):    
 
     def setUp(self):
         """
@@ -37,28 +44,24 @@ class DriverProcessTest(unittest.TestCase):
         self.evt_port = 5557
         
         # Driver module parameters.
-        self.driver_module = 'ion.services.mi.sbe37_driver'
-        self.driver_class = 'SBE37Driver'
+        self.dvr_mod = 'ion.services.mi.sbe37_driver'
+        self.dvr_cls = 'SBE37Driver'
 
 
-        """
-        print 'running the setup function\n'
-        def print_cleanup():
-            print 'in the cleanup function\n'
-        self.addCleanup(print_cleanup)
-        """
+        # Add cleanup handler functions.
+        # self.addCleanup()
+
         
     def test_driver_process(self):
         """
         """
+        
         """
-        driver_process = dp.ZmqDriverProcess(5556, 5557,
-                            'ion.services.mi.sbe37_driver', 'SBE37Driver')
-        driver_client = dc.ZmqDriverClient('localhost', 5556, 5557)
-        driver_process.start()
+        driver_process = ZmqDriverProcess.launch_process(5556, 5557, 'ion.services.mi.sbe37_driver', 'SBE37Driver')
+        driver_client = ZmqDriverClient('localhost', 5556, 5557)
         driver_client.start_messaging()
-        time.sleep(1)
-
+        time.sleep(3)
+        
         reply = driver_client.cmd_dvr('process_echo', data='test 1 2 3')
         self.assertIsInstance(reply, dict)
         self.assertTrue('cmd' in reply)
@@ -84,7 +87,7 @@ class DriverProcessTest(unittest.TestCase):
 
         reply = driver_client.cmd_dvr('test_events')
         self.assertEqual(reply, 'test_events')
-        time.sleep(1)
+        time.sleep(3)
         self.assertTrue(driver_client.events, ['I am event number 1!',
                                                'And I am event number 2!'])
         driver_client.done()
