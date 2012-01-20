@@ -38,7 +38,7 @@ class IngestionWorker(object):
 
         return ingestion_configuration
 
-    def process_stream(self, ingestion_configuration_id = '', incoming_stream = '', instruction = '', output_stream = ''):
+    def process_stream(self, ingestion_configuration_id = '', incoming_stream = '', instruction = ''):
         """
         Accepts a stream. Also accepts instruction as a string, and according to what is contained in the instruction,
         it does things with the stream such as store in hfd_storage, couch_storage or process the data and return the
@@ -68,7 +68,7 @@ class IngestionWorker(object):
         else:
             return None
 
-    def work_on_datastream(self, ingestion_configuration_id, incoming_stream, output_stream):
+    def work_on_datastream(self, ingestion_configuration_id, incoming_stream):
         """
         This method will be called by Transformation.
 

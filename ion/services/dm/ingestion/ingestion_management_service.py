@@ -10,13 +10,18 @@ from pyon.public import RT, AT, log, IonObject
 from pyon.public import CFG
 from ion.services.dm.ingestion.ingestion import Ingestion
 from pyon.net.channel import SubscriberChannel
-from ion.services.dm.transformation.transform_management_service import TransformManagementService
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 class IngestionManagementService(BaseIngestionManagementService):
     """
     class docstring
     """
     XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
+
+    def __init__(self):
+        BaseIngestionManagementService.__init__(self)
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={}, \
                                        number_of_workers=0, default_policy={}):
@@ -30,15 +35,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_configuration_id    str
         """
         # create an ingestion_configuration instance and update the registry
-        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = "Ingestion_configuration")
+        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = exchange_point_id)
         ingestion_configuration.number_of_workers = number_of_workers
         ingestion_configuration.hfd_storage = hfd_storage
         ingestion_configuration.couch_storage = couch_storage
         ingestion_configuration.default_policy = default_policy
-
-#        ingestion_configuration = IonObject(RT.IngestionConfiguration, exchange_point_id = exchange_point_id, \
-#            couch_storage = couch_storage, hfd_storage = hfd_storage, \
-#            number_of_workers = number_of_workers, default_policy = default_policy)
 
         id, rev = self.clients.resource_registry.create(ingestion_configuration)
 
@@ -47,6 +48,27 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration._rev = rev
 
         return ingestion_configuration._id
+
+    def launch_transforms(self, ingestion_configuration_id, subscription_id, listen_name, output_stream_id):
+    # set up process definition
+        tms_client = TransformManagementServiceClient(node=cc.node)
+        rr_client = ResourceRegistryServiceClient(node=cc.node)
+
+        process_definition = IonObject(RT.ProcessDefinition, name='first_transform_definition')
+        process_definition.executable = {'module': 'ion.services.dm.transformation.example.transform_example', 'class':'TransformExample'}
+        process_definition_id, _ = rr_client.create(process_definition)
+
+        configuration= {'process':{'name':'configuration','type':"stream_process",'listen_name': listen_name }}
+
+        ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
+        num = ingestion_configuration.number_of_workers
+
+        # launch the transforms
+        for i in range(1,num):
+            transform_id = tms_client.create_transform(in_subscription_id=subscription_id, out_stream_id=output_stream_id,
+                process_definition_id=process_definition_id, configuration=configuration)
+            tms_client.activate_transform(transform_id)
+
 
     def update_ingestion_configuration(self, ingestion_configuration={}):
         """Change the number of workers or the default policy for ingesting data on each stream
@@ -91,15 +113,15 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
 
         log.debug("Activating ingestion configuration")
-        ingestion_configuration_obj = self.read_ingestion_configuration(ingestion_configuration_id)
-        if ingestion_configuration_obj is None:
-            raise NotFound("Ingestion configuration %s does not exist" % ingestion_configuration_id)
 
-        # for now, since we dont have an exchange_name....
-        # taking the exchange_name to be the same as the exchange_point_id
-        ingestion_configuration_obj.exchange_name = ingestion_configuration_obj.exchange_point_id
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
+            AT.hasTransform, RT.Transform, True)
+        if len(transform_ids) < 1:
+            raise NotFound
 
-        self._bind_ingestion_configuration(self.XP, ingestion_configuration_obj.exchange_name, '*')
+        self.clients.transform_management.activate_transform(transform_ids[0])
+        return True
+
 
     def deactivate_ingestion_configuration(self, ingestion_configuration_id=''):
         """Deactivate an ingestion configuration and the transform processeses that execute it
@@ -108,15 +130,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    The ingestion configuration id did not exist
         """
         log.debug("Deactivating ingestion configuration")
-        ingestion_configuration_obj = self.read_ingestion_configuration(ingestion_configuration_id)
-        if ingestion_configuration_obj is None:
-            raise NotFound("Ingestion_configuration %d does not exist" % ingestion_configuration_id)
-
-        # for now, since we dont have an exchange_name....
-        # taking the exchange_name to be the same as the exchange_point_id
-        ingestion_configuration_obj.exchange_name = ingestion_configuration_obj.exchange_point_id
-
-        self._unbind_ingestion_configuration(self.XP, ingestion_configuration_obj.exchange_name)
+        # use the deactivate method in transformation management service
+        pass
 
     def create_stream_policy(self, stream_id='', archive_data='', archive_metadata=''):
         """Create a policy for a particular stream and associate it to the ingestion configuration for the exchange point the stream is on. (After LCA)
@@ -153,13 +168,3 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param ingestion_configuration_id    str
         @throws NotFound    if ingestion configuration did not exist
         """
-    def _bind_ingestion_configuration(self, exchange_point, exchange_name, routing_key):
-        channel = SubscriberChannel()
-        channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
-        channel.start_consume()
-
-    def _unbind_ingestion_configuration(self, exchange_point, exchange_name):
-        channel = SubscriberChannel()
-        channel._recv_name = (exchange_point, exchange_name)
-        channel.stop_consume()
-        channel.destroy_binding()
