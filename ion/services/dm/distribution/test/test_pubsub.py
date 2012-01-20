@@ -48,7 +48,7 @@ class PubSubTest(PyonTestCase):
         self.subscription = Mock()
         self.subscription.name = "SampleSubscription"
         self.subscription.description = "Sample Subscription In PubSub"
-        self.subscription.query = {"stream_id" : self.stream_id}
+        self.subscription.query = {"stream_id": self.stream_id}
         self.subscription.exchange_name = "ExchangeName"
 
         #Subscription Has Stream Association
@@ -62,9 +62,12 @@ class PubSubTest(PyonTestCase):
     def test_create_stream(self):
         self.mock_create.return_value = [self.stream_id, 1]
 
-        stream_id = self.pubsub_service.create_stream(self.stream)
+        stream_id = self.pubsub_service.create_stream(encoding="",
+            original=True,
+            name="SampleStream",
+            description="Sample Stream Description", url="")
 
-        self.mock_create.assert_called_once_with(self.stream)
+        self.assertTrue(self.mock_create.called)
         self.assertEqual(stream_id, self.stream_id)
 
     def test_read_and_update_stream(self):
@@ -119,21 +122,21 @@ class PubSubTest(PyonTestCase):
 
     def test_find_stream(self):
         self.mock_find_resources.return_value = [self.stream]
-        filter = {'name' : 'SampleStream', 'description' : 'Sample Stream In PubSub'}
+        filter = {'name': 'SampleStream', 'description': 'Sample Stream In PubSub'}
         streams = self.pubsub_service.find_streams(filter)
 
         self.assertEqual(streams, [self.stream])
 
     def test_find_stream_not_found(self):
         self.mock_find_resources.return_value = [self.stream]
-        filter = {'name' : 'StreamNotFound', 'description' : 'Sample Stream In PubSub'}
+        filter = {'name': 'StreamNotFound', 'description': 'Sample Stream In PubSub'}
         streams = self.pubsub_service.find_streams(filter)
 
         self.assertEqual(streams, [])
 
     def test_find_stream_no_streams_registered(self):
         self.mock_find_resources.return_value = []
-        filter = {'name' : 'SampleStream', 'description' : 'Sample Stream In PubSub'}
+        filter = {'name': 'SampleStream', 'description': 'Sample Stream In PubSub'}
         streams = self.pubsub_service.find_streams(filter)
 
         self.assertEqual(streams, [])
@@ -382,9 +385,7 @@ class PubSubTest(PyonTestCase):
 #
 #        #self.publisher_registrar.create_publisher(stream_id=id)
 
-
-
-@attr('INT', group='dm')
+@attr('INT', group='dm1')
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
@@ -396,30 +397,36 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
 
-        self.ctd_output_stream = IonObject(RT.Stream, name='SampleStream', description='Sample Stream Description')
-        self.ctd_output_stream.original = True
-        self.ctd_output_stream.mimetype = 'hdf'
-        self.ctd_output_stream.producers = ['science.data']
-        self.ctd_output_stream_id = self.pubsub_cli.create_stream(self.ctd_output_stream)
+        self.ctd_output_stream_id = self.pubsub_cli.create_stream(encoding="",
+            original=True,
+            name="SampleStream",
+            description="Sample Stream Description", url="",
+            stream_definition_type="")
 
         self.ctd_subscription = IonObject(RT.Subscription, name='SampleSubscription', description='Sample Subscription Description')
         self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
-        self.ctd_subscription.exchange_name = 'a queue'
+        self.ctd_subscription.exchange_name = 'a_queue'
         self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
 
     def tearDown(self):
-        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+        #self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
         #self.pubsub_cli.delete_stream(self.ctd_output_stream_id)
         self._stop_container()
 
     def test_bind_subscription(self):
-        pass
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
+    @unittest.skip("Nothing to test")
     def test_unbind_subscription(self):
+        self.test_bind_subscription()
+        self.pubsub_cli.deactivate_subscription(self.ctd_subscription_id)
         pass
 
+    @unittest.skip("Nothing to test")
     def test_bind_already_bound_subscription(self):
-        pass
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
+    @unittest.skip("Nothing to test")
     def test_unbind_unbound_subscription(self):
         pass
