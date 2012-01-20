@@ -208,7 +208,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         # setup
         # Data Product
         dp_obj = IonObject(RT.DataProduct,
-                           _id='SOME_RR_ID1',
                            name='DP_X', 
                            description='some new dp')
         self.resource_registry.read.return_value = (dp_obj)
@@ -272,7 +271,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.resource_registry.update.side_effect = BadRequest("Update failed: Document has no Rev: ")
         # Data Product
         dp_obj = IonObject(RT.DataProduct,
-                           _id="SOME_RR_ID1",
                            name='DP_X', 
                            description='some existing dp')
         result = None
@@ -292,8 +290,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.resource_registry.update.side_effect = BadRequest("Object not based on most current version")
         # Data Product
         dp_obj = IonObject(RT.DataProduct,
-                           _id="SOME_RR_ID1",
-                           _rev = "SOME_REV",
                            name='DP_X', 
                            description='some existing dp')
         result = None
@@ -313,8 +309,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.resource_registry.update.side_effect = BadRequest("Cannot modify life cycle state in update!")
         # Data Product
         dp_obj = IonObject(RT.DataProduct,
-                           _id="SOME_RR_ID1",
-                           _rev = "SOME_REV",
                            name='DP_X',
                            description='some existing dp')
         result = None
@@ -333,8 +327,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         # setup
         # Data Product
         dp_obj = IonObject(RT.DataProduct,
-                           _id="SOME_RR_ID1",
-                           _rev = "SOME_REV",
                            name='DP_X', 
                            description='some existing dp')
         self.resource_registry.delete.return_value = (dp_obj)
@@ -351,8 +343,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.resource_registry.delete.side_effect = BadRequest("Object with id SOME_RR_ID1 does not exist.")
         # Data Product
         dp_obj = IonObject(RT.DataProduct,
-                           _id="SOME_RR_ID1",
-                           _rev = "SOME_REV",
                            name='DP_X',
                            description='some existing dp')
         result = None
@@ -371,8 +361,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         # setup
         # Data Product
         dp_obj = IonObject(RT.DataProduct,
-                           _id="SOME_RR_ID1",
-                           _rev = "SOME_REV",
                            name='DP_X',
                            description='some existing dp')
         self.resource_registry.find_resources.return_value = ([dp_obj], [])

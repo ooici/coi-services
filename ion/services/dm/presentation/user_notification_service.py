@@ -9,7 +9,7 @@ from interface.services.dm.iuser_notification_service import BaseUserNotificatio
 
 class UserNotificationService(BaseUserNotificationService):
 
-    def create_notification(self, notification={}, user_id=''):
+    def create_notification(self, notification=None, user_id=''):
         """Persists the provided NotificationRequest object for the specified Org id. Associate the Notification resource with the use The id string returned
         is the internal id by which NotificationRequest will be identified in the data store.
 
@@ -35,7 +35,7 @@ class UserNotificationService(BaseUserNotificationService):
         return notification_id
 
 
-    def update_notification(self, notification={}):
+    def update_notification(self, notification=None):
         """Updates the provided NotificationRequest object.  Throws NotFound exception if
         an existing version of NotificationRequest is not found.  Throws Conflict if
         the provided NotificationRequest object is not based on the latest persisted

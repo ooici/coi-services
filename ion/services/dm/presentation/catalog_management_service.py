@@ -14,7 +14,7 @@ class CatalogManagementService(BaseCatalogManagementService):
     """
 
 
-    def create_catalog(self, catalog={}):
+    def create_catalog(self, catalog=None):
         """
         method docstring
         """
@@ -24,7 +24,7 @@ class CatalogManagementService(BaseCatalogManagementService):
         #
         pass
 
-    def update_catalog(self, catalog={}):
+    def update_catalog(self, catalog=None):
         """
         method docstring
         """

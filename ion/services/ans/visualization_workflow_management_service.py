@@ -12,7 +12,7 @@ class VisualizationWorkflowManagementService(BaseVisualizationWorkflowManagement
     Capabilities to enable the definition, instantiation, scheduling and execution control of developer provided workflows for the visualization of data products
     """
 
-    def create_visualization_workflow(self, visualization_workflow={}):
+    def create_visualization_workflow(self, visualization_workflow=None):
         """Creates an Visualization Workflow resource from the parameter visualization_workflow object.
 
         @param visualization_workflow    VisualizationWorkflow
@@ -21,7 +21,7 @@ class VisualizationWorkflowManagementService(BaseVisualizationWorkflowManagement
         """
         pass
 
-    def update_visualization_workflow(self, visualization_workflow={}):
+    def update_visualization_workflow(self, visualization_workflow=None):
         """Updates an existing Visualization Workflow resource.
 
         @param visualization_workflow    VisualizationWorkflow
@@ -48,7 +48,7 @@ class VisualizationWorkflowManagementService(BaseVisualizationWorkflowManagement
         """
         pass
 
-    def find_visualization_workflow(self, filters={}):
+    def find_visualization_workflow(self, filters=None):
         """Returns a list of Visualization Workflow resources for the provided resource filter.
 
         @param filters    ResourceFilter
