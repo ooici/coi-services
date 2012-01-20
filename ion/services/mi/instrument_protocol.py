@@ -17,6 +17,7 @@ from zope.interface import Interface, implements
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
+from ion.services.mi.instrument_connection import IInstrumentConnection
 
 class InstrumentProtocol(object):
     """The base class for an instrument protocol
@@ -285,4 +286,4 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Apply regexes, separators, delimiters, Eolns, etc.
         
     def get(self, params=[]):
-        
+        pass
