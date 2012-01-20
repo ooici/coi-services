@@ -11,12 +11,19 @@ with the Satlantic PAR sensor (PARAD in RSN nomenclature).
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
-# imports go here
+from ion.services.mi.common import BaseEnum
+from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
+from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.instrument_connection import SerialInstrumentConnection
+from ion.services.mi.comms_method import AMQPCommsMethod
+from pyon.util.fsm import FSM
 
 ####################################################################
 # Static enumerations for this class
 ####################################################################
+
 class Channel(BaseEnum):
+    """Just default instrument driver channels, add no more"""
     pass
 
 class Command(BaseEnum):
@@ -108,26 +115,48 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     # The normal interface for a protocol. These should drive the FSM
     # transitions as they get things done.
     def get(self, params=[]):
+        # check param
+        # build query
+        # get result from instrument
+        # build return
         pass
     
     def set(self, params={}):
+        # check param
+        # build set
+        # set and get result from instrument
+        # build return
         pass
     
     def execute(self, command=[]):
+        # check command and arguments for validity
+        # build command string
+        # execute and get result from instrument
+        # build return
         pass
     
     def get_config(self):
+        # build query
+        # get result from instrument
+        # build return
         pass
     
     def restore_config(self, config={}):
+        # check param list
+        # build set string
+        # set and get result from instrument
+        # build return
         pass
     
     def get_status(self):
+        # build status query
+        # get result from instrument
+        # build return
         pass
     
     def _break_to_command_mode(self):
-        # Ctrl-C does it for this instrument
-        pass
+        # Ctrl-C does it for this instrument, run it through the state machine
+        self.protocol_fsm.process(Event.BREAK)
     
     def _handle_exit(self):
         """Handle exit or exit_and_reset transition"""
@@ -143,6 +172,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     
     def _handle_break(self):
         """Handle break transition"""
+        # Issue Ctrl-C
     
     def _handle_reset(self):
         """Handle reset transition"""
@@ -158,6 +188,7 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
     """The InstrumentDriver class for the Satlantic PAR sensor PARAD"""
 
     def __init__(self):
+        """Instrument-specific enums"""
         self.protocol = SatlanticPARInstrumentProtocol()
         self.comms_method = AMQPCommsMethod()
         self.instrument_connection = SerialInstrumentConnection()

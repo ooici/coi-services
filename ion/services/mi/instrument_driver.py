@@ -14,7 +14,7 @@ __license__ = 'Apache 2.0'
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.exceptions import InstrumentConnectionException 
 from ion.services.mi.common import DEFAULT_TIMEOUT
-from pyon.ion.util.fsm import FSM
+from pyon.util.fsm import FSM
 
 class DriverChannel(BaseEnum):
     """Common channels for all sensors. Driver subclasses contain a subset."""

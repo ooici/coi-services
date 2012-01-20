@@ -14,9 +14,9 @@ __license__ = 'Apache 2.0'
 # imports go here
 
 class InstrumentException(Exception):
-    '''Base class for an exception related to physical instruments or their
+    """Base class for an exception related to physical instruments or their
     representation in ION.
-    '''
+    """
     
     def __init__ (self, error_code, msg):
         
@@ -24,22 +24,25 @@ class InstrumentException(Exception):
         self.msg = msg
     
 class InstrumentConnectionException(InstrumentException):
-    '''Exception related to connection with a physical instrument'''
+    """Exception related to connection with a physical instrument"""
     
 class InstrumentProtocolException(InstrumentException):
-    '''Exception related to an instrument protocol problem
+    """Exception related to an instrument protocol problem
     
     These are generally related to parsing or scripting of what is supposed
     to happen when talking at the lowest layer protocol to a device.
-    '''
+    """
 
 class InstrumentStateException(InstrumentException):
-    '''Exception related to an instrument state of any sort'''
+    """Exception related to an instrument state of any sort"""
     
 class InstrumentTimeoutException(InstrumentException):
-    '''Exception related to a command, request, or communication timing out'''
+    """Exception related to a command, request, or communication timing out"""
     
 class InstrumentDataException(InstrumentException):
-    '''Exception related to the data returned by an instrument or developed
-    along the path of handling that data'''
+    """Exception related to the data returned by an instrument or developed
+    along the path of handling that data"""
+    
+class CommsException(InstrumentException):
+    """Exception related to upstream communications trouble"""
     

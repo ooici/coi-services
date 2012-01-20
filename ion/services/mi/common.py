@@ -2,7 +2,7 @@
 
 """
 @package ion.services.mi.common Common classes for MI work
-@file ion/services/mi/enum.py
+@file ion/services/mi/common.py
 @author Steve Foley
 @brief Common enumerations, constants, utilities used in the MI work
 """
