@@ -30,9 +30,15 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_configuration_id    str
         """
         # create an ingestion_configuration instance and update the registry
-        ingestion_configuration = IonObject(RT.IngestionConfiguration,exchange_point_id = exchange_point_id, \
-            couch_storage = couch_storage, hfd_storage = hfd_storage, \
-            number_of_workers = number_of_workers, default_policy = default_policy)
+        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = "Ingestion_configuration")
+        ingestion_configuration.number_of_workers = number_of_workers
+        ingestion_configuration.hfd_storage = hfd_storage
+        ingestion_configuration.couch_storage = couch_storage
+        ingestion_configuration.default_policy = default_policy
+
+#        ingestion_configuration = IonObject(RT.IngestionConfiguration, exchange_point_id = exchange_point_id, \
+#            couch_storage = couch_storage, hfd_storage = hfd_storage, \
+#            number_of_workers = number_of_workers, default_policy = default_policy)
 
         id, rev = self.clients.resource_registry.create(ingestion_configuration)
 
