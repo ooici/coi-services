@@ -6,11 +6,10 @@ __license__ = 'Apache 2.0'
 
 from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
-import inspect, json, simplejson
+import inspect, json, simplejson, collections
 
+from pyon.public import AT, RT, IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
-from pyon.container.cc import Container
-from pyon.net.endpoint import ProcessRPCClient
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
@@ -139,10 +138,17 @@ def process_gateway_request(service_name, operation):
 
             if not jsonParms:
                 if request.args.has_key(arg):
-                    parm_list[arg] = request.args[arg]  # should be fixed to convert to proper type when necessary; ie "True" -> True
+                    parm_list[arg] = convert_unicode(request.args[arg])  # should be fixed to convert to proper type when necessary; ie "True" -> True
             else:
                 if jsonParms['serviceRequest']['params'].has_key(arg):
-                    parm_list[arg] = jsonParms['serviceRequest']['params'][arg]
+                    if isinstance(jsonParms['serviceRequest']['params'][arg], list):
+                        # For some reason, UNICODE strings are not supported with ION objects
+                        ion_object_name = convert_unicode(jsonParms['serviceRequest']['params'][arg][0])
+                        object_parms = convert_unicode(jsonParms['serviceRequest']['params'][arg][1])
+
+                        parm_list[arg] = IonObject(ion_object_name, object_parms)
+                    else:
+                        parm_list[arg] = convert_unicode(jsonParms['serviceRequest']['params'][arg])
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
@@ -160,6 +166,15 @@ def process_gateway_request(service_name, operation):
 def ion_object_encoder(obj):
     return obj.__dict__
 
+def convert_unicode(data):
+    if isinstance(data, unicode):
+        return str(data)
+    elif isinstance(data, collections.Mapping):
+        return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data, collections.Iterable):
+        return type(data)(map(convert_unicode, data))
+    else:
+        return data
 
 # This service method returns the list of registered resource objects sorted alphabetically. Optional query
 # string parameter will filter by extended type  i.e. type=InformationResource. All registered objects
