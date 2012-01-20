@@ -45,7 +45,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.data_process = DataProcessImpl(self.clients)
 
-    def create_data_process_definition(self, data_process_definition={}):
+    def create_data_process_definition(self, data_process_definition=None):
         """
         @param      data_process_definition: dict with parameters to define
                         the data process def.
@@ -65,7 +65,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return data_process_definition_id
 
-    def update_data_process_definition(self, data_process_definition={}):
+    def update_data_process_definition(self, data_process_definition=None):
         """
         @param      data_process_definition: dict with parameters to update
                         the data process def.
@@ -93,7 +93,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         pass
 
-    def find_data_process_definitions(self, filters={}):
+    def find_data_process_definitions(self, filters=None):
         """
         @param      filters: dict of parameters to filter down
                         the list of possible data proc. defs
@@ -103,50 +103,41 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def create_data_process(self,
                             data_process_definition_id='',
-                            in_subscription_id='',
+                            in_data_product_id='',
                             out_data_product_id=''):
         """
         @param  data_process_definition_id: Object with definition of the
                     transform to apply to the input data product
-        @param  in_subscription_id: ID of the input data product
+        @param  in_data_product_id: ID of the input data product
         @param  out_data_product_id: ID of the output data product
         @retval data_process_id: ID of the newly created data process object
-        @throws BadRequest if missing any input values
         """
-        inform = "Input Data Product:       "+str(in_subscription_id)+\
+        inform = "Input Data Product:       "+str(in_data_product_id)+\
                  "Transformed by:           "+str(data_process_definition_id)+\
                  "To create output Product: "+str(out_data_product_id)
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
         
-        """  TODO: should these validations be performed here or in the interceptor?
-        # Validate inputs
-        if not data_process_definition_id:
-            raise BadRequest("Missing data definition.")
-        if not in_subscription_id:
-            raise BadRequest("Missing input data product ID.")
-        if not out_data_product_id:
-            raise BadRequest("Missing output data product ID.")
-        """
-
         # Create and store a new DataProcess with the resource registry
         data_process_def_obj = \
             self.read_data_process_definition(data_process_definition_id)
-        data_process_name = "process_" + data_process_def_obj.name
+        data_process_name = "process_" + data_process_def_obj.name \
+                            + " - calculates " + \
+                            str(out_data_product_id) + time.ctime()
         data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(data_process)
         
         # Assemble transform input data
-        transform_name = str(data_process.name) + " - calculates " + \
-                         str(out_data_product_id) + time.ctime()
-        transform_object = IonObject(RT.Transform, name=transform_name)
-        transform_object.process_definition_id = data_process_definition_id
-        transform_object.in_subscription_id = in_subscription_id
-        transform_object.out_data_product_id = out_data_product_id
+        # TODO: create subscription from in_data_product here 
+        in_subscription_id = ""
+        # TODO: get stream_id from out_data_product here 
+        out_stream_id = ""
 
         # Register the transform with the transform mgmt service
-        transform_id =\
-            self.clients.transform_management_service.create_transform(transform_object)
+        transform_id = \
+            self.clients.transform_management_service.create_transform(data_process_definition_id,
+                                                                       in_subscription_id,
+                                                                       out_stream_id)
 
         # TODO: Flesh details of transform mgmt svc schedule and bind methods
         self.clients.transform_management_service.schedule_transform(transform_id)
@@ -158,7 +149,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Associations
         self.clients.resource_registry.create_association(data_process_id,
                                                           AT.hasInputProduct,
-                                                          in_subscription_id)
+                                                          in_data_product_id)
         self.clients.resource_registry.create_association(data_process_id,
                                                           AT.hasOutputProduct,
                                                           out_data_product_id)
@@ -175,7 +166,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                             in_subscription_id='',
                             out_data_product_id=''):
     """
-    def update_data_process():
+    def update_data_process(self,):
         """
         @param  data_process_id: ID of the data process object to update
         @param  data_process_definition_id: Object with definition of the
@@ -273,7 +264,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.delete(data_process_obj)
         return {"success": True}
 
-    def find_data_process(self, filters={}):
+    def find_data_process(self, filters=None):
         """
         @param      filters: dict of parameters to filter down
                         the list of possible data proc.

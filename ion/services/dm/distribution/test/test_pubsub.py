@@ -5,20 +5,17 @@
 @author Jamie Chen
 @test ion.services.dm.distribution.pubsub_management_service Unit test suite to cover all pub sub mgmt service code
 '''
-
-from mock import Mock, sentinel, patch
-from pyon.util.unit_test import PyonTestCase
-from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
-from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound
-from pyon.public import log, AT
-import unittest
-from pyon.public import CFG, IonObject, log, RT, AT, LCS
-from pyon.public import Container
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import Container
-from interface.services.icontainer_agent import ContainerAgentClient
+from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.icontainer_agent import ContainerAgentClient
+from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
+from pyon.core.exception import NotFound
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
+from pyon.public import AT, RT, IonObject
+from nose.plugins.attrib import attr
+import unittest
+
 
 @attr('UNIT', group='dm')
 class PubSubTest(PyonTestCase):
@@ -361,6 +358,33 @@ class PubSubTest(PyonTestCase):
 
 
 @attr('INT', group='dm')
+class PublishSubscribeIntTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+
+        # Establish endpoint with container
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+        container_client.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        # Now create client to bank service
+        self.client = PubsubManagementServiceClient(node=self.container.node)
+
+        self.container.spawn_process('test_process', 'pyon.ion.streamproc','StreamProcess',
+            config={'process':{'type':'stream_process','listen_name':'ctd_data'}})
+
+
+
+    def test_create_publisher(self):
+
+        stream = IonObject(RT.Stream, name='test stream')
+        id = self.client.create_stream(stream)
+
+        #self.publisher_registrar.create_publisher(stream_id=id)
+
+"""
+
+@attr('INT', group='dm')
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
@@ -378,3 +402,5 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def test_unbind_unbound_subscription(self):
         pass
+
+        """

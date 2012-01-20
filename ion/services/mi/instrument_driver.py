@@ -4,6 +4,7 @@
 @package ion.services.mi.instrument_driver Instrument driver structures
 @file ion/services/mi/instrument_driver.py
 @author Steve Foley
+@author Edward Hunter
 @brief Instrument driver classes that provide structure towards interaction
 with individual instruments in the system.
 """
@@ -371,4 +372,24 @@ class InstrumentDriver(object):
         """State change handler"""
     
     def _handle_handle_calibrate(self):
-        """State change handler"""
+        """State change handler"""  
+        
+    ##################
+    # Resource methods
+    ##################
+    def rcmd_initialize(self):
+        """
+        """
+    
+    def rcmd_configure(self, params):
+        """
+        """
+        
+    def rcmd_connect(self, timeout):
+        """
+        """
+        
+    def rcmd_disconnect(self, timeout):
+        """
+        """
+    

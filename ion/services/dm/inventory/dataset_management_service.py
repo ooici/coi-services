@@ -12,7 +12,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     class docstring
     """
 
-    def create_dataset(self, dataset={}):
+    def create_dataset(self, dataset=None):
         """
         method docstring
         """
@@ -24,7 +24,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         #
         pass
 
-    def update_dataset(self, dataset={}):
+    def update_dataset(self, dataset=None):
         """
         method docstring
         """
@@ -54,7 +54,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         #
         pass
 
-    def find_datasets(self, filters={}):
+    def find_datasets(self, filters=None):
         """
         method docstring
         """

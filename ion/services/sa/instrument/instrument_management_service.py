@@ -98,7 +98,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_agent_instance(self, instrument_agent_instance={}):
+    def create_instrument_agent_instance(self, instrument_agent_instance=None):
         """
         create a new instance
         @param instrument_agent_instance the object to be created as a resource
@@ -108,7 +108,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_agent_instance.create_one(instrument_agent_instance)
 
-    def update_instrument_agent_instance(self, instrument_agent_instance={}):
+    def update_instrument_agent_instance(self, instrument_agent_instance=None):
         """
         update an existing instance
         @param instrument_agent_instance the object to be created as a resource
@@ -136,7 +136,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
 
-    def find_instrument_agent_instances(self, filters={}):
+    def find_instrument_agent_instances(self, filters=None):
         """
 
         """
@@ -151,7 +151,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_agent(self, instrument_agent={}):
+    def create_instrument_agent(self, instrument_agent=None):
         """
         create a new instance
         @param instrument_agent the object to be created as a resource
@@ -161,7 +161,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_agent.create_one(instrument_agent)
 
-    def update_instrument_agent(self, instrument_agent={}):
+    def update_instrument_agent(self, instrument_agent=None):
         """
         update an existing instance
         @param instrument_agent the object to be created as a resource
@@ -189,14 +189,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_agent.delete_one(instrument_agent_id)
 
-    def find_instrument_agents(self, filters={}):
+    def find_instrument_agents(self, filters=None):
         """
 
         """
         return self.instrument_agent.find_some(filters)
 
     #FIXME: args need to change
-    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance={}):
+    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance=None):
         """
         @todo the arguments for this function seem incorrect and/or mismatched
         """
@@ -222,7 +222,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_model(self, instrument_model={}):
+    def create_instrument_model(self, instrument_model=None):
         """
         create a new instance
         @param instrument_model the object to be created as a resource
@@ -232,7 +232,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_model.create_one(instrument_model)
 
-    def update_instrument_model(self, instrument_model={}):
+    def update_instrument_model(self, instrument_model=None):
         """
         update an existing instance
         @param instrument_model the object to be created as a resource
@@ -260,7 +260,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_model.delete_one(instrument_model_id)
 
-    def find_instrument_models(self, filters={}):
+    def find_instrument_models(self, filters=None):
         """
 
         """
@@ -298,7 +298,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_device(self, instrument_device={}):
+    def create_instrument_device(self, instrument_device=None):
         """
         create a new instance
         @param instrument_device the object to be created as a resource
@@ -308,7 +308,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_device.create_one(instrument_device)
 
-    def update_instrument_device(self, instrument_device={}):
+    def update_instrument_device(self, instrument_device=None):
         """
         update an existing instance
         @param instrument_device the object to be created as a resource
@@ -337,7 +337,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_device.delete_one(instrument_device_id)
 
-    def find_instrument_devices(self, filters={}):
+    def find_instrument_devices(self, filters=None):
         """
 
         """
@@ -569,7 +569,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_platform_agent_instance(self, platform_agent_instance={}):
+    def create_platform_agent_instance(self, platform_agent_instance=None):
         """
         create a new instance
         @param platform_agent_instance the object to be created as a resource
@@ -579,7 +579,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent_instance.create_one(platform_agent_instance)
 
-    def update_platform_agent_instance(self, platform_agent_instance={}):
+    def update_platform_agent_instance(self, platform_agent_instance=None):
         """
         update an existing instance
         @param platform_agent_instance the object to be created as a resource
@@ -607,7 +607,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
-    def find_platform_agent_instances(self, filters={}):
+    def find_platform_agent_instances(self, filters=None):
         """
 
         """
@@ -625,7 +625,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
-    def create_platform_agent(self, platform_agent={}):
+    def create_platform_agent(self, platform_agent=None):
         """
         create a new instance
         @param platform_agent the object to be created as a resource
@@ -635,7 +635,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent.create_one(platform_agent)
 
-    def update_platform_agent(self, platform_agent={}):
+    def update_platform_agent(self, platform_agent=None):
         """
         update an existing instance
         @param platform_agent the object to be created as a resource
@@ -665,14 +665,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent.delete_one(platform_agent_id)
 
-    def find_platform_agents(self, filters={}):
+    def find_platform_agents(self, filters=None):
         """
 
         """
         return self.platform_agent.find_some(filters)
 
     #FIXME: args need to change
-    def assign_platform_agent(self, platform_agent_id='', platform_id='', platform_agent_instance={}):
+    def assign_platform_agent(self, platform_agent_id='', platform_id='', platform_agent_instance=None):
         """
         @todo the arguments for this function seem incorrect and/or mismatched
         """
@@ -699,7 +699,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
-    def create_platform_model(self, platform_model={}):
+    def create_platform_model(self, platform_model=None):
         """
         create a new instance
         @param platform_model the object to be created as a resource
@@ -709,7 +709,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_model.create_one(platform_model)
 
-    def update_platform_model(self, platform_model={}):
+    def update_platform_model(self, platform_model=None):
         """
         update an existing instance
         @param platform_model the object to be created as a resource
@@ -738,7 +738,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_model.delete_one(platform_model_id)
 
-    def find_platform_models(self, filters={}):
+    def find_platform_models(self, filters=None):
         """
 
         """
@@ -769,7 +769,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def create_platform_device(self, platform_device={}):
+    def create_platform_device(self, platform_device=None):
         """
         create a new instance
         @param platform_device the object to be created as a resource
@@ -779,7 +779,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_device.create_one(platform_device)
 
-    def update_platform_device(self, platform_device={}):
+    def update_platform_device(self, platform_device=None):
         """
         update an existing instance
         @param platform_device the object to be created as a resource
@@ -809,7 +809,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_device.delete_one(platform_device_id)
 
-    def find_platform_devices(self, filters={}):
+    def find_platform_devices(self, filters=None):
         """
 
         """
@@ -827,7 +827,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
-    def create_sensor_model(self, sensor_model={}):
+    def create_sensor_model(self, sensor_model=None):
         """
         create a new instance
         @param sensor_model the object to be created as a resource
@@ -837,7 +837,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_model.create_one(sensor_model)
 
-    def update_sensor_model(self, sensor_model={}):
+    def update_sensor_model(self, sensor_model=None):
         """
         update an existing instance
         @param sensor_model the object to be created as a resource
@@ -867,7 +867,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_model.delete_one(sensor_model_id)
 
-    def find_sensor_models(self, filters={}):
+    def find_sensor_models(self, filters=None):
         """
 
         """
@@ -897,7 +897,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def create_sensor_device(self, sensor_device={}):
+    def create_sensor_device(self, sensor_device=None):
         """
         create a new instance
         @param sensor_device the object to be created as a resource
@@ -907,7 +907,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_device.create_one(sensor_device)
 
-    def update_sensor_device(self, sensor_device={}):
+    def update_sensor_device(self, sensor_device=None):
         """
         update an existing instance
         @param sensor_device the object to be created as a resource
@@ -937,7 +937,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_device.delete_one(sensor_device_id)
 
-    def find_sensor_devices(self, filters={}):
+    def find_sensor_devices(self, filters=None):
         """
 
         """

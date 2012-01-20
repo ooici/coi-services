@@ -9,7 +9,7 @@ from interface.services.cei.iexecution_engine_management_service import BaseExec
 
 class ExecutionEngineManagementService(BaseExecutionEngineManagementService):
 
-    def create_execution_engine_definition(self, execution_engine_definition={}):
+    def create_execution_engine_definition(self, execution_engine_definition=None):
         """ Should receive an ExecutionEngineDefinition object
         """
         # Return Value
@@ -18,7 +18,7 @@ class ExecutionEngineManagementService(BaseExecutionEngineManagementService):
         #
         pass
 
-    def update_execution_engine_definition(self, execution_engine_definition={}):
+    def update_execution_engine_definition(self, execution_engine_definition=None):
         """ Should receive an ExecutionEngineDefinition object
         """
         # Return Value
@@ -45,7 +45,7 @@ class ExecutionEngineManagementService(BaseExecutionEngineManagementService):
         #
         pass
 
-    def create_execution_engine(self, execution_engine={}):
+    def create_execution_engine(self, execution_engine=None):
         """ Should receive an ExecutionEngine object
         """
         # Return Value
@@ -54,7 +54,7 @@ class ExecutionEngineManagementService(BaseExecutionEngineManagementService):
         #
         pass
 
-    def update_execution_engine(self, execution_engine={}):
+    def update_execution_engine(self, execution_engine=None):
         """ Should receive an ExecutionEngine object
         """
         # Return Value

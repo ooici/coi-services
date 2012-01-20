@@ -11,7 +11,7 @@ from interface.services.examples.bank.itrade_service import BaseTradeService
 
 class TradeService(BaseTradeService):
 
-    def exercise(self, order={}):
+    def exercise(self, order=None):
         # Made up market price of bond
         bond_price = 1.56
 

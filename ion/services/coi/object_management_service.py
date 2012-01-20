@@ -13,7 +13,7 @@ class ObjectManagementService(BaseObjectManagementService):
     A service for defining and managing object types used as resource, messages, etc.
     """
     
-    def create_object_type(self, object_type={}):
+    def create_object_type(self, object_type=None):
         """ Should receive an ObjectType object
         """
         # Return Value
@@ -22,7 +22,7 @@ class ObjectManagementService(BaseObjectManagementService):
         #
         pass
 
-    def update_object_type(self, object_type={}):
+    def update_object_type(self, object_type=None):
         """ Should receive an ObjectType object
         """
         # Return Value
@@ -49,7 +49,7 @@ class ObjectManagementService(BaseObjectManagementService):
         #
         pass
 
-    def find_object_types(self, filters={}):
+    def find_object_types(self, filters=None):
         """ Should receive a ResourceFilter object
         """
         # Return Value

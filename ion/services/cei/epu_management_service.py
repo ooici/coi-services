@@ -9,7 +9,7 @@ from interface.services.cei.iepu_management_service import BaseEpuManagementServ
 
 class EpuManagementService(BaseEpuManagementService):
 
-    def create_EPU_definition(self, EPU_definition={}):
+    def create_EPU_definition(self, EPU_definition=None):
         """ Should receive an EPUDefinition object
         """
         # Return Value
@@ -18,7 +18,7 @@ class EpuManagementService(BaseEpuManagementService):
         #
         pass
 
-    def update_EPU_definition(self, EPU_definition={}):
+    def update_EPU_definition(self, EPU_definition=None):
         """ Should receive an EPUDefinition object
         """
         # Return Value
@@ -45,7 +45,7 @@ class EpuManagementService(BaseEpuManagementService):
         #
         pass
 
-    def create_EPU(self, EPU={}):
+    def create_EPU(self, EPU=None):
         """ Should receive an EPU object
         """
         # Return Value
@@ -54,7 +54,7 @@ class EpuManagementService(BaseEpuManagementService):
         #
         pass
 
-    def update_EPU(self, EPU={}):
+    def update_EPU(self, EPU=None):
         """ Should receive an EPU object
         """
         # Return Value
@@ -81,7 +81,7 @@ class EpuManagementService(BaseEpuManagementService):
         #
         pass
 
-    def create_deployable_type(self, deployable_type={}):
+    def create_deployable_type(self, deployable_type=None):
         """ Should receive a DeployableType object
         """
         # Return Value
@@ -90,7 +90,7 @@ class EpuManagementService(BaseEpuManagementService):
         #
         pass
 
-    def update_deployable_type(self, deployable_type={}):
+    def update_deployable_type(self, deployable_type=None):
         """ Should receive a DeployableType object
         """
         # Return Value

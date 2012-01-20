@@ -58,7 +58,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ##########################################################################
 
-    def create_marine_facility(self, marine_facility={}):
+    def create_marine_facility(self, marine_facility=None):
         """
         create a new instance
         @param marine_facility the object to be created as a resource
@@ -68,7 +68,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.marine_facility.create_one(marine_facility)
 
-    def update_marine_facility(self, marine_facility={}):
+    def update_marine_facility(self, marine_facility=None):
         """
         update an existing instance
         @param marine_facility the object to be created as a resource
@@ -97,7 +97,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.marine_facility.delete_one(marine_facility_id)
 
-    def find_marine_facilities(self, filters={}):
+    def find_marine_facilities(self, filters=None):
         """
 
         """
@@ -110,7 +110,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ##########################################################################
 
-    def create_site(self, site={}):
+    def create_site(self, site=None):
         """
         create a new instance
         @param site the object to be created as a resource
@@ -120,7 +120,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.site.create_one(site)
 
-    def update_site(self, site={}):
+    def update_site(self, site=None):
         """
         update an existing instance
         @param site the object to be created as a resource
@@ -149,7 +149,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.site.delete_one(site_id)
 
-    def find_sites(self, filters={}):
+    def find_sites(self, filters=None):
         """
 
         """
@@ -167,7 +167,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ##########################################################################
 
-    def create_logical_instrument(self, logical_instrument={}):
+    def create_logical_instrument(self, logical_instrument=None):
         """
         create a new instance
         @param logical_instrument the object to be created as a resource
@@ -177,7 +177,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.logical_instrument.create_one(logical_instrument)
 
-    def update_logical_instrument(self, logical_instrument={}):
+    def update_logical_instrument(self, logical_instrument=None):
         """
         update an existing instance
         @param logical_instrument the object to be created as a resource
@@ -206,7 +206,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.logical_instrument.delete_one(logical_instrument_id)
 
-    def find_logical_instruments(self, filters={}):
+    def find_logical_instruments(self, filters=None):
         """
 
         """
@@ -220,7 +220,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ##########################################################################
 
-    def create_logical_platform(self, logical_platform={}):
+    def create_logical_platform(self, logical_platform=None):
         """
         create a new instance
         @param logical_platform the object to be created as a resource
@@ -230,7 +230,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.logical_platform.create_one(logical_platform)
 
-    def update_logical_platform(self, logical_platform={}):
+    def update_logical_platform(self, logical_platform=None):
         """
         update an existing instance
         @param logical_platform the object to be created as a resource
@@ -259,7 +259,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
         return self.logical_platform.delete_one(logical_platform_id)
 
-    def find_logical_platforms(self, filters={}):
+    def find_logical_platforms(self, filters=None):
         """
 
         """
