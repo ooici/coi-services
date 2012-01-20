@@ -119,8 +119,10 @@ class DriverProcess(object):
             self.stop_messaging()
             return'stop_driver_process'
         elif cmd == 'test_events':
-            self.events.append('I am event number 1!')
-            self.events.append('And I am event number 2!')
+            events = kwargs['events']
+            self.events += events
+            #self.events.append('I am event number 1!')
+            #self.events.append('And I am event number 2!')
             reply = 'test_events'
         elif cmd == 'process_echo':
             reply = msg
