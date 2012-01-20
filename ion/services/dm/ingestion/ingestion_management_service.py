@@ -9,12 +9,14 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, AT, log, IonObject
 from pyon.public import CFG
 from ion.services.dm.ingestion.ingestion import Ingestion
+from pyon.net.channel import SubscriberChannel
 from ion.services.dm.transformation.transform_management_service import TransformManagementService
 
 class IngestionManagementService(BaseIngestionManagementService):
     """
     class docstring
     """
+    XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={}, \
                                        number_of_workers=0, default_policy={}):
@@ -75,6 +77,41 @@ class IngestionManagementService(BaseIngestionManagementService):
         self.clients.resource_registry.delete(ingestion_configuration)
 
 
+    def activate_ingestion_configuration(self, ingestion_configuration_id=''):
+        """Activate an ingestion configuration and the transform processes that execute it
+
+        @param ingestion_configuration_id    str
+        @throws NotFound    The ingestion configuration id did not exist
+        """
+
+        log.debug("Activating ingestion configuration")
+        ingestion_configuration_obj = self.read_ingestion_configuration(ingestion_configuration_id)
+        if ingestion_configuration_obj is None:
+            raise NotFound("Ingestion configuration %s does not exist" % ingestion_configuration_id)
+
+        # for now, since we dont have an exchange_name....
+        # taking the exchange_name to be the same as the exchange_point_id
+        ingestion_configuration_obj.exchange_name = ingestion_configuration_obj.exchange_point_id
+
+        self._bind_ingestion_configuration(self.XP, ingestion_configuration_obj.exchange_name, '*')
+
+    def deactivate_ingestion_configuration(self, ingestion_configuration_id=''):
+        """Deactivate an ingestion configuration and the transform processeses that execute it
+
+        @param ingestion_configuration_id    str
+        @throws NotFound    The ingestion configuration id did not exist
+        """
+        log.debug("Deactivating ingestion configuration")
+        ingestion_configuration_obj = self.read_ingestion_configuration(ingestion_configuration_id)
+        if ingestion_configuration_obj is None:
+            raise NotFound("Ingestion_configuration %d does not exist" % ingestion_configuration_id)
+
+        # for now, since we dont have an exchange_name....
+        # taking the exchange_name to be the same as the exchange_point_id
+        ingestion_configuration_obj.exchange_name = ingestion_configuration_obj.exchange_point_id
+
+        self._unbind_ingestion_configuration(self.XP, ingestion_configuration_obj.exchange_name)
+
     def create_stream_policy(self, stream_id='', archive_data='', archive_metadata=''):
         """Create a policy for a particular stream and associate it to the ingestion configuration for the exchange point the stream is on. (After LCA)
 
@@ -110,4 +147,13 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param ingestion_configuration_id    str
         @throws NotFound    if ingestion configuration did not exist
         """
+    def _bind_ingestion_configuration(self, exchange_point, exchange_name, routing_key):
+        channel = SubscriberChannel()
+        channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
+        channel.start_consume()
 
+    def _unbind_ingestion_configuration(self, exchange_point, exchange_name):
+        channel = SubscriberChannel()
+        channel._recv_name = (exchange_point, exchange_name)
+        channel.stop_consume()
+        channel.destroy_binding()
