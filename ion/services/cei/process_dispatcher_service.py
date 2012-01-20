@@ -9,7 +9,7 @@ from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispat
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
 
-    def create_process_definition(self, process_definition={}):
+    def create_process_definition(self, process_definition=None):
         """ Should receive a ProcessDefinition object
         """
         # Return Value
@@ -18,7 +18,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         #
         pass
 
-    def update_process_definition(self, process_definition={}):
+    def update_process_definition(self, process_definition=None):
         """ Should receive a ProcessDefinition object
         """
         # Return Value
@@ -45,7 +45,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         #
         pass
 
-    def find_process_definitions(self, query={}):
+    def find_process_definitions(self, filters=None):
         """ Should receive a Query object
         """
         # Return Value
@@ -54,7 +54,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         #
         pass
 
-    def schedule_process(self, process_definition_id='', schedule={}):
+    def schedule_process(self, process_definition_id='', schedule=None):
         """ Should receive a ProcessSchedule object
         """
         # Return Value

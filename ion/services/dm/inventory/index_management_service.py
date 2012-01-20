@@ -13,7 +13,7 @@ class IndexManagementService(BaseIndexManagementService):
     class docstring
     """
 
-    def create_index(self, index={}):
+    def create_index(self, index=None):
         """
         method docstring
         """
@@ -23,7 +23,7 @@ class IndexManagementService(BaseIndexManagementService):
         #
         pass
 
-    def update_index(self, index={}):
+    def update_index(self, index=None):
         """
         method docstring
         """
@@ -63,7 +63,7 @@ class IndexManagementService(BaseIndexManagementService):
         #
         pass
 
-    def find_indexes(self, filters={}):
+    def find_indexes(self, filters=None):
         """method docstring
         """
         # Return Value

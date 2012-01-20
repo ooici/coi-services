@@ -9,7 +9,7 @@ from interface.services.cei.itaskable_resource_planner_service import BaseTaskab
 class TaskableResourcePlannerService(BaseTaskableResourcePlannerService):
 
 
-    def request_computation(self, computation_request={}):
+    def request_computation(self, computation_request=None):
         """ Should receive a ComputationRequest object
         """
         # Return Value

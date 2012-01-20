@@ -16,7 +16,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         @brief      Implementation of the data product management service
     """
     
-    def create_data_product(self, data_product={}, data_producer={}):
+    def create_data_product(self, data_product=None, data_producer=None):
         """
         @param      data_product IonObject which defines the general data product resource 
         @param      data_producer IonObject which defines the general data producer resource 
@@ -73,7 +73,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         return result
 
 
-    def update_data_product(self, data_product={}):
+    def update_data_product(self, data_product=None):
         """
         method docstring
         """
@@ -103,7 +103,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return True
 
-    def find_data_products(self, filters={}):
+    def find_data_products(self, filters=None):
         """
         method docstring
         """
@@ -117,7 +117,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Organize and return the list of matches with summary metadata (title, summary, keywords)
 
         #find the items in the store
-        if filters == {}:
+        if filters is None:
             objects, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
         else:  # TODO: code for all the filter types
             objects = []

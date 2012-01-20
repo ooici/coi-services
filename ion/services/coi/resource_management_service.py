@@ -11,7 +11,7 @@ class ResourceManagementService(BaseResourceManagementService):
     The Resource Management Service is the service that manages the Resource Types and Lifecycles associated with all Resources
     """
     
-    def create_resource_type(self, resource_type={}):
+    def create_resource_type(self, resource_type=None):
         """ Should receive a ResourceType object
         """
         # Return Value
@@ -20,7 +20,7 @@ class ResourceManagementService(BaseResourceManagementService):
         #
         pass
 
-    def update_resource_type(self, resource_type={}):
+    def update_resource_type(self, resource_type=None):
         """ Should receive a ResourceType object
         """
         # Return Value
@@ -47,7 +47,7 @@ class ResourceManagementService(BaseResourceManagementService):
         #
         pass
 
-    def find_resource_types(self, filters={}):
+    def find_resource_types(self, filters=None):
         """ Should receive a ResourceFilter object
         """
         # Return Value
@@ -56,7 +56,7 @@ class ResourceManagementService(BaseResourceManagementService):
         #
         pass
 
-    def create_resource_lifecycle(self, resource_lifecycle={}):
+    def create_resource_lifecycle(self, resource_lifecycle=None):
         """ Should receive a ResourceLifeCycle object
         """
         # Return Value
@@ -65,7 +65,7 @@ class ResourceManagementService(BaseResourceManagementService):
         #
         pass
 
-    def update_resource_lifecycle(self, resource_lifecycle={}):
+    def update_resource_lifecycle(self, resource_lifecycle=None):
         """ Should receive a ResourceLifeCycle object
         """
         # Return Value

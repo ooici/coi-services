@@ -13,7 +13,7 @@ class DiscoveryService(BaseDiscoveryService):
     class docstring
     """
 
-    def create_view(self, view={}):
+    def create_view(self, view=None):
         """
         method docstring
         """
@@ -23,7 +23,7 @@ class DiscoveryService(BaseDiscoveryService):
         #
         pass
 
-    def update_view(self, view={}):
+    def update_view(self, view=None):
         """
         method docstring
         """
@@ -63,7 +63,7 @@ class DiscoveryService(BaseDiscoveryService):
         #
         pass
 
-    def find_by_metadata(self, filters={}):
+    def find_by_metadata(self, filters=None):
         """
         method docstring
         """
@@ -73,7 +73,7 @@ class DiscoveryService(BaseDiscoveryService):
         #
         pass
 
-    def find_by_type(self, filters={}):
+    def find_by_type(self, filters=None):
         """
         method docstring
         """

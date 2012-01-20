@@ -15,15 +15,24 @@ from pyon.public import RT, AT, log, IonObject
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
 
+class BindingChannel(SubscriberChannel):
+
+    def _declare_queue(self, queue):
+        self._recv_name = (self._recv_name[0], '.'.join(self._recv_name))
+
 
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
         to create streams and subscriptions.
     '''
 
-    XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
+    xs_dot_xp = CFG.core_xps.science_data
+    try:
+        XS, XP = xs_dot_xp.split('.')
+    except ValueError:
+        raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    def create_stream(self, stream={}):
+    def create_stream(self, stream=None):
         '''Creates a new stream. The id string returned is the ID of the new stream
                in the resource registry.
 
@@ -34,7 +43,7 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_id, rev = self.clients.resource_registry.create(stream)
         return stream_id
 
-    def update_stream(self, stream={}):
+    def update_stream(self, stream=None):
         '''
         Update an existing stream.
 
@@ -82,7 +91,7 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.delete(stream_obj)
         return True
 
-    def find_streams(self, filter={}):
+    def find_streams(self, filter=None):
         '''
         Find a stream in the resource_registry based on the filters provided.
 
@@ -123,7 +132,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, subscription={}):
+    def create_subscription(self, subscription=None):
         '''
         Create a new subscription. The id string returned is the ID of the new subscription
                in the resource registry.
@@ -139,7 +148,7 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.create_association(subscription_id, AT.hasStream, subscription.query['stream_id'])
         return subscription_id
 
-    def update_subscription(self, subscription={}):
+    def update_subscription(self, subscription=None):
         '''
         Update an existing subscription.
 
@@ -297,18 +306,19 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return stream_obj.producers
 
+
+
+
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
-        channel = SubscriptionChannel()
+
+        channel = self.container.node.channel(BindingChannel)
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
-        channel.start_consume()
 
     def _unbind_subscription(self, exchange_point, exchange_name):
-        channel = SubscriptionChannel()
+
+        channel = self.container.node.channel(BindingChannel)
         channel._recv_name = (exchange_point, exchange_name)
         channel.stop_consume()
         channel.destroy_binding()
 
-    class SubscriptionChannel(SubscriberChannel):
 
-        def _declare_queue(self):
-            pass

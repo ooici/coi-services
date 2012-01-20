@@ -12,7 +12,7 @@ class ServiceManagementService(BaseServiceManagementService):
     """
 	The Service Management Service is the service that manages the service definitions for all of the services running in the system
 	"""
-    def create_service_definition(self, service_definition={}):
+    def create_service_definition(self, service_definition=None):
         """ Should receive a ServiceDefinition object
         """
         # Return Value
@@ -21,7 +21,7 @@ class ServiceManagementService(BaseServiceManagementService):
         #
         pass
 
-    def update_service_definition(self, service_definition={}):
+    def update_service_definition(self, service_definition=None):
         """ Should receive a ServiceDefinition object
         """
         # Return Value
@@ -48,7 +48,7 @@ class ServiceManagementService(BaseServiceManagementService):
         #
         pass
 
-    def find_services(self, filters={}):
+    def find_services(self, filters=None):
         """ Should receive a ResourceFilter object
         """
         # Return Value

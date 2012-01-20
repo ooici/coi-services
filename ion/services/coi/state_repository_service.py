@@ -22,7 +22,7 @@ class StateRepositoryService(BaseStateRepositoryService):
         #
         pass
 
-    def write(self, process_state={}):
+    def write(self, process_state=None):
         """Writes a process state object from the repository when ending a process.
            Should receive a ProcessState object
         """
