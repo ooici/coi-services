@@ -24,75 +24,69 @@ class TransformManagementService(BaseTransformManagementService):
 
 
 
-    def create_transform(self,in_subscription_id='', out_stream_id='', process_definition_id='', configuration={}):
+    def create_transform(self,name='',description='',
+                         in_subscription_id='',
+                         out_streams={},
+                         process_definition_id='',
+                         configuration={}):
         """Creates the transform and registers it with the resource registry
         @param process_definition_id The process defintion contains the module and class of the process to be spawned
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
-        @param configuration {'process': {'name' : <name>, 'type': <process_type>, 'listen_name': <exchange_name> }}
+        @param configuration {}
 
         @return The transform_id to the transform
         """
 
         # ------------------------------------------------------------------------------------
-        # Configuration and Set Up
+        # Resources and Initial Configs
         # ------------------------------------------------------------------------------------
         # Determine Transform Name
         if not configuration:
             configuration = {}
-        transform_name=configuration.get('name',None) or configuration.get('process',{}).get('name','transform')
+
+        # Handle the name uniqueness factor
+        res, _ = self.clients.resource_registry.find_resources(name=name, id_only=True)
+        if len(res)>0:
+            raise BadRequest('The transform resource with name: %s, already exists.' % name)
+
+        transform_name=name
 
         #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
         #@note: In the near future, Process Dispatcher will do all of this
-       
-        # Get the Module and Class from the Process Definition Object
-        # Default to ion.services.dm.transformation.example.transform_example, TransformExample
-
-        # A process definition isn't required but it is preferred
-        # If one doesn't exist, create it.
-        if process_definition_id:
-            process_definition = self.clients.resource_registry.read(process_definition_id)
-        else:
-            process_definition = IonObject(RT.ProcessDefinition,name='%s_definition' % transform_name)
-            process_definition.executable['module'] = 'ion.services.dm.transformation.example.transform_example'
-            process_definition.executable['class'] = 'TransformExample'
-
-
-
-        module = process_definition.executable.get('module','ion.services.dm.transformation.example.transform_example')
+        if not process_definition_id:
+            raise NotFound('No process definition was provided')
+        process_definition = self.clients.resource_registry.read(process_definition_id)
+        module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
 
         # Transform Resource for association management and pid
-        transform_res = IonObject(RT.Transform,name=transform_name)
+        transform_res = IonObject(RT.Transform,name=transform_name,description=description)
         
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
        
-        # If listen name wasn't passed in with config, determine it through subscription
-        listen_name = configuration.get('process',{}).get('listen_name',None) or \
-                configuration.get('process',{}).get('exchange_name',None)
 
-        if not listen_name:
-            subscription = self.clients.pubsub_management.read_subscription(subscription_id=in_subscription_id)
-            listen_name = subscription.exchange_name
+        subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
+        listen_name = subscription.exchange_name
 
-        if not configuration:
-            configuration= {'process':{'name':transform_name,'type':"stream_process",'listen_name':listen_name}}
-
-        if out_stream_id:
-            configuration['process']['publish_streams'] = {'out_stream' : out_stream_id}
+        configuration['process'] = {
+            'name':transform_name,
+            'type':'stream_process',
+            'listen_name':listen_name
+        }
+        if out_streams:
+            configuration['process']['publish_streams'] = out_streams
+            stream_ids = list(v for k,v in out_streams.iteritems())
+        else:
+            stream_ids = []
 
 
         # Update the resource_registry with this process_definition's configuration
 
-
-
         process_definition.config = configuration
-        if not process_definition_id:
-            process_definition_id, _ = self.clients.resource_registry.create(process_definition)
-        else:
-            self.clients.resource_registry.update(process_definition)
+        self.clients.resource_registry.update(process_definition)
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
@@ -116,9 +110,9 @@ class TransformManagementService(BaseTransformManagementService):
         self.clients.resource_registry.create_association(transform_id,AT.hasProcessDefinition,process_definition_id)
         self.clients.resource_registry.create_association(transform_id,AT.hasSubscription,in_subscription_id)
 
-        # Output stream is not necessary for a transform process
-        if out_stream_id:
-            self.clients.resource_registry.create_association(transform_id,AT.hasOutStream, out_stream_id)
+
+        for stream_id in stream_ids:
+            self.clients.resource_registry.create_association(transform_id,AT.hasOutStream,stream_id)
 
         return transform_id
 
@@ -202,7 +196,10 @@ class TransformManagementService(BaseTransformManagementService):
         if len(subscription_ids) < 1:
             raise NotFound
 
-        self.clients.pubsub_management.activate_subscription(subscription_ids[0])
+        for subscription_id in subscription_ids:
+            self.clients.pubsub_management.activate_subscription(subscription_id)
+
+
         return True
 
 
