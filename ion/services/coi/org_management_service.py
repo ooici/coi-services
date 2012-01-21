@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-__author__ = 'Michael Meisinger'
+__author__ = 'Stephen P. Henrie, Michael Meisinger'
 
 from pyon.public import CFG, IonObject, log, RT, AT
 
@@ -51,8 +51,6 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified id does not exist
         """
         org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
         return org
 
     def delete_org(self, org_id=''):
@@ -63,10 +61,7 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-        self.clients.resource_registry.delete(org)
+        self.clients.resource_registry.delete(org_id)
 
     def affiliate_org(self, org_id='', affiliate_org_id=''):
         """Creates an association between multiple Orgs as an affiliation
