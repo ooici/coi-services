@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_zmq_driver_process
-@file ion/services/mi/test_zmq_driver_process.py
+@package ion.services.mi.test.test_sbe37_driver
+@file ion/services/mi/test_sbe37_driver.py
 @author Edward Hunter
-@brief Test cases for ZmqDriverProcess processes.
+@brief Test cases for SBE37Driver
 """
 
 __author__ = 'Edward Hunter'
@@ -15,6 +15,7 @@ from gevent import monkey; monkey.patch_all()
 import time
 import unittest
 import logging
+from subprocess import Popen
 
 from nose.plugins.attrib import attr
 
@@ -29,10 +30,10 @@ mi_logger = logging.getLogger('mi_logger')
 #from pyon.public import log
 
 # Make tests verbose and provide stdout
-# bin/nosetests -s -v ion/services/mi/test/test_zmq_driver_process.py
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py
 
 @attr('UNIT', group='mi')
-class TestZmqDriverProcess(PyonTestCase):    
+class TestSBE37Driver(PyonTestCase):    
     """
     Unit tests for ZMQ driver process.
     """
@@ -55,9 +56,9 @@ class TestZmqDriverProcess(PyonTestCase):
         # self.addCleanup()
 
         
-    def test_driver_process(self):
+    def test_config(self):
         """
-        Test driver process launch and comms.
+        Test driver configure.
         """
         
         """
@@ -66,7 +67,18 @@ class TestZmqDriverProcess(PyonTestCase):
         driver_client = ZmqDriverClient('localhost', 5556, 5557)
         driver_client.start_messaging()
         time.sleep(3)
+        config = {
+            'comms_method':'ethernet',
+            'ip_addr': 123,
+            'ip_port': 123
+        }
+        reply = driver_client.cmd_dvr('configure', config)
+ 
+        time.sleep(3)
+        driver_client.done()
+        """
         
+        """
         reply = driver_client.cmd_dvr('process_echo', data='test 1 2 3')
         self.assertIsInstance(reply, dict)
         self.assertTrue('cmd' in reply)
@@ -95,13 +107,6 @@ class TestZmqDriverProcess(PyonTestCase):
         self.assertEqual(reply, 'test_events')
         time.sleep(3)
         self.assertTrue(driver_client.events, events)
-        driver_client.done()
-        """
+        """        
         pass
     
-    
-    def test_number_2(self):
-        """
-        """
-        
-        pass 

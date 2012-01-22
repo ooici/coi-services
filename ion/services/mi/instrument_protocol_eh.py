@@ -31,14 +31,11 @@ class InstrumentProtocol(object):
     
     implements(IInstrumentConnection)
     
-    def __init__(self, connection):
-        """Set instrument connect at creation
-        
-        @param connection An InstrumetnConnection object
+    def __init__(self):
+        """        
         """
-        self.instrument_connection = connection
+        self.instrument_connection = None
         self.protocol_fsm = None
-        '''This FSM needs to be created by child class'''
         
     def get(self, params=[]):
         """Get some parameters
@@ -117,6 +114,16 @@ class InstrumentProtocol(object):
     #######################
     # Instrument Connection interface pass through
     #######################
+
+    def initialize(self):
+        """
+        """
+        pass
+    
+    def configure(self, params):
+        """
+        """
+        pass
 
     def connect(self, *args):
         """Connect via the instrument connection object
@@ -222,7 +229,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     instrument.
     """
     
-    def __init__(self, connection,
+    def __init__(self,
                  command_list=None,
                  response_regex_list=None,
                  get_prefix="",
@@ -230,7 +237,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                  set_delimiter="",
                  execute_prefix="",
                  eoln="\n"):
-        InstrumentProtocol.__init__(connection)
+        InstrumentProtocol.__init__(self)
         
         self.command_list = command_list
         """The BaseEnum command keys to be used"""
@@ -285,5 +292,4 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         assert(isinstance(command, dict))
         # Apply regexes, separators, delimiters, Eolns, etc.
         
-    def get(self, params=[]):
-        pass
+
