@@ -33,8 +33,6 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     #@unittest.skip('Not done yet.')
     def test_data_source_ops(self):
-        # Register an instrument in coordination with DM PubSub: create stream, register and create producer object
-
         # Start container
         #print 'instantiating container'
         self._start_container()
@@ -125,6 +123,39 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             pass
         else:
             self.fail("non-existing data source was found during delete")
+
+
+    #@unittest.skip('Not done yet.')
+    def test_create_producer(self):
+        # Create a data producer in coordination with DM PubSub: create stream, register and create producer object
+
+        # Start container
+        #print 'instantiating container'
+        self._start_container()
+
+        # Establish endpoint with container
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+        #print 'got CC client'
+        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+
+        print 'started services'
+
+        # Now create client to DataAcquisitionManagementService
+        client = DataAcquisitionManagementServiceClient(node=self.container.node)
+
+        # test creating a new data source
+        print 'Creating new data producer'
+        dataproducer_obj = IonObject(RT.DataProducer,
+                           name='DataProducer1',
+                           description='instrument producer')
+        try:
+            ds_id = client.create_data_producer(dataproducer_obj)
+        except BadRequest as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+        print 'new data producer id = ', ds_id
+
+
+
 
     @unittest.skip('Not done yet.')
     def test_register_process_and_send(self):
