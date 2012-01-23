@@ -10,7 +10,7 @@ import hashlib
 # from mock import Mock, sentinel, patch
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
-
+from pyon.public import LCS
 
 class ResourceImplMetatest(object):
     """
@@ -269,11 +269,14 @@ class ResourceImplMetatest(object):
                 svc = self._rwm_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 good_sample_resource = sample_resource()
+                saved_resource = sample_resource()
+                #saved_resource.lcstate = LCS.REGISTERED
                 
                 #configure Mock
                 svc.clients.resource_registry.create.return_value = ('111', 'bla')
                 svc.clients.resource_registry.find_resources.return_value = ([], [])
-
+                svc.clients.resource_registry.read.return_value = saved_resource
+                
                 response = myimpl.create_one(good_sample_resource)
                 idfield = "%s_id" % impl_instance.ionlabel
                 self.assertIn(idfield, response)
@@ -341,33 +344,6 @@ class ResourceImplMetatest(object):
 
 
 
-        def gen_test_create_bad_has_id():
-            """
-            generate the function to test the create in a bad case
-            """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rwm_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                setattr(bad_sample_resource, "_id", "12345")
-                
-                #configure Mock
-                svc.clients.resource_registry.create.return_value = ('111', 'bla')
-                svc.clients.resource_registry.find_resources.return_value = ([], [])
-
-                self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
-
-
-            name = make_name("resource_impl_create_bad_has_id")
-            doc  = make_doc("Creation of a (bad) new %s resource (has _id)" % impl_instance.iontype)
-
-            add_test_method(name, doc, fun)
-
-
 
         def gen_test_read():
             """
@@ -397,28 +373,6 @@ class ResourceImplMetatest(object):
             doc  = make_doc("Reading a %s resource" % impl_instance.iontype)
             add_test_method(name, doc, fun)
 
-
-        def gen_test_read_notfound():
-            """
-            generate the function to test the read in a not-found case
-            """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rwm_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                #configure Mock
-                svc.clients.resource_registry.read.return_value = None
-
-                self.assertRaises(NotFound, myimpl.read_one, "111")
-                svc.clients.resource_registry.read.assert_called_once_with("111", "")
-            
-            name = make_name("resource_impl_read_notfound")
-            doc  = make_doc("Reading a %s resource that doesn't exist" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
 
 
 
@@ -450,26 +404,6 @@ class ResourceImplMetatest(object):
             add_test_method(name, doc, fun)
 
 
-
-        def gen_test_update_bad_noid():
-            """
-            generate the function to test the create
-            """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rwm_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                
-                self.assertRaises(BadRequest, myimpl.update_one, bad_sample_resource)
-
-                
-            name = make_name("resource_impl_update_bad_no_id")
-            doc  = make_doc("Updating a %s resource without an ID" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
 
 
         def gen_test_update_bad_dupname():
@@ -522,26 +456,6 @@ class ResourceImplMetatest(object):
             add_test_method(name, doc, fun)
 
 
-        def gen_test_delete_notfound():
-            """
-            generate the function to test the delete in a not-found case
-            """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rwm_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                #configure Mock
-                svc.clients.resource_registry.read.return_value = None
-
-                self.assertRaises(NotFound, myimpl.delete_one, "111")
-            
-            name = make_name("resource_impl_delete_notfound")
-            doc  = make_doc("Deleting a %s resource that doesn't exist" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
 
 
         def gen_test_find():
@@ -732,14 +646,10 @@ class ResourceImplMetatest(object):
         gen_test_create()
         gen_test_create_bad_noname()
         gen_test_create_bad_dupname()
-        gen_test_create_bad_has_id()
         gen_test_read()
-        gen_test_read_notfound()
         gen_test_update()
-        gen_test_update_bad_noid()
         gen_test_update_bad_dupname()
         gen_test_delete()
-        gen_test_delete_notfound()
         gen_test_find()
         gen_tests_associations()
         gen_tests_associated_finds()

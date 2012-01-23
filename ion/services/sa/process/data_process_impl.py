@@ -108,35 +108,8 @@ class DataProcessImpl(ResourceImpl):
         return self._find_stemming(data_process_id, AT.hasDevice, RT.InstrumentDevice)
 
 
-
     ### lifecycles
 
-    def lcs_precondition_PLANNED(self, data_process_id):
-        return True
-
-    def lcs_precondition_DEVELOPED(self, data_process_id):
-        return True
-
-    def lcs_precondition_TESTED(self, data_process_id):
-        return True
-
-    def lcs_precondition_INTEGRATED(self, data_process_id):
-        return True
-
-    def lcs_precondition_COMMISSIONED(self, data_process_id):
-        return True
-
-    def lcs_precondition_DEPLOYED(self, data_process_id):
-        return True
-
-    def lcs_precondition_ACTIVE(self, data_process_id):
-        return True
-
-    def lcs_precondition_INACTIVE(self, data_process_id):
-        return True
-
-    def lcs_precondition_RETIRED(self, data_process_id):
-        return True
-
+    #TBD
 
 
