@@ -365,7 +365,7 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with('notfound', '')
 
 
-@attr('INT', group='dm1')
+@attr('INT', group='dm')
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
