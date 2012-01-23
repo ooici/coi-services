@@ -5,6 +5,7 @@
 @author Jamie Chen
 @test ion.services.dm.distribution.pubsub_management_service Unit test suite to cover all pub sub mgmt service code
 '''
+import gevent
 from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -12,7 +13,7 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import AT, RT
+from pyon.public import AT, RT, StreamPublisher, StreamSubscriber
 from nose.plugins.attrib import attr
 import unittest
 from interface.objects import StreamQuery, ExchangeQuery
@@ -365,7 +366,7 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with('notfound', '')
 
 
-@attr('INT', group='dm')
+@attr('INT', group='dm1')
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
@@ -391,15 +392,68 @@ class PubSubIntTest(IonIntegrationTestCase):
                                                                        "SampleSubscription",
                                                                        "Sample Subscription Description")
 
+        # cheat to make a publisher object to send messages in the test.
+        # it is really hokey to pass process=self.cc but it works
+        stream_route = self.pubsub_cli.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.ctd_stream1_id)
+        self.ctd_stream1_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), process=self.cc)
+
+        stream_route = self.pubsub_cli.register_producer(exchange_name='producer_doesnt_have_a_name2', stream_id=self.ctd_stream2_id)
+        self.ctd_stream2_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), process=self.cc)
+
+
+
+
     def tearDown(self):
         self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
         self.pubsub_cli.delete_stream(self.ctd_stream1_id)
         self.pubsub_cli.delete_stream(self.ctd_stream2_id)
         self._stop_container()
 
-    def test_bind_subscription(self):
+
+    def test_something(self):
+
+        ar = gevent.event.AsyncResult()
+        first = True
+        def first_then_fail(message,headers):
+            if first:
+                ar.set(True)
+            else:
+                ar.set(False)
+
+
+        self.subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'),callback=first_then_fail , process=self.cc)
+
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
+
+    @unittest.skip("Nothing to test")
+    def test_bind_subscription(self):
+
+        ar = gevent.event.AsyncResult()
+        first = True
+        def first_then_fail(message,headers):
+            if first:
+                ar.set(True)
+            else:
+                ar.set(False)
+
+
+        self.subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'),callback=first_then_fail , process=self.cc)
+
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
+
+
+        # set up subscruber with that callback
+
+        # start listening
+        # send a message
+
+
+        self.ctd_stream1_publisher.publish({'message1':True})
+        self.assertEqual(ar.get(timeout=10), True)
+
+
+    @unittest.skip("Nothing to test")
     def test_unbind_subscription(self):
         self.test_bind_subscription()
         self.pubsub_cli.deactivate_subscription(self.ctd_subscription_id)

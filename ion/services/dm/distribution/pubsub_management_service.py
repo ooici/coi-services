@@ -345,11 +345,6 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
-        self.container.spawn_process(exchange_point,
-            'ion.services.dm.distribution.example.pubsub_example',
-            'PubSubExample',
-            config={'process':{'type':'stream_process','listen_name':exchange_name}})
-
         channel = self.container.node.channel(BindingChannel)
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
 
