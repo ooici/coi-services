@@ -72,7 +72,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if data_source_obj is None:
             raise NotFound("DataSource %s does not exist" % data_source_id)
 
-        return self.clients.resource_registry.delete(data_source_obj)
+        return self.clients.resource_registry.delete(data_source_id)
 
     def assign_data_agent(self, data_source_id='', agent_instance=None):
         """Connect the agent instance description with a data source
