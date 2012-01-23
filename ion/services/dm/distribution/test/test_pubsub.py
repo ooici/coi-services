@@ -12,9 +12,10 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import AT, RT, IonObject
+from pyon.public import AT, RT
 from nose.plugins.attrib import attr
 import unittest
+from interface.objects import StreamQuery, ExchangeQuery
 
 
 @attr('UNIT', group='dm')
@@ -62,10 +63,8 @@ class PubSubTest(PyonTestCase):
     def test_create_stream(self):
         self.mock_create.return_value = [self.stream_id, 1]
 
-        stream_id = self.pubsub_service.create_stream(encoding="",
-            original=True,
-            name="SampleStream",
-            description="Sample Stream Description", url="")
+        stream_id = self.pubsub_service.create_stream(name="SampleStream",
+                                                      description="Sample Stream Description")
 
         self.assertTrue(self.mock_create.called)
         self.assertEqual(stream_id, self.stream_id)
@@ -105,7 +104,7 @@ class PubSubTest(PyonTestCase):
         ret = self.pubsub_service.delete_stream(self.stream_id)
 
         self.mock_read.assert_called_once_with(self.stream_id, '')
-        self.mock_delete.assert_called_once_with(self.stream)
+        self.mock_delete.assert_called_once_with(self.stream_id)
         self.assertTrue(ret)
 
     def test_delete_stream_not_found(self):
@@ -157,10 +156,16 @@ class PubSubTest(PyonTestCase):
 
     def test_create_subscription(self):
         self.mock_create.return_value = [self.subscription_id, 1]
-        self.mock_create_association.return_value = [self.association_id, 1]
 
-        id = self.pubsub_service.create_subscription(self.subscription)
-        self.mock_create.assert_called_once_with(self.subscription)
+        query = StreamQuery([self.stream_id])
+        exchange_name = "a_queue"
+
+        id = self.pubsub_service.create_subscription(name="SampleStream",
+                                                            description="Sample Stream Description",
+                                                            query=query,
+                                                            exchange_name=exchange_name)
+
+        self.assertTrue(self.mock_create.called)
         self.mock_create_association.assert_called_once_with(self.subscription_id, AT.hasStream, self.stream_id, None)
         self.assertEqual(id, self.subscription_id)
 
@@ -202,7 +207,7 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with(self.subscription_id, '')
         self.mock_find_associations.assert_called_once_with(self.subscription_id, AT.hasStream, '', False)
         self.mock_delete_association.assert_called_once_with(self.association_id)
-        self.mock_delete.assert_called_once_with(self.subscription)
+        self.mock_delete.assert_called_once_with(self.subscription_id)
 
     def test_delete_subscription_not_found(self):
         self.mock_read.return_value = None
@@ -360,31 +365,6 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with('notfound', '')
 
 
-#@attr('INT', group='dm')
-#class PublishSubscribeIntTest(IonIntegrationTestCase):
-#
-#    def setUp(self):
-#        self._start_container()
-#
-#        # Establish endpoint with container
-#        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-#        container_client.start_rel_from_url('res/deploy/r2deploy.yml')
-#
-#        # Now create client to bank service
-#        self.client = PubsubManagementServiceClient(node=self.container.node)
-#
-#        self.container.spawn_process('test_process', 'pyon.ion.streamproc','StreamProcess',
-#            config={'process':{'type':'stream_process','listen_name':'ctd_data'}})
-#
-#
-#
-#    def test_create_publisher(self):
-#
-#        stream = IonObject(RT.Stream, name='test stream')
-#        id = self.client.create_stream(stream)
-#
-#        #self.publisher_registrar.create_publisher(stream_id=id)
-
 @attr('INT', group='dm1')
 class PubSubIntTest(IonIntegrationTestCase):
 
@@ -397,26 +377,29 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
 
-        self.ctd_output_stream_id = self.pubsub_cli.create_stream(encoding="",
-            original=True,
-            name="SampleStream",
-            description="Sample Stream Description", url="",
-            stream_definition_type="")
+        self.ctd_stream1_id = self.pubsub_cli.create_stream(name="SampleStream1",
+                                                            description="Sample Stream 1 Description")
 
-        self.ctd_subscription = IonObject(RT.Subscription, name='SampleSubscription', description='Sample Subscription Description')
-        self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
-        self.ctd_subscription.exchange_name = 'a_queue'
-        self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
+        self.ctd_stream2_id = self.pubsub_cli.create_stream(name="SampleStream2",
+                                                            description="Sample Stream 2 Description")
+
+        query = StreamQuery([self.ctd_stream1_id, self.ctd_stream2_id])
+        exchange_name = "a_queue"
+
+        self.ctd_subscription_id = self.pubsub_cli.create_subscription(query,
+                                                                       exchange_name,
+                                                                       "SampleSubscription",
+                                                                       "Sample Subscription Description")
 
     def tearDown(self):
-        #self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
-        #self.pubsub_cli.delete_stream(self.ctd_output_stream_id)
+        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+        self.pubsub_cli.delete_stream(self.ctd_stream1_id)
+        self.pubsub_cli.delete_stream(self.ctd_stream2_id)
         self._stop_container()
 
     def test_bind_subscription(self):
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
-    @unittest.skip("Nothing to test")
     def test_unbind_subscription(self):
         self.test_bind_subscription()
         self.pubsub_cli.deactivate_subscription(self.ctd_subscription_id)

@@ -11,9 +11,11 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import\
     BasePubsubManagementService
 from pyon.core.exception import NotFound
-from pyon.public import RT, AT, log, IonObject
+from pyon.public import RT, AT, log
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
+from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
+from interface.objects import Subscription, SubscriptionTypeEnum
 
 
 class BindingChannel(SubscriberChannel):
@@ -51,7 +53,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @retval stream_id    str
         '''
         log.debug("Creating stream object")
-        stream_obj = IonObject(RT.Stream, name=name, description=description)
+        stream_obj = Stream(name=name, description=description)
         stream_obj.original = original
         stream_obj.encoding = encoding
         stream_obj.url = url
@@ -103,7 +105,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if stream_obj is None:
             raise NotFound("Stream %d does not exist" % stream_id)
 
-        self.clients.resource_registry.delete(stream_obj)
+        self.clients.resource_registry.delete(stream_id)
         return True
 
     def find_streams(self, filter=None):
@@ -147,20 +149,38 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, subscription=None):
+    def create_subscription(self, query={}, exchange_name='', name='', description=''):
         '''
-        Create a new subscription. The id string returned is the ID of the new subscription
-               in the resource registry.
+        @brief Create a new subscription. The id string returned is the ID of the new subscription
+        in the resource registry.
+        @param query is a subscription query object (Stream Query, Exchange Query, etc...)
+        @param exchange_name is the name (queue) where messages will be delivered for this subscription
+        @param name (optional) is the name of the subscription
+        @param description (optional) is the description of the subscription
 
-        @param subscription New subscription properties.
-        @retval id The id of the the new subscription.
+        @param query    Unknown
+        @param exchange_name    str
+        @param name    str
+        @param description    str
+        @retval subscription_id    str
+        @throws BadRequestError    Throws when the subscription query object type is not found
         '''
         log.debug("Creating subscription object")
-        subscription_id, rev = self.clients.resource_registry.create(subscription)
+        subscription = Subscription(name, description=description)
+        subscription.exchange_name = exchange_name
+        subscription.query = query
+        if isinstance(query, StreamQuery):
+            subscription.subscription_type = SubscriptionTypeEnum.STREAM_QUERY
+        elif isinstance(query, ExchangeQuery):
+            subscription.subscription_type = SubscriptionTypeEnum.EXCHANGE_QUERY
+
+        subscription_id, _ = self.clients.resource_registry.create(subscription)
 
         #we need the stream_id to create the association between the
         #subscription and stream.
-        self.clients.resource_registry.create_association(subscription_id, AT.hasStream, subscription.query['stream_id'])
+        if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+            for stream_id in subscription.query.stream_ids:
+                self.clients.resource_registry.create_association(subscription_id, AT.hasStream, stream_id)
         return subscription_id
 
     def update_subscription(self, subscription=None):
@@ -209,7 +229,7 @@ class PubsubManagementService(BasePubsubManagementService):
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with Streams
 
         # Delete the Subscription
-        self.clients.resource_registry.delete(subscription_obj)
+        self.clients.resource_registry.delete(subscription_id)
         return True
 
     def activate_subscription(self, subscription_id=''):
@@ -283,7 +303,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         stream_obj.producers.append(exchange_name)
         self.update_stream(stream_obj)
-        stream_route_obj = IonObject("StreamRoute", routing_key=stream_id + '.data')
+        stream_route_obj = StreamRoute(routing_key=stream_id + '.data')
         return stream_route_obj
 
     def unregister_producer(self, exchange_name='', stream_id=''):
