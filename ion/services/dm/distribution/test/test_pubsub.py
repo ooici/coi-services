@@ -48,7 +48,7 @@ class PubSubTest(PyonTestCase):
         self.subscription = Mock()
         self.subscription.name = "SampleSubscription"
         self.subscription.description = "Sample Subscription In PubSub"
-        self.subscription.query = {"stream_id" : self.stream_id}
+        self.subscription.query = {"stream_id": self.stream_id}
         self.subscription.exchange_name = "ExchangeName"
 
         #Subscription Has Stream Association
@@ -62,9 +62,12 @@ class PubSubTest(PyonTestCase):
     def test_create_stream(self):
         self.mock_create.return_value = [self.stream_id, 1]
 
-        stream_id = self.pubsub_service.create_stream(self.stream)
+        stream_id = self.pubsub_service.create_stream(encoding="",
+            original=True,
+            name="SampleStream",
+            description="Sample Stream Description", url="")
 
-        self.mock_create.assert_called_once_with(self.stream)
+        self.assertTrue(self.mock_create.called)
         self.assertEqual(stream_id, self.stream_id)
 
     def test_read_and_update_stream(self):
@@ -119,21 +122,21 @@ class PubSubTest(PyonTestCase):
 
     def test_find_stream(self):
         self.mock_find_resources.return_value = [self.stream]
-        filter = {'name' : 'SampleStream', 'description' : 'Sample Stream In PubSub'}
+        filter = {'name': 'SampleStream', 'description': 'Sample Stream In PubSub'}
         streams = self.pubsub_service.find_streams(filter)
 
         self.assertEqual(streams, [self.stream])
 
     def test_find_stream_not_found(self):
         self.mock_find_resources.return_value = [self.stream]
-        filter = {'name' : 'StreamNotFound', 'description' : 'Sample Stream In PubSub'}
+        filter = {'name': 'StreamNotFound', 'description': 'Sample Stream In PubSub'}
         streams = self.pubsub_service.find_streams(filter)
 
         self.assertEqual(streams, [])
 
     def test_find_stream_no_streams_registered(self):
         self.mock_find_resources.return_value = []
-        filter = {'name' : 'SampleStream', 'description' : 'Sample Stream In PubSub'}
+        filter = {'name': 'SampleStream', 'description': 'Sample Stream In PubSub'}
         streams = self.pubsub_service.find_streams(filter)
 
         self.assertEqual(streams, [])
@@ -381,8 +384,6 @@ class PubSubTest(PyonTestCase):
 #        id = self.client.create_stream(stream)
 #
 #        #self.publisher_registrar.create_publisher(stream_id=id)
-
-
 
 @attr('INT', group='dm1')
 class PubSubIntTest(IonIntegrationTestCase):
