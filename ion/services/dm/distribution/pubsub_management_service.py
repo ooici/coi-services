@@ -8,7 +8,7 @@
 and the relationships between them
 '''
 
-from interface.services.dm.ipubsub_management_service import \
+from interface.services.dm.ipubsub_management_service import\
     BasePubsubManagementService
 from pyon.core.exception import NotFound
 from pyon.public import RT, AT, log, IonObject
@@ -33,15 +33,29 @@ class PubsubManagementService(BasePubsubManagementService):
     except ValueError:
         raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    def create_stream(self, stream=None):
-        '''Creates a new stream. The id string returned is the ID of the new stream
-               in the resource registry.
+    def create_stream(self, encoding='', original=True, stream_definition_type='', name='', description='', url=''):
+        '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
+        @param encoding the encoding for data on this stream
+        @param original is the data on this stream from a source or a transform
+        @param stream_defintion_type a predefined stream definition type for this stream
+        @param name (optional) the name of the stream
+        @param description (optional) the description of the stream
+        @param url (optional) the url where data from this stream can be found (Not implemented)
 
-        @param stream New stream properties.
-        @retval id New stream id.
+        @param encoding    str
+        @param original    bool
+        @param stream_definition_type    str
+        @param name    str
+        @param description    str
+        @param url    str
+        @retval stream_id    str
         '''
-        print "Creating stream object"
-        stream_id, rev = self.clients.resource_registry.create(stream)
+        log.debug("Creating stream object")
+        stream_obj = IonObject(RT.Stream, name=name, description=description)
+        stream_obj.original = original
+        stream_obj.encoding = encoding
+        stream_obj.url = url
+        stream_id, rev = self.clients.resource_registry.create(stream_obj)
         return stream_id
 
     def update_stream(self, stream=None):
@@ -211,10 +225,9 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        ids, assocs = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+        ids, _ = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
 
         for stream_id in ids:
-            print stream_id
             self._bind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
         return True
 
@@ -231,7 +244,10 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %d does not exist" % subscription_id)
 
-        self._unbind_subscription(self.XP, subscription_obj.exchange_name)
+        ids, _ = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+
+        for stream_id in ids:
+            self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
 
     def register_consumer(self, exchange_name=''):
         '''
@@ -309,14 +325,20 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
+        self.container.spawn_process(exchange_point,
+            'ion.services.dm.distribution.example.pubsub_example',
+            'PubSubExample',
+            config={'process':{'type':'stream_process','listen_name':exchange_name}})
+
         channel = self.container.node.channel(BindingChannel)
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
 
-    def _unbind_subscription(self, exchange_point, exchange_name):
+    def _unbind_subscription(self, exchange_point, exchange_name, routing_key):
 
         channel = self.container.node.channel(BindingChannel)
         channel._recv_name = (exchange_point, exchange_name)
-        channel.stop_consume()
-        channel.destroy_binding()
+        channel._recv_name = (channel._recv_name[0], '.'.join(channel._recv_name))
+        channel._recv_binding = routing_key
+        channel._destroy_binding()
 
 

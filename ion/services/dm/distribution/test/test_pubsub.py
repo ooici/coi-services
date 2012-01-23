@@ -384,7 +384,7 @@ class PubSubTest(PyonTestCase):
 
 
 
-@attr('INT', group='dm')
+@attr('INT', group='dm1')
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
@@ -396,30 +396,36 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
 
-        self.ctd_output_stream = IonObject(RT.Stream, name='SampleStream', description='Sample Stream Description')
-        self.ctd_output_stream.original = True
-        self.ctd_output_stream.mimetype = 'hdf'
-        self.ctd_output_stream.producers = ['science.data']
-        self.ctd_output_stream_id = self.pubsub_cli.create_stream(self.ctd_output_stream)
+        self.ctd_output_stream_id = self.pubsub_cli.create_stream(encoding="",
+            original=True,
+            name="SampleStream",
+            description="Sample Stream Description", url="",
+            stream_definition_type="")
 
         self.ctd_subscription = IonObject(RT.Subscription, name='SampleSubscription', description='Sample Subscription Description')
         self.ctd_subscription.query['stream_id'] = self.ctd_output_stream_id
-        self.ctd_subscription.exchange_name = 'a queue'
+        self.ctd_subscription.exchange_name = 'a_queue'
         self.ctd_subscription_id = self.pubsub_cli.create_subscription(self.ctd_subscription)
 
     def tearDown(self):
-        self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+        #self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
         #self.pubsub_cli.delete_stream(self.ctd_output_stream_id)
         self._stop_container()
 
     def test_bind_subscription(self):
-        pass
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
+    @unittest.skip("Nothing to test")
     def test_unbind_subscription(self):
+        self.test_bind_subscription()
+        self.pubsub_cli.deactivate_subscription(self.ctd_subscription_id)
         pass
 
+    @unittest.skip("Nothing to test")
     def test_bind_already_bound_subscription(self):
-        pass
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
+    @unittest.skip("Nothing to test")
     def test_unbind_unbound_subscription(self):
         pass
