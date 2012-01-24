@@ -13,7 +13,7 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import AT, RT, StreamPublisher, StreamSubscriber
+from pyon.public import AT, RT, StreamPublisher, StreamSubscriber, log
 from nose.plugins.attrib import attr
 import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum
@@ -455,13 +455,24 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.ctd_stream2_id = self.pubsub_cli.create_stream(name="SampleStream2",
                                                             description="Sample Stream 2 Description")
 
-        query = StreamQuery([self.ctd_stream1_id, self.ctd_stream2_id])
+        # Make a subscription to two input streams
         exchange_name = "a_queue"
+        query = StreamQuery([self.ctd_stream1_id, self.ctd_stream2_id])
 
         self.ctd_subscription_id = self.pubsub_cli.create_subscription(query,
                                                                        exchange_name,
                                                                        "SampleSubscription",
                                                                        "Sample Subscription Description")
+
+        # Make a subscription to all streams on an exchange point
+        exchange_name = "another_queue"
+        query = ExchangeQuery()
+
+        self.exchange_subscription_id = self.pubsub_cli.create_subscription(query,
+            exchange_name,
+            "SampleExchangeSubscription",
+            "Sample Exchange Subscription Description")
+
 
         # cheat to make a publisher object to send messages in the test.
         # it is really hokey to pass process=self.cc but it works
@@ -473,11 +484,12 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def tearDown(self):
         self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
+        self.pubsub_cli.delete_subscription(self.exchange_subscription_id)
         self.pubsub_cli.delete_stream(self.ctd_stream1_id)
         self.pubsub_cli.delete_stream(self.ctd_stream2_id)
         self._stop_container()
 
-    def test_bind_subscription(self):
+    def test_bind_stream_subscription(self):
 
         ar = gevent.event.AsyncResult()
         self.first = True
@@ -499,7 +511,31 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         subscriber.stop()
 
-    def test_unbind_subscription(self):
+
+    def test_bind_exchange_subscription(self):
+
+        ar = gevent.event.AsyncResult()
+        self.first = True
+        def message_received(message, headers):
+            ar.set(message)
+
+        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','another_queue'), callback=message_received, process=self.cc)
+        subscriber.start()
+
+        self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
+
+        self.ctd_stream1_publisher.publish('message1')
+        self.assertEqual(ar.get(timeout=10), 'message1')
+
+        ar = gevent.event.AsyncResult()
+
+        self.ctd_stream2_publisher.publish('message2')
+        self.assertEqual(ar.get(timeout=10), 'message2')
+
+        subscriber.stop()
+
+
+    def test_unbind_stream_subscription(self):
         ar = gevent.event.AsyncResult()
         self.first = True
         def message_received(message, headers):
@@ -526,6 +562,36 @@ class PubSubIntTest(IonIntegrationTestCase):
         ex = cm.exception
         self.assertEqual(str(ex), '2 seconds')
         self.assertEqual(p, None)
+
+
+    def test_unbind_exchange_subscription(self):
+        ar = gevent.event.AsyncResult()
+        self.first = True
+        def message_received(message, headers):
+            ar.set(message)
+
+        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','another_queue'), callback=message_received, process=self.cc)
+        subscriber.start()
+
+        self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
+
+        self.ctd_stream1_publisher.publish('message1')
+        self.assertEqual(ar.get(timeout=10), 'message1')
+
+        self.pubsub_cli.deactivate_subscription(self.exchange_subscription_id)
+
+        ar = gevent.event.AsyncResult()
+
+        self.ctd_stream2_publisher.publish('message2')
+        p = None
+        with self.assertRaises(gevent.Timeout) as cm:
+            p = ar.get(timeout=2)
+
+        subscriber.stop()
+        ex = cm.exception
+        self.assertEqual(str(ex), '2 seconds')
+        self.assertEqual(p, None)
+
 
     @unittest.skip("Nothing to test")
     def test_bind_already_bound_subscription(self):
