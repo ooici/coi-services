@@ -12,6 +12,8 @@ __license__ = 'Apache 2.0'
 
 import logging
 from subprocess import Popen
+import signal
+import os
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -57,16 +59,16 @@ class DriverProcess(object):
         
         import_str = 'import %s as dvr_mod' % self.driver_module
         ctor_str = 'driver = dvr_mod.%s()' % self.driver_class
-        
         try:
             exec import_str
             mi_logger.info('Imported driver module %s', self.driver_module)
             exec ctor_str
             mi_logger.info('Constructed driver %s', self.driver_class)
             
-        except (ImportError, NameError, AttributeError):
+        except (ImportError, NameError, AttributeError) as e:
             mi_logger.error('Could not import/construct driver module %s, class %s.',
                       self.driver_module, self.driver_class)
+            mi_logger.error('%s', str(e))
             return False
 
         else:
@@ -133,6 +135,7 @@ class DriverProcess(object):
         
         return reply        
             
+            
     def run(self):
         """
         Process entry point. Construct driver and start messaging loops.
@@ -140,6 +143,10 @@ class DriverProcess(object):
         """
         
         mi_logger.info('Driver process started.')
+
+        def wait_on_child(signum=None, frame=None):
+            retval = os.wait()
+        signal.signal(signal.SIGCHLD, wait_on_child)
 
         if self.construct_driver():
             self.start_messaging()

@@ -296,6 +296,8 @@ class InstErrorCode(BaseEnum):
     PERMISSION_ERROR = ['ERROR_PERMISSION_ERROR','The user does not have the correct permission to access the resource in the desired way.']
     INVALID_TRANSITION = ['ERROR_INVALID_TRANSITION','The transition being requested does not apply for the current state.']
     INCORRECT_STATE = ['ERROR_INCORRECT_STATE','The operation being requested does not apply to the current state.']
+    UNKNOWN_EVENT = ['ERROR_UNKNOWN_EVENT','The event is not defined for this driver.']
+    UNHANDLED_EVENT = ['ERROR_UNHANDLED_EVENT','The event was not handled by the state.']
     UNKNOWN_TRANSITION = ['ERROR_UNKNOWN_TRANSITION','The specified state transition does not exist.']
     CANNOT_PUBLISH = ['ERROR_CANNOT_PUBLISH','An attempt to publish has failed.']
     INSTRUMENT_UNREACHABLE = ['ERROR_INSTRUMENT_UNREACHABLE','The agent cannot communicate with the device.']

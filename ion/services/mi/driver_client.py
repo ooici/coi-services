@@ -63,7 +63,8 @@ class DriverClient(object):
         time.sleep(3)
         reply = self.cmd_dvr('process_echo', data='zoom zoom boom boom')
         time.sleep(3)
-        reply = self.cmd_dvr('test_events')
+        events = ['I am event number 1!', 'And I am event number 2!']
+        reply = self.cmd_dvr('test_events',events=events)
         time.sleep(3)
         self.done()
     

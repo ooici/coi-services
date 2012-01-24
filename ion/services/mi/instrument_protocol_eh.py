@@ -31,14 +31,12 @@ class InstrumentProtocol(object):
     
     implements(IInstrumentConnection)
     
-    def __init__(self, connection):
-        """Set instrument connect at creation
-        
-        @param connection An InstrumetnConnection object
+    def __init__(self):
+        """        
         """
-        self.instrument_connection = connection
-        self.protocol_fsm = None
-        '''This FSM needs to be created by child class'''
+        self._logger = None
+        self._logger_client = None
+        self._fsm = None
         
     def get(self, params=[]):
         """Get some parameters
@@ -53,7 +51,7 @@ class InstrumentProtocol(object):
         @throws InstrumentTimeoutException Timeout
         """
 
-    def set(self, params={}):
+    def set(self, params={}, timeout=10):
         """Get some parameters
         
         @param params A dict with the parameters to fetch. Must be in the
@@ -65,7 +63,7 @@ class InstrumentProtocol(object):
         @throws InstrumentTimeoutException Timeout
         """
 
-    def execute(self, command=[]):
+    def execute(self, command=[], timeout=10):
         """Execute a command
         
         @param command A single command as a list with the command ID followed
@@ -117,6 +115,30 @@ class InstrumentProtocol(object):
     #######################
     # Instrument Connection interface pass through
     #######################
+
+    def initialize(self):
+        """
+        """
+        pass
+    
+    def configure(self, params):
+        """
+        """
+        method = config['method']
+        
+        if method == 'ethernet':
+            ip_addr = config['ip_addr']
+            ip_port = config['ip_port']
+        
+        elif method == 'serial':
+            # raise not implemented
+            pass
+        
+        else:
+            # raise unknown method
+            pass
+        
+        # raises key error, not implemented or unknown comms method        
 
     def connect(self, *args):
         """Connect via the instrument connection object
@@ -222,7 +244,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     instrument.
     """
     
-    def __init__(self, connection,
+    def __init__(self,
                  command_list=None,
                  response_regex_list=None,
                  get_prefix="",
@@ -230,7 +252,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                  set_delimiter="",
                  execute_prefix="",
                  eoln="\n"):
-        InstrumentProtocol.__init__(connection)
+        InstrumentProtocol.__init__(self)
         
         self.command_list = command_list
         """The BaseEnum command keys to be used"""
@@ -285,5 +307,4 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         assert(isinstance(command, dict))
         # Apply regexes, separators, delimiters, Eolns, etc.
         
-    def get(self, params=[]):
-        pass
+

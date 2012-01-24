@@ -27,7 +27,8 @@ class CommsMethod(object):
         @retval result Success/fail with error code
         @throws CommsException
         """
-        
+        pass
+    
 class AMQPCommsMethod(CommsMethod):
     """The AMQP specific implementation of the CommsMethod class"""
     
