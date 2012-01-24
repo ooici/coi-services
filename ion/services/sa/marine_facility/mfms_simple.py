@@ -18,9 +18,31 @@ class MFMSsimple(ResourceImpl):
     """
     
     def on_impl_init(self):
-        # no checks, simple resources just go straight to available on create
-        self.add_lcs_precondition(LCS.AVAILABLE, (lambda s, r: True))
+
+        # lcs preconditions that are all operator discretion
+        self.add_lcs_precondition(LCS.DISCOVERABLE,  self.lcs_precondition_always)
+        self.add_lcs_precondition(LCS.AVAILABLE,     self.lcs_precondition_always)
+        self.add_lcs_precondition(LCS.RETIRED,       self.lcs_precondition_always)
+
+        self.add_lcs_precondition(LCS.PLANNED,       self.lcs_precondition_unimplemented)
+        self.add_lcs_precondition(LCS.DEVELOPED,     self.lcs_precondition_unimplemented)
+        self.add_lcs_precondition(LCS.INTEGRATED,    self.lcs_precondition_unimplemented)
+
+        self.on_simpl_init()
+
+    def on_simpl_init(self):
+        """
+        further init for simple resources
+        """
+        return
+
+    def lcs_precondition_always(self, resource_id):
+        return True
+
+    def lcs_precondition_unimplemented(self, resource_id):
+        raise NotImplementedError("Extender of the class must write this!")
     
+
     def on_post_create(self, obj_id, obj):
         """
         this is for simple resources ...
