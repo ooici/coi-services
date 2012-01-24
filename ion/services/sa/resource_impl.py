@@ -9,8 +9,9 @@
 
 from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
-from pyon.public import AT, RT
+from pyon.public import AT, RT, LCS
 from pyon.util.log import log
+from pyon.ion.resource import lcs_workflows
 
 
 ######
@@ -37,7 +38,15 @@ class ResourceImpl(object):
         if hasattr(clients, "resource_registry"):
             self.RR = self.clients.resource_registry
 
+        self.lcs_precondition = {}
+
+        # any resource can become registered with no worries
+        self.add_lcs_precondition(LCS.REGISTERED, (lambda s, r: True))
+
+        # do implementation-specific stuff
         self.on_impl_init()
+
+
 
     ##################################################
     #
@@ -67,21 +76,48 @@ class ResourceImpl(object):
         return
 
     def on_pre_create(self, obj):
+        """
+        hook to be run before an object is created
+        @param obj the object that will become the resource
+        """
         return
 
     def on_post_create(self, obj_id, obj):
+        """
+        hook to be run after an object is created
+        @param obj_id the ID of the new object
+        @param obj the object that has become the resource
+        """
         return
 
     def on_pre_update(self, obj):
+        """
+        hook to be run before an object is updated
+        @param obj the object
+        """
         return
 
     def on_post_update(self, obj):
+        """
+        hook to be run after an object is updated
+        @param obj the object
+        """
         return
 
     def on_pre_delete(self, obj_id, obj):
+        """
+        hook to be run before an object is deleted
+        @param obj_id the ID of the object
+        @param obj the object
+        """
         return
 
     def on_post_delete(self, obj_id, obj):
+        """
+        hook to be run after an object is deleted
+        @param obj_id the ID of the object
+        @param obj the object
+        """
         return
 
     ##################################################
@@ -90,38 +126,70 @@ class ResourceImpl(object):
     #
     ##################################################
 
-    def advance_lcs(self, resource_id, transition_event):
+    def advance_lcs(self, resource_id, new_state):
         """
         attempt to advance the lifecycle state of a resource
         @resource_id the resource id
-        @newstate the new lifecycle state
-        @todo check that this resource is of the same type as this impl class
+        @new_state the new lifecycle state
         """
-        necessary_method = "lcs_precondition_" + str(transition_event)
-        if not hasattr(self, necessary_method):
+        
+        # check that the resource exists
+        resource = self.RR.read(resource_id)
+        resource_type = self._get_resource_type(resource)
+
+        # check that we've been handed the correct object
+        if not resource_type == self.iontype:
+            raise NotImplementedError("Attempted to change lifecycle of a %s in a %s module" %
+                                      (resource_type, self.iontype))
+
+        # get the workflow that we need
+        restype_workflow = lcs_workflows.get(resource_type, None)
+        if not restype_workflow:
+            restype_workflow = lcs_workflows['Resource']
+
+        # check that the transition is possible
+        possible_transitions = restype_workflow.get_predecessors(new_state)
+        if not resource.lcstate in possible_transitions:
+            actions = []
+            for st, tr in possible_transitions.iteritems():
+                actions.append("%s: %s" % (str(st), str(tr)))
+            raise NotImplementedError(("Attempted to change lifecycle of a %s from %s to %s; " + 
+                                      "supported transitions are {%s}") %
+                                      (self.iontype, resource.lcstate, new_state, ", ".join(actions)))
+
+        # check that precondition function exists
+        if not new_state in self.lcs_precondition:
             raise NotImplementedError(
                 "Lifecycle precondition method '%s' not defined for %s!"
-                % (transition_event, self.iontype))
+                % (new_state, self.iontype))
 
-        #FIXME: make sure that the resource type matches self.iontype
+        precondition_fn = self.lcs_precondition[new_state]
 
-        precondition_fn = getattr(self, necessary_method)
-
-        #call the precondition function and react
-        if precondition_fn(resource_id):
-            log.debug("Moving %s resource life cycle with transition event %s"
-                      % (self.iontype, transition_event))
-            self.RR.execute_lifecycle_transition(resource_id=resource_id,
-                                                 transition_event=transition_event)
-        else:
-            raise BadRequest(("Couldn't transition %s with event %s; "
+        # check that the precondition is met
+        if not precondition_fn(self, resource_id):
+            raise BadRequest(("Couldn't transition %s to state %s; "
                               + "failed precondition")
-                             % (self.iontype, transition_event))
+                             % (self.iontype, new_state))
 
-    # so, for example if you want to transition with event "register", you'll need this:
-    #
-    def lcs_precondition_register(self, resource_id):
-        return True
+        # get the transition event that takes us where we want to go
+        transition_event = possible_transitions[resource.lcstate]
+
+        log.debug("Moving %s resource life cycle to %s with transition event %s"
+                  % (self.iontype, new_state, transition_event))
+
+        self.RR.execute_lifecycle_transition(resource_id=resource_id,
+                                             transition_event=transition_event)
+
+
+    def add_lcs_precondition(self, destination_state, precondition_predicate_fn):
+        """
+        register a precondition predicate function for a lifecycle transition
+        @param destination_state the state, defined in pyon/ion/resource.pyx
+        @param precondition_predicate_fn takes (self, resource_id) and returns boolean
+        """
+        self.lcs_precondition[destination_state] = precondition_predicate_fn
+
+
 
     ##################################################
     #
@@ -155,19 +223,24 @@ class ResourceImpl(object):
                 raise BadRequest("%s resource named '%s' already exists"
                                  % (resource_type, name))
 
-    def _get_resource(self, resource_type, resource_id):
+
+    def _get_resource_type(self, resource):
         """
-        try to get a resource
-        @param resource_type the IonObject type
-        @param resource_id
-        @raises NotFound
+        get the type of a resource... simple wrapper
+        @param resource a resource
         """
-        #FIXME: this happens automatically from below
-        resource = self.RR.read(resource_id)
-        if not resource:
-            raise NotFound("%s %s does not exist"
-                           % (resource_type, resource_id))
-        return resource
+        restype = type(resource).__name__
+
+        return restype
+
+
+    def _get_resource_type_by_id(self, resource_id):
+        """
+        get the type of a resource by id
+        @param resource_id a resource id
+        """
+        return self._get_resource_type(self.RR.read(resource_id))
+
 
     def _return_create(self, resource_label, resource_id):
         """
@@ -187,7 +260,7 @@ class ResourceImpl(object):
         @param resource_id the ID of the resource to be returned
         """
         retval = {}
-        resource = self._get_resource(resource_type, resource_id)
+        resource = self.RR.read(resource_id)
         retval[resource_label] = resource
         return retval
 
@@ -220,10 +293,6 @@ class ResourceImpl(object):
         @param primary_object an IonObject resource of the proper type
         @retval the resource ID
         """
-        # make sure ID isn't set
-        if hasattr(primary_object, "_id") and "" != primary_object._id:
-            raise BadRequest("ID field present in a create %s operation - {%s}"
-                             % (self.iontype, str(primary_object.__dict__)))
 
         # Validate the input filter and augment context as required
         self._check_name(self.iontype, primary_object, "to be created")
@@ -281,8 +350,7 @@ class ResourceImpl(object):
         @param primary_object_id the id to be deleted
         """
 
-        primary_object_obj = self._get_resource(self.iontype,
-                                                primary_object_id)
+        primary_object_obj = self.RR.read(primary_object_id)
 
         self.on_pre_delete(primary_object_id, primary_object_obj)
         
@@ -400,8 +468,19 @@ class ResourceImpl(object):
 
 
     def link_attachment(self, resource_id='', attachment_id=''):
+        """
+        associate an attachment with a resource.  any resource can have one
+        @param resource_id a resource id
+        @param attachment_id a resource id
+        """
         return self._link_resources(resource_id, AT.hasAttachment, attachment_id)
 
+
     def unlink_attachment(self, resource_id='', attachment_id=''):
+        """
+        dissociate an attachment with a resource. 
+        @param resource_id a resource id
+        @param attachment_id a resource id
+        """
         return self._unlink_resources(resource_id, AT.hasAttachment, attachment_id)
 

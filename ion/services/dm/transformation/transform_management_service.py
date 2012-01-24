@@ -24,11 +24,14 @@ class TransformManagementService(BaseTransformManagementService):
 
 
 
-    def create_transform(self,name='',description='',
+    def create_transform(self,
+                         name='',
+                         description='',
                          in_subscription_id='',
                          out_streams={},
                          process_definition_id='',
                          configuration={}):
+
         """Creates the transform and registers it with the resource registry
         @param process_definition_id The process defintion contains the module and class of the process to be spawned
         @param in_subscription_id The subscription id corresponding to the input subscription
@@ -185,6 +188,9 @@ class TransformManagementService(BaseTransformManagementService):
 
 # ---------------------------------------------------------------------------
 
+    def execute_transform(self, process_definition_id='', data={}, configuration={}):
+        pass
+
     def activate_transform(self, transform_id=''):
         """Activate the subscription to bind (start) the transform
         @param transform_id
@@ -202,7 +208,21 @@ class TransformManagementService(BaseTransformManagementService):
 
         return True
 
+    def deactivate_transform(self, transform_id=''):
+        """Decativates the subscriptions for the specified transform
+        @param transform_id
+        @retval True on success
+        @throws NotFound if either the subscription doesn't exist or the transform object doesn't exist
+        """
+        subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
+                                                            AT.hasSubscription, RT.Subscription, True)
+        if len(subscription_ids) < 1:
+            raise NotFound
 
+        for subscription_id in subscription_ids:
+            self.clients.pubsub_management.deactivate_subscription(subscription_id)
+
+        return True
 
 
 

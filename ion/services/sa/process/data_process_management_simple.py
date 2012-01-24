@@ -7,7 +7,7 @@
 
 #from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
-from pyon.public import LCE
+from pyon.public import LCS
 
 from ion.services.sa.resource_impl import ResourceImpl
 
@@ -17,6 +17,10 @@ class DataProductManagementSimple(ResourceImpl):
     @brief A base class for management of ION resources in DPrMS that have a simple LCS
     """
     
+    def on_impl_init(self):
+        # no checks, simple resources just go straight to available on create
+        self.add_lcs_precondition(LCS.AVAILABLE, (lambda s, r: True))
+    
     def on_post_create(self, obj_id, obj):
         """
         this is for simple resources ...
@@ -24,13 +28,7 @@ class DataProductManagementSimple(ResourceImpl):
         @param obj_id an object id
         @param obj the object itself (not needed in this case)
         """
-        self.advance_lcs(obj_id, LCE.register)
+        self.advance_lcs(obj_id, LCS.AVAILABLE)
 
         return
 
-    def lcs_precondition_register(self, resource_id):
-        """
-        preconditions for going active (none)
-        @param resource_id the id of the resource in question
-        """
-        return True
