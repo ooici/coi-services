@@ -13,6 +13,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.public import Container, log, IonObject
 from pyon.public import RT, AT, LCS
 from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.util.context import LocalContextMixin
 
 from pyon.util.int_test import IonIntegrationTestCase
 import unittest
