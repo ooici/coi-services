@@ -37,7 +37,7 @@ class TestInstrumentManagement(PyonTestCase):
     def setUp(self):
         self.mock_ionobj = self._create_IonObject_mock('ion.services.sa.instrument.instrument_management_service.IonObject')
         #self.mock_ionobj = IonObject
-        mock_clients = self._create_service_mock('instrument_management_service')
+        mock_clients = self._create_service_mock('instrument_management')
 
         self.instrument_mgmt_service = InstrumentManagementService()
         self.instrument_mgmt_service.clients = mock_clients

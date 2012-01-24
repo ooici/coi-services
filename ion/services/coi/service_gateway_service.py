@@ -93,8 +93,9 @@ def process_gateway_request(service_name, operation):
 
 
     #Retrieve service definition
-    from pyon.service import service
-    target_service = service.get_service_by_name(service_name)
+    from pyon.service.service import service_registry
+    # MM: Note: service_registry can do more now
+    target_service = service_registry.get_service_base(service_name)
 
     if not target_service:
         raise NotFound("Target service name not found in the URL")
