@@ -35,7 +35,7 @@ class AMQPCommsMethod(CommsMethod):
     def send(self, msg):
         pass
     
-class ZMQCommsMethod(CommmsMethod):
+class ZMQCommsMethod(CommsMethod):
     """The ZeroMQ specific implementation of the CommsMethod class"""
     
     def send(self, msg):
