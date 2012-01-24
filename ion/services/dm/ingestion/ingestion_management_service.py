@@ -7,7 +7,8 @@ __license__ = 'Apache 2.0'
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from pyon.core.exception import NotFound
 from pyon.public import RT, AT, log, IonObject
-from pyon.public import CFG
+from pyon.public import CFG, StreamProcess
+from pyon.ion.endpoint import ProcessPublisher
 from ion.services.dm.ingestion.ingestion import Ingestion
 from pyon.net.channel import SubscriberChannel
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -16,12 +17,22 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 
 class IngestionManagementService(BaseIngestionManagementService):
     """
-    class docstring
+    id_p = cc.spawn_process('ingestion_worker', 'ion.services.dm.ingestion.ingestion_management_service', 'IngestionManagementService')
+    cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
     """
-    XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
 
     def __init__(self):
         BaseIngestionManagementService.__init__(self)
+
+    def on_start(self):
+        """
+        This code may not really belong here, but we do not have a different way so far to preload the
+        process definitions. This will later probably be part of a set of predefinitions for processes.
+        """
+         # set up process definition
+        process_definition = IonObject(RT.ProcessDefinition, name='first_transform_definition')
+        process_definition.executable = {'module': 'ion.services.dm.transformation.example.transform_example', 'class':'TransformExample'}
+        self.process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={}, \
                                        number_of_workers=0, default_policy={}):
@@ -34,8 +45,41 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param default_policy    Unknown
         @retval ingestion_configuration_id    str
         """
+
+        # Get Exchange Point name from exchange_point_id
+        ## Exchange points don't exist yet - use a hard coded name
+        XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
+
+        exchange_name = XP + '_ingestion_queue'
+
+
+        # Call pubsub management to create a subscription for the exchange name
+        subscription_id = self.clients.pubsub_management.create_subscription('input_subscription')
+
+        ## For testing until changes to to pubsub are finished to subscribe to star...
+
+        # create a stream
+#        cc= self.container
+#
+#        id_p = cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer', \
+#                {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
+#        cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
+
+        input_stream = IonObject(RT.Stream,name='input_stream', description='input stream')
+        input_stream.original = True
+        input_stream.mimetype = 'hdf'
+        input_stream_id = self.clients.pubsub_management.create_stream(input_stream)
+
+        # subscribe to that stream
+        subscription = self.clients.resource_registry.read(subscription_id)
+        subscription.query['stream_id'] = input_stream_id
+        subscription.exchange_name = exchange_name
+
+        ## open Rabbitmq control and create a binding to *!!!
+
         # create an ingestion_configuration instance and update the registry
-        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = exchange_point_id)
+        # @todo: right now sending in the exchange_point_id as the name...
+        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = 'ingestion_configuration')
         ingestion_configuration.number_of_workers = number_of_workers
         ingestion_configuration.hfd_storage = hfd_storage
         ingestion_configuration.couch_storage = couch_storage
@@ -43,32 +87,26 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         id, rev = self.clients.resource_registry.create(ingestion_configuration)
 
-        # update the id attribute of ingestion_configuration
-        ingestion_configuration._id = id
-        ingestion_configuration._rev = rev
+        # Launch the transforms!
 
-        return ingestion_configuration._id
+        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id=subscription_id, \
+            listen_name='_ingestion_queue', ingestion_configuration_id=id)
 
-    def launch_transforms(self, ingestion_configuration_id, subscription_id, listen_name, output_stream_id):
-    # set up process definition
-        tms_client = TransformManagementServiceClient(node=cc.node)
-        rr_client = ResourceRegistryServiceClient(node=cc.node)
+        return id
 
-        process_definition = IonObject(RT.ProcessDefinition, name='first_transform_definition')
-        process_definition.executable = {'module': 'ion.services.dm.transformation.example.transform_example', 'class':'TransformExample'}
-        process_definition_id, _ = rr_client.create(process_definition)
+    def _launch_transforms(self, number_of_workers, subscription_id, listen_name, ingestion_configuration_id):
+        """
+        We spawn the transform processes without actually activating them...
+        """
 
         configuration= {'process':{'name':'configuration','type':"stream_process",'listen_name': listen_name }}
 
-        ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        num = ingestion_configuration.number_of_workers
-
         # launch the transforms
-        for i in range(1,num):
-            transform_id = tms_client.create_transform(in_subscription_id=subscription_id, out_stream_id=output_stream_id,
-                process_definition_id=process_definition_id, configuration=configuration)
-            tms_client.activate_transform(transform_id)
-
+        # we spawn the transform processes without actually activating them yet...
+        for i in range(1,number_of_workers):
+            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
+                process_definition_id=self.process_definition_id, configuration=configuration)
+            self.clients.resource_registry.create_association(ingestion_configuration_id, AT.hasTransform, transform_id)
 
     def update_ingestion_configuration(self, ingestion_configuration={}):
         """Change the number of workers or the default policy for ingesting data on each stream
@@ -118,8 +156,8 @@ class IngestionManagementService(BaseIngestionManagementService):
             AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound
-
-        self.clients.transform_management.activate_transform(transform_ids[0])
+        for transform_id in transform_ids:
+            self.clients.transform_management.activate_transform(transform_id)
         return True
 
 
