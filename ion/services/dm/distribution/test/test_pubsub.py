@@ -10,13 +10,14 @@ from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.public import AT, RT, StreamPublisher, StreamSubscriber
 from nose.plugins.attrib import attr
 import unittest
-from interface.objects import StreamQuery, ExchangeQuery
+from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum
+from pyon.util.containers import DotDict
 
 
 @attr('UNIT', group='dm')
@@ -26,6 +27,8 @@ class PubSubTest(PyonTestCase):
         mock_clients = self._create_service_mock('pubsub_management')
         self.pubsub_service = PubsubManagementService()
         self.pubsub_service.clients = mock_clients
+        self.pubsub_service.container = DotDict()
+        self.pubsub_service.container.node = Mock()
 
         # save some typing
         self.mock_create = mock_clients.resource_registry.create
@@ -36,22 +39,34 @@ class PubSubTest(PyonTestCase):
         self.mock_delete_association = mock_clients.resource_registry.delete_association
         self.mock_find_resources = mock_clients.resource_registry.find_resources
         self.mock_find_associations = mock_clients.resource_registry.find_associations
+        self.mock_find_objects = mock_clients.resource_registry.find_objects
 
         # Stream
         self.stream_id = "stream_id"
         self.stream = Mock()
         self.stream.name = "SampleStream"
         self.stream.description = "Sample Stream In PubSub"
-        self.stream.mimetype = ""
+        self.stream.encoding = ""
+        self.stream.original = True
+        self.stream.stream_definition_type = ""
+        self.stream.url = ""
         self.stream.producers = ['producer1', 'producer2', 'producer3']
 
         #Subscription
         self.subscription_id = "subscription_id"
-        self.subscription = Mock()
-        self.subscription.name = "SampleSubscription"
-        self.subscription.description = "Sample Subscription In PubSub"
-        self.subscription.query = {"stream_id": self.stream_id}
-        self.subscription.exchange_name = "ExchangeName"
+        self.subscription_stream_query = Mock()
+        self.subscription_stream_query.name = "SampleSubscriptionStreamQuery"
+        self.subscription_stream_query.description = "Sample Subscription With StreamQuery"
+        self.subscription_stream_query.query = StreamQuery([self.stream_id])
+        self.subscription_stream_query.exchange_name = "ExchangeName"
+        self.subscription_stream_query.subscription_type = SubscriptionTypeEnum.STREAM_QUERY
+
+        self.subscription_exchange_query = Mock()
+        self.subscription_exchange_query.name = "SampleSubscriptionExchangeQuery"
+        self.subscription_exchange_query.description = "Sample Subscription With Exchange Query"
+        self.subscription_exchange_query.query = ExchangeQuery()
+        self.subscription_exchange_query.exchange_name = "ExchangeName"
+        self.subscription_exchange_query.subscription_type = SubscriptionTypeEnum.EXCHANGE_QUERY
 
         #Subscription Has Stream Association
         self.association_id = "association_id"
@@ -64,8 +79,8 @@ class PubSubTest(PyonTestCase):
     def test_create_stream(self):
         self.mock_create.return_value = [self.stream_id, 1]
 
-        stream_id = self.pubsub_service.create_stream(name="SampleStream",
-                                                      description="Sample Stream Description")
+        stream_id = self.pubsub_service.create_stream(name=self.stream.name,
+                                                      description=self.stream.description)
 
         self.assertTrue(self.mock_create.called)
         self.assertEqual(stream_id, self.stream_id)
@@ -148,6 +163,13 @@ class PubSubTest(PyonTestCase):
         self.mock_find_resources.assert_called_once_with(RT.Stream, None, None, False)
         self.assertEqual(streams, [self.stream])
 
+    def test_find_streams_by_producer_not_in_list(self):
+        self.mock_find_resources.return_value = [self.stream]
+        streams = self.pubsub_service.find_streams_by_producer("producer_not_found")
+
+        self.mock_find_resources.assert_called_once_with(RT.Stream, None, None, False)
+        self.assertEqual(streams, [])
+
     def test_find_streams_by_consumer(self):
         with self.assertRaises(NotImplementedError) as cm:
             self.pubsub_service.find_streams_by_consumer(None)
@@ -155,34 +177,57 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'find_streams_by_consumer not implemented.')
 
-    def test_create_subscription(self):
+    def test_create_subscription_stream_query(self):
         self.mock_create.return_value = [self.subscription_id, 1]
 
-        query = StreamQuery([self.stream_id])
-        exchange_name = "a_queue"
-
-        id = self.pubsub_service.create_subscription(name="SampleStream",
-                                                            description="Sample Stream Description",
-                                                            query=query,
-                                                            exchange_name=exchange_name)
+        id = self.pubsub_service.create_subscription(name=self.subscription_stream_query.name,
+                                                     description=self.subscription_stream_query.description,
+                                                     query=self.subscription_stream_query.query,
+                                                     exchange_name=self.subscription_stream_query.exchange_name)
 
         self.assertTrue(self.mock_create.called)
         self.mock_create_association.assert_called_once_with(self.subscription_id, AT.hasStream, self.stream_id, None)
         self.assertEqual(id, self.subscription_id)
 
+    def test_create_subscription_exchange_query(self):
+        self.mock_create.return_value = [self.subscription_id, 1]
+
+        id = self.pubsub_service.create_subscription(name=self.subscription_exchange_query.name,
+                                                     description=self.subscription_exchange_query.description,
+                                                     query=self.subscription_exchange_query.query,
+                                                     exchange_name=self.subscription_exchange_query.exchange_name)
+
+        self.assertTrue(self.mock_create.called)
+        self.assertEqual(id, self.subscription_id)
+
+    def test_create_subscription_invalid_query_type(self):
+        self.mock_create.return_value = [self.subscription_id, 1]
+
+        query = Mock()
+        exchange_name = "Invalid Subscription"
+
+        with self.assertRaises(BadRequest) as cm:
+            id = self.pubsub_service.create_subscription(name="InvalidSubscription",
+                                                         description="Invalid Subscription Description",
+                                                         query=query,
+                                                         exchange_name=exchange_name)
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Query type does not exist')
+
     def test_read_and_update_subscription(self):
-        self.mock_read.return_value = self.subscription
+        self.mock_read.return_value = self.subscription_stream_query
         subscription_obj = self.pubsub_service.read_subscription(self.subscription_id)
 
         self.mock_update.return_value = [self.subscription_id, 2]
-        subscription_obj.name = "UpdatedSampleSubscription"
+        subscription_obj.name = "UpdatedSampleStreamQuerySubscription"
         ret = self.pubsub_service.update_subscription(subscription_obj)
 
         self.mock_update.assert_called_once_with(subscription_obj)
         self.assertTrue(ret)
 
     def test_read_subscription(self):
-        self.mock_read.return_value = self.subscription
+        self.mock_read.return_value = self.subscription_stream_query
         subscription_obj = self.pubsub_service.read_subscription(self.subscription_id)
 
         assert subscription_obj is self.mock_read.return_value
@@ -200,7 +245,7 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with('notfound', '')
 
     def test_delete_subscription(self):
-        self.mock_read.return_value = self.subscription
+        self.mock_read.return_value = self.subscription_stream_query
         self.mock_find_associations.return_value = [self.subscription_to_stream_association]
         ret = self.pubsub_service.delete_subscription(self.subscription_id)
 
@@ -224,7 +269,7 @@ class PubSubTest(PyonTestCase):
         self.assertEqual(self.mock_delete.call_count, 0)
 
     def test_delete_subscription_association_not_found(self):
-        self.mock_read.return_value = self.subscription
+        self.mock_read.return_value = self.subscription_stream_query
         self.mock_find_associations.return_value = None
 
         # TEST: Execute the service operation call
@@ -238,12 +283,25 @@ class PubSubTest(PyonTestCase):
         self.assertEqual(self.mock_delete_association.call_count, 0)
         self.assertEqual(self.mock_delete.call_count, 0)
 
-    @unittest.skip('Nothing to test')
-    def test_activate_subscription(self):
-        self.mock_read.return_value = self.subscription
+    def test_activate_subscription_stream_query(self):
+        self.mock_read.return_value = self.subscription_stream_query
+        self.mock_find_objects.return_value = [self.stream_id], 0
+
         ret = self.pubsub_service.activate_subscription(self.subscription_id)
 
         self.assertTrue(ret)
+        self.mock_read.assert_called_once_with(self.subscription_id, '')
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
+
+    def test_activate_subscription_exchange_query(self):
+        self.mock_read.return_value = self.subscription_exchange_query
+        self.mock_find_objects.return_value = [self.stream_id], 0
+
+        ret = self.pubsub_service.activate_subscription(self.subscription_id)
+
+        self.assertTrue(ret)
+        self.mock_read.assert_called_once_with(self.subscription_id, '')
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
 
     def test_activate_subscription_not_found(self):
         self.mock_read.return_value = None
@@ -256,12 +314,25 @@ class PubSubTest(PyonTestCase):
         self.assertEqual(ex.message, 'Subscription notfound does not exist')
         self.mock_read.assert_called_once_with('notfound', '')
 
-    @unittest.skip('Nothing to test')
-    def test_deactivate_subscription(self):
-        self.mock_read.return_value = self.subscription
+    def test_deactivate_subscription_stream_query(self):
+        self.mock_read.return_value = self.subscription_stream_query
+        self.mock_find_objects.return_value = [self.stream_id], 0
+
         ret = self.pubsub_service.deactivate_subscription(self.subscription_id)
 
         self.assertTrue(ret)
+        self.mock_read.assert_called_once_with(self.subscription_id, '')
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
+
+    def test_deactivate_subscription_exchange_query(self):
+        self.mock_read.return_value = self.subscription_exchange_query
+        self.mock_find_objects.return_value = [self.stream_id], 0
+
+        ret = self.pubsub_service.deactivate_subscription(self.subscription_id)
+
+        self.assertTrue(ret)
+        self.mock_read.assert_called_once_with(self.subscription_id, '')
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
 
     def test_deactivate_subscription_not_found(self):
         self.mock_read.return_value = None
@@ -329,7 +400,7 @@ class PubSubTest(PyonTestCase):
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
-            self.pubsub_service.register_producer('Test Producer', 'notfound')
+            self.pubsub_service.unregister_producer('Test Producer', 'notfound')
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Stream notfound does not exist')
@@ -400,69 +471,65 @@ class PubSubIntTest(IonIntegrationTestCase):
         stream_route = self.pubsub_cli.register_producer(exchange_name='producer_doesnt_have_a_name2', stream_id=self.ctd_stream2_id)
         self.ctd_stream2_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), process=self.cc)
 
-
-
-
     def tearDown(self):
         self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
         self.pubsub_cli.delete_stream(self.ctd_stream1_id)
         self.pubsub_cli.delete_stream(self.ctd_stream2_id)
         self._stop_container()
 
-
-    def test_something(self):
-
-        ar = gevent.event.AsyncResult()
-        first = True
-        def first_then_fail(message,headers):
-            if first:
-                ar.set(True)
-            else:
-                ar.set(False)
-
-
-        self.subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'),callback=first_then_fail , process=self.cc)
-
-        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
-
-
-    @unittest.skip("Nothing to test")
     def test_bind_subscription(self):
 
         ar = gevent.event.AsyncResult()
-        first = True
-        def first_then_fail(message,headers):
-            if first:
-                ar.set(True)
-            else:
-                ar.set(False)
+        self.first = True
+        def message_received(message, headers):
+            ar.set(message)
 
-
-        self.subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'),callback=first_then_fail , process=self.cc)
+        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'), callback=message_received, process=self.cc)
+        subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
+        self.ctd_stream1_publisher.publish('message1')
+        self.assertEqual(ar.get(timeout=10), 'message1')
 
-        # set up subscruber with that callback
+        ar = gevent.event.AsyncResult()
 
-        # start listening
-        # send a message
+        self.ctd_stream2_publisher.publish('message2')
+        self.assertEqual(ar.get(timeout=10), 'message2')
 
+        subscriber.stop()
 
-        self.ctd_stream1_publisher.publish({'message1':True})
-        self.assertEqual(ar.get(timeout=10), True)
-
-
-    @unittest.skip("Nothing to test")
     def test_unbind_subscription(self):
-        self.test_bind_subscription()
+        ar = gevent.event.AsyncResult()
+        self.first = True
+        def message_received(message, headers):
+            ar.set(message)
+
+        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'), callback=message_received, process=self.cc)
+        subscriber.start()
+
+        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
+
+        self.ctd_stream1_publisher.publish('message1')
+        self.assertEqual(ar.get(timeout=10), 'message1')
+
         self.pubsub_cli.deactivate_subscription(self.ctd_subscription_id)
-        pass
+
+        ar = gevent.event.AsyncResult()
+
+        self.ctd_stream2_publisher.publish('message2')
+        p = None
+        with self.assertRaises(gevent.Timeout) as cm:
+            p = ar.get(timeout=2)
+
+        subscriber.stop()
+        ex = cm.exception
+        self.assertEqual(str(ex), '2 seconds')
+        self.assertEqual(p, None)
 
     @unittest.skip("Nothing to test")
     def test_bind_already_bound_subscription(self):
-        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
-        self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
+        pass
 
     @unittest.skip("Nothing to test")
     def test_unbind_unbound_subscription(self):
