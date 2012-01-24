@@ -7,7 +7,7 @@ import threading
 import time
 from pyon.ion.streamproc import StreamProcess
 from pyon.public import log
-from pyon.ion.transform_base import TransformBase
+from pyon.ion.transform import TransformDataProcess
 
 
 class TransformExampleProducer(StreamProcess):
@@ -58,7 +58,7 @@ class TransformExampleProducer(StreamProcess):
             time.sleep(interval/1000.0)
 
 
-class TransformExample(TransformBase):
+class TransformExample(TransformDataProcess):
 
     def __init__(self, *args, **kwargs):
         super(TransformExample,self).__init__()
@@ -74,34 +74,21 @@ class TransformExample(TransformBase):
 
 
     def on_start(self):
-        TransformBase.on_start(self)
-        # randomize name if none provided
-        self.name = self.CFG.get('process',{}).get('name','1234')
-        log.debug('Transform Example started %s ' % self.CFG)
-        streams = self.CFG.get('process',{}).get('publish_streams',None)
-        if streams:
-            self.output_streams = list(k for k in streams)
-        else:
-            self.output_streams = None
+        super(TransformExample,self).on_start()
+        self.has_output = (len(self.streams)>0)
 
 
     def process(self, packet):
         """Processes incoming data!!!!
         """
+        output = int(packet.get('num',0)) + 1
+        log.debug('(%s) Processing Packet: %s',self.name,packet)
+        log.debug('(%s) Transform Complete: %s', self.name, output)
 
-        if self.output_streams:
-            publisher = getattr(self,self.output_streams[0],None)
-        else:
-            publisher = None
+        if self.has_output:
+            self.publish(dict(num=str(output)))
 
-        log.debug('%s' % publisher)
-        input = int(packet.get('num',0))
-        output = input + 1
-        log.debug('(%s): Transform: %f' % (self.name,output))
-        msg = dict(num=output)
-        log.debug('(%s): Message Outgoing: %s' % (self.name, msg))
-        if publisher:
-            publisher.publish(msg)
+
         with open('/tmp/transform_output', 'a') as f:
 
             f.write('(%s): Received Packet: %s\n' % (self.name,packet))
