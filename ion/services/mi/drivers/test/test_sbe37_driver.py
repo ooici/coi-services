@@ -23,6 +23,8 @@ from pyon.util.unit_test import PyonTestCase
 
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
+from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+from ion.services.mi.drivers.sbe37_driver import SBE37Command
 import ion.services.mi.mi_logger
 
 mi_logger = logging.getLogger('mi_logger')
@@ -51,6 +53,8 @@ class TestSBE37Driver(PyonTestCase):
         self.dvr_mod = 'ion.services.mi.drivers.sbe37_driver'
         self.dvr_cls = 'SBE37Driver'
 
+        #
+        self.server_addr = 'localhost'
 
         # Add cleanup handler functions.
         # self.addCleanup()
@@ -61,22 +65,43 @@ class TestSBE37Driver(PyonTestCase):
         Test driver configure.
         """
         
-        """
-        driver_process = ZmqDriverProcess.launch_process(5556, 5557,
-                        'ion.services.mi.drivers.sbe37_driver', 'SBE37Driver')
-        driver_client = ZmqDriverClient('localhost', 5556, 5557)
+        
+        driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
+            self.evt_port, self.dvr_mod,  self.dvr_cls)
+        
+        
+        driver_client = ZmqDriverClient(self.server_addr, self.cmd_port,
+                                        self.evt_port)
         driver_client.start_messaging()
         time.sleep(3)
         config = {
-            'comms_method':'ethernet',
-            'ip_addr': 123,
-            'ip_port': 123
+            'method':'ethernet',
+            'device_addr': '137.110.112.119',
+            'device_port': 4001,
+            'server_addr': 'localhost',
+            'server_port': 8888            
         }
-        reply = driver_client.cmd_dvr('configure', config)
+        configs = {SBE37Channel.CTD:config}
+        reply = driver_client.cmd_dvr('configure', configs)
  
-        time.sleep(3)
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
+        time.sleep(2)
+
+        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD],
+                                      [SBE37Command.ACQUIRE_SAMPLE])
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        
         driver_client.done()
-        """
+        
         
         """
         reply = driver_client.cmd_dvr('process_echo', data='test 1 2 3')

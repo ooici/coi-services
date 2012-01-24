@@ -57,7 +57,7 @@ class DriverState(BaseEnum):
     AUTOSAMPLE = 'DRIVER_STATE_AUTOSAMPLE'
     TEST = 'DRIVER_STATE_TEST'
     CALIBRATE = 'DRIVER_STATE_CALIBRATE'
-
+    COMMAND = 'DRIVER_STATE_COMMAND'
 
 class DriverEvent(BaseEnum):
     """Common driver event enum

@@ -34,8 +34,9 @@ class InstrumentProtocol(object):
     def __init__(self):
         """        
         """
-        self.instrument_connection = None
-        self.protocol_fsm = None
+        self._logger = None
+        self._logger_client = None
+        self._fsm = None
         
     def get(self, params=[]):
         """Get some parameters
@@ -50,7 +51,7 @@ class InstrumentProtocol(object):
         @throws InstrumentTimeoutException Timeout
         """
 
-    def set(self, params={}):
+    def set(self, params={}, timeout=10):
         """Get some parameters
         
         @param params A dict with the parameters to fetch. Must be in the
@@ -62,7 +63,7 @@ class InstrumentProtocol(object):
         @throws InstrumentTimeoutException Timeout
         """
 
-    def execute(self, command=[]):
+    def execute(self, command=[], timeout=10):
         """Execute a command
         
         @param command A single command as a list with the command ID followed
@@ -123,7 +124,21 @@ class InstrumentProtocol(object):
     def configure(self, params):
         """
         """
-        pass
+        method = config['method']
+        
+        if method == 'ethernet':
+            ip_addr = config['ip_addr']
+            ip_port = config['ip_port']
+        
+        elif method == 'serial':
+            # raise not implemented
+            pass
+        
+        else:
+            # raise unknown method
+            pass
+        
+        # raises key error, not implemented or unknown comms method        
 
     def connect(self, *args):
         """Connect via the instrument connection object

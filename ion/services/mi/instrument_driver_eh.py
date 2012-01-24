@@ -19,6 +19,7 @@ from ion.services.mi.common import DEFAULT_TIMEOUT
 class DriverChannel(BaseEnum):
     """Common channels for all sensors. Driver subclasses contain a subset."""
     INSTRUMENT = 'CHANNEL_INSTRUMENT'
+    CTD = 'CHANNEL_CTD'
     ALL = 'CHANNEL_ALL'
 
 class DriverCommand(BaseEnum):
@@ -55,7 +56,8 @@ class DriverState(BaseEnum):
     AUTOSAMPLE = 'DRIVER_STATE_AUTOSAMPLE'
     TEST = 'DRIVER_STATE_TEST'
     CALIBRATE = 'DRIVER_STATE_CALIBRATE'
-
+    DETACHED = 'DRIVER_STATE_DETACHED'
+    COMMAND = 'DRIVER_STATE_COMMAND'
 
 class DriverEvent(BaseEnum):
     """Common driver event enum
@@ -88,6 +90,8 @@ class DriverEvent(BaseEnum):
     RESET = 'DRIVER_EVENT_RESET'
     ENTER = 'DRIVER_EVENT_ENTER'
     EXIT = 'DRIVER_EVENT_EXIT'
+    ATTACH = 'DRIVER_EVENT_ATTACH'
+    DETACH = 'DRIVER_EVENT_DETACH'
     
 
 class DriverStatus(BaseEnum):
@@ -139,7 +143,7 @@ class InstrumentDriver(object):
 
         # Instrument channel dict.
         # A dictionary of channel-name keys and channel protocol object values.
-        self.instrument_channels = {}
+        self.channels = {}
     
     def configure(self, config):
         """
@@ -147,7 +151,7 @@ class InstrumentDriver(object):
         @param config A dict containing channel name keys, with
         dict values containing the comms configuration for the named channel.
         """
-        pass
+        pass        
     
     def initialize(self, chan_list):
         """
@@ -156,46 +160,46 @@ class InstrumentDriver(object):
         """
         pass
     
-    def connect(self, chan_list):
+    def connect(self, chan_list, timeout=10):
         """
         Establish communications with a device channel.
         @param chan_list List of channel names to connect.
         """
         pass
     
-    def disconnect(self, chan_list):
+    def disconnect(self, chan_list, timeout=10):
         """
         Disconnect communications with a device channel.
         @param chan_list List of channel names to disconnect.
         """
         pass
 
-    def execute(self, channels, command, timeout):
+    def execute(self, channels, command, timeout=10):
         """
         """
         pass
     
-    def execute_direct(self, bytes, timeout):
+    def execute_direct(self, bytes, timeout=10):
         """
         """
         pass
     
-    def get(self, params, timeout):
+    def get(self, params):
         """
         """
         pass
     
-    def set(self, params, timeout):
+    def set(self, params, timeout=10):
         """
         """
         pass
     
-    def get_status(self, params, timeout):
+    def get_status(self, params):
         """
         """
         pass
     
-    def get_capabilities(self, params, timeout):
+    def get_capabilities(self, params):
         """
         """
         pass
