@@ -119,32 +119,55 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                   inform)
         
         # Create and store a new DataProcess with the resource registry
-        data_process_def_obj = \
-            self.read_data_process_definition(data_process_definition_id)
+        data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
+
         data_process_name = "process_" + data_process_def_obj.name \
                             + " - calculates " + \
                             str(out_data_product_id) + time.ctime()
         data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(data_process)
-        
-        # Assemble transform input data
-        # TODO: create subscription from in_data_product here 
-        in_subscription_id = ""
-        # TODO: get stream_id from out_data_product here 
-        out_stream_id = ""
+
+        process_definition = IonObject(RT.ProcessDefinition, name=data_process_def_obj.name)
+        process_definition.executable = {
+           'module': 'ion.services.dm.transformation.example.transform_example',
+           'class':'TransformExample'
+        }
+        process_definition_id, _ = rr_cli.create(process_definition)
+
+        # create subscription from in_data_product here
+        # Create the subscription to the ctd_output_stream
+        in_product_subscription = IonObject(RT.Subscription,name=in_data_product_id.name, description=in_data_product_id.description)
+        in_product_subscription.query['stream_id'] = in_data_product_id
+        in_product_subscription.exchange_name = in_data_product_id.name
+        subscription_id = pubsub_cli.create_subscription(in_product_subscription)
+
+
+        # get stream_id from out_data_product here
+        # List all resource ids that are objects for this data_source and has the hasDataProducer link
+        assocs, _ = self.clients.resource_registry.find_objects(out_data_product_id, AT.hasDataProducer, None, True)
+        if not assocs or len(assocs) == 0:
+            raise NotFound("Data Producer for Data Product %d does not exist" % out_data_product_id)
+        data_producer_id = assocs[0]._id
+        out_stream_id = data_producer_id.stream_id
 
         # Register the transform with the transform mgmt service
-        transform_id = \
-            self.clients.transform_management_service.create_transform(data_process_definition_id,
-                                                                       in_subscription_id,
-                                                                       out_stream_id)
+        transform_id =  self.clients.transform_management_service.create_transform(data_process_definition_id, in_subscription_id, out_stream_id)
+
+        configuration = {}
+
+        # Launch the first transform process
+        transform_id = tms_cli.create_transform( name='basic_transform',
+                           in_subscription_id=subscription_id,
+                           out_streams={'output':out_stream_id},
+                           process_definition_id=process_definition_id,
+                           configuration=configuration)
 
         # TODO: Flesh details of transform mgmt svc schedule and bind methods
-        self.clients.transform_management_service.schedule_transform(transform_id)
-        self.clients.transform_management_service.bind_transform(transform_id)
+#        self.clients.transform_management_service.schedule_transform(transform_id)
+#        self.clients.transform_management_service.bind_transform(transform_id)
 
         # Register data process as a producer
-        self.clients.data_acquisition_management.register_process(data_process_id)
+        self.clients.data_acquisition_management.register_process(process_definition_id)
 
         # Associations
         self.clients.resource_registry.create_association(data_process_id,

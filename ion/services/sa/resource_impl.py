@@ -166,7 +166,7 @@ class ResourceImpl(object):
         precondition_fn = self.lcs_precondition[new_state]
 
         # check that the precondition is met
-        if not precondition_fn(self, resource_id):
+        if not precondition_fn(resource_id):
             raise BadRequest(("Couldn't transition %s to state %s; "
                               + "failed precondition")
                              % (self.iontype, new_state))
