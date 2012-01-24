@@ -65,6 +65,24 @@ class TransformExampleProducer(StreamProcess):
             num += 1
             time.sleep(interval/1000.0)
 
+class TransformEvenOdd(TransformDataProcess):
+    '''A simple transform that takes the input of a number and maps an even and odd sequence
+    to two separate streams, even and odd
+    '''
+    def on_start(self):
+        super(TransformEvenOdd,self).on_start()
+        assert len(self.streams)==2
+
+    def process(self, packet):
+        input = int(packet.get('num'))
+
+        even = input * 2
+        odd = (input * 2) + 1
+        self.even.publish(dict(num=even))
+        self.odd.publish(dict(num=odd))
+        log.debug('(%s) Processing Packet: %s', self.name, packet)
+        log.debug('(%s) Even Transform: %s', self.name, even)
+        log.debug('(%s) Odd Transform: %s', self.name, odd)
 
 class TransformExample(TransformDataProcess):
 
@@ -240,3 +258,107 @@ class TransformExampleLauncher(BaseService):
             configuration={})
         log.debug('Transform Input: %s', input)
         log.debug('Transform Output: %s', retval)
+
+    def run_even_odd_transform(self):
+        #-------------------------------
+        # Script Explanation
+        #-------------------------------
+        '''
+        This example script runs a Transform
+        '''
+        pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
+        tms_cli = TransformManagementServiceClient(node=self.container.node)
+        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+
+
+        #-------------------------------
+        # Process Definition
+        #-------------------------------
+        # Create the process definition for the basic transform
+        process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
+        process_definition.executable = {
+            'module': 'ion.services.dm.transformation.example.transform_example',
+            'class':'TransformExample'
+        }
+        basic_transform_definition_id, _ = rr_cli.create(process_definition)
+
+        # Create The process definition for the TransformEvenOdd
+        process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
+        process_definition.executable = {
+            'module': 'ion.services.dm.transformation.example.transform_example',
+            'class':'TransformEvenOdd'
+        }
+        evenodd_transform_definition_id, _ = rr_cli.create(process_definition)
+
+        #-------------------------------
+        # Streams
+        #-------------------------------
+        input_stream = IonObject(RT.Stream,name='even_odd_input')
+        input_stream.original=True
+        input_stream_id = pubsub_cli.create_stream(input_stream)
+
+        even_stream = IonObject(RT.Stream,name='even_stream')
+        even_stream.original = True
+        even_stream_id = pubsub_cli.create_stream(even_stream)
+
+        odd_stream = IonObject(RT.Stream,name='odd_stream')
+        odd_stream.original = True
+        odd_stream_id = pubsub_cli.create_stream(odd_stream)
+
+        #-------------------------------
+        # Subscriptions
+        #-------------------------------
+
+        input_subscription = IonObject(RT.Subscription, name='input_subscription')
+        input_subscription.query['stream_id'] = input_stream_id
+        input_subscription.exchange_name = 'input_queue'
+        input_subscription_id = pubsub_cli.create_subscription(input_subscription)
+
+        even_subscription = IonObject(RT.Subscription, name='even_subscription')
+        even_subscription.query['stream_id'] = even_stream_id
+        even_subscription.exchange_name = 'even_queue'
+        even_subscription_id = pubsub_cli.create_subscription(even_subscription)
+
+        odd_subscription = IonObject(RT.Subscription, name='odd_subscription')
+        odd_subscription.query['stream_id'] = odd_stream_id
+        odd_subscription.exchange_name = 'odd_queue'
+        odd_subscription_id = pubsub_cli.create_subscription(odd_subscription)
+
+        #-------------------------------
+        # Launch the EvenOdd Transform
+        #-------------------------------
+
+        evenodd_id = tms_cli.create_transform(name='even_odd',
+            in_subscription_id=input_subscription_id,
+            out_streams={'even':even_stream_id, 'odd':odd_stream_id},
+            process_definition_id=evenodd_transform_definition_id,
+            configuration={})
+        tms_cli.activate_transform(evenodd_id)
+
+
+        #-------------------------------
+        # Launch the Even Processing Transform
+        #-------------------------------
+
+        even_transform_id = tms_cli.create_transform(name='even_transform',
+            in_subscription_id = even_subscription_id,
+            process_definition_id=basic_transform_definition_id,
+            configuration={})
+        tms_cli.activate_transform(even_transform_id)
+
+        #-------------------------------
+        # Launch the Odd Processing Transform
+        #-------------------------------
+
+        odd_transform_id = tms_cli.create_transform(name='odd_transform',
+            in_subscription_id = odd_subscription_id,
+            process_definition_id=basic_transform_definition_id,
+            configuration={})
+        tms_cli.activate_transform(odd_transform_id)
+
+        #-------------------------------
+        # Spawn the Streaming Producer
+        #-------------------------------
+
+        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
+        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
