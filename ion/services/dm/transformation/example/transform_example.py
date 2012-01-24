@@ -8,6 +8,8 @@ import time
 from pyon.ion.streamproc import StreamProcess
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
+from pyon.ion.transform import TransformProcessAdaptor
+from pyon.ion.transform import TransformFunction
 
 
 class TransformExampleProducer(StreamProcess):
@@ -97,3 +99,13 @@ class TransformExample(TransformDataProcess):
 
 
 
+
+class ExternalTransform(TransformProcessAdaptor):
+    pass
+
+class ReverseTransform(TransformFunction):
+    def execute(self, input):
+        retval = input
+        retval.reverse()
+
+        return retval
