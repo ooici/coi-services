@@ -4,8 +4,9 @@
 @description Create two parallel transforms through calls to the TransformationManagementService
 which subscribe to a single stream.
 """
-
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+
 from pyon.public import IonObject, RT, log, AT
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.public import log, StreamProcess
@@ -14,6 +15,9 @@ from pyon.public import log, StreamProcess
 # Run this part first in the pycc container
 #########################################################################################
 ingestion_client = IngestionManagementServiceClient(node = cc.node)
+pubsub_client = PubsubManagementServiceClient(node=cc.node)
+
+ctd_output_stream_id = pubsub_client.create_stream(name='ctd_output_stream', original=True)
 
 # create transforms... queues will be created in this step
 ingestion_configuration_id = ingestion_client.create_ingestion_configuration(exchange_point_id='science_data', couch_storage={},\
@@ -27,6 +31,5 @@ ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 ############################################################################################
 # messages will be produced and published
 id_p = cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
-        {'process':{'type':'stream_process','publish_streams':{'out_stream':'3b93f5de319e4ac4b6465815f119c596'}},\
-         'stream_producer':{'interval':4000}})
+        {'process': {'type':'stream_process', 'publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
 cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()

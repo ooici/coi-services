@@ -75,24 +75,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
         process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
-#        # this should be removed tomorrow
-#        input_stream = IonObject(RT.Stream,name='input_stream')
-#        input_stream.original = True
-#        input_stream.mimetype = 'hdf'
-#        input_stream_id = self.clients.pubsub_management.create_stream(input_stream)
-
         input_stream_id = self.clients.pubsub_management.create_stream(encoding='', \
             original=True, stream_definition_type='', name='input_stream', description='only to launch ingestion workers', url='')
 
 
 #        # subscribe to that stream
-
-#        subscription_obj = IonObject(RT.Subscription, name = "subscription", description = "input subscription")
-#        subscription_obj.exchange_name = exchange_name
-#        subscription_obj.query['stream_id'] = input_stream_id
-#        # Call pubsub management to create a subscription for the exchange name
-#        subscription_id = self.clients.pubsub_management.create_subscription(subscription_obj)
-
         stream_ids = [input_stream_id]
         query = StreamQuery(stream_ids)
 
@@ -100,8 +87,6 @@ class IngestionManagementService(BaseIngestionManagementService):
             exchange_name=exchange_name, name='subscription', description='only to launch ingestion workers')
 
         ## open Rabbitmq control and create a binding to *!!!
-
-        ##------------------------------------------------------------------------------------------
 
         # create an ingestion_configuration instance and update the registry
         # @todo: right now sending in the exchange_point_id as the name...
