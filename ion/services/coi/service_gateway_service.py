@@ -96,7 +96,7 @@ def process_gateway_request(service_name, operation):
 
 
     #Retrieve service definition
-    from pyon.service.service import service_registry
+    from pyon.core.boostrap import service_registry
     # MM: Note: service_registry can do more now
     target_service = service_registry.get_service_base(service_name)
 
