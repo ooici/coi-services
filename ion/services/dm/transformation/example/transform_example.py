@@ -5,7 +5,7 @@
 '''
 import threading
 import time
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, StreamQuery
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
@@ -178,22 +178,14 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
 
         # Create a dummy output stream from a 'ctd' instrument
-        ctd_output_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
-        ctd_output_stream.original = True
-        ctd_output_stream.mimetype = 'hdf'
-        ctd_output_stream_id = pubsub_cli.create_stream()
+        ctd_output_stream_id = pubsub_cli.create_stream(name='ctd_output_stream', original=True)
 
         # Create the subscription to the ctd_output_stream
-        ctd_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')
-        ctd_subscription.query['stream_id'] = ctd_output_stream_id
-        ctd_subscription.exchange_name = 'a queue'
-        ctd_subscription_id = pubsub_cli.create_subscription(ctd_subscription)
+        query = StreamQuery(stream_ids=[ctd_output_stream_id])
+        ctd_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='ctd_output')
 
         # Create an output stream for the transform
-        transform_output_stream = IonObject(RT.Stream,name='transform output', description='output from the transform process')
-        transform_output_stream.original = True
-        transform_output_stream.mimetype='raw'
-        transform_output_stream_id = pubsub_cli.create_stream(transform_output_stream)
+        transform_output_stream_id = pubsub_cli.create_stream(name='transform_output', original=True)
 
 
         configuration = {}
@@ -213,16 +205,11 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
 
         # Create a SUBSCRIPTION to this output stream for the second transform
-        second_subscription = IonObject(RT.Subscription,name='second_subscription', description='the subscription to the first transforms data')
-        second_subscription.query['stream_id'] = transform_output_stream_id
-        second_subscription.exchange_name = 'final output'
-        second_subscription_id = pubsub_cli.create_subscription(second_subscription)
+        query = StreamQuery(stream_ids=[transform_output_stream_id])
+        second_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='final_output')
 
         # Create a final output stream
-        final_output = IonObject(RT.Stream,name='final_output_stream',description='Final output')
-        final_output.original = True
-        final_output.mimetype='raw'
-        final_output_id = pubsub_cli.create_stream(final_output)
+        final_output_id = pubsub_cli.create_stream(name='final_output', original=True)
 
 
         configuration = {}
@@ -307,36 +294,25 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
         # Streams
         #-------------------------------
-        input_stream = IonObject(RT.Stream,name='even_odd_input')
-        input_stream.original=True
-        input_stream_id = pubsub_cli.create_stream(input_stream)
+        input_stream_id = pubsub_cli.create_stream(name='input_stream', original=True)
 
-        even_stream = IonObject(RT.Stream,name='even_stream')
-        even_stream.original = True
-        even_stream_id = pubsub_cli.create_stream(even_stream)
+        even_stream_id = pubsub_cli.create_stream(name='even_stream', original=True)
 
-        odd_stream = IonObject(RT.Stream,name='odd_stream')
-        odd_stream.original = True
-        odd_stream_id = pubsub_cli.create_stream(odd_stream)
+        odd_stream_id = pubsub_cli.create_stream(name='odd_stream', original=True)
 
         #-------------------------------
         # Subscriptions
         #-------------------------------
 
-        input_subscription = IonObject(RT.Subscription, name='input_subscription')
-        input_subscription.query['stream_id'] = input_stream_id
-        input_subscription.exchange_name = 'input_queue'
-        input_subscription_id = pubsub_cli.create_subscription(input_subscription)
+        query = StreamQuery(stream_ids=[input_stream_id])
+        input_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='input_queue')
 
-        even_subscription = IonObject(RT.Subscription, name='even_subscription')
-        even_subscription.query['stream_id'] = even_stream_id
-        even_subscription.exchange_name = 'even_queue'
-        even_subscription_id = pubsub_cli.create_subscription(even_subscription)
+        query = StreamQuery(stream_ids = [even_stream_id])
+        even_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='even_queue')
 
-        odd_subscription = IonObject(RT.Subscription, name='odd_subscription')
-        odd_subscription.query['stream_id'] = odd_stream_id
-        odd_subscription.exchange_name = 'odd_queue'
-        odd_subscription_id = pubsub_cli.create_subscription(odd_subscription)
+        query = StreamQuery(stream_ids = [odd_stream_id])
+        odd_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='odd_queue')
+
 
         #-------------------------------
         # Launch the EvenOdd Transform
