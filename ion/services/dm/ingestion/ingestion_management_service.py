@@ -12,6 +12,7 @@ from pyon.ion.endpoint import ProcessPublisher
 from pyon.net.channel import SubscriberChannel
 from pyon.container.procs import ProcManager
 from pyon.core.exception import IonException
+from interface.objects import StreamQuery, ExchangeQuery
 
 class IngestionManagementServiceException(IonException):
     """
@@ -74,26 +75,29 @@ class IngestionManagementService(BaseIngestionManagementService):
         process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
         process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
-        # this should be removed tomorrow
-        input_stream = IonObject(RT.Stream,name='input_stream')
-        input_stream.original = True
-        input_stream.mimetype = 'hdf'
-        input_stream_id = self.clients.pubsub_management.create_stream(input_stream)
+#        # this should be removed tomorrow
+#        input_stream = IonObject(RT.Stream,name='input_stream')
+#        input_stream.original = True
+#        input_stream.mimetype = 'hdf'
+#        input_stream_id = self.clients.pubsub_management.create_stream(input_stream)
 
-#        input_stream_id = self.clients.pubsub_management.create_stream(encoding='', \
-#            original=True, stream_definition_type='', name='input_stream', description='only to launch ingestion workers', url='')
+        input_stream_id = self.clients.pubsub_management.create_stream(encoding='', \
+            original=True, stream_definition_type='', name='input_stream', description='only to launch ingestion workers', url='')
 
 
 #        # subscribe to that stream
 
-        subscription_obj = IonObject(RT.Subscription, name = "subscription", description = "input subscription")
-        subscription_obj.exchange_name = exchange_name
-        subscription_obj.query['stream_id'] = input_stream_id
-        # Call pubsub management to create a subscription for the exchange name
-        subscription_id = self.clients.pubsub_management.create_subscription(subscription_obj)
+#        subscription_obj = IonObject(RT.Subscription, name = "subscription", description = "input subscription")
+#        subscription_obj.exchange_name = exchange_name
+#        subscription_obj.query['stream_id'] = input_stream_id
+#        # Call pubsub management to create a subscription for the exchange name
+#        subscription_id = self.clients.pubsub_management.create_subscription(subscription_obj)
 
-#        subscription_id = self.clients.pubsub_management.create_subscription(query={'stream_id':input_stream_id}, \
-#            exchange_name=exchange_name, name='subscription', description='only to launch ingestion workers')
+        stream_ids = [input_stream_id]
+        query = StreamQuery(stream_ids)
+
+        subscription_id = self.clients.pubsub_management.create_subscription(query=query, \
+            exchange_name=exchange_name, name='subscription', description='only to launch ingestion workers')
 
         ## open Rabbitmq control and create a binding to *!!!
 
@@ -129,23 +133,20 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
         This method spawns the two transform processes without activating them...Note: activating the transforms does the binding
         """
-
-        #configuration= {'process':{'name':'configuration','type':"stream_process",'listen_name': listen_name }}
         configuration= {}
-#        name = 'Ingestion_Worker'
-#        description = 'Ingestion Worker'
+        description = 'Ingestion worker'
 
         # launch the transforms
         # we spawn the transform processes without actually activating them yet...
         for i in range(number_of_workers):
-            # transform_id = self.clients.transform_management.create_transform(name = name, description = description, \
-            # in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id, configuration=configuration)
-            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
-                process_definition_id=process_definition_id, configuration=configuration)
+            name = 'Ingestion_Worker_%s' % i
+            transform_id = self.clients.transform_management.create_transform(name = name, description = description, \
+                     in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id, \
+                                configuration=configuration)
+#            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
+#                process_definition_id=process_definition_id, configuration=configuration)
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
-#            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id,\
-#                        process_definition_id=self.process_definition_id, configuration={'process':{'name':'transform'+str(i)}})
             try:
                 self.clients.resource_registry.create_association(ingestion_configuration_id, AT.hasTransform, transform_id)
             except Exception as exc:
@@ -217,20 +218,18 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
         log.debug("Deactivating ingestion configuration")
 
-        pass
-
-#        # use the deactivate method in transformation management service
-#        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
-#            AT.hasTransform, RT.Transform, True)
-#        if len(transform_ids) < 1:
-#            raise NotFound
-#        for transform_id in transform_ids:
-#            try:
-#                self.clients.transform_management.deactivate_transform(transform_id)
-#            except Exception as exc:
-#                raise IngestionManagementServiceException('Error while using transform_management to deactivate transform %s.'\
-#                % transform_id)
-#        return True
+        # use the deactivate method in transformation management service
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
+            AT.hasTransform, RT.Transform, True)
+        if len(transform_ids) < 1:
+            raise NotFound('The ingestion configuration with id %s does not exist' % ingestion_configuration_id)
+        for transform_id in transform_ids:
+            try:
+                self.clients.transform_management.deactivate_transform(transform_id)
+            except Exception as exc:
+                raise IngestionManagementServiceException('Error while using transform_management to deactivate transform %s.'\
+                % transform_id)
+        return True
 
     def create_stream_policy(self, stream_id='', archive_data='', archive_metadata=''):
         """Create a policy for a particular stream and associate it to the ingestion configuration for the exchange point the stream is on. (After LCA)

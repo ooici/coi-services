@@ -6,7 +6,6 @@ which subscribe to a single stream.
 """
 
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from pyon.public import IonObject, RT, log, AT
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.public import log, StreamProcess
@@ -28,6 +27,6 @@ ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 ############################################################################################
 # messages will be produced and published
 id_p = cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
-        {'process':{'type':'stream_process','publish_streams':{'out_stream':'ec38426d58dd4133b5001f2d0d3183b7'}},\
+        {'process':{'type':'stream_process','publish_streams':{'out_stream':'3b93f5de319e4ac4b6465815f119c596'}},\
          'stream_producer':{'interval':4000}})
 cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
