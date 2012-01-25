@@ -6,6 +6,7 @@
 import threading
 import time
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.ion.streamproc import StreamProcess
 from pyon.public import log
@@ -14,16 +15,14 @@ from pyon.public import IonObject
 
 class IngestionExampleProducer(StreamProcess):
     """
+    Replace this with a generic example
     id_p = cc.spawn_process('myproducer', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
     cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
     """
 
     def on_init(self):
         log.debug("StreamProducer init. Self.id=%s" % self.id)
-        self.pubsub_client = PubsubManagementServiceProcessClient(process=self, node=self.container.node)
-        stream = IonObject('Stream')
-        stream_id = self.pubsub_client.create_stream(stream)
-        self.CFG['process']['publish_streams'] = {'out_stream':stream_id}
+
 
     def start(self):
 
@@ -61,6 +60,7 @@ class IngestionExampleProducer(StreamProcess):
             log.debug("Message %s published", num)
             num += 1
             time.sleep(interval/1000.0)
+
 
 
 class IngestionExample(StreamProcess):

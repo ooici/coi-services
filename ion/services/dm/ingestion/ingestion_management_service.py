@@ -9,8 +9,8 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, AT, log, IonObject
 from pyon.public import CFG, StreamProcess
 from pyon.ion.endpoint import ProcessPublisher
-from ion.services.dm.ingestion.ingestion import Ingestion
 from pyon.net.channel import SubscriberChannel
+from pyon.container.procs import ProcManager
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -30,8 +30,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         process definitions. This will later probably be part of a set of predefinitions for processes.
         """
          # set up process definition
-        process_definition = IonObject(RT.ProcessDefinition, name='first_transform_definition')
-        process_definition.executable = {'module': 'ion.services.dm.transformation.example.transform_example', 'class':'TransformExample'}
+        process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
+        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
         self.process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={}, \
@@ -48,34 +48,34 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # Get Exchange Point name from exchange_point_id
         ## Exchange points don't exist yet - use a hard coded name
-        XP = 'science.data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
+        XP = 'science_data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
 
         exchange_name = XP + '_ingestion_queue'
 
 
-        # Call pubsub management to create a subscription for the exchange name
-        subscription_id = self.clients.pubsub_management.create_subscription('input_subscription')
-
+        ##------------------------------------------------------------------------------------
         ## For testing until changes to to pubsub are finished to subscribe to star...
 
         # create a stream
-#        cc= self.container
-#
-#        id_p = cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer', \
-#                {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
-#        cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
+        # ProcManager.spawn_process(name='aStream', module=None, cls=None, config=None, process_type=RT.Stream)
 
-        input_stream = IonObject(RT.Stream,name='input_stream', description='input stream')
+        # this should be removed tomorrow
+        input_stream = IonObject(RT.Stream,name='input_stream')
         input_stream.original = True
         input_stream.mimetype = 'hdf'
         input_stream_id = self.clients.pubsub_management.create_stream(input_stream)
 
-        # subscribe to that stream
-        subscription = self.clients.resource_registry.read(subscription_id)
-        subscription.query['stream_id'] = input_stream_id
-        subscription.exchange_name = exchange_name
+#        # subscribe to that stream
+
+        subscription_obj = IonObject(RT.Subscription, name = "subscription", description = "input subscription")
+        subscription_obj.exchange_name = exchange_name
+        subscription_obj.query['stream_id'] = input_stream_id
+        # Call pubsub management to create a subscription for the exchange name
+        subscription_id = self.clients.pubsub_management.create_subscription(subscription_obj)
 
         ## open Rabbitmq control and create a binding to *!!!
+
+        ##------------------------------------------------------------------------------------------
 
         # create an ingestion_configuration instance and update the registry
         # @todo: right now sending in the exchange_point_id as the name...
@@ -85,28 +85,34 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration.couch_storage = couch_storage
         ingestion_configuration.default_policy = default_policy
 
-        id, rev = self.clients.resource_registry.create(ingestion_configuration)
+        ingestion_configuration_id, rev = self.clients.resource_registry.create(ingestion_configuration)
 
         # Launch the transforms!
 
-        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id=subscription_id, \
-            listen_name='_ingestion_queue', ingestion_configuration_id=id)
+        # @todo: Check whether the correct listen_name is being passed
 
-        return id
+        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id)
 
-    def _launch_transforms(self, number_of_workers, subscription_id, listen_name, ingestion_configuration_id):
+        return ingestion_configuration_id
+
+    def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id):
         """
         We spawn the transform processes without actually activating them...
         """
 
-        configuration= {'process':{'name':'configuration','type':"stream_process",'listen_name': listen_name }}
+        #configuration= {'process':{'name':'configuration','type':"stream_process",'listen_name': listen_name }}
+        configuration= {}
+        transform_ids = []
 
         # launch the transforms
         # we spawn the transform processes without actually activating them yet...
-        for i in range(1,number_of_workers):
+        for i in range(number_of_workers):
             transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
                 process_definition_id=self.process_definition_id, configuration=configuration)
+#            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id,\
+#                        process_definition_id=self.process_definition_id, configuration={'process':{'name':'transform'+str(i)}})
             self.clients.resource_registry.create_association(ingestion_configuration_id, AT.hasTransform, transform_id)
+
 
     def update_ingestion_configuration(self, ingestion_configuration={}):
         """Change the number of workers or the default policy for ingesting data on each stream
