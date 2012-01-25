@@ -6,7 +6,7 @@ from ion.services.sa.product.data_product_management_service import DataProductM
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, PRED, LCS
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -67,7 +67,7 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.resource_registry.create.assert_called_once_with(dpt_obj)
         self.data_acquisition_management.create_data_producer.assert_called_once_with(dpr_obj)
         self.resource_registry.create_association.assert_called_once_with('SOME_RR_ID1',
-                                                                          AT.hasDataProducer,
+                                                                          PRED.hasDataProducer,
                                                                           'SOME_RR_ID2',
                                                                           None)
 

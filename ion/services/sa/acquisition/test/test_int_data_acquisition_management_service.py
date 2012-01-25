@@ -9,7 +9,7 @@
 from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
-from pyon.public import AT, RT
+from pyon.public import PRED, RT
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -124,7 +124,6 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         else:
             self.fail("non-existing data source was found during delete")
 
-
     #@unittest.skip('Not done yet.')
     def test_create_producer(self):
         # Create a data producer in coordination with DM PubSub: create stream, register and create producer object
@@ -153,9 +152,6 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data producer: %s" %ex)
         print 'new data producer id = ', ds_id
-
-
-
 
     @unittest.skip('Not done yet.')
     def test_register_process_and_send(self):

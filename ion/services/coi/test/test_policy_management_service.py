@@ -9,7 +9,7 @@ from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT
+from pyon.public import PRED, RT
 from ion.services.coi.policy_management_service import PolicyManagementService
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
