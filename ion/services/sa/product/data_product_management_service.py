@@ -8,7 +8,7 @@ from interface.services.sa.idata_product_management_service import BaseDataProdu
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, PRED, LCS
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -53,7 +53,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             data_producer_id = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
             log.debug("DataProductManagementService.define_data_product create_data_producer result: %s " % data_producer_id)
             self.clients.resource_registry.create_association(data_product_id, 
-                                                              AT.hasDataProducer, 
+                                                              PRED.hasDataProducer, 
                                                               data_producer_id)
             
         return data_product_id

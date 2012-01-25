@@ -27,7 +27,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification_id, version = self.clients.resource_registry.create(notification)
 
         #associate the notification to the user
-        #self.clients.resource_registry.create_association(user_id, AT.hasNotification, notification_id)
+        #self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
         #store the notification in datastore for quick reference
         # TBD

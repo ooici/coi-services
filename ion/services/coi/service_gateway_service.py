@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
 import inspect, json, simplejson, collections
 
-from pyon.public import AT, RT, IonObject, Container, ProcessRPCClient
+from pyon.public import PRED, RT, IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService

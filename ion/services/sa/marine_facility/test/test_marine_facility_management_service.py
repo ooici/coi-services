@@ -11,7 +11,7 @@ from mock import Mock, sentinel, patch
 from pyon.util.unit_test import PyonTestCase
 from ion.services.sa.marine_facility.marine_facility_management_service import MarineFacilityManagementService
 from nose.plugins.attrib import attr
-from pyon.public import AT, RT
+from pyon.public import PRED, RT
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 import unittest
@@ -46,7 +46,7 @@ class TestMarineFacilityManagement(PyonTestCase):
     def test_assign_instrument(self):
         self.marine_facility_mgmt_service.assign_instrument('111', '222')
 
-        self.marine_facility_mgmt_service.clients.resource_registry.create_association.assert_called_once_with('222', AT.hasInstrument, '111', None)
+        self.marine_facility_mgmt_service.clients.resource_registry.create_association.assert_called_once_with('222', PRED.hasInstrument, '111', None)
 
 rwm = ResourceImplMetatest(TestMarineFacilityManagement, MarineFacilityManagementService, log)
 

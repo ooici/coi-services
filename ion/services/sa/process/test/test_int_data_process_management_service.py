@@ -13,7 +13,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import Container, log, IonObject
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, PRED, LCS
 from pyon.core.exception import BadRequest, NotFound, Conflict
 
 @attr('INT', group='sa')

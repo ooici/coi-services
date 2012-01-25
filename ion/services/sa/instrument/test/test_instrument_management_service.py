@@ -47,14 +47,14 @@ class TestInstrumentManagement(PyonTestCase):
 
 rwm = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
 
-rwm.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange-name": "rhubarb"})
+rwm.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rwm.add_resource_impl_unittests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
 rwm.add_resource_impl_unittests(InstrumentDeviceImpl, {"serialnumber": "123", "firmwareversion": "x"})
 rwm.add_resource_impl_unittests(InstrumentModelImpl, {"model": "redundant?", "weight": 20000})
-rwm.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange-name": "sausage"})
-rwm.add_resource_impl_unittests(PlatformAgentImpl, {"tbd": "the big donut"})
+rwm.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange_name": "sausage"})
+rwm.add_resource_impl_unittests(PlatformAgentImpl, {"description": "the big donut"})
 rwm.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
-rwm.add_resource_impl_unittests(PlatformModelImpl, {"tbd": "tammy breathed deeply"})
+rwm.add_resource_impl_unittests(PlatformModelImpl, {"description": "tammy breathed deeply"})
 rwm.add_resource_impl_unittests(SensorDeviceImpl, {"serialnumber": "123"})
 rwm.add_resource_impl_unittests(SensorModelImpl, {"model": "redundant field?", "weight": 2})
 

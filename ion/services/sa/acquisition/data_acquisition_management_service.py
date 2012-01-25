@@ -10,7 +10,7 @@ and the relationships between them
 
 from interface.services.sa.idata_acquisition_management_service import BaseDataAcquisitionManagementService
 from pyon.core.exception import NotFound
-from pyon.public import CFG, IonObject, log, RT, AT, LCS
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS
 
 
 
@@ -109,7 +109,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         log.debug("Removing DataProducer objects and links")
         for x in producers:
             # List all association ids with given subject, predicate, object triples
-            assoc_ids, _ = self.clients.resource_registry.find_associations(resource_id, AT.hasDataProducer, x, True)
+            assoc_ids, _ = self.clients.resource_registry.find_associations(resource_id, PRED.hasDataProducer, x, True)
             for y in assoc_ids:
                 self.clients.resource_registry.delete_association(y)
 
@@ -129,7 +129,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_producer_id = self._create_producer_resource(dp)
 
         # Create association
-        self.clients.resource_registry.create_association(data_source_id, AT.hasDataProducer, data_producer_id)
+        self.clients.resource_registry.create_association(data_source_id, PRED.hasDataProducer, data_producer_id)
 
         return data_producer_id
 
@@ -139,7 +139,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         """
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        res_ids, _ = self.clients.resource_registry.find_objects(data_source_id, AT.hasDataProducer, None, True)
+        res_ids, _ = self.clients.resource_registry.find_objects(data_source_id, PRED.hasDataProducer, None, True)
         if res_ids is None:
             raise NotFound("Data Producer for Data Source %d does not exist" % data_source_id)
 
@@ -162,7 +162,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_producer_id = self._create_producer_resource(dp)
 
         # Create association
-        self.clients.resource_registry.create_association(data_process_id, AT.hasDataProducer, data_producer_id)
+        self.clients.resource_registry.create_association(data_process_id, PRED.hasDataProducer, data_producer_id)
 
         return data_producer_id
 
@@ -172,7 +172,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         """
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        res_ids, _ = self.clients.resource_registry.find_objects(data_process_id, AT.hasDataProducer, None, True)
+        res_ids, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasDataProducer, None, True)
         if res_ids is None:
             raise NotFound("Data Producer for Data Process %d does not exist" % data_process_id)
 
@@ -192,7 +192,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_producer_id = self._create_producer_resource(inst)
 
         # Create association
-        self.clients.resource_registry.create_association(instrument_id, AT.hasDataProducer, data_producer_id)
+        self.clients.resource_registry.create_association(instrument_id, PRED.hasDataProducer, data_producer_id)
 
         return data_producer_id
 
@@ -202,7 +202,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         """
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        res_ids, _ = self.clients.resource_registry.find_objects(instrument_id, AT.hasDataProducer, None, True)
+        res_ids, _ = self.clients.resource_registry.find_objects(instrument_id, PRED.hasDataProducer, None, True)
         if res_ids is None:
             raise NotFound("Data Producer for Instrument %d does not exist" % instrument_id)
 

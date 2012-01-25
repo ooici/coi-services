@@ -9,7 +9,7 @@ from pyon.util.log import log
 import time
 from interface.services.sa.idata_process_management_service \
 import BaseDataProcessManagementService
-from pyon.public import   log, RT, AT
+from pyon.public import   log, RT, PRED
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
@@ -148,13 +148,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Associations
         self.clients.resource_registry.create_association(data_process_id,
-                                                          AT.hasInputProduct,
+                                                          PRED.hasInputProduct,
                                                           in_data_product_id)
         self.clients.resource_registry.create_association(data_process_id,
-                                                          AT.hasOutputProduct,
+                                                          PRED.hasOutputProduct,
                                                           out_data_product_id)
         self.clients.resource_registry.create_association(data_process_id,
-                                                          AT.hasTransform,
+                                                          PRED.hasTransform,
                                                           transform_id)
 
         return data_process_id
@@ -194,7 +194,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 raise BadRequest("Data definition has invalid process source code.")
 
         transform_ids, _ = self.clients.resource_registry.\
-            find_associations(data_process_id, AT.hasTransform)
+            find_associations(data_process_id, PRED.hasTransform)
         if not transform_ids:
             raise NotFound("No transform associated with data process ID " +
                            str(data_process_id))
@@ -226,7 +226,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         log.debug("DataProcessManagementService:read_data_process: " +
                   str(data_process_id))
-        transform_ids, _ = self.clients.resource_registry.find_associations(data_process_id, AT.hasTransform)
+        transform_ids, _ = self.clients.resource_registry.find_associations(data_process_id, PRED.hasTransform)
         if not transform_ids:
             raise NotFound("No transform associated with data process ID " + str(data_process_id))
         transform_obj = self.clients.transform_management_service.read_transform(transform_ids[0])

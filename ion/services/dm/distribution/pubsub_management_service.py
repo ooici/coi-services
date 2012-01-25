@@ -11,7 +11,7 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import \
     BasePubsubManagementService
 from pyon.core.exception import NotFound
-from pyon.public import RT, AT, log, IonObject
+from pyon.public import RT, PRED, log, IonObject
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
 
@@ -145,7 +145,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         #we need the stream_id to create the association between the
         #subscription and stream.
-        self.clients.resource_registry.create_association(subscription_id, AT.hasStream, subscription.query['stream_id'])
+        self.clients.resource_registry.create_association(subscription_id, PRED.hasStream, subscription.query['stream_id'])
         return subscription_id
 
     def update_subscription(self, subscription=None):
@@ -188,7 +188,7 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
         # Find and break association with UserIdentity
-        subjects, assocs = self.clients.resource_registry.find_subjects(subscription_id, AT.hasStream, subscription_obj.query['stream_id'])
+        subjects, assocs = self.clients.resource_registry.find_subjects(subscription_id, PRED.hasStream, subscription_obj.query['stream_id'])
         if not assocs:
             raise NotFound("Subscription to Stream association for subscription id %s does not exist" % subscription_id)
         association_id = assocs[0]._id
@@ -210,7 +210,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        ids, assocs = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+        ids, assocs = self.clients.resource_registry.find_objects(subscription_id, PRED.hasStream, RT.Stream, id_only=True)
 
         for stream_id in ids:
             print stream_id

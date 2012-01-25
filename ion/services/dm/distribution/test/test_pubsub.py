@@ -12,7 +12,7 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import AT, RT, IonObject
+from pyon.public import PRED, RT, IonObject
 from nose.plugins.attrib import attr
 import unittest
 
@@ -158,7 +158,7 @@ class PubSubTest(PyonTestCase):
 
         id = self.pubsub_service.create_subscription(self.subscription)
         self.mock_create.assert_called_once_with(self.subscription)
-        self.mock_create_association.assert_called_once_with(self.subscription_id, AT.hasStream, self.stream_id, None)
+        self.mock_create_association.assert_called_once_with(self.subscription_id, PRED.hasStream, self.stream_id, None)
         self.assertEqual(id, self.subscription_id)
 
     def test_read_and_update_subscription(self):
@@ -197,7 +197,7 @@ class PubSubTest(PyonTestCase):
 
         self.assertEqual(ret, True)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_subjects.assert_called_once_with(self.subscription_id, AT.hasStream, self.subscription.query['stream_id'], False)
+        self.mock_find_subjects.assert_called_once_with(self.subscription_id, PRED.hasStream, self.subscription.query['stream_id'], False)
         self.mock_delete_association.assert_called_once_with(self.association_id)
         self.mock_delete.assert_called_once_with(self.subscription)
 
@@ -225,7 +225,7 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Subscription to Stream association for subscription id subscription_id does not exist')
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_subjects.assert_called_once_with(self.subscription_id, AT.hasStream, self.subscription.query['stream_id'], False)
+        self.mock_find_subjects.assert_called_once_with(self.subscription_id, PRED.hasStream, self.subscription.query['stream_id'], False)
         self.assertEqual(self.mock_delete_association.call_count, 0)
         self.assertEqual(self.mock_delete.call_count, 0)
 
