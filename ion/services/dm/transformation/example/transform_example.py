@@ -1,8 +1,9 @@
 '''
 @author Luke Campbell
 @file ion/services/dm/transformation/example/transform_example.py
-@description an Example of a transform
+@description Transform Examples, Transform Example Launcher
 '''
+import commands
 import threading
 import time
 from interface.objects import ProcessDefinition, StreamQuery
@@ -122,7 +123,19 @@ class TransformExample(TransformDataProcess):
             f.write('(%s):   - Transform - %d\n' % (self.name,output))
 
 class ExternalTransform(TransformProcessAdaptor):
-    pass
+    def on_start(self):
+        super(ExternalTransform, self).on_start()
+        self.has_output = (len(self.streams)>0)
+
+    def process(self,packet):
+        input = int(packet.get('num',0))
+        prep = 'echo \'1+%d\' | bc' %(input)
+        output = commands.getoutput(prep)
+        if self.has_output:
+            self.publish(dict(num=output))
+
+        with open('/tmp/transform_output', 'a') as f:
+            f.write('(%s): Received %s, transform: %s\n' %(self.name, packet, output))
 
 class ReverseTransform(TransformFunction):
     def execute(self, input):
@@ -371,3 +384,57 @@ class TransformExampleLauncher(BaseService):
 
         id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
+
+    #-------------------------------
+    # run_external_transform()
+    #-------------------------------
+    def run_external_transform(self):
+        '''
+        This example script illustrates how a transform can interact with the an outside process (very basic)
+        it launches an external_transform example which uses the operating system command 'bc' to add 1 to the input
+
+        Producer -> A -> '/tmp/transform_output'
+        A is an external transform that spawns an OS process to increment the input by 1
+        '''
+        pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
+        tms_cli = TransformManagementServiceClient(node=self.container.node)
+        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        
+        #-------------------------------
+        # Process Definition
+        #-------------------------------
+        process_definition = ProcessDefinition(name='external_transform_definition')
+        process_definition.executable['module'] = 'ion.services.dm.transformation.example.transform_example'
+        process_definition.executable['class'] = 'ExternalTransform'
+        process_definition_id, _ = rr_cli.create(process_definition)
+
+        #-------------------------------
+        # Streams
+        #-------------------------------
+
+        input_stream_id = pubsub_cli.create_stream(name='input_stream', original=True)
+        
+        #-------------------------------
+        # Subscription
+        #-------------------------------
+
+        query = StreamQuery(stream_ids=[input_stream_id])
+        input_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='input_queue')
+
+        #-------------------------------
+        # Launch Transform
+        #-------------------------------
+
+        transform_id = tms_cli.create_transform(name='external_transform', 
+              in_subscription_id=input_subscription_id,
+              process_definition_id=process_definition_id,
+              configuration={})
+        tms_cli.activate_transform(transform_id)
+
+        #-------------------------------
+        # Launch Producer
+        #-------------------------------
+
+        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
+        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
+
