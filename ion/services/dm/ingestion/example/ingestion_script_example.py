@@ -28,6 +28,6 @@ ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 ############################################################################################
 # messages will be produced and published
 id_p = cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
-        {'process':{'type':'stream_process','publish_streams':{'out_stream':'ff17005d70694aca864f76f52a03fd61'}},\
+        {'process':{'type':'stream_process','publish_streams':{'out_stream':'ec38426d58dd4133b5001f2d0d3183b7'}},\
          'stream_producer':{'interval':4000}})
 cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
