@@ -2,11 +2,10 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.public import CFG, IonObject, log, RT, AT
+from pyon.public import CFG, IonObject, log, RT, PRED
 
 from interface.services.coi.iexchange_management_service import BaseExchangeManagementService
 from pyon.core.exception import Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT
 from pyon.util.log import log
 
 class ExchangeManagementService(BaseExchangeManagementService):
@@ -27,7 +26,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         self.assert_condition(exchange_space and org_id, "Arguments not set")
         exchange_space_id,rev = self.clients.resource_registry.create(exchange_space)
 
-        aid = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, exchange_space_id)
+        aid = self.clients.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
 
         # Now do the work
         if exchange_space.name == "ioncore":
@@ -92,7 +91,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         exchange_name_id,rev = self.clients.resource_registry.create(exchange_name)
 
-        aid = self.clients.resource_registry.create_association(exchange_space, AT.hasExchangeName, exchange_name_id)
+        aid = self.clients.resource_registry.create_association(exchange_space, PRED.hasExchangeName, exchange_name_id)
 
         return exchange_name_id  #QUestion - is this the correct canonical name?
 
@@ -124,7 +123,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
 
-        #aid = self.clients.resource_registry.create_association(exchange_space_id, AT.hasExchangePoint, exchange_point_id)
+        #aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
 
         return exchange_point_id
 
