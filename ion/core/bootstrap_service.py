@@ -4,7 +4,7 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, AT, iex
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, PRED, iex
 
 from interface.services.ibootstrap_service import BaseBootstrapService
 
@@ -105,10 +105,10 @@ class BootstrapService(BaseBootstrapService):
         xs_ids, _ = self.clients.resource_registry.find_resources(RT.ExchangeSpace, None, None, True)
         self.assert_condition(len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined")
 
-        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, AT.hasExchangeSpace, RT.ExchangeSpace, True)
+        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, PRED.hasExchangeSpace, RT.ExchangeSpace, True)
         self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated")
 
-        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, AT.hasExchangeSpace, self.xs_id, True)
+        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, self.xs_id, True)
         self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated")
 
     def on_quit(self):

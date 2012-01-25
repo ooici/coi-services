@@ -85,7 +85,7 @@ class DataStoreService(BaseDatastoreService):
         return self.datastore.update_doc(object, datastore_name)
 
     def delete(self, object={}, datastore_name=''):
-        return self.datastore.delete_doc(object, datastore_name)
+        return self.datastore.delete(object, datastore_name)
 
     def delete_doc(self, object={}, datastore_name=''):
         return self.datastore.delete_doc(object, datastore_name)

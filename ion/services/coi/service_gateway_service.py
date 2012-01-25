@@ -9,7 +9,7 @@ from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
 import inspect, json, simplejson, collections, ast
 
-from pyon.public import AT, RT, IonObject, Container, ProcessRPCClient
+from pyon.public import PRED, RT, IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
 from pyon.core.registry import get_message_class_in_parm_type, getextends
 from pyon.ion.resource import ResourceTypes
