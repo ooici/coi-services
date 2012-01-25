@@ -306,7 +306,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
         self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
 
-        self.cc.start_rel_from_url('res/deploy/r2deploy.yml')
+        self.cc.start_rel_from_url('res/deploy/r2dm.yml')
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)

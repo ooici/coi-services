@@ -22,6 +22,9 @@ from pyon.public import IonObject, RT, log, AT
 
 class TransformExampleProducer(StreamProcess):
     """
+    Used as a data producer in examples.
+    It publishes input for the following examples as {'num':<int>} where <int> is the integer.
+    The production is published every 4 seconds and the published data is incremented by 1
     id_p = cc.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
     cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
     """
@@ -70,6 +73,9 @@ class TransformExampleProducer(StreamProcess):
 class TransformEvenOdd(TransformDataProcess):
     '''A simple transform that takes the input of a number and maps an even and odd sequence
     to two separate streams, even and odd
+    When creating the transform ensure that the output streams are labeled as even and odd,
+    ex:
+    ... create_transform(... output_streams= { 'even': even_stream_id, 'odd': odd_stream_id } ...
     '''
     def on_start(self):
         super(TransformEvenOdd,self).on_start()
@@ -87,15 +93,15 @@ class TransformEvenOdd(TransformDataProcess):
         log.debug('(%s) Odd Transform: %s', self.name, odd)
 
 class TransformExample(TransformDataProcess):
+    ''' A basic transform that receives input through a subscription,
+    parses the input for an integer and adds 1 to it. If the transform
+    has an output_stream it will publish the output on the output stream.
+
+    This transform appends transform work in '/tmp/transform_output'
+    '''
 
     def __init__(self, *args, **kwargs):
         super(TransformExample,self).__init__()
-
-#    def __str__(self):
-#        state_info = '  process_definition_id: ' + str(self.process_definition_id) + \
-#                     '\n  in_subscription_id: ' + str(self.in_subscription_id) + \
-#                     '\n  out_stream_id: ' + str(self.out_stream_id)
-#        return state_info
 
     def callback(self):
         log.debug('Transform Process is working')
@@ -123,6 +129,11 @@ class TransformExample(TransformDataProcess):
             f.write('(%s):   - Transform - %d\n' % (self.name,output))
 
 class ExternalTransform(TransformProcessAdaptor):
+    '''This transform is an example of a transform that is run external to ION
+    process() spawns an OS process to externally perform the transform (incrementation by 1)
+    takes the returned output and publishes it on all available streams.
+
+    '''
     def on_start(self):
         super(ExternalTransform, self).on_start()
         self.has_output = (len(self.streams)>0)
@@ -138,6 +149,16 @@ class ExternalTransform(TransformProcessAdaptor):
             f.write('(%s): Received %s, transform: %s\n' %(self.name, packet, output))
 
 class ReverseTransform(TransformFunction):
+    ''' This transform is an example of a transform that can be used as a TransformFunction
+    it is interchangeable as either a TransformDataProcess or a TransformFunction
+
+    TransformFunctions can be run by calling transform_management_service.execute_transform
+    or they can be created normally through create_transform
+
+    Typically these are short run, small scale transforms, they are blocking and will block
+    the management service until the result is computed. The result of the transform is returned
+    from execute_transform.
+    '''
     def execute(self, input):
         retval = input
         retval.reverse()
