@@ -121,10 +121,6 @@ class TransformExample(TransformDataProcess):
             f.write('(%s): Received Packet: %s\n' % (self.name,packet))
             f.write('(%s):   - Transform - %d\n' % (self.name,output))
 
-
-
-
-
 class ExternalTransform(TransformProcessAdaptor):
     pass
 
@@ -135,8 +131,11 @@ class ReverseTransform(TransformFunction):
 
         return retval
 
-
 class TransformExampleLauncher(BaseService):
+    """
+    This Service Launches and controls the execution of various transform examples.
+    """
+
 
     def __init__(self, *args, **kwargs):
         super(TransformExampleLauncher,self).__init__(*args,**kwargs)
@@ -149,15 +148,33 @@ class TransformExampleLauncher(BaseService):
         transform_example_definition.executable['module'] = 'ion.services.dm.transformation.transform_example'
         transform_example_definition.executable['class'] = 'TransformExample'
 
-
+    #-------------------------------
+    # on_start()
+    #-------------------------------
     def on_start(self):
+        ''' Parses the example configuration parameter and prepends 'run_' on it, then executes the function
+        '''
         self.name = self.CFG.get('name')
 
         # Parse config for which example script to run
         run_str = 'run_' + self.CFG.get('example','basic_transform')
         script = getattr(self,run_str)
         script()
+
+    #-------------------------------
+    # run_basic_transform()
+    #-------------------------------
     def run_basic_transform(self):
+        ''' Runs a basic example of a transform. It chains two transforms together, each add 1 to their input
+
+        Producer -> A -> B
+        Producer generates a number every four seconds and publishes it on the 'ctd_output_stream'
+          the producer is acting as a CTD or instrument in this example.
+        A is a basic transform that increments its input and publishes it on the 'transform_output' stream.
+        B is a basic transform that receives input.
+        All transforms write logging data to '/tmp/transform_output' so you can visually see activity of the transforms
+        '''
+
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
         rr_cli = ResourceRegistryServiceClient(node=self.container.node)
@@ -187,9 +204,7 @@ class TransformExampleLauncher(BaseService):
         # Create an output stream for the transform
         transform_output_stream_id = pubsub_cli.create_stream(name='transform_output', original=True)
 
-
         configuration = {}
-
 
         # Launch the first transform process
         transform_id = tms_cli.create_transform( name='basic_transform',
@@ -198,7 +213,6 @@ class TransformExampleLauncher(BaseService):
             process_definition_id=process_definition_id,
             configuration=configuration)
         tms_cli.activate_transform(transform_id)
-
 
         #-------------------------------
         # Second Transform
@@ -229,7 +243,12 @@ class TransformExampleLauncher(BaseService):
         id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 
+    #-------------------------------
+    # run_reverse_transform()
+    #-------------------------------
     def run_reverse_transform(self):
+        ''' Runs a reverse transform example and displays the results of performing the transform
+        '''
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
         rr_cli = ResourceRegistryServiceClient(node=self.container.node)
@@ -238,17 +257,12 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
         # Process Definition
         #-------------------------------
-
         process_definition = IonObject(RT.ProcessDefinition, name='transform_process_definition')
         process_definition.executable = {
             'module': 'ion.services.dm.transformation.example.transform_example',
             'class':'ReverseTransform'
         }
         process_definition_id, _ = rr_cli.create(process_definition)
-
-
-
-
 
         #-------------------------------
         # Execute Transform
@@ -260,12 +274,17 @@ class TransformExampleLauncher(BaseService):
         log.debug('Transform Input: %s', input)
         log.debug('Transform Output: %s', retval)
 
+    #-------------------------------
+    # run_even_odd_transform()
+    #-------------------------------
     def run_even_odd_transform(self):
-        #-------------------------------
-        # Script Explanation
-        #-------------------------------
         '''
-        This example script runs a Transform
+        This example script runs a chained three way transform:
+            B
+        A <
+            C
+        Where A is the even_odd transform (generates a stream of even and odd numbers from input)
+        and B and C are the basic transforms that receive even and odd input
         '''
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
