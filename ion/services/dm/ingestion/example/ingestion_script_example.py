@@ -15,7 +15,7 @@ ctd_output_stream_id = pubsub_client.create_stream(name='ctd_output_stream', ori
 
 # create transforms... queues will be created in this step
 ingestion_configuration_id = ingestion_client.create_ingestion_configuration(exchange_point_id='science_data', couch_storage={},\
-    hdf_storage={},  number_of_workers=2, default_policy={})
+    hfd_storage={},  number_of_workers=2, default_policy={})
 # activates the transforms... so bindings will be created in this step
 ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 
