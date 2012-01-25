@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-__author__ = 'Stephen P. Henrie'
+__author__ = 'Stephen P. Henrie, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 
@@ -10,75 +10,75 @@ from interface.services.cei.iexecution_engine_management_service import BaseExec
 class ExecutionEngineManagementService(BaseExecutionEngineManagementService):
 
     def create_execution_engine_definition(self, execution_engine_definition=None):
-        """ Should receive an ExecutionEngineDefinition object
+        """Creates an Execution Engine Definition based on given object.
+
+        @param execution_engine_definition    ExecutionEngineDefinition
+        @retval execution_engine_definition_id    str
+        @throws BadRequest    if object passed has _id or _rev attribute
         """
-        # Return Value
-        # ------------
-        # {execution_engine_definition_id: ''}
-        #
-        pass
+        ee_id, version = self.clients.resource_registry.create(execution_engine_definition)
+        return ee_id
 
     def update_execution_engine_definition(self, execution_engine_definition=None):
-        """ Should receive an ExecutionEngineDefinition object
+        """Updates an Execution Engine Definition based on given object.
+
+        @param execution_engine_definition    ExecutionEngineDefinition
+        @throws BadRequest    if object does not have _id or _rev attribute
+        @throws NotFound    object with specified id does not exist
+        @throws Conflict    object not based on latest persisted object version
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        self.clients.resource_registry.update(execution_engine_definition)
 
     def read_execution_engine_definition(self, execution_engine_definition_id=''):
-        """ Should return an ExecutionEngineDefinition object
+        """Returns an Execution Engine Definition as object.
+
+        @param execution_engine_definition_id    str
+        @retval execution_engine_definition    ExecutionEngineDefinition
+        @throws NotFound    object with specified id does not exist
         """
-        # Return Value
-        # ------------
-        # execution_engine_definition: {}
-        #
-        pass
+        eed = self.clients.resource_registry.read(execution_engine_definition_id)
+        return eed
 
     def delete_execution_engine_definition(self, execution_engine_definition_id=''):
-        """method docstring
+        """Deletes/retires an Execution Engine Definition.
+
+        @param execution_engine_definition_id    str
+        @throws NotFound    object with specified id does not exist
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        self.clients.resource_registry.delete(execution_engine_definition_id)
 
     def create_execution_engine(self, execution_engine=None):
-        """ Should receive an ExecutionEngine object
+        """Creates an Execution Engine based on given object.
+
+        @param execution_engine    ExecutionEngine
+        @retval execution_engine_id    str
+        @throws BadRequest    if object passed has _id or _rev attribute
         """
-        # Return Value
-        # ------------
-        # {execution_engine_id: ''}
-        #
         pass
 
     def update_execution_engine(self, execution_engine=None):
-        """ Should receive an ExecutionEngine object
+        """Updates an Execution Engine based on given object.
+
+        @param execution_engine    ExecutionEngine
+        @throws BadRequest    if object does not have _id or _rev attribute
+        @throws NotFound    object with specified id does not exist
+        @throws Conflict    object not based on latest persisted object version
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
         pass
 
     def read_execution_engine(self, execution_engine_id=''):
-        """ Should return an ExecutionEngine object
+        """Returns an Execution Engine Definition as object.
+
+        @param execution_engine_id    str
+        @retval execution_engine    ExecutionEngine
+        @throws NotFound    object with specified id does not exist
         """
-        # Return Value
-        # ------------
-        # execution_engine: {}
-        #
         pass
 
     def delete_execution_engine(self, execution_engine_id=''):
-        """method docstring
+        """Deletes/retires an Execution Engine.
+
+        @param execution_engine_id    str
+        @throws NotFound    object with specified id does not exist
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
         pass
-
-

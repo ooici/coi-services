@@ -8,9 +8,9 @@
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import AT, RT
 
-from ion.services.sa.marine_facility.mpms_simple import MPMSsimple
+from ion.services.sa.marine_facility.mfms_simple import MFMSsimple
 
-class LogicalPlatformImpl(MPMSsimple):
+class LogicalPlatformImpl(MFMSsimple):
     """
     @brief resource management for LogicalPlatform resources
     """

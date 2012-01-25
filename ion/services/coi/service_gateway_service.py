@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 
 
+
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
-import inspect, json, simplejson, collections
+import inspect, json, simplejson, collections, ast
 
 from pyon.public import AT, RT, IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
+from pyon.core.registry import get_message_class_in_parm_type, getextends
+from pyon.ion.resource import ResourceTypes
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
@@ -93,8 +96,9 @@ def process_gateway_request(service_name, operation):
 
 
     #Retrieve service definition
-    from pyon.service import service
-    target_service = service.get_service_by_name(service_name)
+    from pyon.core.boostrap import service_registry
+    # MM: Note: service_registry can do more now
+    target_service = service_registry.get_service_base(service_name)
 
     if not target_service:
         raise NotFound("Target service name not found in the URL")
@@ -134,20 +138,24 @@ def process_gateway_request(service_name, operation):
         parm_list = {}
         method_args = inspect.getargspec(getattr(target_client,operation))
         for arg in method_args[0]:
-            if arg == 'self': continue # skip self
+            if arg == 'self' or arg == 'headers': continue # skip self and headers from being set
 
             if not jsonParms:
                 if request.args.has_key(arg):
-                    parm_list[arg] = convert_unicode(request.args[arg])  # should be fixed to convert to proper type when necessary; ie "True" -> True
+                    parm_type = get_message_class_in_parm_type(service_name, operation, arg)
+                    if parm_type == 'str':
+                        parm_list[arg] = convert_unicode(request.args[arg])
+                    else:
+                        parm_list[arg] = ast.literal_eval(convert_unicode(request.args[arg]))
             else:
                 if jsonParms['serviceRequest']['params'].has_key(arg):
-                    if isinstance(jsonParms['serviceRequest']['params'][arg], list):
+                    if isinstance(jsonParms['serviceRequest']['params'][arg], list):  #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
                         # For some reason, UNICODE strings are not supported with ION objects
                         ion_object_name = convert_unicode(jsonParms['serviceRequest']['params'][arg][0])
                         object_parms = convert_unicode(jsonParms['serviceRequest']['params'][arg][1])
 
                         parm_list[arg] = IonObject(ion_object_name, object_parms)
-                    else:
+                    else:  # The else branch is for simple types ( non-ION objects )
                         parm_list[arg] = convert_unicode(jsonParms['serviceRequest']['params'][arg])
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
@@ -189,24 +197,42 @@ def convert_unicode(data):
 def list_resource_types():
 
 
-    resultSet = set()
-    from pyon.core.object import IonObjectRegistry
-    base_type_list = IonObjectRegistry.extended_objects
+    try:
+        #Look to see if a specific resource type has been specified - if not default to all
+        if request.args.has_key('type'):
+            resultSet = set(getextends(request.args['type'])) if getextends(request.args['type']) is not None else set()
+        else:
+            type_list = getextends('Resource')
+            type_list.append('Resource')
+            resultSet = set(type_list)
 
-    #Look to see if a specific resource type has been specified - if not default to all
-    if request.args.has_key('type'):
-        resultSet = set(base_type_list.get(request.args['type'])) if base_type_list.get(request.args['type']) is not None else set()
-    else:
-        for res in base_type_list:
-            ext_types = base_type_list.get(res)
-            for res2 in ext_types:
-                resultSet.add(res2)
+        ret_list = []
+        for res in sorted(resultSet):
+            ret_list.append(res)
 
-    ret_list = []
-    for res in sorted(resultSet):
-        ret_list.append(res)
+        return jsonify(data=ret_list)
 
-    return jsonify(data=ret_list)
+    except Exception, e:
+        ret =  "Error: %s" % e.message
+        return jsonify(data=ret)
+
+
+#Returns a json object for a specified resource type with all default values.
+@app.route('/ion-service/resource_type_schema/<resource_type>')
+def get_resource_schema(resource_type):
+
+
+    try:
+        ion_object_name = convert_unicode(resource_type)
+        ret_obj = IonObject(ion_object_name, {})
+
+        ret = simplejson.dumps(ret_obj, default=ion_object_encoder)
+
+
+    except Exception, e:
+        ret =  "Error: %s" % e.message
+
+    return jsonify(data=ret)
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -233,8 +259,8 @@ def get_resource(resource_id):
 
 
 #Example operation to return a list of resources of a specific type like
-#http://hostname:port/ion-service/list_resources/BankAccount
-@app.route('/ion-service/rest/list_resources/<resource_type>')
+#http://hostname:port/ion-service/find_resources/BankAccount
+@app.route('/ion-service/rest/find_resources/<resource_type>')
 def list_resources_by_type(resource_type):
 
     ret = None

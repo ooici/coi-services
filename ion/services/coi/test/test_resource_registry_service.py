@@ -13,6 +13,8 @@ from ion.services.coi.resource_registry_service import ResourceRegistryService
 @attr('INT', group='resource')
 class TestResourceRegistry(IonIntegrationTestCase):
 
+    service_dependencies = [('resource_registry', {'resource_registry': {'persistent': True, 'force_clean': True}})]
+
     def test_lifecycle(self):
         #self._start_container()
         #self._start_service("resource_registry",
@@ -45,3 +47,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
 
         self.assertRaises(iex.Inconsistent, rrs.execute_lifecycle_transition,
                                             resource_id=rid, transition_event=LCE.develop, current_lcstate=LCS.PLANNED)
+
+
+    def test_service(self):
+        self._start_container()
+
+        res = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
