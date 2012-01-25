@@ -1,9 +1,3 @@
-"""
-@author Swarbhanu Chatterjee
-@file ion/services/dm/ingestion/example/ingestion_script_example.py
-@description Create two parallel transforms through calls to the TransformationManagementService
-which subscribe to a single stream.
-"""
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
@@ -21,7 +15,7 @@ ctd_output_stream_id = pubsub_client.create_stream(name='ctd_output_stream', ori
 
 # create transforms... queues will be created in this step
 ingestion_configuration_id = ingestion_client.create_ingestion_configuration(exchange_point_id='science_data', couch_storage={},\
-    hfd_storage={},  number_of_workers=2, default_policy={})
+    hdf_storage={},  number_of_workers=2, default_policy={})
 # activates the transforms... so bindings will be created in this step
 ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 

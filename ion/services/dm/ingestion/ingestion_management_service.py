@@ -197,7 +197,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
             AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
-            raise NotFound('The ingestion configuration with id %s does not exist' % ingestion_configuration_id)
+            raise NotFound('Transforms do not exist for ingestion configuration with id %s does not exist' % ingestion_configuration_id)
 
         # same issue as activate transform
         for transform_id in transform_ids:

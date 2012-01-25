@@ -180,8 +180,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Tests whether an ingestion configuration is created successfully and an ingestion_configuration_id
         is generated.
         """
-        configuration = {'program_args':{'arg1':'value'}}
-
         # for less typing storing the instance's ingestion_configuration parameters
         number_of_workers = self.ingestion_configuration.number_of_workers
         hfd_storage = self.ingestion_configuration.hfd_storage
@@ -190,8 +188,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         exchange_point_id = self.exchange_point_id
 
         # checking that an ingestion configuration can be successfully created
-        with self.assertRaises(IngestionManagementServiceException):
-            ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(exchange_point_id, \
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(exchange_point_id, \
                 couch_storage,hfd_storage, number_of_workers, default_policy)
 
         # checking that an ingestion_configuration_id gets successfully generated
@@ -208,4 +205,31 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # clean up the specific ingestion_configuration created in this method
         self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
+
+    def test_launch_ingestion_workers(self):
+        """
+        Tests whether the ingestion workers are launched correctly
+        """
+        # for less typing storing the instance's ingestion_configuration parameters
+        number_of_workers = self.ingestion_configuration.number_of_workers
+        hfd_storage = self.ingestion_configuration.hfd_storage
+        couch_storage = self.ingestion_configuration.couch_storage
+        default_policy = self.ingestion_configuration.default_policy
+        exchange_point_id = self.exchange_point_id
+
+        # checking that an ingestion configuration can be successfully created
+        with self.assertRaises(IngestionManagementServiceException):
+            ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(exchange_point_id,\
+                couch_storage,hfd_storage, number_of_workers, default_policy)
+
+        # check the transforms
+        with self.asser
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
+            AT.hasTransform, RT.Transform, True)
+        if len(transform_ids) < 1:
+            raise NotFound('Transforms do not exist for ingestion configuration with id %s does not exist' % ingestion_configuration_id)
+
+        # same issue as activate transform
+        for transform_id in transform_ids:
+            self.assertIsNotNone(transform_id)
 
