@@ -25,7 +25,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='myfoo')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -97,7 +97,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("existing data source was not found during read")
         else:
             pass
-        self.assertTrue(datasource_obj.description == 'the very first data source')            
+        self.assertTrue(datasource_obj.description == 'the very first data source')
 
 
         # now 'delete' the data source

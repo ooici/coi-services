@@ -8,12 +8,15 @@
 and the relationships between them
 '''
 
-from interface.services.dm.ipubsub_management_service import \
+from interface.services.dm.ipubsub_management_service import\
     BasePubsubManagementService
-from pyon.core.exception import NotFound
-from pyon.public import RT, AT, log, IonObject
+from pyon.core.exception import NotFound, BadRequest
+from pyon.public import RT, AT, log
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
+from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
+from interface.objects import Subscription, SubscriptionTypeEnum
+
 
 class BindingChannel(SubscriberChannel):
 
@@ -32,15 +35,29 @@ class PubsubManagementService(BasePubsubManagementService):
     except ValueError:
         raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    def create_stream(self, stream=None):
-        '''Creates a new stream. The id string returned is the ID of the new stream
-               in the resource registry.
+    def create_stream(self, encoding='', original=True, stream_definition_type='', name='', description='', url=''):
+        '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
+        @param encoding the encoding for data on this stream
+        @param original is the data on this stream from a source or a transform
+        @param stream_defintion_type a predefined stream definition type for this stream
+        @param name (optional) the name of the stream
+        @param description (optional) the description of the stream
+        @param url (optional) the url where data from this stream can be found (Not implemented)
 
-        @param stream New stream properties.
-        @retval id New stream id.
+        @param encoding    str
+        @param original    bool
+        @param stream_definition_type    str
+        @param name    str
+        @param description    str
+        @param url    str
+        @retval stream_id    str
         '''
-        print "Creating stream object"
-        stream_id, rev = self.clients.resource_registry.create(stream)
+        log.debug("Creating stream object")
+        stream_obj = Stream(name=name, description=description)
+        stream_obj.original = original
+        stream_obj.encoding = encoding
+        stream_obj.url = url
+        stream_id, rev = self.clients.resource_registry.create(stream_obj)
         return stream_id
 
     def update_stream(self, stream=None):
@@ -64,10 +81,6 @@ class PubsubManagementService(BasePubsubManagementService):
         @retval stream The stream object.
         @throws NotFound when stream doesn't exist.
         '''
-        # Return Value
-        # ------------
-        # stream: {}
-        #
         log.debug("Reading stream object id: %s", stream_id)
         stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
@@ -84,11 +97,11 @@ class PubsubManagementService(BasePubsubManagementService):
         @todo Determine if operation was successful for return value.
         '''
         log.debug("Deleting stream id: %s", stream_id)
-        stream_obj = self.read_stream(stream_id)
+        stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
-            raise NotFound("Stream %d does not exist" % stream_id)
+            raise NotFound("Stream %s does not exist" % stream_id)
 
-        self.clients.resource_registry.delete(stream_obj)
+        self.clients.resource_registry.delete(stream_id)
         return True
 
     def find_streams(self, filter=None):
@@ -125,27 +138,48 @@ class PubsubManagementService(BasePubsubManagementService):
         objects = self.clients.resource_registry.find_resources(RT.Stream, None, None, False)
         result = filter(containsProducer, objects)
         return result
-    
+
     def find_streams_by_consumer(self, consumer_id=''):
         '''
         Not implemented here.
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, subscription=None):
+    def create_subscription(self, query={}, exchange_name='', name='', description=''):
         '''
-        Create a new subscription. The id string returned is the ID of the new subscription
-               in the resource registry.
+        @brief Create a new subscription. The id string returned is the ID of the new subscription
+        in the resource registry.
+        @param query is a subscription query object (Stream Query, Exchange Query, etc...)
+        @param exchange_name is the name (queue) where messages will be delivered for this subscription
+        @param name (optional) is the name of the subscription
+        @param description (optional) is the description of the subscription
 
-        @param subscription New subscription properties.
-        @retval id The id of the the new subscription.
+        @param query    Unknown
+        @param exchange_name    str
+        @param name    str
+        @param description    str
+        @retval subscription_id    str
+        @throws BadRequestError    Throws when the subscription query object type is not found
         '''
         log.debug("Creating subscription object")
-        subscription_id, rev = self.clients.resource_registry.create(subscription)
+        subscription = Subscription(name, description=description)
+        subscription.exchange_name = exchange_name
+        subscription.query = query
+        if isinstance(query, StreamQuery):
+            subscription.subscription_type = SubscriptionTypeEnum.STREAM_QUERY
+        elif isinstance(query, ExchangeQuery):
+            subscription.subscription_type = SubscriptionTypeEnum.EXCHANGE_QUERY
+        else:
+            raise BadRequest("Query type does not exist")
+
+        subscription_id, _ = self.clients.resource_registry.create(subscription)
 
         #we need the stream_id to create the association between the
         #subscription and stream.
-        self.clients.resource_registry.create_association(subscription_id, AT.hasStream, subscription.query['stream_id'])
+        if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+            for stream_id in subscription.query.stream_ids:
+                self.clients.resource_registry.create_association(subscription_id, AT.hasStream, stream_id)
+
         return subscription_id
 
     def update_subscription(self, subscription=None):
@@ -183,18 +217,18 @@ class PubsubManagementService(BasePubsubManagementService):
         @todo Determine if operation was successful for return value
         '''
         log.debug("Deleting subscription id: %s", subscription_id)
-        subscription_obj = self.read_subscription(subscription_id)
+        subscription_obj = self.clients.resource_registry.read(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        # Find and break association with UserIdentity
-        subjects, assocs = self.clients.resource_registry.find_subjects(subscription_id, AT.hasStream, subscription_obj.query['stream_id'])
-        if not assocs:
-            raise NotFound("Subscription to Stream association for subscription id %s does not exist" % subscription_id)
-        association_id = assocs[0]._id
-        self.clients.resource_registry.delete_association(association_id)
+        assocs = self.clients.resource_registry.find_associations(subscription_id, AT.hasStream)
+        if assocs is None:
+            raise NotFound('Subscription to Stream association for subscription id %s does not exist' % subscription_id)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with Streams
+
         # Delete the Subscription
-        self.clients.resource_registry.delete(subscription_obj)
+        self.clients.resource_registry.delete(subscription_id)
         return True
 
     def activate_subscription(self, subscription_id=''):
@@ -206,15 +240,18 @@ class PubsubManagementService(BasePubsubManagementService):
         @throws NotFound when subscription doesn't exist.
         '''
         log.debug("Activating subscription")
-        subscription_obj = self.read_subscription(subscription_id)
+        subscription_obj = self.clients.resource_registry.read(subscription_id)
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        ids, assocs = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+        ids, _ = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
 
-        for stream_id in ids:
-            print stream_id
-            self._bind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
+        if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+            for stream_id in ids:
+                self._bind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
+        elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
+            self._bind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+
         return True
 
     def deactivate_subscription(self, subscription_id=''):
@@ -226,11 +263,21 @@ class PubsubManagementService(BasePubsubManagementService):
         @throws NotFound when subscription doesn't exist.
         '''
         log.debug("Deactivating subscription")
-        subscription_obj = self.read_subscription(subscription_id)
+        subscription_obj = self.clients.resource_registry.read(subscription_id)
         if subscription_obj is None:
-            raise NotFound("Subscription %d does not exist" % subscription_id)
+            raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        self._unbind_subscription(self.XP, subscription_obj.exchange_name)
+        ids, _ = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+
+        if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+            for stream_id in ids:
+                print stream_id
+                self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
+
+        elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
+            self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+
+        return True
 
     def register_consumer(self, exchange_name=''):
         '''
@@ -260,13 +307,13 @@ class PubsubManagementService(BasePubsubManagementService):
         @throws NotFound when stream doesn't exist.
         '''
         log.debug("Registering producer with stream")
-        stream_obj = self.read_stream(stream_id)
+        stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %s does not exist" % stream_id)
 
         stream_obj.producers.append(exchange_name)
         self.update_stream(stream_obj)
-        stream_route_obj = IonObject("StreamRoute", routing_key=stream_id + '.data')
+        stream_route_obj = StreamRoute(routing_key=stream_id + '.data')
         return stream_route_obj
 
     def unregister_producer(self, exchange_name='', stream_id=''):
@@ -279,8 +326,8 @@ class PubsubManagementService(BasePubsubManagementService):
         @throws NotFound when stream doesn't exist.
         @throws ValueError if producer is not registered with the stream.
         '''
-        log.debug("Unregistering producer with stream")
-        stream_obj = self.read_stream(stream_id)
+        log.debug("Unregistering producer with stream_id %s " % stream_id)
+        stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %s does not exist" % stream_id)
 
@@ -300,25 +347,22 @@ class PubsubManagementService(BasePubsubManagementService):
         @throws NotFound when stream doesn't exist.
         '''
         log.debug("Finding producers by stream")
-        stream_obj = self.read_stream(stream_id)
+        stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %s does not exist" % stream_id)
 
         return stream_obj.producers
-
-
-
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
         channel = self.container.node.channel(BindingChannel)
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
 
-    def _unbind_subscription(self, exchange_point, exchange_name):
-
+    def _unbind_subscription(self, exchange_point, exchange_name, routing_key):
         channel = self.container.node.channel(BindingChannel)
         channel._recv_name = (exchange_point, exchange_name)
-        channel.stop_consume()
-        channel.destroy_binding()
+        channel._recv_name = (channel._recv_name[0], '.'.join(channel._recv_name))
+        channel._recv_binding = routing_key
+        channel._destroy_binding()
 
 
