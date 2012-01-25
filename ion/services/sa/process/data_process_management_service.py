@@ -127,6 +127,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(data_process)
 
+        # Associate with dataProcessDefinition
+        self.clients.resource_registry.create_association(data_process_definition_id,
+                                                          AT.hasInstance,
+                                                          data_process_id)
+
         process_definition = IonObject(RT.ProcessDefinition, name=data_process_def_obj.name)
         process_definition.executable = {
            'module': 'ion.services.dm.transformation.example.transform_example',
@@ -247,8 +252,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval in_subscription_id: ID of the input data product
         @retval out_data_product_id: ID of the output data product
         """
-        log.debug("DataProcessManagementService:read_data_process: " +
-                  str(data_process_id))
+        log.debug("DataProcessManagementService:read_data_process: " +  str(data_process_id))
         transform_ids, _ = self.clients.resource_registry.find_associations(data_process_id, AT.hasTransform)
         if not transform_ids:
             raise NotFound("No transform associated with data process ID " + str(data_process_id))
