@@ -145,11 +145,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Source resource %s does not exist" % input_resource_id)
 
         #find the data producer resource associated with the source resource that is creating the data product
-        producer_ids, _ = self.clients.resource_registry.find_associations(input_resource_id, AT.hasProducer)
+        producer_ids, _ = self.clients.resource_registry.find_associations(input_resource_id, PRED.hasProducer)
         if not producer_ids:
             raise NotFound("No Data Producers associated with source resource ID " + str(input_resource_id))
 
-        self.clients.resource_registry.create_association(data_product_id,  AT.hasDataProducer,  producer_ids[0])
+        self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  producer_ids[0])
         return producer_ids[0]
 
     def unassign_data_product(self, input_resource_id='', data_product_id=''):
@@ -193,7 +193,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
         # Create association
-        self.clients.resource_registry.create_association(data_producer_id, AT.hasStream, self.streamID)
+        self.clients.resource_registry.create_association(data_producer_id, PRED.hasStream, self.streamID)
 
         return data_producer_id
 
