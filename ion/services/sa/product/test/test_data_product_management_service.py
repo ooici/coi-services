@@ -375,7 +375,7 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
 
 
 @attr('INT', group='sa')
-#@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
 class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
 
     def test_createDataProduct(self):

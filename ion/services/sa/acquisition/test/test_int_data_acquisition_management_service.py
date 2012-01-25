@@ -26,6 +26,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
+@unittest.skip('Not updated yet.')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     def setUp(self):
