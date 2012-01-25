@@ -145,46 +145,51 @@ class InstrumentDriver(object):
         # A dictionary of channel-name keys and channel protocol object values.
         self.channels = {}
     
-    def configure(self, config):
+    ########################################################################
+    # Channel connection interface.
+    ########################################################################
+    
+    def initialize(self, channels, timeout=10):
+        """
+        Return a device channel to an unconnected, unconfigured state.
+        @param chan_list List of channel names to initialize.
+        """
+        pass
+
+    def configure(self, configs, timeout=10):
         """
         Configure the driver for communications with an instrument channel.
         @param config A dict containing channel name keys, with
         dict values containing the comms configuration for the named channel.
         """
         pass        
-    
-    def initialize(self, chan_list):
-        """
-        Return a device channel to an unconnected, unconfigured state.
-        @param chan_list List of channel names to initialize.
-        """
-        pass
-    
-    def connect(self, chan_list, timeout=10):
+        
+    def connect(self, channels, timeout=10):
         """
         Establish communications with a device channel.
         @param chan_list List of channel names to connect.
         """
         pass
     
-    def disconnect(self, chan_list, timeout=10):
+    def disconnect(self, channels, timeout=10):
         """
         Disconnect communications with a device channel.
         @param chan_list List of channel names to disconnect.
         """
         pass
 
-    def execute(self, channels, command, timeout=10):
+    def detach(self, channels, timeout=10):
         """
-        """
-        pass
-    
-    def execute_direct(self, bytes, timeout=10):
-        """
+        Disconnect communications with a device channel.
+        @param chan_list List of channel names to disconnect.
         """
         pass
-    
-    def get(self, params):
+
+    ########################################################################
+    # Channel command interface.
+    ########################################################################
+
+    def get(self, params, timeout=10):
         """
         """
         pass
@@ -193,13 +198,27 @@ class InstrumentDriver(object):
         """
         """
         pass
-    
-    def get_status(self, params):
+
+    def execute(self, channels, command, timeout=10):
         """
         """
         pass
     
-    def get_capabilities(self, params):
+    def execute_direct(self, channels, bytes):
+        """
+        """
+        pass
+    
+    ########################################################################
+    # TBD.
+    ########################################################################    
+    
+    def get_status(self, params, timeout=10):
+        """
+        """
+        pass
+    
+    def get_capabilities(self, params, timeout=10):
         """
         """
         pass

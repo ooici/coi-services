@@ -21,10 +21,11 @@ from ion.services.mi.instrument_driver_eh import DriverEvent
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.instrument_protocol_eh \
+                        import InstrumentProtocol
+from ion.services.mi.instrument_protocol_eh \
                         import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.fsm import FSM, ExceptionFSM
-from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 
 #import ion.services.mi.mi_logger
@@ -95,38 +96,80 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._prompt_recvd = None
 
     ########################################################################
-    # Protocol Interface Functions
+    # Protocol connection interface.
     ########################################################################
 
-    def initialize(self):
+    def initialize(self, timeout=10):
         """
         """
-        return self._fsm.on_event(SBE37Event.INITIALIZE)
+        fsm_params = {'timeout':timeout}
+        return self._fsm.on_event(SBE37Event.INITIALIZE, fsm_params)
     
-    def configure(self, config):
+    def configure(self, config, timeout=10):
         """
         """
-        return self._fsm.on_event(SBE37Event.CONFIGURE, config)
+        fsm_params = {'config':config, 'timeout':timeout}
+        return self._fsm.on_event(SBE37Event.CONFIGURE, fsm_params)
     
     def connect(self, timeout=10):
         """
         """
-        return self._fsm.on_event(SBE37Event.CONNECT)
+        fsm_params = {'timeout':timeout}        
+        return self._fsm.on_event(SBE37Event.CONNECT, fsm_params)
     
     def disconnect(self, timeout=10):
         """
         """
-        return self._fsm.on_event(SBE37Event.DISCONNECT)
+        fsm_params = {'timeout':timeout}        
+        return self._fsm.on_event(SBE37Event.DISCONNECT, fsm_params)
     
-    def detach(self):
+    def detach(self, timeout=10):
         """
         """
-        return self._fsm.on_event(SBE37Event.DETACH)
+        fsm_params = {'timeout':timeout}        
+        return self._fsm.on_event(SBE37Event.DETACH, fsm_params)
+
+    ########################################################################
+    # Protocol command interface.
+    ########################################################################
+
+    def get(self, params, timeout=10):
+        """
+        """
+        fsm_params = {'params':params, 'timeout':timeout}
+        return self._fsm.on_event(SBE37Event.EXECUTE, fsm_params)
+    
+    def set(self, params, timeout=10):
+        """
+        """
+        fsm_params = {'command':command, 'timeout':timeout}
+        return self._fsm.on_event(SBE37Event.EXECUTE, fsm_params)
 
     def execute(self, command, timeout=10):
         """
         """
-        return self._fsm.on_event(SBE37Event.EXECUTE, command)
+        fsm_params = {'command':command, 'timeout':timeout}
+        return self._fsm.on_event(SBE37Event.EXECUTE, fsm_params)
+
+    def execute_direct(self, bytes):
+        """
+        """
+        fsm_params = {'bytes':bytes}
+        return self._fsm.on_event(SBE37Event.EXECUTE, fsm_params)
+    
+    ########################################################################
+    # TBD.
+    ########################################################################
+    
+    def get_status(self):
+        """
+        """
+        pass
+    
+    def get_capabilities(self):
+        """
+        """
+        pass
 
     ########################################################################
     # State handlers
@@ -145,7 +188,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                            SBE37State.UNCONFIGURED)
             
             # Initialize driver configuration.
-            self._initialize()
+            timeout = None
+            if params:
+                timeout = params.get('timeout', None)
+            InstrumentProtocol.initialize(self, timeout)
 
         elif event == SBE37Event.EXIT:
             pass
@@ -153,13 +199,21 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         elif event == SBE37Event.INITIALIZE:
             
             # Initialize driver configuration.
-            self._initialize()
+            timeout = None
+            if params:
+                timeout = params.get('timeout', None)
+            InstrumentProtocol.initialize(self, timeout)
 
         elif event == SBE37Event.CONFIGURE:
             
             # Attempt to configure driver, switch to disconnected
             # if successful.
-            success = self._configure(params)
+            config = None
+            timeout = None
+            if params:
+                config = params.get('config', None)
+                timeout = params.get('timeout', None)
+            success = InstrumentProtocol.configure(self, config, timeout)
             if InstErrorCode.is_ok(success):
                 next_state = SBE37State.DISCONNECTED
 
@@ -187,12 +241,20 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             
             # Attempt to configure driver, switch to disconnected
             # if successful.
-            success = self._configure(params)
+            config = None
+            timeout = None
+            if params:
+                config = params.get('config', None)
+                timeout = params.get('timeout', None)            
+            success = InstrumentProtocol.configure(self, config, timeout)
             if InstErrorCode.is_error(success):
                 next_state = SBE37State.UNCONFIGURED
         
         elif event == SBE37Event.CONNECT:
-            success = self._connect()
+            timeout = None
+            if params:
+                timeout = params.get('timeout', None)
+            success = InstrumentProtocol.connect(self, timeout)
             
             if InstErrorCode.is_ok(success):                
                 prompt = self._wakeup()
@@ -205,7 +267,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
                 else:
                     # A timeout can occur here. In this case disconnect.
-                    self._disconnect()
+                    InstrumentProtocol.disconnect(self)
                     next_state = SBE37State.DISCONNECTED
                 
                 
@@ -234,12 +296,20 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             pass
         
         elif event == SBE37Event.DISCONNECT:
-            self._disconnect()
+            timeout = None
+            if params:
+                timeout = params.get('timeout', None)
+            InstrumentProtocol.disconnect(self, timeout)
             next_state = SBE37State.DISCONNECTED
 
 
         elif event == SBE37Event.EXECUTE:
-            cmd = params[0]
+            command = None
+            cmd = None
+            if params:
+                command = params.get('command', None)
+            if command:
+                cmd = command[0]
             if cmd == SBE37Command.ACQUIRE_SAMPLE:
                 self._acquire_sample()
                 
@@ -278,69 +348,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # Private helpers
     ########################################################################
 
-    def _initialize(self):
-        """
-        """
-        self._logger = None
-        self._logger_client = None
-        
-    def _configure(self, config):
-        """
-        """
-        success = InstErrorCode.OK
-        
-        try:
-            method = config['method']
-            
-            if method == 'ethernet':
-                device_addr = config['device_addr']
-                device_port = config['device_port']
-                server_addr = config['server_addr']
-                server_port = config['server_port']
-                self._logger = EthernetDeviceLogger(device_addr, device_port,
-                                                    server_port)
-                self._logger_client = LoggerClient(server_addr, server_port)
-
-            elif method == 'serial':
-                pass
-            
-            else:
-                success = InstErrorCode.INVALID_PARAMETER
-
-        except KeyError:
-            success = InstErrorCode.INVALID_PARAMETER
-
-        return success
-
-    def _connect(self):
-        """
-        """
-        logger_pid = self._logger.get_pid()
-        mi_logger.info('Found logger pid: %s.', str(logger_pid))
-        if not logger_pid:
-            self._logger.launch_process()
-        time.sleep(1)         
-        self._attach()
-
-        success = InstErrorCode.OK
-        return success
-
-    def _disconnect(self):
-        """
-        """
-        self._detach()
-        self._logger.stop()
-        
-    def _attach(self):
-        """
-        """
-        self._logger_client.init_comms(self._got_data)
     
-    def _detach(self):
-        """
-        """
-        self._logger_client.stop_comms()
-
     def _got_data(self, data):
         """
         """
@@ -401,7 +409,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         (prompt, result) = self._do_cmd('ts')
-        mi_logger.debug('Got sample %s', result)
+        mi_logger.debug('Got sample %s', repr(result))
 
 
 class SBE37Driver(InstrumentDriver):
@@ -414,41 +422,106 @@ class SBE37Driver(InstrumentDriver):
         """
         InstrumentDriver.__init__(self)
         protocol = SBE37Protocol()
-        self._channels = {DriverChannel.CTD:protocol}
+        self._channels = {SBE37Channel.CTD:protocol}
+            
+    ########################################################################
+    # Channel connection interface.
+    ########################################################################
+    
+    def initialize(self, channels=[SBE37Channel.CTD], timeout=10):
+        """
+        """
+        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
+            pass
         
-    def initialize(self, channels):
-        """
-        """
-        return self._channels[DriverChannel.CTD].initialize()
+        return self._channels[SBE37Channel.CTD].initialize(timeout)
     
-    def configure(self, configs):
+    def configure(self, configs, timeout=10):
         """
         """
-        config = configs[DriverChannel.CTD]
-        return self._channels[DriverChannel.CTD].configure(config)
+        config = configs.get(SBE37Channel.CTD, None)
+        if not config:
+            pass
+
+        return self._channels[SBE37Channel.CTD].configure(config, timeout)
     
-    def connect(self, channels, timeout=10):
+    def connect(self, channels=[SBE37Channel.CTD], timeout=10):
         """
-        """
-        return self._channels[DriverChannel.CTD].connect(timeout)
-        #return InstErrorCode.OK
+        """  
+        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
+            pass
+
+        return self._channels[SBE37Channel.CTD].connect(timeout)
     
-    def disconnect(self, channels, timeout=10):
+    def disconnect(self, channels=[SBE37Channel.CTD], timeout=10):
         """
         """
-        return self._channels[DriverChannel.CTD].disconnect(timeout)
+        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
+            pass
+        
+        return self._channels[SBE37Channel.CTD].disconnect(timeout)
+            
+    def detach(self, channels=[SBE37Channel.CTD], timeout=10):
+        """
+        """
+        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
+            pass
+        
+        return self._channels[SBE37Channel.CTD].disconnect(timeout)
+
+    ########################################################################
+    # Channel command interface.
+    ########################################################################
+
+    def get(self, params, timeout=10):
+        """
+        """
+        pass
     
+    def set(self, params, timeout=10):
+        """
+        """
+        pass
+
+    def execute(self, channels=[SBE37Channel.CTD], command=[], timeout=10):
+        """
+        """
+        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
+            pass
+
+        if len(command):
+            pass
+        
+        return self._channels[DriverChannel.CTD].execute(command, timeout)
+        
+    def execute_direct(self, channels=[SBE37Channel.CTD], bytes=''):
+        """
+        """
+        pass
+    
+    ########################################################################
+    # TBD.
+    ########################################################################    
+    
+    def get_status(self, params, timeout=10):
+        """
+        """
+        pass
+    
+    def get_capabilities(self, params, timeout=10):
+        """
+        """
+        pass
+
+    ########################################################################
+    # Misc and temp.
+    ########################################################################
+
     def test_driver_messaging(self):
         """
         """
         result = 'random float %f' % random.random()
         return result
-        
-    def execute(self, channels, command, timeout=10):
-        """
-        """
-        return self._channels[DriverChannel.CTD].execute(command, timeout)
-
 
             
 

@@ -12,8 +12,11 @@ __license__ = 'Apache 2.0'
 
 import logging
 from subprocess import Popen
+from subprocess import PIPE
 import signal
 import os
+import sys
+import time
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -143,13 +146,11 @@ class DriverProcess(object):
         """
         
         mi_logger.info('Driver process started.')
-
-        def wait_on_child(signum=None, frame=None):
-            retval = os.wait()
-        signal.signal(signal.SIGCHLD, wait_on_child)
-
+        
         if self.construct_driver():
             self.start_messaging()
 
         self.shutdown()
-
+        time.sleep(1)
+        os._exit(0)
+        

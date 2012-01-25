@@ -55,13 +55,8 @@ class DaemonProcess(object):
         then calls _daemonize and routes the return values differently
         for the parent and child processes.
         """
-        try:
-            pf = file(self.pidfname, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-            
-        except IOError:
-            pid = None
+        
+        pid = self.get_pid()
             
         if pid:
             msg = 'pidfile %s exists. Daemon already running.\n'
@@ -77,7 +72,7 @@ class DaemonProcess(object):
             # The run logic may exit without returning, or
             # will exit here upon completion.
             self._run()
-            sys.exit(0)
+            os._exit(0)
 
         elif pid == 0:
             # This is the parent fork. Return success.
@@ -158,11 +153,11 @@ class DaemonProcess(object):
             # Exit parent process, with error if fork fails.
             pid = os.fork()
             if pid > 0:
-                sys.exit(0)
+                os._exit(0)
 
         except OSError as e:
             sys.stderr.write('Failed to fork child #2.')
-            sys.exit(1)
+            os._exit(1)
 
         # Setup the cleanup handler.
         signal.signal(signal.SIGTERM, self._cleanup_and_exit)
@@ -205,7 +200,8 @@ class DaemonProcess(object):
         SIGTERM handler that performs cleanup and exits daemon process.
         """
         self._cleanup()
-        sys.exit(0)
+        #sys.exit(0)
+        os._exit(0)
         
     def _run(self):
         """

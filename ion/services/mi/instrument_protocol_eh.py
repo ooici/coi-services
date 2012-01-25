@@ -13,11 +13,20 @@ __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 from zope.interface import Interface, implements
+import logging
+import time
+import os
+import signal
+
 
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
 from ion.services.mi.instrument_connection import IInstrumentConnection
+from ion.services.mi.common import InstErrorCode
+from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
+
+mi_logger = logging.getLogger('mi_logger')
 
 class InstrumentProtocol(object):
     """The base class for an instrument protocol
@@ -36,9 +45,91 @@ class InstrumentProtocol(object):
         """
         self._logger = None
         self._logger_client = None
+        self._logger_popen = None
         self._fsm = None
+
+    ########################################################################
+    # Protocol connection interface.
+    ########################################################################
+
+    def initialize(self, timeout=10):
+        """
+        """
+        mi_logger.info('Initializing device comms.')        
+        self._logger = None
+        self._logger_client = None
+    
+    def configure(self, config, timeout=10):
+        """
+        """
+        mi_logger.info('Configuring for device comms.')        
+        success = InstErrorCode.OK
         
-    def get(self, params=[]):
+        try:
+            method = config['method']
+            
+            if method == 'ethernet':
+                device_addr = config['device_addr']
+                device_port = config['device_port']
+                server_addr = config['server_addr']
+                server_port = config['server_port']
+                self._logger = EthernetDeviceLogger(device_addr, device_port,
+                                                    server_port)
+                self._logger_client = LoggerClient(server_addr, server_port)
+
+            elif method == 'serial':
+                pass
+            
+            else:
+                success = InstErrorCode.INVALID_PARAMETER
+
+        except KeyError:
+            success = InstErrorCode.INVALID_PARAMETER
+
+        return success
+
+    
+    def connect(self, timeout=10):
+        """
+        """
+        mi_logger.info('Connecting to device.')
+        logger_pid = self._logger.get_pid()
+        mi_logger.info('Found logger pid: %s.', str(logger_pid))
+        if not logger_pid:
+            self._logger_popen = self._logger.launch_process()
+            retval = os.wait()
+            mi_logger.debug('os.wait returned %s', str(retval))
+            mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
+        time.sleep(1)         
+        self.attach()
+
+        success = InstErrorCode.OK
+        return success
+    
+    def disconnect(self, timeout=10):
+        """
+        """
+        mi_logger.info('Disconnecting from device.')
+        self.detach()
+        self._logger.stop()
+    
+    def attach(self, timeout=10):
+        """
+        """
+        mi_logger.info('Attaching to device.')        
+        self._logger_client.init_comms(self._got_data)
+    
+    def detach(self, timeout=10):
+        """
+        """
+        mi_logger.info('Detaching from device.')
+        self._logger_client.stop_comms()
+        
+    ########################################################################
+    # Protocol command interface.
+    ########################################################################
+        
+    def get(self, params, timeout=10):
         """Get some parameters
         
         @param params A list of parameters to fetch. These must be in the
@@ -50,8 +141,9 @@ class InstrumentProtocol(object):
         state properly
         @throws InstrumentTimeoutException Timeout
         """
-
-    def set(self, params={}, timeout=10):
+        pass
+    
+    def set(self, params, timeout=10):
         """Get some parameters
         
         @param params A dict with the parameters to fetch. Must be in the
@@ -62,8 +154,9 @@ class InstrumentProtocol(object):
         state properly
         @throws InstrumentTimeoutException Timeout
         """
+        pass
 
-    def execute(self, command=[], timeout=10):
+    def execute(self, command, timeout=10):
         """Execute a command
         
         @param command A single command as a list with the command ID followed
@@ -74,90 +167,26 @@ class InstrumentProtocol(object):
         state properly
         @throws InstrumentTimeoutException Timeout
         """
-        
-    def get_config(self):
-        """Get an entire configuration from a device
-        
-        @retval config A dict with all of the device's parameters and values at a
-        given moment in time.
-        @retval results A dict of the entire configuration
-        @throws InstrumentProtocolException Confusion dealing with the
-        physical device, possibly due to interrupted communications
-        @throws InstrumentStateException Unable to handle current or future
-        state properly
-        @throws InstrumentTimeoutException Timeout
-        """
+        pass
     
-    def restore_config(self, config={}):
-        """Restore the complete supplied config to the device.
-        
-        This method must take into account any ordering of set requests as
-        required to make the entire operation stick. Should have the ability
-        to back out changes that failed mid-application, too.
-        
-        @param config A dict structure of the configuration that should be
-        applied to the instrument. May have come directly from a call to
-        get_config at some point before.
-        @throws InstrumentProtocolException Confusion dealing with the
-        physical device, possibly due to interrupted communications
-        @throws InstrumentStateException Unable to handle current or future
-        state properly
-        @throws InstrumentTimeoutException Timeout
+    def execute_direct(self, bytes):
         """
+        """
+        pass
+            
+    ########################################################################
+    # TBD.
+    ########################################################################
     
     def get_status(self):
-        """Gets the current status of the instrument.
-        
-        @retval status A dict of the current status of the instrument. Keys are
-        listed in the status parameter list.
-        """
-
-    #######################
-    # Instrument Connection interface pass through
-    #######################
-
-    def initialize(self):
         """
         """
         pass
     
-    def configure(self, params):
+    def get_capabilities(self):
         """
         """
-        method = config['method']
-        
-        if method == 'ethernet':
-            ip_addr = config['ip_addr']
-            ip_port = config['ip_port']
-        
-        elif method == 'serial':
-            # raise not implemented
-            pass
-        
-        else:
-            # raise unknown method
-            pass
-        
-        # raises key error, not implemented or unknown comms method        
-
-    def connect(self, *args):
-        """Connect via the instrument connection object
-        
-        @param args connection arguments
-        @throws InstrumentConnectionException
-        """
-        self.instrument_connection.connect(args)
-
-    def disconnect(self):
-        """Disconnect via the instrument connection object
-        
-        @throws InstrumentConnectionException
-        """
-        self.instrument_connection.disconnect()
-
-    def reset(self):
-        """Reset via the instrument connection object"""
-        self.instrument_connection.reset()
+        pass
 
 
 class BinaryInstrumentProtocol(InstrumentProtocol):
