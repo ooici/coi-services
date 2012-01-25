@@ -145,8 +145,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Source resource %s does not exist" % input_resource_id)
 
         #find the data producer resource associated with the source resource that is creating the data product
-        producer_ids, _ = self.clients.resource_registry.find_associations(input_resource_id, AT.hasProducer)
-        if not producer_ids:
+        producer_ids, _ = self.clients.resource_registry.find_objects(input_resource_id, AT.hasDataProducer, RT.DataProducer, id_only=True)
+        if producer_ids is None:
             raise NotFound("No Data Producers associated with source resource ID " + str(input_resource_id))
 
         self.clients.resource_registry.create_association(data_product_id,  AT.hasDataProducer,  producer_ids[0])
