@@ -273,8 +273,9 @@ class PubsubManagementService(BasePubsubManagementService):
             for stream_id in ids:
                 print stream_id
                 self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
-        #elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
-        #    self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+
+        elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
+            self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
 
         return True
 
@@ -358,7 +359,6 @@ class PubsubManagementService(BasePubsubManagementService):
         channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
 
     def _unbind_subscription(self, exchange_point, exchange_name, routing_key):
-
         channel = self.container.node.channel(BindingChannel)
         channel._recv_name = (exchange_point, exchange_name)
         channel._recv_name = (channel._recv_name[0], '.'.join(channel._recv_name))

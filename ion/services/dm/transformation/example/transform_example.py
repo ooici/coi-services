@@ -181,7 +181,7 @@ class TransformExampleLauncher(BaseService):
         ctd_output_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
         ctd_output_stream.original = True
         ctd_output_stream.mimetype = 'hdf'
-        ctd_output_stream_id = pubsub_cli.create_stream(ctd_output_stream)
+        ctd_output_stream_id = pubsub_cli.create_stream()
 
         # Create the subscription to the ctd_output_stream
         ctd_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')

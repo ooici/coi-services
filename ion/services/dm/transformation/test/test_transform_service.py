@@ -17,7 +17,8 @@ from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.transformation.transform_management_service import TransformManagementService
 from ion.services.dm.transformation.example.transform_example import TransformExample
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, StreamQuery
+
 import unittest
 
 @attr('UNIT',group='dm')
@@ -311,27 +312,13 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
 
-        self.input_stream = IonObject(RT.Stream,name='ctd1 output', description='output from a ctd')
-        self.input_stream.original = True
-        self.input_stream.mimetype = 'hdf'
-        self.input_stream_id = self.pubsub_cli.create_stream(self.input_stream)
+        self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
 
-        self.input_subscription = IonObject(RT.Subscription,name='ctd1 subscription', description='subscribe to this if you want ctd1 data')
-        self.input_subscription.query['stream_id'] = self.input_stream_id
-        self.input_subscription.exchange_name = 'a queue'
-        self.input_subscription_id = self.pubsub_cli.create_subscription(self.input_subscription)
+        self.input_subscription_id = self.pubsub_cli.create_subscription(query=StreamQuery(stream_ids=[self.input_stream_id]),exchange_name='transform_input',name='input_subscription')
 
-        self.output_stream = IonObject(RT.Stream,name='transform output', description='output from the transform process')
-        self.output_stream.original = True
-        self.output_stream.mimetype='raw'
-        self.output_stream_id = self.pubsub_cli.create_stream(self.output_stream)
+        self.output_stream_id = self.pubsub_cli.create_stream(name='output_stream',original=True)
 
-        self.data_product_stream = IonObject(RT.Stream,name='data_product_stream1', description='a simple data product stream test')
-        self.data_product_stream.original = True
-        self.data_product_stream.producers = ['science.data']
-        self.data_product_stream_id = self.pubsub_cli.create_stream(self.data_product_stream)
-
-        self.process_definition = IonObject(RT.ProcessDefinition,name='transform_process')
+        self.process_definition = ProcessDefinition(name='basic_transform_definition')
         self.process_definition.executable = {'module': 'ion.services.dm.transformation.example.transform_example',
                                               'class':'TransformExample'}
         self.process_definition_id, _= self.rr_cli.create(self.process_definition)
@@ -382,6 +369,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             out_streams={'output':self.output_stream_id},
             process_definition_id=self.process_definition_id,
         )
+
     def test_create_transform_name_failure(self):
         transform_id = self.tms_cli.create_transform(
             name='test_transform',
@@ -474,6 +462,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         process_definition_id, _ = self.rr_cli.create(process_definition)
 
         retval = self.tms_cli.execute_transform(process_definition_id,data)
+
         self.assertEquals(retval,[3,2,1])
 
 
