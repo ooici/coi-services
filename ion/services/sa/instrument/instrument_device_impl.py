@@ -111,34 +111,9 @@ class InstrumentDeviceImpl(ResourceImpl):
 
 
 
-    ### lifecycles
+    # LIFECYCLE STATE PRECONDITIONS
 
-    def lcs_precondition_PLANNED(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_DEVELOPED(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_TESTED(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_INTEGRATED(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_COMMISSIONED(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_DEPLOYED(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_ACTIVE(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_INACTIVE(self, instrument_device_id):
-        return True
-
-    def lcs_precondition_RETIRED(self, instrument_device_id):
-        return True
+    # FIXME
 
 
 

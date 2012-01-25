@@ -72,7 +72,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if data_source_obj is None:
             raise NotFound("DataSource %s does not exist" % data_source_id)
 
-        return self.clients.resource_registry.delete(data_source_obj)
+        return self.clients.resource_registry.delete(data_source_id)
 
     def assign_data_agent(self, data_source_id='', agent_instance=None):
         """Connect the agent instance description with a data source
@@ -219,18 +219,22 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #data_producer_obj = IonObject("DataProducer", data_producer)
 
         # create the stream for this data producer
-        producers = []
-        stream_resource_dict = {"mimetype": "", "name": data_producer.name, "description": data_producer.description, "producers": producers}
-        self.streamID = self.clients.pubsub_management.create_stream(stream_resource_dict)
+        stream = IonObject(RT.Stream, name=data_producer.name)
+        self.streamID = self.clients.pubsub_management.create_stream(stream)
+
+        log.debug("create_data_producer  Stream id %s" % self.streamID)
 
         # register the data producer with the PubSub service
         self.StreamRoute = self.clients.pubsub_management.register_producer(data_producer.name, self.streamID)
+
+        log.debug("create_data_producer  Stream routing_key %s" % self.StreamRoute.routing_key)
         data_producer.stream_id = self.streamID
         data_producer.routing_key = self.StreamRoute.routing_key
         data_producer.exchange_name = self.StreamRoute.exchange_name
         data_producer.credentials = self.StreamRoute.credentials
 
         data_producer_id, rev = self.clients.resource_registry.create(data_producer)
+        log.debug("create_data_producer  data producer id %s" % data_producer_id)
 
         return data_producer_id
 

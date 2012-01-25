@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.ims_simple
+@package  ion.services.sa.marine_facility.mfms_simple
 @author   Ian Katz
 """
 
@@ -12,11 +12,11 @@ from pyon.public import LCS
 from ion.services.sa.resource_impl import ResourceImpl
 
 
-class IMSsimple(ResourceImpl):
+class MFMSsimple(ResourceImpl):
     """
-    @brief A base class for management of ION resources in IMS that have a simple LCS
+    @brief A base class for management of ION resources in MFMS that have a simple LCS
     """
-
+    
     def on_impl_init(self):
 
         # lcs preconditions that are all operator discretion
@@ -30,22 +30,18 @@ class IMSsimple(ResourceImpl):
 
         self.on_simpl_init()
 
-
     def on_simpl_init(self):
         """
         further init for simple resources
         """
         return
 
-
     def lcs_precondition_always(self, resource_id):
         return True
-
 
     def lcs_precondition_unimplemented(self, resource_id):
         raise NotImplementedError("Extender of the class must write this!")
     
-
 
     def on_post_create(self, obj_id, obj):
         """
@@ -57,4 +53,5 @@ class IMSsimple(ResourceImpl):
         self.advance_lcs(obj_id, LCS.AVAILABLE)
 
         return
+
 

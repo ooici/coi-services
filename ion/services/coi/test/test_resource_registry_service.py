@@ -15,6 +15,8 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 @attr('INT', group='resource')
 class TestResourceRegistry(IonIntegrationTestCase):
     
+#    service_dependencies = [('resource_registry', {'resource_registry': {'persistent': True, 'force_clean': True}})]
+
     def setUp(self):
         # Start container
         self._start_container()
@@ -537,3 +539,6 @@ class TestResourceRegistry(IonIntegrationTestCase):
         ret = self.resource_registry_service.find_resources(RT.UserInfo, LCS.DRAFT, None, False)
         self.assertTrue(len(ret[0]) == 1)
         self.assertTrue(ret[0][0]._id == read_obj._id)
+
+#    def test_service(self):
+#        res = self.clients.resource_registry.find_resources(RT.Org, None, None, True)

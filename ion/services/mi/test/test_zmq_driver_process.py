@@ -33,10 +33,14 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/test/test_driver_process.py
 
 @attr('UNIT', group='mi')
-class DriverProcessTest(PyonTestCase):    
-
+class TestZmqDriverProcess(PyonTestCase):    
+    """
+    Unit tests for ZMQ driver process.
+    """
+    
     def setUp(self):
         """
+        Setup test cases.
         """
         # Zmq parameters used by driver process and client.
         self.host = 'localhost'
@@ -54,10 +58,12 @@ class DriverProcessTest(PyonTestCase):
         
     def test_driver_process(self):
         """
+        Test driver process launch and comms.
         """
         
         """
-        driver_process = ZmqDriverProcess.launch_process(5556, 5557, 'ion.services.mi.sbe37_driver', 'SBE37Driver')
+        driver_process = ZmqDriverProcess.launch_process(5556, 5557,
+                        'ion.services.mi.sbe37_driver', 'SBE37Driver')
         driver_client = ZmqDriverClient('localhost', 5556, 5557)
         driver_client.start_messaging()
         time.sleep(3)
@@ -85,11 +91,11 @@ class DriverProcessTest(PyonTestCase):
         self.assertTrue('data' in reply['kwargs'])
         self.assertTrue(reply['kwargs']['data'], 'test 1 2 3')
 
-        reply = driver_client.cmd_dvr('test_events')
+        events = ['I am event number 1!', 'And I am event number 2!']
+        reply = driver_client.cmd_dvr('test_events', events=events)
         self.assertEqual(reply, 'test_events')
         time.sleep(3)
-        self.assertTrue(driver_client.events, ['I am event number 1!',
-                                               'And I am event number 2!'])
+        self.assertTrue(driver_client.events, events)
         driver_client.done()
         """
         pass
