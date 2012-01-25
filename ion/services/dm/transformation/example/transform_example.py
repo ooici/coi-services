@@ -5,6 +5,7 @@
 '''
 import threading
 import time
+from interface.objects import ProcessDefinition
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
@@ -136,6 +137,19 @@ class ReverseTransform(TransformFunction):
 
 
 class TransformExampleLauncher(BaseService):
+
+    def __init__(self, *args, **kwargs):
+        super(TransformExampleLauncher,self).__init__(*args,**kwargs)
+
+        #-------------------------------
+        # Process Definitions
+        #-------------------------------
+
+        transform_example_definition = ProcessDefinition(name='transform_example_definition')
+        transform_example_definition.executable['module'] = 'ion.services.dm.transformation.transform_example'
+        transform_example_definition.executable['class'] = 'TransformExample'
+
+
     def on_start(self):
         self.name = self.CFG.get('name')
 
