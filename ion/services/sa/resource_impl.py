@@ -152,10 +152,14 @@ class ResourceImpl(object):
         if not resource.lcstate in possible_transitions:
             actions = []
             for st, tr in possible_transitions.iteritems():
-                actions.append("%s: %s" % (str(st), str(tr)))
+                actions.append("%s -> %s" % (str(st), str(tr)))
             raise NotImplementedError(("Attempted to change lifecycle of a %s from %s to %s; " + 
-                                      "supported transitions are {%s}") %
-                                      (self.iontype, resource.lcstate, new_state, ", ".join(actions)))
+                                      "supported transitions are {%s}->%s") %
+                                      (self.iontype, 
+                                       resource.lcstate, 
+                                       new_state, 
+                                       ", ".join(actions), 
+                                       new_state))
 
         # check that precondition function exists
         if not new_state in self.lcs_precondition:
@@ -177,8 +181,8 @@ class ResourceImpl(object):
         log.debug("Moving %s resource life cycle to %s with transition event %s"
                   % (self.iontype, new_state, transition_event))
 
-        self.RR.execute_lifecycle_transition(resource_id=resource_id,
-                                             transition_event=transition_event)
+        return self.RR.execute_lifecycle_transition(resource_id=resource_id,
+                                                    transition_event=transition_event)
 
 
     def add_lcs_precondition(self, destination_state, precondition_predicate_fn):
