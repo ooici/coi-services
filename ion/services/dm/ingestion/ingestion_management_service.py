@@ -11,9 +11,16 @@ from pyon.public import CFG, StreamProcess
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.net.channel import SubscriberChannel
 from pyon.container.procs import ProcManager
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.core.exception import IonException
+
+class IngestionManagementServiceException(IonException):
+    """
+    Exception class for HDFEncoder exceptions. This class inherits from ScienceObjectTransportException
+    and implements the __str__() method.
+    """
+    def __str__(self):
+        return str(self.get_status_code()) + str(self.get_error_message())
+
 
 class IngestionManagementService(BaseIngestionManagementService):
     """
@@ -29,10 +36,10 @@ class IngestionManagementService(BaseIngestionManagementService):
         This code may not really belong here, but we do not have a different way so far to preload the
         process definitions. This will later probably be part of a set of predefinitions for processes.
         """
-         # set up process definition
-        process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
-        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
-        self.process_definition_id, _ = self.clients.resource_registry.create(process_definition)
+#         # set up process definition
+#        process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
+#        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
+#        self.process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={}, \
                                        number_of_workers=0, default_policy={}):
@@ -56,8 +63,16 @@ class IngestionManagementService(BaseIngestionManagementService):
         ##------------------------------------------------------------------------------------
         ## For testing until changes to to pubsub are finished to subscribe to star...
 
-        # create a stream
-        # ProcManager.spawn_process(name='aStream', module=None, cls=None, config=None, process_type=RT.Stream)
+        #########################################################################################################
+        #   The code for process_definition may not really belong here, but we do not have a different way so
+        #   far to preload the process definitions. This will later probably be part of a set of predefinitions
+        #   for processes.
+        #########################################################################################################
+
+        # set up process definition
+        process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
+        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
+        process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
         # this should be removed tomorrow
         input_stream = IonObject(RT.Stream,name='input_stream')
@@ -85,34 +100,46 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration.couch_storage = couch_storage
         ingestion_configuration.default_policy = default_policy
 
+        if not ingestion_configuration:
+            raise IngestionManagementServiceException('An ingestion configuration could not be created before launching'\
+                                + 'transforms.')
+
         ingestion_configuration_id, rev = self.clients.resource_registry.create(ingestion_configuration)
+
+        if not ingestion_configuration_id:
+            raise IngestionManagementServiceException('An ingestion_configuration_id could not be created before launching' \
+                    + 'transforms.')
 
         # Launch the transforms!
 
         # @todo: Check whether the correct listen_name is being passed
 
-        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id)
+        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, process_definition_id)
 
         return ingestion_configuration_id
 
-    def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id):
+    def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id, process_definition_id):
         """
         We spawn the transform processes without actually activating them...
         """
 
         #configuration= {'process':{'name':'configuration','type':"stream_process",'listen_name': listen_name }}
         configuration= {}
-        transform_ids = []
 
         # launch the transforms
         # we spawn the transform processes without actually activating them yet...
         for i in range(number_of_workers):
             transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
-                process_definition_id=self.process_definition_id, configuration=configuration)
+                process_definition_id=process_definition_id, configuration=configuration)
+            if not transform_id:
+                raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
 #            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id,\
 #                        process_definition_id=self.process_definition_id, configuration={'process':{'name':'transform'+str(i)}})
-            self.clients.resource_registry.create_association(ingestion_configuration_id, AT.hasTransform, transform_id)
-
+            try:
+                self.clients.resource_registry.create_association(ingestion_configuration_id, AT.hasTransform, transform_id)
+            except Exception as exc:
+                raise IngestionManagementServiceException('Associations could not be generated between ingestion configuration' \
+                            + ' and transform %s' % transform_id)
 
     def update_ingestion_configuration(self, ingestion_configuration={}):
         """Change the number of workers or the default policy for ingesting data on each stream
@@ -163,7 +190,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         if len(transform_ids) < 1:
             raise NotFound
         for transform_id in transform_ids:
-            self.clients.transform_management.activate_transform(transform_id)
+            try:
+                self.clients.transform_management.activate_transform(transform_id)
+            except Exception as exc:
+                raise IngestionManagementServiceException('Error while using transform_management to activate transform %s.'\
+                    % transform_id)
         return True
 
 
@@ -212,3 +243,4 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param ingestion_configuration_id    str
         @throws NotFound    if ingestion configuration did not exist
         """
+

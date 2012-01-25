@@ -11,6 +11,9 @@ from pyon.public import IonObject, RT, log, AT
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.public import log, StreamProcess
 
+#########################################################################################
+# Run this part first in the pycc container
+#########################################################################################
 ingestion_client = IngestionManagementServiceClient(node = cc.node)
 
 # create transforms... queues will be created in this step
@@ -19,16 +22,10 @@ ingestion_configuration_id = ingestion_client.create_ingestion_configuration(exc
 # activates the transforms... so bindings will be created in this step
 ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 
-
-#pubsub = PubsubManagementService()
-#input_stream = IonObject(RT.Stream,name='input_stream')
-#input_stream.original = True
-#input_stream.mimetype = 'hdf'
-#input_stream_id = pubsub.create_stream(input_stream)
-
-## Launch in Pyon
-#id_p = cc.spawn_process('myproducer', 'examples.stream.stream_producer', 'StreamProducer', {'process':{'type':"agent"},'stream_producer':{'interval':4000,'routing_key':'forced'}})
-
+############################################################################################
+# Copy the stream_id that is there in the the binding....in rabbit broker web management
+# and paste it as a value in out_stream
+############################################################################################
 # messages will be produced and published
 id_p = cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
         {'process':{'type':'stream_process','publish_streams':{'out_stream':'ff17005d70694aca864f76f52a03fd61'}},\

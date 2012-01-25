@@ -60,7 +60,9 @@ class IngestionTest(PyonTestCase):
         self.default_policy = "SampleDefaultPolicy" # todo: later use Mock(specset = 'StreamIngestionPolicy')
 
     def test_create_ingestion_configuration(self):
+
         self.mock_create.return_value = [self.ingestion_configuration_id, 1]
+
 
         ingestion_configuration_id = self.ingestion_service.create_ingestion_configuration(self.exchange_point_id, \
                                 self.couch_storage, self.hfd_storage, self.number_of_workers, self.default_policy)
