@@ -86,11 +86,6 @@ class TransformManagementService(BaseTransformManagementService):
             stream_ids = []
 
 
-        # Update the resource_registry with this process_definition's configuration
-
-        process_definition.config = configuration
-        self.clients.resource_registry.update(process_definition)
-
         # ------------------------------------------------------------------------------------
         # Process Spawning
         # ------------------------------------------------------------------------------------
