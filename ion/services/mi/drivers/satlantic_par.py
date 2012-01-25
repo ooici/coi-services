@@ -15,8 +15,10 @@ from ion.services.mi.common import BaseEnum
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_connection import SerialInstrumentConnection
+from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.comms_method import AMQPCommsMethod
-from pyon.util.fsm import FSM
+from ion.services.mi.instrument_fsm import InstrumentFSM
 
 ####################################################################
 # Static enumerations for this class
@@ -42,8 +44,10 @@ class Event(BaseEnum):
     STOP = 0x13
     AUTOSAMPLE = 0x01
     SAMPLE = 0x0D
-    EXIT = 'EXIT'
-    EXIT_AND_RESET = 'EXIT_AND_RESET'
+    COMMAND = 'COMMAND'
+    EXIT_STATE = 'EXIT'
+    ENTER_STATE = 'ENTER'
+    
 
 class Status(BaseEnum):
     pass
@@ -72,8 +76,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     """
     
     
-    def __init__(self, connection):
-        CommandResponseInstrumentProtocol.__init__(self, connection,
+    def __init__(self, connection, callback=None):
+        CommandResponseInstrumentProtocol.__init__(self, connection, callback,
               command_list=Command,
               get_prefix="show ",
               set_prefix="set ",
@@ -81,36 +85,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
               execute_prefix="",
               eoln="\n")
         
-        self.protocol_fsm = FSM(State.AUTOSAMPLE_MODE)
-        self.protocol_fsm.add_transition_catch(Event.RESET,
-                                         action=self._handle_reset,
-                                         next_state=State.AUTOSAMPLE_MODE)
-        self.protocol_fsm.add_transition(Event.BREAK,
-                                         State.AUTOSAMPLE_MODE,
-                                         action=self._handle_break,
-                                         next_state=State.COMMAND_MODE)
-        self.protocol_fsm.add_transition(Event.STOP,
-                                         State.AUTOSAMPLE_MODE,
-                                         action=self._handle_stop,
-                                         next_state=State.POLL_MODE)
-        self.protocol_fsm.add_transition(Event.AUTOSAMPLE,
-                                         State.POLL_MODE,
-                                         action=self._handle_autosample,
-                                         next_state=State.AUTOSAMPLE_MODE)
-        self.protocol_fsm.add_transition(Event.SAMPLE,
-                                         State.POLL_MODE,
-                                         action=self._handle_sample,
-                                         next_state=State.POLL_MODE)
-        self.protocol_fsm.add_transition_list([Event.EXIT,
-                                               Event.EXIT_AND_RESET],
-                                         State.COMMAND_MODE,
-                                         action=self._handle_exit,
-                                         next_state=State.POLL_MODE)
-        # Handle commands as part of the input stream
-        self.protocol_fsm.add_transition_list(Command.list(),
-                                              State.COMMAND_MODE,
-                                              action=self._handle_commands,
-                                              next_state=State.COMMAND_MODE)
+        self._state_handlers = {
+            State.AUTOSAMPLE_MODE : self._state_handler_autosample,
+            State.COMMAND_MODE : self._state_handler_command,
+            State.POLL_MODE : self._state_handler_poll
+        }
+        
+        self.protocol_fsm = InstrumentFSM(State, Event, self._state_handlers,
+                                          Event.ENTER_STATE, Event.EXIT_STATE)
 
     # The normal interface for a protocol. These should drive the FSM
     # transitions as they get things done.
@@ -154,34 +136,146 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         # build return
         pass
     
-    def _break_to_command_mode(self):
-        # Ctrl-C does it for this instrument, run it through the state machine
-        self.protocol_fsm.process(Event.BREAK)
-    
-    def _handle_exit(self):
-        """Handle exit or exit_and_reset transition"""
-
-    def _handle_sample(self):
-        """Handle sample transition"""
-
-    def _handle_autosample(self):
-        """Handle autosample transition"""
-    
-    def _handle_stop(self):
-        """Handle stop transition"""
-    
-    def _handle_break(self):
-        """Handle break transition"""
-        # Issue Ctrl-C
-    
-    def _handle_reset(self):
-        """Handle reset transition"""
+    def _break_from_autosample(self, break_char):
+        """Break out of autosample mode.
         
-    def _handle_commands(self):
-        """Handle command input while in command mode"""
-        # Driven by the get/set/execute calls above
-        # switch on current symbol, do something if it needs to be done
-        # on state transition...or not.
+        Issue the proper sequence of stuff to get the device out of autosample
+        mode. The character used will result in a different end state. Ctrl-S
+        goes to poll mode, Ctrl-C goes to command mode. Ctrl-R resets. 
+        @param break_char The character to send to get out of autosample.
+        Should be Event.STOP, Event.BREAK, or Event.RESET.
+        @retval return True for success, Error for failure
+        @todo Write this
+        """
+        assert break_char == (Event.STOP or Event.BREAK or Event.RESET), "Bad argument to break_from_autosample()"
+        
+        # do the magic sequence of sending lots of characters really fast
+        
+        
+    ################
+    # State handlers
+    ################
+    def _state_handler_autosample(self, event, params):
+        """Handle State.AUTOSAMPLE_MODE state
+        
+        @param event The event being handed into this state
+        @param params Parameters to pass to the state
+        @retval return (success/fail code, next state, result)
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+        
+        if event == Event.ENTER_STATE:
+            pass
+                
+        elif event == Event.RESET:
+            if (self._break_from_autosample(Event.RESET)):
+                self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+                                        "Reset while autosampling!"))
+        
+        elif event == Event.BREAK:
+            if (self._break_from_autosample(Event.BREAK)):
+                self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+                                        "Leaving auto sample!"))
+                next_state = State.COMMAND_MODE
+            else:
+                self.publish_to_driver((DriverAnnouncement.ERROR,
+                                        InstErrorCode.HARDWARE_ERROR,
+                                        "Could not break from autosample!"))
+                success = InstErrorCode.HARDWARE_ERROR
+            
+        elif event == Event.STOP:
+            if (self._break_from_autosample(Event.STOP)):
+                self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+                                        "Leaving auto sample!"))
+                next_state = State.POLL_MODE
+            else:
+                self.publish_to_driver((DriverAnnouncement.ERROR,
+                                        InstErrorCode.HARDWARE_ERROR,
+                                        "Could not stop autosample!"))
+                success = InstErrorCode.HARDWARE_ERROR
+                
+        elif event == Event.EXIT_STATE:
+            pass
+            
+        return (success, next_state, result)
+        
+
+    def _state_handler_command(self, event, params):
+        """Handle State.COMMAND_MODE state
+        
+        @param event The event being handed into this state
+        @param params Parameters to pass to the state
+        @retval return (success/fail code, next state, result)
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+        
+        if event == Event.ENTER_STATE:
+            pass
+                
+        elif event == Event.RESET:
+            # @todo do reset things, still in cmd mode
+            self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+                                    "Reset while autosampling!"))
+        
+        elif event == Event.COMMAND:
+            """ @todo Add command logic handling here """
+            if params == Command.EXIT:
+                pass
+            
+            if params == Command.EXIT_AND_RESET:
+                pass
+            
+            if params == Command.SAVE:
+                pass
+            
+        elif event == Event.EXIT_STATE:
+            pass
+            
+        return (success, next_state, result)
+
+    def _state_handler_poll(self, event, params):
+        """Handle State.POLL_MODE state
+        
+        @param event The event being handed into this state
+        @param params Parameters to pass to the state
+        @retval return (success/fail code, next state, result)
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+        
+        if event == Event.ENTER_STATE:
+            pass
+                
+        elif event == Event.RESET:
+            # do reset things, still in poll state
+            self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+                                    "Reset while autosampling!"))
+        
+        elif event == Event.COMMAND:
+            """ @todo Add command logic handling here for CR and space """
+            if param == (Event.SAMPLE):
+                # get the sample
+                pass
+            else:
+                self.publish_to_driver((DriverAnnouncement.ERROR,
+                                        InstErrorCode.INVALID_COMMAND,
+                                        "Could not get sample"))
+                success = InstErrCode.INVALID_COMMAND
+        
+        elif event == Event.AUTOSAMPLE:
+            """ @todo issue Ctrl-A"""
+            next_state = State.AUTOSAMPLE_MODE
+            
+        elif event == Event.EXIT_STATE:
+            #send even to driver
+            pass
+            
+        return (success, next_state, result)
 
 
 class SatlanticPARInstrumentDriver(InstrumentDriver):
@@ -189,7 +283,6 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
 
     def __init__(self):
         """Instrument-specific enums"""
-        self.protocol = SatlanticPARInstrumentProtocol()
         self.comms_method = AMQPCommsMethod()
         self.instrument_connection = SerialInstrumentConnection()
         self.instrument_commands = Command()
@@ -199,5 +292,7 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
         self.instrument_errors = Error()
         self.instrument_capabilities = Capability()
         self.instrument_status = Status()
+        self.protocol = SatlanticPARInstrumentProtocol(self.instrument_connection,
+                                                       self.announce_to_driver)
 
 # Special data decorators?
