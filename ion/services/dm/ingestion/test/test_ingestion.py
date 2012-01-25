@@ -51,13 +51,13 @@ class IngestionTest(PyonTestCase):
         self.couch_storage = {'filesystem':"SampleFileSystem", 'root_path':"SampleRootPath"}
 
         # hfd_storage
-        self.hfd_storage = {'server':"SampleServer", 'database':"SampleDatabase"}
+        self.hdf_storage = {'server':"SampleServer", 'database':"SampleDatabase"}
 
         # number of workers
         self.number_of_workers = 2
 
         # default policy
-        self.default_policy = "SampleDefaultPolicy" # todo: later use Mock(specset = 'StreamIngestionPolicy')
+        self.default_policy = {} # todo: later use Mock(specset = 'StreamIngestionPolicy')
 
     def test_create_ingestion_configuration(self):
 
@@ -65,7 +65,7 @@ class IngestionTest(PyonTestCase):
 
 
         ingestion_configuration_id = self.ingestion_service.create_ingestion_configuration(self.exchange_point_id, \
-                                self.couch_storage, self.hfd_storage, self.number_of_workers, self.default_policy)
+                                self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         self.assertEqual(ingestion_configuration_id, self.ingestion_configuration_id)
 
@@ -106,7 +106,7 @@ class IngestionTest(PyonTestCase):
         self.mock_create.return_value = [self.ingestion_configuration_id, 1]
 
         ingestion_configuration_id = self.ingestion_service.create_ingestion_configuration(self.exchange_point_id,\
-            self.couch_storage, self.hfd_storage, self.number_of_workers, self.default_policy)
+            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         self.mock_read.return_value = self.ingestion_configuration
 

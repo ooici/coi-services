@@ -33,8 +33,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         BaseIngestionManagementService.__init__(self)
 
 
-    def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={}, \
-                                       number_of_workers=0, default_policy={}):
+    def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None, \
+                                       number_of_workers=0, default_policy=None):
         """Setup ingestion workers to ingest all the data from a single exchange point.
 
         @param exchange_point_id    str
@@ -77,9 +77,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         # @todo: right now sending in the exchange_point_id as the name...
         ingestion_configuration = IonObject(RT.IngestionConfiguration, name = 'ingestion_configuration')
         ingestion_configuration.number_of_workers = number_of_workers
-        ingestion_configuration.hfd_storage = hfd_storage
-        ingestion_configuration.couch_storage = couch_storage
-        ingestion_configuration.default_policy = default_policy
+        ingestion_configuration.hdf_storage.update(hdf_storage or {})
+        ingestion_configuration.couch_storage.update(couch_storage or {})
+        ingestion_configuration.default_policy.update(default_policy or {})
 
         if not ingestion_configuration:
             raise IngestionManagementServiceException\
@@ -123,7 +123,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 raise IngestionManagementServiceException\
                     ('Associations could not be generated between ingestion configuration and transform %s' % transform_id)
 
-    def update_ingestion_configuration(self, ingestion_configuration={}):
+    def update_ingestion_configuration(self, ingestion_configuration=None):
         """Change the number of workers or the default policy for ingesting data on each stream
 
         @param ingestion_configuration    IngestionConfiguration
@@ -219,7 +219,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
 #        return ingestion_policy_id
 
-    def update_stream_policy(self, stream_policy={}):
+    def update_stream_policy(self, stream_policy=None):
         """Change the number of workers or the default policy for ingesting data on each stream (After LCA)
 
         @param stream_policy    Unknown
