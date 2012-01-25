@@ -150,7 +150,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("No Data Producers associated with source resource ID " + str(input_resource_id))
 
         self.clients.resource_registry.create_association(data_product_id,  AT.hasDataProducer,  producer_ids[0])
-        return producer_ids[0]
+        return
 
     def unassign_data_product(self, input_resource_id='', data_product_id=''):
         """@todo document this interface!!!
