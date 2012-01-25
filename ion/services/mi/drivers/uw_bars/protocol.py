@@ -21,8 +21,10 @@ from ion.services.mi.common import InstErrorCode
 from ion.services.mi.instrument_driver_eh import DriverEvent
 
 from ion.services.mi.instrument_fsm import InstrumentFSM
+from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 
+import time
 #import ion.services.mi.mi_logger
 import logging
 log = logging.getLogger('mi_logger')
@@ -53,6 +55,13 @@ class BarsEvent(BaseEnum):
     EXIT_PROGRAM = '6'  # defined for completeness -- NOT TO BE USED.
 
 
+class BarsPrompt(BaseEnum):
+    """
+    BARS io prompts.
+    """
+    NEWLINE = '\r\n'  # TODO newline sequence TBD
+    ENTER_MENU_OPTION = 'Enter 0, 1, 2, 3, 4, 5 or 6 here  -->'
+
 
 ####################################################################
 # Protocol
@@ -62,8 +71,16 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
 
     """
 
-    def __init__(self, connection):
+    def __init__(self, connection, config):
+        """
+        Creates and configures an instance of the protocol.
+        @param connection
+        @param config
+        """
+
         ScriptInstrumentProtocol.__init__(self, connection)
+
+        self._linebuf = ''
 
         state_handlers = {
             BarsState.COLLECTING_DATA: self._state_handler_collecting_data,
@@ -88,6 +105,8 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
                                   BarsEvent.EXIT)
 
         self._fsm.start(BarsState.COLLECTING_DATA)
+
+        self._configure(config)
 
     def _logEvent(self, event):
         log.info("_logEvent: curr_state=%s, event=%s" %
@@ -286,3 +305,118 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
 
         return (success, next_state, result)
 
+    def connect(self):
+        """
+        """
+        logger_pid = self._logger.get_pid()
+        log.info('Found logger pid: %s.', str(logger_pid))
+        if not logger_pid:
+            self._logger.launch_process()
+        time.sleep(1)
+        self._attach()
+
+        success = InstErrorCode.OK
+        return success
+
+    def disconnect(self):
+        """
+        """
+        self._detach()
+        self._logger.stop()
+
+    ########################################################################
+    # Private helpers
+    ########################################################################
+
+    def _configure(self, config):
+        """
+        """
+        self._logger = None
+        self._logger_client = None
+
+        success = InstErrorCode.OK
+
+        try:
+            method = config['method']
+
+            if method == 'ethernet':
+                device_addr = config['device_addr']
+                device_port = config['device_port']
+                server_addr = config['server_addr']
+                server_port = config['server_port']
+                self._logger = EthernetDeviceLogger(device_addr, device_port,
+                                                    server_port)
+                self._logger_client = LoggerClient(server_addr, server_port)
+
+            elif method == 'serial':
+                # TODO serial method
+                pass
+
+            else:
+                success = InstErrorCode.INVALID_PARAMETER
+
+        except KeyError:
+            success = InstErrorCode.INVALID_PARAMETER
+
+        return success
+
+    def _attach(self):
+        """
+        """
+        self._logger_client.init_comms(self._got_data)
+
+    def _detach(self):
+        """
+        """
+        self._logger_client.stop_comms()
+
+    def _got_data(self, data):
+        """
+        """
+        log.debug("Got data %s" % str(data))
+        self._linebuf += data
+
+        # TODO sync with other parts of the code
+
+    def _do_cmd(self, cmd, timeout=10):
+        """
+        """
+        self._prompt_recvd = None
+        self._logger_client.send(cmd + BarsPrompt.NEWLINE)
+        prompt = self._get_prompt(timeout)
+        result = self._linebuf.replace(prompt, '')
+        return (prompt, result)
+
+    def _wakeup(self, timeout=10):
+        """
+        """
+        self._linebuf = ''
+        self._prompt_recvd = None
+        starttime = time.time()
+        while not self._prompt_recvd:
+            mi_logger.debug('Sending wakeup.')
+            self._logger_client.send(BarsPrompt.NEWLINE)
+            time.sleep(1)
+            if time.time() > starttime + timeout:
+                return InstErrorCode.TIMEOUT
+        return self._prompt_recvd
+
+    def _get_prompt(self, timeout):
+        """
+        """
+        self._linebuf = ''
+        starttime = time.time()
+        while not self._prompt_recvd:
+            time.sleep(1)
+            if time.time() > starttime + timeout:
+                return InstErrorCode.TIMEOUT
+        return self._prompt_recvd
+
+    def _update_params(self):
+        """
+        """
+        (ds_prompt, ds_result) = self._do_cmd('ds')
+        (dc_prompt, dc_result) = self._do_cmd('dc')
+
+        result = ds_result + dc_result
+        mi_logger.debug('Got parameters %s', repr(result))

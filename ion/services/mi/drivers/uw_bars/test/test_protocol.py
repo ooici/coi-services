@@ -16,4 +16,15 @@ class ProtocolTest(TestCase):
         """
 
         connection = SerialInstrumentConnection()
-        BarsInstrumentProtocol(connection)
+
+        config = {
+            'method':'ethernet',
+            'device_addr': '10.180.80.173',  # arbitrary for the moment
+            'device_port': 9999,  # arbitrary for the moment
+            'server_addr': 'localhost',
+            'server_port': 8888
+        }
+        
+        protocol = BarsInstrumentProtocol(connection, config)
+
+        protocol.connect()

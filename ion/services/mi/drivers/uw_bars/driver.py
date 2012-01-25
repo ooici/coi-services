@@ -25,12 +25,18 @@ import logging
 log = logging.getLogger('mi_logger')
 
 
+#
+# TODO this is not functional yet
+#
+
 class BarsInstrumentDriver(InstrumentDriver):
     """The InstrumentDriver class for the TRHPH BARS sensor"""
 
     def __init__(self):
         self.instrument_connection = SerialInstrumentConnection()
-        self.protocol = BarsInstrumentProtocol(self.instrument_connection)
+        config = {}  # TODO
+        self.protocol = BarsInstrumentProtocol(self.instrument_connection,
+                                               config)
 
         self.comms_method = AMQPCommsMethod()
         self.instrument_commands = BarsCommand()
