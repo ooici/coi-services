@@ -9,7 +9,7 @@ This service tracks customers and their accounts (checking or saving)
 '''
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import IonObject, AT, log
+from pyon.public import IonObject, PRED, log
 
 from interface.services.examples.bank.ibank_service import BaseBankService
 
@@ -43,7 +43,7 @@ class BankService(BaseBankService):
         account_id, _ = self.clients.resource_registry.create(account_obj)
 
         # Create association
-        self.clients.resource_registry.create_association(customer_id, AT.hasAccount, account_id)
+        self.clients.resource_registry.create_association(customer_id, PRED.hasAccount, account_id)
 
         return account_id
 
@@ -93,7 +93,7 @@ class BankService(BaseBankService):
         if account_obj.cash_balance < cash_amount:
             raise BadRequest("Insufficient funds")
 
-        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", AT.hasAccount, account_obj, False)[0][0]
+        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", PRED.hasAccount, account_obj, False)[0][0]
         # Create order object and call trade service
         order_obj = IonObject("Order", type="buy", on_behalf=owner_obj.name, cash_amount=cash_amount)
 
@@ -118,7 +118,7 @@ class BankService(BaseBankService):
         if account_obj.bond_balance < quantity:
             raise BadRequest("Insufficient bonds")
 
-        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", AT.hasAccount, account_obj, False)[0][0]
+        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", PRED.hasAccount, account_obj, False)[0][0]
 
         # Create order object and call trade service
         order_obj = IonObject("Order", type="sell", on_behalf=owner_obj.name, bond_amount=quantity)
@@ -142,5 +142,5 @@ class BankService(BaseBankService):
             return []
         customer_obj = customer_list[0]
 
-        accounts, _ = self.clients.resource_registry.find_objects(customer_obj, AT.hasAccount, "BankAccount", False)
+        accounts, _ = self.clients.resource_registry.find_objects(customer_obj, PRED.hasAccount, "BankAccount", False)
         return accounts

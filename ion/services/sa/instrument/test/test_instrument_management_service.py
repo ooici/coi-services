@@ -50,14 +50,14 @@ class TestInstrumentManagement(PyonTestCase):
 
 rim = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
 
-rim.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange-name": "rhubarb"})
+rim.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rim.add_resource_impl_unittests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
 rim.add_resource_impl_unittests(InstrumentDeviceImpl, {"serialnumber": "123", "firmwareversion": "x"})
 rim.add_resource_impl_unittests(InstrumentModelImpl, {"model": "redundant?", "weight": 20000})
-rim.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange-name": "sausage"})
-rim.add_resource_impl_unittests(PlatformAgentImpl, {"tbd": "the big donut"})
+rim.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange_name": "sausage"})
+rim.add_resource_impl_unittests(PlatformAgentImpl, {"description": "the big donut"})
 rim.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
-rim.add_resource_impl_unittests(PlatformModelImpl, {"tbd": "tammy breathed deeply"})
+rim.add_resource_impl_unittests(PlatformModelImpl, {"description": "tammy breathed deeply"})
 rim.add_resource_impl_unittests(SensorDeviceImpl, {"serialnumber": "123"})
 rim.add_resource_impl_unittests(SensorModelImpl, {"model": "redundant field?", "weight": 2})
 

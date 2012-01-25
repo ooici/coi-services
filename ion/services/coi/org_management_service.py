@@ -2,11 +2,10 @@
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
 
-from pyon.public import CFG, IonObject, log, RT, AT
+from pyon.public import CFG, IonObject, log, RT, PRED
 
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.exception import Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT
 from pyon.util.log import log
 
 class OrgManagementService(BaseOrgManagementService):
@@ -81,7 +80,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not org2:
             raise NotFound("Org %s does not exist" % affiliate_org_id)
 
-        aid = self.clients.resource_registry.create_association(org_id, AT.hasOrgAffiliation, affiliate_org_id)
+        aid = self.clients.resource_registry.create_association(org_id, PRED.hasOrgAffiliation, affiliate_org_id)
         if not aid:
             return False
 
@@ -105,7 +104,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not org2:
             raise NotFound("Org %s does not exist" % affiliate_org_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, AT.hasOrgAffiliation, affiliate_org_id)
+        aid = self.clients.resource_registry.get_association(org_id, PRED.hasOrgAffiliation, affiliate_org_id)
         if not aid:
             raise NotFound("The affiliation association between the specified Orgs is not found")
 
@@ -132,7 +131,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        aid = self.clients.resource_registry.create_association(org_id, AT.hasMembership, user_id)
+        aid = self.clients.resource_registry.create_association(org_id, PRED.hasMembership, user_id)
         if not aid:
             return False
 
@@ -155,7 +154,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, AT.hasMembership, user_id)
+        aid = self.clients.resource_registry.get_association(org_id, PRED.hasMembership, user_id)
         if not aid:
             raise NotFound("The membership association between the specified user and Org is not found")
 
@@ -182,7 +181,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, AT.hasMembership, user_id)
+        aid = self.clients.resource_registry.get_association(org_id, PRED.hasMembership, user_id)
         if not aid:
             return False
 
@@ -206,7 +205,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        aid = self.clients.resource_registry.create_association(org_id, AT.hasResource, resource_id)
+        aid = self.clients.resource_registry.create_association(org_id, PRED.hasResource, resource_id)
         if not aid:
             return False
 
@@ -229,7 +228,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, AT.hasMembership, resource_id)
+        aid = self.clients.resource_registry.get_association(org_id, PRED.hasMembership, resource_id)
         if not aid:
             raise NotFound("The shared association between the specified resource and Org is not found")
 
