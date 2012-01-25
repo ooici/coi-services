@@ -12,7 +12,7 @@ from pyon.ion.endpoint import ProcessPublisher
 from pyon.net.channel import SubscriberChannel
 from pyon.container.procs import ProcManager
 from pyon.core.exception import IonException
-from interface.objects import StreamQuery, ExchangeQuery
+from interface.objects import ExchangeQuery
 
 class IngestionManagementServiceException(IonException):
     """
@@ -32,17 +32,8 @@ class IngestionManagementService(BaseIngestionManagementService):
     def __init__(self):
         BaseIngestionManagementService.__init__(self)
 
-    def on_start(self):
-        """
-        This code may not really belong here, but we do not have a different way so far to preload the
-        process definitions. This will later probably be part of a set of predefinitions for processes.
-        """
-#         # set up process definition
-#        process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
-#        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
-#        self.process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
-    def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={}, \
+    def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={},\
                                        number_of_workers=0, default_policy={}):
         """Setup ingestion workers to ingest all the data from a single exchange point.
 
@@ -61,32 +52,26 @@ class IngestionManagementService(BaseIngestionManagementService):
         exchange_name = XP + '_ingestion_queue'
 
 
-        ##------------------------------------------------------------------------------------
-        ## For testing until changes to to pubsub are finished to subscribe to star...
+
 
         #########################################################################################################
         #   The code for process_definition may not really belong here, but we do not have a different way so
         #   far to preload the process definitions. This will later probably be part of a set of predefinitions
         #   for processes.
         #########################################################################################################
-
-        # set up process definition
         process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
         process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
         process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
-        input_stream_id = self.clients.pubsub_management.create_stream(encoding='', \
-            original=True, stream_definition_type='', name='input_stream', description='only to launch ingestion workers', url='')
 
-
-#        # subscribe to that stream
-        stream_ids = [input_stream_id]
-        query = StreamQuery(stream_ids)
-
-        subscription_id = self.clients.pubsub_management.create_subscription(query=query, \
+        ##------------------------------------------------------------------------------------
+        ## declare our intent to subscribe to all messages on the exchange point
+        query = ExchangeQuery()
+        subscription_id = self.clients.pubsub_management.create_subscription(query=query,\
             exchange_name=exchange_name, name='subscription', description='only to launch ingestion workers')
 
-        ## open Rabbitmq control and create a binding to *!!!
+
+        ##------------------------------------------------------------------------------------------
 
         # create an ingestion_configuration instance and update the registry
         # @todo: right now sending in the exchange_point_id as the name...
@@ -97,14 +82,14 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration.default_policy = default_policy
 
         if not ingestion_configuration:
-            raise IngestionManagementServiceException('An ingestion configuration could not be created before launching'\
-                                + 'transforms.')
+            raise IngestionManagementServiceException\
+                ('''An ingestion configuration could not be created before launching transforms.''')
 
         ingestion_configuration_id, rev = self.clients.resource_registry.create(ingestion_configuration)
 
         if not ingestion_configuration_id:
-            raise IngestionManagementServiceException('An ingestion_configuration_id could not be created before launching' \
-                    + 'transforms.')
+            raise IngestionManagementServiceException\
+                ('''An ingestion_configuration_id could not be created before launching transforms.''')
 
         # Launch the transforms!
 
@@ -125,18 +110,18 @@ class IngestionManagementService(BaseIngestionManagementService):
         # we spawn the transform processes without actually activating them yet...
         for i in range(number_of_workers):
             name = 'Ingestion_Worker_%s' % i
-            transform_id = self.clients.transform_management.create_transform(name = name, description = description, \
-                     in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id, \
-                                configuration=configuration)
-#            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
-#                process_definition_id=process_definition_id, configuration=configuration)
+            transform_id = self.clients.transform_management.create_transform(name = name, description = description,\
+                in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id,\
+                configuration=configuration)
+            #            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
+            #                process_definition_id=process_definition_id, configuration=configuration)
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
             try:
                 self.clients.resource_registry.create_association(ingestion_configuration_id, AT.hasTransform, transform_id)
             except Exception as exc:
-                raise IngestionManagementServiceException('Associations could not be generated between ingestion configuration' \
-                            + ' and transform %s' % transform_id)
+                raise IngestionManagementServiceException\
+                    ('Associations could not be generated between ingestion configuration and transform %s' % transform_id)
 
     def update_ingestion_configuration(self, ingestion_configuration={}):
         """Change the number of workers or the default policy for ingesting data on each stream
@@ -186,12 +171,17 @@ class IngestionManagementService(BaseIngestionManagementService):
             AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound
+
+        # This is messy - but for now activate_transform, which calls activate subscription is idempotent.
+        # calling it many times is just activating the same subscription many times.
+        #
+        # Maybe we should bypass activate transform and directly call pubsub activate/deactivate?
         for transform_id in transform_ids:
             try:
                 self.clients.transform_management.activate_transform(transform_id)
             except Exception as exc:
                 raise IngestionManagementServiceException('Error while using transform_management to activate transform %s.'\
-                    % transform_id)
+                % transform_id)
         return True
 
 
@@ -208,6 +198,8 @@ class IngestionManagementService(BaseIngestionManagementService):
             AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration with id %s does not exist' % ingestion_configuration_id)
+
+        # same issue as activate transform
         for transform_id in transform_ids:
             try:
                 self.clients.transform_management.deactivate_transform(transform_id)
@@ -225,7 +217,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_policy_id    str
         """
 
-#        return ingestion_policy_id
+    #        return ingestion_policy_id
 
     def update_stream_policy(self, stream_policy={}):
         """Change the number of workers or the default policy for ingesting data on each stream (After LCA)
@@ -243,7 +235,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if ingestion configuration did not exist
         """
 
-#        return ingestion_configuration
+    #        return ingestion_configuration
 
     def delete_stream_policy(self, ingestion_configuration_id=''):
         """Delete an existing stream policy object. (After LCA)
@@ -251,4 +243,3 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param ingestion_configuration_id    str
         @throws NotFound    if ingestion configuration did not exist
         """
-

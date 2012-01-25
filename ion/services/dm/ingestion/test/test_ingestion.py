@@ -206,24 +206,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(ingestion_configuration.default_policy, default_policy)
         self.assertEquals(ingestion_configuration.exchange_point_id, exchange_point_id)
 
-        # clean up the specific ingestion_configuration created here
+        # clean up the specific ingestion_configuration created in this method
         self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
-
-    def test_create_transform_no_procdef(self):
-        with self.assertRaises(NotFound):
-            self.tms_cli.create_transform(name='test',in_subscription_id=self.input_subscription_id)
-
-    def test_create_transform_bad_procdef(self):
-        with self.assertRaises(NotFound):
-            self.tms_cli.create_transform(name='test',
-                in_subscription_id=self.input_subscription_id,
-                process_definition_id='bad')
-
-    def test_create_transform_no_config(self):
-        transform_id = self.tms_cli.create_transform(
-            name='test_transform',
-            in_subscription_id=self.input_subscription_id,
-            out_streams={'output':self.output_stream_id},
-            process_definition_id=self.process_definition_id,
-        )
