@@ -47,7 +47,7 @@ class TestSBE37Driver(PyonTestCase):
         Setup test cases.
         """
         # Zmq parameters used by driver process and client.
-        self.host = 'localhost'
+        self.server_addr = 'localhost'
         self.cmd_port = 5556
         self.evt_port = 5557
         
@@ -55,8 +55,14 @@ class TestSBE37Driver(PyonTestCase):
         self.dvr_mod = 'ion.services.mi.drivers.sbe37_driver'
         self.dvr_cls = 'SBE37Driver'
 
-        #
-        self.server_addr = 'localhost'
+        # Comms config.
+        self.comms_config = {
+            'method':'ethernet',
+            'device_addr': '137.110.112.119',
+            'device_port': 4001,
+            'server_addr': 'localhost',
+            'server_port': 8888            
+        }
 
         # Add cleanup handler functions.
         # self.addCleanup()
@@ -78,14 +84,8 @@ class TestSBE37Driver(PyonTestCase):
                                         self.evt_port)
         driver_client.start_messaging()
         time.sleep(3)
-        config = {
-            'method':'ethernet',
-            'device_addr': '137.110.112.119',
-            'device_port': 4001,
-            'server_addr': 'localhost',
-            'server_port': 8888            
-        }
-        configs = {SBE37Channel.CTD:config}
+
+        configs = {SBE37Channel.CTD:self.comms_config}
         reply = driver_client.cmd_dvr('configure', configs)
  
         time.sleep(2)
