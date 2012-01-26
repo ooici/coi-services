@@ -23,14 +23,21 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def _remove_producer(self, resource_id='', producers=None):
         log.debug("Removing DataProducer objects and links")
-        for x in producers:
+        for producer in producers:
             # List all association ids with given subject, predicate, object triples
-            assoc_ids, _ = self.clients.resource_registry.find_associations(resource_id, AT.hasDataProducer, x, True)
-            for y in assoc_ids:
-                self.clients.resource_registry.delete_association(y)
+            assoc_ids = self.clients.resource_registry.find_associations(resource_id, AT.hasDataProducer, producer, True)
+            self.clients.resource_registry.delete_association(assoc_ids[0])
 
-            self.clients.resource_registry.delete(x)
-        return True
+            # DELETE THE STREAM associated with the data producer via call to PubSub
+            res_ids, _ = self.clients.resource_registry.find_objects(producer, AT.hasStream, None, True)
+            if res_ids is None:
+                raise NotFound("Stream for Data Producer  %d does not exist" % producer)
+            for streamId in res_ids:
+                self.clients.pubsub_management.delete_stream(streamId)
+
+            self.clients.resource_registry.delete(producer)
+
+        return
 
 
     def register_external_data_set(self, external_dataset_id=''):
