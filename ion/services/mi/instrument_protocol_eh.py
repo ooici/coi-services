@@ -41,12 +41,15 @@ class InstrumentProtocol(object):
     implements(IInstrumentConnection)
     
     def __init__(self):
-        """        
+        """Set instrument connect at creation
+        
+        @param connection An InstrumetnConnection object
         """
         self._logger = None
         self._logger_client = None
         self._logger_popen = None
         self._fsm = None
+        '''This FSM needs to be created by child class'''
 
     ########################################################################
     # Protocol connection interface.
@@ -90,7 +93,10 @@ class InstrumentProtocol(object):
 
     
     def connect(self, timeout=10):
-        """
+        """Connect via the instrument connection object
+        
+        @param args connection arguments
+        @throws InstrumentConnectionException
         """
         mi_logger.info('Connecting to device.')
         logger_pid = self._logger.get_pid()
@@ -107,7 +113,9 @@ class InstrumentProtocol(object):
         return success
     
     def disconnect(self, timeout=10):
-        """
+        """Disconnect via the instrument connection object
+        
+        @throws InstrumentConnectionException
         """
         mi_logger.info('Disconnecting from device.')
         self.detach()
@@ -124,6 +132,11 @@ class InstrumentProtocol(object):
         """
         mi_logger.info('Detaching from device.')
         self._logger_client.stop_comms()
+        
+    def reset(self):
+        """Reset via the instrument connection object"""
+        # Call logger reset here.
+        pass
         
     ########################################################################
     # Protocol command interface.
@@ -179,7 +192,10 @@ class InstrumentProtocol(object):
     ########################################################################
     
     def get_status(self):
-        """
+        """Gets the current status of the instrument.
+        
+        @retval status A dict of the current status of the instrument. Keys are
+        listed in the status parameter list.
         """
         pass
     
