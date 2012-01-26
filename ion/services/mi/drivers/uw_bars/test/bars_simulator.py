@@ -18,10 +18,8 @@ __license__ = 'Apache 2.0'
 import socket
 import random
 import time
+
 from threading import Thread
-
-
-DEFAULT_PORT = 50007
 
 
 NEWLINE = '\n'
@@ -48,11 +46,11 @@ EXIT_PROGRAM = '6'
 time_between_bursts = 2
 
 
-class BurstThread(Thread):
+class _BurstThread(Thread):
     """Thread to generate data bursts"""
 
     def __init__(self, conn):
-        Thread.__init__(self, name="BurstThread")
+        Thread.__init__(self, name="_BurstThread")
         self._conn = conn
         self._running = True
         self._enabled = True
@@ -86,18 +84,18 @@ class BurstThread(Thread):
         return values
 
 
-def print_date_time(conn):
+def _print_date_time(conn):
     # TODO print date time
     conn.sendall("TODO date time" + NEWLINE)
 
 
-def restart_data_collection(bt):
+def _restart_data_collection(bt):
     """restarts data collection"""
     print "resuming data"
     bt.set_enabled(True)
 
 
-def change_params_menu(bt, conn):
+def _change_params_menu(bt, conn):
     """to change parameters
     """
     #TODO not clear how this menu looks like or works
@@ -143,22 +141,22 @@ Select 0, 1, ??? here  --> """
     print "exiting change params menu"
 
 
-def diagnostics(conn):
+def _diagnostics(conn):
     # TODO diagnostics
     conn.sendall("TODO diagnostics" + NEWLINE)
 
 
-def reset_clock(conn):
+def _reset_clock(conn):
     # TODO reset clock
     conn.sendall("TODO reset clock" + NEWLINE)
 
 
-def system_info(conn):
+def _system_info(conn):
     # TODO system info
     conn.sendall("TODO system info" + NEWLINE)
 
 
-def main_menu(bt, conn):
+def _main_menu(bt, conn):
 
     def _get_input(received):
         """
@@ -206,23 +204,23 @@ Select 0, 1, 2, 3, 4, 5 or 6 here  --> """
             break
 
         if input == PRINT_DATE_TIME:
-            print_date_time(conn)
+            _print_date_time(conn)
 
         elif input == RESTART_DATA_COLLECTION:
-            restart_data_collection(bt)
+            _restart_data_collection(bt)
             break  # and exit this menu
 
         elif input == ENTER_CHANGE_PARAMS:
-            change_params_menu(bt, conn)
+            _change_params_menu(bt, conn)
 
         elif input == SHOW_SYSTEM_DIAGNOSTICS:
-            diagnostics(conn)
+            _diagnostics(conn)
 
         elif input == ENTER_SET_SYSTEM_CLOCK:
-            reset_clock(conn)
+            _reset_clock(conn)
 
         elif input == SHOW_SYSTEM_INFO:
-            system_info(conn)
+            _system_info(conn)
 
         elif input == EXIT_PROGRAM:
             # exit program -- IGNORED
@@ -235,7 +233,7 @@ Select 0, 1, 2, 3, 4, 5 or 6 here  --> """
     print "exiting main menu"
 
 
-def connected(bt, conn):
+def _connected(bt, conn):
     while True:
         input = conn.recv(1024)
         if not input:
@@ -247,7 +245,7 @@ def connected(bt, conn):
 
         if input == "^S":
             bt.set_enabled(False)
-            main_menu(bt, conn)
+            _main_menu(bt, conn)
         else:
             response = "invalid input: '%s'" % input
             print response
@@ -256,26 +254,34 @@ def connected(bt, conn):
     print "exiting connected"
 
 
-def main(host='', port=DEFAULT_PORT):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((host, port))
-    s.listen(1)
+class BarsSimulator(object):
 
-    print 'waiting for connection'
-    conn, addr = s.accept()
-    print 'Connected by', addr
+    def __init__(self, host='', port=0):
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.bind((host, port))
+        self._sock.listen(1)
 
-    bt = BurstThread(conn)
-    bt.start()
+    def get_port(self):
+        return self._sock.getsockname()[1]
 
-    connected(bt, conn)
-    bt.end()
+    def run(self):
+        print 'waiting for connection'
+        conn, addr = self._sock.accept()
+        print 'Connected by', addr
 
-    conn.close()
-    s.close()
+        bt = _BurstThread(conn)
+        bt.start()
 
-    print "bye."
+        _connected(bt, conn)
+        bt.end()
+
+        conn.close()
+        self._sock.close()
+
+        print "bye."
 
 
 if __name__ == '__main__':
-    main()
+    simulator = BarsSimulator()
+    print "bound to port %s" % simulator.get_port()
+    simulator.run()

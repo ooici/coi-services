@@ -394,7 +394,7 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
         self._prompt_recvd = None
         starttime = time.time()
         while not self._prompt_recvd:
-            mi_logger.debug('Sending wakeup.')
+            log.debug('Sending wakeup.')
             self._logger_client.send(BarsPrompt.NEWLINE)
             time.sleep(1)
             if time.time() > starttime + timeout:
@@ -419,4 +419,4 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
         (dc_prompt, dc_result) = self._do_cmd('dc')
 
         result = ds_result + dc_result
-        mi_logger.debug('Got parameters %s', repr(result))
+        log.debug('Got parameters %s', repr(result))

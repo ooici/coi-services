@@ -3,13 +3,35 @@
 __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
+
 from unittest import TestCase
+import time
 
 from ion.services.mi.instrument_connection import SerialInstrumentConnection
+
 from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
+from ion.services.mi.drivers.uw_bars.test.bars_simulator import BarsSimulator
+
+from threading import Thread
 
 
 class ProtocolTest(TestCase):
+
+    def setUp(self):
+        """Starts simulator"""
+
+        simulator = BarsSimulator()
+        port = simulator.get_port()
+        print "bound to port %s" % port
+
+        self.device_port = port
+
+        self.simulator_thread = Thread(target=simulator.run)
+        print "starting simulator"
+        self.simulator_thread.start()
+
+    def tearDown(self):
+        pass
 
     def test_basic(self):
         """
@@ -18,13 +40,21 @@ class ProtocolTest(TestCase):
         connection = SerialInstrumentConnection()
 
         config = {
-            'method':'ethernet',
-            'device_addr': '10.180.80.173',  # arbitrary for the moment
-            'device_port': 9999,  # arbitrary for the moment
+            'method': 'ethernet',
+            'device_addr': 'localhost',
+            'device_port': self.device_port,
             'server_addr': 'localhost',
             'server_port': 8888
         }
-        
+
         protocol = BarsInstrumentProtocol(connection, config)
 
         protocol.connect()
+
+        print "sleeping for a bit"
+        time.sleep(3)
+
+        print "disconnecting"
+        protocol.disconnect()
+
+        self.simulator_thread.join()
