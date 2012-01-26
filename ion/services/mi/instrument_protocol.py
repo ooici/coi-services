@@ -40,7 +40,7 @@ class InstrumentProtocol(object):
     
     implements(IInstrumentConnection)
     
-    def __init__(self):
+    def __init__(self, connection, callback=None):
         """Set instrument connect at creation
         
         @param connection An InstrumetnConnection object
@@ -49,8 +49,12 @@ class InstrumentProtocol(object):
         self._logger_client = None
         self._logger_popen = None
         self._fsm = None
-        '''This FSM needs to be created by child class'''
-
+        self.instrument_connection = connection
+        
+        self.announce_to_driver = callback
+        """The driver callback where we an publish events. Should be a link
+        to a function."""
+        
     ########################################################################
     # Protocol connection interface.
     ########################################################################
@@ -289,7 +293,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     instrument.
     """
     
-    def __init__(self,
+    def __init__(self, callback=None,
                  command_list=None,
                  response_regex_list=None,
                  get_prefix="",
@@ -297,7 +301,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                  set_delimiter="",
                  execute_prefix="",
                  eoln="\n"):
-        InstrumentProtocol.__init__(self)
+        InstrumentProtocol.__init__(self, callback)
         
         self.command_list = command_list
         """The BaseEnum command keys to be used"""
