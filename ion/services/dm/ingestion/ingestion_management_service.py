@@ -52,8 +52,6 @@ class IngestionManagementService(BaseIngestionManagementService):
         exchange_name = XP + '_ingestion_queue'
 
 
-
-
         #########################################################################################################
         #   The code for process_definition may not really belong here, but we do not have a different way so
         #   far to preload the process definitions. This will later probably be part of a set of predefinitions
@@ -109,12 +107,10 @@ class IngestionManagementService(BaseIngestionManagementService):
         # launch the transforms
         # we spawn the transform processes without actually activating them yet...
         for i in range(number_of_workers):
-            name = 'Ingestion_Worker_%s' % i
+            name = 'Ingestion_Worker_%s' % (i+1)
             transform_id = self.clients.transform_management.create_transform(name = name, description = description, \
                      in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id, \
                                 configuration=configuration)
-#            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
-#                process_definition_id=process_definition_id, configuration=configuration)
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
             try:
@@ -167,10 +163,17 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         log.debug("Activating ingestion configuration")
 
+        # check whether the ingestion configuration object exists
+        try:
+            ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
+        except:
+            raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
+
+        # read the transforms
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
             AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
-            raise NotFound
+            raise NotFound("No transforms attached as ingestion workers to the ingestion configuration object.")
 
         # This is messy - but for now activate_transform, which calls activate subscription is idempotent.
         # calling it many times is just activating the same subscription many times.
@@ -193,11 +196,17 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
         log.debug("Deactivating ingestion configuration")
 
+        # check whether the ingestion configuration object exists
+        try:
+            ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
+        except:
+            raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
+
         # use the deactivate method in transformation management service
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
             AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
-            raise NotFound('The ingestion configuration with id %s does not exist' % ingestion_configuration_id)
+            raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
 
         # same issue as activate transform
         for transform_id in transform_ids:

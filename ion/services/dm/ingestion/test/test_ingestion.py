@@ -6,19 +6,20 @@
 @test ion.services.dm.ingestion.ingestion_management_service Unit test suite to cover all ingestion mgmt service code
 '''
 
+import gevent
 from mock import Mock, sentinel, patch
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService, IngestionManagementServiceException
 from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound
-from pyon.public import log, AT
+from pyon.core.exception import NotFound, BadRequest
 import unittest
-from pyon.public import CFG, IonObject, log, RT, AT, LCS
+from pyon.public import CFG, IonObject, log, RT, AT, LCS, StreamPublisher, StreamSubscriber
 from pyon.public import Container
-from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import Container
-from interface.services.icontainer_agent import ContainerAgentClient
+from pyon.util.containers import DotDict
 from interface.objects import ProcessDefinition, StreamQuery
+from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -63,6 +64,8 @@ class IngestionTest(PyonTestCase):
 
         # default policy
         self.default_policy = {} # todo: later use Mock(specset = 'StreamIngestionPolicy')
+
+
 
     def test_create_ingestion_configuration(self):
 
@@ -134,17 +137,53 @@ class IngestionTest(PyonTestCase):
         self.mock_read.assert_called_once_with('notfound', '')
         self.assertEqual(self.mock_delete.call_count, 0)
 
+    def test_activate_deactivate_ingestion_configuration(self):
+        """
+        Test that the ingestion configuration is activated
+        """
+        try:
+            self.ingestion_service.activate_ingestion_configuration(self.ingestion_configuration_id)
+        except:
+            Exception("Error while activating the ingestion configuration in test method.")
+
+        try:
+            self.ingestion_service.deactivate_ingestion_configuration(self.ingestion_configuration_id)
+        except:
+            Exception("Error while deactivating the ingestion configuration in test method.")
+
+    def test_activate_ingestion_configuration_not_found(self):
+        """
+        Test that non existent ingestion configuration does not cause crash when attempting to activate
+        """
+        ingestion_service = IngestionManagementService()
+
+        with self.assertRaises(NotFound) as cm:
+            ingestion_service.activate_ingestion_configuration('wrong')
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Ingestion configuration wrong does not exist')
+
+    def test_deactivate_ingestion_configuration_not_found(self):
+        """
+        Test that non existent ingestion configuration does not cause crash when attempting to activate
+        """
+        ingestion_service = IngestionManagementService()
+
+        with self.assertRaises(NotFound) as cm:
+            ingestion_service.deactivate_ingestion_configuration('wrong')
+        ex = cm.exception
+        self.assertEqual(ex.message, 'Ingestion configuration wrong does not exist')
+
 
 @attr('INT', group='dm')
 class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
     def setUp(self):
-        # set up the container
+        # set up the container for testing
         self._start_container()
 
         self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
 
-        self.cc.start_rel_from_url('res/deploy/r2deploy.yml')
+        self.cc.start_rel_from_url('res/deploy/r2dm.yml')
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
@@ -159,6 +198,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                                               'class':'TransformExample'}
         self.process_definition_id, _= self.rr_cli.create(self.process_definition)
 
+        self.XP = 'science_data'
+        self.exchange_name = XP + '_ingestion_queue'
+
         # for now we havent finalized on what the exchange_point_id should be
         self.exchange_point_id = 'an exchange_point_id'
         self.number_of_workers = 2
@@ -168,68 +210,156 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hfd_storage, \
                     self.number_of_workers, self.default_policy)
 
-
     def tearDown(self):
-        self.ingestion_cli.deactivate_ingestion_configuration(self.ingestion_configuration_id)
-        self.ingestion_cli.delete_ingestion_configuration(self.ingestion_configuration_id)
-        self._stop_container()
-
+        """
+        Cleanup
+        """
+#        self.ingestion_cli.deactivate_ingestion_configuration(self.ingestion_configuration_id)
+#        self.ingestion_cli.delete_ingestion_configuration(self.ingestion_configuration_id)
+#        self._stop_container()
+        pass
 
     def test_create_ingestion_configuration(self):
         """
         Tests whether an ingestion configuration is created successfully and an ingestion_configuration_id
         is generated.
         """
-        # for less typing storing the instance's ingestion_configuration parameters
-        number_of_workers = self.ingestion_configuration.number_of_workers
-        hfd_storage = self.ingestion_configuration.hfd_storage
-        couch_storage = self.ingestion_configuration.couch_storage
-        default_policy = self.ingestion_configuration.default_policy
-        exchange_point_id = self.exchange_point_id
-
         # checking that an ingestion configuration can be successfully created
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(exchange_point_id, \
-                couch_storage,hfd_storage, number_of_workers, default_policy)
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, \
+                self.couch_storage, self.hfd_storage, self.number_of_workers, self.default_policy)
 
         # checking that an ingestion_configuration_id gets successfully generated
         self.assertIsNotNone(ingestion_configuration_id, "Could not generate ingestion_configuration_id.")
 
+        # read the ingestion configuration object and see if it contains what it is supposed to....
         ingestion_configuration = self.ingestion_cli.read_ingestion_configuration(ingestion_configuration_id)
 
-        # checking that the ingestion_configuration contains what it is supposed to...
-        self.assertEquals(ingestion_configuration.number_of_workers, number_of_workers)
-        self.assertEquals(ingestion_configuration.hdf_storage, hfd_storage)
-        self.assrtEquals(ingestion_configuration.couch_storage, couch_storage)
-        self.assertEquals(ingestion_configuration.default_policy, default_policy)
-        self.assertEquals(ingestion_configuration.exchange_point_id, exchange_point_id)
+        self.assertEquals(ingestion_configuration.number_of_workers, self.number_of_workers)
+        self.assertEquals(ingestion_configuration.hdf_storage, self.hfd_storage)
+        self.assrtEquals(ingestion_configuration.couch_storage, self.couch_storage)
+        self.assertEquals(ingestion_configuration.default_policy, self.default_policy)
+        self.assertEquals(ingestion_configuration.exchange_point_id, self.exchange_point_id)
 
         # clean up the specific ingestion_configuration created in this method
         self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
-    def test_launch_ingestion_workers(self):
+    def test_ingestion_workers(self):
         """
-        Tests whether the ingestion workers are launched correctly
-        """
-        # for less typing storing the instance's ingestion_configuration parameters
-        number_of_workers = self.ingestion_configuration.number_of_workers
-        hfd_storage = self.ingestion_configuration.hfd_storage
-        couch_storage = self.ingestion_configuration.couch_storage
-        default_policy = self.ingestion_configuration.default_policy
-        exchange_point_id = self.exchange_point_id
+        1. Test whether the ingestion workers are launched correctly.
 
-        # checking that an ingestion configuration can be successfully created
+        2. Test the associations between the ingestion configuration object and the transforms.
+
+	    3. Test the number of worker processes created by getting the process object from the container
+
+	    4. Confirm that messages are received round robin by ingestion workers for any message sent to that exchange
+        """
+
+        # create an ingestion configuration by passing in these parameters
         with self.assertRaises(IngestionManagementServiceException):
-            ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(exchange_point_id,\
-                couch_storage,hfd_storage, number_of_workers, default_policy)
+            ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
+                self.couch_storage, self.hfd_storage, self.number_of_workers, self.default_policy)
 
-        # check the transforms
-        with self.asser
+        # check associations between the ingestion configuration objects and the transforms
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
             AT.hasTransform, RT.Transform, True)
-        if len(transform_ids) < 1:
-            raise NotFound('Transforms do not exist for ingestion configuration with id %s does not exist' % ingestion_configuration_id)
 
-        # same issue as activate transform
-        for transform_id in transform_ids:
-            self.assertIsNotNone(transform_id)
+        if len(transform_ids) < 2:
+            raise NotFound('Both transform ids were not generated... number of transforms created=' % len(transform_ids))
+
+        # check the number of worker processes created in the container...
+        # i.e. check that the two ingestion workers are running
+        assert cc.proc_manager.procs_by_name.has_key('Ingestion_Worker_1') \
+        and cc.proc_manager.procs_by_name.has_key('Ingestion_Worker_2'), "The two ingestion workers are not running"
+
+        # confirm that messages are being handled in a round robin manner
+
+
+    def test_activate_ingestion_configuration(self):
+        """
+        Test the activation of the ingestion configuration
+        """
+        # activate an ingestion configuration
+        ret = self.ingestion_cli.activate_ingestion_configuration(self.ingestion_configuration_id)
+
+        self.assertTrue(ret)
+
+        # check that it was activated
+
+        subscription_ids, _ = self.clients.resource_registry.find_objects(self.ingestion_configuration_id,\
+                                                AT.hasSubscription, RT.Subscription, id_only=True)
+
+        self.assertIsNotNone(subscription_ids)
+
+        ##############################################################################
+        # Not sure if the code below for testing the binding is required...
+        ##############################################################################
+
+        """
+        now check whether the subscriptions have bindings that should have been created by the activation of ingestion
+        configuration
+        """
+
+        # make a publisher object to send messages in the test.
+        stream_route = self.pubsub_cli.register_producer(exchange_name=self.exchange_name, stream_id=self.input_stream_id)
+        self.stream_publisher = StreamPublisher(node=self.cc.node, name=(self.XP,stream_route.routing_key), process=self.cc)
+
+        # create a one time event to see if message passing works on the subscription
+        ar = gevent.event.AsyncResult()
+        def message_received(message, headers):
+            ar.set(message)
+
+        # Create a subscriber to listen to the messages being passed
+        subscriber = StreamSubscriber(node=self.cc.node, name=(self.XP, self.exchange_name), callback=message_received, process=self.cc)
+        subscriber.start()
+
+        self.stream_publisher.publish('message1')
+        self.assertEquals(ar.get(timeout=10), 'message1')
+
+        subscriber.stop()
+
+        self.ingestion_cli.deactivate_ingestion_configuration(self.ingestion_configuration_id)
+
+    def test_deactivate_ingestion_configuration(self):
+        """
+        Test the deactivation of the ingestion configuration
+        """
+        # activate an ingestion configuration
+        self.ingestion_cli.activate_ingestion_configuration(self.ingestion_configuration_id)
+
+        # now deactivate the ingestion configuration
+        self.ingestion_cli.deactivate_ingestion_configuration(self.ingestion_configuration_id)
+
+        ############################################################################################
+        # Not sure if the code below for testing whether the binding were destroyed is required...
+        ############################################################################################
+
+
+        """
+        now check whether the bindings have been destroyed on deactivating the ingestion configuration
+         """
+
+        # make a publisher object to send messages in the test.
+        stream_route = self.pubsub_cli.register_producer(exchange_name=self.exchange_name, stream_id=self.input_stream_id)
+        self.stream_publisher = StreamPublisher(node=self.cc.node, name=(self.XP,stream_route.routing_key), process=self.cc)
+
+        # create a one time event to see if message passing works on the subscription
+        ar = gevent.event.AsyncResult()
+        def message_received(message, headers):
+            ar.set(message)
+
+        # Create a subscriber to listen to the messages being passed
+        subscriber = StreamSubscriber(node=self.cc.node, name=(self.XP, self.exchange_name), callback=message_received, process=self.cc)
+        subscriber.start()
+
+        self.stream_publisher.publish('message1')
+
+        p = None
+        with self.assertRaises(gevent.Timeout) as cm:
+            p = ar.get(timeout=10)
+
+        subscriber.stop()
+        ex = cm.exception
+        self.assertEqual(str(ex), '10 seconds')
+        self.assertEqual(p, None)
+
 

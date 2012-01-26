@@ -69,7 +69,7 @@ class IngestionExample(StreamProcess):
         super(IngestionExample,self).__init__()
 
     def callback(self):
-        log.debug('Transform Process is working')
+        log.debug('Ingestion Process is working')
 
 
     def on_start(self):
@@ -98,9 +98,11 @@ class IngestionExample(StreamProcess):
         log.debug('%s' % publisher)
         input = int(packet.get('num',0))
         output = input + 1
-        log.debug('(%s): Ingestion: %f' % (self.name,output))
+        log.debug('[Name of Ingestion worker: %s]: Ingestion: %f' % (self.name,output))
         msg = dict(num=output)
-        log.debug('(%s): Message Outgoing: %s' % (self.name, msg))
+        log.debug('[Name of Ingestion worker: %s]: Message Outgoing: %s' % (self.name, msg))
+
+        log.debug()
         if publisher:
             publisher.publish(msg)
         with open('/tmp/ingestion_output', 'a') as f:
