@@ -15,22 +15,20 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_protocol import ScriptInstrumentProtocol
+from ion.services.mi.instrument_protocol_eh import InstrumentProtocol
 
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.instrument_driver_eh import DriverEvent
 
 from ion.services.mi.instrument_fsm import InstrumentFSM
-from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 
-import time
 #import ion.services.mi.mi_logger
 import logging
 log = logging.getLogger('mi_logger')
 
 
-class BarsState(BaseEnum):
+class BarsProtocolState(BaseEnum):
     COLLECTING_DATA = 'COLLECTING_DATA'
     MAIN_MENU = 'MAIN_MENU'
     CHANGE_PARAMS_MENU = 'CHANGE_PARAMS_MENU'
@@ -39,7 +37,7 @@ class BarsState(BaseEnum):
     WAITING_FOR_SYSTEM_INFO = 'WAITING_FOR_SYSTEM_INFO'
 
 
-class BarsEvent(BaseEnum):
+class BarsProtocolEvent(BaseEnum):
     #TODO: How is EXIT supposed to be used? At this moment, this event
     # causes no changes in the state machine
     EXIT = DriverEvent.EXIT
@@ -66,32 +64,32 @@ class BarsPrompt(BaseEnum):
 ####################################################################
 # Protocol
 ####################################################################
-class BarsInstrumentProtocol(ScriptInstrumentProtocol):
+class BarsInstrumentProtocol(InstrumentProtocol):
     """The instrument protocol classes to deal with a TRHPH BARS sensor.
 
     """
 
-    def __init__(self, connection, config):
+    def __init__(self):
         """
-        Creates and configures an instance of the protocol.
-        @param connection
-        @param config
+        Creates an instance of this protocol. This basically sets up the
+        state machine, which is initialized in the COLLECTING_DATA state.
         """
 
-        ScriptInstrumentProtocol.__init__(self, connection)
+        InstrumentProtocol.__init__(self)
 
         self._linebuf = ''
 
         state_handlers = {
-            BarsState.COLLECTING_DATA: self._state_handler_collecting_data,
-            BarsState.MAIN_MENU: self._state_handler_main_menu,
-            BarsState.CHANGE_PARAMS_MENU:
+            BarsProtocolState.COLLECTING_DATA:
+                self._state_handler_collecting_data,
+            BarsProtocolState.MAIN_MENU: self._state_handler_main_menu,
+            BarsProtocolState.CHANGE_PARAMS_MENU:
                 self._state_handler_change_params_menu,
-            BarsState.WAITING_FOR_SYSTEM_DIAGNOSTICS:
+            BarsProtocolState.WAITING_FOR_SYSTEM_DIAGNOSTICS:
                 self._state_handler_waiting_for_system_diagnostics,
-            BarsState.SETTING_SYSTEM_CLOCK:
+            BarsProtocolState.SETTING_SYSTEM_CLOCK:
                 self._state_handler_setting_system_clock,
-            BarsState.WAITING_FOR_SYSTEM_INFO:
+            BarsProtocolState.WAITING_FOR_SYSTEM_INFO:
                 self._state_handler_waiting_for_system_info,
         }
 
@@ -99,14 +97,12 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
         # NOTE assume the instrument is collecting data
         # TODO: what if the instrument is NOT currently collecting data?
         #
-        self._fsm = InstrumentFSM(BarsState, BarsEvent,
+        self._fsm = InstrumentFSM(BarsProtocolState, BarsProtocolEvent,
                                   state_handlers,
-                                  BarsEvent.RESTART_DATA_COLLECTION,
-                                  BarsEvent.EXIT)
+                                  BarsProtocolEvent.RESTART_DATA_COLLECTION,
+                                  BarsProtocolEvent.EXIT)
 
-        self._fsm.start(BarsState.COLLECTING_DATA)
-
-        self._configure(config)
+        self._fsm.start(BarsProtocolState.COLLECTING_DATA)
 
     def _logEvent(self, event):
         log.info("_logEvent: curr_state=%s, event=%s" %
@@ -127,17 +123,17 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
         next_state = None
         result = None
 
-        if event == BarsEvent.ENTER_MAIN_MENU:
+        if event == BarsProtocolEvent.ENTER_MAIN_MENU:
 
             #TODO send 19 (Control-S) to instrument
             #...
 
-            next_state = BarsState.MAIN_MENU
+            next_state = BarsProtocolState.MAIN_MENU
 
-        elif event == BarsEvent.RESTART_DATA_COLLECTION:
+        elif event == BarsProtocolEvent.RESTART_DATA_COLLECTION:
             pass
 
-        elif event == BarsEvent.EXIT:
+        elif event == BarsProtocolEvent.EXIT:
             pass
 
         else:
@@ -156,38 +152,38 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
         next_state = None
         result = None
 
-        if event == BarsEvent.RESTART_DATA_COLLECTION:
+        if event == BarsProtocolEvent.RESTART_DATA_COLLECTION:
 
             #TODO send '1' to instrument
             # ...
 
-            next_state = BarsState.MAIN_MENU
+            next_state = BarsProtocolState.MAIN_MENU
 
-        elif event == BarsEvent.ENTER_CHANGE_PARAMS:
+        elif event == BarsProtocolEvent.ENTER_CHANGE_PARAMS:
 
             #TODO send '2' to instrument
             # ...
 
-            next_state = BarsState.CHANGE_PARAMS_MENU
+            next_state = BarsProtocolState.CHANGE_PARAMS_MENU
 
-        elif event == BarsEvent.SHOW_SYSTEM_DIAGNOSTICS:
+        elif event == BarsProtocolEvent.SHOW_SYSTEM_DIAGNOSTICS:
 
             #TODO send '3' to instrument
             # ...
 
-            next_state = BarsState.WAITING_FOR_SYSTEM_DIAGNOSTICS
+            next_state = BarsProtocolState.WAITING_FOR_SYSTEM_DIAGNOSTICS
 
-        elif event == BarsEvent.ENTER_SET_SYSTEM_CLOCK:
+        elif event == BarsProtocolEvent.ENTER_SET_SYSTEM_CLOCK:
 
             #TODO send '4' to instrument
             # ...
 
-            next_state = BarsState.SETTING_SYSTEM_CLOCK
+            next_state = BarsProtocolState.SETTING_SYSTEM_CLOCK
 
-        elif event == BarsEvent.ENTER_MAIN_MENU:
+        elif event == BarsProtocolEvent.ENTER_MAIN_MENU:
             pass
 
-        elif event == BarsEvent.EXIT:
+        elif event == BarsProtocolEvent.EXIT:
             pass
 
         else:
@@ -214,7 +210,7 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
             # ...
             pass
 
-        elif event == BarsEvent.EXIT:
+        elif event == BarsProtocolEvent.EXIT:
             pass
 
         else:
@@ -246,7 +242,7 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
         # TODO: what if we don't get the expected response?
         # ...
 
-        next_state = BarsState.MAIN_MENU
+        next_state = BarsProtocolState.MAIN_MENU
 
         return (success, next_state, result)
 
@@ -269,7 +265,7 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
             # ...
             pass
 
-        elif event == BarsEvent.EXIT:
+        elif event == BarsProtocolEvent.EXIT:
             pass
 
         else:
@@ -301,122 +297,6 @@ class BarsInstrumentProtocol(ScriptInstrumentProtocol):
         # TODO: what if we don't get the expected response?
         # ...
 
-        next_state = BarsState.MAIN_MENU
+        next_state = BarsProtocolState.MAIN_MENU
 
         return (success, next_state, result)
-
-    def connect(self):
-        """
-        """
-        logger_pid = self._logger.get_pid()
-        log.info('Found logger pid: %s.', str(logger_pid))
-        if not logger_pid:
-            self._logger.launch_process()
-        time.sleep(1)
-        self._attach()
-
-        success = InstErrorCode.OK
-        return success
-
-    def disconnect(self):
-        """
-        """
-        self._detach()
-        self._logger.stop()
-
-    ########################################################################
-    # Private helpers
-    ########################################################################
-
-    def _configure(self, config):
-        """
-        """
-        self._logger = None
-        self._logger_client = None
-
-        success = InstErrorCode.OK
-
-        try:
-            method = config['method']
-
-            if method == 'ethernet':
-                device_addr = config['device_addr']
-                device_port = config['device_port']
-                server_addr = config['server_addr']
-                server_port = config['server_port']
-                self._logger = EthernetDeviceLogger(device_addr, device_port,
-                                                    server_port)
-                self._logger_client = LoggerClient(server_addr, server_port)
-
-            elif method == 'serial':
-                # TODO serial method
-                pass
-
-            else:
-                success = InstErrorCode.INVALID_PARAMETER
-
-        except KeyError:
-            success = InstErrorCode.INVALID_PARAMETER
-
-        return success
-
-    def _attach(self):
-        """
-        """
-        self._logger_client.init_comms(self._got_data)
-
-    def _detach(self):
-        """
-        """
-        self._logger_client.stop_comms()
-
-    def _got_data(self, data):
-        """
-        """
-        log.debug("Got data %s" % str(data))
-        self._linebuf += data
-
-        # TODO sync with other parts of the code
-
-    def _do_cmd(self, cmd, timeout=10):
-        """
-        """
-        self._prompt_recvd = None
-        self._logger_client.send(cmd + BarsPrompt.NEWLINE)
-        prompt = self._get_prompt(timeout)
-        result = self._linebuf.replace(prompt, '')
-        return (prompt, result)
-
-    def _wakeup(self, timeout=10):
-        """
-        """
-        self._linebuf = ''
-        self._prompt_recvd = None
-        starttime = time.time()
-        while not self._prompt_recvd:
-            log.debug('Sending wakeup.')
-            self._logger_client.send(BarsPrompt.NEWLINE)
-            time.sleep(1)
-            if time.time() > starttime + timeout:
-                return InstErrorCode.TIMEOUT
-        return self._prompt_recvd
-
-    def _get_prompt(self, timeout):
-        """
-        """
-        self._linebuf = ''
-        starttime = time.time()
-        while not self._prompt_recvd:
-            time.sleep(1)
-            if time.time() > starttime + timeout:
-                return InstErrorCode.TIMEOUT
-        return self._prompt_recvd
-
-    def _update_params(self):
-        """
-        """
-        (ds_prompt, ds_result) = self._do_cmd('ds')
-        (dc_prompt, dc_result) = self._do_cmd('dc')
-
-        result = ds_result + dc_result
-        log.debug('Got parameters %s', repr(result))

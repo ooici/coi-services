@@ -11,13 +11,10 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
-from ion.services.mi.drivers.uw_bars.common import BarsCapability, \
-    BarsChannel, BarsError, BarsMetadataParameter, BarsParameter, \
-    BarsStatus, BarsCommand
 
-from ion.services.mi.instrument_driver import InstrumentDriver
-from ion.services.mi.instrument_connection import SerialInstrumentConnection
-from ion.services.mi.comms_method import AMQPCommsMethod
+from ion.services.mi.instrument_driver_eh import InstrumentDriver
+
+from ion.services.mi.common import InstErrorCode
 
 
 #import ion.services.mi.mi_logger
@@ -30,19 +27,31 @@ log = logging.getLogger('mi_logger')
 #
 
 class BarsInstrumentDriver(InstrumentDriver):
-    """The InstrumentDriver class for the TRHPH BARS sensor"""
+    """The InstrumentDriver class for the TRHPH BARS sensor.
+
+    @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
+    """
 
     def __init__(self):
-        self.instrument_connection = SerialInstrumentConnection()
-        config = {}  # TODO
-        self.protocol = BarsInstrumentProtocol(self.instrument_connection,
-                                               config)
+        InstrumentDriver.__init__(self)
 
-        self.comms_method = AMQPCommsMethod()
-        self.instrument_commands = BarsCommand()
-        self.instrument_metadata_parameters = BarsMetadataParameter()
-        self.instrument_parameters = BarsParameter()
-        self.instrument_channels = BarsChannel()
-        self.instrument_errors = BarsError()
-        self.instrument_capabilities = BarsCapability()
-        self.instrument_status = BarsStatus()
+        self.connection = None
+        self.protocol = None
+
+    def configure(self, config, timeout=10):
+        # TODO harmonize with base class
+
+        success = InstErrorCode.OK
+
+        self._configure_connection(config)
+        self._configure_protocol(config)
+
+        return success
+
+    def _configure_connection(self, config):
+        # TODO
+        self.connection = object()
+
+    def _configure_protocol(self, config):
+        # TODO use self.connection
+        self.protocol = BarsInstrumentProtocol(config)
