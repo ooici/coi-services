@@ -40,7 +40,7 @@ class InstrumentProtocol(object):
     
     implements(IInstrumentConnection)
     
-    def __init__(self, connection, callback=None):
+    def __init__(self, callback=None):
         """Set instrument connect at creation
         
         @param connection An InstrumetnConnection object
@@ -49,7 +49,6 @@ class InstrumentProtocol(object):
         self._logger_client = None
         self._logger_popen = None
         self._fsm = None
-        self.instrument_connection = connection
         
         self.announce_to_driver = callback
         """The driver callback where we an publish events. Should be a link
