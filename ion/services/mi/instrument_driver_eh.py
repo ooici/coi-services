@@ -143,64 +143,273 @@ class InstrumentDriver(object):
 
         # Instrument channel dict.
         # A dictionary of channel-name keys and channel protocol object values.
+        # We need to change this to protocol or connection name, rather than channel.
         self.channels = {}
+        
+        # Below are old members with comments from EH.
+        #
+        # Protocol will create and own the connection it fronts.
+        #self.instrument_connection = None
+        #"""An object for manipulating connect and disconnect to an instrument"""
+        # This is the self.channels member above. Change name. A dict of protocols.
+        #self.instrument_protocol = None
+        #"""The instrument-specific protocol object"""
+        # This is supplied by the driver process that contains and creates the driver.
+        #self.instrument_comms_method = None
+        #"""The communications method formatting object"""
+        # Probably an enum class with execute commands that are possible.
+        #self.instrument_commands = None
+        #"""The instrument-specific command list"""
+        # Ditch this.
+        #self.instrument_metadata_parameters = None
+        #"""The instrument-specific metadata parameter list"""
+        # To be added. A dictionary or class that knows how to match, parse and format all of its params.
+        #self.instrument_parameters = None
+        #"""The instrument-specific parameter list"""
+        # TBD.
+        #self.instrument_channels = None
+        #"""The instrument-specific channel list"""
+        # Why bother, make errors draw from the common list.
+        #self.instrument_errors = None
+        #"""The instrument-specific error list"""
+        # This should return the instrument commands enum values
+        #self.instrument_capabilities = None
+        #"""The instrument-specific capabilities list"""
+        # TBD.
+        #self.instrument_status = None
+        #"""The instrument-specific status list"""
+        
+        # Do we need this also? Just use simple harmonizing logic
+        # at driver level if there are multiple connections. If one connection,
+        # one state machine.
+        # Setup the state machine
+        """
+        self.driver_fsm = FSM(DriverState.UNCONFIGURED)
+        self.driver_fsm.add_transition(DriverEvent.CONFIGURE,
+                                       DriverState.UNCONFIGURED,
+                                       action=self._handle_configure,
+                                       next_state=DriverState.DISCONNECTED)
+        self.driver_fsm.add_transition(DriverEvent.INITIALIZE,
+                                       DriverState.DISCONNECTED,
+                                       action=self._handle_initialize,
+                                       next_state=DriverState.UNCONFIGURED)        
+        self.driver_fsm.add_transition(DriverEvent.DISCONNECT_FAILED,
+                                       DriverState.DISCONNECTING,
+                                       action=self._handle_disconnect_failure,
+                                       next_state=DriverState.CONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.DISCONNECT_COMPLETE,
+                                       DriverState.DISCONNECTING,
+                                       action=self._handle_disconnect_success,
+                                       next_state=DriverState.DISCONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.DISCONNECT,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_disconnect,
+                                       next_state=DriverState.DISCONNECTING) 
+        self.driver_fsm.add_transition(DriverEvent.CONNECT,
+                                       DriverState.DISCONNECTED,
+                                       action=self._handle_connect,
+                                       next_state=DriverState.CONNECTING) 
+        self.driver_fsm.add_transition(DriverEvent.CONNECTION_COMPLETE,
+                                       DriverState.CONNECTING,
+                                       action=self._handle_connect_success,
+                                       next_state=DriverState.CONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.CONNECTION_FAILED,
+                                       DriverState.CONNECTING,
+                                       action=self._handle_connect_failed,
+                                       next_state=DriverState.DISCONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.START_AUTOSAMPLE,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_start_autosample,
+                                       next_state=DriverState.AUTOSAMPLE) 
+        self.driver_fsm.add_transition(DriverEvent.STOP_AUTOSAMPLE,
+                                       DriverState.AUTOSAMPLE,
+                                       action=self._handle_stop_autosample,
+                                       next_state=DriverState.CONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.CONNECTION_LOST,
+                                       DriverState.AUTOSAMPLE,
+                                       action=self._handle_connection_lost,
+                                       next_state=DriverState.DISCONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.CONNECTION_LOST,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_connection_lost,
+                                       next_state=DriverState.DISCONNECTED) 
+        
+        self.driver_fsm.add_transition(DriverEvent.DATA_RECEIVED,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_data_received,
+                                       next_state=DriverState.CONNECTED)
+        self.driver_fsm.add_transition(DriverEvent.DATA_RECEIVED,
+                                       DriverState.AUTOSAMPLE,
+                                       action=self._handle_data_received,
+                                       next_state=DriverState.AUTOSAMPLE)
+        self.driver_fsm.add_transition(DriverEvent.GET,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_get,
+                                       next_state=DriverState.CONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.SET,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_set,
+                                       next_state=DriverState.CONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.ACQUIRE_SAMPLE,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_acquire_sample,
+                                       next_state=DriverState.CONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.TEST,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_test,
+                                       next_state=DriverState.CONNECTED) 
+        self.driver_fsm.add_transition(DriverEvent.CALIBRATE,
+                                       DriverState.CONNECTED,
+                                       action=self._handle_calibrate,
+                                       next_state=DriverState.CONNECTED) 
+
+        self.driver_fsm.add_transition_catch(DriverEvent.RESET,
+                                       action=self._handle_reset,
+                                       next_state=DriverState.UNCONFIGURED)    
+        """
+        
+    ########################################################################
+    # Channel connection interface.
+    ########################################################################
     
-    def configure(self, config):
+    def initialize(self, channels, timeout=10):
+        """
+        Return a device channel to an unconnected, unconfigured state.
+        @param channels List of channel names to initialize.
+        @param timeout Number of seconds before this operation times out
+        """
+        pass
+
+    def configure(self, configs, timeout=10):
         """
         Configure the driver for communications with an instrument channel.
         @param config A dict containing channel name keys, with
         dict values containing the comms configuration for the named channel.
+        @param timeout Number of seconds before this operation times out        
         """
         pass        
-    
-    def initialize(self, chan_list):
-        """
-        Return a device channel to an unconnected, unconfigured state.
-        @param chan_list List of channel names to initialize.
-        """
-        pass
-    
-    def connect(self, chan_list, timeout=10):
+        
+    def connect(self, channels, timeout=10):
         """
         Establish communications with a device channel.
-        @param chan_list List of channel names to connect.
+        @param channels List of channel names to connect.
+        @param timeout Number of seconds before this operation times out
         """
         pass
     
-    def disconnect(self, chan_list, timeout=10):
+    def disconnect(self, channels, timeout=10):
         """
         Disconnect communications with a device channel.
-        @param chan_list List of channel names to disconnect.
+        @param channels List of channel names to disconnect.
+        @param timeout Number of seconds before this operation times out
+        
         """
         pass
 
-    def execute(self, channels, command, timeout=10):
+    def detach(self, channels, timeout=10):
         """
-        """
-        pass
-    
-    def execute_direct(self, bytes, timeout=10):
-        """
+        Disconnect communications with a device channel.
+        @param channels List of channel names to disconnect.
+        @param timeout Number of seconds before this operation times out
         """
         pass
-    
-    def get(self, params):
+
+    ########################################################################
+    # Channel command interface.
+    ########################################################################
+
+    def get(self, params, timeout=10):
         """
+        @param timeout Number of seconds before this operation times out
         """
         pass
     
     def set(self, params, timeout=10):
         """
-        """
-        pass
-    
-    def get_status(self, params):
-        """
-        """
-        pass
-    
-    def get_capabilities(self, params):
-        """
+        @param timeout Number of seconds before this operation times out
         """
         pass
 
+    def execute(self, channels, command, timeout=10):
+        """
+        @param timeout Number of seconds before this operation times out
+        """
+        pass
+    
+    def execute_direct(self, channels, bytes):
+        """
+        """
+        pass
+    
+    ########################################################################
+    # TBD.
+    ########################################################################    
+    
+    def get_status(self, params, timeout=10):
+        """
+        @param timeout Number of seconds before this operation times out
+        """
+        pass
+    
+    def get_capabilities(self, params, timeout=10):
+        """
+        @param timeout Number of seconds before this operation times out
+        """
+        pass
+
+    #######################
+    # State change handlers
+    #######################
+    #def _handle_configure(self):
+    #    """State change handler"""
+    #
+    #def _handle_initialize(self):
+    #    """State change handler"""
+    #
+    #def _handle_disconnect_failure(self):
+    #    """State change handler"""
+    #
+    #def _handle_disconnect_success(self):
+    #    """State change handler"""
+    #
+    #def _handle_disconnect(self):
+    #    """State change handler"""
+    #
+    #def _handle_connect(self):
+    #    """State change handler"""
+    #
+    #def _handle_connect_success(self):
+    #    """State change handler"""
+    #
+    #def _handle_connect_failed(self):
+    #    """State change handler"""
+    #
+    #def _handle_start_autosample(self):
+    #    """State change handler"""
+    #
+    #def _handle_stop_autosample(self):
+    #    """State change handler"""
+    #
+    #def _handle_connection_lost(self):
+    #    """State change handler"""
+    #
+    #def _handle_reset(self):
+    #    """State change handler"""
+    #
+    #def _handle_handle_data_received(self):
+    #    """State change handler"""
+    #    
+    #def _handle_handle_get(self):
+    #    """State change handler"""
+    #    
+    #def _handle_handle_set(self):
+    #    """State change handler"""
+    #
+    #def _handle_handle_acquire_sample(self):
+    #    """State change handler"""
+    #    
+    #def _handle_handle_test(self):
+    #    """State change handler"""
+    #
+    #def _handle_handle_calibrate(self):
+    #    """State change handler"""  

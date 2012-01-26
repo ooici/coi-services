@@ -18,7 +18,9 @@ import datetime
 import atexit
 import errno
 from subprocess import Popen
+from subprocess import PIPE
 import logging
+import os
 
 from ion.services.mi.daemon_process import DaemonProcess
 
@@ -95,6 +97,8 @@ class BaseLoggerProcess(DaemonProcess):
             try:
                 self.driver_server_sock = socket.socket(socket.AF_INET,
                                                 socket.SOCK_STREAM)
+                self.driver_server_sock.setsockopt(socket.SOL_SOCKET,
+                                                   socket.SO_REUSEADDR, 1)
                 self.driver_server_sock.bind(('',self.server_port))
                 self.driver_server_sock.listen(1)
                 self.driver_server_sock.setblocking(0)
@@ -151,6 +155,7 @@ class BaseLoggerProcess(DaemonProcess):
         if they exist. Log with status file.
         """
         if self.driver_sock:
+            self.driver_sock.shutdown(socket.SHUT_RDWR)
             self.driver_sock.close()
             self.driver_sock = None
             self.driver_addr = None
@@ -419,7 +424,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
 
         cmd_str = import_str + ctor_str + 'l.start()'            
             
-        BaseLoggerProcess.launch_process(cmd_str)
+        return BaseLoggerProcess.launch_process(cmd_str)
 
     def _init_device_comms(self):
         """
@@ -453,8 +458,10 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         Close ethernet device comms and log with status file.
         """
         if self.device_sock:
+            self.device_sock.shutdown(socket.SHUT_RDWR)
             self.device_sock.close()
             self.device_sock = None
+            time.wait(1)
             self.statusfile.write('_close_device_comms: device connection closed.\n')
             self.statusfile.flush()                            
 
@@ -610,6 +617,8 @@ class LoggerClient(object):
         listener thread.
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # This can be thrown here.
+        # error: [Errno 61] Connection refused
         self.sock.connect((self.host, self.port))
         self.sock.setblocking(0)        
         self.listener_thread = Listener(self.sock, self.delim, callback)
@@ -625,6 +634,7 @@ class LoggerClient(object):
         """
         self.listener_thread.done()
         self.listener_thread.join()
+        self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
         self.sock = None
         mi_logger.info('Loggerr client comms stopped.')

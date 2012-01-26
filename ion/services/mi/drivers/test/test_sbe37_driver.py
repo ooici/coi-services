@@ -16,6 +16,8 @@ import time
 import unittest
 import logging
 from subprocess import Popen
+import os
+import signal
 
 from nose.plugins.attrib import attr
 
@@ -58,14 +60,16 @@ class TestSBE37Driver(PyonTestCase):
 
         # Add cleanup handler functions.
         # self.addCleanup()
-
         
     def test_config(self):
         """
         Test driver configure.
         """
-        
-        
+        #def wait_on_child(signum=None, frame=None):
+        #    retval = os.wait()
+        #signal.signal(signal.SIGCHLD, wait_on_child)
+
+
         driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
             self.evt_port, self.dvr_mod,  self.dvr_cls)
         
@@ -89,8 +93,7 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
 
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD],
-                                      [SBE37Command.ACQUIRE_SAMPLE])
+        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
         time.sleep(2)
         
         reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
@@ -101,8 +104,10 @@ class TestSBE37Driver(PyonTestCase):
         
         
         driver_client.done()
-        
-        
+        time.sleep(2)
+        driver_process.wait()
+        time.sleep(2)
+
         """
         reply = driver_client.cmd_dvr('process_echo', data='test 1 2 3')
         self.assertIsInstance(reply, dict)
@@ -132,6 +137,6 @@ class TestSBE37Driver(PyonTestCase):
         self.assertEqual(reply, 'test_events')
         time.sleep(3)
         self.assertTrue(driver_client.events, events)
-        """        
+        """
         pass
     

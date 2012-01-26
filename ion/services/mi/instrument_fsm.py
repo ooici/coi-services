@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.instrument_fsm.py
-@file ion/agents/instrumentagents/instrument_fsm.py
+@package ion.services.mi.instrument_fsm Instrument Finite State Machine
+@file ion/services/mi/instrument_fsm.py
 @author Edward Hunter
 @brief Simple state mahcine for driver and agent classes.
 """
@@ -15,14 +15,18 @@ import logging
 mi_logger = logging.getLogger('mi_logger')
 
 class InstrumentFSM():
-    """
-    Simple state mahcine for driver and agent classes.
-    """
-
+    """Simple state mahcine for driver and agent classes."""
 
     def __init__(self, states, events, state_handlers,enter_event,exit_event):
         """
         Initialize states, events, handlers.
+
+        @param states The list of states that the FSM handles
+        @param events The list of events that the FSM handles
+        @param state_handlers A dict of which state maps to which handling
+        routine
+        @param enter_event The event that indicates a state is being entered
+        @param exit_event The event that indicates a state is being exited
         """
         self.states = states
         self.events = events
@@ -43,6 +47,9 @@ class InstrumentFSM():
         """
         Start the state machine. Initializes current state and fires the
         EVENT_ENTER event.
+        @param state The state to start execute
+        @param params A list of parameters to hand to the handler
+        @retval return True
         """
         
         #if state not in self.states:
@@ -64,16 +71,14 @@ class InstrumentFSM():
             handler.
         @retval Success/fail if the event was handled by the current state.
         """
-        
         (success,next_state,result) = self.state_handlers[self.current_state](event,params)
-        
         
         #if next_state in self.states:
         if self.states.has(next_state):
             self._on_transition(next_state,params)
                 
         return (success,result)
-            
+
     def _on_transition(self,next_state,params):
         """
         Call the sequence of events to cause a state transition. Called from
@@ -86,4 +91,3 @@ class InstrumentFSM():
         self.previous_state = self.current_state
         self.current_state = next_state
         self.state_handlers[self.current_state](self.enter_event,params) 
-
