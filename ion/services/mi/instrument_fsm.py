@@ -19,7 +19,7 @@ class InstrumentFSM():
     Simple state mahcine for driver and agent classes.
     """
 
-    def __init__(self, states, events, enter_event, exit_event):
+    def __init__(self, states, events, enter_event, exit_event, err_unhandled):
         """
         Initialize states, events, handlers.
         
@@ -37,6 +37,7 @@ class InstrumentFSM():
         self.previous_state = None
         self.enter_event = enter_event
         self.exit_event = exit_event
+        self.err_unhandled = err_unhandled
 
     def get_current_state(self):
         """
@@ -86,7 +87,7 @@ class InstrumentFSM():
             handler.
         @retval Success/fail if the event was handled by the current state.
         """        
-        success = False
+        success = self.err_unhandled
         next_state = None
         result = None
         

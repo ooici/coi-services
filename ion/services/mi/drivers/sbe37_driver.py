@@ -78,7 +78,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         CommandResponseInstrumentProtocol.__init__(self)
                 
         self._fsm = InstrumentFSM(SBE37State, SBE37Event, SBE37Event.ENTER,
-                                  SBE37Event.EXIT)
+                            SBE37Event.EXIT, InstErrorCode.UNHANDLED_EVENT)
         
         self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.ENTER, self._handler_unconfigured_enter)
         self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.EXIT, self._handler_unconfigured_exit)
@@ -102,7 +102,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._linebuf = ''
         self._datalines = []
         self._promptbuf = ''
-        self._prompt_recvd = None
 
     ########################################################################
     # Protocol connection interface.
