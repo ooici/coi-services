@@ -93,6 +93,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
         self._linebuf = ''
         self._datalines = []
+        self._promptbuf = ''
         self._prompt_recvd = None
 
     ########################################################################
@@ -314,8 +315,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                 self._acquire_sample()
                 
             elif cmd == SBE37Command.START_AUTO_SAMPLING:
-                pass
-            
+                self._do_cmd_no_prompt('startnow')
+                next_state = SBE37State.AUTOSAMPLE
+                
             else:
                 success = InstErrorCode.INVALID_COMMAND        
 
@@ -335,6 +337,23 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.AUTOSAMPLE)
 
+        if event == SBE37Event.EXECUTE:
+            command = None
+            cmd = None
+            if params:
+                command = params.get('command', None)
+            if command:
+                cmd = command[0]
+            if cmd == SBE37Command.STOP_AUTO_SAMPLING:
+                self._do_cmd('stop')
+                while True:
+                    (prompt, result) = self._do_cmd('')
+                    if prompt == SBE37Prompt.COMMAND: break 
+                next_state = SBE37State.COMMAND
+                
+            else:
+                success = InstErrorCode.INVALID_COMMAND        
+
         elif event == SBE37Event.EXIT:
             pass
         
@@ -347,54 +366,84 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     ########################################################################
     # Private helpers
     ########################################################################
-
     
     def _got_data(self, data):
         """
         """
         self._linebuf += data        
-        if self._linebuf.endswith(SBE37Prompt.COMMAND):
-            self._prompt_recvd = SBE37Prompt.COMMAND
-            
-        elif self._linebuf.endswith(SBE37Prompt.BAD_COMMAND):
-            self._prompt_recvd = SBE37Prompt.BAD_COMMAND
-            
-        elif self._linebuf.endswith(SBE37Prompt.AUTOSAMPLE):
-            self._prompt_recvd = SBE37Prompt.AUTOSAMPLE
+        self._promptbuf += data
+        if len(self._promptbuf)>7:
+            self._promptbuf = self._promptbuf[-7:]
+        if self._fsm.get_current_state() == SBE37State.AUTOSAMPLE:
+            self._process_streaming_data()
+        
+    def _process_streaming_data(self):
+        """
+        """
+        if SBE37Prompt.NEWLINE in self._linebuf:
+            lines = self._linebuf.split(SBE37Prompt.NEWLINE)
+            self._linebuf = lines[-1]
+            lines = lines[0:-1]
+            mi_logger.debug('data lines received: %s',str(lines))
 
     def _do_cmd(self, cmd, timeout=10):
         """
         """
-        self._prompt_recvd = None
-        self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
-        prompt = self._get_prompt(timeout)
-        result = self._linebuf.replace(prompt,'')
+        result = None
+        prompt = self._wakeup(timeout)
+        if prompt != InstErrorCode.TIMEOUT:
+            self._linebuf = ''
+            self._promptbuf = ''
+            mi_logger.debug('_do_cmd: %s', cmd)
+            self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
+            prompt = self._get_prompt(timeout)
+            if prompt != InstErrorCode.TIMEOUT:
+                result = self._linebuf.replace(prompt,'')
         return (prompt, result)
+
+    def _do_cmd_no_prompt(self, cmd):
+        """
+        """
+        self._linebuf = ''
+        mi_logger.debug('_do_cmd_no_prompt: %s', cmd)
+        self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
 
     def _wakeup(self, timeout=10):
         """
         """
-        self._linebuf = ''
-        self._prompt_recvd = None
+        self._promptbuf = ''
         starttime = time.time()
-        while not self._prompt_recvd:
+        while True:
             mi_logger.debug('Sending wakeup.')
             self._logger_client.send(SBE37Prompt.NEWLINE)
             time.sleep(1)
-            if time.time() > starttime + timeout:
+            if self._promptbuf.endswith(SBE37Prompt.COMMAND):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))
+                return SBE37Prompt.COMMAND
+            elif self._promptbuf.endswith(SBE37Prompt.AUTOSAMPLE):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.AUTOSAMPLE))
+                return SBE37Prompt.AUTOSAMPLE
+            elif time.time() > starttime + timeout:
+                mi_logger.info('_wakeup timed out.')                
                 return InstErrorCode.TIMEOUT                
-        return self._prompt_recvd
 
-    def _get_prompt(self, timeout):
+    def _get_prompt(self, timeout=10):
         """
         """
-        self._linebuf = ''
         starttime = time.time()
-        while not self._prompt_recvd:
-            time.sleep(1)
-            if time.time() > starttime + timeout:
+        while True:
+            if self._promptbuf.endswith(SBE37Prompt.COMMAND):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))                
+                return SBE37Prompt.COMMAND
+            elif self._promptbuf.endswith(SBE37Prompt.AUTOSAMPLE):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.AUTOSAMPLE))
+                return SBE37Prompt.AUTOSAMPLE
+            elif self._promptbuf.endswith(SBE37Prompt.BAD_COMMAND):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.BAD_COMMAND))
+                return SBE37Prompt.AUTOSAMPLE                
+            elif time.time() > starttime + timeout:
+                mi_logger.info('_get_prompt timed out.')
                 return InstErrorCode.TIMEOUT                
-        return self._prompt_recvd
 
     def _update_params(self):
         """
