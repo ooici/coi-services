@@ -25,7 +25,8 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='myfoo')
+@attr('INT', group='sa')
+#@unittest.skip('not working')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -46,6 +47,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # Now create client to DataAcquisitionManagementService
         client = DataAcquisitionManagementServiceClient(node=self.container.node)
+
 
         # test creating a new data source
         print 'Creating new data source'

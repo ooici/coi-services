@@ -3,6 +3,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.product.data_product_management_service import DataProductManagementService
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
@@ -315,8 +316,8 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
 
 
-@attr('INT', group='foo')
-#@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+@attr('INT', group='sa')
+#@unittest.skip('not working')
 class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
 
     def test_createDataProduct(self):
@@ -337,6 +338,14 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
 
         # Now create client to DataProductManagementService
         client = DataProductManagementServiceClient(node=self.container.node)
+        rrclient = ResourceRegistryServiceClient(node=self.container.node)
+
+        # set up initial data source and its associated data producer
+        instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
+        instrument_id, rev = rrclient.create(instrument_obj)
+        dataproducer_obj = IonObject(RT.DataProducer, name='InstDataProducer',description='an example data producer')
+        dataproducer_id, rev = rrclient.create(dataproducer_obj)
+        rrclient.create_association(instrument_id, AT.hasDataProducer, dataproducer_id)
 
         # test creating a new data product w/o a data producer
         print 'Creating new data product w/o a data producer'
@@ -344,7 +353,7 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
                            name='DP1',
                            description='some new dp')
         try:
-            dp_id = client.create_data_product(dp_obj)
+            dp_id = client.create_data_product(dp_obj, instrument_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', dp_id
@@ -353,7 +362,7 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
         print 'Creating the same data product a second time (duplicate)'
         dp_obj.description = 'the first dp'
         try:
-            dp_id = client.create_data_product(dp_obj)
+            dp_id = client.create_data_product(dp_obj, 'source_resource_id')
         except BadRequest as ex:
             print ex
         else:
@@ -405,8 +414,7 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
             self.fail("existing data product was not found during update")
         except Conflict as ex:
             self.fail("revision conflict exception during data product update")
-        else:
-            self.assertTrue(update_result == True)
+
         # now get the dp back to see if it was updated
         try:
             dp_obj = client.read_data_product(dp_id)
@@ -423,7 +431,7 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
             delete_result = client.delete_data_product(dp_id)
         except NotFound as ex:
             self.fail("existing data product was not found during delete")
-        self.assertTrue(delete_result == True)
+
         # now try to get the deleted dp object
         try:
             dp_obj = client.read_data_product(dp_id)
