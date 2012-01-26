@@ -13,16 +13,16 @@ __license__ = 'Apache 2.0'
 import logging
 import time
 
-from ion.services.mi.instrument_driver_eh import InstrumentDriver
-from ion.services.mi.instrument_driver_eh import DriverChannel
-from ion.services.mi.instrument_driver_eh import DriverCommand
-from ion.services.mi.instrument_driver_eh import DriverState
-from ion.services.mi.instrument_driver_eh import DriverEvent
+from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.instrument_driver import DriverChannel
+from ion.services.mi.instrument_driver import DriverCommand
+from ion.services.mi.instrument_driver import DriverState
+from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_protocol_eh \
+from ion.services.mi.instrument_protocol \
                         import InstrumentProtocol
-from ion.services.mi.instrument_protocol_eh \
+from ion.services.mi.instrument_protocol \
                         import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.fsm import FSM, ExceptionFSM
