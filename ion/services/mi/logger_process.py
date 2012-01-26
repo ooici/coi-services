@@ -17,10 +17,17 @@ import time
 import datetime
 import atexit
 import errno
+from subprocess import Popen
+from subprocess import PIPE
+import logging
+import os
 
 from ion.services.mi.daemon_process import DaemonProcess
 
+mi_logger = logging.getLogger('mi_logger')
+
 """
+import ion.services.mi.mi_logger
 import ion.services.mi.logger_process as lp
 l = lp.EthernetDeviceLogger('137.110.112.119', 4001, 8888)
 c = lp.LoggerClient('localhost', 8888, '\r\n')
@@ -37,6 +44,17 @@ class BaseLoggerProcess(DaemonProcess):
     Derived subclasses provide read/write logic for TCP/IP, serial or other
     device hardware.
     """
+    
+    @staticmethod
+    def launch_process(cmd_str):
+        """
+        """
+        # Launch a separate python interpreter, executing the calling
+        # class command string.
+        spawnargs = ['bin/python', '-c', cmd_str]
+        #print str(spawnargs)
+        return Popen(spawnargs)    
+    
     def __init__(self, server_port, pidfname, logfname, statusfname, workdir='/',
                  delim=['<<','>>'], sniffer_port=None):
         """
@@ -79,6 +97,8 @@ class BaseLoggerProcess(DaemonProcess):
             try:
                 self.driver_server_sock = socket.socket(socket.AF_INET,
                                                 socket.SOCK_STREAM)
+                self.driver_server_sock.setsockopt(socket.SOL_SOCKET,
+                                                   socket.SO_REUSEADDR, 1)
                 self.driver_server_sock.bind(('',self.server_port))
                 self.driver_server_sock.listen(1)
                 self.driver_server_sock.setblocking(0)
@@ -135,6 +155,7 @@ class BaseLoggerProcess(DaemonProcess):
         if they exist. Log with status file.
         """
         if self.driver_sock:
+            self.driver_sock.shutdown(socket.SHUT_RDWR)
             self.driver_sock.close()
             self.driver_sock = None
             self.driver_addr = None
@@ -349,7 +370,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
     A device logger process specialized to read/write to TCP/IP devices.
     Provides functionality opening, closing, reading, writing and checking
     connection status of device.
-    """
+    """    
     def __init__(self, device_host, device_port, server_port, workdir='/',
                  delim=['<<','>>'], sniffer_port=None):
         """
@@ -386,6 +407,25 @@ class EthernetDeviceLogger(BaseLoggerProcess):
                             statusfname, workdir, delim=['<<','>>'],
                             sniffer_port=None)
 
+    def launch_process(self):
+        
+        
+        import_str = 'import ion.services.mi.logger_process as lp; '
+        ctor_str = 'l = lp.EthernetDeviceLogger'
+        if not self.sniffer_port:
+            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"]); ' \
+                        % (self.device_host, self.device_port, self.server_port,
+                           self.workdir, self.delim[0], self.delim[1])
+        else:
+            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"], %i); ' \
+                        % (device_host, device_port, server_port,
+                           workdir, delim[0], delim[1], self.sniffer_port)
+
+
+        cmd_str = import_str + ctor_str + 'l.start()'            
+            
+        return BaseLoggerProcess.launch_process(cmd_str)
+
     def _init_device_comms(self):
         """
         Initialize ethernet device comms. Attempt to connect to an IP
@@ -418,8 +458,10 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         Close ethernet device comms and log with status file.
         """
         if self.device_sock:
+            self.device_sock.shutdown(socket.SHUT_RDWR)
             self.device_sock.close()
             self.device_sock = None
+            time.wait(1)
             self.statusfile.write('_close_device_comms: device connection closed.\n')
             self.statusfile.flush()                            
 
@@ -569,17 +611,20 @@ class LoggerClient(object):
         self.stop_event = None
         self.delim = delim
         
-    def init_comms(self):
+    def init_comms(self, callback=None):
         """
         Initialize client comms with the logger process and start a
         listener thread.
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # This can be thrown here.
+        # error: [Errno 61] Connection refused
         self.sock.connect((self.host, self.port))
         self.sock.setblocking(0)        
-        self.listener_thread = Listener(self.sock, self.delim)
+        self.listener_thread = Listener(self.sock, self.delim, callback)
         self.listener_thread.start()
-        print 'init client comms done'
+        mi_logger.info('Logger client comms initialized.')
+        #print 'init client comms done'
         #logging.info('init client comms done')        
         
     def stop_comms(self):
@@ -588,10 +633,12 @@ class LoggerClient(object):
         logger. This is called by the done function.
         """
         self.listener_thread.done()
-        time.sleep(.1)
+        self.listener_thread.join()
+        self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
         self.sock = None
-        print 'stopped client comms'
+        mi_logger.info('Loggerr client comms stopped.')
+        #print 'stopped client comms'
         #logging.info('stopped client comms')
 
     def done(self):
@@ -621,17 +668,26 @@ class Listener(threading.Thread):
     to catch and act upon the incomming data, so the pattern is presented here.
     """
     
-    def __init__(self, sock, delim):
+    def __init__(self, sock, delim, callback=None):
         """
         Listener thread constructor.
         @param sock The socket to listen on.
         @param delim The line delimiter to split incomming lines on.
+        @param callback The callback on data arrival.
         """
         threading.Thread.__init__(self)
         self.sock = sock
         self._done = False
         self.linebuf = ''
         self.delim = delim
+        
+        if callback:
+            def fn_callback(data):
+                callback(data)            
+            self.callback = fn_callback
+        else:
+            self.callback = None
+
 
     def done(self):
         """
@@ -645,23 +701,27 @@ class Listener(threading.Thread):
         Listener thread processing loop. Read incomming data when
         available and report it to the logger.
         """
-        print 'listener started'
+        mi_logger.info('Logger client listener started.')
         #logging.info('listener started')
         while not self._done:
             try:
                 data = self.sock.recv(4069)
-                if not self.delim:
-                    #logging.info('from device:%s' % repr(data))
-                    print 'from device:%s' % repr(data)
+                if self.callback:
+                    self.callback(data)
                 else:
-                    self.linebuf += data
-                    lines = str.split(self.linebuf, self.delim)
-                    self.linebuf = lines[-1]
-                    lines = lines[:-1]
-                    #[logging.info('from device:%s' % item) for item in lines]
-                    for item in lines:
-                        print 'from device:%s' % item
+                    if not self.delim:
+                        #logging.info('from device:%s' % repr(data))
+                        print 'from device:%s' % repr(data)
+                    else:
+                        self.linebuf += data
+                        lines = str.split(self.linebuf, self.delim)
+                        self.linebuf = lines[-1]
+                        lines = lines[:-1]
+                        #[logging.info('from device:%s' % item) for item in lines]
+                        for item in lines:
+                            print 'from device:%s' % item
+                
             except socket.error:
-                time.sleep(.1)
+                time.sleep(0)
         #logging.info('listener done')
-        print 'listener done'
+        mi_logger.info('Logger client done listening.')

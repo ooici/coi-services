@@ -35,13 +35,19 @@ class DaemonProcess(object):
         self.pidfname = workdir + pidfname
         self.logfname = workdir + logfname
         self.logfile = None
+        self.workdir = workdir
 
         # Register a handler for the SIGCHLD signal. This will
         # call os.wait() to retrieve the child process return value and
         # prevent it from becomming a zombie process.
         def wait_on_child(signum=None, frame=None):
             retval = os.wait()
-        signal.signal(signal.SIGCHLD, wait_on_child)
+        try:
+            signal.signal(signal.SIGCHLD, wait_on_child)
+        
+        except ValueError:
+            # Can only register signals in main thread.
+            pass
 
     def start(self):
         """
@@ -49,13 +55,8 @@ class DaemonProcess(object):
         then calls _daemonize and routes the return values differently
         for the parent and child processes.
         """
-        try:
-            pf = file(self.pidfname, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-            
-        except IOError:
-            pid = None
+        
+        pid = self.get_pid()
             
         if pid:
             msg = 'pidfile %s exists. Daemon already running.\n'
@@ -71,7 +72,7 @@ class DaemonProcess(object):
             # The run logic may exit without returning, or
             # will exit here upon completion.
             self._run()
-            sys.exit(0)
+            os._exit(0)
 
         elif pid == 0:
             # This is the parent fork. Return success.
@@ -81,10 +82,9 @@ class DaemonProcess(object):
             # An error in the inital fork occurred, return error.
             return -1
 
-    def stop(self):
+
+    def get_pid(self):
         """
-        Stop the daemon process. Check that the pidfile is present, then
-        send SIGTERM to the daemon process to trigger closedown.
         """
         try:
             pf = file(self.pidfname, 'r')
@@ -93,6 +93,15 @@ class DaemonProcess(object):
 
         except IOError:
             pid = None
+
+        return pid            
+
+    def stop(self):
+        """
+        Stop the daemon process. Check that the pidfile is present, then
+        send SIGTERM to the daemon process to trigger closedown.
+        """
+        pid = self.get_pid()
 
         if not pid:
             msg = 'pidfile %s does not exist. Daemon not running.\n'
@@ -144,11 +153,11 @@ class DaemonProcess(object):
             # Exit parent process, with error if fork fails.
             pid = os.fork()
             if pid > 0:
-                sys.exit(0)
+                os._exit(0)
 
         except OSError as e:
             sys.stderr.write('Failed to fork child #2.')
-            sys.exit(1)
+            os._exit(1)
 
         # Setup the cleanup handler.
         signal.signal(signal.SIGTERM, self._cleanup_and_exit)
@@ -191,7 +200,8 @@ class DaemonProcess(object):
         SIGTERM handler that performs cleanup and exits daemon process.
         """
         self._cleanup()
-        sys.exit(0)
+        #sys.exit(0)
+        os._exit(0)
         
     def _run(self):
         """
