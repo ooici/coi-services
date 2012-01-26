@@ -10,7 +10,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT, IonObject
+from pyon.public import PRED, RT, IonObject
 from ion.services.coi.identity_management_service import IdentityManagementService
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
@@ -58,7 +58,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.user_identity_to_credentials_association._id = '333'
         self.user_identity_to_credentials_association.s = "111"
         self.user_identity_to_credentials_association.st = RT.UserIdentity
-        self.user_identity_to_credentials_association.p = AT.hasCredentials
+        self.user_identity_to_credentials_association.p = PRED.hasCredentials
         self.user_identity_to_credentials_association.o = "222"
         self.user_identity_to_credentials_association.ot = RT.UserCredentials
 
@@ -67,7 +67,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.user_identity_to_credentials_association2._id = '888'
         self.user_identity_to_credentials_association2.s = "111"
         self.user_identity_to_credentials_association2.st = RT.UserIdentity
-        self.user_identity_to_credentials_association2.p = AT.hasCredentials
+        self.user_identity_to_credentials_association2.p = PRED.hasCredentials
         self.user_identity_to_credentials_association2.o = "222"
         self.user_identity_to_credentials_association2.ot = RT.UserCredentials
 
@@ -89,7 +89,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.user_identity_to_info_association._id = '555'
         self.user_identity_to_info_association.s = "111"
         self.user_identity_to_info_association.st = RT.UserIdentity
-        self.user_identity_to_info_association.p = AT.hasInfo
+        self.user_identity_to_info_association.p = PRED.hasInfo
         self.user_identity_to_info_association.o = "444"
         self.user_identity_to_info_association.ot = RT.UserInfo
 
@@ -155,7 +155,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.identity_management_service.register_user_credentials('111', self.user_credentials)
 
         self.mock_create.assert_called_once_with(self.user_credentials)
-        self.mock_create_association.assert_called_once_with('111', AT.hasCredentials, '222', None)
+        self.mock_create_association.assert_called_once_with('111', PRED.hasCredentials, '222', None)
 
     def test_unregister_user_credentials(self):
         self.mock_find_resources.return_value = ([self.user_credentials], [self.user_identity_to_credentials_association])
@@ -164,7 +164,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.identity_management_service.unregister_user_credentials('111', "Bogus subject")
 
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, self.user_credentials.name, False)
-        self.mock_find_associations.assert_called_once_with('111', AT.hasCredentials, '222', False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', False)
         self.mock_delete_association.assert_called_once_with('333')
         self.mock_delete.assert_called_once_with('222')
 
@@ -190,7 +190,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'UserIdentity to UserCredentials association for user id 111 to credential Bogus subject does not exist')
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, 'Bogus subject', False)
-        self.mock_find_associations.assert_called_once_with('111', AT.hasCredentials, '222', False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', False)
 
     def test_create_user_info(self):
         self.mock_find_objects.return_value = (None, None)
@@ -203,7 +203,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         assert result == '444'
         self.mock_create.assert_called_once_with(self.user_info)
-        self.mock_create_association.assert_called_once_with('111', AT.hasInfo, '444', None)
+        self.mock_create_association.assert_called_once_with('111', PRED.hasInfo, '444', None)
 
     def test_create_user_info_fail_already_exists(self):
         self.mock_find_objects.return_value = ([self.user_info], [self.user_identity_to_info_association])
@@ -214,7 +214,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'UserInfo already exists for user id 111')
-        self.mock_find_objects.assert_called_once_with('111', AT.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
 
     def test_read_and_update_user_info(self):
         self.mock_read.return_value = self.user_info
@@ -241,8 +241,8 @@ class TestIdentityManagementService(PyonTestCase):
         
         self.identity_management_service.delete_user_info('444')
 
-        self.mock_find_subjects.assert_called_once_with(RT.UserIdentity, AT.hasInfo, '444', False)
-        self.mock_find_associations.assert_called_once_with('111', AT.hasInfo, '444', False)
+        self.mock_find_subjects.assert_called_once_with(RT.UserIdentity, PRED.hasInfo, '444', False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasInfo, '444', False)
         self.mock_delete_association.assert_called_once_with('555')
         self.mock_delete.assert_called_once_with('444')
  
@@ -280,7 +280,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'UserIdentity to UserInfo association for user info id 444 does not exist')
         self.mock_read.assert_called_once_with('444', '')
-        self.mock_find_subjects.assert_called_once_with(RT.UserIdentity, AT.hasInfo, '444', False)
+        self.mock_find_subjects.assert_called_once_with(RT.UserIdentity, PRED.hasInfo, '444', False)
 
     def test_find_user_info_by_id(self):
         self.mock_find_objects.return_value = ([self.user_info], [self.user_identity_to_info_association])
@@ -288,7 +288,7 @@ class TestIdentityManagementService(PyonTestCase):
         result = self.identity_management_service.find_user_info_by_id('111')
 
         assert result == self.user_info
-        self.mock_find_objects.assert_called_once_with('111', AT.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
 
     def test_find_user_info_by_id_association_not_found(self):
         self.mock_find_objects.return_value = (None, None)
@@ -298,7 +298,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'UserInfo for user id 111 does not exist')
-        self.mock_find_objects.assert_called_once_with('111', AT.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
 
     def test_find_user_info_by_name(self):
         self.mock_find_resources.return_value = ([self.user_info], [self.user_identity_to_info_association])
@@ -337,7 +337,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         assert result == self.user_info
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, "Bogus subject", False)
-        self.mock_find_objects.assert_called_once_with('111', AT.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
 
     def test_find_user_info_by_subject_identity_credentials_not_found(self):
         self.mock_find_resources.return_value = (None, None)
@@ -392,7 +392,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, "UserInfo for subject Bogus subject does not exist")
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, "Bogus subject", False)
-        self.mock_find_objects.assert_called_once_with('111', AT.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
 
     def test_find_user_info_by_subject_info_multiple_associations_found(self):
         self.mock_find_resources.return_value = ([self.user_credentials], [self.user_identity_to_credentials_association])
@@ -405,10 +405,10 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, "Multiple UserInfos for subject Bogus subject exist")
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, "Bogus subject", False)
-        self.mock_find_subjects.assert_called_once_with(RT.UserIdentity, AT.hasCredentials, '222', False)
+        self.mock_find_subjects.assert_called_once_with(RT.UserIdentity, PRED.hasCredentials, '222', False)
 
 #    def test_signon_new_user(self):
-#                user.certificate =  """-----BEGIN CERTIFICATE-----
+#                user.certificate =  """-----BEGIN CERTIFICPREDE-----
 #MIIEMzCCAxugAwIBAgICBQAwDQYJKoZIhvcNAQEFBQAwajETMBEGCgmSJomT8ixkARkWA29yZzEX
 #MBUGCgmSJomT8ixkARkWB2NpbG9nb24xCzAJBgNVBAYTAlVTMRAwDgYDVQQKEwdDSUxvZ29uMRsw
 #GQYDVQQDExJDSUxvZ29uIEJhc2ljIENBIDEwHhcNMTAxMTE4MjIyNTA2WhcNMTAxMTE5MTAzMDA2
@@ -428,11 +428,11 @@ class TestIdentityManagementService(PyonTestCase):
 #CkpK4nS0kbwLux+zI7BWON97UpMIzEeE05pd7SmNAETuWRsHMP+x6i7hoUp/uad4DwbzNUGIotdK
 #f8b270icOVgkOKRdLP/Q4r/x8skKSCRz1ZsRdR+7+B/EgksAJj7Ut3yiWoUekEMxCaTdAHPTMD/g
 #Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
-#-----END CERTIFICATE-----"""
+#-----END CERTIFICPREDE-----"""
 #
 #    def test_signon_known_user(self):
 
-@attr('INT', group='coi')
+@attr('INT', group='identity')
 class TestIdentityManagementServiceInt(IonIntegrationTestCase):
     
     def setUp(self):
@@ -445,7 +445,6 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
         container_client.start_rel_from_url('res/deploy/r2coi.yml')
 
-        # Now create client to bank service
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
 
     def tearDown(self):
@@ -483,7 +482,6 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
     def test_user_credentials(self):
         user_identity_obj = IonObject("UserIdentity", {"name": self.subject})        
         user_id = self.identity_management_service.create_user_identity(user_identity_obj)
-        print "XXXXX user_id: " + str(user_id)
 
         user_credentials_obj = IonObject("UserCredentials", {"name": self.subject})        
         self.identity_management_service.register_user_credentials(user_id, user_credentials_obj)

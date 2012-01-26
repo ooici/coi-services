@@ -12,7 +12,7 @@ from pyon.ion.endpoint import ProcessPublisher
 from pyon.net.channel import SubscriberChannel
 from pyon.container.procs import ProcManager
 from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery
+from interface.objects import StreamQuery, ExchangeQuery
 
 class IngestionManagementServiceException(IonException):
     """
@@ -33,8 +33,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         BaseIngestionManagementService.__init__(self)
 
 
-    def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hfd_storage={},\
-                                       number_of_workers=0, default_policy={}):
+    def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None, \
+                                       number_of_workers=0, default_policy=None):
         """Setup ingestion workers to ingest all the data from a single exchange point.
 
         @param exchange_point_id    str
@@ -67,7 +67,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         ##------------------------------------------------------------------------------------
         ## declare our intent to subscribe to all messages on the exchange point
         query = ExchangeQuery()
-        subscription_id = self.clients.pubsub_management.create_subscription(query=query,\
+        subscription_id = self.clients.pubsub_management.create_subscription(query=query, \
             exchange_name=exchange_name, name='subscription', description='only to launch ingestion workers')
 
 
@@ -77,9 +77,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         # @todo: right now sending in the exchange_point_id as the name...
         ingestion_configuration = IonObject(RT.IngestionConfiguration, name = 'ingestion_configuration')
         ingestion_configuration.number_of_workers = number_of_workers
-        ingestion_configuration.hfd_storage = hfd_storage
-        ingestion_configuration.couch_storage = couch_storage
-        ingestion_configuration.default_policy = default_policy
+        ingestion_configuration.hdf_storage.update(hdf_storage or {})
+        ingestion_configuration.couch_storage.update(couch_storage or {})
+        ingestion_configuration.default_policy.update(default_policy or {})
 
         if not ingestion_configuration:
             raise IngestionManagementServiceException\
@@ -110,11 +110,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         # we spawn the transform processes without actually activating them yet...
         for i in range(number_of_workers):
             name = 'Ingestion_Worker_%s' % i
-            transform_id = self.clients.transform_management.create_transform(name = name, description = description,\
-                in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id,\
-                configuration=configuration)
-            #            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
-            #                process_definition_id=process_definition_id, configuration=configuration)
+            transform_id = self.clients.transform_management.create_transform(name = name, description = description, \
+                     in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id, \
+                                configuration=configuration)
+#            transform_id = self.clients.transform_management.create_transform(in_subscription_id=subscription_id, \
+#                process_definition_id=process_definition_id, configuration=configuration)
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
             try:
@@ -123,7 +123,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 raise IngestionManagementServiceException\
                     ('Associations could not be generated between ingestion configuration and transform %s' % transform_id)
 
-    def update_ingestion_configuration(self, ingestion_configuration={}):
+    def update_ingestion_configuration(self, ingestion_configuration=None):
         """Change the number of workers or the default policy for ingesting data on each stream
 
         @param ingestion_configuration    IngestionConfiguration
@@ -181,7 +181,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 self.clients.transform_management.activate_transform(transform_id)
             except Exception as exc:
                 raise IngestionManagementServiceException('Error while using transform_management to activate transform %s.'\
-                % transform_id)
+                    % transform_id)
         return True
 
 
@@ -197,7 +197,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
             AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
-            raise NotFound('Transforms do not exist for ingestion configuration with id %s does not exist' % ingestion_configuration_id)
+            raise NotFound('The ingestion configuration with id %s does not exist' % ingestion_configuration_id)
 
         # same issue as activate transform
         for transform_id in transform_ids:
@@ -217,9 +217,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_policy_id    str
         """
 
-    #        return ingestion_policy_id
+#        return ingestion_policy_id
 
-    def update_stream_policy(self, stream_policy={}):
+    def update_stream_policy(self, stream_policy=None):
         """Change the number of workers or the default policy for ingesting data on each stream (After LCA)
 
         @param stream_policy    Unknown
@@ -235,7 +235,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if ingestion configuration did not exist
         """
 
-    #        return ingestion_configuration
+#        return ingestion_configuration
 
     def delete_stream_policy(self, ingestion_configuration_id=''):
         """Delete an existing stream policy object. (After LCA)
@@ -243,3 +243,4 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param ingestion_configuration_id    str
         @throws NotFound    if ingestion configuration did not exist
         """
+

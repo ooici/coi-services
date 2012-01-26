@@ -49,8 +49,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_id, version = self.clients.resource_registry.create(data_product)
             
         log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
-        data_producer_id = self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id)  # TODO: what errors can occur here?
-        log.debug("DataProductManagementService.define_data_product assign_data_product result: %s " % data_producer_id)
+        self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id)  # TODO: what errors can occur here?
             
         return data_product_id
 

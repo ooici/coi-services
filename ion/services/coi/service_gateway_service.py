@@ -9,7 +9,7 @@ from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
 import inspect, json, simplejson, collections, ast
 
-from pyon.public import AT, RT, IonObject, Container, ProcessRPCClient
+from pyon.public import PRED, RT, IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
 from pyon.core.registry import get_message_class_in_parm_type, getextends
 from pyon.ion.resource import ResourceTypes
@@ -225,6 +225,20 @@ def get_resource_schema(resource_type):
     try:
         ion_object_name = convert_unicode(resource_type)
         ret_obj = IonObject(ion_object_name, {})
+
+        # If it's an op input param or response message object.
+        # Walk param list instantiating any params that were marked None as default.
+        if hasattr(ret_obj, "_svc_name"):
+            schema = ret_obj._schema
+            for field in ret_obj._schema:
+                if schema[field]["default"] is None:
+                    try:
+                        value = IonObject(schema[field]["type"], {})
+                    except NotFound:
+                        # TODO
+                        # Some other non-IonObject type.  Just use None as default for now.
+                        value = None
+                    setattr(ret_obj, field, value)
 
         ret = simplejson.dumps(ret_obj, default=ion_object_encoder)
 
