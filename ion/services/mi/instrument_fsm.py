@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.instrument_fsm
+@package ion.services.mi.instrument_fsm Instrument Finite State Machine
 @file ion/services/mi/instrument_fsm.py
 @author Edward Hunter
 @brief Simple state mahcine for driver and agent classes.
@@ -22,6 +22,13 @@ class InstrumentFSM():
     def __init__(self, states, events, enter_event, exit_event):
         """
         Initialize states, events, handlers.
+        
+        @param states The list of states that the FSM handles
+        @param events The list of events that the FSM handles
+        @param state_handlers A dict of which state maps to which handling
+        routine
+        @param enter_event The event that indicates a state is being entered
+        @param exit_event The event that indicates a state is being exited
         """
         self.states = states
         self.events = events
@@ -53,6 +60,9 @@ class InstrumentFSM():
         """
         Start the state machine. Initializes current state and fires the
         EVENT_ENTER event.
+        @param state The state to start execute
+        @param params A list of parameters to hand to the handler
+        @retval return True
         """
         
         #if state not in self.states:
@@ -75,8 +85,7 @@ class InstrumentFSM():
         @param params Optional parameters to be sent with the event to the
             handler.
         @retval Success/fail if the event was handled by the current state.
-        """
-        
+        """        
         success = False
         next_state = None
         result = None
@@ -85,14 +94,15 @@ class InstrumentFSM():
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:
                 (success, next_state, result) = handler(params)
-        
+
         #if next_state in self.states:
         if self.states.has(next_state):
             self._on_transition(next_state, params)
                 
         return (success,result)
             
-    def _on_transition(self, next_state, params):
+    
+    def _on_transition(self,next_state,params):
         """
         Call the sequence of events to cause a state transition. Called from
         on_event if the handler causes a transition.

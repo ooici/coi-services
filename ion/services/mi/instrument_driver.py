@@ -332,14 +332,26 @@ class InstrumentDriver(object):
 
     def execute(self, channels, command, timeout=10):
         """
-        @param timeout Number of seconds before this operation times out
         """
         pass
-    
+
     def execute_direct(self, channels, bytes):
         """
         """
         pass
+        
+    ################################
+    # Announcement callback from protocol
+    ################################
+    def protocol_callback(self, event):
+        """The callback method that the protocol calls when there is some sort
+        of event worth notifying the driver about.
+        
+        @param event The event object from the event service
+        @todo Make event a real event object of some sort instead of the hack
+        tuple of (DriverAnnouncement enum, any error code, message)
+        """
+    
     
     ########################################################################
     # TBD.
