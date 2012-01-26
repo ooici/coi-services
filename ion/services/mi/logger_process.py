@@ -18,6 +18,7 @@ import datetime
 import atexit
 import errno
 from subprocess import Popen
+from subprocess import PIPE
 import logging
 import os
 

@@ -105,15 +105,9 @@ class TestSBE37Driver(PyonTestCase):
         
         driver_client.done()
         time.sleep(2)
-        
-        retval = driver_process.communicate()
-        print 'communicate returned %s' % str(retval)
-        
-        
-        #driver_process.terminate()
-        print "waiting"
         driver_process.wait()
-        print "done waiting"
+        time.sleep(2)
+
         """
         reply = driver_client.cmd_dvr('process_echo', data='test 1 2 3')
         self.assertIsInstance(reply, dict)
