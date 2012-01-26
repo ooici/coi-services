@@ -108,41 +108,8 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
         time.sleep(2)
         
-        
         driver_client.done()
-        time.sleep(2)
         driver_process.wait()
-        time.sleep(2)
 
-        """
-        reply = driver_client.cmd_dvr('process_echo', data='test 1 2 3')
-        self.assertIsInstance(reply, dict)
-        self.assertTrue('cmd' in reply)
-        self.assertTrue('args' in reply)
-        self.assertTrue('kwargs' in reply)
-        self.assertTrue(reply['cmd'] == 'process_echo')
-        self.assertTrue(reply['args'] == ())
-        self.assertIsInstance(reply['kwargs'], dict)
-        self.assertTrue('data' in reply['kwargs'])
-        self.assertTrue(reply['kwargs']['data'], 'test 1 2 3')
 
-        reply = driver_client.cmd_dvr('process_echo',
-                                      data='zoom zoom boom boom')
-        self.assertIsInstance(reply, dict)
-        self.assertTrue('cmd' in reply)
-        self.assertTrue('args' in reply)
-        self.assertTrue('kwargs' in reply)
-        self.assertTrue(reply['cmd'] == 'process_echo')
-        self.assertTrue(reply['args'] == ())
-        self.assertIsInstance(reply['kwargs'], dict)
-        self.assertTrue('data' in reply['kwargs'])
-        self.assertTrue(reply['kwargs']['data'], 'test 1 2 3')
-
-        events = ['I am event number 1!', 'And I am event number 2!']
-        reply = driver_client.cmd_dvr('test_events', events=events)
-        self.assertEqual(reply, 'test_events')
-        time.sleep(3)
-        self.assertTrue(driver_client.events, events)
-        """
-        pass
     
