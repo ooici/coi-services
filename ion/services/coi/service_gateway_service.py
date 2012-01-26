@@ -226,6 +226,20 @@ def get_resource_schema(resource_type):
         ion_object_name = convert_unicode(resource_type)
         ret_obj = IonObject(ion_object_name, {})
 
+        # If it's an op input param or response message object.
+        # Walk param list instantiating any params that were marked None as default.
+        if hasattr(ret_obj, "_svc_name"):
+            schema = ret_obj._schema
+            for field in ret_obj._schema:
+                if schema[field]["default"] is None:
+                    try:
+                        value = IonObject(schema[field]["type"], {})
+                    except NotFound:
+                        # TODO
+                        # Some other non-IonObject type.  Just use None as default for now.
+                        value = None
+                    setattr(ret_obj, field, value)
+
         ret = simplejson.dumps(ret_obj, default=ion_object_encoder)
 
 
