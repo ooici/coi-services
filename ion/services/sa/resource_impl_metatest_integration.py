@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file ion/services/sa/test/resource_impl_metatest.py
+@file ion/services/sa/test/resource_impl_metatest_integration.py
 @author Ian Katz
 
 """
@@ -10,125 +10,33 @@ import hashlib
 # from mock import Mock, sentinel, patch
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import LCS
-from unittest import SkipTest
 
-class ResourceImplMetatest(object):
+from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
+
+from pyon.util.log import log
+
+class ResourceImplMetatestIntegration(ResourceImplMetatest):
     """
-    This function adds test methods for CRUD and associations in the given 
+    This function adds integration test methods for CRUD and associations in the given 
     resource impl class.
 
     For example, OUTSIDE and AFTER the TestInstrumentManagement class, write this:
 
-        rim = ResourceImplMetatest(TestInstrumentManagement,
-                                     InstrumentManagementService,
-                                     log)
+        rimi = ResourceImplMetatestIntegration(TestInstrumentManagement,
+                                               InstrumentManagementService,
+                                               log)
 
-        rim.add_resource_impl_unittests(InstrumentAgentInstanceImpl,
+        rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl,
                                           {"exchange_name": "rhubarb"}
 
     The impl object MUST be available as a class variable in the service under test!
 
     """
 
-    def __init__(self, resource_tester_class, service_under_test_class, log):
-        """
-        @param resource_tester_class the class that will perform the setup/ testing
-        @param service_under_test_class the class of the service that's being tested
-        @param log the log object 
-        """
-
-        self.tester_class = resource_tester_class
         
-        #create the service
-        self.service_instance  = service_under_test_class()
-        self.service_instance.on_init()
-        
-        #save the log object (maybe don't need this)
-        self.log      = log
-
-
-    def build_test_descriptors(self, resource_params):
-        """
-        build a sample resource from the supplied impl class
-        and populate it with the supplied parameters
-        
-        @param resource_params a dict of params for the sample resource
-        """
-
-        # string describing the extra fields in the resource, and a (probably) unique ID
-        sample_resource_extras = ""
-        sample_resource_md5    = ""
-
-        # build out strings if there are more params
-        if resource_params:
-            extras = []
-            for k, v in resource_params.iteritems():
-                extras.append("%s='%s'" % (k, v))
-            sample_resource_extras = "(with %s)" % ", ".join(extras)
-            sample_resource_md5 = "_%s" % hashlib.sha224(sample_resource_extras).hexdigest()[:7]
-    
-        self.sample_resource_extras  = sample_resource_extras
-        self.sample_resource_md5     = sample_resource_md5
-
-
-    def sample_resource_factory(self, impl, resource_params):
-        """
-        build a sample resource factory from the supplied impl class
-         that produces resources populated with the supplied parameters
-
-         this will give us the ability to use the service that we're testing
-         to generate the resource for us.
-        
-        @param impl an instance of the impl class
-        @resource_params a dict of params to add
-        """
-        
-        def fun():
-            #ret = Mock()
-            ret = IonObject(impl.iontype)
-            ret.name = "sample %s" % impl.iontype
-            ret.description = "description of sample %s" % impl.iontype
-            for k, v in resource_params.iteritems():
-                setattr(ret, k, v)
-            return ret
-
-        return fun
-
-    def find_class_variable_name(self, instance, target_type):
-        """
-        determine which class variable in the instance is of the target type
-        @param instance the class to be searched
-        @param target type the type of the variable we want to find
-        @retval string the name of the class variable
-
-        we use this to get the reference to a variable in another class but
-          WITHOUT knowing what it's called.
-        """
-        ret = None
-        for k, v in instance.__dict__.iteritems():
-            if type(v) == target_type:
-                ret = k
-        return ret
-
-    def find_impl_attribute(self, impl):
-        """
-        determine which class variable in the service is the impl class
-        @param impl an instance of the impl
-        """
-        impl_attr = self.find_class_variable_name(self.service_instance, type(impl))
-
-        assert(impl_attr)
-
-        # write a message to myself that will appear in the description of a failed test
-        #self.sample_resource_extras += " found at self.%s" % impl_attr
-
-        return impl_attr
-
-        
-    def add_resource_impl_unittests(self,
-                                      resource_impl_class, 
-                                      resource_params):
+    def add_resource_impl_inttests(self,
+                                   resource_impl_class, 
+                                   resource_params):
         """
         Add tests for the resorce_impl_class to the (self.)resource_tester_class
 
@@ -142,11 +50,11 @@ class ResourceImplMetatest(object):
         
         """
         # create a impl class, no clients
-        impl_instance = resource_impl_class([])
+        impl_instance       = resource_impl_class([])
 
         self.build_test_descriptors(resource_params)
 
-        impl_attr = self.find_impl_attribute(impl_instance)
+        impl_attr  = self.find_impl_attribute(impl_instance)
 
         #this is convoluted but it helps me debug by 
         #  being able to inject text into the sample_resource_extras
@@ -182,81 +90,43 @@ class ResourceImplMetatest(object):
             make a good name for a test from the resource name and an md5 of extra params
             @param name the base string for the name
             """
-            return "%s_%s%s" % (impl_instance.iontype, name, self.sample_resource_md5)
+            return "int_%s_%s%s" % (impl_instance.iontype, name, self.sample_resource_md5)
         
         def make_doc(doc):
             """
             make a good doc string for a test from by including the extra params
             @param doc the base string for the descripton
             """
-            return "%s %s" % (doc, self.sample_resource_extras)
+            return "Integration: %s %s" % (doc, self.sample_resource_extras)
 
             
         def gen_svc_lookup():
             """
             put a new method in the tester class to
             determine which class variable in the tester class is the service being tested
-
-            the prefix is "_rim_": resource_impl_metatest
             """
             def fun(self):
                 """
                 self is an instance of the tester class
                 """
-                if not hasattr(self, "_rim_service_obj"):
-                    service_itself = getattr(self, find_cv_func(self, service_type))
-                    self._rim_service_obj = service_itself
-                    assert(self._rim_service_obj)
+                if not hasattr(self, "_rimi_service_obj"):
+                    svc_varname = find_cv_func(self, service_type)
+                    # get service from container proc manager
+                    service_itself = [
+                        item[1] for item in self.container.proc_manager.procs.items() 
+                        if type(item[1]) == service_type
+                        ][0]
+                    self._rimi_service_obj = service_itself
+                    assert(self._rimi_service_obj)
 
-                return self._rim_service_obj
+                return self._rimi_service_obj
 
-            if not hasattr(self.tester_class, "_rim_getservice"): 
-                add_new_method("_rim_getservice", "Finds resource registry", fun)
+            if not hasattr(self.tester_class, "_rimi_getservice"): 
+                add_new_method("_rimi_getservice", "Finds resource registry", fun)
 
-        # def gen_ionobj_lookup():
-        #     """
-        #     put a new method in the tester class to
-        #     get access to the test class's ionobject
-        #     """
-        #     def fun(self):
-        #         """
-        #         self is an instance of the tester class
-        #         """
-        #         if not hasattr(self, "_rim_mock_ionobj"):
-        #             self._rim_mock_ionobj = self._create_IonObject_mock(
-        #                 service_type.__name__ + '.IonObject')
-        #             assert(self._rim_mock_ionobj)
 
-        #         return self._rim_mock_ionobj
 
-        #     if not hasattr(self.tester_class, "_rim_ionobject"):
-        #         add_new_method("_rim_ionobject", "Mock Ionobject", fun)
-
-        # def gen_sample_resource():
-        #     """
-        #     put a new method in the tester class to
-        #     produce a sample resource
-        #     """
-        #     def fun(self):
-        #         """
-        #         self is an instance of the tester class
-        #         """
-        #         # sample resource to use for our tests
-        #         sample_resource = Mock()
-        #         sample_resource.name = "sample %s" % impl_instance.iontype
-        #         sample_resource.description = "description of sample %s" % impl_instance.iontype
-                
-        #         # build out strings if there are more params
-        #         if resource_params:
-        #             extras = []
-        #             for k, v in resource_params.iteritems():
-        #                 setattr(sample_resource, k, v)
-
-        #                 self.sample_resource         = sample_resource
-        #                 self.sample_resource_extras  = sample_resource_extras
-        #                 self.sample_resource_md5     = sample_resource_md5
-                        
-        #         return sample_resource
+        # TEST CASES GO BELOW HERE
 
 
 
@@ -269,25 +139,18 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 good_sample_resource = sample_resource()
-                saved_resource = sample_resource()
-                #saved_resource.lcstate = LCS.REGISTERED
                 
-                #configure Mock
-                svc.clients.resource_registry.create.return_value = ('111', 'bla')
-                svc.clients.resource_registry.find_resources.return_value = ([], [])
-                svc.clients.resource_registry.read.return_value = saved_resource
-                
+
                 response = myimpl.create_one(good_sample_resource)
                 idfield = "%s_id" % impl_instance.ionlabel
                 self.assertIn(idfield, response)
                 sample_resource_id = response[idfield]
 
-                svc.clients.resource_registry.create.assert_called_once_with(good_sample_resource)
-                self.assertEqual(sample_resource_id, '111')
-                
+                log.debug("got response: %s" % response)
+
             name = make_name("resource_impl_create")
             doc  = make_doc("Creation of a new %s resource" % impl_instance.iontype)
             add_test_method(name, doc, fun)
@@ -303,14 +166,11 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 bad_sample_resource = sample_resource()
                 delattr(bad_sample_resource, "name")
                 
-                #configure Mock
-                svc.clients.resource_registry.create.return_value = ('111', 'bla')
-                svc.clients.resource_registry.find_resources.return_value = ([], [])
 
                 self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
 
@@ -329,15 +189,11 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 bad_sample_resource = sample_resource()
                 delattr(bad_sample_resource, "name")
                 
-                #configure Mock
-                svc.clients.resource_registry.create.return_value = ('111', 'bla')
-                svc.clients.resource_registry.find_resources.return_value = ([0], [0])
-
                 self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
 
 
@@ -345,6 +201,29 @@ class ResourceImplMetatest(object):
             doc  = make_doc("Creation of a (bad) new %s resource (duplicate name)" % impl_instance.iontype)
             add_test_method(name, doc, fun)
 
+
+
+        def gen_test_create_bad_has_id():
+            """
+            generate the function to test the create in a bad case
+            """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                # get objects
+                svc = self._rimi_getservice()
+                myimpl = getattr(svc, impl_attr)                 
+                bad_sample_resource = sample_resource()
+                setattr(bad_sample_resource, "_id", "12345")
+                
+                self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
+
+
+            name = make_name("resource_impl_create_bad_has_id")
+            doc  = make_doc("Creation of a (bad) new %s resource (has _id)" % impl_instance.iontype)
+
+            add_test_method(name, doc, fun)
 
 
 
@@ -357,15 +236,12 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 myret = sample_resource()
                                 
-                #configure Mock
-                svc.clients.resource_registry.read.return_value = myret
-
                 response = myimpl.read_one("111")
-                svc.clients.resource_registry.read.assert_called_once_with("111", "")
+
                 self.assertIn(impl_instance.ionlabel, response)
                 self.assertEqual(response[impl_instance.ionlabel], myret)
                 #self.assertDictEqual(response[impl_instance.ionlabel].__dict__,
@@ -376,6 +252,24 @@ class ResourceImplMetatest(object):
             doc  = make_doc("Reading a %s resource" % impl_instance.iontype)
             add_test_method(name, doc, fun)
 
+
+        def gen_test_read_notfound():
+            """
+            generate the function to test the read in a not-found case
+            """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                # get objects
+                svc = self._rimi_getservice()
+                myimpl = getattr(svc, impl_attr)                 
+                                
+                self.assertRaises(NotFound, myimpl.read_one, "0000")
+            
+            name = make_name("resource_impl_read_notfound")
+            doc  = make_doc("Reading a %s resource that doesn't exist" % impl_instance.iontype)
+            add_test_method(name, doc, fun)
 
 
 
@@ -388,7 +282,7 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 good_sample_resource = sample_resource()
                 setattr(good_sample_resource, "_id", "111")
@@ -408,6 +302,26 @@ class ResourceImplMetatest(object):
 
 
 
+        def gen_test_update_bad_noid():
+            """
+            generate the function to test the create
+            """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                # get objects
+                svc = self._rimi_getservice()
+                myimpl = getattr(svc, impl_attr)                 
+                bad_sample_resource = sample_resource()
+                
+                self.assertRaises(BadRequest, myimpl.update_one, bad_sample_resource)
+
+                
+            name = make_name("resource_impl_update_bad_no_id")
+            doc  = make_doc("Updating a %s resource without an ID" % impl_instance.iontype)
+            add_test_method(name, doc, fun)
+
 
         def gen_test_update_bad_dupname():
             """
@@ -418,7 +332,7 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 bad_sample_resource = sample_resource()
                 setattr(bad_sample_resource, "_id", "111")
@@ -441,7 +355,7 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 myret = sample_resource()
                                 
@@ -459,6 +373,23 @@ class ResourceImplMetatest(object):
             add_test_method(name, doc, fun)
 
 
+        def gen_test_delete_notfound():
+            """
+            generate the function to test the delete in a not-found case
+            """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                # get objects
+                svc = self._rimi_getservice()
+                myimpl = getattr(svc, impl_attr)                 
+                                
+                self.assertRaises(NotFound, myimpl.delete_one, "111")
+            
+            name = make_name("resource_impl_delete_notfound")
+            doc  = make_doc("Deleting a %s resource that doesn't exist" % impl_instance.iontype)
+            add_test_method(name, doc, fun)
 
 
         def gen_test_find():
@@ -470,7 +401,7 @@ class ResourceImplMetatest(object):
                 self is an instance of the tester class
                 """
                 # get objects
-                svc = self._rim_getservice()
+                svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                                 
                 #configure Mock
@@ -513,7 +444,7 @@ class ResourceImplMetatest(object):
                         find_name = "_".join(parts)
 
                         def fun(self):
-                            svc = self._rim_getservice()
+                            svc = self._rimi_getservice()
                             myimpl = getattr(svc, impl_attr)
                             myfind = getattr(myimpl, find_name)
 
@@ -548,7 +479,7 @@ class ResourceImplMetatest(object):
                         find_name = "_".join(parts)
 
                         def fun(self):
-                            svc = self._rim_getservice()
+                            svc = self._rimi_getservice()
                             myimpl = getattr(svc, impl_attr)
                             myfind = getattr(myimpl, find_name)
 
@@ -588,7 +519,7 @@ class ResourceImplMetatest(object):
                         link_name = "_".join(parts)
 
                         def fun(self):
-                            svc = self._rim_getservice()
+                            svc = self._rimi_getservice()
                             myimpl = getattr(svc, impl_attr)
                             mylink = getattr(myimpl, link_name)
 
@@ -623,7 +554,7 @@ class ResourceImplMetatest(object):
                         link_name = "_".join(parts)
 
                         def fun(self):
-                            svc = self._rim_getservice()
+                            svc = self._rimi_getservice()
                             myimpl = getattr(svc, impl_attr)
                             myunlink = getattr(myimpl, link_name)
                             
@@ -642,71 +573,22 @@ class ResourceImplMetatest(object):
 
 
 
-        def gen_tests_advance_lcs():
-            """
-            create a test for each of the lcs preconditions in the impl
-            """
-
-            # pull up the set of preconditions
-            lcs_precondition = None
-            for k in dir(impl_instance):
-                if "lcs_precondition" == k:
-                    lcs_precondition = getattr(impl_instance, k)
-
-            # if we fail, nothing to do here
-            if not lcs_precondition: return 
-
-            # add a test for going to each transition
-            for lcstate in lcs_precondition.iterkeys():
-
-                def freeze(lcstate):
-                    """
-                    must freeze this so the loop doesn't overwrite the lcstate varible
-                    """
-
-                    def fun(self):
-                        svc = self._rim_getservice()
-                        myimpl = getattr(svc, impl_attr)
-                        good_sample_resource = sample_resource()
-
-
-                        #set up Mock
-                        reply = lcstate
-                        svc.clients.resource_registry.execute_lifecycle_transition.return_value = reply
-                        svc.clients.resource_registry.read.return_value = good_sample_resource
-
-                        #call the impl
-                        try:
-                            response = myimpl.advance_lcs("333", lcstate)
-                        except NotImplementedError as nie:
-                            # for a transition that isn't supported or fails precondition
-                            msg = "LCS transition requires more logic; will test in integration.  "
-                            msg += "(%s)" % str(nie)
-                            raise SkipTest(msg)
-                        except Exception as e:
-                            raise e
-                        self.assertEqual(reply, response)
-
-                    name = make_name("resource_impl_advance_lcs_to_%s" % lcstate)
-                    doc  = make_doc("Checking advance_lcs of a %s resource to %s" % (impl_instance.iontype, lcstate))
-                    add_test_method(name, doc, fun)
-
-                freeze(lcstate)
-
-
-
 
         # can you believe we're still within a single function?
         # it's time to add each method to the tester class
         gen_svc_lookup()
         gen_test_create()
         gen_test_create_bad_noname()
-        gen_test_create_bad_dupname()
-        gen_test_read()
-        gen_test_update()
-        gen_test_update_bad_dupname()
-        gen_test_delete()
-        gen_test_find()
-        gen_tests_associations()
-        gen_tests_associated_finds()
-        gen_tests_advance_lcs()
+        #gen_test_create_bad_dupname()
+        gen_test_create_bad_has_id()
+        #gen_test_read()
+        gen_test_read_notfound()
+        #gen_test_update()
+        gen_test_update_bad_noid()
+        #gen_test_update_bad_dupname()
+        #gen_test_delete()
+        gen_test_delete_notfound()
+        #gen_test_find()
+        #gen_tests_associations()
+        #gen_tests_associated_finds()
+
