@@ -374,6 +374,18 @@ class InstrumentDriver(object):
     def _handle_handle_calibrate(self):
         """State change handler"""  
         
+    ################################
+    # Announcement callback from protocol
+    ################################
+    def protocol_callback(self, event):
+        """The callback method that the protocol calls when there is some sort
+        of event worth notifying the driver about.
+        
+        @param event The event object from the event service
+        @todo Make event a real event object of some sort instead of the hack
+        tuple of (DriverAnnouncement enum, any error code, message)
+        """
+    
     ##################
     # Resource methods
     ##################
