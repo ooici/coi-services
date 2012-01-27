@@ -44,9 +44,6 @@ class test_service_gateway(IonIntegrationTestCase):
         })
         url = SEARCH_BASE + '?' + urllib.urlencode(args)
         result = simplejson.load(urllib.urlopen(url))
-        #FILE = open("ROGER","w")
-        #FILE.writelines(str(result['data']))
-        #FILE.close()
 
         self.assertTrue('AgentDefinition' in result['data'])
         self.assertTrue('AgentInstance' in result['data'])
