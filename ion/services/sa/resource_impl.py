@@ -358,7 +358,7 @@ class ResourceImpl(object):
 
         self.on_pre_delete(primary_object_id, primary_object_obj)
         
-        self.RR.delete(primary_object_obj)
+        self.RR.delete(primary_object_id)
 
         self.on_post_delete(primary_object_id, primary_object_obj)
 
