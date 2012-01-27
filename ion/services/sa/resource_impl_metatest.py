@@ -332,7 +332,7 @@ class ResourceImplMetatest(object):
                 svc = self._rim_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 bad_sample_resource = sample_resource()
-                delattr(bad_sample_resource, "name")
+                #really, the resource doesn't matter; it's the retval from find that matters
                 
                 #configure Mock
                 svc.clients.resource_registry.create.return_value = ('111', 'bla')
