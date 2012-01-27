@@ -451,7 +451,7 @@ class ResourceImplMetatest(object):
 
                 myimpl.delete_one("111")
                 svc.clients.resource_registry.read.assert_called_once_with("111", "")
-                svc.clients.resource_registry.delete.assert_called_once_with(myret)
+                svc.clients.resource_registry.delete.assert_called_once_with("111")
 
                 
             name = make_name("resource_impl_delete")
