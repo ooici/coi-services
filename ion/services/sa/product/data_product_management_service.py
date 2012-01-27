@@ -16,10 +16,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         @brief      Implementation of the data product management service
     """
     
-    def create_data_product(self, data_product=None, data_producer=None):
+    def create_data_product(self, data_product=None, source_resource_id=''):
         """
-        @param      data_product IonObject which defines the general data product resource 
-        @param      data_producer IonObject which defines the general data producer resource 
+        @param      data_product IonObject which defines the general data product resource
+        @param      source_resource_id IonObject id which defines the source for the data
         @retval     data_product_id
         """ 
         #   1. Verify that a data product with same name does not already exist 
@@ -47,14 +47,10 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest("A data product named '%s' already exists" % data_product.name)  
 
         data_product_id, version = self.clients.resource_registry.create(data_product)
-            
-        if data_producer != {} and data_producer != None:
-            log.debug("DataProductManagementService:create_data_product: data producer = %s" % str(data_producer))
-            data_producer_id = self.clients.data_acquisition_management.create_data_producer(data_producer)  # TODO: what errors can occur here?
-            log.debug("DataProductManagementService.define_data_product create_data_producer result: %s " % data_producer_id)
-            self.clients.resource_registry.create_association(data_product_id, 
-                                                              AT.hasDataProducer, 
-                                                              data_producer_id)
+
+        if source_resource_id:
+            log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
+            self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id)  # TODO: what errors can occur here?
             
         return data_product_id
 
@@ -75,33 +71,33 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def update_data_product(self, data_product=None):
         """
-        method docstring
+        @todo document this interface!!!
+
+        @param data_product    DataProduct
+        @throws NotFound    object with specified id does not exist
         """
-        # Update metadata for a specific data product
-        # Return True for success
  
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
                
         self.clients.resource_registry.update(data_product)
             
-        return True
+        return
 
 
     def delete_data_product(self, data_product_id=''):
         """
-        method docstring
+        @todo document this interface!!!
+
+        @param data_product_id    DataProduct identifier
+        @throws NotFound    object with specified id does not exist
         """
-        # Return Value
-        # ------------
-        # {success: True}
-        #
 
         log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
         
         # Attempt to change the life cycle state of data product
         self.clients.resource_registry.delete(data_product_id)
 
-        return True
+        return
 
     def find_data_products(self, filters=None):
         """

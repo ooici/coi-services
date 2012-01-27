@@ -16,6 +16,7 @@ from pyon.util.context import LocalContextMixin
 
 from ion.services.sa.acquisition.data_acquisition_management_service import DataAcquisitionManagementService
 from interface.services.sa.idata_acquisition_management_service import IDataAcquisitionManagementService, DataAcquisitionManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
@@ -26,6 +27,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
+#@unittest.skip('not working')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -46,6 +48,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # Now create client to DataAcquisitionManagementService
         client = DataAcquisitionManagementServiceClient(node=self.container.node)
+
 
         # test creating a new data source
         print 'Creating new data source'
@@ -97,7 +100,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("existing data source was not found during read")
         else:
             pass
-        self.assertTrue(datasource_obj.description == 'the very first data source')            
+        self.assertTrue(datasource_obj.description == 'the very first data source')
 
 
         # now 'delete' the data source
@@ -155,6 +158,38 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         print 'new data producer id = ', ds_id
 
 
+    def test_register_instrument(self):
+        # Register an instrument as a data producer in coordination with DM PubSub: create stream, register and create producer object
+
+        self._start_container()
+
+        # Establish endpoint with container
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+
+        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+
+        print 'started services'
+
+        # Now create client to DataAcquisitionManagementService and Resource Regsistry
+        client = DataAcquisitionManagementServiceClient(node=self.container.node)
+        rrclient = ResourceRegistryServiceClient(node=self.container.node)
+
+        # set up initial instrument to register
+        instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
+        instrument_id, rev = rrclient.create(instrument_obj)
+
+        # test registering a new data producer
+        try:
+            ds_id = client.register_instrument(instrument_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+        print 'new data producer id = ', ds_id
+
+        # test UNregistering a new data producer
+        try:
+            ds_id = client.unregister_instrument(instrument_id)
+        except BadRequest as ex:
+            self.fail("failed to unregister instrument producer: %s" %ex)
 
 
     @unittest.skip('Not done yet.')

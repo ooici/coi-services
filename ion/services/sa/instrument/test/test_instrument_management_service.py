@@ -6,14 +6,14 @@
 @test ion.services.sa.instrument.instrument_management_service Unit test suite to cover all service code
 """
 
-from mock import Mock #, sentinel, patch
-from pyon.util.unit_test import PyonTestCase
+
+#from mock import Mock #, sentinel, patch
 from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
 from nose.plugins.attrib import attr
 
-from pyon.util.log import log
 
-#from pyon.core.bootstrap import IonObject
+
+from pyon.util.log import log
 
 from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
 
@@ -30,12 +30,15 @@ from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 
 #from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 #import unittest
+from pyon.util.unit_test import PyonTestCase
+
 
 @attr('UNIT', group='sa')
 class TestInstrumentManagement(PyonTestCase):
 
     def setUp(self):
         self.mock_ionobj = self._create_IonObject_mock('ion.services.sa.instrument.instrument_management_service.IonObject')
+
         #self.mock_ionobj = IonObject
         mock_clients = self._create_service_mock('instrument_management')
 
@@ -45,17 +48,17 @@ class TestInstrumentManagement(PyonTestCase):
         # must call this manually
         self.instrument_mgmt_service.on_init()
 
-rwm = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
+rim = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
 
-rwm.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange-name": "rhubarb"})
-rwm.add_resource_impl_unittests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
-rwm.add_resource_impl_unittests(InstrumentDeviceImpl, {"serialnumber": "123", "firmwareversion": "x"})
-rwm.add_resource_impl_unittests(InstrumentModelImpl, {"model": "redundant?", "weight": 20000})
-rwm.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange-name": "sausage"})
-rwm.add_resource_impl_unittests(PlatformAgentImpl, {"tbd": "the big donut"})
-rwm.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
-rwm.add_resource_impl_unittests(PlatformModelImpl, {"tbd": "tammy breathed deeply"})
-rwm.add_resource_impl_unittests(SensorDeviceImpl, {"serialnumber": "123"})
-rwm.add_resource_impl_unittests(SensorModelImpl, {"model": "redundant field?", "weight": 2})
+rim.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
+rim.add_resource_impl_unittests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
+rim.add_resource_impl_unittests(InstrumentDeviceImpl, {"serialnumber": "123", "firmwareversion": "x"})
+rim.add_resource_impl_unittests(InstrumentModelImpl, {"model": "redundant?", "weight": 20000})
+rim.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange_name": "sausage"})
+rim.add_resource_impl_unittests(PlatformAgentImpl, {"description": "the big donut"})
+rim.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
+rim.add_resource_impl_unittests(PlatformModelImpl, {"description": "tammy breathed deeply"})
+rim.add_resource_impl_unittests(SensorDeviceImpl, {"serialnumber": "123"})
+rim.add_resource_impl_unittests(SensorModelImpl, {"model": "redundant field?", "weight": 2})
 
 

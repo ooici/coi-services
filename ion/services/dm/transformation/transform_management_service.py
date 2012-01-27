@@ -7,10 +7,10 @@ __license__ = 'Apache 2.0'
 @description Implementation for TransformManagementService
 '''
 import time
-from mock import Mock
+import hashlib
 from pyon.public import log, IonObject, RT, AT
 from pyon.core.exception import BadRequest, NotFound
-from pyon.util.containers import DotDict
+
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
 
 class TransformManagementService(BaseTransformManagementService):
@@ -85,11 +85,6 @@ class TransformManagementService(BaseTransformManagementService):
         else:
             stream_ids = []
 
-
-        # Update the resource_registry with this process_definition's configuration
-
-        process_definition.config = configuration
-        self.clients.resource_registry.update(process_definition)
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
@@ -189,7 +184,35 @@ class TransformManagementService(BaseTransformManagementService):
 # ---------------------------------------------------------------------------
 
     def execute_transform(self, process_definition_id='', data={}, configuration={}):
-        pass
+        process_definition = self.clients.resource_registry.read(process_definition_id)
+        module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
+        cls = process_definition.executable.get('class','TransformExample')
+
+        m = hashlib.sha1('transform' + time.ctime())
+        name = m.hexdigest()
+
+        configuration = {
+            'process':{
+                'type':'stream_process',
+                #@todo: fix this
+                'listen_name':'noqueue',
+            }
+        }
+
+        id = self.container.spawn_process(name=name,
+                        module=module,
+                        cls=cls,
+                        config=configuration)
+
+
+        pid = '%s.%s' %(self.container.id, id)
+        process_instance = self.container.proc_manager.procs[pid]
+        retval = process_instance.execute(data)
+
+        self.container.proc_manager.terminate_process(pid)
+
+        return retval
+
 
     def activate_transform(self, transform_id=''):
         """Activate the subscription to bind (start) the transform
