@@ -9,6 +9,8 @@
 from nose.plugins.attrib import attr
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import Container, log, IonObject
 from pyon.public import RT, AT, LCS
@@ -37,9 +39,10 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         print 'started services'
 
         # Now create client to DataProcessManagementService
-        self.DPMSclient = DataProcessManagementServiceClient(node=self.container.node)
+        self.Processclient = DataProcessManagementServiceClient(node=self.container.node)
         self.RRclient = ResourceRegistryServiceClient(node=self.container.node)
-
+        self.DAMSclient = DataAcquisitionManagementServiceClient(node=self.container.node)
+        self.DPMSclient = DataProductManagementServiceClient(node=self.container.node)
 
     def test_createDataProcess(self):
 
@@ -53,7 +56,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
                             description='some new dpd',
                             process_source='some_source_reference')
         try:
-            dprocd_id = self.DPMSclient.create_data_process_definition(dpd_obj)
+            dprocd_id = self.Processclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
         print 'new dpd_id = ', dprocd_id
@@ -65,26 +68,33 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
 #        }
 #        process_definition_id, _ = RRclient.create(process_definition)
 
+        # Create an input instrument
+        # set up initial data source and its associated data producer
+        instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
+        instrument_id, rev = self.RRclient.create(instrument_obj)
+        #register the instrument so that the data producer and stream object are created
+        data_producer_id = self.DAMSclient.register_instrument(instrument_id)
 
         #-------------------------------
         # Input Data Product
         #-------------------------------
-        dp_obj = IonObject(RT.DataProduct,
-                           name='input',
-                           description='transform input')
-        input_dp_id = self.data_product_management_service.create_data_product(dp_obj)
+        input_dp_obj = IonObject(RT.DataProduct, name='InputDataProduct', description='some new dp')
+        try:
+            input_dp_id = self.DPMSclient.create_data_product(input_dp_obj, instrument_id)
+        except BadRequest as ex:
+            self.fail("failed to create new input data product: %s" %ex)
+
+
         #-------------------------------
-        # Input Data Product
+        # Output Data Product
         #-------------------------------
-        dp_obj = IonObject(RT.DataProduct,
-                           name='output',
-                           description='transform output')
-        output_dp_id = self.data_product_management_service.create_data_product(dp_obj)
+        output_dp_obj = IonObject(RT.DataProduct, name='OutDataProduct',description='transform output')
+        output_dp_id = self.DPMSclient.create_data_product(output_dp_obj)
 
 
         try:
-            dprocd_id = self.DPMSclient.create_data_process(dprocd_id, input_dp_id, output_dp_id)
-        except BadRequest as ex: 
+            dprocd_id = self.Processclient.create_data_process(dprocd_id, input_dp_id, output_dp_id)
+        except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
         
