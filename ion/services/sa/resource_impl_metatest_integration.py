@@ -110,7 +110,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 self is an instance of the tester class
                 """
                 if not hasattr(self, "_rimi_service_obj"):
-                    svc_varname = find_cv_func(self, service_type)
+
                     # get service from container proc manager
                     service_itself = [
                         item[1] for item in self.container.proc_manager.procs.items() 
@@ -147,7 +147,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 response = myimpl.create_one(good_sample_resource)
                 idfield = "%s_id" % impl_instance.ionlabel
                 self.assertIn(idfield, response)
-                sample_resource_id = response[idfield]
+                #sample_resource_id = response[idfield]
 
                 log.debug("got response: %s" % response)
 
@@ -191,10 +191,13 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 # get objects
                 svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                delattr(bad_sample_resource, "name")
-                
-                self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
+                                
+                # prep and put objects
+                good_sample_resource = sample_resource()
+               
+                #insert 2
+                myimpl.create_one(good_sample_resource)
+                self.assertRaises(BadRequest, myimpl.create_one, good_sample_resource)
 
 
             name = make_name("resource_impl_create_bad_dupname")
@@ -238,15 +241,21 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 # get objects
                 svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
-                myret = sample_resource()
                                 
-                response = myimpl.read_one("111")
+                # put in an object
+                response = myimpl.create_one(sample_resource())
+                sample_resource_id = response["%s_id" % impl_instance.ionlabel]
+
+                response = myimpl.read_one(sample_resource_id)
 
                 self.assertIn(impl_instance.ionlabel, response)
-                self.assertEqual(response[impl_instance.ionlabel], myret)
+                
+                #won't work because of changes in _rev and lcstate
                 #self.assertDictEqual(response[impl_instance.ionlabel].__dict__,
                 #                     sample_resource().__dict__)
 
+                self.assertEqual(response[impl_instance.ionlabel]._id,
+                                 sample_resource_id)
                 
             name = make_name("resource_impl_read")
             doc  = make_doc("Reading a %s resource" % impl_instance.iontype)
@@ -284,16 +293,21 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 # get objects
                 svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
+                                
+                # prep and put objects
                 good_sample_resource = sample_resource()
-                setattr(good_sample_resource, "_id", "111")
+                resp = myimpl.create_one(good_sample_resource)
+                res_id = resp["%s_id" % impl_instance.ionlabel]
 
-                #configure Mock
-                svc.clients.resource_registry.update.return_value = ('111', 'bla')                
-                svc.clients.resource_registry.find_resources.return_value = ([], [])
+                # read and change
+                good_sample_duplicate = myimpl.read_one(res_id)[impl_instance.ionlabel]
+                newname = "updated %s" % good_sample_duplicate.name
+                good_sample_duplicate.name = newname
+                myimpl.update_one(good_sample_duplicate)
 
-                myimpl.update_one(good_sample_resource)
-
-                svc.clients.resource_registry.update.assert_called_once_with(good_sample_resource)
+                # verify change
+                good_sample_triplicate = myimpl.read_one(res_id)[impl_instance.ionlabel]
+                self.assertEqual(newname, good_sample_triplicate.name)
 
                 
             name = make_name("resource_impl_update")
@@ -334,11 +348,23 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 # get objects
                 svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                setattr(bad_sample_resource, "_id", "111")
+                                
+                # prep and put objects
+                good_sample_resource = sample_resource()
+                good_sample_duplicate = sample_resource()
                 
-                svc.clients.resource_registry.find_resources.return_value = ([0], [0])
-                self.assertRaises(BadRequest, myimpl.update_one, bad_sample_resource)
+                oldname = good_sample_resource.name
+                good_sample_duplicate.name = "DEFINITELY NOT A DUPLICATE"
+
+                resp = myimpl.create_one(good_sample_resource)
+                resp = myimpl.create_one(good_sample_duplicate)
+                
+                dup_id = resp["%s_id" % impl_instance.ionlabel]
+
+                good_sample_duplicate = myimpl.read_one(dup_id)[impl_instance.ionlabel]
+                good_sample_duplicate.name = oldname
+                
+                self.assertRaises(BadRequest, myimpl.update_one, good_sample_duplicate)
 
                 
             name = make_name("resource_impl_update_bad_duplicate")
@@ -357,15 +383,19 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 # get objects
                 svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
-                myret = sample_resource()
-                                
-                #configure Mock
-                svc.clients.resource_registry.read.return_value = myret
-                svc.clients.resource_registry.delete.return_value = None
 
-                myimpl.delete_one("111")
-                svc.clients.resource_registry.read.assert_called_once_with("111", "")
-                svc.clients.resource_registry.delete.assert_called_once_with(myret)
+                # put in an object
+                response = myimpl.create_one(sample_resource())
+                sample_resource_id = response["%s_id" % impl_instance.ionlabel]
+
+                log.debug("Attempting to delete newly created object with id=%s" % 
+                          sample_resource_id)
+
+                #delete
+                myimpl.delete_one(sample_resource_id)
+                
+                # verify delete
+                self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)
 
                 
             name = make_name("resource_impl_delete")
@@ -575,18 +605,23 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
 
 
         # can you believe we're still within a single function?
-        # it's time to add each method to the tester class
+
+        # add the service lookup function
         gen_svc_lookup()
+
+
+        # add each method to the tester class
+
         gen_test_create()
         gen_test_create_bad_noname()
-        #gen_test_create_bad_dupname()
+        gen_test_create_bad_dupname()
         gen_test_create_bad_has_id()
-        #gen_test_read()
+        gen_test_read()
         gen_test_read_notfound()
-        #gen_test_update()
+        gen_test_update()
         gen_test_update_bad_noid()
-        #gen_test_update_bad_dupname()
-        #gen_test_delete()
+        gen_test_update_bad_dupname()
+        gen_test_delete()
         gen_test_delete_notfound()
         #gen_test_find()
         #gen_tests_associations()
