@@ -10,7 +10,7 @@
 
 from nose.plugins.attrib import attr
 from pyon.util.unit_test import pop_last_call, PyonTestCase
-from pyon.public import IonObject, RT, AT
+from pyon.public import IonObject, RT, PRED
 from ion.services.sa.process.data_process_management_service \
 import DataProcessManagementService
 import unittest
@@ -79,17 +79,17 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.transform_management_service.bind_transform.assert_called_once_with(self.transform_id)
         self.assertEqual(self.resource_registry.create_association.call_count, 3)
         self.resource_registry.create_association.assert_called_with(self.data_process_id, 
-                                                                     AT.hasTransform,
+                                                                     PRED.hasTransform,
                                                                      self.transform_id,
                                                                      None)
         pop_last_call(self.resource_registry.create_association)
         self.resource_registry.create_association.assert_called_with(self.data_process_id, 
-                                                                     AT.hasOutputProduct,
+                                                                     PRED.hasOutputProduct,
                                                                      self.out_product_A,
                                                                      None)
         pop_last_call(self.resource_registry.create_association)
         self.resource_registry.create_association.assert_called_once_with(self.data_process_id, 
-                                                                          AT.hasInputProduct,
+                                                                          PRED.hasInputProduct,
                                                                           self.in_product_A,
                                                                           None)
 
@@ -108,6 +108,6 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.assertEqual(dpd_id, self.data_proc_def_id)
         self.assertEqual(in_id, self.in_product_A)
         self.assertEqual(out_id, self.out_product_A)
-        self.resource_registry.find_associations.assert_called_once_with(self.data_process_id, AT.hasTransform, '', False)
+        self.resource_registry.find_associations.assert_called_once_with(self.data_process_id, PRED.hasTransform, '', False)
         self.transform_management_service.read_transform.assert_called_once_with(self.transform_id)
 
