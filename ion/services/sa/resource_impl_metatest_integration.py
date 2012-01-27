@@ -7,7 +7,6 @@
 """
 import hashlib
 
-# from mock import Mock, sentinel, patch
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
@@ -60,8 +59,6 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
         #  being able to inject text into the sample_resource_extras
         sample_resource = self.sample_resource_factory(impl_instance, resource_params)
 
-
-        find_cv_func = self.find_class_variable_name
 
         service_type = type(self.service_instance)
 
@@ -433,174 +430,29 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 # get objects
                 svc = self._rimi_getservice()
                 myimpl = getattr(svc, impl_attr)                 
-                                
-                #configure Mock
-                svc.clients.resource_registry.find_resources.return_value = ([0], [0])
+
+                # put in 2 objects
+                sr = sample_resource()
+                response = myimpl.create_one(sr)
+                sample_resource_id = response["%s_id" % impl_instance.ionlabel]
+
+                sr.name = "NOT A DUPE"
+                response = myimpl.create_one(sr)
+                sample_resource_id2 = response["%s_id" % impl_instance.ionlabel]
 
                 response = myimpl.find_some({})
                 out_list = "%s_list" % impl_instance.ionlabel
                 self.assertIn(out_list, response)
                 self.assertIsInstance(response[out_list], list)
                 self.assertNotEqual(0, len(response[out_list]))
-                svc.clients.resource_registry.find_resources.assert_called_once_with(impl_instance.iontype,
-                                                                                     None,
-                                                                                     None,
-                                                                                     True)
+                self.assertNotEqual(1, len(response[out_list]))
+                self.assertIn(sample_resource_id, response[out_list])
+                self.assertIn(sample_resource_id2, response[out_list])
 
                 
             name = make_name("resource_impl_find")
             doc  = make_doc("Finding (all) %s resources" % impl_instance.iontype)
             add_test_method(name, doc, fun)
-
-
-        def gen_tests_associated_finds():
-            gen_tests_find_having()
-            gen_tests_find_stemming()
-
-
-        def gen_tests_find_having():
-            """
-            create a test for each of the find_having_* methods in the impl
-            """
-            for k in dir(impl_instance):
-                parts = k.split("_", 2)
-                if "find" == parts[0] and "having" == parts[1]:
-
-                    def freeze(parts):
-                        """
-                        must freeze this so the loop doesn't overwrite the parts varible
-                        """
-                        assn_type = parts[2]
-                        find_name = "_".join(parts)
-
-                        def fun(self):
-                            svc = self._rimi_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            myfind = getattr(myimpl, find_name)
-
-                            #set up Mock
-                            reply = (['333'], ['444'])
-                            svc.clients.resource_registry.find_subjects.return_value = reply
-
-                            #call the impl
-                            response = myfind("111")
-                            self.assertEqual(reply, response)
-                        
-                        name = make_name("resource_impl_find_having_%s_link" % assn_type)
-                        doc  = make_doc("Checking find %s having %s" % (impl_instance.iontype, assn_type))
-                        add_test_method(name, doc, fun)
-
-                    freeze(parts)
-
-
-        def gen_tests_find_stemming():
-            """
-            create a test for each of the find_stemming_* methods in the impl
-            """
-            for k in dir(impl_instance):
-                parts = k.split("_", 2)
-                if "find" == parts[0] and "stemming" == parts[1]:
-
-                    def freeze(parts):
-                        """
-                        must freeze this so the loop doesn't overwrite the parts varible
-                        """
-                        assn_type = parts[2]
-                        find_name = "_".join(parts)
-
-                        def fun(self):
-                            svc = self._rimi_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            myfind = getattr(myimpl, find_name)
-
-                            #set up Mock
-                            reply = (['333'], ['444'])
-                            svc.clients.resource_registry.find_objects.return_value = reply
-
-                            #call the impl
-                            response = myfind("111")
-                            self.assertEqual(reply, response)
-                        
-                        name = make_name("resource_impl_find_stemming_%s_links" % assn_type)
-                        doc  = make_doc("Checking find %s stemming from %s" % (assn_type, impl_instance.iontype))
-                        add_test_method(name, doc, fun)
-
-                    freeze(parts)
-
-        
-            
-        def gen_tests_associations():
-            gen_tests_links()
-            gen_tests_unlinks()
-
-        def gen_tests_links():
-            """
-            create a test for each of the create_association tests in the impl
-            """
-            for k in dir(impl_instance):
-                parts = k.split("_", 1)
-                if "link" == parts[0]:
-
-                    def freeze(parts):
-                        """
-                        must freeze this so the loop doesn't overwrite the parts varible
-                        """
-                        assn_type = parts[1]
-                        link_name = "_".join(parts)
-
-                        def fun(self):
-                            svc = self._rimi_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            mylink = getattr(myimpl, link_name)
-
-                            #set up Mock
-                            reply = ('333', 'bla')
-                            svc.clients.resource_registry.create_association.return_value = reply
-
-                            #call the impl
-                            response = mylink("111", "222")
-                            self.assertEqual(reply, response)
-
-                        name = make_name("resource_impl_association_%s_link" % assn_type)
-                        doc  = make_doc("Checking create_association of a %s resource with its %s" % (impl_instance.iontype, assn_type))
-                        add_test_method(name, doc, fun)
-
-                    freeze(parts)
-
-
-        def gen_tests_unlinks():
-            """
-            create a test for each of the delete_association tests in the impl
-            """
-            for k in dir(impl_instance):
-                parts = k.split("_", 1)
-                if "unlink" == parts[0]:
-
-                    def freeze(parts):
-                        """
-                        must freeze this so the loop doesn't overwrite the parts varible
-                        """
-                        assn_type = parts[1]
-                        link_name = "_".join(parts)
-
-                        def fun(self):
-                            svc = self._rimi_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            myunlink = getattr(myimpl, link_name)
-                            
-                            svc.clients.resource_registry.create_association.return_value = None
-
-                            #call the impl
-                            myunlink("111", "222")
-                            
-                            #there is no response, self.assertEqual("f", str(response))
-
-                        name = make_name("resource_impl_association_%s_unlink" % assn_type)
-                        doc  = make_doc("Checking delete_association of a %s resource from its %s" % (impl_instance.iontype, assn_type))
-                        add_test_method(name, doc, fun)
-
-                    freeze(parts)
-
 
 
 
@@ -623,7 +475,5 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
         gen_test_update_bad_dupname()
         gen_test_delete()
         gen_test_delete_notfound()
-        #gen_test_find()
-        #gen_tests_associations()
-        #gen_tests_associated_finds()
+        gen_test_find()
 
