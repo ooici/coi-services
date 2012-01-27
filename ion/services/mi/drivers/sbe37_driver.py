@@ -13,19 +13,16 @@ __license__ = 'Apache 2.0'
 import logging
 import time
 
-from ion.services.mi.instrument_driver_eh import InstrumentDriver
-from ion.services.mi.instrument_driver_eh import DriverChannel
-from ion.services.mi.instrument_driver_eh import DriverCommand
-from ion.services.mi.instrument_driver_eh import DriverState
-from ion.services.mi.instrument_driver_eh import DriverEvent
+from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.instrument_driver import DriverChannel
+from ion.services.mi.instrument_driver import DriverCommand
+from ion.services.mi.instrument_driver import DriverState
+from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_protocol_eh \
-                        import InstrumentProtocol
-from ion.services.mi.instrument_protocol_eh \
-                        import CommandResponseInstrumentProtocol
+from ion.services.mi.instrument_protocol import InstrumentProtocol
+from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_fsm import InstrumentFSM
-from ion.services.mi.fsm import FSM, ExceptionFSM
 
 
 #import ion.services.mi.mi_logger
@@ -79,21 +76,32 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         CommandResponseInstrumentProtocol.__init__(self)
+                
+        self._fsm = InstrumentFSM(SBE37State, SBE37Event, SBE37Event.ENTER,
+                            SBE37Event.EXIT, InstErrorCode.UNHANDLED_EVENT)
         
-        self._state_handlers = {
-            SBE37State.UNCONFIGURED : self._state_handler_unconfigured,
-            SBE37State.DISCONNECTED : self._state_handler_disconnected,
-            SBE37State.COMMAND : self._state_handler_command,
-            SBE37State.AUTOSAMPLE : self._state_handler_autosample
-        }
-        
-        self._fsm = InstrumentFSM(SBE37State, SBE37Event, self._state_handlers,
-                                  SBE37Event.ENTER, SBE37Event.EXIT)                
+        self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.ENTER, self._handler_unconfigured_enter)
+        self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.EXIT, self._handler_unconfigured_exit)
+        self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.INITIALIZE, self._handler_unconfigured_initialize)
+        self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.CONFIGURE, self._handler_unconfigured_configure)
+        self._fsm.add_handler(SBE37State.DISCONNECTED, SBE37Event.ENTER, self._handler_disconnected_enter)
+        self._fsm.add_handler(SBE37State.DISCONNECTED, SBE37Event.EXIT, self._handler_disconnected_exit)
+        self._fsm.add_handler(SBE37State.DISCONNECTED, SBE37Event.INITIALIZE, self._handler_disconnected_initialize)
+        self._fsm.add_handler(SBE37State.DISCONNECTED, SBE37Event.CONFIGURE, self._handler_disconnected_configure)
+        self._fsm.add_handler(SBE37State.DISCONNECTED, SBE37Event.CONNECT, self._handler_disconnected_connect)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.ENTER, self._handler_command_enter)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.EXIT, self._handler_command_exit)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.DISCONNECT, self._handler_command_disconnect)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.EXECUTE, self._handler_command_execute)
+        self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.ENTER, self._handler_autosample_enter)
+        self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.EXIT, self._handler_autosample_exit)
+        self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.EXECUTE, self._handler_autosample_execute)
+
         self._fsm.start(SBE37State.UNCONFIGURED)
 
         self._linebuf = ''
         self._datalines = []
-        self._prompt_recvd = None
+        self._promptbuf = ''
 
     ########################################################################
     # Protocol connection interface.
@@ -175,226 +183,311 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # State handlers
     ########################################################################
 
-    def _state_handler_unconfigured(self, event, params):
+    ########################################################################
+    # SBE37State.UNCONFIGURED
+    ########################################################################
+    
+    def _handler_unconfigured_enter(self, params):
         """
-        """        
-        success = InstErrorCode.OK
-        next_state = None
-        result = None
+        """
         
-        if event == SBE37Event.ENTER:
-            
-            mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
+        mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.UNCONFIGURED)
             
-            # Initialize driver configuration.
-            timeout = None
-            if params:
-                timeout = params.get('timeout', None)
-            InstrumentProtocol.initialize(self, timeout)
+        # Initialize driver configuration.
+        timeout = None
+        if params:
+            timeout = params.get('timeout', None)
+        InstrumentProtocol.initialize(self, timeout)
+    
+    def _handler_unconfigured_exit(self, params):
+        """
+        """
+        pass
 
-        elif event == SBE37Event.EXIT:
-            pass
+    def _handler_unconfigured_initialize(self, params):
+        """
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
         
-        elif event == SBE37Event.INITIALIZE:
-            
-            # Initialize driver configuration.
-            timeout = None
-            if params:
-                timeout = params.get('timeout', None)
-            InstrumentProtocol.initialize(self, timeout)
+        next_state = SBE37State.UNCONFIGURED
 
-        elif event == SBE37Event.CONFIGURE:
-            
-            # Attempt to configure driver, switch to disconnected
-            # if successful.
-            config = None
-            timeout = None
-            if params:
-                config = params.get('config', None)
-                timeout = params.get('timeout', None)
-            success = InstrumentProtocol.configure(self, config, timeout)
-            if InstErrorCode.is_ok(success):
-                next_state = SBE37State.DISCONNECTED
-
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
-            
         return (success, next_state, result)
 
-
-    def _state_handler_disconnected(self, event, params):
+    def _handler_unconfigured_configure(self, params):
         """
         """
         success = InstErrorCode.OK
         next_state = None
         result = None
 
-        if event == SBE37Event.ENTER:
-            mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
-                           SBE37State.DISCONNECTED)
-
-        elif event == SBE37Event.EXIT:
-            pass
-        
-        elif event == SBE37Event.CONFIGURE:
-            
-            # Attempt to configure driver, switch to disconnected
-            # if successful.
-            config = None
-            timeout = None
-            if params:
-                config = params.get('config', None)
-                timeout = params.get('timeout', None)            
-            success = InstrumentProtocol.configure(self, config, timeout)
-            if InstErrorCode.is_error(success):
-                next_state = SBE37State.UNCONFIGURED
-        
-        elif event == SBE37Event.CONNECT:
-            timeout = None
-            if params:
-                timeout = params.get('timeout', None)
-            success = InstrumentProtocol.connect(self, timeout)
-            
-            if InstErrorCode.is_ok(success):                
-                prompt = self._wakeup()
-                
-                if prompt == SBE37Prompt.COMMAND:
-                    next_state = SBE37State.COMMAND
-
-                elif prompt == SBE37Prompt.AUTOSAMPLE:
-                    next_state = SBE37State.AUTOSAMPLE
-
-                else:
-                    # A timeout can occur here. In this case disconnect.
-                    InstrumentProtocol.disconnect(self)
-                    next_state = SBE37State.DISCONNECTED
-                
-                
-        elif event == SBE37Event.INITIALIZE:
-            next_state = SBE37State.UNCONFIGURED
-        
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
-
-        return (success, next_state, result)
-
-
-    def _state_handler_command(self, event, params):
-        """
-        """
-        success = InstErrorCode.OK
-        next_state = None
-        result = None
-
-        if event == SBE37Event.ENTER:
-            mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
-                           SBE37State.COMMAND)
-            self._update_params()
-
-        elif event == SBE37Event.EXIT:
-            pass
-        
-        elif event == SBE37Event.DISCONNECT:
-            timeout = None
-            if params:
-                timeout = params.get('timeout', None)
-            InstrumentProtocol.disconnect(self, timeout)
+        # Attempt to configure driver, switch to disconnected
+        # if successful.
+        config = None
+        timeout = None
+        if params:
+            config = params.get('config', None)
+            timeout = params.get('timeout', None)
+        success = InstrumentProtocol.configure(self, config, timeout)
+        if InstErrorCode.is_ok(success):
             next_state = SBE37State.DISCONNECTED
 
-
-        elif event == SBE37Event.EXECUTE:
-            command = None
-            cmd = None
-            if params:
-                command = params.get('command', None)
-            if command:
-                cmd = command[0]
-            if cmd == SBE37Command.ACQUIRE_SAMPLE:
-                self._acquire_sample()
-                
-            elif cmd == SBE37Command.START_AUTO_SAMPLING:
-                pass
-            
-            else:
-                success = InstErrorCode.INVALID_COMMAND        
-
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
-
         return (success, next_state, result)
+    
+    ########################################################################
+    # SBE37State.DISCONNECTED
+    ########################################################################
 
-    def _state_handler_autosample(self, event, params):
+    def _handler_disconnected_enter(self, params):
+        """
+        """
+        mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
+                           SBE37State.DISCONNECTED)
+
+    def _handler_disconnected_exit(self, params):
+        """
+        """
+        pass
+
+    def _handler_disconnected_initialize(self, params):
         """
         """
         success = InstErrorCode.OK
         next_state = None
         result = None
 
-        if event == SBE37Event.ENTER:
-            mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
-                           SBE37State.AUTOSAMPLE)
-
-        elif event == SBE37Event.EXIT:
-            pass
-        
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
+        next_state = SBE37State.UNCONFIGURED
 
         return (success, next_state, result)
 
+    def _handler_disconnected_configure(self, params):
+        """
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        # Attempt to configure driver, switch to disconnected
+        # if successful.
+        config = None
+        timeout = None
+        if params:
+            config = params.get('config', None)
+            timeout = params.get('timeout', None)            
+        success = InstrumentProtocol.configure(self, config, timeout)
+        if InstErrorCode.is_error(success):
+            next_state = SBE37State.DISCONNECTED
+
+        return (success, next_state, result)
+
+    def _handler_disconnected_connect(self, params):
+        """
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        timeout = None
+        if params:
+            timeout = params.get('timeout', None)
+        success = InstrumentProtocol.connect(self, timeout)
+        
+        if InstErrorCode.is_ok(success):                
+            prompt = self._wakeup()
+            
+            if prompt == SBE37Prompt.COMMAND:
+                next_state = SBE37State.COMMAND
+
+            elif prompt == SBE37Prompt.AUTOSAMPLE:
+                next_state = SBE37State.AUTOSAMPLE
+
+            elif promp == InstErrorCode.TIMEOUT:
+                # Disconnect on timeout from prompt.
+                # TBD.
+                InstrumentProtocol.disconnect(self)
+                next_state = SBE37State.DISCONNECTED
+
+        return (success, next_state, result)
+
+    ########################################################################
+    # SBE37State.COMMAND
+    ########################################################################
+
+    def _handler_command_enter(self, params):
+        """
+        """
+        mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
+                           SBE37State.COMMAND)
+        self._update_params()
+
+    def _handler_command_exit(self, params):
+        """
+        """
+        pass
+
+    def _handler_command_disconnect(self, params):
+        """
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        timeout = None
+        if params:
+            timeout = params.get('timeout', None)
+        InstrumentProtocol.disconnect(self, timeout)
+        next_state = SBE37State.DISCONNECTED
+
+        return (success, next_state, result)
+
+    def _handler_command_execute(self, params):
+        """
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        command = None
+        cmd = None
+        if params:
+            command = params.get('command', None)
+        if command:
+            cmd = command[0]
+        if cmd == SBE37Command.ACQUIRE_SAMPLE:
+            self._acquire_sample()
+            
+        elif cmd == SBE37Command.START_AUTO_SAMPLING:
+            self._do_cmd_no_prompt('startnow')
+            next_state = SBE37State.AUTOSAMPLE
+            
+        else:
+            success = InstErrorCode.INVALID_COMMAND        
+
+        return (success, next_state, result)
+
+    ########################################################################
+    # SBE37State.AUTOSAMPLE
+    ########################################################################
+
+    def _handler_autosample_enter(self, params):
+        """
+        """
+        mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
+                           SBE37State.AUTOSAMPLE)
+
+    def _handler_autosample_exit(self, params):
+        """
+        """
+        pass
+
+    def _handler_autosample_execute(self, params):
+        """
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        command = None
+        cmd = None
+        if params:
+            command = params.get('command', None)
+        if command:
+            cmd = command[0]
+        if cmd == SBE37Command.STOP_AUTO_SAMPLING:
+            self._do_cmd('stop')
+            while True:
+                (prompt, result) = self._do_cmd('')
+                if prompt == SBE37Prompt.COMMAND: break 
+            next_state = SBE37State.COMMAND
+            
+        else:
+            success = InstErrorCode.INVALID_COMMAND        
+
+        return (success, next_state, result)
 
     ########################################################################
     # Private helpers
     ########################################################################
-
     
     def _got_data(self, data):
         """
         """
         self._linebuf += data        
-        if self._linebuf.endswith(SBE37Prompt.COMMAND):
-            self._prompt_recvd = SBE37Prompt.COMMAND
-            
-        elif self._linebuf.endswith(SBE37Prompt.BAD_COMMAND):
-            self._prompt_recvd = SBE37Prompt.BAD_COMMAND
-            
-        elif self._linebuf.endswith(SBE37Prompt.AUTOSAMPLE):
-            self._prompt_recvd = SBE37Prompt.AUTOSAMPLE
+        self._promptbuf += data
+        if len(self._promptbuf)>7:
+            self._promptbuf = self._promptbuf[-7:]
+        if self._fsm.get_current_state() == SBE37State.AUTOSAMPLE:
+            self._process_streaming_data()
+        
+    def _process_streaming_data(self):
+        """
+        """
+        if SBE37Prompt.NEWLINE in self._linebuf:
+            lines = self._linebuf.split(SBE37Prompt.NEWLINE)
+            self._linebuf = lines[-1]
+            lines = lines[0:-1]
+            mi_logger.debug('data lines received: %s',str(lines))
 
     def _do_cmd(self, cmd, timeout=10):
         """
         """
-        self._prompt_recvd = None
-        self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
-        prompt = self._get_prompt(timeout)
-        result = self._linebuf.replace(prompt,'')
+        result = None
+        prompt = self._wakeup(timeout)
+        if prompt != InstErrorCode.TIMEOUT:
+            self._linebuf = ''
+            self._promptbuf = ''
+            mi_logger.debug('_do_cmd: %s', cmd)
+            self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
+            prompt = self._get_prompt(timeout)
+            if prompt != InstErrorCode.TIMEOUT:
+                result = self._linebuf.replace(prompt,'')
         return (prompt, result)
+
+    def _do_cmd_no_prompt(self, cmd):
+        """
+        """
+        self._linebuf = ''
+        mi_logger.debug('_do_cmd_no_prompt: %s', cmd)
+        self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
 
     def _wakeup(self, timeout=10):
         """
         """
-        self._linebuf = ''
-        self._prompt_recvd = None
+        self._promptbuf = ''
         starttime = time.time()
-        while not self._prompt_recvd:
+        while True:
             mi_logger.debug('Sending wakeup.')
             self._logger_client.send(SBE37Prompt.NEWLINE)
             time.sleep(1)
-            if time.time() > starttime + timeout:
+            if self._promptbuf.endswith(SBE37Prompt.COMMAND):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))
+                return SBE37Prompt.COMMAND
+            elif self._promptbuf.endswith(SBE37Prompt.AUTOSAMPLE):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.AUTOSAMPLE))
+                return SBE37Prompt.AUTOSAMPLE
+            elif time.time() > starttime + timeout:
+                mi_logger.info('_wakeup timed out.')                
                 return InstErrorCode.TIMEOUT                
-        return self._prompt_recvd
 
-    def _get_prompt(self, timeout):
+    def _get_prompt(self, timeout=10):
         """
         """
-        self._linebuf = ''
         starttime = time.time()
-        while not self._prompt_recvd:
-            time.sleep(1)
-            if time.time() > starttime + timeout:
+        while True:
+            if self._promptbuf.endswith(SBE37Prompt.COMMAND):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))                
+                return SBE37Prompt.COMMAND
+            elif self._promptbuf.endswith(SBE37Prompt.AUTOSAMPLE):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.AUTOSAMPLE))
+                return SBE37Prompt.AUTOSAMPLE
+            elif self._promptbuf.endswith(SBE37Prompt.BAD_COMMAND):
+                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.BAD_COMMAND))
+                return SBE37Prompt.AUTOSAMPLE                
+            elif time.time() > starttime + timeout:
+                mi_logger.info('_get_prompt timed out.')
                 return InstErrorCode.TIMEOUT                
-        return self._prompt_recvd
 
     def _update_params(self):
         """

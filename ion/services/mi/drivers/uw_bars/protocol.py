@@ -15,10 +15,10 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_protocol_eh import InstrumentProtocol
+from ion.services.mi.instrument_protocol import InstrumentProtocol
 
 from ion.services.mi.common import InstErrorCode
-from ion.services.mi.instrument_driver_eh import DriverEvent
+from ion.services.mi.instrument_driver import DriverEvent
 
 from ion.services.mi.instrument_fsm import InstrumentFSM
 
@@ -32,17 +32,10 @@ class BarsProtocolState(BaseEnum):
     COLLECTING_DATA = 'COLLECTING_DATA'
     MAIN_MENU = 'MAIN_MENU'
     CHANGE_PARAMS_MENU = 'CHANGE_PARAMS_MENU'
-    WAITING_FOR_SYSTEM_DIAGNOSTICS = 'WAITING_FOR_SYSTEM_DIAGNOSTICS'
-    SETTING_SYSTEM_CLOCK = 'SETTING_SYSTEM_CLOCK'
     WAITING_FOR_SYSTEM_INFO = 'WAITING_FOR_SYSTEM_INFO'
 
 
 class BarsProtocolEvent(BaseEnum):
-    #TODO: How is EXIT supposed to be used? At this moment, this event
-    # causes no changes in the state machine
-    EXIT = DriverEvent.EXIT
-
-    # I'm focusing on the interaction with the BARS menu
     ENTER_MAIN_MENU = 19  # Control-S
     RESTART_DATA_COLLECTION = '1'
     ENTER_CHANGE_PARAMS = '2'
@@ -51,6 +44,9 @@ class BarsProtocolEvent(BaseEnum):
     SHOW_SYSTEM_INFO = '5'
 
     EXIT_PROGRAM = '6'  # defined for completeness -- NOT TO BE USED.
+
+    # TODO events associated to other menus
+    TBD = "??"
 
 
 class BarsPrompt(BaseEnum):
@@ -85,10 +81,6 @@ class BarsInstrumentProtocol(InstrumentProtocol):
             BarsProtocolState.MAIN_MENU: self._state_handler_main_menu,
             BarsProtocolState.CHANGE_PARAMS_MENU:
                 self._state_handler_change_params_menu,
-            BarsProtocolState.WAITING_FOR_SYSTEM_DIAGNOSTICS:
-                self._state_handler_waiting_for_system_diagnostics,
-            BarsProtocolState.SETTING_SYSTEM_CLOCK:
-                self._state_handler_setting_system_clock,
             BarsProtocolState.WAITING_FOR_SYSTEM_INFO:
                 self._state_handler_waiting_for_system_info,
         }
@@ -96,180 +88,192 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         #
         # NOTE assume the instrument is collecting data
         # TODO: what if the instrument is NOT currently collecting data?
+        # TODO In general, sync mechanisms?
         #
         self._fsm = InstrumentFSM(BarsProtocolState, BarsProtocolEvent,
-                                  state_handlers,
                                   BarsProtocolEvent.RESTART_DATA_COLLECTION,
-                                  BarsProtocolEvent.EXIT)
+                                  BarsProtocolEvent.EXIT,
+                                  InstErrorCode.UNHANDLED_EVENT)
+
+        # collecting data
+        self._fsm.add_handler(BarsProtocolState.COLLECTING_DATA,
+                              BarsProtocolEvent.ENTER_MAIN_MENU,
+                              self._handler_collecting_data_enter_main_menu)
+
+        # main menu
+        self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
+                              BarsProtocolEvent.RESTART_DATA_COLLECTION,
+                              self._handler_collecting_data_enter_main_menu)
+
+        self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
+                              BarsProtocolEvent.RESTART_DATA_COLLECTION,
+                              self._handler_main_menu_restart_data_collection)
+
+        self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
+                              BarsProtocolEvent.ENTER_CHANGE_PARAMS,
+                              self._handler_main_menu_enter_change_params)
+
+        self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
+                              BarsProtocolEvent.SHOW_SYSTEM_DIAGNOSTICS,
+                              self._handler_main_menu_show_system_diagnostics)
+
+        self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
+                              BarsProtocolEvent.ENTER_SET_SYSTEM_CLOCK,
+                              self._handler_main_menu_enter_set_system_clock)
+
+        # change params menu
+        self._fsm.add_handler(BarsProtocolState.CHANGE_PARAMS_MENU,
+                              BarsProtocolEvent.TBD,
+                              self._handler_change_params_menu_TBD)
+
+
 
         self._fsm.start(BarsProtocolState.COLLECTING_DATA)
 
-    def _logEvent(self, event):
-        log.info("_logEvent: curr_state=%s, event=%s" %
-                 (self._fsm.get_current_state(), event))
+    def _logEvent(self, params):
+        log.info("_logEvent: curr_state=%s, params=%s" %
+                 (self._fsm.get_current_state(), str(params)))
 
     ########################################################################
     # State handlers
     ########################################################################
 
-    def _state_handler_collecting_data(self, event, params):
+    def _handler_collecting_data_enter_main_menu(self, params):
         """
-        Handler for BarsState.COLLECTING_DATA
         """
 
-        self._logEvent(event)
+        self._logEvent(params)
 
         success = InstErrorCode.OK
         next_state = None
         result = None
 
-        if event == BarsProtocolEvent.ENTER_MAIN_MENU:
+        #TODO send 19 (Control-S) to instrument
+        #...
 
-            #TODO send 19 (Control-S) to instrument
-            #...
-
-            next_state = BarsProtocolState.MAIN_MENU
-
-        elif event == BarsProtocolEvent.RESTART_DATA_COLLECTION:
-            pass
-
-        elif event == BarsProtocolEvent.EXIT:
-            pass
-
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
+        next_state = BarsProtocolState.MAIN_MENU
 
         return (success, next_state, result)
 
-    def _state_handler_main_menu(self, event, params):
+    def _handler_main_menu_restart_data_collection(self, params):
         """
-        Handler for BarsState.MAIN_MENU
         """
 
-        self._logEvent(event)
+        self._logEvent(params)
 
         success = InstErrorCode.OK
         next_state = None
         result = None
 
-        if event == BarsProtocolEvent.RESTART_DATA_COLLECTION:
-
-            #TODO send '1' to instrument
-            # ...
-
-            next_state = BarsProtocolState.MAIN_MENU
-
-        elif event == BarsProtocolEvent.ENTER_CHANGE_PARAMS:
-
-            #TODO send '2' to instrument
-            # ...
-
-            next_state = BarsProtocolState.CHANGE_PARAMS_MENU
-
-        elif event == BarsProtocolEvent.SHOW_SYSTEM_DIAGNOSTICS:
-
-            #TODO send '3' to instrument
-            # ...
-
-            next_state = BarsProtocolState.WAITING_FOR_SYSTEM_DIAGNOSTICS
-
-        elif event == BarsProtocolEvent.ENTER_SET_SYSTEM_CLOCK:
-
-            #TODO send '4' to instrument
-            # ...
-
-            next_state = BarsProtocolState.SETTING_SYSTEM_CLOCK
-
-        elif event == BarsProtocolEvent.ENTER_MAIN_MENU:
-            pass
-
-        elif event == BarsProtocolEvent.EXIT:
-            pass
-
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
-
-        return (success, next_state, result)
-
-    def _state_handler_change_params_menu(self, event, params):
-        """
-        Handler for BarsState.CHANGE_PARAMS_MENU
-        """
-
-        self._logEvent(event)
-
-        success = InstErrorCode.OK
-        next_state = None
-        result = None
-
-        #
-        #TODO We don't yet know how this menu looks like or works
-        #
-
-        if False:
-            # ...
-            pass
-
-        elif event == BarsProtocolEvent.EXIT:
-            pass
-
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
-
-        return (success, next_state, result)
-
-    def _state_handler_waiting_for_system_diagnostics(self, event, params):
-        """
-        Handler for BarsState.WAITING_FOR_SYSTEM_DIAGNOSTICS
-        """
-
-        self._logEvent(event)
-
-        success = InstErrorCode.OK
-        next_state = None
-        result = None
-
-        #
-        #TODO wait for some time, then read input stream from instrument
-        # until we are sure the complete message has been
-        # generated and captured. Then, send the message to somebody.
-
-#        while not message generated:
-#            continue waiting while gathering any input from instrument
-#
-        # etc.
-
-        # TODO: what if we don't get the expected response?
+        #TODO send '1' to instrument
         # ...
 
         next_state = BarsProtocolState.MAIN_MENU
 
         return (success, next_state, result)
 
-    def _state_handler_setting_system_clock(self, event, params):
+    def _handler_main_menu_enter_change_params(self, params):
         """
-        Handler for BarsState.SETTING_SYSTEM_CLOCK
         """
 
-        self._logEvent(event)
+        self._logEvent(params)
+
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        #TODO send '2' to instrument
+        # ...
+
+        next_state = BarsProtocolState.CHANGE_PARAMS_MENU
+
+        return (success, next_state, result)
+
+    def _handler_main_menu_show_system_diagnostics(self, params):
+        """
+        """
+
+        self._logEvent(params)
+
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        #TODO send '3' to instrument
+        # ...
+
+        # TODO wait for "How Many Scans do you want? --> "
+        # ...
+
+        # TODO what number of scans? -> presumably included in the params
+        # ...
+        num_scans = 3
+
+        # TODO send num_scans
+        # ...
+        
+        # TODO read response until "Press Enter to return to Main Menu." and
+        # notify somebody about it
+
+
+        # then, back to main menu:
+        next_state = BarsProtocolState.MAIN_MENU
+
+        return (success, next_state, result)
+
+    def _handler_main_menu_enter_set_system_clock(self, params):
+        """
+        """
+
+        self._logEvent(params)
+
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+
+        # TODO validate params, it should contain a datatime spec
+        # ...
+
+        #TODO send '4' to instrument
+        # ...
+
+        # TODO wait "Do you want to Change the Current Time? (0 = No, 1 = Yes) --> "
+        # TODO enter 1
+
+        # TODO complete interaction based on the given datetime:
+#    Enter the Month (1-12)     : 1
+#    Enter the Day (1-31)       : 26
+#    Enter the Year (Two Digits): 12
+#    Enter the Hour (0-23)      : 10
+#    Enter the Minute (0-59)    : 51
+#    Enter the Second (0-59)    : 14
+
+
+        # TODO wat "Do you want to Change the Current Time? (0 = No, 1 = Yes) --> "
+        # TODO enter 0
+
+
+        # then, back to main menu:
+        next_state = BarsProtocolState.MAIN_MENU
+
+        return (success, next_state, result)
+
+    def _handler_change_params_menu_TBD(self, params):
+        """
+        """
+
+        self._logEvent(params)
 
         success = InstErrorCode.OK
         next_state = None
         result = None
 
         #
-        #TODO We don't yet know how this dialog looks like or works
+        #TODO implement.  for now returning to MAIN_MENU
         #
 
-        if False:
-            # ...
-            pass
-
-        elif event == BarsProtocolEvent.EXIT:
-            pass
-
-        else:
-            success = InstErrorCode.UNHANDLED_EVENT
+        next_state = BarsProtocolState.MAIN_MENU
 
         return (success, next_state, result)
 

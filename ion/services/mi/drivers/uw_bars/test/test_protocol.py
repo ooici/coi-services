@@ -53,6 +53,6 @@ class ProtocolTest(TestCase):
         protocol.get_status()
 
         print "terminating"
-        self.simulator.
+#        self.simulator.
 
         self.simulator_thread.join()
