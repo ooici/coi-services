@@ -445,99 +445,11 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             self._linebuf = lines[-1]
             lines = lines[0:-1]
             mi_logger.debug('Streaming data received: %s',str(lines))
-
-    """
-    def _do_cmd(self, cmd, timeout=10):
-        
-        
-        result = None
-        
-        # Wakeup the device.
-        prompt = self._wakeup(timeout)
-        if prompt != InstErrorCode.TIMEOUT:
-            # Clear line and prompt buffers for result.
-            self._linebuf = ''
-            self._promptbuf = ''
-
-            # Send command.
-            mi_logger.debug('_do_cmd: %s', cmd)
-            self._logger_client.send(cmd+SBE37_NEWLINE)
-
-            # Wait for the prompt, prepare result and return.
-            prompt = self._get_prompt(timeout)
-            if prompt != InstErrorCode.TIMEOUT:
-                result = self._linebuf.replace(prompt,'')
-        return (prompt, result)
-    """
-    
-    """
-    def _do_cmd_no_prompt(self, cmd):
-        
-        
-        # Clear the line buffer.
-        self._linebuf = ''
-        
-        # Send command and return.
-        mi_logger.debug('_do_cmd_no_prompt: %s', cmd)
-        self._logger_client.send(cmd+SBE37_NEWLINE)
-    """
     
     def _send_wakeup(self):
         """
         """
         self._logger_client.send(SBE37_NEWLINE)
-
-    """
-    def _wakeup(self, timeout=10):
-        
-        
-        # Clear the prompt buffer.
-        self._promptbuf = ''
-        
-        # Grab time for timeout.
-        starttime = time.time()
-
-        while True:
-            # Send a line return and wait a sec.
-            mi_logger.debug('Sending wakeup.')
-            self._logger_client.send(SBE37_NEWLINE)
-            time.sleep(1)
-
-            # If prompt buffer contains a prompt return or timeout.
-            if self._promptbuf.endswith(SBE37Prompt.COMMAND):
-                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))
-                return SBE37Prompt.COMMAND
-            elif self._promptbuf.endswith(SBE37Prompt.AUTOSAMPLE):
-                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.AUTOSAMPLE))
-                return SBE37Prompt.AUTOSAMPLE
-            elif time.time() > starttime + timeout:
-                mi_logger.info('_wakeup timed out.')                
-                return InstErrorCode.TIMEOUT                
-    """
-    
-    """
-    def _get_prompt(self, timeout=10):
-        
-        
-        
-        # Grab time for timeout and wait for prompt.
-        starttime = time.time()
-        while True:
-            
-            # If prompt buffer contains prompt return or timeout.
-            if self._promptbuf.endswith(SBE37Prompt.COMMAND):
-                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))                
-                return SBE37Prompt.COMMAND
-            elif self._promptbuf.endswith(SBE37Prompt.AUTOSAMPLE):
-                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.AUTOSAMPLE))
-                return SBE37Prompt.AUTOSAMPLE
-            elif self._promptbuf.endswith(SBE37Prompt.BAD_COMMAND):
-                mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.BAD_COMMAND))
-                return SBE37Prompt.AUTOSAMPLE                
-            elif time.time() > starttime + timeout:
-                mi_logger.info('_get_prompt timed out.')
-                return InstErrorCode.TIMEOUT                
-    """
     
     def _update_params(self):
         """
