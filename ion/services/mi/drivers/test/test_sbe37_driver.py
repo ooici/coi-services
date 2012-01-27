@@ -90,8 +90,10 @@ class TestSBE37Driver(PyonTestCase):
  
         time.sleep(2)
         
+        
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
+        
         
         reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
         time.sleep(2)
@@ -104,6 +106,7 @@ class TestSBE37Driver(PyonTestCase):
         
         reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
         time.sleep(2)
+        
         
         reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
         time.sleep(2)

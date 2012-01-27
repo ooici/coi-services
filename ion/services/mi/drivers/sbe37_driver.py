@@ -24,7 +24,6 @@ from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_fsm import InstrumentFSM
 
-
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
@@ -33,7 +32,6 @@ class SBE37State(BaseEnum):
     """
     UNCONFIGURED = DriverState.UNCONFIGURED
     DISCONNECTED = DriverState.DISCONNECTED
-    DETACHED = DriverState.DETACHED
     COMMAND = DriverState.COMMAND
     AUTOSAMPLE = DriverState.AUTOSAMPLE
     
@@ -65,18 +63,23 @@ class SBE37Prompt(BaseEnum):
     SBE37 io prompts.
     """
     COMMAND = 'S>'
-    NEWLINE = '\r\n'
     BAD_COMMAND = '?cmd S>'
     AUTOSAMPLE = 'S>\r\n'
+
+SBE37_NEWLINE = '\r\n'
+
+###############################################################################
+# Seabird Electronics 37-SMP MicroCAT protocol.
+###############################################################################
 
 class SBE37Protocol(CommandResponseInstrumentProtocol):
     """
     """
-    def __init__(self):
+    def __init__(self, prompts, newline):
         """
         """
-        CommandResponseInstrumentProtocol.__init__(self)
-                
+        CommandResponseInstrumentProtocol.__init__(self, None, prompts, newline)
+        
         self._fsm = InstrumentFSM(SBE37State, SBE37Event, SBE37Event.ENTER,
                             SBE37Event.EXIT, InstErrorCode.UNHANDLED_EVENT)
         
@@ -99,9 +102,16 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
         self._fsm.start(SBE37State.UNCONFIGURED)
 
-        self._linebuf = ''
-        self._datalines = []
-        self._promptbuf = ''
+        self._add_build_handler('ds', self._build_simple_cmd)
+        self._add_build_handler('dc', self._build_simple_cmd)
+        self._add_build_handler('ts', self._build_simple_cmd)
+        self._add_build_handler('startnow', self._build_simple_cmd)
+        self._add_build_handler('stop', self._build_simple_cmd)
+        self._add_build_handler('set', self._build_set_cmd)
+
+        self._add_response_handler('ds', self._parse_dsdc_response)
+        self._add_response_handler('dc', self._parse_dsdc_response)
+        self._add_response_handler('ts', self._parse_ts_response)
 
     ########################################################################
     # Protocol connection interface.
@@ -348,7 +358,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         success = InstErrorCode.OK
         next_state = None
         result = None
-
         command = None
         cmd = None
         if params:
@@ -359,7 +368,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             self._acquire_sample()
             
         elif cmd == SBE37Command.START_AUTO_SAMPLING:
-            self._do_cmd_no_prompt('startnow')
+            self._do_cmd_no_resp('startnow')
             next_state = SBE37State.AUTOSAMPLE
             
         else:
@@ -396,9 +405,13 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         if command:
             cmd = command[0]
         if cmd == SBE37Command.STOP_AUTO_SAMPLING:
-            self._do_cmd('stop')
-            while True:
-                (prompt, result) = self._do_cmd('')
+            prompt = None
+            while prompt != SBE37Prompt.AUTOSAMPLE:
+                prompt = self._wakeup()
+            self._do_cmd_resp('stop')
+            prompt = None
+            while prompt != SBE37Prompt.COMMAND:
+                prompt = self._wakeup()
                 if prompt == SBE37Prompt.COMMAND: break 
             next_state = SBE37State.COMMAND
             
@@ -414,53 +427,83 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _got_data(self, data):
         """
         """
-        self._linebuf += data        
-        self._promptbuf += data
+        CommandResponseInstrumentProtocol._got_data(self, data)
+        
+        # Only keep the latest characters in the prompt buffer.
         if len(self._promptbuf)>7:
             self._promptbuf = self._promptbuf[-7:]
+            
+        # If we are streaming, process the line buffer for samples.
         if self._fsm.get_current_state() == SBE37State.AUTOSAMPLE:
             self._process_streaming_data()
         
     def _process_streaming_data(self):
         """
         """
-        if SBE37Prompt.NEWLINE in self._linebuf:
-            lines = self._linebuf.split(SBE37Prompt.NEWLINE)
+        if SBE37_NEWLINE in self._linebuf:
+            lines = self._linebuf.split(SBE37_NEWLINE)
             self._linebuf = lines[-1]
             lines = lines[0:-1]
-            mi_logger.debug('data lines received: %s',str(lines))
+            mi_logger.debug('Streaming data received: %s',str(lines))
 
+    """
     def _do_cmd(self, cmd, timeout=10):
-        """
-        """
+        
+        
         result = None
+        
+        # Wakeup the device.
         prompt = self._wakeup(timeout)
         if prompt != InstErrorCode.TIMEOUT:
+            # Clear line and prompt buffers for result.
             self._linebuf = ''
             self._promptbuf = ''
+
+            # Send command.
             mi_logger.debug('_do_cmd: %s', cmd)
-            self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
+            self._logger_client.send(cmd+SBE37_NEWLINE)
+
+            # Wait for the prompt, prepare result and return.
             prompt = self._get_prompt(timeout)
             if prompt != InstErrorCode.TIMEOUT:
                 result = self._linebuf.replace(prompt,'')
         return (prompt, result)
-
+    """
+    
+    """
     def _do_cmd_no_prompt(self, cmd):
-        """
-        """
+        
+        
+        # Clear the line buffer.
         self._linebuf = ''
+        
+        # Send command and return.
         mi_logger.debug('_do_cmd_no_prompt: %s', cmd)
-        self._logger_client.send(cmd+SBE37Prompt.NEWLINE)
+        self._logger_client.send(cmd+SBE37_NEWLINE)
+    """
+    
+    def _send_wakeup(self):
+        """
+        """
+        self._logger_client.send(SBE37_NEWLINE)
 
+    """
     def _wakeup(self, timeout=10):
-        """
-        """
+        
+        
+        # Clear the prompt buffer.
         self._promptbuf = ''
+        
+        # Grab time for timeout.
         starttime = time.time()
+
         while True:
+            # Send a line return and wait a sec.
             mi_logger.debug('Sending wakeup.')
-            self._logger_client.send(SBE37Prompt.NEWLINE)
+            self._logger_client.send(SBE37_NEWLINE)
             time.sleep(1)
+
+            # If prompt buffer contains a prompt return or timeout.
             if self._promptbuf.endswith(SBE37Prompt.COMMAND):
                 mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))
                 return SBE37Prompt.COMMAND
@@ -470,12 +513,18 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             elif time.time() > starttime + timeout:
                 mi_logger.info('_wakeup timed out.')                
                 return InstErrorCode.TIMEOUT                
-
+    """
+    
+    """
     def _get_prompt(self, timeout=10):
-        """
-        """
+        
+        
+        
+        # Grab time for timeout and wait for prompt.
         starttime = time.time()
         while True:
+            
+            # If prompt buffer contains prompt return or timeout.
             if self._promptbuf.endswith(SBE37Prompt.COMMAND):
                 mi_logger.debug('Got prompt: %s', repr(SBE37Prompt.COMMAND))                
                 return SBE37Prompt.COMMAND
@@ -488,22 +537,46 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             elif time.time() > starttime + timeout:
                 mi_logger.info('_get_prompt timed out.')
                 return InstErrorCode.TIMEOUT                
-
+    """
+    
     def _update_params(self):
         """
         """
-        (ds_prompt, ds_result) = self._do_cmd('ds')
-        (dc_prompt, dc_result) = self._do_cmd('dc')
-        
-        result = ds_result + dc_result
-        mi_logger.debug('Got parameters %s', repr(result))
+        # Send display commands and capture result.
+        self._do_cmd_resp('ds')
+        self._do_cmd_resp('dc')
 
     def _acquire_sample(self):
         """
         """
-        (prompt, result) = self._do_cmd('ts')
-        mi_logger.debug('Got sample %s', repr(result))
+        # Send take sample command.
+        self._do_cmd_resp('ts')
 
+    def _build_simple_cmd(self, cmd):
+        """
+        """
+        return cmd+SBE37_NEWLINE
+    
+    def _build_set_cmd(self, param, val):
+        """
+        """
+        #return "%s=%s" % (param, self._parameters.format_set(val)) + self.eoln
+        pass
+
+    def _parse_dsdc_response(self, response, prompt):
+        """
+        """
+        mi_logger.debug('Got dcds response: %s', repr(response))
+
+    def _parse_ts_response(self, response, prompt):
+        """
+        """
+        mi_logger.debug('Got ts response: %s', repr(response))
+
+
+###############################################################################
+# Seabird Electronics 37-SMP MicroCAT driver.
+###############################################################################
 
 class SBE37Driver(InstrumentDriver):
     """
@@ -514,7 +587,7 @@ class SBE37Driver(InstrumentDriver):
         method docstring
         """
         InstrumentDriver.__init__(self)
-        protocol = SBE37Protocol()
+        protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE)
         self._channels = {SBE37Channel.CTD:protocol}
             
     ########################################################################
