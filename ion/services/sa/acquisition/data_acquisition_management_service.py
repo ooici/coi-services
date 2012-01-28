@@ -121,6 +121,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         #create data producer resource and associate to this instrument_id
         data_producer_id = self.create_data_producer(name=instrument_obj.name, description=instrument_obj.description)
+        log.debug("register_instrument  data_producer_id %s" % data_producer_id)
 
         # Create association
         self.clients.resource_registry.create_association(instrument_id, AT.hasDataProducer, data_producer_id)
@@ -185,9 +186,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # create the stream for this data producer
         stream = IonObject(RT.Stream, name=name)
-        self.streamID = self.clients.pubsub_management.create_stream(stream)
+        streamId = self.clients.pubsub_management.create_stream(stream)
 
-        log.debug("create_data_producer  Stream id %s" % self.streamID)
+        log.debug("create_data_producer  Stream id %s" % streamId)
 
         # register the data producer with the PubSub service
 #        self.StreamRoute = self.clients.pubsub_management.register_producer(data_producer.name, self.streamID)
@@ -200,7 +201,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
         # Create association
-        self.clients.resource_registry.create_association(data_producer_id, AT.hasStream, self.streamID)
+        self.clients.resource_registry.create_association(data_producer_id, AT.hasStream, streamId)
 
         return data_producer_id
 

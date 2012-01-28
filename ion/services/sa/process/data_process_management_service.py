@@ -120,6 +120,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         # Create and store a new DataProcess with the resource registry
+        log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry")
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
 
         data_process_name = "process_" + data_process_def_obj.name \
@@ -127,61 +128,58 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                             str(out_data_product_id) + time.ctime()
         data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(data_process)
+        log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: " +  str(data_process_id))
 
-        # Associate with dataProcessDefinition
-        self.clients.resource_registry.create_association(data_process_definition_id,
-                                                          AT.hasInstance,
-                                                          data_process_id)
-
-#        # Create a DM PRocess Definition ????????????????????
-#        process_definition = IonObject(RT.ProcessDefinition, name=data_process_def_obj.name)
-#        process_definition.executable = {
-#           'module': 'ion.services.dm.transformation.example.transform_example',
-#           'class':'TransformExample'
-#        }
-#        process_definition_id, _ = rr_cli.create(process_definition)
+        # Associate with dataProcess
+        self.clients.resource_registry.create_association(data_process_definition_id,  AT.hasInstance, data_process_id)
+        self.clients.resource_registry.create_association(data_process_id, AT.hasInputProduct, in_data_product_id)
+        self.clients.resource_registry.create_association(data_process_id, AT.hasOutputProduct, out_data_product_id)
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream
+        log.debug("DataProcessManagementService:create_data_process - Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream")
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
         stream_ids, _ = self.clients.resource_registry.find_objects(data_producer_id, AT.hasStream, RT.Stream, True)
-        if stream_ids is None:
+        if not stream_ids:
             raise NotFound("No Stream created for this Data Producer " + str(data_producer_id))
         if len(stream_ids) != 1:
             raise BadRequest("Data Producer should only have ONE stream at this time" + str(data_producer_id))
         out_stream_id = stream_ids[0]
+        log.debug("DataProcessManagementService:create_data_process -Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream  out_stream_id: " +  str(out_stream_id))
 
+        # Connect the out_data_product with this process
+        self.clients.data_acquisition_management.assign_data_product(input_resource_id=data_process_id, data_product_id=out_data_product_id)
 
-        # Create subscription from in_data_product. which should already be associated with a stream
+        #-------------------------------
+        # Create subscription from in_data_product, which should already be associated with a stream via the Data Producer
+        #-------------------------------
 
         # first - get the data producer associated with this IN data product
+        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product")
         producer_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, AT.hasDataProducer, RT.DataProducer, True)
-        if producer_ids is None:
+        if not producer_ids:
             raise NotFound("No Data Producer created for this Data Product " + str(in_data_product_id))
         if len(producer_ids) != 1:
             raise BadRequest("Data Product should only have ONE Data Producers at this time" + str(in_data_product_id))
         in_product_producer = producer_ids[0]
+        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product  in_product_producer: " +  str(in_product_producer))
 
         # second - get the stream associated with this IN data producer
+        log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data producer")
         stream_ids, _ = self.clients.resource_registry.find_objects(in_product_producer, AT.hasStream, RT.Stream, True)
-        if stream_ids is None:
+        if not stream_ids:
             raise NotFound("No Stream created for this IN Data Producer " + str(in_product_producer))
         if len(stream_ids) != 1:
             raise BadRequest("IN Data Producer should only have ONE stream at this time" + str(in_product_producer))
         in_stream_id = stream_ids[0]
+        log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data producer   in_stream_id"  +  str(in_stream_id))
+
 
         # Finally - create a subscription to the input stream
+        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
         in_data_product_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
         query = StreamQuery(stream_ids=[in_stream_id])
         input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
-
-
-        # get stream_id from out_data_product here
-        # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, AT.hasStream, None, True)
-        if len(stream_ids) != 1:
-            raise BadRequest("Out Data Product should only have ONE stream at this time" + str(out_data_product_id))
-        data_producer_id = assocs[0]._id
-        out_stream_id = data_producer_id.stream_id
+        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
 
 
         #-------------------------------
@@ -193,41 +191,25 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             'module': 'ion.services.dm.transformation.example.transform_example',
             'class':'TransformExample'
         }
-        transform_definition_id, _ = rr_cli.create(process_definition)
-
-
-#        # Register the transform with the transform mgmt service
-#        transform_id = self.clients.transform_management_service.create_transform(name='odd_transform',
-#            in_subscription_id = odd_subscription_id,
-#            process_definition_id=basic_transform_definition_id,
-#            configuration={})
-
-
-        configuration = {}
+        transform_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
 
         # Launch the first transform process
-        transform_id = self.clients.transform_management.create_transform( name=data_process_name,
+        log.debug("DataProcessManagementService:create_data_process - Launch the first transform process")
+        transform_id = self.clients.transform_management.create_transform( name='basic_transform',
                            in_subscription_id=input_subscription_id,
                            out_streams={'output':out_stream_id},
                            process_definition_id=transform_definition_id,
-                           configuration=configuration)
+                           configuration={})
+        self.clients.resource_registry.create_association(data_process_id, AT.hasTransform, transform_id)
+        log.debug("DataProcessManagementService:create_data_process - Launch the first transform process   transform_id"  +  str(transform_id))
 
         # TODO: Flesh details of transform mgmt svc schedule and bind methods
 #        self.clients.transform_management_service.schedule_transform(transform_id)
 #        self.clients.transform_management_service.bind_transform(transform_id)
 
-        # Register data process as a producer
-        self.clients.data_acquisition_management.register_process(process_definition_id)
-
-        # Associations
-        self.clients.resource_registry.create_association(data_process_id, AT.hasInputProduct, in_data_product_id)
-
-        self.clients.resource_registry.create_association(data_process_id, AT.hasOutputProduct, out_data_product_id)
-
-        self.clients.resource_registry.create_association(data_process_id, AT.hasTransform, transform_id)
-
-        self.clients.transform_management.activate_transform(odd_transform_id)
+        log.debug("DataProcessManagementService:create_data_process - transform_management.activate_transform")
+        self.clients.transform_management.activate_transform(transform_id)
 
         return data_process_id
 
