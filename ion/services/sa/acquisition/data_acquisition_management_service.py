@@ -268,71 +268,39 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     # -----------------
 
     def create_external_data_provider(self, external_data_provider=None):
-        """@todo document this interface!!!
-
-        @param external_data_provider    ExternalDataProvider
-        @retval external_data_provider_id    str
-        @throws BadRequest    if object passed has _id or _rev attribute
-        """
-        pass
+        # Persist ExternalDataProvider object and return object _id as OOI id
+        external_data_provider_id, version = self.clients.resource_registry.create(external_data_provider)
+        return external_data_provider_id
 
     def update_external_data_provider(self, external_data_provider=None):
-        """@todo document this interface!!!
-
-        @param external_data_provider    ExternalDataProvider
-        @throws BadRequest    if object does not have _id or _rev attribute
-        @throws NotFound    object with specified id does not exist
-        @throws Conflict    object not based on latest persisted object version
-        """
-        pass
+        # Overwrite ExternalDataProvider object
+        self.clients.resource_registry.update(external_data_provider)
 
     def read_external_data_provider(self, external_data_provider_id=''):
-        """@todo document this interface!!!
-
-        @param external_data_provider_id    str
-        @retval external_data_provider    ExternalDataProvider
-        @throws NotFound    object with specified id does not exist
-        """
-        pass
+        # Read ExternalDataProvider object with _id matching passed user id
+        external_data_provider = self.clients.resource_registry.read(external_data_provider_id)
+        if not external_data_provider:
+            raise NotFound("ExternalDataProvider %s does not exist" % external_data_provider_id)
+        return external_data_provider
 
     def delete_external_data_provider(self, external_data_provider_id=''):
-        """@todo document this interface!!!
-
-        @param external_data_provider_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-        pass
+        # Read and delete specified ExternalDataProvider object
+        external_data_provider = self.clients.resource_registry.read(external_data_provider_id)
+        if not external_data_provider:
+            raise NotFound("ExternalDataProvider %s does not exist" % external_data_provider_id)
+        self.clients.resource_registry.delete(external_data_provider_id)
 
     def create_data_source(self, data_source=None):
-        """@todo document this interface!!!
-
-        @param data_source    DataSource
-        @retval data_source_id    str
-        @throws BadRequest    if object passed has _id or _rev attribute
-        """
-        log.debug("Creating data_source object")
-
-        data_source_id, rev = self.clients.resource_registry.create(data_source)
-
+        # Persist DataSource object and return object _id as OOI id
+        data_source_id, version = self.clients.resource_registry.create(data_source)
         return data_source_id
 
     def update_data_source(self, data_source=None):
-        """@todo document this interface!!!
-
-        @param data_source    DataSource
-        @throws BadRequest    if object does not have _id or _rev attribute
-        @throws NotFound    object with specified id does not exist
-        @throws Conflict    object not based on latest persisted object version
-        """
-        return self.clients.resource_registry.update(data_source)
+        # Overwrite DataSource object
+        self.clients.resource_registry.update(data_source)
 
     def read_data_source(self, data_source_id=''):
-        """@todo document this interface!!!
-
-        @param data_source_id    str
-        @retval data_source    DataSource
-        @throws NotFound    object with specified id does not exist
-        """
+        # Read DataSource object with _id matching passed user id
         log.debug("Reading DataSource object id: %s" % data_source_id)
         data_source_obj = self.clients.resource_registry.read(data_source_id)
         if not data_source_obj:
@@ -340,11 +308,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         return data_source_obj
 
     def delete_data_source(self, data_source_id=''):
-        """@todo document this interface!!!
-
-        @param data_source_id    str
-        @throws NotFound    object with specified id does not exist
-        """
+        # Read and delete specified DataSource object
         log.debug("Deleting DataSource id: %s" % data_source_id)
         data_source_obj = self.read_data_source(data_source_id)
         if data_source_obj is None:
@@ -354,55 +318,54 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
     def create_external_dataset(self, external_dataset=None):
-        """@todo document this interface!!!
-
-        @param external_dataset    ExternalDataset
-        @retval external_dataset_id    str
-        @throws BadRequest    if object passed has _id or _rev attribute
-        """
-        pass
+        # Persist ExternalDataSet object and return object _id as OOI id
+        external_dataset_id, version = self.clients.resource_registry.create(external_dataset)
+        return external_dataset_id
 
     def update_external_dataset(self, external_dataset=None):
-        """@todo document this interface!!!
-
-        @param external_dataset    ExternalDataset
-        @throws BadRequest    if object does not have _id or _rev attribute
-        @throws NotFound    object with specified id does not exist
-        @throws Conflict    object not based on latest persisted object version
-        """
-        pass
+        # Overwrite ExternalDataSet object
+        self.clients.resource_registry.update(external_dataset)
 
     def read_external_dataset(self, external_dataset_id=''):
-        """@todo document this interface!!!
-
-        @param external_dataset_id    str
-        @retval external_dataset    ExternalDataset
-        @throws NotFound    object with specified id does not exist
-        """
-        pass
+        # Read ExternalDataSet object with _id matching passed user id
+        external_dataset = self.clients.resource_registry.read(external_dataset_id)
+        if not external_dataset:
+            raise NotFound("ExternalDataSet %s does not exist" % external_dataset_id)
+        return external_dataset
 
     def delete_external_dataset(self, external_dataset_id=''):
-        """@todo document this interface!!!
+        # Read and delete specified ExternalDataSet object
+        external_dataset = self.clients.resource_registry.read(external_dataset_id)
+        if not external_dataset:
+            raise NotFound("ExternalDataSet %s does not exist" % external_dataset_id)
+        self.clients.resource_registry.delete(external_dataset_id)
 
-        @param external_dataset_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-        pass
+    def assign_data_agent(self, external_dataset_id='', agent_instance_id=''):
+        #Connect the agent instance  with an external data set
+        external_dataset = self.clients.resource_registry.read(external_dataset_id)
+        if not external_dataset:
+            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
 
-    def assign_data_agent(self, external_dataset_id='', agent_instance=None):
-        """Connect the agent instance description with an external data set
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        if not agent_instance:
+            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
 
-        @param external_dataset_id    str
-        @param agent_instance    AgentInstance
-        @throws NotFound    object with specified id does not exist
-        """
-        pass
+        self.clients.resource_registry.create_association(external_dataset_id,  AT.hasAgentInstance,  agent_instance_id)
 
-    def unassign_data_agent(self, data_agent_id='', external_dataset_id=''):
-        """@todo document this interface!!!
 
-        @param data_agent_id    str
-        @param external_dataset_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-        pass
+    def unassign_data_agent(self, external_dataset_id='', agent_instance_id=''):
+        #Disconnect the agent instance description from the external data set
+        external_dataset = self.clients.resource_registry.read(external_dataset_id)
+        if not external_dataset:
+            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
+
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        if not agent_instance:
+            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
+
+        # delete the associations
+        # List all association ids with given subject, predicate, object triples
+        associations = self.clients.resource_registry.find_associations(external_dataset_id, AT.hasAgentInstance, agent_instance_id, True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+        return

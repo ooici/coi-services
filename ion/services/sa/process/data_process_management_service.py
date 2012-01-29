@@ -173,14 +173,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         in_stream_id = stream_ids[0]
         log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data producer   in_stream_id"  +  str(in_stream_id))
 
-
         # Finally - create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
         in_data_product_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
         query = StreamQuery(stream_ids=[in_stream_id])
         input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
-
 
         #-------------------------------
         # Process Definition

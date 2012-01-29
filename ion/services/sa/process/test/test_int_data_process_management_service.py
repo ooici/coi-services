@@ -62,10 +62,12 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         # Create an input instrument
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
         instrument_id, rev = self.RRclient.create(instrument_obj)
-        #register the instrument so that the data producer and stream object are created
+
+        # Register the instrument so that the data producer and stream object are created
         data_producer_id = self.DAMSclient.register_instrument(instrument_id)
         log.debug("TestIntDataProcessManagementService  data_producer_id %s" % data_producer_id)
 
+        # Retrieve the stream via the Instrument->DataProducer->Stream associations
         stream_ids, _ = self.RRclient.find_objects(data_producer_id, AT.hasStream, None, True)
         log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
         in_stream_id = stream_ids[0]
@@ -80,8 +82,6 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
             input_dp_id = self.DPMSclient.create_data_product(input_dp_obj, instrument_id)
         except BadRequest as ex:
             self.fail("failed to create new input data product: %s" %ex)
-
-
 
 
         #-------------------------------
@@ -102,14 +102,12 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
         log.debug("TestIntDataProcessManagementService: create_data_process return")
 
-
         #-------------------------------
         # Producer (Sample Input)
         #-------------------------------
-
         # Create a producing example process
-        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':in_stream_id}},'stream_producer':{'interval':4000}})
-        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
+#        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':in_stream_id}},'stream_producer':{'interval':4000}})
+#        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 
         
 
