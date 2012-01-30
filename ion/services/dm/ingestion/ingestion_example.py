@@ -1,7 +1,8 @@
 '''
 @author Swarbhanu Chatterjee
-@file ion/services/dm/transformation/example/transform_example.py
-@description an Example of a transform
+@file ion/services/dm/ingestion/ingestion_example.py
+@description an IngestionExampleProducer class used to produce streams, IngestionExample class that allows ingestion workers to
+handle the streams.
 '''
 import threading
 import time
@@ -9,8 +10,10 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.ion.streamproc import StreamProcess
+from pyon.ion.transform import TransformDataProcess
 from pyon.public import log
 from pyon.public import IonObject
+from pyon.service.service import BaseService
 
 
 class IngestionExampleProducer(StreamProcess):
@@ -39,7 +42,6 @@ class IngestionExampleProducer(StreamProcess):
 
         self.producer_proc.start()
 
-
     def process(self, packet):
         pass
 
@@ -54,59 +56,73 @@ class IngestionExampleProducer(StreamProcess):
         else:
             pub = None
         num = 1
-        while True:
+        while num < 20:
             msg = dict(num=str(num))
-            pub.publish(msg)
+            if pub:
+                pub.publish(msg)
             log.debug("Message %s published", num)
             num += 1
             time.sleep(interval/1000.0)
 
+#            with open('/tmp/ingestion_publisher_process', 'a') as f:
+#                f.write('Published packet: %s\n' % num)
 
 
-class IngestionExample(StreamProcess):
+
+
+class IngestionExample(TransformDataProcess):
 
     def __init__(self, *args, **kwargs):
         super(IngestionExample,self).__init__()
 
     def callback(self):
-        log.debug('Transform Process is working')
+        log.debug('Ingestion Process is working')
 
 
     def on_start(self):
-        StreamProcess.on_start(self)
-        # randomize name if none provided
-        self.name = self.CFG.get('process',{}).get('name','1234')
-        log.debug('Ingestion Example started %s ' % self.CFG)
-        streams = self.CFG.get('process',{}).get('publish_streams',None)
-        if streams:
-            self.output_streams = list(k for k in streams)
-        else:
-            self.output_streams = None
-
-
-
+        super(IngestionExample,self).on_start()
+#        self.has_output = (len(self.streams)>0)
 
     def process(self, packet):
         """Processes incoming data!!!!
         """
+        output = int(packet.get('num',0))
+        log.debug('(%s) Processing Packet: %s',self.name,packet)
+        log.debug('(%s) Transform Complete: %s', self.name, output)
 
-        if self.output_streams:
-            publisher = getattr(self,self.output_streams[0],None)
-        else:
-            publisher = None
+#        if self.has_output:
+#            self.publish(dict(num=str(output)))
 
-        log.debug('%s' % publisher)
-        input = int(packet.get('num',0))
-        output = input + 1
-        log.debug('(%s): Ingestion: %f' % (self.name,output))
-        msg = dict(num=output)
-        log.debug('(%s): Message Outgoing: %s' % (self.name, msg))
-        if publisher:
-            publisher.publish(msg)
-        with open('/tmp/ingestion_output', 'a') as f:
+        with open('/tmp/ingestion_subscriber_output', 'a') as f:
 
             f.write('(%s): Received Packet: %s\n' % (self.name,packet))
             f.write('(%s):   - Transform - %d\n' % (self.name,output))
+
+        #-------------------------------------------------------------------------------------------------
+        # Test that the ingestion workers are handling packets in round robin
+        #  Works when the packet is a num that is incremented by one.
+        #  Modify for other cases
+        if output > 2:
+            if (output - self.num == 2):
+                log.debug('INGESTION WORKERS ARE HANDLING PACKETS IN ROUND ROBIN! GOOD!')
+            else:
+                raise AssertionError('ERROR: ROUND ROBIN HANDLING IS NOT WORKING!')
+
+        self.num = output
+
+        # ensure messages are handled in a round robin manner
+#        log.debug('Previous worker: %s, Current worker: %s' % (self.previous_worker_name, self.name))
+#        if self.name == self.previous_worker_name:
+#            log.debug("Round Robin Error: Ingestion workers are not working in round robbin. Previous worker: %s, Current worker: %s"\
+#            % (self.previous_worker_name,self.name))
+#        self.previous_worker_name = self.name
+
+
+#        if self.name == self.previous_worker_name:
+#            same_worker+=1
+#        if (same_worker/input)>0.5:
+#            raise Assertion("Ingestion workers are not working in round robbin")
+#        self.previous_worker_name = self.name
 
 
 
