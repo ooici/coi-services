@@ -11,7 +11,7 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import\
     BasePubsubManagementService
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import RT, AT, log
+from pyon.public import RT, PRED, log
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
 from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
@@ -178,7 +178,7 @@ class PubsubManagementService(BasePubsubManagementService):
         #subscription and stream.
         if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
             for stream_id in subscription.query.stream_ids:
-                self.clients.resource_registry.create_association(subscription_id, AT.hasStream, stream_id)
+                self.clients.resource_registry.create_association(subscription_id, PRED.hasStream, stream_id)
 
         return subscription_id
 
@@ -221,7 +221,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        assocs = self.clients.resource_registry.find_associations(subscription_id, AT.hasStream)
+        assocs = self.clients.resource_registry.find_associations(subscription_id, PRED.hasStream)
         if assocs is None:
             raise NotFound('Subscription to Stream association for subscription id %s does not exist' % subscription_id)
         for assoc in assocs:
@@ -244,7 +244,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        ids, _ = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+        ids, _ = self.clients.resource_registry.find_objects(subscription_id, PRED.hasStream, RT.Stream, id_only=True)
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
             for stream_id in ids:
@@ -267,7 +267,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
-        ids, _ = self.clients.resource_registry.find_objects(subscription_id, AT.hasStream, RT.Stream, id_only=True)
+        ids, _ = self.clients.resource_registry.find_objects(subscription_id, PRED.hasStream, RT.Stream, id_only=True)
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
             for stream_id in ids:
