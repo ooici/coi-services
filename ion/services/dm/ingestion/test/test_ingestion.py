@@ -14,7 +14,7 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 import unittest
-from pyon.public import CFG, IonObject, log, RT, AT, LCS, StreamPublisher, StreamSubscriber
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber
 from pyon.public import Container
 from pyon.public import Container
 from pyon.util.containers import DotDict

@@ -3,7 +3,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 
-from pyon.public import IonObject, RT, log, AT
+from pyon.public import IonObject, RT, log, PRED
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.public import log, StreamProcess
 

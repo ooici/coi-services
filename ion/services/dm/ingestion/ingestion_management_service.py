@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from pyon.core.exception import NotFound
-from pyon.public import RT, AT, log, IonObject
+from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG, StreamProcess
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.net.channel import SubscriberChannel
@@ -101,7 +101,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
             try:
-                self.clients.resource_registry.create_association(ingestion_configuration_id, AT.hasTransform, transform_id)
+                self.clients.resource_registry.create_association(ingestion_configuration_id, PRED.hasTransform, transform_id)
             except Exception as exc:
                 raise IngestionManagementServiceException\
                     ('Associations could not be generated between ingestion configuration and transform %s' % transform_id)
@@ -158,7 +158,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
 
         # read the transforms
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, AT.hasTransform, RT.Transform, True)
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) > 0:
             # This is messy - but for now activate_transform, which calls activate subscription is idempotent.
             # calling it many times is just activating the same subscription many times.
@@ -192,7 +192,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
 
 #        # use the deactivate method in transformation management service
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, AT.hasTransform, RT.Transform, True)
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
         # since both transforms have the same subscription, only deactivate one
