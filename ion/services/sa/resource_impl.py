@@ -9,7 +9,7 @@
 
 from pyon.core.exception import BadRequest, NotFound
 #from pyon.core.bootstrap import IonObject
-from pyon.public import AT, RT, LCS
+from pyon.public import PRED, RT, LCS
 from pyon.util.log import log
 from pyon.ion.resource import lcs_workflows
 
@@ -407,14 +407,14 @@ class ResourceImpl(object):
         find resource having the specified attachment
         @param attachment_id the id of the attachment
         """
-        return self._find_having(AT.hasAttachment, attachment_id)
+        return self._find_having(PRED.hasAttachment, attachment_id)
 
     def find_stemming_attachment(self, resource_id):
         """
         find attachments attached to the specified resource
         @param resource_id the id of the resource
         """
-        return self._find_stemming(resource_id, AT.hasAttachment, RT.Attachment)
+        return self._find_stemming(resource_id, PRED.hasAttachment, RT.Attachment)
         
 
     #########################################################
@@ -477,7 +477,7 @@ class ResourceImpl(object):
         @param resource_id a resource id
         @param attachment_id a resource id
         """
-        return self._link_resources(resource_id, AT.hasAttachment, attachment_id)
+        return self._link_resources(resource_id, PRED.hasAttachment, attachment_id)
 
 
     def unlink_attachment(self, resource_id='', attachment_id=''):
@@ -486,5 +486,5 @@ class ResourceImpl(object):
         @param resource_id a resource id
         @param attachment_id a resource id
         """
-        return self._unlink_resources(resource_id, AT.hasAttachment, attachment_id)
+        return self._unlink_resources(resource_id, PRED.hasAttachment, attachment_id)
 

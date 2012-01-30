@@ -8,7 +8,7 @@ from ion.services.sa.marine_facility.marine_facility_management_service import M
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, PRED, LCS
 #from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr

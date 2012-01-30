@@ -7,7 +7,7 @@
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import IonObject
-from pyon.public import AT, RT
+from pyon.public import PRED, RT
 from pyon.util.log import log
 
 ######
@@ -47,67 +47,67 @@ class InstrumentDeviceImpl(ResourceImpl):
     ### associations
 
     def link_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
-        return self._link_resources(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
+        return self._link_resources(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
 
     def unlink_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
-        return self._unlink_resources(instrument_device_id, AT.hasAgentInstance, instrument_agent_instance_id)
+        return self._unlink_resources(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
 
     def link_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        return self._link_resources(instrument_device_id, AT.hasAssignment, logical_instrument_id)
+        return self._link_resources(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
 
     def unlink_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        return self._unlink_resources(instrument_device_id, AT.hasAssignment, logical_instrument_id)
+        return self._unlink_resources(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
 
     def link_data_producer(self, instrument_device_id='', data_producer_id=''):
-        return self._link_resources(instrument_device_id, AT.hasDataProducer, data_producer_id)
+        return self._link_resources(instrument_device_id, PRED.hasDataProducer, data_producer_id)
 
     def unlink_data_producer(self, instrument_device_id='', data_producer_id=''):
-        return self._unlink_resources(instrument_device_id, AT.hasDataProducer, data_producer_id)
+        return self._unlink_resources(instrument_device_id, PRED.hasDataProducer, data_producer_id)
 
     def link_model(self, instrument_device_id='', instrument_model_id=''):
-        return self._link_resources(instrument_device_id, AT.hasModel, instrument_model_id)
+        return self._link_resources(instrument_device_id, PRED.hasModel, instrument_model_id)
 
     def unlink_model(self, instrument_device_id='', instrument_model_id=''):
-        return self._unlink_resources(instrument_device_id, AT.hasModel, instrument_model_id)
+        return self._unlink_resources(instrument_device_id, PRED.hasModel, instrument_model_id)
 
     def link_sensor(self, instrument_device_id='', sensor_device_id=''):
-        return self._link_resources(instrument_device_id, AT.hasSensor, sensor_device_id)
+        return self._link_resources(instrument_device_id, PRED.hasSensor, sensor_device_id)
 
     def unlink_sensor(self, instrument_device_id='', sensor_device_id=''):
-        return self._unlink_resources(instrument_device_id, AT.hasSensor, sensor_device_id)
+        return self._unlink_resources(instrument_device_id, PRED.hasSensor, sensor_device_id)
 
 
     ### finds
 
     def find_having_agent_instance(self, instrument_agent_instance_id):
-        return self._find_having(AT.hasAgentInstance, instrument_agent_instance_id)
+        return self._find_having(PRED.hasAgentInstance, instrument_agent_instance_id)
 
     def find_stemming_agent_instance(self, instrument_device_id):
-        return self._find_stemming(instrument_device_id, AT.hasAgentInstance, RT.InstrumentAgentInstance)
+        return self._find_stemming(instrument_device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
 
     def find_having_assignment(self, logical_instrument_id):
-        return self._find_having(AT.hasAssignment, logical_instrument_id)
+        return self._find_having(PRED.hasAssignment, logical_instrument_id)
 
     def find_stemming_assignment(self, instrument_device_id):
-        return self._find_stemming(instrument_device_id, AT.hasAssignment, RT.LogicalInstrument)
+        return self._find_stemming(instrument_device_id, PRED.hasAssignment, RT.LogicalInstrument)
 
     def find_having_data_producer(self, data_producer_id):
-        return self._find_having(AT.hasDataProducer, data_producer_id)
+        return self._find_having(PRED.hasDataProducer, data_producer_id)
 
     def find_stemming_data_producer(self, instrument_device_id):
-        return self._find_stemming(instrument_device_id, AT.hasDataProducer, RT.DataProducer)
+        return self._find_stemming(instrument_device_id, PRED.hasDataProducer, RT.DataProducer)
 
     def find_having_model(self, instrument_model_id):
-        return self._find_having(AT.hasModel, instrument_model_id)
+        return self._find_having(PRED.hasModel, instrument_model_id)
 
     def find_stemming_model(self, instrument_device_id):
-        return self._find_stemming(instrument_device_id, AT.hasModel, RT.InstrumentModel)
+        return self._find_stemming(instrument_device_id, PRED.hasModel, RT.InstrumentModel)
 
     def find_having_sensor(self, sensor_device_id):
-        return self._find_having(AT.hasSensor, sensor_device_id)
+        return self._find_having(PRED.hasSensor, sensor_device_id)
 
     def find_stemming_sensor(self, instrument_device_id):
-        return self._find_stemming(instrument_device_id, AT.hasSensor, RT.SensorDevice)
+        return self._find_stemming(instrument_device_id, PRED.hasSensor, RT.SensorDevice)
 
 
 
@@ -124,7 +124,7 @@ class InstrumentDeviceImpl(ResourceImpl):
 
         #get instrument object and instrument's data producer
         inst_obj = self.read_one(instrument_device_id)
-        assoc_ids, _ = self.RR.find_associations(instrument_device_id, AT.hasDataProducer, None, True)
+        assoc_ids, _ = self.RR.find_associations(instrument_device_id, PRED.hasDataProducer, None, True)
         pducer_id = assoc_ids[0]
 
         #get data product id from data product management service
@@ -140,12 +140,12 @@ class InstrumentDeviceImpl(ResourceImpl):
 
 
         # get data product's data produceer (via association)
-        assoc_ids, _ = self.RR.find_associations(pduct_id, AT.hasDataProducer, None, True)
+        assoc_ids, _ = self.RR.find_associations(pduct_id, PRED.hasDataProducer, None, True)
         # (FIXME: there should only be one assoc_id.  what error to raise?)
         # FIXME: what error to raise if there are no assoc ids?
 
         # instrument data producer is the parent of the data product producer
-        associate_success = self.RR.create_association(pducer_id, AT.hasChildDataProducer, assoc_ids[0])
+        associate_success = self.RR.create_association(pducer_id, PRED.hasChildDataProducer, assoc_ids[0])
         log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
 
 
