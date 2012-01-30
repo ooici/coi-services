@@ -75,24 +75,9 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 
         self._linebuf = ''
 
-        state_handlers = {
-            BarsProtocolState.COLLECTING_DATA:
-                self._state_handler_collecting_data,
-            BarsProtocolState.MAIN_MENU: self._state_handler_main_menu,
-            BarsProtocolState.CHANGE_PARAMS_MENU:
-                self._state_handler_change_params_menu,
-            BarsProtocolState.WAITING_FOR_SYSTEM_INFO:
-                self._state_handler_waiting_for_system_info,
-        }
-
-        #
-        # NOTE assume the instrument is collecting data
-        # TODO: what if the instrument is NOT currently collecting data?
-        # TODO In general, sync mechanisms?
-        #
         self._fsm = InstrumentFSM(BarsProtocolState, BarsProtocolEvent,
                                   BarsProtocolEvent.RESTART_DATA_COLLECTION,
-                                  BarsProtocolEvent.EXIT,
+                                  None,
                                   InstErrorCode.UNHANDLED_EVENT)
 
         # collecting data
@@ -126,13 +111,24 @@ class BarsInstrumentProtocol(InstrumentProtocol):
                               BarsProtocolEvent.TBD,
                               self._handler_change_params_menu_TBD)
 
-
-
+        #
+        # NOTE assume the instrument is collecting data
+        # TODO: what if the instrument is NOT currently collecting data?
+        # TODO In general, sync mechanisms?
+        #
         self._fsm.start(BarsProtocolState.COLLECTING_DATA)
 
     def _logEvent(self, params):
         log.info("_logEvent: curr_state=%s, params=%s" %
                  (self._fsm.get_current_state(), str(params)))
+
+    def _got_data(self, data):
+        """
+        NOTE: InstrumentProtocol.attach assumes the method _got_data but it's
+        not defined there but in the CommandResponseInstrumentProtocol subclass
+        """
+
+        print("got_data: '%s'" % data)
 
     ########################################################################
     # State handlers
@@ -211,10 +207,9 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 
         # TODO send num_scans
         # ...
-        
+
         # TODO read response until "Press Enter to return to Main Menu." and
         # notify somebody about it
-
 
         # then, back to main menu:
         next_state = BarsProtocolState.MAIN_MENU
@@ -249,10 +244,8 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 #    Enter the Minute (0-59)    : 51
 #    Enter the Second (0-59)    : 14
 
-
         # TODO wat "Do you want to Change the Current Time? (0 = No, 1 = Yes) --> "
         # TODO enter 0
-
 
         # then, back to main menu:
         next_state = BarsProtocolState.MAIN_MENU

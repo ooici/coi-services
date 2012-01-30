@@ -18,18 +18,19 @@ class ProtocolTest(TestCase):
     def setUp(self):
         """Starts simulator"""
 
-        self.simulator = BarsSimulator()
-        port = self.simulator.get_port()
-        print "bound to port %s" % port
-
-        self.device_port = port
+        self.simulator = BarsSimulator(accept_timeout=10.0)
+        self.device_port = self.simulator.get_port()
 
         self.simulator_thread = Thread(target=self.simulator.run)
         print "starting simulator"
         self.simulator_thread.start()
+        time.sleep(1)
 
     def tearDown(self):
-        pass
+        print "stopping simulator"
+        self.simulator.stop()
+
+        self.simulator_thread.join()
 
     def test_basic(self):
         """
@@ -46,13 +47,11 @@ class ProtocolTest(TestCase):
         protocol = BarsInstrumentProtocol()
         protocol.configure(config)
 
+        print "connecting"
+        protocol.connect()
 
         print "sleeping for a bit"
-        time.sleep(2)
+        time.sleep(5)
 
-        protocol.get_status()
-
-        print "terminating"
-#        self.simulator.
-
-        self.simulator_thread.join()
+        print "disconnecting"
+        protocol.disconnect()
