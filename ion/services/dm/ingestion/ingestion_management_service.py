@@ -135,10 +135,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
         log.debug("Deleting ingestion configuration: %s", ingestion_configuration_id)
         ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        if ingestion_configuration is None:
-            raise NotFound("Ingestion configuration %d does not exist" % ingestion_configuration_id)
 
-        self.clients.resource_registry.delete(ingestion_configuration)
+        if ingestion_configuration is None:
+            log.debug("Ingestion configuration %d does not exist" % ingestion_configuration_id)
+
+        self.clients.resource_registry.delete(ingestion_configuration_id)
 
 
     def activate_ingestion_configuration(self, ingestion_configuration_id=''):

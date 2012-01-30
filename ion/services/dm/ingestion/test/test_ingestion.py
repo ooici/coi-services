@@ -179,62 +179,83 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
     def setUp(self):
         # set up the container for testing
+
+        #------------------------------------------------------------------------
+        # Container
+        #----------------------------------------------------------------------
         self._start_container()
 
         self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
 
         self.cc.start_rel_from_url('res/deploy/r2dm.yml')
 
+        #------------------------------------------------------------------------
+        # Service clients
+        #----------------------------------------------------------------------
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
         self.ingestion_cli = IngestionManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
 
-        # for now we havent finalized on what the exchange_point_id should be
-        self.exchange_point_id = 'an exchange_point_id'
+        #------------------------------------------------------------------------
+        # Configuration parameters
+        #----------------------------------------------------------------------
+        self.exchange_point_id = 'science_data'
         self.number_of_workers = 2
         self.hdf_storage = {'root_path': '', 'filesystem' : 'a filesystem'}
         self.couch_storage = {'server': '', 'couchstorage': 'a couchstorage', 'database': '' }
         self.default_policy = {}
         self.XP = 'science_data'
-        self.exchange_name = self.XP + '_ingestion_queue'
+        self.exchange_name = 'ingestion_queue'
 
-        self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
-
+        #------------------------------------------------------------------------
+        # Subscription
+        #----------------------------------------------------------------------
         query = ExchangeQuery()
         self.input_subscription_id = self.pubsub_cli.create_subscription(query=query,\
             exchange_name=self.exchange_name, name='subscription', description='only to launch ingestion workers')
 
-        self.process_definition = ProcessDefinition(name='basic_ingestion_definition')
+        #------------------------------------------------------------------------
+        # Process definitions
+        #----------------------------------------------------------------------
+        self.process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
         self.process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example',
                                               'class':'IngestionExample'}
         self.process_definition_id, _= self.rr_cli.create(self.process_definition)
 
-#        ctd_output_stream_id = self.pubsub_cli.create_stream(name='ctd_output_stream', original=True)
-##
-###        messages will be produced and published... this is required to test ingestion workers handle packets in round robin
-#        id_p = self.cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
-#                {'process': {'type':'stream_process', 'listen_name':'do_not_publish', 'publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
-#        self.cc.proc_manager.procs['%s.%s' %(self.cc.id,id_p)].start()
+
+        #------------------------------------------------------------------------
+        # Stream publisher for testing round robin handling
+        #----------------------------------------------------------------------
+
+        self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
+        stream_route = self.pubsub_cli.register_producer(exchange_name=self.exchange_name, stream_id=self.input_stream_id)
+        self.ctd_stream1_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), \
+                                                                                        process=self.cc)
 
 
     def tearDown(self):
         """
-        Cleanup
+        Cleanup. Delete Subscription, Stream, Process Definition
         """
-#        self.ingestion_cli.deactivate_ingestion_configuration(self.ingestion_configuration_id)
-#        self.ingestion_cli.delete_ingestion_configuration(self.ingestion_configuration_id)
-#        self._stop_container()
-        pass
+        self.pubsub_cli.delete_subscription(self.input_subscription_id)
+        self.pubsub_cli.delete_stream(self.input_stream_id)
+        self.rr_cli.delete(self.process_definition_id)
+        self._stop_container()
 
     def test_create_ingestion_configuration(self):
         """
         Tests whether an ingestion configuration is created successfully and an ingestion_configuration_id
         is generated.
         """
-        # checking that an ingestion configuration can be successfully created
+        #------------------------------------------------------------------------
+        # Create ingestion configuration
+        #----------------------------------------------------------------------
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
+        #------------------------------------------------------------------------
+        # Make assertions
+        #----------------------------------------------------------------------
         # checking that an ingestion_configuration_id gets successfully generated
         self.assertIsNotNone(ingestion_configuration_id, "Could not generate ingestion_configuration_id.")
 
@@ -246,55 +267,80 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(ingestion_configuration.couch_storage, self.couch_storage)
         self.assertEquals(ingestion_configuration.default_policy, self.default_policy)
 
-        # clean up the specific ingestion_configuration created in this method
-        if ingestion_configuration_id is not None:
-            try:
-                self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
-            except Exception as exc:
-                log.debug('ERROR in test_create_ingestion_configuration: %s' % exc.message)
-        else:
-            log.debug('ERROR in test_create_ingestion_configuration: Ingestion configuration is None')
-            raise Exception('ERROR in test_create_ingestion_configuration: Ingestion configuration is None')
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
+
 
     def test_ingestion_workers(self):
         """
         1. Test whether the ingestion workers are launched correctly.
-
         2. Test the associations between the ingestion configuration object and the transforms.
-
 	    3. Test the number of worker processes created by getting the process object from the container
-
-	    4. Confirm that messages are received round robin by ingestion workers for any message sent to that exchange
         """
 
-        # create an ingestion configuration by passing in these parameters
+        #------------------------------------------------------------------------
+        # Create ingestion configuration
+        #----------------------------------------------------------------------
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
-        # check the number of worker processes created in the container...
-        # i.e. check that the two ingestion workers are running
+        #------------------------------------------------------------------------
+        # Check that the two ingestion workers are running
+        #----------------------------------------------------------------------
         name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
         name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
 
         assert self.container.proc_manager.procs_by_name.has_key(name_1) \
         and self.container.proc_manager.procs_by_name.has_key(name_2), "The two ingestion workers are not running"
 
-    @unittest.skip("For this test to work, we need a stream producer launched at setup")
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
+
+
     def test_ingestion_workers_in_round_robin(self):
         """
         Test that the ingestion workers are handling messages in round robin
         """
-        # create an ingestion configuration by passing in these parameters
-#        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
-        ingestion_client = IngestionManagementServiceClient(node = self.cc.node)
-        pubsub_client = PubsubManagementServiceClient(node=self.cc.node)
+        #------------------------------------------------------------------------
+        # Create ingestion configuration and activate it
+        #----------------------------------------------------------------------
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, \
+            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
-        ctd_output_stream_id = pubsub_client.create_stream(name='ctd_output_stream', original=True)
+        #------------------------------------------------------------------------
+        # Publish messages and test for round robin handling
+        #----------------------------------------------------------------------
 
-        ingestion_configuration_id = ingestion_client.create_ingestion_configuration(self.exchange_point_id, self.couch_storage,\
-            self.hdf_storage,  self.number_of_workers, self.default_policy)
+        # If the ingestion workers do not work round robin, class IngestionExample will raise an AssertionError
 
-        ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
+        num = 1
+        msg = dict(num=str(num))
+
+        self.ctd_stream1_publisher.publish(msg)
+
+        num += 1
+
+        self.ctd_stream1_publisher.publish(msg)
+
+        num += 1
+
+        self.ctd_stream1_publisher.publish(msg)
+
+        num += 1
+
+        self.ctd_stream1_publisher.publish(msg)
+
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
 
     def test_activate_ingestion_configuration(self):
@@ -309,6 +355,13 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertTrue(ret)
 
         # pubsub has tested the activation of subscriptions
+
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
+
 
     def test_deactivate_ingestion_configuration(self):
         """
@@ -326,3 +379,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # pubsub has tested the deactivation of subscriptions
 
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
