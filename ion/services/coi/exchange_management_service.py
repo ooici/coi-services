@@ -15,7 +15,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
     """
     def create_exchange_space(self, exchange_space=None, org_id=''):
-        """Creates an Exchange Space distributed resource from the parameter exchangespace object.
+        """Creates an Exchange Space distributed resource from the parameter exchange_space object.
 
         @param exchange_space    ExchangeSpace
         @param org_id    str
@@ -24,6 +24,12 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         log.debug("create_exchange_space(%s, org_id=%s)" % (exchange_space, org_id))
         self.assert_condition(exchange_space and org_id, "Arguments not set")
+
+        #First make sure that Org with the org_id exists, otherwise bail
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
         exchange_space_id,rev = self.clients.resource_registry.create(exchange_space)
 
         aid = self.clients.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)

@@ -7,7 +7,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, LCS, PRED
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -345,7 +345,7 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
         instrument_id, rev = rrclient.create(instrument_obj)
         dataproducer_obj = IonObject(RT.DataProducer, name='InstDataProducer',description='an example data producer')
         dataproducer_id, rev = rrclient.create(dataproducer_obj)
-        rrclient.create_association(instrument_id, AT.hasDataProducer, dataproducer_id)
+        rrclient.create_association(instrument_id, PRED.hasDataProducer, dataproducer_id)
 
         # test creating a new data product w/o a data producer
         print 'Creating new data product w/o a data producer'
