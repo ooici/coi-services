@@ -3,7 +3,7 @@
 '''
 @file ion/services/dm/ingestion/test/test_ingestion.py
 @author Swarbhanu Chatterjee
-@test ion.services.dm.ingestion.ingestion_management_service Unit test suite to cover all ingestion mgmt service code
+@test ion.services.dm.ingestion.ingestion_management_service test suite to cover all ingestion mgmt service code
 '''
 
 import gevent
