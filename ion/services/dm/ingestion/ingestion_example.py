@@ -97,8 +97,14 @@ class IngestionExample(TransformDataProcess):
             f.write('(%s): Received Packet: %s\n' % (self.name,packet))
             f.write('(%s):   - Transform - %d\n' % (self.name,output))
 
+        #-------------------------------------------------------------------------------------------------
+        # Test that the ingestion workers are handling packets in round robin
+        #  Works when the packet is a num that is incremented by one.
+        #  Modify for other cases
         if output > 2:
-            if not (output - self.num == 2):
+            if (output - self.num == 2):
+                log.debug('INGESTION WORKERS ARE HANDLING PACKETS IN ROUND ROBIN! GOOD!')
+            else:
                 raise AssertionError('ERROR: ROUND ROBIN HANDLING IS NOT WORKING!')
 
         self.num = output

@@ -207,13 +207,15 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.process_definition = ProcessDefinition(name='basic_ingestion_definition')
         self.process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example',
-                                              'class':'TransformExample'}
+                                              'class':'IngestionExample'}
         self.process_definition_id, _= self.rr_cli.create(self.process_definition)
 
-        # messages will be produced and published... this is required to test ingestion workers handle packets in round robin
-        id_p = self.cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
-                {'process': {'type':'stream_process', 'listen_name':'do_not_publish', 'publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
-        self.cc.proc_manager.procs['%s.%s' %(self.cc.id,id_p)].start()
+#        ctd_output_stream_id = self.pubsub_cli.create_stream(name='ctd_output_stream', original=True)
+##
+###        messages will be produced and published... this is required to test ingestion workers handle packets in round robin
+#        id_p = self.cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
+#                {'process': {'type':'stream_process', 'listen_name':'do_not_publish', 'publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
+#        self.cc.proc_manager.procs['%s.%s' %(self.cc.id,id_p)].start()
 
 
     def tearDown(self):
@@ -276,7 +278,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         assert self.container.proc_manager.procs_by_name.has_key(name_1) \
         and self.container.proc_manager.procs_by_name.has_key(name_2), "The two ingestion workers are not running"
 
-    @unittest.skip("Nothing to test")
+    @unittest.skip("For this test to work, we need a stream producer launched at setup")
     def test_ingestion_workers_in_round_robin(self):
         """
         Test that the ingestion workers are handling messages in round robin
