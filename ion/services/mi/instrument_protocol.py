@@ -291,7 +291,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     class provides some structure for manipulating data to and from the
     instrument.
     """
-    
+    """    
     def __init__(self, callback=None,
                  command_list=None,
                  response_regex_list=None,
@@ -300,40 +300,52 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                  set_delimiter="",
                  execute_prefix="",
                  eoln="\n"):
+    """
+    def __init__(self, callback, prompts, newline):
         InstrumentProtocol.__init__(self, callback)
         
-        self.command_list = command_list
+        #self.command_list = command_list
         """The BaseEnum command keys to be used"""
     
-        self.response_regex_list = response_regex_list
+        #self.response_regex_list = response_regex_list
         """The response regex dict to be used to map a command's repsonse to
         a specific format
         """
         
-        self.get_prefix = get_prefix
+        #self.get_prefix = get_prefix
         """The prefix used to start a get
         
         This will be added before the parameter string when querying.
         """
         
-        self.set_prefix = set_prefix
+        #self.set_prefix = set_prefix
         """The prefix used to start a set
         
         This will be added before the parameter string when setting.
         """
         
-        self.set_delimiter = set_delimiter
+        #self.set_delimiter = set_delimiter
         """The delimiter string between a parameter name an new value"""
         
-        self.execute_prefix = execute_prefix
+        #self.execute_prefix = execute_prefix
         """The prefix used to start a command
         
         This will be added before the command name string when executing
         a command.
         """
         
-        self.eoln = eoln
+        self.eoln = newline
         """The end-of-line delimiter to use"""
+    
+        self.prompts = prompts
+    
+        self._linebuf = ''
+        self._promptbuf = ''
+        self._datalines = []
+
+        self._build_handlers = {}
+        self._response_handlers = {}
+    
     
     def _identify_response(self, response_str=""):
         """Format the response to a command into a usable form
@@ -356,3 +368,132 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Apply regexes, separators, delimiters, Eolns, etc.
         
 
+    def _add_build_handler(self, cmd, func):
+        """
+        """
+        self._build_handlers[cmd] = func
+        
+    def _add_response_handler(self, cmd, func):
+        """
+        """
+        self._response_handlers[cmd] = func
+        
+    def _got_data(self, data):
+        """
+        """
+
+        # Update the line and prompt buffers.
+        self._linebuf += data        
+        self._promptbuf += data
+        
+    
+    def _send_wakeup(self):
+        """
+        """
+        pass
+        
+    def  _wakeup(self, timeout=10):
+        """
+        """
+        """
+        """
+        # Clear the prompt buffer.
+        self._promptbuf = ''
+        
+        # Grab time for timeout.
+        starttime = time.time()
+
+        while True:
+            # Send a line return and wait a sec.
+            mi_logger.debug('Sending wakeup.')
+            self._send_wakeup()
+            time.sleep(1)
+
+            for item in self.prompts.list():
+                if self._promptbuf.endswith(item):
+                    mi_logger.debug('Got prompt: %s', repr(item))
+                    return item
+            
+            if time.time() > starttime + timeout:
+                return InstErrorCode.TIMEOUT
+        
+    def _get_response(self, timeout=10):
+        """
+        """
+        # Grab time for timeout and wait for prompt.
+        starttime = time.time()
+        
+        while True:
+            
+            for item in self.prompts.list():
+                if self._promptbuf.endswith(item):
+                    mi_logger.debug('Got prompt: %s', repr(item))
+                    return (item, self._linebuf)
+            
+            if time.time() > starttime + timeout:
+                return (InstErrorCode.TIMEOUT, None)
+
+    def _do_cmd_resp(self, cmd, *args, **kwargs):
+        """
+        """
+        timeout = kwargs.get('timeout', 10)
+        
+        build_handler = self._build_handlers.get(cmd, None)
+        if not build_handler:
+            return InstErrorCode.BAD_DRIVER_COMMAND
+        
+        cmd_line = build_handler(cmd, *args)
+        
+        # Wakeup the device.
+        prompt = self._wakeup(timeout)
+        if prompt == InstErrorCode.TIMEOUT:
+            return prompt
+            
+        # Clear line and prompt buffers for result.
+        self._linebuf = ''
+        self._promptbuf = ''
+
+        # Send command.
+        mi_logger.debug('_do_cmd_resp: %s', repr(cmd_line))
+        self._logger_client.send(cmd_line)
+
+        # Wait for the prompt, prepare result and return.
+        (prompt, result) = self._get_response(timeout)
+        if prompt == InstErrorCode.TIMEOUT:
+            return prompt
+                
+        resp_handler = self._response_handlers.get(cmd, None)
+        if resp_handler:
+            resp_handler(result, prompt)
+
+        return InstErrorCode.OK
+            
+    def _do_cmd_no_resp(self, cmd, *args, **kwargs):
+        """
+        """
+        timeout = kwargs.get('timeout', 10)        
+        
+        build_handler = self._build_handlers.get(cmd, None)
+        if not build_handler:
+            return InstErrorCode.BAD_DRIVER_COMMAND
+        
+        cmd_line = build_handler(cmd, *args)
+        
+        # Wakeup the device.
+        prompt = self._wakeup(timeout)
+        if prompt == InstErrorCode.TIMEOUT:
+            return prompt
+        
+        # Clear line and prompt buffers for result.
+        self._linebuf = ''
+
+        # Send command.
+        mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
+        self._logger_client.send(cmd_line)
+
+        return InstErrorCode.OK
+        
+        
+            
+            
+            
