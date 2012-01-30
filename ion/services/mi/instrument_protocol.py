@@ -106,8 +106,7 @@ class InstrumentProtocol(object):
         mi_logger.info('Found logger pid: %s.', str(logger_pid))
         if not logger_pid:
             self._logger_popen = self._logger.launch_process()
-            #-retval = os.wait()
-            retval = self._logger_popen.wait()
+            retval = os.wait()
             mi_logger.debug('os.wait returned %s', str(retval))
             mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
         time.sleep(1)         
