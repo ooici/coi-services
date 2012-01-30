@@ -130,10 +130,19 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         # should have an exchange declared on the broker (how to test)
         # @TODO
 
+        # should have an assoc to an org
+        orglist, _ = self.rr.find_subjects(RT.Org, PRED.hasExchangeSpace, esid, id_only=True)
+        self.assertEquals(len(orglist), 1)
+        self.assertEquals(orglist[0], self.org_id)
+
         self.ems.delete_exchange_space(esid)
 
         # should no longer have that id in the RR
         self.assertRaises(NotFound, self.rr.read, esid)
+
+        # should no longer have an assoc to an org
+        orglist2, _ = self.rr.find_subjects(RT.Org, PRED.hasExchangeSpace, esid, id_only=True)
+        self.assertEquals(len(orglist2), 0)
 
         # should no longer have that exchange declared (how to test)
         # @TODO
@@ -168,8 +177,28 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         # should no longer be in RR
         self.assertRaises(NotFound, self.rr.read, epid)
 
+        # should no longer be associated
+        xslist2, _ = self.rr.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, epid, id_only=True)
+        self.assertEquals(len(xslist2), 0)
+
         # should no longer exist on broker (both xp and xs)
         # @TODO
+
+    def test_xp_create_then_delete_xs(self):
+
+        # xp needs an xs first
+        exchange_space = ExchangeSpace(name="doink")
+        esid = self.ems.create_exchange_space(exchange_space, self.org_id)
+
+        exchange_point = ExchangePoint(name="hammer")
+        epid = self.ems.create_exchange_point(exchange_point, esid)
+
+        # delete xs
+        self.ems.delete_exchange_space(esid)
+
+        # should no longer have an association
+        xslist2, _ = self.rr.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, epid, id_only=True)
+        self.assertEquals(len(xslist2), 0)
 
     def test_xs_create_update(self):
         raise unittest.SkipTest("Test not implemented yet")
@@ -187,7 +216,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         en2 = self.rr.read(enid)
         self.assertEquals(exchange_name.name, en2.name)
 
-        # should have an assoc
+        # should have an assoc from XN to XS
         xnlist, _ = self.rr.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, enid, id_only=True)
         self.assertEquals(len(xnlist), 1)
         self.assertEquals(xnlist[0], esid)
@@ -203,3 +232,19 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
 
     def test_xn_declare_and_undeclare(self):
         raise unittest.SkipTest("Undeclare exchange name not implemented yet")
+
+    def test_xn_declare_then_delete_xs(self):
+
+        # xn needs an xs first
+        exchange_space = ExchangeSpace(name="bozo")
+        esid = self.ems.create_exchange_space(exchange_space, self.org_id)
+
+        exchange_name = ExchangeName(name='shnoz')
+        enid = self.ems.declare_exchange_name(exchange_name, esid)
+
+        # delete the XS
+        self.ems.delete_exchange_space(esid)
+
+        # no longer should have assoc from XS to XN
+        xnlist, _ = self.rr.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, enid, id_only=True)
+        self.assertEquals(len(xnlist), 0)

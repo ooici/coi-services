@@ -81,6 +81,21 @@ class ExchangeManagementService(BaseExchangeManagementService):
             raise NotFound("Exchange Space %s does not exist" % exchange_space_id)
         self.clients.resource_registry.delete(exchange_space_id)
 
+        # remove association between itself and org
+        _, assocs = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, exchange_space_id, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
+        # delete assocs to XNs
+        _, assocs = self.clients.resource_registry.find_objects(exchange_space_id, PRED.hasExchangeName, RT.ExchangeName, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
+        # delete assocs to XPs
+        _, assocs = self.clients.resource_registry.find_objects(exchange_space_id, PRED.hasExchangePoint, RT.ExchangePoint, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
         # call container API to delete
         xs = exchange.ExchangeSpace(exchange_space.name)
         self.container.ex_manager.delete_xs(xs)
@@ -185,14 +200,18 @@ class ExchangeManagementService(BaseExchangeManagementService):
             raise NotFound("Exchange Point %s does not exist" % exchange_point_id)
 
         # get associated XS first
-        exchange_space_list, _ = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
-        if not len(exchange_space_list) > 0:
+        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
+        if not len(exchange_space_list) == 1:
             raise NotFound("Associated Exchange Space to Exchange Point %s does not exist" % exchange_point_id)
 
         exchange_space = exchange_space_list[0]
 
         # delete from RR
         self.clients.resource_registry.delete(exchange_point_id)
+
+        # delete association to XS
+        for assoc in assoc_list:
+            self.clients.resource_registry.delete_association(assoc._id)
 
         # call container API
         xs = exchange.ExchangeSpace(exchange_space.name)
