@@ -123,7 +123,7 @@ class IngestionTest(PyonTestCase):
 
         # check that everything is alright
         self.mock_read.assert_called_once_with(self.ingestion_configuration_id, '')
-        self.mock_delete.assert_called_once_with(self.ingestion_configuration)
+        self.mock_delete.assert_called_once_with(self.ingestion_configuration_id)
 
     def test_delete_ingestion_configuration_not_found(self):
         self.mock_read.return_value = None
@@ -208,21 +208,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
 
-        #------------------------------------------------------------------------
-        # Subscription
-        #----------------------------------------------------------------------
-        query = ExchangeQuery()
-        self.input_subscription_id = self.pubsub_cli.create_subscription(query=query,\
-            exchange_name=self.exchange_name, name='subscription', description='only to launch ingestion workers')
-
-        #------------------------------------------------------------------------
-        # Process definitions
-        #----------------------------------------------------------------------
-        self.process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
-        self.process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example',
-                                              'class':'IngestionExample'}
-        self.process_definition_id, _= self.rr_cli.create(self.process_definition)
-
 
         #------------------------------------------------------------------------
         # Stream publisher for testing round robin handling
@@ -238,9 +223,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         """
         Cleanup. Delete Subscription, Stream, Process Definition
         """
-        self.pubsub_cli.delete_subscription(self.input_subscription_id)
         self.pubsub_cli.delete_stream(self.input_stream_id)
-        self.rr_cli.delete(self.process_definition_id)
         self._stop_container()
 
     def test_create_ingestion_configuration(self):
@@ -292,8 +275,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
         name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
 
-        assert self.container.proc_manager.procs_by_name.has_key(name_1) \
-        and self.container.proc_manager.procs_by_name.has_key(name_2), "The two ingestion workers are not running"
+        self.assertTrue(self.container.proc_manager.procs_by_name.has_key(name_1))
+        self.assertTrue(self.container.proc_manager.procs_by_name.has_key(name_2))
+
 
         #------------------------------------------------------------------------
         # Cleanup
@@ -313,9 +297,37 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
+
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        #Get the ingestion process instances:
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        log.info("PROCESS 1: %s" % str(proc_1))
+
+        ar_1 = gevent.event.AsyncResult()
+        def message_received_1(message):
+            ar_1.set(message)
+
+        proc_1.process = message_received_1
+
+
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        log.info("PROCESS 2: %s" % str(proc_2))
+
+        ar_2 = gevent.event.AsyncResult()
+        def message_received_2(message):
+            ar_2.set(message)
+
+
+        proc_2.process = message_received_2
+
+
+
+
         #------------------------------------------------------------------------
         # Publish messages and test for round robin handling
         #----------------------------------------------------------------------
+
 
         # If the ingestion workers do not work round robin, class IngestionExample will raise an AssertionError
 
@@ -324,17 +336,35 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.ctd_stream1_publisher.publish(msg)
 
+        self.assertEqual(ar_1.get(timeout=10),msg)
+
         num += 1
+        msg = dict(num=str(num))
 
         self.ctd_stream1_publisher.publish(msg)
 
+        self.assertEqual(ar_2.get(timeout=10),msg)
+
+
+        # Reset the async results and try again...
+        ar_1 = gevent.event.AsyncResult()
+        ar_2 = gevent.event.AsyncResult()
+
+
         num += 1
+        msg = dict(num=str(num))
 
         self.ctd_stream1_publisher.publish(msg)
 
-        num += 1
+        self.assertEqual(ar_1.get(timeout=10),msg)
 
+
+        num += 1
+        msg = dict(num=str(num))
         self.ctd_stream1_publisher.publish(msg)
+
+        self.assertEqual(ar_2.get(timeout=10),msg)
+
 
         #------------------------------------------------------------------------
         # Cleanup
@@ -353,8 +383,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ret = self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
         self.assertTrue(ret)
-
         # pubsub has tested the activation of subscriptions
+        # @TODO when these are proper life cycle state changes, test the state transition of the resources...
+
 
         #------------------------------------------------------------------------
         # Cleanup
@@ -376,6 +407,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # now deactivate the ingestion configuration
         ret = self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
         self.assertTrue(ret)
+
+        # @TODO when these are proper life cycle state changes, test the state transition of the resources...
 
         # pubsub has tested the deactivation of subscriptions
 

@@ -31,6 +31,8 @@ class IngestionManagementService(BaseIngestionManagementService):
     cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
     """
 
+    base_exchange_name = 'ingestion_queue'
+
     def __init__(self):
         BaseIngestionManagementService.__init__(self)
 
@@ -47,12 +49,15 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_configuration_id    str
         """
 
-        XP = 'science_data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
-        exchange_name = 'ingestion_queue'
+        xs_dot_xp = CFG.core_xps.science_data
+        try:
+            XS, XP = xs_dot_xp.split('.')
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-        ###################
-        # adding output_streams so that ingestion looks like an ordinary transform
-#        self.transform_output_stream_id = self.clients.pubsub_management.create_stream(name='transform_output', original=True)
+        # Give each ingestion configuration its own queue name to receive data on
+        exchange_name = XP + '_ingestion_queue'
+
 
         #########################################################################################################
         #   The code for process_definition may not really belong here, but we do not have a different way so
@@ -68,13 +73,14 @@ class IngestionManagementService(BaseIngestionManagementService):
         query = ExchangeQuery()
 
         subscription_id = self.clients.pubsub_management.create_subscription(query=query, \
-            exchange_name=exchange_name, name='subscription', description='only to launch ingestion workers')
+            exchange_name=exchange_name, name='Ingestion subscription', description='Subscription for ingestion workers')
 
         ##------------------------------------------------------------------------------------------
 
         # create an ingestion_configuration instance and update the registry
         # @todo: right now sending in the exchange_point_id as the name...
-        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = 'ingestion_configuration')
+        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = XP)
+        ingestion_configuration.description = '%s exchange point ingestion configuration' % XP
         ingestion_configuration.number_of_workers = number_of_workers
         ingestion_configuration.hdf_storage.update(hdf_storage or {})
         ingestion_configuration.couch_storage.update(couch_storage or {})
