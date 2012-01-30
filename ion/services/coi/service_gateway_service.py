@@ -40,6 +40,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.http_server = None
         self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
         self.server_port = DEFAULT_WEB_SERVER_PORT
+        self.web_server_enabled = True
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
@@ -53,11 +54,13 @@ class ServiceGatewayService(BaseServiceGatewayService):
                     self.server_hostname = web_server_cfg['hostname']
                 if 'port' in web_server_cfg:
                     self.server_port = web_server_cfg['port']
+                if 'enabled' in web_server_cfg:
+                    self.web_server_enabled = web_server_cfg['enabled']
 
 
-
-        #probably need to specify the host name and port in configuration file and need to figure out how to redirect HTTP logging to a file
-        self.start_service(self.server_hostname,self.server_port)
+        #need to figure out how to redirect HTTP logging to a file
+        if self.web_server_enabled:
+            self.start_service(self.server_hostname,self.server_port)
 
     def on_quit(self):
         self.stop_service()
@@ -66,7 +69,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
         """Responsible for starting the gevent based web server."""
 
-        if self.http_server != None:
+        if self.http_server is not None:
             self.stop_service()
 
         self.http_server = WSGIServer((hostname, port), app)
@@ -76,7 +79,8 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
     def stop_service(self):
         """Responsible for stopping the gevent based web server."""
-        self.http_server.stop()
+        if self.http_server is not None:
+            self.http_server.stop()
         return True
 
         
@@ -96,7 +100,7 @@ def process_gateway_request(service_name, operation):
 
 
     #Retrieve service definition
-    from pyon.core.boostrap import service_registry
+    from pyon.core.bootstrap import service_registry
     # MM: Note: service_registry can do more now
     target_service = service_registry.get_service_base(service_name)
 
