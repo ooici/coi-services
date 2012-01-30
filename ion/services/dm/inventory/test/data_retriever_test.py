@@ -165,6 +165,6 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.dr_cli.start_replay(replay_id)
         self.assertEqual(ar.get(timeout=10),{'num':1})
-
-
         subscriber.stop()
+
+
