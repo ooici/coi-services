@@ -7,6 +7,8 @@ from pyon.public import CFG, IonObject, log, RT, PRED
 from interface.services.coi.iexchange_management_service import BaseExchangeManagementService
 from pyon.core.exception import Conflict, Inconsistent, NotFound
 from pyon.util.log import log
+#from pyon.ion.exchange import ExchangeSpace, ExchangeName, ExchangePoint
+from pyon.ion import exchange
 
 class ExchangeManagementService(BaseExchangeManagementService):
 
@@ -35,12 +37,13 @@ class ExchangeManagementService(BaseExchangeManagementService):
         aid = self.clients.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
 
         # Now do the work
+
         if exchange_space.name == "ioncore":
             # Bottom turtle initialization
-            pass
+            # @TODO: what's different here
+            self.container.ex_manager.create_xs(exchange_space.name)
         else:
-            # All other XS initialization
-            pass
+            self.container.ex_manager.create_xs(exchange_space.name)
         
         return exchange_space_id
 
@@ -76,7 +79,11 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_space = self.clients.resource_registry.read(exchange_space_id)
         if not exchange_space:
             raise NotFound("Exchange Space %s does not exist" % exchange_space_id)
-        self.clients.resource_registry.delete(exchange_space)
+        self.clients.resource_registry.delete(exchange_space_id)
+
+        # call container API to delete
+        xs = exchange.ExchangeSpace(exchange_space.name)
+        self.container.ex_manager.delete_xs(xs)
 
     def find_exchange_spaces(self, filters=None):
         """Returns a list of Exchange Space resources for the given Resource Filter.
@@ -95,9 +102,14 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval canonical_name    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-        exchange_name_id,rev = self.clients.resource_registry.create(exchange_name)
+        exchange_space          = self.read_exchange_space(exchange_space_id)
+        exchange_name_id,rev    = self.clients.resource_registry.create(exchange_name)
 
-        aid = self.clients.resource_registry.create_association(exchange_space, PRED.hasExchangeName, exchange_name_id)
+        aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangeName, exchange_name_id)
+
+        # call container API (even though create_xn is really a noop)
+        xs = exchange.ExchangeSpace(exchange_space.name)
+        self.container.ex_manager.create_xn(xs, exchange_name.name)
 
         return exchange_name_id  #QUestion - is this the correct canonical name?
 
@@ -127,9 +139,14 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_point_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+        exchange_space          = self.read_exchange_space(exchange_space_id)
         exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
 
-        #aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
+        aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
+
+        # call container API
+        xs = exchange.ExchangeSpace(exchange_space.name)
+        self.container.ex_manager.create_xp(xs, exchange_point.name, xptype='ttree')
 
         return exchange_point_id
 
@@ -166,7 +183,21 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_point = self.clients.resource_registry.read(exchange_point_id)
         if not exchange_point:
             raise NotFound("Exchange Point %s does not exist" % exchange_point_id)
-        self.clients.resource_registry.delete(exchange_point)
+
+        # get associated XS first
+        exchange_space_list, _ = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
+        if not len(exchange_space_list) > 0:
+            raise NotFound("Associated Exchange Space to Exchange Point %s does not exist" % exchange_point_id)
+
+        exchange_space = exchange_space_list[0]
+
+        # delete from RR
+        self.clients.resource_registry.delete(exchange_point_id)
+
+        # call container API
+        xs = exchange.ExchangeSpace(exchange_space.name)
+        xp = exchange.ExchangePoint(exchange_point.name, xs, 'ttree')
+        self.container.ex_manager.delete_xp(xp)
 
     def find_exchange_points(self, filters=None):
         """Returns a list of exchange point resources for the provided resource filter.
