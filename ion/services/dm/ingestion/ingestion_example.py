@@ -1,7 +1,8 @@
 '''
 @author Swarbhanu Chatterjee
-@file ion/services/dm/transformation/example/transform_example.py
-@description an Example of a transform
+@file ion/services/dm/ingestion/ingestion_example.py
+@description an IngestionExampleProducer class used to produce streams, IngestionExample class that allows ingestion workers to
+handle the streams.
 '''
 import threading
 import time

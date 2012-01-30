@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-
-__author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
-
-
+'''
+@author Maurice Manning
+@author Swarbhanu Chatterjee
+@file ion/services/dm/ingestion/ingestion_management_service.py
+@description Implementation for IngestionManagementService
+'''
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
