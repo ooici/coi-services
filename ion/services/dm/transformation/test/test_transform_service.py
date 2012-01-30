@@ -10,7 +10,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.containers import DotDict
-from pyon.public import IonObject, RT, log, AT
+from pyon.public import IonObject, RT, log, PRED
 from pyon.util.unit_test import PyonTestCase
 from mock import Mock
 from nose.plugins.attrib import attr
@@ -255,7 +255,7 @@ class TransformManagementServiceTest(PyonTestCase):
         ret = self.transform_service.activate_transform('transform_id')
 
         # assertions
-        self.mock_rr_find.assert_called_with('transform_id',AT.hasSubscription,RT.Subscription,True)
+        self.mock_rr_find.assert_called_with('transform_id',PRED.hasSubscription,RT.Subscription,True)
         self.assertEquals(self.mock_ps_activate.call_count,3)
 
         # ---
@@ -340,7 +340,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
 
         # test associations
-        predicates = [AT.hasSubscription, AT.hasOutStream, AT.hasProcessDefinition]
+        predicates = [PRED.hasSubscription, PRED.hasOutStream, PRED.hasProcessDefinition]
         assocs = []
         for p in predicates:
             assocs += self.rr_cli.find_associations(transform_id,p,id_only=True)
@@ -392,7 +392,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             process_definition_id=self.process_definition_id,
         )
 
-        predicates = [AT.hasSubscription, AT.hasOutStream, AT.hasProcessDefinition]
+        predicates = [PRED.hasSubscription, PRED.hasOutStream, PRED.hasProcessDefinition]
         assocs = []
         for p in predicates:
             assocs += self.rr_cli.find_associations(transform_id,p,id_only=True)
