@@ -21,6 +21,7 @@ fi
 echo -e "\n\n=== UPDATING PYON ===\n"
 cd ../pyon
 git pull --rebase
+git submodule update
 
 echo -e "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
 cd extern/ion-definitions
