@@ -8,7 +8,7 @@ __license__ = 'Apache 2.0'
 '''
 import time
 import hashlib
-from pyon.public import log, IonObject, RT, AT
+from pyon.public import log, IonObject, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
@@ -105,12 +105,12 @@ class TransformManagementService(BaseTransformManagementService):
         transform_id, _ = self.clients.resource_registry.create(transform_res)
 
 
-        self.clients.resource_registry.create_association(transform_id,AT.hasProcessDefinition,process_definition_id)
-        self.clients.resource_registry.create_association(transform_id,AT.hasSubscription,in_subscription_id)
+        self.clients.resource_registry.create_association(transform_id,PRED.hasProcessDefinition,process_definition_id)
+        self.clients.resource_registry.create_association(transform_id,PRED.hasSubscription,in_subscription_id)
 
 
         for stream_id in stream_ids:
-            self.clients.resource_registry.create_association(transform_id,AT.hasOutStream,stream_id)
+            self.clients.resource_registry.create_association(transform_id,PRED.hasOutStream,stream_id)
 
         return transform_id
 
@@ -147,11 +147,11 @@ class TransformManagementService(BaseTransformManagementService):
 
         # get the resources
         process_definition_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-                                AT.hasProcessDefinition, RT.ProcessDefinition, True)
+                                PRED.hasProcessDefinition, RT.ProcessDefinition, True)
         in_subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-                                AT.hasSubscription, RT.Subscription, True)
+                                PRED.hasSubscription, RT.Subscription, True)
         out_stream_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-                                AT.hasOutStream, RT.Stream, True)
+                                PRED.hasOutStream, RT.Stream, True)
 
         # build a list of all the ids above
         id_list = process_definition_ids + in_subscription_ids + out_stream_ids
@@ -164,7 +164,7 @@ class TransformManagementService(BaseTransformManagementService):
 
 
         # delete the associations
-        for predicate in [AT.hasProcessDefinition, AT.hasSubscription, AT.hasOutStream]:
+        for predicate in [PRED.hasProcessDefinition, PRED.hasSubscription, PRED.hasOutStream]:
             associations = self.clients.resource_registry.find_associations(transform_id,predicate)
             for association in associations:
                 self.clients.resource_registry.delete_association(association)
@@ -221,7 +221,7 @@ class TransformManagementService(BaseTransformManagementService):
         @throws NotFound if either the subscription doesn't exist or the transform object doesn't exist.
         """
         subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-                                                            AT.hasSubscription, RT.Subscription, True)
+                                                            PRED.hasSubscription, RT.Subscription, True)
         if len(subscription_ids) < 1:
             raise NotFound
 
@@ -238,7 +238,7 @@ class TransformManagementService(BaseTransformManagementService):
         @throws NotFound if either the subscription doesn't exist or the transform object doesn't exist
         """
         subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-                                                            AT.hasSubscription, RT.Subscription, True)
+                                                            PRED.hasSubscription, RT.Subscription, True)
         if len(subscription_ids) < 1:
             raise NotFound
 
