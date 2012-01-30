@@ -8,7 +8,7 @@
 from pyon.util.log import log
 import time
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
-from pyon.public import   log, RT, AT
+from pyon.public import   log, RT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from interface.objects import ProcessDefinition, StreamQuery
@@ -131,14 +131,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: " +  str(data_process_id))
 
         # Associate with dataProcess
-        self.clients.resource_registry.create_association(data_process_definition_id,  AT.hasInstance, data_process_id)
-        self.clients.resource_registry.create_association(data_process_id, AT.hasInputProduct, in_data_product_id)
-        self.clients.resource_registry.create_association(data_process_id, AT.hasOutputProduct, out_data_product_id)
+        self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
+        self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
+        self.clients.resource_registry.create_association(data_process_id, PRED.hasOutputProduct, out_data_product_id)
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream
         log.debug("DataProcessManagementService:create_data_process - Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream")
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
-        stream_ids, _ = self.clients.resource_registry.find_objects(data_producer_id, AT.hasStream, RT.Stream, True)
+        stream_ids, _ = self.clients.resource_registry.find_objects(data_producer_id, PRED.hasStream, RT.Stream, True)
         if not stream_ids:
             raise NotFound("No Stream created for this Data Producer " + str(data_producer_id))
         if len(stream_ids) != 1:
@@ -155,7 +155,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # first - get the data producer associated with this IN data product
         log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product")
-        producer_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, AT.hasDataProducer, RT.DataProducer, True)
+        producer_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
         if not producer_ids:
             raise NotFound("No Data Producer created for this Data Product " + str(in_data_product_id))
         if len(producer_ids) != 1:
@@ -165,7 +165,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # second - get the stream associated with this IN data producer
         log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data producer")
-        stream_ids, _ = self.clients.resource_registry.find_objects(in_product_producer, AT.hasStream, RT.Stream, True)
+        stream_ids, _ = self.clients.resource_registry.find_objects(in_product_producer, PRED.hasStream, RT.Stream, True)
         if not stream_ids:
             raise NotFound("No Stream created for this IN Data Producer " + str(in_product_producer))
         if len(stream_ids) != 1:
@@ -199,7 +199,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                            out_streams={'output':out_stream_id},
                            process_definition_id=transform_definition_id,
                            configuration={})
-        self.clients.resource_registry.create_association(data_process_id, AT.hasTransform, transform_id)
+        self.clients.resource_registry.create_association(data_process_id, PRED.hasTransform, transform_id)
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process   transform_id"  +  str(transform_id))
 
         # TODO: Flesh details of transform mgmt svc schedule and bind methods
@@ -245,7 +245,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 raise BadRequest("Data definition has invalid process source code.")
 
         transform_ids, _ = self.clients.resource_registry.\
-            find_associations(data_process_id, AT.hasTransform)
+            find_associations(data_process_id, PRED.hasTransform)
         if not transform_ids:
             raise NotFound("No transform associated with data process ID " +
                            str(data_process_id))
@@ -271,7 +271,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval out_data_product_id: ID of the output data product
         """
         log.debug("DataProcessManagementService:read_data_process: " +  str(data_process_id))
-        transform_ids, _ = self.clients.resource_registry.find_associations(data_process_id, AT.hasTransform)
+        transform_ids, _ = self.clients.resource_registry.find_associations(data_process_id, PRED.hasTransform)
         if not transform_ids:
             raise NotFound("No transform associated with data process ID " + str(data_process_id))
         transform_obj = self.clients.transform_management_service.read_transform(transform_ids[0])

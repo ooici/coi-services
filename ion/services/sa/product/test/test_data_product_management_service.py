@@ -7,7 +7,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, AT, LCS, PRED
+from pyon.public import RT, LCS, PRED
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr

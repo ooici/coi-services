@@ -13,7 +13,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import Container, log, IonObject
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, LCS
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
 
@@ -68,7 +68,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         log.debug("TestIntDataProcessManagementService  data_producer_id %s" % data_producer_id)
 
         # Retrieve the stream via the Instrument->DataProducer->Stream associations
-        stream_ids, _ = self.RRclient.find_objects(data_producer_id, AT.hasStream, None, True)
+        stream_ids, _ = self.RRclient.find_objects(data_producer_id, PRED.hasStream, None, True)
         log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
         in_stream_id = stream_ids[0]
         log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str(in_stream_id))
