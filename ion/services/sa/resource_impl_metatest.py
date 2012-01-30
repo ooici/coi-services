@@ -20,11 +20,11 @@ class ResourceImplMetatest(object):
 
     For example, OUTSIDE and AFTER the TestInstrumentManagement class, write this:
 
-        rwm = ResourceImplMetatest(TestInstrumentManagement,
+        rim = ResourceImplMetatest(TestInstrumentManagement,
                                      InstrumentManagementService,
                                      log)
 
-        rwm.add_resource_impl_unittests(InstrumentAgentInstanceImpl,
+        rim.add_resource_impl_unittests(InstrumentAgentInstanceImpl,
                                           {"exchange_name": "rhubarb"}
 
     The impl object MUST be available as a class variable in the service under test!
@@ -332,7 +332,7 @@ class ResourceImplMetatest(object):
                 svc = self._rim_getservice()
                 myimpl = getattr(svc, impl_attr)                 
                 bad_sample_resource = sample_resource()
-                delattr(bad_sample_resource, "name")
+                #really, the resource doesn't matter; it's the retval from find that matters
                 
                 #configure Mock
                 svc.clients.resource_registry.create.return_value = ('111', 'bla')
@@ -451,7 +451,7 @@ class ResourceImplMetatest(object):
 
                 myimpl.delete_one("111")
                 svc.clients.resource_registry.read.assert_called_once_with("111", "")
-                svc.clients.resource_registry.delete.assert_called_once_with(myret)
+                svc.clients.resource_registry.delete.assert_called_once_with("111")
 
                 
             name = make_name("resource_impl_delete")

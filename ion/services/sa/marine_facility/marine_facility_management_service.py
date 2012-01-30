@@ -9,7 +9,7 @@ and the relationships between them
 '''
 
 from pyon.core.exception import NotFound
-from pyon.public import CFG, IonObject, log, RT, AT, LCS
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS
 
 
 
@@ -293,12 +293,12 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
     def assign_site(self, child_site_id='', parent_site_id=''):
         assert child_site_id and parent_site_id, "Arguments not set"
-        aid = self.clients.resource_registry.create_association(parent_site_id, AT.hasSite, child_site_id)
+        aid = self.clients.resource_registry.create_association(parent_site_id, PRED.hasSite, child_site_id)
         return True
 
     def unassign_site(self, parent_site_id='', child_site_id=''):
         assert child_site_id and parent_site_id, "Arguments not set"
-        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, AT.hasSite, child_site_id, True)
+        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, PRED.hasSite, child_site_id, True)
         if not assoc_id:
             raise NotFound("Association ParentSite hasSite ChildSite does not exist: parent site: %s  child site: %s" % parent_site_id, child_site_id)
 
@@ -309,14 +309,14 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     def assign_instrument(self, logical_instrument_id='', parent_site_id=''):
         #todo: is platform associated with a Site?
         assert logical_instrument_id and parent_site_id, "Arguments not set"
-        aid = self.clients.resource_registry.create_association(parent_site_id, AT.hasInstrument, logical_instrument_id)
+        aid = self.clients.resource_registry.create_association(parent_site_id, PRED.hasInstrument, logical_instrument_id)
         return True
 
 
     def unassign_instrument(self, logical_instrument_id='', parent_site_id=''):
         #todo: is instrument associated with a Site?
         assert logical_instrument_id and parent_site_id, "Arguments not set"
-        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, AT.hasInstrument, logical_instrument_id, True)
+        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, PRED.hasInstrument, logical_instrument_id, True)
         if not assoc_id:
             raise NotFound("Association Site hasPlatform LogicalInstrument does not exist: site: %s  instrument: %s" % parent_site_id, logical_instrument_id)
 

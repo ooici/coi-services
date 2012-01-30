@@ -9,7 +9,7 @@
 
 #from pyon.public import Container
 from pyon.public import LCS, LCE
-#from pyon.public import AT
+#from pyon.public import PRED
 from pyon.core.bootstrap import IonObject
 #from pyon.core.exception import BadRequest #, NotFound
 #from pyon.datastore.datastore import DataStore

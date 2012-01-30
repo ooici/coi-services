@@ -47,9 +47,10 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest("A data product named '%s' already exists" % data_product.name)  
 
         data_product_id, version = self.clients.resource_registry.create(data_product)
-            
-        log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
-        self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id)  # TODO: what errors can occur here?
+
+        if source_resource_id:
+            log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
+            self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id)  # TODO: what errors can occur here?
             
         return data_product_id
 
