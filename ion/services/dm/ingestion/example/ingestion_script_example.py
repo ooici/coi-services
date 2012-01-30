@@ -1,5 +1,7 @@
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+
 
 from pyon.public import IonObject, RT, log, AT
 from pyon.ion.endpoint import ProcessPublisher
@@ -19,11 +21,7 @@ ingestion_configuration_id = ingestion_client.create_ingestion_configuration(exc
 # activates the transforms... so bindings will be created in this step
 ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 
-############################################################################################
-# Copy the stream_id that is there in the the binding....in rabbit broker web management
-# and paste it as a value in out_stream
-############################################################################################
-# messages will be produced and published
+# messages produced and published
 id_p = cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
-        {'process': {'type':'stream_process', 'publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
+        {'process': {'type':'stream_process', 'listen_name':'do_not_publish', 'publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
 cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()

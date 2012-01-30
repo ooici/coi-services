@@ -13,7 +13,6 @@ from pyon.net.channel import SubscriberChannel
 from pyon.container.procs import ProcManager
 from pyon.core.exception import IonException
 from interface.objects import StreamQuery, ExchangeQuery
-import time, hashlib, uuid
 
 class IngestionManagementServiceException(IonException):
     """
@@ -46,12 +45,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_configuration_id    str
         """
 
-        # Get Exchange Point name from exchange_point_id
-        ## Exchange points don't exist yet - use a hard coded name
         XP = 'science_data' #CFG.exchange_spaces.ioncore.exchange_points.science_data.name
+        exchange_name = 'ingestion_queue'
 
-        exchange_name = XP + '_ingestion_queue'
-
+        ###################
+        # adding output_streams so that ingestion looks like an ordinary transform
+#        self.transform_output_stream_id = self.clients.pubsub_management.create_stream(name='transform_output', original=True)
 
         #########################################################################################################
         #   The code for process_definition may not really belong here, but we do not have a different way so
@@ -62,13 +61,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
         process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
-
         ##------------------------------------------------------------------------------------
         ## declare our intent to subscribe to all messages on the exchange point
         query = ExchangeQuery()
+
         subscription_id = self.clients.pubsub_management.create_subscription(query=query, \
             exchange_name=exchange_name, name='subscription', description='only to launch ingestion workers')
-
 
         ##------------------------------------------------------------------------------------------
 
@@ -78,22 +76,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration.number_of_workers = number_of_workers
         ingestion_configuration.hdf_storage.update(hdf_storage or {})
         ingestion_configuration.couch_storage.update(couch_storage or {})
-#        ingestion_configuration.default_policy.update(default_policy or {})
+        ingestion_configuration.default_policy.update(default_policy or {})
 
-
-        if not ingestion_configuration:
-            raise IngestionManagementServiceException\
-                ('''An ingestion configuration could not be created before launching transforms.''')
-
-        ingestion_configuration_id, rev = self.clients.resource_registry.create(ingestion_configuration)
-
-        if not ingestion_configuration_id:
-            raise IngestionManagementServiceException\
-                ('''An ingestion_configuration_id could not be created before launching transforms.''')
-
-        # Launch the transforms!
-
-        # @todo: Check whether the correct listen_name is being passed
+        ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
         self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, process_definition_id)
 
@@ -107,10 +92,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         description = 'Ingestion worker'
 
         # launch the transforms
-        # we spawn the transform processes without actually activating them yet...
         for i in range(number_of_workers):
-            # using a random name based on time so that multiple ingestion configurations can be created without
-            # a clash in the names of transforms
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
             transform_id = self.clients.transform_management.create_transform(name = name, description = description, \
                      in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id, \
@@ -175,21 +157,21 @@ class IngestionManagementService(BaseIngestionManagementService):
             raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
 
         # read the transforms
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
-            AT.hasTransform, RT.Transform, True)
-        if len(transform_ids) < 1:
-            raise NotFound("No transforms attached as ingestion workers to the ingestion configuration object.")
-
-        # This is messy - but for now activate_transform, which calls activate subscription is idempotent.
-        # calling it many times is just activating the same subscription many times.
-        #
-        # Maybe we should bypass activate transform and directly call pubsub activate/deactivate?
-        for transform_id in transform_ids:
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, AT.hasTransform, RT.Transform, True)
+        if len(transform_ids) > 0:
+            # This is messy - but for now activate_transform, which calls activate subscription is idempotent.
+            # calling it many times is just activating the same subscription many times.
+            #
+            # Maybe we should bypass activate transform and directly call pubsub activate/deactivate?
             try:
-                self.clients.transform_management.activate_transform(transform_id)
+                # need to activate only one transform as both have the same subscription
+                self.clients.transform_management.activate_transform(transform_ids[0])
             except Exception as exc:
                 raise IngestionManagementServiceException('Error while using transform_management to activate transform %s.'\
                     % transform_id)
+        else:
+            log.debug("No transforms attached as ingestion workers to the ingestion configuration object.")
+
         return True
 
 
@@ -207,26 +189,14 @@ class IngestionManagementService(BaseIngestionManagementService):
         except:
             raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
 
-        # use the deactivate method in transformation management service
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id,
-            AT.hasTransform, RT.Transform, True)
+
+#        # use the deactivate method in transformation management service
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, AT.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
+        # since both transforms have the same subscription, only deactivate one
+        self.clients.transform_management.deactivate_transform(transform_ids[0])
 
-        # same issue as activate transform
-        for transform_id in transform_ids:
-            try:
-                subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-                    AT.hasSubscription, RT.Subscription, True)
-                if len(subscription_ids) < 1:
-                  raise NotFound
-
-                for subscription_id in subscription_ids:
-                    self.clients.pubsub_management.deactivate_subscription(subscription_id)
-#                self.clients.transform_management.deactivate_transform(transform_id)
-            except Exception as exc:
-                raise IngestionManagementServiceException('Error while using transform_management to deactivate transform %s.'\
-                % transform_id)
         return True
 
     def create_stream_policy(self, stream_id='', archive_data='', archive_metadata=''):

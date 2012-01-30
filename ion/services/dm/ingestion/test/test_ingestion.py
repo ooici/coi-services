@@ -18,7 +18,7 @@ from pyon.public import CFG, IonObject, log, RT, AT, LCS, StreamPublisher, Strea
 from pyon.public import Container
 from pyon.public import Container
 from pyon.util.containers import DotDict
-from interface.objects import ProcessDefinition, StreamQuery
+from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -190,25 +190,31 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ingestion_cli = IngestionManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
 
-        self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
-        self.input_subscription_id = self.pubsub_cli.create_subscription(query=StreamQuery(stream_ids=[self.input_stream_id]),exchange_name='transform_input',name='input_subscription')
-
-        self.process_definition = ProcessDefinition(name='basic_ingestion_definition')
-        self.process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example',
-                                              'class':'TransformExample'}
-        self.process_definition_id, _= self.rr_cli.create(self.process_definition)
-
-        self.XP = 'science_data'
-        self.exchange_name = self.XP + '_ingestion_queue'
-
         # for now we havent finalized on what the exchange_point_id should be
         self.exchange_point_id = 'an exchange_point_id'
         self.number_of_workers = 2
         self.hdf_storage = {'root_path': '', 'filesystem' : 'a filesystem'}
         self.couch_storage = {'server': '', 'couchstorage': 'a couchstorage', 'database': '' }
         self.default_policy = {}
-#        self.ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, \
-#                    self.number_of_workers, self.default_policy)
+        self.XP = 'science_data'
+        self.exchange_name = self.XP + '_ingestion_queue'
+
+        self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
+
+        query = ExchangeQuery()
+        self.input_subscription_id = self.pubsub_cli.create_subscription(query=query,\
+            exchange_name=self.exchange_name, name='subscription', description='only to launch ingestion workers')
+
+        self.process_definition = ProcessDefinition(name='basic_ingestion_definition')
+        self.process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example',
+                                              'class':'TransformExample'}
+        self.process_definition_id, _= self.rr_cli.create(self.process_definition)
+
+        # messages will be produced and published... this is required to test ingestion workers handle packets in round robin
+        id_p = self.cc.spawn_process('ingestion_queue', 'ion.services.dm.ingestion.ingestion_example', 'IngestionExampleProducer',\
+                {'process': {'type':'stream_process', 'listen_name':'do_not_publish', 'publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
+        self.cc.proc_manager.procs['%s.%s' %(self.cc.id,id_p)].start()
+
 
     def tearDown(self):
         """
@@ -270,7 +276,23 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         assert self.container.proc_manager.procs_by_name.has_key(name_1) \
         and self.container.proc_manager.procs_by_name.has_key(name_2), "The two ingestion workers are not running"
 
-        # confirm that messages are being handled in a round robin manner
+    @unittest.skip("Nothing to test")
+    def test_ingestion_workers_in_round_robin(self):
+        """
+        Test that the ingestion workers are handling messages in round robin
+        """
+        # create an ingestion configuration by passing in these parameters
+#        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+        ingestion_client = IngestionManagementServiceClient(node = self.cc.node)
+        pubsub_client = PubsubManagementServiceClient(node=self.cc.node)
+
+        ctd_output_stream_id = pubsub_client.create_stream(name='ctd_output_stream', original=True)
+
+        ingestion_configuration_id = ingestion_client.create_ingestion_configuration(self.exchange_point_id, self.couch_storage,\
+            self.hdf_storage,  self.number_of_workers, self.default_policy)
+
+        ingestion_client.activate_ingestion_configuration(ingestion_configuration_id)
 
 
     def test_activate_ingestion_configuration(self):
@@ -284,34 +306,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.assertTrue(ret)
 
-        # check that it was activated
-
-        ##############################################################################
-        # Not sure if the code below for testing the binding is required...
-        ##############################################################################
-
-
-#        now check whether the subscriptions have bindings that should have been created by the activation of ingestion
-#        configuration
-
-
-#        # make a publisher object to send messages in the test.
-#        stream_route = self.pubsub_cli.register_producer(exchange_name=self.exchange_name, stream_id=self.input_stream_id)
-#        self.stream_publisher = StreamPublisher(node=self.cc.node, name=(self.XP,stream_route.routing_key), process=self.cc)
-#
-#        # create a one time event to see if message passing works on the subscription
-#        ar = gevent.event.AsyncResult()
-#        def message_received(message, headers):
-#            ar.set(message)
-#
-#        # Create a subscriber to listen to the messages being passed
-#        subscriber = StreamSubscriber(node=self.cc.node, name=(self.XP, self.exchange_name), callback=message_received, process=self.cc)
-#        subscriber.start()
-#
-#        self.stream_publisher.publish('message1')
-#        self.assertEquals(ar.get(timeout=10), 'message1')
-#
-#        subscriber.stop()
+        # pubsub has tested the activation of subscriptions
 
     def test_deactivate_ingestion_configuration(self):
         """
@@ -320,38 +315,12 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         # activate an ingestion configuration
-        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+        ret = self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+        self.assertTrue(ret)
 
         # now deactivate the ingestion configuration
-        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        ret = self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        self.assertTrue(ret)
 
-        ############################################################################################
-        # Not sure if the code below for testing whether the binding were destroyed is required...
-        ############################################################################################
+        # pubsub has tested the deactivation of subscriptions
 
-#        now check whether the bindings have been destroyed on deactivating the ingestion configuration
-
-
-#        # make a publisher object to send messages in the test.
-#        stream_route = self.pubsub_cli.register_producer(exchange_name=self.exchange_name, stream_id=self.input_stream_id)
-#        self.stream_publisher = StreamPublisher(node=self.cc.node, name=(self.XP,stream_route.routing_key), process=self.cc)
-#
-#        # create a one time event to see if message passing works on the subscription
-#        ar = gevent.event.AsyncResult()
-#        def message_received(message, headers):
-#            ar.set(message)
-#
-#        # Create a subscriber to listen to the messages being passed
-#        subscriber = StreamSubscriber(node=self.cc.node, name=(self.XP, self.exchange_name), callback=message_received, process=self.cc)
-#        subscriber.start()
-#
-#        self.stream_publisher.publish('message1')
-#
-#        p = None
-#        with self.assertRaises(gevent.Timeout) as cm:
-#            p = ar.get(timeout=10)
-#
-#        subscriber.stop()
-#        ex = cm.exception
-#        self.assertEqual(str(ex), '10 seconds')
-#        self.assertEqual(p, None)
