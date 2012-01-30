@@ -3,12 +3,15 @@
 @file ion/services/dm/inventory/test/data_retriever_test.py
 @description Testing Platform for Data Retriver Service
 '''
+import gevent
 from mock import Mock
-from interface.objects import Replay
+from interface.objects import Replay, Query, StreamQuery
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.core.exception import NotFound
+from pyon.ion.endpoint import StreamSubscriber
 from pyon.ion.resource import PRED, RT
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -88,12 +91,13 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
 
 
     def tearDown(self):
         super(DataRetrieverServiceIntTest,self).tearDown()
 
-    @unittest.skip('Pending r2dm.yml patch')
+
     def test_define_replay(self):
         replay_id, stream_id = self.dr_cli.define_replay('123')
 
@@ -112,7 +116,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
 
-    @unittest.skip('Pending r2dm.yml patch')
+
     def test_cancel_replay(self):
         replay_id, stream_id = self.dr_cli.define_replay('123')
         replay = self.rr_cli.read(replay_id)
@@ -132,3 +136,35 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         proc = self.container.proc_manager.procs.get(replay.process_id,None)
         self.assertTrue(not proc)
 
+    def test_start_replay(self):
+        replay_id, stream_id = self.dr_cli.define_replay('123')
+        replay = self.rr_cli.read(replay_id)
+
+
+        # assert that the process was created
+
+        self.assertTrue(self.container.proc_manager.procs[replay.process_id])
+
+        # pattern from Tim G
+        ar = gevent.event.AsyncResult()
+        def consume(message, headers):
+            ar.set(message)
+
+        subscriber = StreamSubscriber(node=self.container.node,
+            process=self,
+            name=('science_data','test_queue'),
+            callback=lambda m,h: consume(m,h))
+        subscriber.start()
+
+        query = StreamQuery(stream_ids=[stream_id])
+        subscription_id = self.ps_cli.create_subscription(query=query,exchange_name='test_queue')
+        self.ps_cli.activate_subscription(subscription_id)
+
+        self.dr_cli.start_replay(replay_id)
+        self.assertEqual(ar.get(timeout=10),{'num':0})
+
+        self.dr_cli.start_replay(replay_id)
+        self.assertEqual(ar.get(timeout=10),{'num':1})
+
+
+        subscriber.stop()
