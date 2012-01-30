@@ -13,7 +13,7 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import AT, RT, StreamPublisher, StreamSubscriber, log
+from pyon.public import PRED, RT, StreamPublisher, StreamSubscriber, log
 from nose.plugins.attrib import attr
 import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum
@@ -186,7 +186,7 @@ class PubSubTest(PyonTestCase):
                                                      exchange_name=self.subscription_stream_query.exchange_name)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.subscription_id, AT.hasStream, self.stream_id, None)
+        self.mock_create_association.assert_called_once_with(self.subscription_id, PRED.hasStream, self.stream_id, None)
         self.assertEqual(id, self.subscription_id)
 
     def test_create_subscription_exchange_query(self):
@@ -251,7 +251,7 @@ class PubSubTest(PyonTestCase):
 
         self.assertEqual(ret, True)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_associations.assert_called_once_with(self.subscription_id, AT.hasStream, '', False)
+        self.mock_find_associations.assert_called_once_with(self.subscription_id, PRED.hasStream, '', False)
         self.mock_delete_association.assert_called_once_with(self.association_id)
         self.mock_delete.assert_called_once_with(self.subscription_id)
 
@@ -279,7 +279,7 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Subscription to Stream association for subscription id subscription_id does not exist')
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_associations.assert_called_once_with(self.subscription_id, AT.hasStream, '', False)
+        self.mock_find_associations.assert_called_once_with(self.subscription_id, PRED.hasStream, '', False)
         self.assertEqual(self.mock_delete_association.call_count, 0)
         self.assertEqual(self.mock_delete.call_count, 0)
 
@@ -291,7 +291,7 @@ class PubSubTest(PyonTestCase):
 
         self.assertTrue(ret)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, PRED.hasStream, RT.Stream, True)
 
     def test_activate_subscription_exchange_query(self):
         self.mock_read.return_value = self.subscription_exchange_query
@@ -301,7 +301,7 @@ class PubSubTest(PyonTestCase):
 
         self.assertTrue(ret)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, PRED.hasStream, RT.Stream, True)
 
     def test_activate_subscription_not_found(self):
         self.mock_read.return_value = None
@@ -322,7 +322,7 @@ class PubSubTest(PyonTestCase):
 
         self.assertTrue(ret)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, PRED.hasStream, RT.Stream, True)
 
     def test_deactivate_subscription_exchange_query(self):
         self.mock_read.return_value = self.subscription_exchange_query
@@ -332,7 +332,7 @@ class PubSubTest(PyonTestCase):
 
         self.assertTrue(ret)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_objects.assert_called_once_with(self.subscription_id, AT.hasStream, RT.Stream, True)
+        self.mock_find_objects.assert_called_once_with(self.subscription_id, PRED.hasStream, RT.Stream, True)
 
     def test_deactivate_subscription_not_found(self):
         self.mock_read.return_value = None

@@ -14,7 +14,7 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 import unittest
-from pyon.public import CFG, IonObject, log, RT, AT, LCS, StreamPublisher, StreamSubscriber
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber
 from pyon.public import Container
 from pyon.public import Container
 from pyon.util.containers import DotDict
@@ -123,7 +123,7 @@ class IngestionTest(PyonTestCase):
 
         # check that everything is alright
         self.mock_read.assert_called_once_with(self.ingestion_configuration_id, '')
-        self.mock_delete.assert_called_once_with(self.ingestion_configuration)
+        self.mock_delete.assert_called_once_with(self.ingestion_configuration_id)
 
     def test_delete_ingestion_configuration_not_found(self):
         self.mock_read.return_value = None
