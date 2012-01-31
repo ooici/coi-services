@@ -181,7 +181,9 @@ class BarsInstrumentDriver(InstrumentDriver):
         """
         @param timeout Number of seconds before this operation times out
         """
-        pass
+
+        # TODO for the moment just returning the current driver state
+        return self.get_current_state()
 
     def get_capabilities(self, params, timeout=10):
         """
