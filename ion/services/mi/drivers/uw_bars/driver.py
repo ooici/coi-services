@@ -35,7 +35,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
     # TODO harmonize with base class.
 
-    # TODO NOTE: Assumes all interaction is for the ALL special channels spec
+    # TODO NOTE: Assumes all interaction is for the INSTRUMENT special channel
 
     def __init__(self):
         InstrumentDriver.__init__(self)
@@ -101,8 +101,6 @@ class BarsInstrumentDriver(InstrumentDriver):
         result = None
 
         self._setup_protocol(self.config)
-
-        # TODO complete connection
 
         prot_state = self.protocol.get_current_state()
         if prot_state == BarsProtocolState.COLLECTING_DATA:
