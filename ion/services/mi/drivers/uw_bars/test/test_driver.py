@@ -17,28 +17,28 @@ class DriverTest(WithSimulatorTestCase):
 
     def test(self):
         """
-        Tests driver initialization, configuration, connection, disconnection
+        BARS driver connection tests
         """
 
         driver = BarsInstrumentDriver()
 
-        self.assertEqual(DriverState.UNCONFIGURED, driver.get_state())
+        self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
         # initialize
         success, result = driver.initialize()
         self.assertEqual(InstErrorCode.OK, success)
-        self.assertEqual(DriverState.UNCONFIGURED, driver.get_state())
+        self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
         # configure
         configs = {BarsChannel.ALL: self.config}
         success, result = driver.configure(configs)
         self.assertEqual(InstErrorCode.OK, success)
-        self.assertEqual(DriverState.DISCONNECTED, driver.get_state())
+        self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
 
         # connect
         success, result = driver.connect([BarsChannel.ALL])
         self.assertEqual(InstErrorCode.OK, success)
-        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_state())
+        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
 
         print "sleeping for a bit"
         time.sleep(5)
@@ -46,4 +46,4 @@ class DriverTest(WithSimulatorTestCase):
         # disconnect
         success, result = driver.disconnect([BarsChannel.ALL])
         self.assertEqual(InstErrorCode.OK, success)
-        self.assertEqual(DriverState.DISCONNECTED, driver.get_state())
+        self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())

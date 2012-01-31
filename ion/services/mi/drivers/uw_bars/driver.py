@@ -46,7 +46,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         self._state = DriverState.UNCONFIGURED
 
-    def get_state(self):
+    def get_current_state(self):
         return self._state
 
     def initialize(self, channels=[BarsChannel.ALL], timeout=10):
@@ -104,7 +104,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         # TODO complete connection
 
-        prot_state = self.protocol.get_state()
+        prot_state = self.protocol.get_current_state()
         if prot_state == BarsProtocolState.COLLECTING_DATA:
             self._state = DriverState.AUTOSAMPLE
         else:

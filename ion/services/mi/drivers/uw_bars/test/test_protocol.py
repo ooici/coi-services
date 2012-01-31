@@ -6,19 +6,22 @@ __license__ = 'Apache 2.0'
 
 from ion.services.mi.drivers.uw_bars.test import WithSimulatorTestCase
 from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
+from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 import time
 
 
 class ProtocolTest(WithSimulatorTestCase):
 
-    def test_basic(self):
+    def test(self):
         """
-        Tests protocol configuration, connection, disconnection
+        BARS protocol tests
         """
 
         protocol = BarsInstrumentProtocol()
         protocol.configure(self.config)
+        self.assertEqual(BarsProtocolState.COLLECTING_DATA,
+                         protocol.get_current_state())
 
         print "connecting"
         protocol.connect()

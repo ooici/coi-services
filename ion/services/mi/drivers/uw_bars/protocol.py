@@ -126,7 +126,7 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 
         print("got_data: '%s'" % data.replace('\n', '\\n'))
 
-    def get_state(self):
+    def get_current_state(self):
         return self._fsm.get_current_state()
 
     ########################################################################
