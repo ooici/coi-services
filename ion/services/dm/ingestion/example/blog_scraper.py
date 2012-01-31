@@ -52,7 +52,7 @@ class FeedStreamer(StreamProcess):
         self.feed = FeedFormatter(blog=blog)
 
         # Start the thread
-        self.run()
+        self.run(blog)
 
 
     def _on_done(self):
@@ -70,7 +70,7 @@ class FeedStreamer(StreamProcess):
             num+=1
 
 
-    def run(self):
+    def run(self, blog):
         '''
         Initiate the thread to query, organize and publish the data
         '''
