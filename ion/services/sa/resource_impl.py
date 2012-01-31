@@ -438,7 +438,7 @@ class ResourceImpl(object):
         @param subject_id the resource ID of the predefined type
         @param association_type the predicate
         @param object_id the resource ID of the type to be joined
-        @todo check for errors
+        @todo check for errors: does RR check for bogus ids?
         """
 
         associate_success = self.RR.create_association(subject_id,

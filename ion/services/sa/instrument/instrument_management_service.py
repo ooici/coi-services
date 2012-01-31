@@ -195,25 +195,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_agent.find_some(filters)
 
-    #FIXME: args need to change
-    def assign_instrument_agent(self, instrument_agent_id='', instrument_id='', instrument_agent_instance=None):
-        """
-        @todo the arguments for this function seem incorrect and/or mismatched
-        """
-        raise NotImplementedError()
-        #return self.instrument_agent.assign(instrument_agent_id, instrument_id, instrument_agent_instance)
-
-    #FIXME: args need to change
-    def unassign_instrument_agent(self, instrument_agent_id='', instrument_id=''):
-
-        """
-        @todo the arguments for this function seem incorrect and/or mismatched
-
-        """
-        raise NotImplementedError()
-        #return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
-
-
 
 
     ##########################################################################
@@ -265,28 +246,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.instrument_model.find_some(filters)
-
-    def assign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
-        """
-        Assign a model to a device type
-        @param instrument_model_id the model id
-        @param instrument_device_id the device id
-        @retval success whether there was success
-        """
-        return self.instrument_device.link_model(instrument_device_id, instrument_model_id)
-
-    def unassign_instrument_model(self, instrument_model_id='', instrument_device_id=''):
-        """
-        Assign a model from a device type
-        @param instrument_model_id the model id
-        @param instrument_device_id the device id
-        @retval success whether there was success
-
-        """
-        return self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
-
-
-
 
 
 
@@ -342,38 +301,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.instrument_device.find_some(filters)
-
-
-
-
-
-    def assign_instrument_device(self, instrument_id='', instrument_device_id=''):
-        """
-        @todo the arguments to this function have the wrong names
-
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        raise NotImplementedError()
-        logical_instrument_id = ''
-        return self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
-
-    def unassign_instrument_device(self, instrument_id='', instrument_device_id=''):
-        """
-        @todo the arguments to this function have the wrong names
-
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        raise NotImplementedError()
-        logical_instrument_id = ''
-        return self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
-
-
 
 
 
@@ -526,25 +453,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent.find_some(filters)
 
-    #FIXME: args need to change
-    def assign_platform_agent(self, platform_agent_id='', platform_id='', platform_agent_instance=None):
-        """
-        @todo the arguments for this function seem incorrect and/or mismatched
-        """
-        raise NotImplementedError()
-        #return self.platform_agent.assign(platform_agent_id, platform_id, platform_agent_instance)
-
-    #FIXME: args need to change
-    def unassign_platform_agent(self, platform_agent_id='', platform_id=''):
-
-        """
-        @todo the arguments for this function seem incorrect and/or mismatched
-
-        """
-        raise NotImplementedError()
-        #return self.platform_agent.unassign(platform_agent_id, platform_device_id, platform_agent_instance)
-
-
 
 
     ##########################################################################
@@ -598,20 +506,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.platform_model.find_some(filters)
-
-    def assign_platform_model(self, platform_model_id='', platform_device_id=''):
-        """
-        @todo this seems backwards
-        """
-        return self.platform_model.assign(platform_model_id, platform_device_id)
-
-    def unassign_platform_model(self, platform_model_id='', platform_device_id=''):
-        """
-        @todo this seems backwards
-        """
-        return self.platform_model.assign(platform_model_id, platform_device_id)
-
-
 
 
 
@@ -728,20 +622,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_model.find_some(filters)
 
-    def assign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
-        """
-        @todo this seems backwards... should be device, model
-        """
-        return self.sensor_model.assign(sensor_model_id, sensor_device_id)
-
-    def unassign_sensor_model(self, sensor_model_id='', sensor_device_id=''):
-        """
-        @todo this seems backwards... should be device, model
-
-        """
-        return self.sensor_model.unassign(sensor_model_id, sensor_device_id)
-
-
 
 
     ##########################################################################
@@ -797,6 +677,60 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.sensor_device.find_some(filters)
+
+
+
+    ##########################################################################
+    #
+    # ASSOCIATIONS
+    #
+    ##########################################################################
+
+
+    def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
+        self.instrument_device.link_model(instrument_device_id, instrument_model_id)
+
+    def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
+        self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
+
+
+    def assign_X_to_Y(self, X_id='', Y_id=''):
+        self.Y.link_Z(Y_id, X_id)
+
+    def unassign_X_from_Y(self, X_id='', Y_id=''):
+        self.Y.unlink_Z(Y_id, X_id)
+
+    def assign_sensor_model_to_sensor_device(self, sensor_model_id='', sensor_device_id=''):
+        self.sensor_device.link_model(sensor_device_id, sensor_model_id)
+
+    def unassign_sensor_model_from_sensor_device(self, sensor_model_id='', sensor_device_id=''):
+        self.sensor_device.unlink_model(sensor_device_id, sensor_model_id)
+
+    def assign_platform_model_to_platform_device(self, platform_model_id='', platform_device_id=''):
+        self.platform_device.link_model(platform_device_id, platform_model_id)
+
+    def unassign_platform_model_from_platform_device(self, platform_model_id='', platform_device_id=''):
+        self.platform_device.unlink_model(platform_device_id, platform_model_id)
+
+    def assign_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        raise NotImplementedError("Should be assign logical instrument!")
+        self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
+
+    def unassign_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        raise NotImplementedError("Should be assign logical instrument!")
+        self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
+
+    def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
+        self.platform_agent.link_instance(platform_agent_id, platform_agent_instance_id)
+
+    def unassign_platform_agent_instance_from_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
+        self.platform_agent.unlink_instance(platform_agent_id, platform_agent_instance_id)
+
+    def assign_instrument_agent_instance_to_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
+        self.instrument_agent.link_instance(instrument_agent_id, instrument_agent_instance_id)
+
+    def unassign_instrument_agent_instance_from_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
+        self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
 
 
 

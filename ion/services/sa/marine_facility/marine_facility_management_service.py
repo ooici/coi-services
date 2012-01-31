@@ -267,61 +267,45 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
 
 
+    ############################
+    #
+    #  ASSOCIATIONS
+    #
+    ############################
+
+
+    def assign_platform_to_logical_platform(self, platform_id='', logical_platform_id=''):
+        self.logical_platform.link_platform(logical_platform_id, platform_id)
+
+
+    def unassign_platform_from_logical_platform(self, platform_id='', logical_platform_id=''):
+        self.logical_platform.unlink_platform(logical_platform_id, platform_id)
+
+
+    def assign_logical_instrument_to_logical_platform(self, logical_instrument_id='', logical_platform_id=''):
+        self.logical_platform.link_instrument(logical_platform_id, logical_instrument_id)
+
+    def unassign_logical_instrument_from_logical_platform(self, logical_instrument_id='', logical_platform_id=''):
+        self.logical_platform.unlink_instrument(logical_platform_id, logical_instrument_id)
+
+
+    def assign_site_to_marine_facility(self, site_id='', marine_facility_id=''):
+        self.marine_facility.link_site(marine_facility_id, site_id)
+
+    def unassign_site_from_marine_facility(self, site_id="", marine_facility_id=''):
+        self.marine_facility.unlink_site(marine_facility_id, site_id)
+
+
+    def assign_site_to_site(self, child_site_id='', parent_site_id=''):
+        self.site.link_site(parent_site_id, child_site_id)
+
+    def unassign_site_from_site(self, child_site_id="", parent_site_id=''):
+        self.site.unlink_site(parent_site_id, child_site_id)
 
 
 
 
-    #FIXME: args need to change
-    def assign_platform(self, logical_platform_id='', parent_site_id=''):
-        """
-        @todo the arguments for this function seem incorrect and/or mismatched
-        """
-        raise NotImplementedError()
-        #return self.instrument_agent.assign(instrument_agent_id, instrument_id, instrument_agent_instance)
 
-    def unassign_platform(self, logical_platform_id='', parent_site_id=''):
-        """@todo document this interface!!!
-
-        @param logical_platform_id    str
-        @param parent_site_id    str
-        @retval success    bool
-        """
-        raise NotImplementedError()
-        #return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
-
-
-
-    def assign_site(self, child_site_id='', parent_site_id=''):
-        assert child_site_id and parent_site_id, "Arguments not set"
-        aid = self.clients.resource_registry.create_association(parent_site_id, PRED.hasSite, child_site_id)
-        return True
-
-    def unassign_site(self, parent_site_id='', child_site_id=''):
-        assert child_site_id and parent_site_id, "Arguments not set"
-        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, PRED.hasSite, child_site_id, True)
-        if not assoc_id:
-            raise NotFound("Association ParentSite hasSite ChildSite does not exist: parent site: %s  child site: %s" % parent_site_id, child_site_id)
-
-        aid = self.clients.resource_registry.delete_association(assoc_id)
-        return True
-
-
-    def assign_instrument(self, logical_instrument_id='', parent_site_id=''):
-        #todo: is platform associated with a Site?
-        assert logical_instrument_id and parent_site_id, "Arguments not set"
-        aid = self.clients.resource_registry.create_association(parent_site_id, PRED.hasInstrument, logical_instrument_id)
-        return True
-
-
-    def unassign_instrument(self, logical_instrument_id='', parent_site_id=''):
-        #todo: is instrument associated with a Site?
-        assert logical_instrument_id and parent_site_id, "Arguments not set"
-        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, PRED.hasInstrument, logical_instrument_id, True)
-        if not assoc_id:
-            raise NotFound("Association Site hasPlatform LogicalInstrument does not exist: site: %s  instrument: %s" % parent_site_id, logical_instrument_id)
-
-        aid = self.clients.resource_registry.delete_association(assoc_id)
-        return True
 
     def define_observatory_policy(self):
         """method docstring
