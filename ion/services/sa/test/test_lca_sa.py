@@ -59,9 +59,15 @@ class TestLCASA(IonIntegrationTestCase):
     def test_just_the_setup(self):
         return
 
-    def test_jg_slides(self):
+    def test_jg_slide1(self):
         self.jg_slide1()
+
+
+    def test_jg_slide3(self):
         self.jg_slide3()
+
+
+
 
     def jg_slide1(self):
         c = self.client
@@ -105,3 +111,33 @@ class TestLCASA(IonIntegrationTestCase):
         site_id = c.MFMS.create_site(site_obj)["site_id"]
         site_id #fixme, remove this 
 
+        log.info("Finding sites")
+        num_sites = len(c.MFMS.find_sites()["site_list"])
+        log.info("I found %d sites" % num_sites)
+
+        log.info("Creating a site")
+        mf_obj = self.any_old(RT.Site)
+        mf_id = c.MFMS.create_site(mf_obj)["site_id"]
+
+        log.info("Reading site #%s" % mf_id)
+        mf_ret = c.MFMS.read_site(mf_id)["site"]
+        
+        self.assertEqual(mf_obj.name, mf_ret.name)
+        self.assertEqual(mf_obj.description, mf_ret.description)
+
+        log.info("Updating site #%s" % mf_id)
+        mf_newname = "%s updated" % mf_ret.name
+        mf_ret.name = mf_newname
+        c.MFMS.update_site(mf_ret)
+
+        log.info("Reading site #%s to verify update" % mf_id)
+        mf_ret = c.MFMS.read_site(mf_id)["site"]
+        
+        self.assertEqual(mf_newname, mf_ret.name)
+        self.assertEqual(mf_obj.description, mf_ret.description)
+
+        log.info("Finding sites... checking that there's a new one")
+        num_sites2 = len(c.MFMS.find_sites()["site_list"])
+
+        self.assertTrue(num_sites2 > num_sites)
+        
