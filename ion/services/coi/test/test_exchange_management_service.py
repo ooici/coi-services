@@ -4,6 +4,7 @@ __author__ = 'Stephen P. Henrie, Dave Foster <dfoster@asascience.com>'
 __license__ = 'Apache 2.0'
 
 from pyon.core import exception
+from pyon.ion import exchange
 from interface.objects import ExchangeSpace, ExchangePoint, ExchangeName
 from mock import Mock, patch, sentinel
 from pyon.util.unit_test import PyonTestCase
@@ -200,6 +201,13 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         xslist2, _ = self.rr.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, epid, id_only=True)
         self.assertEquals(len(xslist2), 0)
 
+        # TEST ONLY: have to clean up the xp or we leave junk on the broker
+        # we have to do it manually because the xs is gone
+        #self.ems.delete_exchange_point(epid)
+        xs = exchange.ExchangeSpace(exchange_space.name)
+        xp = exchange.ExchangePoint(exchange_point.name, xs, 'ttree')
+        self.container.ex_manager.delete_xp(xp)
+
     def test_xs_create_update(self):
         raise unittest.SkipTest("Test not implemented yet")
 
@@ -222,6 +230,9 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.assertEquals(xnlist[0], esid)
 
         # container API got called (but is a noop)
+
+        # TEST ONLY: have to clean up the xs or we leave junk on the broker
+        self.ems.delete_exchange_space(esid)
 
     def test_xn_declare_no_xs(self):
         exchange_name = ExchangeName(name="shoez")
