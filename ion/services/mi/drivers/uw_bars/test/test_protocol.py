@@ -19,7 +19,7 @@ class ProtocolTest(WithSimulatorTestCase):
         """
 
         protocol = BarsInstrumentProtocol()
-        self.assertEqual(BarsProtocolState.PREINIT,
+        self.assertEqual(BarsProtocolState.PRE_INIT,
                          protocol.get_current_state())
 
         protocol.initialize()

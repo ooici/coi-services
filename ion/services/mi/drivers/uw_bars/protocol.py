@@ -28,7 +28,7 @@ log = logging.getLogger('mi_logger')
 
 
 class BarsProtocolState(BaseEnum):
-    PREINIT = "PREINIT"
+    PRE_INIT = "PRE_INIT"
     COLLECTING_DATA = 'COLLECTING_DATA'
     MAIN_MENU = 'MAIN_MENU'
     CHANGE_PARAMS_MENU = 'CHANGE_PARAMS_MENU'
@@ -79,10 +79,10 @@ class BarsInstrumentProtocol(InstrumentProtocol):
                                   None,
                                   InstErrorCode.UNHANDLED_EVENT)
 
-        # PREINIT
-        self._fsm.add_handler(BarsProtocolState.PREINIT,
+        # PRE_INIT
+        self._fsm.add_handler(BarsProtocolState.PRE_INIT,
                               BarsProtocolEvent.INITIALIZE,
-                              self._handler_preinit_initialize)
+                              self._handler_pre_init_initialize)
 
         # COLLECTING_DATA
         self._fsm.add_handler(BarsProtocolState.COLLECTING_DATA,
@@ -115,8 +115,8 @@ class BarsInstrumentProtocol(InstrumentProtocol):
                               BarsProtocolEvent.TBD,
                               self._handler_change_params_menu_TBD)
 
-        # we start in the PREINIT state
-        self._fsm.start(BarsProtocolState.PREINIT)
+        # we start in the PRE_INIT state
+        self._fsm.start(BarsProtocolState.PRE_INIT)
 
     def _logEvent(self, params):
         log.info("_logEvent: curr_state=%s, params=%s" %
@@ -128,7 +128,7 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         not defined there but in the CommandResponseInstrumentProtocol subclass
         """
 
-        print("got_data: '%s'" % data.replace('\n', '\\n'))
+        print("_got_data: '%s'" % data.replace('\n', '\\n'))
 
     def get_current_state(self):
         """Gets the current state of the protocol."""
@@ -143,7 +143,7 @@ class BarsInstrumentProtocol(InstrumentProtocol):
     # State handlers
     ########################################################################
 
-    def _handler_preinit_initialize(self, params):
+    def _handler_pre_init_initialize(self, params):
         """
         """
 
