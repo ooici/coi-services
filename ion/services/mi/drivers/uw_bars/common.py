@@ -33,6 +33,7 @@ class BarsChannel(BaseEnum):
     BATTERY_VOLTAGE = "Battery Voltage"
 
     ALL = DriverChannel.ALL
+    INSTRUMENT = DriverChannel.INSTRUMENT
 
 
 class BarsStatus(BaseEnum):

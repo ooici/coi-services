@@ -30,13 +30,13 @@ class DriverTest(WithSimulatorTestCase):
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
         # configure
-        configs = {BarsChannel.ALL: self.config}
+        configs = {BarsChannel.INSTRUMENT: self.config}
         success, result = driver.configure(configs)
         self.assertEqual(InstErrorCode.OK, success)
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
 
         # connect
-        success, result = driver.connect([BarsChannel.ALL])
+        success, result = driver.connect([BarsChannel.INSTRUMENT])
         self.assertEqual(InstErrorCode.OK, success)
         self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
 
@@ -44,6 +44,6 @@ class DriverTest(WithSimulatorTestCase):
         time.sleep(5)
 
         # disconnect
-        success, result = driver.disconnect([BarsChannel.ALL])
+        success, result = driver.disconnect([BarsChannel.INSTRUMENT])
         self.assertEqual(InstErrorCode.OK, success)
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())

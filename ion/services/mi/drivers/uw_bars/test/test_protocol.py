@@ -19,12 +19,16 @@ class ProtocolTest(WithSimulatorTestCase):
         """
 
         protocol = BarsInstrumentProtocol()
+        self.assertEqual(BarsProtocolState.PREINIT,
+                         protocol.get_current_state())
+
+        protocol.initialize()
         protocol.configure(self.config)
+        protocol.connect()
+
         self.assertEqual(BarsProtocolState.COLLECTING_DATA,
                          protocol.get_current_state())
 
-        print "connecting"
-        protocol.connect()
 
         print "sleeping for a bit"
         time.sleep(5)

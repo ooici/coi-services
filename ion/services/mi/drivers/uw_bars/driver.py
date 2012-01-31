@@ -49,7 +49,7 @@ class BarsInstrumentDriver(InstrumentDriver):
     def get_current_state(self):
         return self._state
 
-    def initialize(self, channels=[BarsChannel.ALL], timeout=10):
+    def initialize(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
         Return a device channel to an unconnected, unconfigured state.
         @param channels List of channel names to initialize.
@@ -57,7 +57,7 @@ class BarsInstrumentDriver(InstrumentDriver):
         """
 
         assert len(channels) == 1
-        assert channels[0] == BarsChannel.ALL
+        assert channels[0] == BarsChannel.INSTRUMENT
 
         success = InstErrorCode.OK
         result = None
@@ -76,9 +76,9 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         assert isinstance(configs, dict)
         assert len(configs) == 1
-        assert BarsChannel.ALL in configs
+        assert BarsChannel.INSTRUMENT in configs
 
-        self.config = configs.get(BarsChannel.ALL, None)
+        self.config = configs.get(BarsChannel.INSTRUMENT, None)
 
         success = InstErrorCode.OK
         result = None
@@ -87,7 +87,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return (success, result)
 
-    def connect(self, channels=[BarsChannel.ALL], timeout=10):
+    def connect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
         Establish communications with a device channel.
         @param channels List of channel names to connect.
@@ -95,7 +95,7 @@ class BarsInstrumentDriver(InstrumentDriver):
         """
 
         assert len(channels) == 1
-        assert channels[0] == BarsChannel.ALL
+        assert channels[0] == BarsChannel.INSTRUMENT
 
         success = InstErrorCode.OK
         result = None
@@ -120,7 +120,7 @@ class BarsInstrumentDriver(InstrumentDriver):
         self.protocol.configure(self.config)
         self.protocol.connect()
 
-    def disconnect(self, channels=[BarsChannel.ALL], timeout=10):
+    def disconnect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
         Disconnect communications with a device channel.
         @param channels List of channel names to disconnect.
@@ -129,7 +129,7 @@ class BarsInstrumentDriver(InstrumentDriver):
         """
 
         assert len(channels) == 1
-        assert channels[0] == BarsChannel.ALL
+        assert channels[0] == BarsChannel.INSTRUMENT
 
         success = InstErrorCode.OK
         result = None
@@ -141,7 +141,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return (success, result)
 
-    def detach(self, channels=[BarsChannel.ALL], timeout=10):
+    def detach(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
         Disconnect communications with a device channel.
         @param channels List of channel names to disconnect.

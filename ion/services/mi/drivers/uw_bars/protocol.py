@@ -16,6 +16,7 @@ __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.instrument_protocol import InstrumentProtocol
+from ion.services.mi.instrument_driver import DriverState
 
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.instrument_fsm import InstrumentFSM
@@ -27,6 +28,7 @@ log = logging.getLogger('mi_logger')
 
 
 class BarsProtocolState(BaseEnum):
+    PREINIT = "PREINIT"
     COLLECTING_DATA = 'COLLECTING_DATA'
     MAIN_MENU = 'MAIN_MENU'
     CHANGE_PARAMS_MENU = 'CHANGE_PARAMS_MENU'
@@ -34,6 +36,7 @@ class BarsProtocolState(BaseEnum):
 
 
 class BarsProtocolEvent(BaseEnum):
+    INITIALIZE = "INITIALIZE"
     ENTER_MAIN_MENU = 19  # Control-S
     RESTART_DATA_COLLECTION = '1'
     ENTER_CHANGE_PARAMS = '2'
@@ -66,7 +69,7 @@ class BarsInstrumentProtocol(InstrumentProtocol):
     def __init__(self):
         """
         Creates an instance of this protocol. This basically sets up the
-        state machine, which is initialized in the COLLECTING_DATA state.
+        state machine, which is initialized in the INIT state.
         """
 
         InstrumentProtocol.__init__(self)
@@ -76,12 +79,17 @@ class BarsInstrumentProtocol(InstrumentProtocol):
                                   None,
                                   InstErrorCode.UNHANDLED_EVENT)
 
-        # collecting data
+        # PREINIT
+        self._fsm.add_handler(BarsProtocolState.PREINIT,
+                              BarsProtocolEvent.INITIALIZE,
+                              self._handler_preinit_initialize)
+
+        # COLLECTING_DATA
         self._fsm.add_handler(BarsProtocolState.COLLECTING_DATA,
                               BarsProtocolEvent.ENTER_MAIN_MENU,
                               self._handler_collecting_data_enter_main_menu)
 
-        # main menu
+        # MAIN_MENU
         self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
                               BarsProtocolEvent.RESTART_DATA_COLLECTION,
                               self._handler_collecting_data_enter_main_menu)
@@ -102,17 +110,13 @@ class BarsInstrumentProtocol(InstrumentProtocol):
                               BarsProtocolEvent.ENTER_SET_SYSTEM_CLOCK,
                               self._handler_main_menu_enter_set_system_clock)
 
-        # change params menu
+        # CHANGE_PARAMS_MENU
         self._fsm.add_handler(BarsProtocolState.CHANGE_PARAMS_MENU,
                               BarsProtocolEvent.TBD,
                               self._handler_change_params_menu_TBD)
 
-        #
-        # NOTE assume the instrument is collecting data
-        # TODO: what if the instrument is NOT currently collecting data?
-        # TODO In general, sync mechanisms?
-        #
-        self._fsm.start(BarsProtocolState.COLLECTING_DATA)
+        # we start in the PREINIT state
+        self._fsm.start(BarsProtocolState.PREINIT)
 
     def _logEvent(self, params):
         log.info("_logEvent: curr_state=%s, params=%s" %
@@ -127,11 +131,35 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         print("got_data: '%s'" % data.replace('\n', '\\n'))
 
     def get_current_state(self):
+        """Gets the current state of the protocol."""
         return self._fsm.get_current_state()
+
+    def connect(self, timeout=10):
+        super(BarsInstrumentProtocol, self).connect(timeout)
+        self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
+
 
     ########################################################################
     # State handlers
     ########################################################################
+
+    def _handler_preinit_initialize(self, params):
+        """
+        """
+
+        self._logEvent(params)
+
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+
+        #TODO read from the instrument to determine current state
+        #...
+
+        # assume collecting data for the moment
+        next_state = BarsProtocolState.COLLECTING_DATA
+
+        return (success, next_state, result)
 
     def _handler_collecting_data_enter_main_menu(self, params):
         """
