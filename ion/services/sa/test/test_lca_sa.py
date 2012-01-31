@@ -21,7 +21,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-class TestLCAStep1SA(IonIntegrationTestCase):
+class TestLCASA(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
