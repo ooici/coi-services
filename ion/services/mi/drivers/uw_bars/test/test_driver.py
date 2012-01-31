@@ -10,11 +10,14 @@ from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.common import InstErrorCode
 
+import time
+
+
 class DriverTest(WithSimulatorTestCase):
 
     def test(self):
         """
-        Tests driver initialization, configuration, connection
+        Tests driver initialization, configuration, connection, disconnection
         """
 
         driver = BarsInstrumentDriver()
@@ -35,5 +38,12 @@ class DriverTest(WithSimulatorTestCase):
         # connect
         success, result = driver.connect([BarsChannel.ALL])
         self.assertEqual(InstErrorCode.OK, success)
-        self.assertEqual(DriverState.CONNECTING, driver.get_state())
+        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_state())
 
+        print "sleeping for a bit"
+        time.sleep(5)
+
+        # disconnect
+        success, result = driver.disconnect([BarsChannel.ALL])
+        self.assertEqual(InstErrorCode.OK, success)
+        self.assertEqual(DriverState.DISCONNECTED, driver.get_state())

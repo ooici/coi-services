@@ -17,16 +17,13 @@ from ion.services.mi.instrument_driver import DriverState
 
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 
 #import ion.services.mi.mi_logger
 import logging
 log = logging.getLogger('mi_logger')
 
-
-#
-# TODO this is not functional yet
-#
 
 class BarsInstrumentDriver(InstrumentDriver):
     """The InstrumentDriver class for the TRHPH BARS sensor.
@@ -39,7 +36,6 @@ class BarsInstrumentDriver(InstrumentDriver):
     # TODO harmonize with base class.
 
     # TODO NOTE: Assumes all interaction is for the ALL special channels spec
-
 
     def __init__(self):
         InstrumentDriver.__init__(self)
@@ -80,17 +76,16 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         assert isinstance(configs, dict)
         assert len(configs) == 1
-        assert configs.has_key(BarsChannel.ALL)
+        assert BarsChannel.ALL in configs
 
         self.config = configs.get(BarsChannel.ALL, None)
 
         success = InstErrorCode.OK
         result = None
 
-        self._state = DriverState.DISCONNECTED;
+        self._state = DriverState.DISCONNECTED
 
         return (success, result)
-
 
     def connect(self, channels=[BarsChannel.ALL], timeout=10):
         """
@@ -105,16 +100,25 @@ class BarsInstrumentDriver(InstrumentDriver):
         success = InstErrorCode.OK
         result = None
 
-        self._configure_protocol(self.config)
+        self._setup_protocol(self.config)
 
-        self._state = DriverState.CONNECTING
+        # TODO complete connection
+
+        prot_state = self.protocol.get_state()
+        if prot_state == BarsProtocolState.COLLECTING_DATA:
+            self._state = DriverState.AUTOSAMPLE
+        else:
+            #
+            # TODO proper handling
+            raise Exception("Not handled yet. Expecting protocol to be in %s" %
+                            BarsProtocolState.COLLECTING_DATA)
 
         return (success, result)
 
-    def _configure_protocol(self, config):
+    def _setup_protocol(self, config):
         self.protocol = BarsInstrumentProtocol()
         self.protocol.configure(self.config)
-
+        self.protocol.connect()
 
     def disconnect(self, channels=[BarsChannel.ALL], timeout=10):
         """
@@ -123,7 +127,19 @@ class BarsInstrumentDriver(InstrumentDriver):
         @param timeout Number of seconds before this operation times out
 
         """
-        pass
+
+        assert len(channels) == 1
+        assert channels[0] == BarsChannel.ALL
+
+        success = InstErrorCode.OK
+        result = None
+
+        self.protocol.disconnect()
+        self.protocol = None
+
+        self._state = DriverState.DISCONNECTED
+
+        return (success, result)
 
     def detach(self, channels=[BarsChannel.ALL], timeout=10):
         """
@@ -158,19 +174,6 @@ class BarsInstrumentDriver(InstrumentDriver):
         """
         """
         pass
-
-    ################################
-    # Announcement callback from protocol
-    ################################
-    def protocol_callback(self, event):
-        """The callback method that the protocol calls when there is some sort
-        of event worth notifying the driver about.
-
-        @param event The event object from the event service
-        @todo Make event a real event object of some sort instead of the hack
-        tuple of (DriverAnnouncement enum, any error code, message)
-        """
-
 
     ########################################################################
     # TBD.
