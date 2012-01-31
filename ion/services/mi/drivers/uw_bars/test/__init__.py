@@ -7,7 +7,6 @@ from ion.services.mi.drivers.uw_bars.test.bars_simulator import BarsSimulator
 
 from threading import Thread
 from unittest import TestCase
-import time
 
 
 class WithSimulatorTestCase(TestCase):
@@ -30,7 +29,6 @@ class WithSimulatorTestCase(TestCase):
         self.simulator_thread = Thread(target=self.simulator.run)
         print "starting simulator"
         self.simulator_thread.start()
-        time.sleep(1)
 
     def tearDown(self):
         """
