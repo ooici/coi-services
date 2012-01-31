@@ -10,7 +10,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.idirectory_service import DirectoryServiceClient, DirectoryServiceProcessClient
 
-@attr('FOO', group='directory')
+@attr('INT', group='directory')
 class TestDirectoryService(IonIntegrationTestCase):
     
     def setUp(self):
