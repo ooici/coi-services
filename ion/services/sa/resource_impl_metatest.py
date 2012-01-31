@@ -1,4 +1,4 @@
-85;95;0c#re!/usr/bin/env python
+#!/usr/bin/env python
 
 """
 @file ion/services/sa/test/resource_impl_metatest.py
