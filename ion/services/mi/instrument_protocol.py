@@ -207,6 +207,14 @@ class InstrumentProtocol(object):
         """
         pass
 
+    ########################################################################
+    # Helper methods
+    ########################################################################
+    def _got_data(self, data):
+       """
+       Called by the logger whenever there is data available
+       """
+       pass
 
 class BinaryInstrumentProtocol(InstrumentProtocol):
     """Instrument protocol description for a binary-based instrument
@@ -291,49 +299,9 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     class provides some structure for manipulating data to and from the
     instrument.
     """
-    """    
-    def __init__(self, callback=None,
-                 command_list=None,
-                 response_regex_list=None,
-                 get_prefix="",
-                 set_prefix="",
-                 set_delimiter="",
-                 execute_prefix="",
-                 eoln="\n"):
-    """
     def __init__(self, callback, prompts, newline):
         InstrumentProtocol.__init__(self, callback)
-        
-        #self.command_list = command_list
-        """The BaseEnum command keys to be used"""
-    
-        #self.response_regex_list = response_regex_list
-        """The response regex dict to be used to map a command's repsonse to
-        a specific format
-        """
-        
-        #self.get_prefix = get_prefix
-        """The prefix used to start a get
-        
-        This will be added before the parameter string when querying.
-        """
-        
-        #self.set_prefix = set_prefix
-        """The prefix used to start a set
-        
-        This will be added before the parameter string when setting.
-        """
-        
-        #self.set_delimiter = set_delimiter
-        """The delimiter string between a parameter name an new value"""
-        
-        #self.execute_prefix = execute_prefix
-        """The prefix used to start a command
-        
-        This will be added before the command name string when executing
-        a command.
-        """
-        
+                
         self.eoln = newline
         """The end-of-line delimiter to use"""
     
@@ -345,43 +313,28 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
 
         self._build_handlers = {}
         self._response_handlers = {}
-    
-    
-    def _identify_response(self, response_str=""):
-        """Format the response to a command into a usable form
-        
-        @param response_str The raw response string from the instrument
-        @retval response A usably-formatted response structure. A dict?
-        """
-        assert(isinstance(response_str, str))
-        # Apply regexes, separators, delimiters, Eolns, etc.
-        
-    def _build_command(self, command=None, cmd_args=""):
-        """Construct a command string based on the values supplied
-        
-        @param command A usable struucture (dict?) that needs to be converted
-        into a string for the instrument
-        @param cmd_args an argument string to append to the command
-        @retval command_str The string to send to the instrument
-        """
-        assert(isinstance(command, dict))
-        # Apply regexes, separators, delimiters, Eolns, etc.
-        
 
     def _add_build_handler(self, cmd, func):
         """
+        Insert a handler class responsible for building a command to send to
+        the instrument.
+        
+        @param cmd The high level key of the command to build for.
         """
         self._build_handlers[cmd] = func
         
     def _add_response_handler(self, cmd, func):
         """
+        Insert a handler class responsible for handling the response to a
+        command sent to the instrument.
+        
+        @param cmd The high level key of the command to responsd to.
         """
         self._response_handlers[cmd] = func
         
     def _got_data(self, data):
         """
         """
-
         # Update the line and prompt buffers.
         self._linebuf += data        
         self._promptbuf += data
@@ -394,8 +347,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
     def  _wakeup(self, timeout=10):
         """
-        """
-        """
+        Clear buffers and send a wakeup command to the instrument
+        @todo Consider the case where there is no prompt returned when the
+        instrument is awake.
+        @param timeout The timeout in seconds
+        @raises InstrumentProtocolExecption on timeout
         """
         # Clear the prompt buffer.
         self._promptbuf = ''
@@ -415,10 +371,14 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return item
             
             if time.time() > starttime + timeout:
-                return InstErrorCode.TIMEOUT
+                raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
         
     def _get_response(self, timeout=10):
         """
+        Get a response from the instrument
+        @todo Consider cases with no prompt
+        @param timeout The timeout in seconds
+        @raises InstrumentProtocolExecption on timeout
         """
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
@@ -431,23 +391,29 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return (item, self._linebuf)
             
             if time.time() > starttime + timeout:
-                return (InstErrorCode.TIMEOUT, None)
+                raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
 
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """
+        Issue a command to the instrument after a wake up and clearing of
+        buffers. Find the response handler, handle the response, and return it.
+        
+        @param cmd The high level command to issue
+        @param args Arguments for the command
+        @param kwargs timeout if one exists, defaults to 10
+        @retval resp_result The response handler's return value
+        @raises InstrumentProtocolException Bad command or timeout
         """
         timeout = kwargs.get('timeout', 10)
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
-            return InstErrorCode.BAD_DRIVER_COMMAND
+            raise InstrumentProtocolException(InstErrorCode.BAD_DRIVER_COMMAND)
         
         cmd_line = build_handler(cmd, *args)
         
-        # Wakeup the device.
+        # Wakeup the device, pass up exeception if timeout
         prompt = self._wakeup(timeout)
-        if prompt == InstErrorCode.TIMEOUT:
-            return prompt
             
         # Clear line and prompt buffers for result.
         self._linebuf = ''
@@ -457,43 +423,43 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         mi_logger.debug('_do_cmd_resp: %s', repr(cmd_line))
         self._logger_client.send(cmd_line)
 
-        # Wait for the prompt, prepare result and return.
+        # Wait for the prompt, prepare result and return, timeout exception
         (prompt, result) = self._get_response(timeout)
-        if prompt == InstErrorCode.TIMEOUT:
-            return prompt
                 
         resp_handler = self._response_handlers.get(cmd, None)
+        resp_result = None
         if resp_handler:
-            resp_handler(result, prompt)
+            resp_result = resp_handler(result, prompt)
 
-        return InstErrorCode.OK
+        return resp_result
             
     def _do_cmd_no_resp(self, cmd, *args, **kwargs):
         """
+        Issue a command to the instrument after a wake up and clearing of
+        buffers. No response is handled as a result of the command.
+        
+        @param cmd The high level command to issue
+        @param args Arguments for the command
+        @param kwargs timeout if one exists, defaults to 10
+        @raises InstrumentProtocolException Bad command or timeout
         """
         timeout = kwargs.get('timeout', 10)        
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
-            return InstErrorCode.BAD_DRIVER_COMMAND
+            raise InstrumentProtocolException(InstErrorCode.BAD_DRIVER_COMMAND)
         
         cmd_line = build_handler(cmd, *args)
         
-        # Wakeup the device.
+        # Wakeup the device, timeout exception as needed
         prompt = self._wakeup(timeout)
-        if prompt == InstErrorCode.TIMEOUT:
-            return prompt
-        
+       
         # Clear line and prompt buffers for result.
         self._linebuf = ''
 
         # Send command.
         mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
-        self._logger_client.send(cmd_line)
-
-        return InstErrorCode.OK
-        
-        
+        self._logger_client.send(cmd_line)        
             
             
             
