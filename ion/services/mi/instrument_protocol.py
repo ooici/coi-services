@@ -351,7 +351,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @todo Consider the case where there is no prompt returned when the
         instrument is awake.
         @param timeout The timeout in seconds
-        @raises InstrumentProtocolExecption on timeout
+        @throw InstrumentProtocolExecption on timeout
         """
         # Clear the prompt buffer.
         self._promptbuf = ''
@@ -378,7 +378,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         Get a response from the instrument
         @todo Consider cases with no prompt
         @param timeout The timeout in seconds
-        @raises InstrumentProtocolExecption on timeout
+        @throw InstrumentProtocolExecption on timeout
         """
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
@@ -402,7 +402,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @param args Arguments for the command
         @param kwargs timeout if one exists, defaults to 10
         @retval resp_result The response handler's return value
-        @raises InstrumentProtocolException Bad command or timeout
+        @throw InstrumentProtocolException Bad command
+        @throw InstrumentTimeoutException Timeout
         """
         timeout = kwargs.get('timeout', 10)
         
@@ -441,7 +442,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @param cmd The high level command to issue
         @param args Arguments for the command
         @param kwargs timeout if one exists, defaults to 10
-        @raises InstrumentProtocolException Bad command or timeout
+        @throw InstrumentProtocolException Bad command
+        @throw InstrumentTimeoutException Timeout
         """
         timeout = kwargs.get('timeout', 10)        
         
@@ -460,6 +462,15 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Send command.
         mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
         self._logger_client.send(cmd_line)        
-            
-            
+
+    def _build_simple_command(self, command):
+        """
+        Build a very simple command string consisting of the command and the
+        newline associated with this class. This is intended to be extended as
+        needed by subclasses.
+        
+        @param command The command string to send.
+        @retval The complete command, ready to send to the device.
+        """
+        return command+self.eoln
             

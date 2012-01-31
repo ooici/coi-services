@@ -31,6 +31,7 @@ class InstrumentProtocolException(InstrumentException):
     
     These are generally related to parsing or scripting of what is supposed
     to happen when talking at the lowest layer protocol to a device.
+    @todo Add partial result property?
     """
 
 class InstrumentStateException(InstrumentException):
