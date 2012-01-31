@@ -11,6 +11,7 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
+from ion.services.mi.instrument_driver import DriverChannel
 
 
 class BarsCommand(BaseEnum):
@@ -30,6 +31,8 @@ class BarsChannel(BaseEnum):
     RESISTIVITY_TEMP_VOLTS = "Resistivity Temp Volts"
     RESISTIVITY_TEMP_DEG_C = "Resistivity Temp Deg C"
     BATTERY_VOLTAGE = "Battery Voltage"
+
+    ALL = DriverChannel.ALL
 
 
 class BarsStatus(BaseEnum):

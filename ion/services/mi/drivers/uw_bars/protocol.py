@@ -18,8 +18,6 @@ from ion.services.mi.common import BaseEnum
 from ion.services.mi.instrument_protocol import InstrumentProtocol
 
 from ion.services.mi.common import InstErrorCode
-from ion.services.mi.instrument_driver import DriverEvent
-
 from ion.services.mi.instrument_fsm import InstrumentFSM
 
 
@@ -72,8 +70,6 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         """
 
         InstrumentProtocol.__init__(self)
-
-        self._linebuf = ''
 
         self._fsm = InstrumentFSM(BarsProtocolState, BarsProtocolEvent,
                                   BarsProtocolEvent.RESTART_DATA_COLLECTION,
@@ -128,7 +124,7 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         not defined there but in the CommandResponseInstrumentProtocol subclass
         """
 
-        print("got_data: '%s'" % data)
+        print("got_data: '%s'" % data.replace('\n', '\\n'))
 
     ########################################################################
     # State handlers
