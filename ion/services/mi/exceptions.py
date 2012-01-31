@@ -18,8 +18,8 @@ class InstrumentException(Exception):
     representation in ION.
     """
     
-    def __init__ (self, error_code, msg):
-        
+    def __init__ (self, error_code, msg=""):
+        self.args = (error_code, msg)
         self.error_code = error_code
         self.msg = msg
     
