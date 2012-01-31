@@ -109,10 +109,16 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 if not hasattr(self, "_rimi_service_obj"):
 
                     # get service from container proc manager
-                    service_itself = [
+                    relevant_services = [
                         item[1] for item in self.container.proc_manager.procs.items() 
                         if type(item[1]) == service_type
-                        ][0]
+                        ]
+
+                    assert (0 < len(relevant_services)), \
+                        "no services of type '%s' found running in container!" % service_type
+                        
+
+                    service_itself = relevant_services[0]
                     self._rimi_service_obj = service_itself
                     assert(self._rimi_service_obj)
 
