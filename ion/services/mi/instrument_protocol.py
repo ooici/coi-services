@@ -17,7 +17,7 @@ import logging
 import time
 import os
 import signal
-
+import re
 
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
@@ -27,6 +27,30 @@ from ion.services.mi.common import InstErrorCode
 from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 mi_logger = logging.getLogger('mi_logger')
+
+class ParameterDictVal(object):
+    """
+    """
+    def __init__(self, name, pattern, f_getval, f_format, value=None):
+        """
+        """
+        self.name = name
+        self.pattern = pattern
+        self.regex = re.compile(pattern)
+        self.f_getval = f_getval
+        self.f_format = f_format
+        self.value = value
+
+    def update(self, input):
+        """
+        """
+        match = self.regex.match(input)
+        if match:
+            self.value = self.f_getval(match)
+            mi_logger.debug('Updated parameter %s=%s', self.name, str(self.value))
+            return True
+        else: return False
+
 
 class InstrumentProtocol(object):
     """The base class for an instrument protocol
@@ -345,7 +369,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
 
         self._build_handlers = {}
         self._response_handlers = {}
-    
+        self._parameters = {}
     
     def _identify_response(self, response_str=""):
         """Format the response to a command into a usable form
@@ -492,7 +516,27 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
 
         return InstErrorCode.OK
         
+    def _add_param_dict(self, name, pattern, f_getval, f_format, value=None):
+        """
+        """
+        self._parameters[name] = ParameterDictVal(name, pattern, f_getval,
+                            f_format, value)
+    
+    def _get_param_dict(self, name):
+        """
+        """
+        return self._parameters[name].value
         
-            
+    def _set_param_dict(self, name, value):
+        """
+        """
+        self._parameters[name] = value
+        
+    def _update_param_dict(self, input):
+        """
+        """
+        for (name, val) in self._parameters.iteritems():
+            if val.update(input):
+                break
             
             
