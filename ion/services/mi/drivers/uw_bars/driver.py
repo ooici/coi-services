@@ -17,6 +17,7 @@ from ion.services.mi.instrument_driver import DriverState
 
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
 from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 
@@ -151,11 +152,13 @@ class BarsInstrumentDriver(InstrumentDriver):
     # Channel command interface.
     ########################################################################
 
-    def get(self, params, timeout=10):
-        """
-        @param timeout Number of seconds before this operation times out
-        """
-        pass
+    def get(self, params=[(BarsChannel.INSTRUMENT,
+                           BarsParameter.TIME_BETWEEN_BURSTS)],
+            timeout=10):
+
+        success, result = self.protocol.get(params, timeout)
+
+        return (success, result)
 
     def set(self, params, timeout=10):
         """

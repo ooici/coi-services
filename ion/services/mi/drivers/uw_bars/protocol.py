@@ -15,14 +15,19 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_protocol import InstrumentProtocol
-from ion.services.mi.instrument_driver import DriverState
+from ion.services.mi.instrument_protocol import \
+    CommandResponseInstrumentProtocol
+from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
+
 
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.instrument_fsm import InstrumentFSM
 
+import re
 
-#import ion.services.mi.mi_logger
+
+import ion.services.mi.mi_logger
 import logging
 log = logging.getLogger('mi_logger')
 
@@ -46,22 +51,27 @@ class BarsProtocolEvent(BaseEnum):
 
     EXIT_PROGRAM = '6'  # defined for completeness -- NOT TO BE USED.
 
-    # TODO events associated to other menus
-    TBD = "??"
+    EXIT_CHANGE_PARAMS = '3'
+
+
+# TODO synchronize with actual instrument and simulator
+NEWLINE = '\n'
+
+# some patters
+DATA_LINE_PATTERN = re.compile(r'(\d+\.\d*\s+)+.*')
+CYCLE_TIME_PATTERN = re.compile(
+        r'present value for the Cycle Time is\s+([^.]*)\.')
 
 
 class BarsPrompt(BaseEnum):
     """
     BARS io prompts.
     """
-    NEWLINE = '\r\n'  # TODO newline sequence TBD
-    ENTER_MENU_OPTION = 'Enter 0, 1, 2, 3, 4, 5 or 6 here  -->'
+    MAIN_MENU = 'Enter 0, 1, 2, 3, 4, 5, 6 or 7 here  --> '
+    PARAM_MENU = 'Enter 0, 1, 2, or 3 here  --> '
 
 
-####################################################################
-# Protocol
-####################################################################
-class BarsInstrumentProtocol(InstrumentProtocol):
+class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
     """The instrument protocol classes to deal with a TRHPH BARS sensor.
 
     """
@@ -72,10 +82,13 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         state machine, which is initialized in the INIT state.
         """
 
-        InstrumentProtocol.__init__(self)
+#        InstrumentProtocol.__init__(self)
+        callback, prompts, newline = None, BarsPrompt, NEWLINE
+        CommandResponseInstrumentProtocol.__init__(self, callback, prompts,
+                                                   newline)
 
         self._fsm = InstrumentFSM(BarsProtocolState, BarsProtocolEvent,
-                                  BarsProtocolEvent.RESTART_DATA_COLLECTION,
+                                  None,
                                   None,
                                   InstErrorCode.UNHANDLED_EVENT)
 
@@ -90,10 +103,6 @@ class BarsInstrumentProtocol(InstrumentProtocol):
                               self._handler_collecting_data_enter_main_menu)
 
         # MAIN_MENU
-        self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
-                              BarsProtocolEvent.RESTART_DATA_COLLECTION,
-                              self._handler_collecting_data_enter_main_menu)
-
         self._fsm.add_handler(BarsProtocolState.MAIN_MENU,
                               BarsProtocolEvent.RESTART_DATA_COLLECTION,
                               self._handler_main_menu_restart_data_collection)
@@ -112,23 +121,57 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 
         # CHANGE_PARAMS_MENU
         self._fsm.add_handler(BarsProtocolState.CHANGE_PARAMS_MENU,
-                              BarsProtocolEvent.TBD,
-                              self._handler_change_params_menu_TBD)
+                              BarsProtocolEvent.EXIT_CHANGE_PARAMS,
+                              self._handler_change_params_menu_exit)
 
         # we start in the PRE_INIT state
         self._fsm.start(BarsProtocolState.PRE_INIT)
 
+        self._add_build_handler('^S', self._build_simple_cmd)
+        for c in range(8):
+            self._add_build_handler('%d' % c, self._build_simple_cmd)
+
+    def _assert_state(self, state):
+        cs = self.get_current_state()
+        res = cs == state
+        if not res:
+            raise AssertionError("current state=%s, expected=%s" % (cs, state))
+
+    def _build_simple_cmd(self, cmd):
+        """
+        """
+        return cmd
+
     def _logEvent(self, params):
-        log.info("_logEvent: curr_state=%s, params=%s" %
+        #log.info
+        print("_logEvent: curr_state=%s, params=%s" %
                  (self._fsm.get_current_state(), str(params)))
 
     def _got_data(self, data):
         """
-        NOTE: InstrumentProtocol.attach assumes the method _got_data but it's
-        not defined there but in the CommandResponseInstrumentProtocol subclass
         """
+        #super(BarsInstrumentProtocol, self)._got_data(data)
 
-        print("_got_data: '%s'" % data.replace('\n', '\\n'))
+        if re.match(DATA_LINE_PATTERN, data):
+            # clear prompt buffer
+            self._promptbuf = ''
+
+            self._process_streaming_data(data)
+        else:
+            self._promptbuf += data
+            self._show_buffer('_promptbuf', data)
+
+    def _show_buffer(self, title, buffer, prefix='\n\t| '):
+        """
+        """
+        msg = prefix + buffer.replace('\n', prefix)
+        print("%s:%s" % (title, msg))
+
+    def _process_streaming_data(self, data):
+        """
+        """
+        # TODO just printing data out for now
+        self._show_buffer('_process_streaming_data', data, '\n\t! ')
 
     def get_current_state(self):
         """Gets the current state of the protocol."""
@@ -138,6 +181,72 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         super(BarsInstrumentProtocol, self).connect(timeout)
         self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
 
+    def get(self, params=[(BarsChannel.INSTRUMENT,
+                           BarsParameter.TIME_BETWEEN_BURSTS)],
+            timeout=10):
+
+        # TODO only handles (INSTRUMENT, TIME_BETWEEN_BURSTS) for the moment
+
+        assert isinstance(params, list)
+        assert len(params) == 1
+
+        channel, param = cp = params[0]
+
+        assert channel == BarsChannel.INSTRUMENT
+        assert param == BarsParameter.TIME_BETWEEN_BURSTS
+
+        #
+        # enter main menu
+        #
+        success, result = self._fsm.on_event(BarsProtocolEvent.ENTER_MAIN_MENU)
+        if InstErrorCode.is_error(success):
+            return (success, result)
+
+        self._assert_state(BarsProtocolState.MAIN_MENU)
+
+        #
+        # enter change param menu
+        #
+        success, result = self._fsm.on_event(
+                BarsProtocolEvent.ENTER_CHANGE_PARAMS, params)
+        if InstErrorCode.is_error(success):
+            return (success, result)
+
+        #
+        # scan requested value
+        #
+        success = InstErrorCode.UNKNOWN_ERROR
+        value = "??"
+        mo = re.search(CYCLE_TIME_PATTERN, self._promptbuf)
+        if mo is not None:
+            cycle_time_str = mo.group(1)
+            log.debug("scanned cycle_time_str='%s'" % str(cycle_time_str))
+            value = cycle_time_str
+            success = InstErrorCode.OK
+        # we got out result
+        result = {cp: (success, value)}
+
+        #
+        # exit change param menu
+        #
+        success, result = self._fsm.on_event(
+                BarsProtocolEvent.EXIT_CHANGE_PARAMS)
+        if InstErrorCode.is_error(success):
+            return (success, result)
+
+        self._assert_state(BarsProtocolState.MAIN_MENU)
+
+        #
+        # return to COLLECTING_DATA
+        #
+        success, result = self._fsm.on_event(
+                BarsProtocolEvent.RESTART_DATA_COLLECTION)
+        if InstErrorCode.is_error(success):
+            return (success, result)
+
+        self._assert_state(BarsProtocolState.COLLECTING_DATA)
+
+        return (success, result)
 
     ########################################################################
     # State handlers
@@ -145,6 +254,8 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 
     def _handler_pre_init_initialize(self, params):
         """
+        Handler to transition from PRE_INIT to appropriate state in the
+        actual instrument, typically COLLECTING_DATA.
         """
 
         self._logEvent(params)
@@ -163,20 +274,22 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 
     def _handler_collecting_data_enter_main_menu(self, params):
         """
+        handler to enter main menu from collecting data
         """
 
         self._logEvent(params)
 
         success = InstErrorCode.OK
-        next_state = None
-        result = None
 
-        #TODO send 19 (Control-S) to instrument
-        #...
+        result = self._do_cmd_resp('^S')
 
         next_state = BarsProtocolState.MAIN_MENU
 
         return (success, next_state, result)
+
+    def  _wakeup(self, timeout=10):
+        """overwritten: no need to send anything"""
+        return None
 
     def _handler_main_menu_restart_data_collection(self, params):
         """
@@ -188,15 +301,23 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         next_state = None
         result = None
 
-        #TODO send '1' to instrument
+        # send '1' not expecting response:
+        result = self._do_cmd_no_resp('1')
+
+        print "restart_data_coll result='%s'" % str(result)
+
+        # TODO confirm that data is streaming again?
         # ...
 
-        next_state = BarsProtocolState.MAIN_MENU
+        next_state = BarsProtocolState.COLLECTING_DATA
 
         return (success, next_state, result)
 
     def _handler_main_menu_enter_change_params(self, params):
         """
+        handler to enter in the change params menu. This menu shows the
+        current value of some parameters so it's used to scan for
+        respective values if that's the case.
         """
 
         self._logEvent(params)
@@ -205,8 +326,9 @@ class BarsInstrumentProtocol(InstrumentProtocol):
         next_state = None
         result = None
 
-        #TODO send '2' to instrument
-        # ...
+        result = self._do_cmd_resp('2')
+
+        print "XXX2 result='%s'" % str(result)
 
         next_state = BarsProtocolState.CHANGE_PARAMS_MENU
 
@@ -279,19 +401,19 @@ class BarsInstrumentProtocol(InstrumentProtocol):
 
         return (success, next_state, result)
 
-    def _handler_change_params_menu_TBD(self, params):
+    def _handler_change_params_menu_exit(self, params):
         """
+        handler to exit change params menu
         """
 
         self._logEvent(params)
 
         success = InstErrorCode.OK
-        next_state = None
-        result = None
 
         #
-        #TODO implement.  for now returning to MAIN_MENU
+        # Send '3'
         #
+        result = self._do_cmd_resp(BarsProtocolEvent.ENTER_CHANGE_PARAMS)
 
         next_state = BarsProtocolState.MAIN_MENU
 

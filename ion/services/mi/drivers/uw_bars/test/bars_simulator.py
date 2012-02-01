@@ -73,7 +73,7 @@ class _BurstThread(Thread):
 class BarsSimulator(object):
 
     def __init__(self, host='', port=0, accept_timeout=None,
-                 log_prefix='\t\t\t\t| '):
+                 log_prefix='\t\t\t\t|* '):
         """
         @param host Socket is bound to given (host,port)
         @param port Socket is bound to given (host,port)
@@ -132,7 +132,7 @@ class BarsSimulator(object):
         self._log("simulator requested to stop.")
 
     def _clear_screen(self, info):
-        clear_screen = NEWLINE * 50
+        clear_screen = NEWLINE * 20
         self._conn.sendall(clear_screen + info)
 
     def _recv(self):
@@ -163,7 +163,6 @@ class BarsSimulator(object):
             if not input:
                 break
 
-            self._log("input received: '%s'" % input)
             if input == "q":
                 break
 
@@ -173,7 +172,6 @@ class BarsSimulator(object):
             else:
                 response = "invalid input: '%s'" % input
                 self._log(response)
-                self._conn.sendall(response + NEWLINE)
 
         self._log("exiting connected")
 
@@ -250,11 +248,10 @@ class BarsSimulator(object):
                 pass
 
             else:
-                # TODO unrecognized command handling
-                self._conn.sendall("unrecognized command: '%s'%s" %
-                                   (input, NEWLINE))
+                # just continue
+                continue
 
-        self._log("exiting _main_menu")
+        self._log("exiting _main_menu so resuming data collection")
 
     def _print_date_time(self):
         # TODO print date time
@@ -262,7 +259,6 @@ class BarsSimulator(object):
 
     def _restart_data_collection(self, bt):
         """restarts data collection"""
-        print "resuming data"
         bt.set_enabled(True)
 
     def _change_params_menu(self, bt):
@@ -313,11 +309,10 @@ class BarsSimulator(object):
                 break
 
             else:
-                # TODO unrecognized command handling
-                self._conn.sendall("unrecognized command: '%s'%s" %
-                                   (input, NEWLINE))
+                # just continue
+                continue
 
-        print "exiting _change_params_menu"
+        self._log("exiting _change_params_menu")
 
     def _diagnostics(self):
         # TODO diagnostics
@@ -347,11 +342,10 @@ class BarsSimulator(object):
                 break
 
             else:
-                # TODO unrecognized command handling
-                self._conn.sendall("unrecognized command: '%s'%s" %
-                                   (input, NEWLINE))
+                # just continue
+                continue
 
-        print "exiting _system_info"
+        self._log("exiting _system_info")
 
 
     def _sensor_power_menu(self, bt):
@@ -419,11 +413,10 @@ class BarsSimulator(object):
                 break
 
             else:
-                # TODO unrecognized command handling
-                self._conn.sendall("unrecognized command: '%s'%s" %
-                                   (input, NEWLINE))
+                # just continue
+                continue
 
-        print "exiting _sensor_power_menu"
+        self._log("exiting _sensor_power_menu")
 
 
 if __name__ == '__main__':

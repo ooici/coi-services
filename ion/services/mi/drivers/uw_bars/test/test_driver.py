@@ -6,6 +6,7 @@ __license__ = 'Apache 2.0'
 from ion.services.mi.drivers.uw_bars.test import WithSimulatorTestCase
 from ion.services.mi.drivers.uw_bars.driver import BarsInstrumentDriver
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.common import InstErrorCode
@@ -17,7 +18,7 @@ class DriverTest(WithSimulatorTestCase):
 
     def test(self):
         """
-        BARS driver connection tests
+        BARS driver tests
         """
 
         driver = BarsInstrumentDriver()
@@ -38,12 +39,26 @@ class DriverTest(WithSimulatorTestCase):
         # connect
         success, result = driver.connect([BarsChannel.INSTRUMENT])
         self.assertEqual(InstErrorCode.OK, success)
+        print "connect result = %s" % str(result)
         self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
 
-        print "sleeping for a bit"
-        time.sleep(5)
+        print "sleeping for a bit to see data streaming"
+        time.sleep(4)
+
+        # get a parameter
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        success, result = driver.get([cp])
+        self.assertEqual(InstErrorCode.OK, success)
+        print "get result = %s" % str(result)
+
+        # should be back in AUTOSAMPLE state:
+        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
+
+        print "sleeping a bit more"
+        time.sleep(4)
 
         # disconnect
+        print "disconnecting"
         success, result = driver.disconnect([BarsChannel.INSTRUMENT])
         self.assertEqual(InstErrorCode.OK, success)
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
