@@ -92,6 +92,7 @@ class DriverEvent(BaseEnum):
     EXIT = 'DRIVER_EVENT_EXIT'
     ATTACH = 'DRIVER_EVENT_ATTACH'
     DETACH = 'DRIVER_EVENT_DETACH'
+    UPDATE_PARAMS = 'DRIVER_EVENT_UPDATE_PARAMS'
     
 
 class DriverStatus(BaseEnum):

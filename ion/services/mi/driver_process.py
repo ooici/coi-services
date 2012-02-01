@@ -130,7 +130,7 @@ class DriverProcess(object):
             #self.events.append('And I am event number 2!')
             reply = 'test_events'
         elif cmd == 'process_echo':
-            reply = msg
+            reply = 'process_echo: %s' % str(args[0])
         elif cmd_func:
             reply = cmd_func(*args, **kwargs)
         else:

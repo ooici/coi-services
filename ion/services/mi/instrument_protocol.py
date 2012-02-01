@@ -470,6 +470,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         """
         timeout = kwargs.get('timeout', 10)
+        retval = None
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
@@ -497,9 +498,9 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 
         resp_handler = self._response_handlers.get(cmd, None)
         if resp_handler:
-            resp_handler(result, prompt)
+            retval = resp_handler(result, prompt)
 
-        return InstErrorCode.OK
+        return retval
             
     def _do_cmd_no_resp(self, cmd, *args, **kwargs):
         """
@@ -553,4 +554,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             if val.update(input):
                 break
             
-            
+    def _format_param_dict(self, name, val):
+        """
+        """
+        return self._parameters[name].f_format(val)

@@ -51,6 +51,7 @@ class SBE37Event(BaseEnum):
     EXECUTE = DriverEvent.EXECUTE
     GET = DriverEvent.GET
     SET = DriverEvent.SET
+    UPDATE_PARAMS = DriverEvent.UPDATE_PARAMS
 
 class SBE37Channel(BaseEnum):
     """
@@ -148,6 +149,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.EXECUTE, self._handler_command_execute)
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.GET, self._handler_command_autosample_get)
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.SET, self._handler_command_set)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.UPDATE_PARAMS, self._handler_command_update_params)
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.ENTER, self._handler_autosample_enter)
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.EXIT, self._handler_autosample_exit)
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.EXECUTE, self._handler_autosample_execute)
@@ -168,6 +170,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._add_response_handler('ds', self._parse_dsdc_response)
         self._add_response_handler('dc', self._parse_dsdc_response)
         self._add_response_handler('ts', self._parse_ts_response)
+        self._add_response_handler('set', self._parse_set_response)
 
         # Add parameter handlers to parameter dict.        
         self._add_param_dict(SBE37Parameter.OUTPUTSAL,
@@ -378,7 +381,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         fsm_params = {'parameter':parameter, 'value':val, 'timeout':timeout}
-        return self._fsm.on_event(SBE37Event.SET, fsm_params)
+        retval = self._fsm.on_event(SBE37Event.SET, fsm_params)
+        return retval[0]
 
     def execute(self, command, timeout=10):
         """
@@ -391,6 +395,12 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         fsm_params = {'bytes':bytes}
         return self._fsm.on_event(SBE37Event.EXECUTE, fsm_params)
+    
+    def update_params(self, timeout=10):
+        """
+        """
+        fsm_params = {'timeout':timeout}
+        return self._fsm.on_event(SBE37Event.UPDATE_PARAMS, fsm_params)
     
     ########################################################################
     # Protocol query interface.
@@ -596,7 +606,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _handler_command_set(self, params):
         """
         """
-        success = InstErrorCode.OK
+        success = InstErrorCode.REQUIRED_PARAMETER
         next_state = None
         result = None
 
@@ -606,6 +616,19 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             parameter = params.get('parameter', None)
             value = params.get('value', None)
             
+            if parameter != None and value != None:
+                success = self._do_cmd_resp('set', parameter, value)
+                        
+        return (success, next_state, result)
+
+    def _handler_command_update_params(self, params):
+        """
+        """
+        success = InstErrorCode.OK
+        next_state = None
+        result = None
+        self._update_params()
+        
         return (success, next_state, result)
 
     ########################################################################
@@ -729,11 +752,13 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         return cmd+SBE37_NEWLINE
     
-    def _build_set_cmd(self, param, val):
+    def _build_set_cmd(self, cmd, param, val):
         """
         """
-        #return "%s=%s" % (param, self._parameters.format_set(val)) + self.eoln
-        pass
+        str_val = self._format_param_dict(param, val)
+        set_cmd = '%s=%s' % (param, str_val)
+        set_cmd = set_cmd + SBE37_NEWLINE
+        return set_cmd
 
     def _parse_dsdc_response(self, response, prompt):
         """
@@ -746,6 +771,15 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         mi_logger.debug('Got ts response: %s', repr(response))
+
+    def _parse_set_response(self, response, prompt):
+        """
+        """
+        if prompt == SBE37Prompt.COMMAND:
+            return InstErrorCode.OK
+        else:
+            return InstErrorCode.BAD_DRIVER_COMMAND
+        
 
     ########################################################################
     # Static helpers to format set commands.
@@ -969,7 +1003,8 @@ class SBE37Driver(InstrumentDriver):
         overall_success = InstErrorCode.OK
         
         # Process each parameter-value pair.
-        for (key, val) in params:
+        for (key, val) in params.iteritems():
+            
             channel = key[0]
             parameter = key[1]
             set_result = None
@@ -986,7 +1021,12 @@ class SBE37Driver(InstrumentDriver):
 
             # Populate result.
             result[(channel, parameter)] = set_result
-
+        
+        # Update parameters.
+        self._channels[SBE37Channel.CTD].update_params()
+        
+        # Addition checking can go here.
+        
         # Return overall success and individual results.
         return (overall_success, result)
 
@@ -1036,11 +1076,9 @@ class SBE37Driver(InstrumentDriver):
     # Misc and temp.
     ########################################################################
 
-    def test_driver_messaging(self):
+    def driver_echo(self, msg):
         """
         """
-        result = 'random float %f' % random.random()
-        return result
-
-            
+        echo = 'driver_echo: %s' % msg
+        return echo
 

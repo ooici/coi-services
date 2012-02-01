@@ -23,8 +23,9 @@ class DriverClient(object):
         Initialize members.
         """
         self.events = []
+        self.evt_callback = None
     
-    def start_messaging(self):
+    def start_messaging(self, evt_callback=None):
         """
         Initialize and start messaging resources for the driver process client.
         Overridden for specific messaging implementations.
