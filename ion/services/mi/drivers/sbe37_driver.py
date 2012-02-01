@@ -186,7 +186,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._add_response_handler('ds', self._parse_dsdc_response)
         self._add_response_handler('dc', self._parse_dsdc_response)
         self._add_response_handler('ts', self._parse_ts_response)
-
+        ##
+        
         self._parameters = ParameterDict()
         self._parameters.add(SBE37Parameter.OUTPUTSAL,
                              r'(do not )?output salinity with each sample',
