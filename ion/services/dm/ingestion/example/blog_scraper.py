@@ -87,7 +87,8 @@ class FeedStreamer(StreamProcess):
         Call the callback
         '''
         data = json.load(self.feed.query())
-
+        if not 'entry' in data['feed']:
+            return # No entries in this blog
         for field in data['feed']['entry']:
             entry = {'post':None, 'comments':[]}
 

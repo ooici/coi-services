@@ -8,6 +8,8 @@
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from interface.services.dm.ireplay_agent import BaseReplayAgent
 from pyon.public import log
+from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+
 class ReplayAgent(BaseReplayAgent):
     def __init__(self, *args, **kwargs):
         super(ReplayAgent, self).__init__(*args,**kwargs)
@@ -43,16 +45,17 @@ class ReplayAgent(BaseReplayAgent):
         Queries the data IAW the query argument and publishes the data on the output streams
         '''
         if hasattr(self,'output'):
-            self.output.publish(self._query())
+            for result in self._query():
+                self.output.publish(result)
         log.debug('(Replay Agent %s)', self.name)
         log.debug('  Published...')
 
-    def _query(self):
+    def _query(self,datastore_name='dm_datastore', view_name='posts/index', key=''):
         '''
         Performs the query action
         '''
-        if not hasattr(self,'_num'):
-            self._num = 0
-        retval= {'num':self._num}
-        self._num+=1
-        return retval
+        db = CouchDB_DM_DataStore(datastore_name=datastore_name)
+        ret = db.query_view(view_name,key)
+        return ret
+
+
