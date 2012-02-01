@@ -125,7 +125,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 return self._rimi_service_obj
 
             if not hasattr(self.tester_class, "_rimi_getservice"): 
-                add_new_method("_rimi_getservice", "Finds resource registry", fun)
+                add_new_method("_rimi_getservice", "Finds the embedded service", fun)
 
 
 
