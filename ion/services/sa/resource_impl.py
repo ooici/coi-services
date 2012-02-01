@@ -181,8 +181,11 @@ class ResourceImpl(object):
         log.debug("Moving %s resource life cycle to %s with transition event %s"
                   % (self.iontype, new_state, transition_event))
 
-        return self.RR.execute_lifecycle_transition(resource_id=resource_id,
-                                                    transition_event=transition_event)
+        ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
+                                                   transition_event=transition_event)
+
+        log.debug("Result of lifecycle transition was %s" % str(ret))
+        return ret
 
 
     def add_lcs_precondition(self, destination_state, precondition_predicate_fn):
