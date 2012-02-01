@@ -428,7 +428,7 @@ class ResourceImplMetatest(object):
 
                 
             name = make_name("resource_impl_update_bad_duplicate")
-            doc  = make_doc("Updating a %s resource to a dupcliate name" % impl_instance.iontype)
+            doc  = make_doc("Updating a %s resource to a duplicate name" % impl_instance.iontype)
             add_test_method(name, doc, fun)
 
 

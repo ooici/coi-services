@@ -109,17 +109,23 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 if not hasattr(self, "_rimi_service_obj"):
 
                     # get service from container proc manager
-                    service_itself = [
+                    relevant_services = [
                         item[1] for item in self.container.proc_manager.procs.items() 
                         if type(item[1]) == service_type
-                        ][0]
+                        ]
+
+                    assert (0 < len(relevant_services)), \
+                        "no services of type '%s' found running in container!" % service_type
+                        
+
+                    service_itself = relevant_services[0]
                     self._rimi_service_obj = service_itself
                     assert(self._rimi_service_obj)
 
                 return self._rimi_service_obj
 
             if not hasattr(self.tester_class, "_rimi_getservice"): 
-                add_new_method("_rimi_getservice", "Finds resource registry", fun)
+                add_new_method("_rimi_getservice", "Finds the embedded service", fun)
 
 
 
@@ -365,7 +371,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
 
                 
             name = make_name("resource_impl_update_bad_duplicate")
-            doc  = make_doc("Updating a %s resource to a dupcliate name" % impl_instance.iontype)
+            doc  = make_doc("Updating a %s resource to a duplicate name" % impl_instance.iontype)
             add_test_method(name, doc, fun)
 
 

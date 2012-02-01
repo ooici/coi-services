@@ -9,7 +9,7 @@
 THISDIR=$(git rev-parse --show-toplevel)
 cd $THISDIR
 
-echo "\nRemoving old CC lockfiles in $THISDIR"
+echo -e "\nRemoving old CC lockfiles in $THISDIR"
 
 #get all lockfiles in the root
 for CL in $(ls cc-pid-* 2>/dev/null)

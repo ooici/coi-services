@@ -49,12 +49,6 @@ class TestMarineFacilityManagement(PyonTestCase):
         self.marine_facility_mgmt_service.on_init()
 
 
-
-    def test_assign_instrument(self):
-        self.marine_facility_mgmt_service.assign_instrument('111', '222')
-
-        self.marine_facility_mgmt_service.clients.resource_registry.create_association.assert_called_once_with('222', PRED.hasInstrument, '111', None)
-
 rim = ResourceImplMetatest(TestMarineFacilityManagement, MarineFacilityManagementService, log)
 
 rim.add_resource_impl_unittests(LogicalInstrumentImpl, {})

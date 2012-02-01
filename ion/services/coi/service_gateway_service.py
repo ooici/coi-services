@@ -41,6 +41,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
         self.server_port = DEFAULT_WEB_SERVER_PORT
         self.web_server_enabled = True
+        self.logging = None
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
@@ -56,7 +57,8 @@ class ServiceGatewayService(BaseServiceGatewayService):
                     self.server_port = web_server_cfg['port']
                 if 'enabled' in web_server_cfg:
                     self.web_server_enabled = web_server_cfg['enabled']
-
+                if 'log' in web_server_cfg:
+                    self.logging = web_server_cfg['log']
 
         #need to figure out how to redirect HTTP logging to a file
         if self.web_server_enabled:
@@ -72,7 +74,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         if self.http_server is not None:
             self.stop_service()
 
-        self.http_server = WSGIServer((hostname, port), app)
+        self.http_server = WSGIServer((hostname, port), app, log=self.logging)
         self.http_server.start()
 
         return True
@@ -99,29 +101,28 @@ class ServiceGatewayService(BaseServiceGatewayService):
 def process_gateway_request(service_name, operation):
 
 
-    #Retrieve service definition
-    from pyon.core.bootstrap import service_registry
-    # MM: Note: service_registry can do more now
-    target_service = service_registry.get_service_base(service_name)
-
-    if not target_service:
-        raise NotFound("Target service name not found in the URL")
-
-    if operation == '':
-        raise NotFound("Service operation not specified in the URL")
-
-
-    #Find the concrete client class for making the RPC calls.
-    target_client = None
-    for name, cls in inspect.getmembers(inspect.getmodule(target_service),inspect.isclass):
-        if issubclass(cls, ProcessRPCClient) and not name.endswith('ProcessRPCClient'):
-            target_client = cls
-            break
-
-    if not target_client:
-        raise NotFound("Service operation not correctly specified in the URL")
-
     try:
+        #Retrieve service definition
+        from pyon.core.bootstrap import service_registry
+        # MM: Note: service_registry can do more now
+        target_service = service_registry.get_service_base(service_name)
+
+        if not target_service:
+            raise NotFound("Target service name not found in the URL")
+
+        if operation == '':
+            raise NotFound("Service operation not specified in the URL")
+
+
+        #Find the concrete client class for making the RPC calls.
+        target_client = None
+        for name, cls in inspect.getmembers(inspect.getmodule(target_service),inspect.isclass):
+            if issubclass(cls, ProcessRPCClient) and not name.endswith('ProcessRPCClient'):
+                target_client = cls
+                break
+
+        if not target_client:
+            raise NotFound("Service operation not correctly specified in the URL")
 
         jsonParms = None
         if request.method == "POST":
@@ -158,7 +159,9 @@ def process_gateway_request(service_name, operation):
                         ion_object_name = convert_unicode(jsonParms['serviceRequest']['params'][arg][0])
                         object_parms = convert_unicode(jsonParms['serviceRequest']['params'][arg][1])
 
-                        parm_list[arg] = IonObject(ion_object_name, object_parms)
+                        new_obj = IonObject(ion_object_name, object_parms)
+                        new_obj._validate() # verify that all of the object fields were set with proper types
+                        parm_list[arg] = new_obj
                     else:  # The else branch is for simple types ( non-ION objects )
                         parm_list[arg] = convert_unicode(jsonParms['serviceRequest']['params'][arg])
 
