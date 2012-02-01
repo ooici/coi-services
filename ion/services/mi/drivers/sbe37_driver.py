@@ -128,9 +128,11 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         CommandResponseInstrumentProtocol.__init__(self, None, prompts, newline)
         
+        # Build protocol state machine.
         self._fsm = InstrumentFSM(SBE37State, SBE37Event, SBE37Event.ENTER,
                             SBE37Event.EXIT, InstErrorCode.UNHANDLED_EVENT)
         
+        # Add handlers for all events.
         self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.ENTER, self._handler_unconfigured_enter)
         self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.EXIT, self._handler_unconfigured_exit)
         self._fsm.add_handler(SBE37State.UNCONFIGURED, SBE37Event.INITIALIZE, self._handler_unconfigured_initialize)
@@ -151,8 +153,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.EXECUTE, self._handler_autosample_execute)
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.GET, self._handler_command_autosample_get)
 
+        # Start state machine.
         self._fsm.start(SBE37State.UNCONFIGURED)
 
+        # Add build command handlers.
         self._add_build_handler('ds', self._build_simple_cmd)
         self._add_build_handler('dc', self._build_simple_cmd)
         self._add_build_handler('ts', self._build_simple_cmd)
@@ -160,10 +164,12 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._add_build_handler('stop', self._build_simple_cmd)
         self._add_build_handler('set', self._build_set_cmd)
 
+        # Add parse response handlers.
         self._add_response_handler('ds', self._parse_dsdc_response)
         self._add_response_handler('dc', self._parse_dsdc_response)
         self._add_response_handler('ts', self._parse_ts_response)
-        
+
+        # Add parameter handlers to parameter dict.        
         self._add_param_dict(SBE37Parameter.OUTPUTSAL,
                              r'(do not )?output salinity with each sample',
                              lambda match : False if match.group(1) else True,
@@ -741,6 +747,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         mi_logger.debug('Got ts response: %s', repr(response))
 
+    ########################################################################
+    # Static helpers to format set commands.
+    ########################################################################
+
     @staticmethod
     def _true_false_to_string(v):
         """
@@ -851,6 +861,8 @@ class SBE37Driver(InstrumentDriver):
         method docstring
         """
         InstrumentDriver.__init__(self)
+        
+        # Build the protocol for CTD channel.
         protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE)
         self._channels = {SBE37Channel.CTD:protocol}
             

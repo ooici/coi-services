@@ -390,25 +390,21 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         assert(isinstance(command, dict))
         # Apply regexes, separators, delimiters, Eolns, etc.
-        
+                
+    ########################################################################
+    # Incomming data callback.
+    ########################################################################            
 
-    def _add_build_handler(self, cmd, func):
-        """
-        """
-        self._build_handlers[cmd] = func
-        
-    def _add_response_handler(self, cmd, func):
-        """
-        """
-        self._response_handlers[cmd] = func
-        
     def _got_data(self, data):
         """
         """
         # Update the line and prompt buffers.
         self._linebuf += data        
         self._promptbuf += data
-        
+
+    ########################################################################
+    # Wakeup helpers.
+    ########################################################################            
     
     def _send_wakeup(self):
         """
@@ -440,6 +436,20 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             if time.time() > starttime + timeout:
                 return InstErrorCode.TIMEOUT
         
+    ########################################################################
+    # Command-response helpers.
+    ########################################################################    
+
+    def _add_build_handler(self, cmd, func):
+        """
+        """
+        self._build_handlers[cmd] = func
+        
+    def _add_response_handler(self, cmd, func):
+        """
+        """
+        self._response_handlers[cmd] = func
+
     def _get_response(self, timeout=10):
         """
         """
@@ -515,7 +525,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._logger_client.send(cmd_line)
 
         return InstErrorCode.OK
-        
+
+    ########################################################################
+    # Parameter dict helpers.
+    ########################################################################    
+
     def _add_param_dict(self, name, pattern, f_getval, f_format, value=None):
         """
         """
