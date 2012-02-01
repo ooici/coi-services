@@ -63,7 +63,7 @@ class FeedStreamer(StreamProcess):
         num=0
         for entry in self.entries:
 
-            p = StreamPublisher(name=(self.xp,'%s.%s' %(self.name,num)),process=self,node=self.container.node)
+            p = StreamPublisher(name=(self.xp,'%s.%s' %(num,"data")),process=self,node=self.container.node)
             p.publish(msg=entry['post'])
             for comment in entry['comments']:
                 p.publish(msg=comment)
