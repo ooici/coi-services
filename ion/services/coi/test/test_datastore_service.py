@@ -4,6 +4,7 @@ __author__ = 'Thomas Lennan'
 
 from nose.plugins.attrib import attr
 
+from pyon.core.bootstrap import sys_name
 from pyon.core.exception import BadRequest
 from pyon.datastore.datastore import DataStore
 from pyon.public import IonObject, RT
@@ -30,30 +31,31 @@ class TestDatastore(IonIntegrationTestCase):
         self._stop_container()
 
     def test_manage_datastore(self):
-        self.datastore_service.delete_datastore("foo")
+        db_name_prefix = sys_name.lower()
+        self.datastore_service.delete_datastore(db_name_prefix + "_foo")
 
-        self.datastore_service.create_datastore("foo")
+        self.datastore_service.create_datastore(db_name_prefix + "_foo")
 
         create_failed = False
         try:
-            self.datastore_service.create_datastore("foo")
+            self.datastore_service.create_datastore(db_name_prefix + "_foo")
         except BadRequest as ex:
-            self.assertTrue(ex.message == "Data store with name foo already exists")
+            self.assertTrue(ex.message.startswith("Data store with name"))
             create_failed = True
         self.assertTrue(create_failed)
 
         ds_list = self.datastore_service.list_datastores()
         self.assertTrue("foo" in ds_list)
 
-        info = self.datastore_service.info_datastore("foo")
+        info = self.datastore_service.info_datastore(db_name_prefix + "_foo")
 
-        self.assertTrue(self.datastore_service.datastore_exists("foo"))
-        self.assertFalse(self.datastore_service.datastore_exists("bar"))
+        self.assertTrue(self.datastore_service.datastore_exists(db_name_prefix + "_foo"))
+        self.assertFalse(self.datastore_service.datastore_exists(db_name_prefix + "_bar"))
 
-        objs = self.datastore_service.list_objects("foo")
+        objs = self.datastore_service.list_objects(db_name_prefix + "_foo")
         self.assertTrue(len(objs) > 0)  # There are build in types
 
-        revs = self.datastore_service.list_object_revisions(objs[0], "foo")
+        revs = self.datastore_service.list_object_revisions(objs[0], db_name_prefix + "_foo")
         self.assertTrue(len(revs) > 0)
 
     def test_create_delete(self):
