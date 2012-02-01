@@ -18,7 +18,7 @@ from interface.objects import StreamQuery, ExchangeQuery
 from pyon.ion.transform import TransformDataProcess
 
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
-from interface.objects import BlogPost, BlogAuthor, BlogComment
+from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
 import time
 
