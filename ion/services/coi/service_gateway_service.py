@@ -159,7 +159,9 @@ def process_gateway_request(service_name, operation):
                         ion_object_name = convert_unicode(jsonParms['serviceRequest']['params'][arg][0])
                         object_parms = convert_unicode(jsonParms['serviceRequest']['params'][arg][1])
 
-                        parm_list[arg] = IonObject(ion_object_name, object_parms)
+                        new_obj = IonObject(ion_object_name, object_parms)
+                        new_obj._validate() # verify that all of the object fields were set with proper types
+                        parm_list[arg] = new_obj
                     else:  # The else branch is for simple types ( non-ION objects )
                         parm_list[arg] = convert_unicode(jsonParms['serviceRequest']['params'][arg])
 
