@@ -18,6 +18,8 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.transformation.transform_management_service import TransformManagementService
 from ion.services.dm.transformation.example.transform_example import TransformExample
 from interface.objects import ProcessDefinition, StreamQuery
+from pyon.public import StreamPublisher, StreamSubscriber
+import gevent
 
 import unittest
 
@@ -465,5 +467,174 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
         self.assertEquals(retval,[3,2,1])
 
+    def test_integrated_transform(self):
+        '''
+        This example script runs a chained three way transform:
+            B
+        A <
+            C
+        Where A is the even_odd transform (generates a stream of even and odd numbers from input)
+        and B and C are the basic transforms that receive even and odd input
+        '''
+
+        #-------------------------------
+        # Process Definition
+        #-------------------------------
+        # Create the process definition for the basic transform
+        process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
+        process_definition.executable = {
+            'module': 'ion.services.dm.transformation.example.transform_example',
+            'class':'TransformExample'
+        }
+        basic_transform_definition_id, _ = self.rr_cli.create(process_definition)
+
+        # Create The process definition for the TransformEvenOdd
+        process_definition = IonObject(RT.ProcessDefinition, name='evenodd_transform_definition')
+        process_definition.executable = {
+            'module': 'ion.services.dm.transformation.example.transform_example',
+            'class':'TransformEvenOdd'
+        }
+        evenodd_transform_definition_id, _ = self.rr_cli.create(process_definition)
+
+        #-------------------------------
+        # Streams
+        #-------------------------------
+        input_stream_id = self.pubsub_cli.create_stream(name='input_stream', original=True)
+
+        even_stream_id = self.pubsub_cli.create_stream(name='even_stream', original=True)
+
+        odd_stream_id = self.pubsub_cli.create_stream(name='odd_stream', original=True)
+
+        even_stream_plus1_id = self.pubsub_cli.create_stream(name='even_stream_plus1', original=True)
+
+        odd_stream_plus1_id = self.pubsub_cli.create_stream(name='odd_stream_plus1', original=True)
+
+        #-------------------------------
+        # Subscriptions
+        #-------------------------------
+
+        query = StreamQuery(stream_ids=[input_stream_id])
+        input_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='input_queue')
+
+        query = StreamQuery(stream_ids = [even_stream_id])
+        even_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='even_queue')
+
+        query = StreamQuery(stream_ids = [odd_stream_id])
+        odd_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='odd_queue')
 
 
+        #-------------------------------
+        # Launch the EvenOdd Transform
+        #-------------------------------
+
+        evenodd_id = self.tms_cli.create_transform(name='even_odd',
+            in_subscription_id=input_subscription_id,
+            out_streams={'even':even_stream_id, 'odd':odd_stream_id},
+            process_definition_id=evenodd_transform_definition_id,
+            configuration={})
+        self.tms_cli.activate_transform(evenodd_id)
+
+
+        #-------------------------------
+        # Launch the Even Processing Transform
+        #-------------------------------
+
+        even_transform_id = self.tms_cli.create_transform(name='even_transform',
+            in_subscription_id = even_subscription_id,
+            out_streams={'even_plus1':even_stream_plus1_id},
+            process_definition_id=basic_transform_definition_id,
+            configuration={})
+        self.tms_cli.activate_transform(even_transform_id)
+
+        #-------------------------------
+        # Launch the Odd Processing Transform
+        #-------------------------------
+
+        odd_transform_id = self.tms_cli.create_transform(name='odd_transform',
+            in_subscription_id = odd_subscription_id,
+            out_streams={'odd_plus1':odd_stream_plus1_id},
+            process_definition_id=basic_transform_definition_id,
+            configuration={})
+        self.tms_cli.activate_transform(odd_transform_id)
+
+        #-------------------------------
+        # Set up final subscribers
+        #-------------------------------
+
+        evenplus1_subscription_id = self.pubsub_cli.create_subscription(StreamQuery([even_stream_plus1_id]), 'evenplus1_queue', 'EvenPlus1Subscription', 'EvenPlus1 SubscriptionDescription')
+        oddplus1_subscription_id = self.pubsub_cli.create_subscription(StreamQuery([odd_stream_plus1_id]), 'oddplus1_queue', 'OddPlus1Subscription', 'OddPlus1 SubscriptionDescription')
+
+        total_msg_count = 2
+        even_msg_count = [0]
+        odd_msg_count = [0]
+        ar_even = gevent.event.AsyncResult()
+        ar_odd = gevent.event.AsyncResult()
+        even1_expected = [2 * 0 + 1]
+        odd1_expected = [2 * 0 + 1 + 1]
+
+        def even1_message_received(message, headers):
+            input = int(message.get('num'))
+            self.assertEqual(input, even1_expected[0])
+            even1_expected[0] += 2
+            even_msg_count[0] += 1
+            if even_msg_count[0] == total_msg_count/2:
+                ar_even.set(1)
+
+        def odd1_message_received(message, headers):
+            input = int(message.get('num'))
+            self.assertEqual(input, odd1_expected[0])
+            odd1_expected[0] += 2
+            odd_msg_count[0] += 1
+            if odd_msg_count[0] == total_msg_count/2:
+                ar_odd.set(1)
+
+        even_subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','evenplus1_queue'), callback=even1_message_received, process=self.cc)
+        odd_subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','oddplus1_queue'), callback=odd1_message_received, process=self.cc)
+
+        # Start subscribers
+        even_subscriber.start()
+        odd_subscriber.start()
+
+        # Activate subscriptions
+        self.pubsub_cli.activate_subscription(evenplus1_subscription_id)
+        self.pubsub_cli.activate_subscription(oddplus1_subscription_id)
+
+        #-------------------------------
+        # Set up fake stream producer
+        #-------------------------------
+
+        stream_route = self.pubsub_cli.register_producer(exchange_name='producer_doesnt_have_a_name', stream_id=input_stream_id)
+        stream_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), process=self.cc)
+
+        #-------------------------------
+        # Start test
+        #-------------------------------
+
+        # Publish a stream
+        for i in range(total_msg_count):
+            stream_publisher.publish(dict(num=str(i)))
+
+        # Wait for subscribers to receive and validate messages
+        ar_even.get(timeout=15)
+        ar_odd.get(timeout=15)
+
+        # Deactivate subscriptions
+        self.pubsub_cli.deactivate_subscription(evenplus1_subscription_id)
+        self.pubsub_cli.deactivate_subscription(oddplus1_subscription_id)
+
+        # Stop subscribers
+        even_subscriber.stop()
+        odd_subscriber.stop()
+
+        # Clean up
+        self.pubsub_cli.delete_subscription(input_subscription_id)
+        self.pubsub_cli.delete_subscription(even_subscription_id)
+        self.pubsub_cli.delete_subscription(odd_subscription_id)
+        self.pubsub_cli.delete_subscription(evenplus1_subscription_id)
+        self.pubsub_cli.delete_subscription(oddplus1_subscription_id)
+
+        self.pubsub_cli.delete_stream(input_stream_id)
+        self.pubsub_cli.delete_stream(odd_stream_id)
+        self.pubsub_cli.delete_stream(even_stream_id)
+        self.pubsub_cli.delete_stream(even_stream_plus1_id)
+        self.pubsub_cli.delete_stream(odd_stream_plus1_id)
