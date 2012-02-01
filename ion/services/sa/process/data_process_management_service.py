@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.sa.process.data_process_management_service
-@author  Alon Yaari
+@package ion.services.sa.process.test.test_int_data_process_management_service
+@author  Maurice Manning
 """
 
 from pyon.util.log import log
 import time
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
-from pyon.public import   log, RT
+from pyon.public import   log, RT, PRED
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from interface.objects import ProcessDefinition, StreamQuery
@@ -66,40 +66,36 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_process_definition_id
 
     def update_data_process_definition(self, data_process_definition=None):
-        """
-        @param      data_process_definition: dict with parameters to update
-                        the data process def.
-        @retval     {"success": boolean}
-        """
-        pass
+        # Overwrite DataProcessDefinition object
+        self.clients.resource_registry.update(data_process_definition)
 
     def read_data_process_definition(self, data_process_definition_id=''):
-        """
-        @param      data_process_definition_id: ID of the data process
-                        definition that defines the transform to read
-        @retval     data process definition object
-        """
-        log.debug("DataProcessManagementService:read_data_process_definition: %s" % str(data_process_definition_id))
-        
-        result = self.clients.resource_registry.read(data_process_definition_id)
-        
-        return result
+        # Read DataProcessDefinition object with _id matching id
+        log.debug("Reading DataProcessDefinition object id: %s" % data_process_definition_id)
+        data_proc_def_obj = self.clients.resource_registry.read(data_process_definition_id)
+        if not data_proc_def_obj:
+            raise NotFound("DataProcessDefinition %s does not exist" % data_process_definition_id)
+        return data_proc_def_obj
+
 
     def delete_data_process_definition(self, data_process_definition_id=''):
-        """
-        @param      data_process_definition_id: ID of the data process
-                        definition that defines the transform to delete
-        @retval     {"success": boolean}
-        """
-        pass
+        # Read and delete specified DataProcessDefinition object
+        log.debug("Deleting DataProcessDefinition id: %s" % data_process_definition_id)
+        data_proc_def_obj = self.read_data_source(data_process_definition_id)
+        if data_proc_def_obj is None:
+            raise NotFound("DataSource %s does not exist" % data_process_definition_id)
+
+        return self.clients.resource_registry.delete(data_process_definition_id)
 
     def find_data_process_definitions(self, filters=None):
         """
         @param      filters: dict of parameters to filter down
-                        the list of possible data proc. defs
-        @retval     list[] of data process definition IDs
+                        the list of possible data proc.
+        @retval
         """
-        pass
+        #todo: add filtering
+        data_process_def_list , _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, None, True)
+        return data_process_def_list
 
     def create_data_process(self,
                             data_process_definition_id='',
@@ -135,6 +131,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
         self.clients.resource_registry.create_association(data_process_id, PRED.hasOutputProduct, out_data_product_id)
 
+        #todo: is the data process definition or data process instance registerd as a data producer?
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream
         log.debug("DataProcessManagementService:create_data_process - Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream")
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
@@ -147,6 +144,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process -Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream  out_stream_id: " +  str(out_stream_id))
 
         # Connect the out_data_product with this process
+        #todo: check that the product is not already associated with a producer
         self.clients.data_acquisition_management.assign_data_product(input_resource_id=data_process_id, data_product_id=out_data_product_id)
 
         #-------------------------------
@@ -206,18 +204,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 #        self.clients.transform_management_service.schedule_transform(transform_id)
 #        self.clients.transform_management_service.bind_transform(transform_id)
 
+        # TODO: Where should activate take place?
         log.debug("DataProcessManagementService:create_data_process - transform_management.activate_transform")
         self.clients.transform_management.activate_transform(transform_id)
 
         return data_process_id
 
-    """   TODO:  make this operation conform with the yaml
-    def update_data_process(self,
-                            data_process_id,
-                            data_process_definition_id='',
-                            in_subscription_id='',
-                            out_data_product_id=''):
-    """
     def update_data_process(self,):
         """
         @param  data_process_id: ID of the data process object to update
@@ -263,22 +255,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return goodUpdate
 
     def read_data_process(self, data_process_id=""):
-        """
-        @param  data_process_id: ID of the data process resource of interest
-        @retval data_process_definition_id: ID of the definition of the updated
-                  transform being applied to the input data product
-        @retval in_subscription_id: ID of the input data product
-        @retval out_data_product_id: ID of the output data product
-        """
-        log.debug("DataProcessManagementService:read_data_process: " +  str(data_process_id))
-        transform_ids, _ = self.clients.resource_registry.find_associations(data_process_id, PRED.hasTransform)
-        if not transform_ids:
-            raise NotFound("No transform associated with data process ID " + str(data_process_id))
-        transform_obj = self.clients.transform_management_service.read_transform(transform_ids[0])
-            
-        return transform_obj.data_process_definition_id, \
-               transform_obj.in_subscription_id, \
-               transform_obj.out_data_product_id
+        # Read DataProcess object with _id matching  id
+        log.debug("Reading DataProcess object id: %s" % data_process_id)
+        data_proc_obj = self.clients.resource_registry.read(data_process_id)
+        if not data_proc_obj:
+            raise NotFound("DataProcess %s does not exist" % data_process_id)
+        return data_proc_obj
 
     def delete_data_process(self, data_process_id=""):
         """
@@ -290,8 +272,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not data_process_id:
             raise BadRequest("Delete failed.  Missing data_process_id.")
         
-        # TODO: does the DPMS need to call the TMS to inform it that the process is
-        # being deleted?
+        # TODO: does the DPMS need to call the TMS to inform it that the process is being deleted?
 
         # Delete associations of the data process
         associations, _ = self.clients.resource_registry.\
@@ -315,10 +296,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                         the list of possible data proc.
         @retval
         """
-        log.debug("DataProcessManagementService:find_data_process")
-        if not filters:
-            data_process_list , _ = self.clients.resource_registry.\
-                find_resources = (RT.DataProcess, None, None, True)
+        #todo: add filter processing
+        data_process_list , _ = self.clients.resource_registry.find_resources(RT.DataProcess, None, None, True)
         return data_process_list
 
     def attach_process(self, process=''):

@@ -26,7 +26,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='mmm')
 #@unittest.skip('not working')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
@@ -222,6 +222,21 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
                 self.fail("failed to create new external data set: %s" %ex)
             print 'new external data set id = ', extdataset_id
 
+
+            #
+            # test creating a new data agent instance
+            #
+            print 'Creating new external data agent '
+            dataagent_obj = IonObject(RT.ExternalDataAgent,
+                               name='ExternalAgent1',
+                               description='external data agent ')
+            try:
+                dataagent_id = self.client.create_external_data_agent_instance(dataagent_obj)
+            except BadRequest as ex:
+                self.fail("failed to create new external data agent: %s" %ex)
+            print 'new external data agent  id = ', dataagent_id
+
+
             #
             # test creating a new data agent instance
             #
@@ -241,15 +256,15 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             # test assign / unassign
             #
 
-            self.client.assign_eoi_resources(dataprovider_id, datasource_id, datamodel_id, extdataset_id, dataagentinstance_id)
+            self.client.assign_eoi_resources(dataprovider_id, datasource_id, datamodel_id, extdataset_id, dataagent_id, dataagentinstance_id)
 
-            self.client.unassign_external_data_provider(datasource_id, dataprovider_id)
+            self.client.unassign_data_source_from_external_data_provider(datasource_id, dataprovider_id)
 
-            self.client.unassign_data_model(datasource_id, datamodel_id)
+            self.client.unassign_data_source_from_data_model(datasource_id, datamodel_id)
 
-            self.client.unassign_data_source(extdataset_id, datasource_id)
+            self.client.unassign_external_dataset_from_data_source(extdataset_id, datasource_id)
 
-            self.client.unassign_external_data_agent_instance(extdataset_id, dataagentinstance_id)
+            self.client.unassign_external_dataset_from_agent_instance(extdataset_id, dataagentinstance_id)
 
             #
             # test read

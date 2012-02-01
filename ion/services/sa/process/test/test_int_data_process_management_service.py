@@ -12,11 +12,14 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.public import Container, log, IonObject
-from pyon.public import RT, LCS
+from pyon.util.containers import DotDict
+from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
-
+from interface.services.icontainer_agent import ContainerAgentClient
+import time
 from pyon.util.int_test import IonIntegrationTestCase
 import unittest
 
@@ -24,7 +27,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 @attr('INT', group='sa')
-@unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+#unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -42,6 +45,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         self.RRclient = ResourceRegistryServiceClient(node=self.container.node)
         self.DAMSclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.DPMSclient = DataProductManagementServiceClient(node=self.container.node)
+        self.PubSubClient = PubsubManagementServiceClient(node=self.container.node)
 
     def test_createDataProcess(self):
 
@@ -69,9 +73,10 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
         # Retrieve the stream via the Instrument->DataProducer->Stream associations
         stream_ids, _ = self.RRclient.find_objects(data_producer_id, PRED.hasStream, None, True)
+
         log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
-        in_stream_id = stream_ids[0]
-        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str(in_stream_id))
+        self.in_stream_id = stream_ids[0]
+        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
         #-------------------------------
         # Input Data Product
@@ -106,8 +111,25 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         # Producer (Sample Input)
         #-------------------------------
         # Create a producing example process
-#        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':in_stream_id}},'stream_producer':{'interval':4000}})
-#        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
+        # cheat to make a publisher object to send messages in the test.
+        # it is really hokey to pass process=self.cc but it works
+        stream_route = self.PubSubClient.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.in_stream_id)
+        self.ctd_stream1_publisher = StreamPublisher(node=self.container.node, name=('science_data',stream_route.routing_key), process=self.container)
 
-        
+        num = 3
+        msg = dict(num=str(num))
+        self.ctd_stream1_publisher.publish(msg)
 
+        time.sleep(1)
+
+        num = 5
+        msg = dict(num=str(num))
+        self.ctd_stream1_publisher.publish(msg)
+
+        time.sleep(1)
+
+        num = 9
+        msg = dict(num=str(num))
+        self.ctd_stream1_publisher.publish(msg)
+
+        # See /tmp/transform_output for results.....
