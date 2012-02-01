@@ -26,6 +26,7 @@ from pyon.util.unit_test import PyonTestCase
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import SBE37Command
 import ion.services.mi.mi_logger
 
@@ -35,6 +36,7 @@ mi_logger = logging.getLogger('mi_logger')
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
 
 @attr('UNIT', group='mi')
 class TestSBE37Driver(PyonTestCase):    
@@ -67,14 +69,77 @@ class TestSBE37Driver(PyonTestCase):
         # Add cleanup handler functions.
         # self.addCleanup()
         
+        
+    def test_process(self):
+        """
+        """
+        pass
+    
     def test_config(self):
+        """
+        """
+        pass
+    
+    def test_connect(self):
+        """
+        """
+        pass
+    
+    def test_get_set(self):
+        """
+        """
+        driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
+            self.evt_port, self.dvr_mod,  self.dvr_cls)
+        
+        driver_client = ZmqDriverClient(self.server_addr, self.cmd_port,
+                                        self.evt_port)
+        driver_client.start_messaging()
+        time.sleep(3)
+
+        configs = {SBE37Channel.CTD:self.comms_config}
+        reply = driver_client.cmd_dvr('configure', configs)
+        time.sleep(2)
+
+        reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        get_params = [
+            (SBE37Channel.CTD, SBE37Parameter.ALL)            
+        ]
+        reply = driver_client.cmd_dvr('get', get_params)
+        time.sleep(2)
+        
+        get_params = [
+            (SBE37Channel.CTD, SBE37Parameter.TA2 ),
+            (SBE37Channel.CTD, SBE37Parameter.PTCA1),
+            (SBE37Channel.CTD, SBE37Parameter.TCALDATE)
+        ]
+        reply = driver_client.cmd_dvr('get', get_params)
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        driver_client.done()
+        driver_process.wait()
+
+    def test_poll(self):
+        """
+        """
+        pass
+    
+    def test_autosample(self):
+        """
+        """
+        pass
+        
+    def test_xxx(self):
         """
         Test driver configure.
         """
-        #def wait_on_child(signum=None, frame=None):
-        #    retval = os.wait()
-        #signal.signal(signal.SIGCHLD, wait_on_child)
-
 
         driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
             self.evt_port, self.dvr_mod,  self.dvr_cls)
@@ -87,10 +152,8 @@ class TestSBE37Driver(PyonTestCase):
 
         configs = {SBE37Channel.CTD:self.comms_config}
         reply = driver_client.cmd_dvr('configure', configs)
- 
         time.sleep(2)
-        
-        
+
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
         

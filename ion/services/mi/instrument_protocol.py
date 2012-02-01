@@ -381,7 +381,6 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     def _got_data(self, data):
         """
         """
-
         # Update the line and prompt buffers.
         self._linebuf += data        
         self._promptbuf += data
