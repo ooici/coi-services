@@ -24,24 +24,6 @@ from threading import Thread
 
 NEWLINE = '\n'
 
-UNRECOGNIZED = '???'
-
-
-ENTER_MAIN_MENU = '^S'
-
-# main menu commands:
-PRINT_DATE_TIME = '0'
-RESTART_DATA_COLLECTION = '1'
-ENTER_CHANGE_PARAMS = '2'
-SHOW_SYSTEM_DIAGNOSTICS = '3'
-ENTER_SET_SYSTEM_CLOCK = '4'
-SHOW_SYSTEM_INFO = '5'
-EXIT_PROGRAM = '6'
-
-# TODO change menu commands:
-# ...
-
-
 time_between_bursts = 2
 
 
@@ -104,13 +86,15 @@ class BarsSimulator(object):
         self._sock.bind((host, port))
         self._sock.listen(1)
         self._accept_timeout = accept_timeout
-        self._log("bound to port %s" % self.get_port())
+        self._port = self._sock.getsockname()[1]
+        self._log("bound to port %s" % self._port)
 
     def _log(self, m):
         print "%sBarsSimulator: %s" % (self._log_prefix, m)
 
-    def get_port(self):
-        return self._sock.getsockname()[1]
+    @property
+    def port(self):
+        return self._port
 
     def run(self):
         self._enabled = True
@@ -147,6 +131,10 @@ class BarsSimulator(object):
         self._enabled = False
         self._log("simulator requested to stop.")
 
+    def _clear_screen(self, info):
+        clear_screen = NEWLINE * 50
+        self._conn.sendall(clear_screen + info)
+
     def _recv(self):
         """does the recv call with handling of timeout"""
         while self._enabled:
@@ -170,7 +158,9 @@ class BarsSimulator(object):
         self._conn.settimeout(1.0)
         while self._enabled:
             input = self._recv()
-            if not input or not self._enabled:
+            if not self._enabled:
+                break
+            if not input:
                 break
 
             self._log("input received: '%s'" % input)
@@ -188,74 +178,75 @@ class BarsSimulator(object):
         self._log("exiting connected")
 
     def _main_menu(self, bt):
-
-        def _get_input(received):
-            """
-            This takes care of translating the received data into one of the
-            codes above.
-            """
-            if received is None:
-                return None
-
-            received = received.strip()
-            if received == "0":
-                return PRINT_DATE_TIME
-            elif received == "1":
-                return RESTART_DATA_COLLECTION
-            elif received == "2":
-                return ENTER_CHANGE_PARAMS
-            elif received == "3":
-                return SHOW_SYSTEM_DIAGNOSTICS
-            elif received == "4":
-                return ENTER_SET_SYSTEM_CLOCK
-            elif received == "5":
-                return SHOW_SYSTEM_INFO
-            elif received == "6":
-                return EXIT_PROGRAM
-            else:
-                return UNRECOGNIZED
-
         menu = """\
-            Select one of the following functions:
+  ***************************************************************
+  *                                                             *
+  *            Welcome to the BARS Program Main Menu            *
+  *              (Benthic And Resistivity Sensors)              *
+  *                    (Serial Number 002)                      *
+  *                                                             *
+  ***************************************************************
 
-                0). Reprint Time & this Menu.
-                1). Restart Data Collection.
-                2). Change Data Collection Parameteres.
-                3). System Diagnostics.
-                4). Set The System Clock.
-                5). Provide Information on this System.
-                6). Exit this Program.
+             Version 1.7 - Last Revision: July 11, 2011
 
-            Select 0, 1, 2, 3, 4, 5 or 6 here  --> """
+                           Written by:
+
+                           Rex Johnson
+                           Engineering Services
+                           School of Oceanography
+                           University of Washington
+                           Seattle, WA 98195
+
+
+              The System Clock has not been set.
+                Use option 4 to Set the Clock.
+
+              Select one of the following functions:
+
+                  0).  Reprint Time & this Menu.
+                  1).  Restart Data Collection.
+                  2).  Change Data Collection Parameters.
+                  3).  System Diagnostics.
+                  4).  Set the System Clock.
+                  5).  Control Power to Sensors.
+                  6).  Provide Information on this System.
+                  7).  Exit this Program.
+
+                Enter 0, 1, 2, 3, 4, 5, 6 or 7 here  --> """
 
         while self._enabled:
-            self._conn.sendall(menu)
-            recv = self._recv()
-            if not recv or not self._enabled:
+            self._clear_screen(menu)
+
+            input = self._recv()
+            if not self._enabled:
+                break
+            if not input:
                 break
 
-            input = _get_input(recv)
-            if input == PRINT_DATE_TIME:
+            if input == "0":
                 self._print_date_time()
 
-            elif input == RESTART_DATA_COLLECTION:
+            elif input == "1":
                 self._restart_data_collection(bt)
-                break  # and exit this menu
+                break
 
-            elif input == ENTER_CHANGE_PARAMS:
+            elif input == "2":
                 self._change_params_menu(bt)
 
-            elif input == SHOW_SYSTEM_DIAGNOSTICS:
+            elif input == "3":
                 self._diagnostics()
 
-            elif input == ENTER_SET_SYSTEM_CLOCK:
+            elif input == "4":
                 self._reset_clock()
 
-            elif input == SHOW_SYSTEM_INFO:
+            elif input == "5":
+                self._sensor_power_menu(bt)
+
+            elif input == "6":
                 self._system_info()
 
-            elif input == EXIT_PROGRAM:
-                # exit program -- IGNORED
+            elif input == "7":
+                self._log("exit program -- IGNORED")
                 pass
 
             else:
@@ -263,7 +254,7 @@ class BarsSimulator(object):
                 self._conn.sendall("unrecognized command: '%s'%s" %
                                    (input, NEWLINE))
 
-        self._log("exiting main menu")
+        self._log("exiting _main_menu")
 
     def _print_date_time(self):
         # TODO print date time
@@ -275,50 +266,58 @@ class BarsSimulator(object):
         bt.set_enabled(True)
 
     def _change_params_menu(self, bt):
-        """to change parameters
-        """
-        #TODO not clear how this menu looks like or works
-
-        def _get_input(received):
-            """
-            This takes care of translating the received data into one of the
-            codes corresponding to this menu.
-            """
-            if received is None:
-                return None
-
-            received = received.strip()
-            if received == "":
-                return None
-            # TODO ...
-            else:
-                return UNRECOGNIZED
-
         menu = """\
-            TODO change_params_menu:
+                               System Parameter Menu
 
-                0). ??
-                1). ??
+*****************************************************************************
 
-            Select 0, 1, ??? here  --> """
+                       The present value for the Cycle Time is
+                                 20 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Return to the Main Menu.
+
+                    Enter 0, 1, 2, or 3 here  --> """
 
         while self._enabled:
-            self._conn.sendall(menu)
-            recv = self._recv()
-            if not recv or not self._enabled:
+            self._clear_screen(menu)
+
+            input = self._recv()
+            if not self._enabled:
+                break
+            if not input:
                 break
 
-            input = _get_input(recv)
-            if input == "Dummy":
-                # TODO this is not an actual command
+            if input == "0":
                 pass
+
+            elif input == "1":
+                # TODO change cycle time
+                break
+
+            elif input == "2":
+                # TODO change verbose setting
+                break
+
+            elif input == "3":
+                break
 
             else:
                 # TODO unrecognized command handling
                 self._conn.sendall("unrecognized command: '%s'%s" %
                                    (input, NEWLINE))
 
-        print "exiting change params menu"
+        print "exiting _change_params_menu"
 
     def _diagnostics(self):
         # TODO diagnostics
@@ -329,8 +328,102 @@ class BarsSimulator(object):
         self._conn.sendall("TODO reset clock" + NEWLINE)
 
     def _system_info(self):
-        # TODO system info
-        self._conn.sendall("TODO system info" + NEWLINE)
+        info = """\
+  System Name: BARS (Benthic And Resistivity Sensors)
+  System Owner: Marv Lilley, University of Washington
+  Owner Contact Phone #: 206-543-0859
+  System Serial #: 002
+
+  Press Enter to return to the Main Menu. --> """
+        info = info.replace('\n', NEWLINE)
+
+        while self._enabled:
+            self._clear_screen(info)
+
+            input = self._recv()
+            if not self._enabled:
+                break
+            if not input:
+                break
+
+            else:
+                # TODO unrecognized command handling
+                self._conn.sendall("unrecognized command: '%s'%s" %
+                                   (input, NEWLINE))
+
+        print "exiting _system_info"
+
+
+    def _sensor_power_menu(self, bt):
+        menu = """\
+                             Sensor Power Control Menu
+
+*****************************************************************************
+
+                 Here is the current status of power to each sensor
+
+                      Res Sensor Power is ............. On
+                      Instrumentation Amp Power is .... On
+                      eH Isolation Amp Power is ....... On
+                      Hydrogen Power .................. On
+                      Reference Temperature Power ..... On
+
+*****************************************************************************
+
+
+            Select one of the following functions:
+
+                  0).  Reprint this Menu.
+                  1).  Toggle Power to Res Sensor.
+                  2).  Toggle Power to the Instrumentation Amp.
+                  3).  Toggle Power to the eH Isolation Amp.
+                  4).  Toggle Power to the Hydrogen Sensor.
+                  5).  Toggle Power to the Reference Temperature Sensor.
+                  6).  Return to the Main Menu.
+
+                Enter 0, 1, 2, 3, 4, 5, or 6 here  --> """
+
+        while self._enabled:
+            self._clear_screen(menu)
+
+            input = self._recv()
+            if not self._enabled:
+                break
+            if not input:
+                break
+
+            if input == "0":
+                pass
+
+            elif input == "1":
+                # TODO Toggle Power to Res Sensor.
+                break
+
+            elif input == "2":
+                # TODO Toggle Power to the Instrumentation Amp.
+                break
+
+            elif input == "3":
+                # TODO Toggle Power to the eH Isolation Amp.
+                break
+
+            elif input == "4":
+                # TODO Toggle Power to the Hydrogen Sensor.
+                break
+
+            elif input == "5":
+                # TODO Toggle Power to the Reference Temperature Sensor.
+                break
+
+            elif input == "6":
+                break
+
+            else:
+                # TODO unrecognized command handling
+                self._conn.sendall("unrecognized command: '%s'%s" %
+                                   (input, NEWLINE))
+
+        print "exiting _sensor_power_menu"
 
 
 if __name__ == '__main__':

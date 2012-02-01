@@ -16,7 +16,7 @@ class WithSimulatorTestCase(TestCase):
         """Starts simulator"""
 
         self.simulator = BarsSimulator(accept_timeout=10.0)
-        self.device_port = self.simulator.get_port()
+        self.device_port = self.simulator.port
 
         self.config = {
             'method': 'ethernet',
