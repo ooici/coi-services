@@ -28,6 +28,8 @@ from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 mi_logger = logging.getLogger('mi_logger')
 
+
+
 class ParameterDictVal(object):
     """
     """
@@ -64,7 +66,7 @@ class InstrumentProtocol(object):
     
     implements(IInstrumentConnection)
     
-    def __init__(self, callback=None):
+    def __init__(self, evt_callback=None):
         """Set instrument connect at creation
         
         @param connection An InstrumetnConnection object
@@ -74,7 +76,7 @@ class InstrumentProtocol(object):
         self._logger_popen = None
         self._fsm = None
         
-        self.announce_to_driver = callback
+        self.send_event = evt_callback
         """The driver callback where we an publish events. Should be a link
         to a function."""
         

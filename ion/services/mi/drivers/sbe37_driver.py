@@ -73,6 +73,8 @@ class SBE37Prompt(BaseEnum):
 
 SBE37_NEWLINE = '\r\n'
 
+SBE37_SAMPLE = 'SBE37_SAMPLE'
+
 # Device specific parameters.
 class SBE37Parameter(DriverParameter):
     """
@@ -123,10 +125,10 @@ class SBE37Parameter(DriverParameter):
 class SBE37Protocol(CommandResponseInstrumentProtocol):
     """
     """
-    def __init__(self, prompts, newline):
+    def __init__(self, prompts, newline, evt_callback):
         """
         """
-        CommandResponseInstrumentProtocol.__init__(self, None, prompts, newline)
+        CommandResponseInstrumentProtocol.__init__(self, evt_callback, prompts, newline)
         
         # Build protocol state machine.
         self._fsm = InstrumentFSM(SBE37State, SBE37Event, SBE37Event.ENTER,
@@ -171,6 +173,13 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._add_response_handler('ts', self._parse_ts_response)
         self._add_response_handler('set', self._parse_set_response)
 
+        # Add sample handlers.
+        self._sample_pattern = r'^#? *(-?\d+\.\d+), *(-?\d+\.\d+), *(-?\d+\.\d+)'
+        self._sample_pattern += r'(, *(-?\d+\.\d+))?(, *(-?\d+\.\d+))?'
+        self._sample_pattern += r'(, *(\d+) +([a-zA-Z]+) +(\d+), *(\d+):(\d+):(\d+))?'
+        self._sample_pattern += r'(, *(\d+)-(\d+)-(\d+), *(\d+):(\d+):(\d+))?'        
+        self._sample_regex = re.compile(self._sample_pattern)
+        
         # Add parameter handlers to parameter dict.        
         self._add_param_dict(SBE37Parameter.OUTPUTSAL,
                              r'(do not )?output salinity with each sample',
@@ -595,7 +604,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         if command:
             cmd = command[0]
         if cmd == SBE37Command.ACQUIRE_SAMPLE:
-            self._acquire_sample()
+            (success, result) = self._acquire_sample()
             
         elif cmd == SBE37Command.START_AUTO_SAMPLING:
             self._do_cmd_no_resp('startnow')
@@ -748,8 +757,25 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         # Send take sample command.
-        self._do_cmd_resp('ts')
+        (success, result) = self._do_cmd_resp('ts')
+        
+        # Publish sample or error. Raise alarm on error.
+        evt = {
+            'type': 'sample',
+            'value': result
+        }
+        self.send_event(evt)
 
+        return (success, result)
+        
+    def _extract_sample(self, sampledata):
+        """
+        """
+        lines = sampledata.split(SBE37_NEWLINE)
+        for line in lines:
+            if self._sample_regex.match(line):
+                pass
+        
     def _build_simple_cmd(self, cmd):
         """
         """
@@ -774,6 +800,11 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         mi_logger.debug('Got ts response: %s', repr(response))
+        # Match sample for success.
+        success = InstErrorCode.OK
+        result = None
+        
+        return (success,response)
 
     def _parse_set_response(self, response, prompt):
         """
@@ -782,7 +813,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             return InstErrorCode.OK
         else:
             return InstErrorCode.BAD_DRIVER_COMMAND
-        
 
     ########################################################################
     # Static helpers to format set commands.
@@ -893,14 +923,14 @@ class SBE37Driver(InstrumentDriver):
     """
     class docstring
     """
-    def __init__(self):
+    def __init__(self, evt_callback):
         """
         method docstring
         """
-        InstrumentDriver.__init__(self)
+        InstrumentDriver.__init__(self, evt_callback)
         
         # Build the protocol for CTD channel.
-        protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE)
+        protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, evt_callback)
         self._channels = {SBE37Channel.CTD:protocol}
             
     ########################################################################

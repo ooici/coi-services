@@ -336,7 +336,8 @@ class TestSBE37Driver(PyonTestCase):
         # Create client and start messaging.
         driver_client = ZmqDriverClient(self.server_addr, self.cmd_port,
                                         self.evt_port)
-        driver_client.start_messaging()
+        self.clear_events()
+        driver_client.start_messaging(self.evt_recd)
         time.sleep(2)
 
         configs = {SBE37Channel.CTD:self.comms_config}
@@ -354,6 +355,9 @@ class TestSBE37Driver(PyonTestCase):
 
         reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
         time.sleep(2)
+
+        print 'EVENTS RECEIVED:'
+        print str(self.events)
 
         reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
         time.sleep(2)
