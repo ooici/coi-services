@@ -28,9 +28,6 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # Now create client to bank service
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
 
-    def tearDown(self):
-        self._stop_container()
-
     def test_crud(self):
         # Some quick registry tests
         # Can't call new with fields that aren't defined in the object's schema
@@ -124,6 +121,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         update_failed = False
         try:
             self.resource_registry_service.update(read_obj)
+        except NotFound as ex:
+            self.assertTrue(ex.message.startswith("Object with id"))
+            update_failed = True
         except Conflict as ex:
             self.assertTrue(ex.message.startswith("Object not based on most current version"))
             update_failed = True

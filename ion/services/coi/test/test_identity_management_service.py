@@ -447,9 +447,6 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
 
-    def tearDown(self):
-        self._stop_container()
-
     def test_user_identity(self):
         user_identity_obj = IonObject("UserIdentity", {"name": self.subject})        
         user_id = self.identity_management_service.create_user_identity(user_identity_obj)

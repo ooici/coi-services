@@ -27,9 +27,6 @@ class TestDatastore(IonIntegrationTestCase):
         # Now create client to bank service
         self.datastore_service = DatastoreServiceClient(node=self.container.node)
 
-    def tearDown(self):
-        self._stop_container()
-
     def test_manage_datastore(self):
         db_name_prefix = sys_name.lower()
         self.datastore_service.delete_datastore(db_name_prefix + "_foo")
@@ -45,18 +42,12 @@ class TestDatastore(IonIntegrationTestCase):
         self.assertTrue(create_failed)
 
         ds_list = self.datastore_service.list_datastores()
-        self.assertTrue("foo" in ds_list)
+        self.assertTrue(db_name_prefix + "_foo" in ds_list)
 
         info = self.datastore_service.info_datastore(db_name_prefix + "_foo")
 
         self.assertTrue(self.datastore_service.datastore_exists(db_name_prefix + "_foo"))
         self.assertFalse(self.datastore_service.datastore_exists(db_name_prefix + "_bar"))
-
-        objs = self.datastore_service.list_objects(db_name_prefix + "_foo")
-        self.assertTrue(len(objs) > 0)  # There are build in types
-
-        revs = self.datastore_service.list_object_revisions(objs[0], db_name_prefix + "_foo")
-        self.assertTrue(len(revs) > 0)
 
     def test_create_delete(self):
         # Persist IonObject
@@ -161,17 +152,9 @@ class TestDatastore(IonIntegrationTestCase):
             find_failed = True
         self.assertTrue(find_failed)
         
-        find_failed = False
-        try:
-            self.datastore_service.find([["an_int", DataStore.EQUAL, 123]])
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "All criterion values must be strings")
-            find_failed = True
-        self.assertTrue(find_failed)
-        
-        res = self.datastore_service.find([["an_int", DataStore.EQUAL, "123"]])
+        res = self.datastore_service.find([["an_int", DataStore.EQUAL, 123]])
         self.assertTrue(len(res) == 2)
 
-        res = self.datastore_service.find([["an_int", DataStore.EQUAL, "123"], DataStore.AND, ["name", DataStore.EQUAL, "John Smith"]])
+        res = self.datastore_service.find([["an_int", DataStore.EQUAL, 123], DataStore.AND, ["name", DataStore.EQUAL, "John Smith"]])
         self.assertTrue(len(res) == 1)
 

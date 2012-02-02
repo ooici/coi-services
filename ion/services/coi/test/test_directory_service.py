@@ -24,9 +24,6 @@ class TestDirectoryService(IonIntegrationTestCase):
         # Now create client to bank service
         self.directory_service = DirectoryServiceClient(node=self.container.node)
 
-    def tearDown(self):
-        self._stop_container()
-
     def test_directory_service(self):
         # Lookup of non-existent entry is benign
         ret = self.directory_service.lookup("Foo")
