@@ -58,7 +58,6 @@ class SBE37Channel(BaseEnum):
     """
     CTD = DriverChannel.CTD
     ALL = DriverChannel.ALL
-    INSTRUMENT = DriverChannel.INSTRUMENT
 
 class SBE37Command(DriverCommand):
     pass
@@ -381,8 +380,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         fsm_params = {'parameter':parameter, 'value':val, 'timeout':timeout}
-        retval = self._fsm.on_event(SBE37Event.SET, fsm_params)
-        return retval[0]
+        return self._fsm.on_event(SBE37Event.SET, fsm_params)
 
     def execute(self, command, timeout=10):
         """
@@ -415,6 +413,11 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         pass
+
+    def get_current_state(self):
+        """
+        """
+        return self._fsm.get_current_state()
 
     ########################################################################
     # State handlers
@@ -906,53 +909,79 @@ class SBE37Driver(InstrumentDriver):
     
     def initialize(self, channels=[SBE37Channel.CTD], timeout=10):
         """
-        """        
-        # SBE37 exposes a single CTD channel.
-        if len(channels) != 1 or channels[0] != SBE37Channel.CTD:
-            return (InstErrorCode.INVALID_CHANNEL, None)
-        
-        return self._channels[SBE37Channel.CTD].initialize(timeout)
+        """
+        (overall_success, result, valid_channels) = \
+                self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            (success, init_result) = self._channels[channel].initialize(timeout)
+            result[channel] = (success, init_result)
+            if InstErrorCode.is_error(success):
+                overall_success = success
+                
+        return (overall_success, result)
     
     def configure(self, configs, timeout=10):
         """
-        """
-        # SBE37 exposes a single CTD channel.
-        config = configs.get(SBE37Channel.CTD, None)
-        if not config:
-            return (InstErrorCode.INVALID_CHANNEL, None)
+        """        
+        if configs == None or not isinstance(configs, dict):
+            return (InstErrorCode.INVALID_PARAMETER, None)
+            
+        channels = configs.keys()
 
-        # Forward command to the CTD protocol.
-        return self._channels[SBE37Channel.CTD].configure(config, timeout)
+        (overall_success, result, valid_channels) = \
+                self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            config = configs[channel]
+            (success, cfg_result) = self._channels[channel].configure(config, timeout)
+            result[channel] = (success, cfg_result)
+            if InstErrorCode.is_error(success):
+                overall_success = success
+
+        return (overall_success, result)
     
     def connect(self, channels=[SBE37Channel.CTD], timeout=10):
         """
-        """  
-        # SBE37 exposes a single CTD channel.
-        if len(channels) != 1 or channels[0] != SBE37Channel.CTD:
-            return (InstErrorCode.INVALID_CHANNEL, None)
+        """
+        (overall_success, result, valid_channels) = \
+                self._check_channel_args(channels)
 
-        # Forward command to the CTD protocol.
-        return self._channels[SBE37Channel.CTD].connect(timeout)
+        for channel in valid_channels:
+            (success, connect_result) = self._channels[channel].connect(timeout)
+            result[channel] = (success, connect_result)
+            if InstErrorCode.is_error(success):
+                overall_success = success
+                
+        return (overall_success, result)
     
     def disconnect(self, channels=[SBE37Channel.CTD], timeout=10):
         """
         """
-        # SBE37 exposes a single CTD channel.
-        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
-            return (InstErrorCode.INVALID_CHANNEL, None)
-        
-        # Forward command to the CTD protocol.
-        return self._channels[SBE37Channel.CTD].disconnect(timeout)
+        (overall_success, result, valid_channels) = \
+                self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            (success, disconnect_result) = self._channels[channel].disconnect(timeout)
+            result[channel] = (success, disconnect_result)
+            if InstErrorCode.is_error(success):
+                overall_success = success
+                
+        return (overall_success, result)
             
     def detach(self, channels=[SBE37Channel.CTD], timeout=10):
         """
         """
-        # SBE37 exposes a single CTD channel.
-        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
-            return (InstErrorCode.INVALID_CHANNEL, None)
-        
-        # Forward command to the CTD protocol.
-        return self._channels[SBE37Channel.CTD].disconnect(timeout)
+        (overall_success, result, valid_channels) = \
+                self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            (success, detach_result) = self._channels[channel].detach(timeout)
+            result[channel] = (success, detach_result)
+            if InstErrorCode.is_error(success):
+                overall_success = success
+                
+        return (overall_success, result)
 
     ########################################################################
     # Channel command interface.
@@ -961,37 +990,20 @@ class SBE37Driver(InstrumentDriver):
     def get(self, params, timeout=10):
         """
         """
-        result = {}
-        overall_success = InstErrorCode.OK
 
+        if params == None or not isinstance(params, (list, tuple)):
+            return (InstErrorCode.INVALID_PARAMETER, None)
+        
+        (overall_success, result, params) = self._check_get_args(params)
+        
         for (channel, parameter) in params:        
             success = InstErrorCode.OK
             val = None
-            
-            # If channel invalid, error.
-            if channel != SBE37Channel.CTD:
+            (success, val) = self._channels[channel].get(parameter, timeout)
+            if InstErrorCode.is_error(success):
                 overall_success = InstErrorCode.GET_DEVICE_ERR
-                result[(channel, parameter)] = InstErrorCode.INVALID_CHANNEL                
-                
-            # Channel valid, all parameters.
-            elif parameter == SBE37Parameter.ALL:
-                for specific_parameter in SBE37Parameter.list():
-                    if specific_parameter != SBE37Parameter.ALL:
-                        (success, val) = self._channels[SBE37Channel.CTD]\
-                                            .get(specific_parameter, timeout)
-                        if InstErrorCode.is_error(success):
-                            overall_success = InstErrorCode.GET_DEVICE_ERR
-                            mi_logger.debug('Error retrieving parameter %s', specific_parameter)
-                        result[(channel, specific_parameter)] = (success, val)
-
-            # Channel valid, specific parameter.
-            # Forward to protocol.
-            else:
-                (success, val) = self._channels[SBE37Channel.CTD].get(parameter,
-                                                                      timeout)
-                if InstErrorCode.is_error(success):
-                    overall_success = InstErrorCode.GET_DEVICE_ERR
-                result[(channel, parameter)] = (success, val)                
+                mi_logger.debug('Error retrieving parameter %s', parameter)
+            result[(channel, parameter)] = (success, val)
                 
         # Return overall success and individual results.
         return (overall_success, result)
@@ -999,33 +1011,28 @@ class SBE37Driver(InstrumentDriver):
     def set(self, params, timeout=10):
         """
         """
-        result = {}
-        overall_success = InstErrorCode.OK
+        if params == None or not isinstance(params, dict):
+            return (InstErrorCode.INVALID_PARAMETER, None)
+        
+        (overall_success, result, params) = self._check_set_args(params)
+        
+        updated_channels = []
         
         # Process each parameter-value pair.
         for (key, val) in params.iteritems():
-            
             channel = key[0]
             parameter = key[1]
-            set_result = None
-            
-            # If channel invalid, report error.
-            if channel != SBE37Channel.CTD:
-                set_result = InstErrorCode.INVALID_CHANNEL
-                overall_success = InstErrorCode.SET_DEVICE_ERR
-
-            # If channel valid, forward to protocol.
-            else:
-                set_result = self._channels[SBE37Channel.CTD].set(parameter,
-                                                                  val)
-
-            # Populate result.
-            result[(channel, parameter)] = set_result
+            set_result = self._channels[channel].set(parameter, val)
+            if InstErrorCode.is_error(set_result[0]):
+                overall_success = set_result[0]
+            elif channel not in updated_channels:
+                updated_channels.append(channel)                
+            result[key] = set_result
         
-        # Update parameters.
-        self._channels[SBE37Channel.CTD].update_params()
+        for channel in updated_channels:
+            self._channels[channel].update_params()
         
-        # Addition checking can go here.
+        # Additional checking can go here.
         
         # Return overall success and individual results.
         return (overall_success, result)
@@ -1033,16 +1040,19 @@ class SBE37Driver(InstrumentDriver):
     def execute(self, channels=[SBE37Channel.CTD], command=[], timeout=10):
         """
         """
-        # SBE37 exposes a single CTD channel.
-        if len(channels) != 1 and channels[0] != SBE37Channel.CTD:
-            return (InstErrorCode.INVALID_CHANNEL, None)
+        (overall_success, result, valid_channels) = \
+                self._check_channel_args(channels)
 
-        # Check the command is not empty.
-        if len(command) == 0:
-            return (InstErrorCode.INVALID_COMMAND, None)
-        
-        # Forward command to the CTD protocol.
-        return self._channels[SBE37Channel.CTD].execute(command, timeout)
+        if not isinstance(command, (list, tuple)) or len(command) == 0:
+            overall_success == InstErrorCode.INVALID_PARAMETER
+            
+        else:
+            for channel in valid_channels:
+                (success, cmd_result) = \
+                    self._channels[SBE37Channel.CTD].execute(command, timeout)                
+                result[channel] = (success, cmd_result)
+
+        return (overall_success, result)
         
     def execute_direct(self, channels=[SBE37Channel.CTD], bytes=''):
         """
@@ -1068,9 +1078,155 @@ class SBE37Driver(InstrumentDriver):
         """
         return SBE37Channels.list()
         
+    def get_current_state(self, channels=[SBE37Channel.CTD]):
+        """
+        """
+        (overall_success, result, valid_channels) = \
+                self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            state = self._channels[channel].get_current_state()
+            result[channel] = state
+
+        return (overall_success, result)
+
     ########################################################################
     # Private helpers.
     ########################################################################    
+
+    @staticmethod
+    def _check_channel_args(channels):
+        """
+        """
+        overall_success = InstErrorCode.OK
+        valid_channels = []
+        result = {}
+        
+        if channels == None or not isinstance(channels, (list, tuple)):
+            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            
+        elif len(channels) == 0:
+            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            
+        else:
+            clist = SBE37Channel.list()
+            if SBE37Channel.ALL in clist:
+                clist.remove(SBE37Channel.ALL)
+
+            # Expand "ALL channel keys.
+            if SBE37Channel.ALL in channels:
+                channels += clist
+                channels = [c for c in channels if c != SBE37Channel.ALL]
+
+            # Make unique.
+            channels = list(set(channels))
+
+            # Separate valid and invalid channels.
+            valid_channels = [c for c in channels if c in clist]
+            invalid_channels = [c for c in channels if c not in clist]
+            
+            # Build result dict with invalid entries.
+            for c in invalid_channels:
+                result[c] = InstErrorCode.INVALID_CHANNEL
+                overall_success = InstErrorCode.INVALID_CHANNEL
+                                        
+        return (overall_success, result, valid_channels)
+
+    @staticmethod
+    def _check_get_args(params):
+        """
+        """
+        overall_success = InstErrorCode.OK
+        valid_params = []
+        result = {}
+        
+        if params == None or not isinstance(params, (list, tuple)):
+            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            
+        elif len(params) == 0:
+            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            
+        else:
+            temp_list = []
+            
+            plist = SBE37Parameter.list()
+            if SBE37Parameter.ALL in plist:
+                plist.remove(SBE37Parameter.ALL)
+            clist = SBE37Channel.list()
+            if SBE37Channel.ALL in clist:
+                clist.remove(SBE37Channel.ALL)
+
+            # Expand and remove "ALL" channel specifiers.
+            params += [(c, parameter) for (channel, parameter) in params
+                if channel == SBE37Channel.ALL for c in clist]
+            params = [(c, p) for (c, p) in params if c != SBE37Channel.ALL]
+
+            # Expand and remove "ALL" parameter specifiers.
+            params += [(channel, p) for (channel, parameter) in params
+                if parameter == SBE37Parameter.ALL for p in plist]
+            params = [(c, p) for (c, p) in params if p != SBE37Parameter.ALL]
+
+            # Make list unique.
+            params = list(set(params))
+            
+            # Separate valid and invalid params.
+            invalid_params = [(c, p) for (c, p) in params if c in clist and p not in plist]
+            invalid_channels = [(c, p) for (c, p) in params if c not in clist]
+            valid_params = [(c, p) for (c, p) in params if c in clist and p in plist]
+
+            # Build result
+            for (c, p) in invalid_params:
+                result[(c, p)] = InstErrorCode.INVALID_PARAMETER
+                overall_success = InstErrorCode.GET_DEVICE_ERR
+            for (c, p) in invalid_channels:
+                result[(c, p)] = InstErrorCode.INVALID_CHANNEL
+                overall_success = InstErrorCode.GET_DEVICE_ERR
+
+        return (overall_success, result, valid_params)
+   
+    @staticmethod
+    def _check_set_args(params):
+        """
+        """
+        overall_success = InstErrorCode.OK
+        valid_params = {}
+        result = {}
+        
+        if params == None or not isinstance(params, dict):
+            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            
+        elif len(params) == 0:
+            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            
+        else:
+            
+            plist = SBE37Parameter.list()
+            if SBE37Parameter.ALL in plist:
+                plist.remove(SBE37Parameter.ALL)
+            clist = SBE37Channel.list()
+            if SBE37Channel.ALL in clist:
+                clist.remove(SBE37Channel.ALL)
+
+            # Expand and remove "ALL" channel specifiers.
+            for (key, val) in params.iteritems():
+                if key[0] == SBE37Channel.ALL:
+                    for c in clist: params[(c, key[1])] = val
+                    params.pop(key)
+
+            # Remove invalid parameters.
+            temp_params = params.copy()
+            for (key, val) in temp_params.iteritems():
+                if key[0] not in clist:
+                    result[key] = InstErrorCode.INVALID_CHANNEL
+                    overall_success = InstErrorCode.SET_DEVICE_ERR
+                    params.pop(key)
+                
+                elif key[1] not in plist:
+                    result[key] = InstErrorCode.INVALID_PARAMETER
+                    overall_success = InstErrorCode.SET_DEVICE_ERR
+                    params.pop(key)
+                
+        return (overall_success, result, params)
 
     ########################################################################
     # Misc and temp.

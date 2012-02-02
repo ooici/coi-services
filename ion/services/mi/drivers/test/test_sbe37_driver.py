@@ -28,6 +28,7 @@ from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import SBE37Command
+from ion.services.mi.drivers.sbe37_driver import SBE37Driver
 from ion.services.mi.common import InstErrorCode
 import ion.services.mi.mi_logger
 
@@ -38,6 +39,12 @@ mi_logger = logging.getLogger('mi_logger')
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_config
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_check_args
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
+
+
 
 @attr('UNIT', group='mi')
 class TestSBE37Driver(PyonTestCase):    
@@ -136,6 +143,12 @@ class TestSBE37Driver(PyonTestCase):
         driver_client.start_messaging()
         time.sleep(2)
 
+        configs = {SBE37Channel.CTD:self.comms_config}
+        reply = driver_client.cmd_dvr('configure', configs)
+        time.sleep(2)
+
+        reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
+        time.sleep(2)
         
         # Terminate driver process and stop client messaging.
         driver_client.done()
@@ -154,11 +167,23 @@ class TestSBE37Driver(PyonTestCase):
         driver_client.start_messaging()
         time.sleep(2)
 
+        configs = {SBE37Channel.CTD:self.comms_config}
+        reply = driver_client.cmd_dvr('configure', configs)
+        time.sleep(2)
+
+        reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
+        time.sleep(2)
+                
+        reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
+        time.sleep(2)
         
+        reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
+        time.sleep(2)
+
         # Terminate driver process and stop client messaging.
         driver_client.done()
-        driver_process.wait()
-    
+        driver_process.wait()        
+        
     def test_get_set(self):
         """
         """
@@ -314,6 +339,28 @@ class TestSBE37Driver(PyonTestCase):
         driver_client.start_messaging()
         time.sleep(2)
 
+        configs = {SBE37Channel.CTD:self.comms_config}
+        reply = driver_client.cmd_dvr('configure', configs)
+        time.sleep(2)
+
+        reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
+        time.sleep(2)
+
+        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
+        time.sleep(2)
+
+        reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        # Deconfigure the driver.
+        reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
+        time.sleep(2)
         
         # Terminate driver process and stop client messaging.
         driver_client.done()
@@ -332,26 +379,6 @@ class TestSBE37Driver(PyonTestCase):
         driver_client.start_messaging()
         time.sleep(2)
 
-        
-        # Terminate driver process and stop client messaging.
-        driver_client.done()
-        driver_process.wait()
-        
-    """
-    def test_xxx(self):
-        
-        #Test driver configure.
-        
-
-        driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
-            self.evt_port, self.dvr_mod,  self.dvr_cls)
-        
-        
-        driver_client = ZmqDriverClient(self.server_addr, self.cmd_port,
-                                        self.evt_port)
-        driver_client.start_messaging()
-        time.sleep(3)
-
         configs = {SBE37Channel.CTD:self.comms_config}
         reply = driver_client.cmd_dvr('configure', configs)
         time.sleep(2)
@@ -359,23 +386,101 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
-        time.sleep(2)
-        
         reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.START_AUTO_SAMPLING])
-        time.sleep(20)
+        time.sleep(30)
         
         reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.STOP_AUTO_SAMPLING])
         time.sleep(2)
-        
+
         reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
         time.sleep(2)
         
+        # Deconfigure the driver.
         reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
         time.sleep(2)
         
+        # Terminate driver process and stop client messaging.
         driver_client.done()
         driver_process.wait()
+        
     """
+    def test_check_args(self):
+        
+        
+        
+        c1 = [SBE37Channel.ALL]
+        c2 = [SBE37Channel.CTD]
+        c3 = [SBE37Channel.CTD, SBE37Channel.CTD]
+        c4 = [SBE37Channel.CTD, SBE37Channel.ALL]
+        c5 = ['bogus1', 'bogus2', SBE37Channel.CTD, SBE37Channel.ALL]
+        
+        result = SBE37Driver._check_channel_args(c1)
+        print str(result)
+        result = SBE37Driver._check_channel_args(c2)
+        print str(result)
+        result = SBE37Driver._check_channel_args(c3)
+        print str(result)
+        result = SBE37Driver._check_channel_args(c4)
+        print str(result)
+        result = SBE37Driver._check_channel_args(c5)
+        print str(result)
+        
+        g1 = [(SBE37Channel.CTD, SBE37Parameter.TA0)]
+        g2 = [(SBE37Channel.ALL, SBE37Parameter.TA0)]
+        g3 = [(SBE37Channel.ALL, SBE37Parameter.ALL)]
+        g4 = [(SBE37Channel.ALL, SBE37Parameter.CH),
+                    (SBE37Channel.ALL, SBE37Parameter.TA0),
+                    (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL)]
+        g5 = [(SBE37Channel.CTD, SBE37Parameter.CH),
+                    (SBE37Channel.CTD, SBE37Parameter.TA0),
+                    (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL)]
+        g6 = [('bogus', SBE37Parameter.CH),
+                    (SBE37Channel.CTD, 'bogus'),
+                    (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL)]
+        
+        result = SBE37Driver._check_get_args(g1)
+        print str(result)
+        result = SBE37Driver._check_get_args(g2)
+        print str(result)
+        result = SBE37Driver._check_get_args(g3)
+        print str(result)
+        result = SBE37Driver._check_get_args(g4)
+        print str(result)
+        result = SBE37Driver._check_get_args(g5)
+        print str(result)
+        result = SBE37Driver._check_get_args(g6)
+        print str(result)
+        
+        s1 = {
+            (SBE37Channel.CTD, SBE37Parameter.CH) : 0.95,
+            (SBE37Channel.CTD, SBE37Parameter.TA0) : 0.95,
+            (SBE37Channel.CTD, SBE37Parameter.OUTPUTSAL) : True            
+        }
+        s2 = {
+            (SBE37Channel.ALL, SBE37Parameter.CH) : 0.95,
+            (SBE37Channel.ALL, SBE37Parameter.TA0) : 0.95,
+            (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL) : True            
+        }
+        s3 = {
+            (SBE37Channel.ALL, SBE37Parameter.ALL) : 0.95,
+            (SBE37Channel.ALL, SBE37Parameter.TA0) : 0.95,
+            (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL) : True            
+        }
+        s4 = {
+            (SBE37Channel.ALL, 'bogus') : 0.95,
+            ('bogus', SBE37Parameter.TA0) : 0.95,
+            (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL) : True            
+        }
+        
+        result = SBE37Driver._check_set_args(s1)
+        print str(result)
+        result = SBE37Driver._check_set_args(s2)
+        print str(result)
+        result = SBE37Driver._check_set_args(s3)
+        print str(result)
+        result = SBE37Driver._check_set_args(s4)
+        print str(result)
+        """
+
 
     
