@@ -8,17 +8,12 @@ Various settings can affect the operation of the server:
 
 	authCallback = Reference to authentication function. If
                    there is none, no un/pw is requested. Should
-                   raise an exception if authentication fails
+                   terminate the server if authentication fails
                    Default: None
 	authNeedUser = Should a username be requested?
                    Default: False
 	authNeedPass = Should a password be requested?
                    Default: False
-	COMMANDS     = Dictionary of supported commands
-                   Key = command (Must be upper case)
-                   Value = List of (function, help text)
-                   Function.__doc__ should be long help
-				   Function.aliases may be a list of alternative spellings
 """
 
 #from telnetlib import IAC, WILL, WONT, DO, DONT, ECHO, SGA, Telnet
@@ -254,31 +249,21 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		# What opts have I sent WILL/WONT for and what did I send?
 		self.WILLOPTS = {}
 		# What commands does this CLI support
-		self.COMMANDS = {}
 		self.sock = None	# TCP socket
 		self.rawq = ''		# Raw input string
 		self.cookedq = []	# This is the cooked input stream (list of charcodes)
 		self.sbdataq = ''	# Sub-Neg string
 		self.eof = 0		# Has EOF been reached?
 		self.iacseq = ''	# Buffer for IAC sequence.
-		self.sb = 0		# Flag for SB and SE sequence.
+		self.sb = 0		    # Flag for SB and SE sequence.
 		self.history = []	# Command history
 		self.IQUEUELOCK = threading.Lock()
 		self.OQUEUELOCK = threading.Lock()
-		self.RUNSHELL = True
 		self.authNeedUser = True
 		self.authNeedPass = True
 		self.authCallback = self.authorized
 		self.username = username
 		self.password = password
-		# A little magic - Everything called cmdXXX is a command
-		for k in dir(self):
-			if k[:3] == 'cmd':
-				name = k[3:]
-				method = getattr(self, k)
-				self.COMMANDS[name] = method
-				for alias in getattr(method, "aliases", []):
-					self.COMMANDS[alias] = self.COMMANDS[name]
 		SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
 
 	def setterm(self, term):
@@ -422,6 +407,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		   If echo is true always echo, if echo is false never echo
 		   If echo is None follow the negotiated setting.
 		"""
+		# TODO: fix bug that doesn't display the line correctly when inserting 
+		
 		line = []
 		insptr = 0
 		histptr = len(self.history)
@@ -636,93 +623,6 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		except EOFError:
 			pass
 
-# ------------------------------- Basic Commands ---------------------------
-
-# Format of docstrings for command methods:
-# Line 0:  Command paramater(s) if any. (Can be blank line)
-# Line 1:  Short descriptive text. (Mandatory)
-# Line 2+: Long descriptive text. (Can be blank line)
-
-# ALL COMMANDS ARE DISABLED FOR ION
-# THEY ARE LEFT AS EXAMPLES OF HOW TO IMPLEMENT THEM IF NEEDED
-
-	def xcmdHELP(self, params):
-		"""[<command>]
-		Display help
-		Display either brief help on all commands, or detailed
-		help on a single command passed as a parameter.
-		"""
-		if params:
-			cmd = params[0].upper()
-			if self.COMMANDS.has_key(cmd):
-				method = self.COMMANDS[cmd]
-				doc = method.__doc__.split("\n")
-				docp = doc[0].strip()
-				docl = '\n'.join(doc[2:]).replace("\n\t\t", " ").replace("\t", "").strip()
-				if len(docl) < 4:
-					docl = doc[1].strip()
-				self.writeline(
-					"%s %s\n\n%s" % (
-						cmd,
-						docp,
-						docl,
-					)
-				)
-				return
-			else:
-				self.writeline("Command '%s' not known" % cmd)
-		else:
-			self.writeline("Help on built in commands\n")
-		keys = self.COMMANDS.keys()
-		keys.sort()
-		for cmd in keys:
-			method = self.COMMANDS[cmd]
-			doc = method.__doc__.split("\n")
-			docp = doc[0].strip()
-			docs = doc[1].strip()
-			if len(docp) > 0:
-				docps = "%s - %s" % (docp, docs, )
-			else:
-				docps = "- %s" % (docs, )
-			self.writeline(
-				"%s %s" % (
-					cmd,
-					docps,
-				)
-			)
-	xcmdHELP.aliases = ['?']
-
-	def xcmdEXIT(self, params):
-		"""
-		Exit the command shell
-		"""
-		self.RUNSHELL = False
-		self.writeline("Goodbye")
-	xcmdEXIT.aliases = ['QUIT', 'BYE', 'LOGOUT']
-
-	def xcmdDEBUG(self, params):
-		"""
-		Display some debugging data
-		"""
-		for (v,k) in self.ESCSEQ.items():
-			line = '%-10s : ' % (self.KEYS[k], )
-			for c in v:
-				if ord(c)<32 or ord(c)>126:
-					line = line + curses.ascii.unctrl(c)
-				else:
-					line = line + c
-			self.writeline(line)
-
-	def xcmdHISTORY(self, params):
-		"""
-		Display the command history
-		"""
-		cnt = 0
-		self.writeline('Command history\n')
-		for line in self.history:
-			cnt = cnt + 1
-			self.writeline("%-5d : %s" % (cnt, ''.join(line)))
-
 # ----------------------- Command Line Processor Engine --------------------
 
 	def authorized(self, username, password):
@@ -737,7 +637,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		return True
 
 	def exitHandler (self):
-		logging.debug("Exiting request handler")
+		logging.info("Exiting request handler")
 		self.finish()
 	
 	def handle(self):
@@ -751,7 +651,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					username = self.readline()
 				except EOFError:
-					logging.debug("Connection lost")
+					logging.info("Connection lost")
 					self.exitHandler()
 					return
 			if self.authNeedPass:
@@ -760,62 +660,32 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					password = self.readline(echo=False)
 				except EOFError:
-					logging.debug("Connection lost")
+					logging.info("Connection lost")
 					self.exitHandler()
 					return
 				if self.DOECHO:
 					self.write("\n")
 			if not self.authCallback(username, password):
-				logging.debug("login failed")
+				logging.info("login failed")
+				self.writeline("login failed")
 				self.exitHandler()
 				return
-		while self.RUNSHELL:
+		while True:
 			if self.DOECHO:
 				self.write(self.PROMPT)
 			try:
-				cmdlist = [item.strip() for item in self.readline().split()]
+				inputLine = self.readline()
 			except EOFError:
 				logging.debug("Connection lost")
 				self.exitHandler()
 				break
-			idx = 0
-			while idx < (len(cmdlist) - 1):
-				if cmdlist[idx][0] in ["'", '"']:
-					cmdlist[idx] = cmdlist[idx] + " " + cmdlist.pop(idx+1)
-					if cmdlist[idx][0] != cmdlist[idx][-1]:
-						continue
-					cmdlist[idx] = cmdlist[idx][1:-1]
-				idx = idx + 1
-			if cmdlist:
-				cmd = cmdlist[0].upper()
-				params = cmdlist[1:]
-				if self.COMMANDS.has_key(cmd):
-					try:
-						self.COMMANDS[cmd](params)
-					except:
-						(t, p, tb) = sys.exc_info()
-						if self.handleException(t, p, tb):
-							logging.debug("Exception occured")
-							self.exitHandler()
-							break
-				else:
-					self.write("Unknown command '%s'\n" % cmd)
+			self.writeline("you typed: " + inputLine)
 
 
 if __name__ == '__main__':
-	"Testing - Accept a single connection"
+	"For command line testing - Accept a single connection"
 	class TNS(SocketServer.TCPServer):
 		allow_reuse_address = True
-
-	class TNH(TelnetHandler):
-		def xcmdECHO(self, params):
-			""" [<arg> ...]
-			Echo parameters
-			Echo command line parameters back to user, one per line.
-			"""
-			self.writeline("Parameters:")
-			for item in params:
-				self.writeline("\t%s" % item)
 				
 	logging.getLogger('').setLevel(logging.DEBUG)
 
@@ -824,7 +694,7 @@ if __name__ == '__main__':
 	username = "admin"
 	password = "123"
 
-	tns = TNS(("localhost", 8023), TNH)
+	tns = TNS(("localhost", 8023), TelnetHandler)
 	tns.handle_request()
 	logging.info("completed request: exiting server")
 
