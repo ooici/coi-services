@@ -712,12 +712,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_platform_model_from_platform_device(self, platform_model_id='', platform_device_id=''):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
-    def assign_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        raise NotImplementedError("Should be assign logical instrument!")
+    def assign_logical_instrument_to_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
         self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
 
-    def unassign_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        raise NotImplementedError("Should be assign logical instrument!")
+    def unassign_logical_instrument_from_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
         self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
 
     def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):

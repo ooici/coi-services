@@ -45,6 +45,14 @@ class DataStoreService(BaseDatastoreService):
         self.dss = self.datastore.server[datastore_name] if persistent else None
         self.ds = self.datastore
 
+    def on_stop(self):
+        BaseDatastoreService.on_stop(self)
+        self.datastore.close()
+
+    def _on_quit(self):
+        BaseDatastoreService._on_quit(self)
+        self.datastore.close()
+
     def create_datastore(self, datastore_name=''):
         return self.datastore.create_datastore(datastore_name)
 

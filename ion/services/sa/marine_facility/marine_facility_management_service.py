@@ -302,6 +302,12 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     def unassign_site_from_site(self, child_site_id="", parent_site_id=''):
         self.site.unlink_site(parent_site_id, child_site_id)
 
+    def assign_logical_platform_to_site(self, logical_platform_id='', site_id=''):
+        self.site.link_platform(site_id, logical_platform_id)
+
+    def unassign_logical_platform_from_site(self, logical_platform_id='', site_id=''):
+        self.site.unlink_platform(site_id, logical_platform_id)
+
 
 
 
