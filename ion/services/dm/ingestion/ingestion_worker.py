@@ -14,9 +14,25 @@ send data far and wide.
 # import ScienceObject, ScienceObjectTransport, HDFEncoder, HDFDecoder, and the exceptions... i.e.
 # everything in science_object_codec.py
 
-from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
+from pyon.core.exception import NotFound
+from pyon.public import RT, PRED, log, IonObject
+from pyon.public import CFG, StreamProcess
+from pyon.ion.endpoint import ProcessPublisher
+from pyon.net.channel import SubscriberChannel
+from pyon.container.procs import ProcManager
+from pyon.core.exception import IonException
+from pyon.ion.transform import TransformDataProcess
 
-class IngestionWorker(object):
+from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+from interface.objects import BlogPost, BlogComment
+from pyon.core.exception import BadRequest
+from interface.objects import StreamIngestionPolicy
+
+import time
+
+
+
+class IngestionWorker(TransformDataProcess):
     """
     This Class creates an instance of a science object and science object transport
      to contain the data for use in inventory (interacts with the inventory as required).
@@ -30,71 +46,84 @@ class IngestionWorker(object):
     Alternatively the instance can be killed and a new worker created.
     """
 
-    def find_ingestion_configuration_from_id(self, ingestion_configuration_id = ''):
-        """
-        Returns an ingestion_configuration when provided an ingestion_configuration_id
-        """
-        ingestion_configuration = self.clients.resource_registry.read(ingestion_configuration_id)
+    def on_start(self):
+        super(IngestionWorker,self).on_start()
+        #----------------------------------------------
+        # Start up couch
+        #----------------------------------------------
 
-        return ingestion_configuration
+        self.couch_config = self.CFG.get('couch_storage')
+        self.hdf_storage = None # Add it here...
+        #@TODO Add the rest of the config args as properties of the instance
 
-    def process_stream(self, ingestion_configuration_id = '', incoming_stream = '', instruction = ''):
+        self.db = CouchDB_DM_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
+
+
+        log.warn(str(self.db))
+
+        # Create dm_datastore if it does not exist already
+        try:
+            self.db.create_datastore()
+        except BadRequest:
+            print 'Already exists'
+
+    def process(self, packet):
+        """Processes incoming data!!!!
+        """
+
+        # Get the policy for this stream
+        policy = self.extract_policy_packet(packet)
+
+        # Process the packet
+        self.process_stream(packet, policy)
+
+    def process_stream(self, packet, policy):
         """
         Accepts a stream. Also accepts instruction as a string, and according to what is contained in the instruction,
         it does things with the stream such as store in hfd_storage, couch_storage or process the data and return the
         output.
-        @param: ingestion_configuration_id The id for the configuration of type string.
         @param: incoming_stream The incoming data stream of type stream.
-        @param: instruction The instruction telling this method what to do with the incoming data stream.
-
-        @return output_stream: The output stream. This may or may not be returned depending on what the instruction says.
+        @param: policy The policy telling this method what to do with the incoming data stream.
         """
 
-        # Do something for the preservation of the object
+        # Evaluate policy for this stream and determine what to do.
 
-        configuration = self.find_ingestion_configuration_from_id(ingestion_configuration_id)
-
-        # do things with the data stream
-
-        # store stuff in couch datastore or in hdf datastore according to the instruction and the configuration
-        # specifications
+        if isinstance(packet, BlogPost):
+            db_post_id, db_post_rev = self.db.create(packet, None )
 
 
-        # return the output stream if that is what the instruction says
-        send_output_stream = True # change this line
+        if isinstance(packet, BlogComment):
+            db_comment_id, db_comment_rev = self.db.create(packet, None)
 
-        if send_output_stream:
-            return output_stream
-        else:
-            return None
+        # Create any events for about the receipt of an update on this stream
 
-    def work_on_datastream(self, ingestion_configuration_id, incoming_stream):
+
+    def on_stop(self):
+        TransformDataProcess.on_stop(self)
+        self.db.close()
+
+    def on_quit(self):
+        TransformDataProcess.on_quit(self)
+        self.db.close()
+
+
+
+    def extract_policy_packet(self, incoming_packet):
         """
-        This method will be called by Transformation.
-
-        The method will be used to work on an incoming stream, and extract the instruction regarding what to do with
-        the datastream. According to the instruction, it will process the datastream and/or send output to whatever is
-        specified by the ingestion_configuration
+        Extracts and returns the policy from the data stream
         """
 
-        # extract the instruction from the stream
-        instruction = self.extract_instruction_from_stream(incoming_stream)
+        stream_id = incoming_packet.stream_id
+        log.debug('Getting policy for stream id: %s' % stream_id)
 
-        # now work on the data stream according to the extracted instruction
-        output_stream = self.process_stream(ingestion_configuration_id, incoming_stream, instruction, output_stream)
-
-        # now return an output_stream if
-        if output_stream:
-            return output_stream
-        else:
-            return True
-
-    def extract_instruction_from_stream(self, incoming_stream):
-        """
-        Extracts and returns the instruction from the data stream
-        """
-        instruction = ''
-        # do some extraction stuff
+        policy = StreamIngestionPolicy()
+        try:
+            #@TODO add a resource client so we can get the policy from the resource registry.
+            # Later this would be replaced with a notification and caching scheme
+            pass
+        except NotFound:
+            # If there is not policy for this stream use the default policy
+            log.debug('No policy found for stream id: %s' % stream_id)
 
         # return the extracted instruction
-        return instruction
+        return policy

@@ -72,7 +72,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         #   for processes.
         #########################################################################################################
         process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
-        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_management_service', 'class':'IngestionWorker'}
+        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_worker', 'class':'IngestionWorker'}
         #        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
         process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 
@@ -91,20 +91,23 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration.description = '%s exchange point ingestion configuration' % XP
         ingestion_configuration.number_of_workers = number_of_workers
         ingestion_configuration.hdf_storage.update(hdf_storage or {})
-        ingestion_configuration.couch_storage.update(couch_storage or {})
+        ingestion_configuration.couch_storage.update(couch_storage or {'server':'localhost','database':'dm_datastore'})
         ingestion_configuration.default_policy.update(default_policy or {})
 
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
-        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, process_definition_id)
+        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id)
 
         return ingestion_configuration_id
 
-    def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id, process_definition_id):
+    def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id):
         """
         This method spawns the two transform processes without activating them...Note: activating the transforms does the binding
         """
-        configuration= {}
+        config = {}
+        for key in ingestion_configuration._schema.keys():
+            config[key] = getattr(ingestion_configuration,key)
+
         description = 'Ingestion worker'
 
         # launch the transforms
@@ -112,7 +115,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
             transform_id = self.clients.transform_management.create_transform(name = name, description = description,\
                 in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id,\
-                configuration=configuration)
+                configuration=config)
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
@@ -255,39 +258,3 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if ingestion configuration did not exist
         """
         pass
-
-class IngestionWorker(TransformDataProcess):
-    ''' A basic transform that receives input through a subscription,
-    parses the input for an integer and adds 1 to it. If the transform
-    has an output_stream it will publish the output on the output stream.
-
-    This transform appends transform work in '/tmp/transform_output'
-    '''
-
-    def __init__(self, *args, **kwargs):
-        super(IngestionWorker,self).__init__()
-        self.db = CouchDB_DM_DataStore()
-        self.datastore_name = 'dm_datastore'
-
-    def on_start(self):
-        super(IngestionWorker,self).on_start()
-        #----------------------------------------------
-        # Start up couch
-        #----------------------------------------------
-
-        # Create dm_datastore if it does not exist already
-        try:
-            self.db.create_datastore(self.datastore_name)
-        except BadRequest:
-            print 'Already exists'
-
-
-    def process(self, packet):
-        """Processes incoming data!!!!
-        """
-        if isinstance(packet, BlogPost):
-            db_post_id, db_post_rev = self.db.create(packet, None, self.datastore_name)
-
-
-        if isinstance(packet, BlogComment):
-            db_comment_id, db_comment_rev = self.db.create(packet, None, self.datastore_name)

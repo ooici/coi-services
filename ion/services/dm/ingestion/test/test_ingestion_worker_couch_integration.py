@@ -100,11 +100,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Publish messages
         #----------------------------------------------------------------------
 
-        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {}, updated = 'too early', content ='summer' )
+        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
 
         self.ctd_stream1_publisher.publish(post)
 
-        comment = BlogComment(ref_id = '1234',author = {}, updated = 'too late',content = 'when summer comes')
+        comment = BlogComment(ref_id = '1234',author = {}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
 
         self.ctd_stream1_publisher.publish(comment)
 
