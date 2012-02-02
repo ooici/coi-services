@@ -85,24 +85,24 @@ class InstrumentFSM():
         @param event A string indicating the event that has occurred.
         @param params Optional parameters to be sent with the event to the
             handler.
-        @retval Success/fail if the event was handled by the current state.
+        @retval result from the handler executed by the current state/event pair.
+        @throw InstrumentProtocolException
+        @throw InstrumentTimeoutException
         """        
-        success = self.err_unhandled
         next_state = None
         result = None
         
         if self.events.has(event):
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:
-                (success, next_state, result) = handler(params)
+                (next_state, result) = handler(params)
 
         #if next_state in self.states:
         if self.states.has(next_state):
             self._on_transition(next_state, params)
                 
-        return (success,result)
-
-    
+        return result
+            
     def _on_transition(self,next_state,params):
         """
         Call the sequence of events to cause a state transition. Called from

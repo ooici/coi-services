@@ -102,11 +102,11 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
         self._fsm.start(SBE37State.UNCONFIGURED)
 
-        self._add_build_handler('ds', self._build_simple_cmd)
-        self._add_build_handler('dc', self._build_simple_cmd)
-        self._add_build_handler('ts', self._build_simple_cmd)
-        self._add_build_handler('startnow', self._build_simple_cmd)
-        self._add_build_handler('stop', self._build_simple_cmd)
+        self._add_build_handler('ds', self._build_simple_command)
+        self._add_build_handler('dc', self._build_simple_command)
+        self._add_build_handler('ts', self._build_simple_command)
+        self._add_build_handler('startnow', self._build_simple_command)
+        self._add_build_handler('stop', self._build_simple_command)
         self._add_build_handler('set', self._build_set_cmd)
 
         self._add_response_handler('ds', self._parse_dsdc_response)
@@ -218,18 +218,16 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _handler_unconfigured_initialize(self, params):
         """
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
         
         next_state = SBE37State.UNCONFIGURED
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_unconfigured_configure(self, params):
         """
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -244,7 +242,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         if InstErrorCode.is_ok(success):
             next_state = SBE37State.DISCONNECTED
 
-        return (success, next_state, result)
+        return (next_state, result)
     
     ########################################################################
     # SBE37State.DISCONNECTED
@@ -264,18 +262,16 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _handler_disconnected_initialize(self, params):
         """
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
         next_state = SBE37State.UNCONFIGURED
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_disconnected_configure(self, params):
         """
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -286,40 +282,39 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         if params:
             config = params.get('config', None)
             timeout = params.get('timeout', None)            
-        success = InstrumentProtocol.configure(self, config, timeout)
-        if InstErrorCode.is_error(success):
+        return_code = InstrumentProtocol.configure(self, config, timeout)
+        if InstErrorCode.is_error(return_code):
             next_state = SBE37State.DISCONNECTED
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_disconnected_connect(self, params):
         """
+        @throw InstrumentTimeoutException on timeout
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
         timeout = None
         if params:
             timeout = params.get('timeout', None)
-        success = InstrumentProtocol.connect(self, timeout)
+        InstrumentProtocol.connect(self, timeout)
         
-        if InstErrorCode.is_ok(success):                
+        try:
             prompt = self._wakeup()
-            
+                
             if prompt == SBE37Prompt.COMMAND:
                 next_state = SBE37State.COMMAND
-
+    
             elif prompt == SBE37Prompt.AUTOSAMPLE:
                 next_state = SBE37State.AUTOSAMPLE
-
-            elif promp == InstErrorCode.TIMEOUT:
-                # Disconnect on timeout from prompt.
-                # TBD.
+    
+        except InstrumentTimeoutException as e:
                 InstrumentProtocol.disconnect(self)
                 next_state = SBE37State.DISCONNECTED
-
-        return (success, next_state, result)
+        
+        finally:    
+           return (next_state, result)
 
     ########################################################################
     # SBE37State.COMMAND
@@ -340,22 +335,24 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _handler_command_disconnect(self, params):
         """
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
         timeout = None
         if params:
             timeout = params.get('timeout', None)
-        InstrumentProtocol.disconnect(self, timeout)
-        next_state = SBE37State.DISCONNECTED
-
-        return (success, next_state, result)
+        try:
+            InstrumentProtocol.disconnect(self, timeout)
+            next_state = SBE37State.DISCONNECTED
+        except InstrumentConnectionException:
+            pass
+        finally:
+            return (next_state, result)
 
     def _handler_command_execute(self, params):
         """
+        @throw InstrumentProtocolException on invalid command
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
         command = None
@@ -372,9 +369,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             next_state = SBE37State.AUTOSAMPLE
             
         else:
-            success = InstErrorCode.INVALID_COMMAND        
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     ########################################################################
     # SBE37State.AUTOSAMPLE
@@ -393,8 +390,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
     def _handler_autosample_execute(self, params):
         """
+        @throw InstrumentProtocolException on invalid command
         """
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -416,9 +413,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             next_state = SBE37State.COMMAND
             
         else:
-            success = InstErrorCode.INVALID_COMMAND        
+            raise InstrumentProtocolExcpetion(InstErrorCode.INVALID_COMMAND)
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     ########################################################################
     # Private helpers
@@ -440,8 +437,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _process_streaming_data(self):
         """
         """
-        if SBE37_NEWLINE in self._linebuf:
-            lines = self._linebuf.split(SBE37_NEWLINE)
+        if self.eoln in self._linebuf:
+            lines = self._linebuf.split(self.eoln)
             self._linebuf = lines[-1]
             lines = lines[0:-1]
             mi_logger.debug('Streaming data received: %s',str(lines))
@@ -449,7 +446,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _send_wakeup(self):
         """
         """
-        self._logger_client.send(SBE37_NEWLINE)
+        self._logger_client.send(self.eoln)
     
     def _update_params(self):
         """
@@ -463,11 +460,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         # Send take sample command.
         self._do_cmd_resp('ts')
-
-    def _build_simple_cmd(self, cmd):
-        """
-        """
-        return cmd+SBE37_NEWLINE
     
     def _build_set_cmd(self, param, val):
         """
