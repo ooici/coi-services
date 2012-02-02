@@ -6,7 +6,7 @@
 import commands
 import threading
 import time
-from interface.objects import ProcessDefinition, StreamQuery
+from interface.objects import ProcessDefinition, StreamQuery, BlogPost
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
@@ -17,8 +17,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import IonObject, RT, log, PRED
-
-
+import json
+import urllib2
 
 class TransformExampleProducer(StreamProcess):
     """
@@ -69,6 +69,37 @@ class TransformExampleProducer(StreamProcess):
             log.debug("Message %s published", num)
             num += 1
             time.sleep(interval/1000.0)
+
+class TransformCampfire(TransformDataProcess):
+
+    def on_start(self):
+        super(TransformCampfire,self).on_start()
+
+    def process(self, packet):
+        with open('/tmp/debug','a') as f:
+            f.write('campfire packet:\n%s\n' % type(packet))
+        if not isinstance(packet,BlogPost):
+            return # do nothing
+        url = 'https://ooici.campfirenow.com/room/448589/speak.json'
+
+        message = {'message':{
+            'body':'(BlogPost) %s: %s' %(packet.author['name'],packet.content)
+        }}
+        json_message = json.dumps(message)
+        json_message += '\r\n\r\n'
+
+        headers = {
+            'Authorization':'Basic OTgxZGY3YjYyYzMxZWE5ODA4NzExYWNmNTE5MzgwNmIwOTVkMWFmZjpY',
+            'User-Agent':'Luke-transform',
+            'Content-Type':'application/json'
+        }
+
+        url_request = urllib2.Request(url,json_message,headers)
+
+        urllib2.urlopen(url_request)
+
+
+
 
 class TransformEvenOdd(TransformDataProcess):
     '''A simple transform that takes the input of a number and maps an even and odd sequence

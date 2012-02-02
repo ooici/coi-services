@@ -31,6 +31,7 @@ class ReplayAgent(BaseReplayAgent):
         # Get the query
         self.query = self.CFG.get('process',{}).get('query',{})
 
+
         # Get the delivery_format
         self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
 
@@ -45,12 +46,23 @@ class ReplayAgent(BaseReplayAgent):
         Queries the data IAW the query argument and publishes the data on the output streams
         '''
         if hasattr(self,'output'):
-            for result in self._query():
-                self.output.publish(result)
+            if self.query:
+                datastore_name = self.query.get('datastore_name','dm_datastore')
+                view_name = self.query.get('view_name','posts/query')
+                key = self.query.get('key','')
+            else:
+                datastore_name = 'dm_datastore'
+                view_name = 'posts/query'
+                key = ''
+            log.debug('REPLAY:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, key)
+            for result in self._query(datastore_name,view_name,key):
+                with open('/tmp/debug','a') as f:
+                    f.write('%s\n'% str(result))
+                self.output.publish(result['value'])
         log.debug('(Replay Agent %s)', self.name)
         log.debug('  Published...')
 
-    def _query(self,datastore_name='dm_datastore', view_name='posts/index', key=''):
+    def _query(self,datastore_name='dm_datastore', view_name='posts/query', key=''):
         '''
         Performs the query action
         '''
