@@ -58,6 +58,10 @@ class InstrumentProtocol(object):
     # Protocol connection interface.
     ########################################################################
 
+    """
+    @todo Move this into the driver state machine?
+    """
+    
     def initialize(self, timeout=10):
         """
         """
