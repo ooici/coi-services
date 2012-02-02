@@ -55,7 +55,12 @@ class ReplayAgent(BaseReplayAgent):
         Performs the query action
         '''
         db = CouchDB_DM_DataStore(datastore_name=datastore_name)
-        ret = db.query_view(view_name,key)
-        return ret
+
+        if db.datastore_exists(datastore_name):
+            ret = db.query_view(view_name,key)
+            return ret
+
+
+        return []
 
 

@@ -18,6 +18,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
+from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 @attr('UNIT',group='dm')
 class DataRetrieverServiceTest(PyonTestCase):
     def setUp(self):
@@ -89,6 +90,11 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
+        couch = CouchDB_DM_DataStore(datastore_name='dm_datastore')
+        if not couch.datastore_exists('dm_datastore'):
+            couch.create_datastore('dm_datastore')
+
+
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
@@ -135,7 +141,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         # assert the process has stopped
         proc = self.container.proc_manager.procs.get(replay.process_id,None)
         self.assertTrue(not proc)
-
+    @unittest.skip('not implemented yet')
     def test_start_replay(self):
         replay_id, stream_id = self.dr_cli.define_replay('123')
         replay = self.rr_cli.read(replay_id)
