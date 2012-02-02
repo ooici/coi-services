@@ -167,6 +167,13 @@ class TestLCASA(IonIntegrationTestCase):
             
         
         def fill(svc, method, plural=False):
+            """
+            make a "shortcut service" for testing crud ops.  
+            @param svc a dotdict 
+            @param method the method name to add
+            @param plural whether to maek the resource label plural
+            """
+
             reallabel = resource_label
             if plural:
                 reallabel = make_plural(reallabel)
