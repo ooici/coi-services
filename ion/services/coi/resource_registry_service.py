@@ -48,6 +48,14 @@ class ResourceRegistryService(BaseResourceRegistryService):
         self.dss = self.resource_registry.server[resource_registry_name] if persistent else None
         self.ds = self.resource_registry
 
+    def on_stop(self):
+        BaseResourceRegistryService.on_stop(self)
+        self.resource_registry.close()
+
+    def _on_quit(self):
+        BaseResourceRegistryService._on_quit(self)
+        self.resource_registry.close()
+
     def create(self, object={}):
         cur_time = get_ion_ts()
         object.ts_created = cur_time
