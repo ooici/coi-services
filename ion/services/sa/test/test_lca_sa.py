@@ -1,7 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container, IonObject
-from pyon.util.log import log
+#from pyon.util.log import log
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -12,12 +12,25 @@ from interface.services.sa.imarine_facility_management_service import MarineFaci
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, PRED, LCS
+from pyon.public import RT, LCS # , PRED
 from nose.plugins.attrib import attr
 
+from ion.services.sa.test.helpers import any_old
 
 class FakeProcess(LocalContextMixin):
     name = ''
+
+
+# some stuff for logging info to the console
+import sys
+log = DotDict()
+printout = sys.stderr.write
+printout = lambda x: None
+
+log.debug = lambda x: printout("DEBUG: %s\n" % x)
+log.info = lambda x: printout("INFO: %s\n" % x)
+log.warn = lambda x: printout("WARNING: %s\n" % x)
+
 
 
 @attr('INT', group='sa')
@@ -38,106 +51,177 @@ class TestLCASA(IonIntegrationTestCase):
         # number of ion objects per type
         self.ionobj_count = {}
 
-    def any_old(self, resource_type):
-        """
-        Create a generic and unique object of a given type
-        @param resource_type the resource type
-        """
-        if resource_type not in self.ionobj_count:
-            self.ionobj_count[resource_type] = 0
 
-        self.ionobj_count[resource_type] = self.ionobj_count[resource_type] + 1
-
-        name = "%s %d" % (resource_type, self.ionobj_count[resource_type])
-        desc = "My %s #%d" % (resource_type, self.ionobj_count[resource_type])
-        log.debug("Creating any old %s IonObject (#%d" % (resource_type, self.ionobj_count[resource_type]))
-
-        return IonObject(resource_type, name=name, description=desc)
-    
-        
-        
     def test_just_the_setup(self):
         return
 
     def test_jg_slide1(self):
-        self.jg_slide1()
+        self.generic_crud_script(RT.MarineFacility, "marine_facility", self.client.MFMS, True)
 
 
     def test_jg_slide3(self):
-        self.jg_slide3()
+        self.generic_crud_script(RT.Site, "site", self.client.MFMS, True)
 
 
 
-
-    def jg_slide1(self):
+    def test_jg_slide4(self):
         c = self.client
 
-        log.info("Finding marine facilities")
-        num_facilities = len(c.MFMS.find_marine_facilities()["marine_facility_list"])
-        log.info("I found %d marine facilities" % num_facilities)
+        site_id = self.generic_crud_script(RT.Site, "site", self.client.MFMS, True)
 
-        log.info("Creating a facility")
-        mf_obj = self.any_old(RT.MarineFacility)
-        mf_id = c.MFMS.create_marine_facility(mf_obj)["marine_facility_id"]
+        platform_model_id = self.generic_crud_script(RT.PlatformModel, 
+                                                     "platform_model", 
+                                                     self.client.IMS, 
+                                                     True)
 
-        log.info("Reading facility #%s" % mf_id)
-        mf_ret = c.MFMS.read_marine_facility(mf_id)["marine_facility"]
-        
-        self.assertEqual(mf_obj.name, mf_ret.name)
-        self.assertEqual(mf_obj.description, mf_ret.description)
+        logical_platform_id = self.generic_crud_script(RT.LogicalPlatform, 
+                                                    "logical_platform", 
+                                                    self.client.MFMS, 
+                                                    True)
 
-        log.info("Updating facility #%s" % mf_id)
-        mf_newname = "%s updated" % mf_ret.name
-        mf_ret.name = mf_newname
-        c.MFMS.update_marine_facility(mf_ret)
+        log.info("Assigning logical platform to site")
+        c.MFMS.assign_logical_platform_to_site(logical_platform_id, site_id)
 
-        log.info("Reading facility #%s to verify update" % mf_id)
-        mf_ret = c.MFMS.read_marine_facility(mf_id)["marine_facility"]
-        
-        self.assertEqual(mf_newname, mf_ret.name)
-        self.assertEqual(mf_obj.description, mf_ret.description)
+        platform_device_id = self.generic_crud_script(RT.PlatformDevice, 
+                                                    "platform_device", 
+                                                    self.client.IMS, 
+                                                    False)
 
-        log.info("Finding marine facilities... checking that there's a new one")
-        num_facilities2 = len(c.MFMS.find_marine_facilities()["marine_facility_list"])
+        ("suppresss pyflakes errors:",
+         site_id, 
+         platform_model_id, 
+         logical_platform_id, 
+         platform_device_id,
+         0)
 
-        self.assertTrue(num_facilities2 > num_facilities)
-        
-        
-    def jg_slide3(self):
+    def test_jg_slide5ab(self):
         c = self.client
 
-        log.info("Creating a site")
-        site_obj = self.any_old(RT.Site)
-        site_id = c.MFMS.create_site(site_obj)["site_id"]
-        site_id #fixme, remove this 
+        site_id = self.generic_crud_script(RT.Site, "site", self.client.MFMS, True)
 
-        log.info("Finding sites")
-        num_sites = len(c.MFMS.find_sites()["site_list"])
-        log.info("I found %d sites" % num_sites)
+        logical_platform_id = self.generic_crud_script(RT.LogicalPlatform, 
+                                                    "logical_platform", 
+                                                    self.client.MFMS, 
+                                                    True)
 
-        log.info("Creating a site")
-        mf_obj = self.any_old(RT.Site)
-        mf_id = c.MFMS.create_site(mf_obj)["site_id"]
+        instrument_model_id = self.generic_crud_script(RT.InstrumentModel, 
+                                                       "instrument_model", 
+                                                       self.client.IMS, 
+                                                       True)
 
-        log.info("Reading site #%s" % mf_id)
-        mf_ret = c.MFMS.read_site(mf_id)["site"]
+        logical_instrument_id = self.generic_crud_script(RT.LogicalInstrument, 
+                                                    "logical_instrument", 
+                                                    self.client.MFMS, 
+                                                    True)
+
+        log.info("Assigning logical instrument to logical platform")
+        c.MFMS.assign_logical_instrument_to_logical_platform(logical_instrument_id, logical_platform_id)
+
+
+        log.info("Part B")
+
+        instrument_device_id = self.generic_crud_script(RT.InstrumentDevice, 
+                                                    "instrument_device", 
+                                                    self.client.IMS, 
+                                                    False)
+
+        #fixme: policy
         
-        self.assertEqual(mf_obj.name, mf_ret.name)
-        self.assertEqual(mf_obj.description, mf_ret.description)
+        #fixme: find data products
 
-        log.info("Updating site #%s" % mf_id)
-        mf_newname = "%s updated" % mf_ret.name
-        mf_ret.name = mf_newname
-        c.MFMS.update_site(mf_ret)
+        ("suppresss pyflakes errors:",
+         site_id, 
+         instrument_model_id, 
+         logical_platform_id, 
+         logical_instrument_id, 
+         instrument_device_id,
+         0)
 
-        log.info("Reading site #%s to verify update" % mf_id)
-        mf_ret = c.MFMS.read_site(mf_id)["site"]
+
+    def test_jg_slide6(self):
+        instrument_agent_id = self.generic_crud_script(RT.InstrumentAgent, 
+                                                       "instrument_agent", 
+                                                       self.client.IMS, 
+                                                       True)        
         
-        self.assertEqual(mf_newname, mf_ret.name)
-        self.assertEqual(mf_obj.description, mf_ret.description)
+        ("suppresss pyflakes errors:",
+         instrument_agent_id, 
+         0)
 
-        log.info("Finding sites... checking that there's a new one")
-        num_sites2 = len(c.MFMS.find_sites()["site_list"])
 
-        self.assertTrue(num_sites2 > num_sites)
+    def generic_crud_script(self, resource_iontype, resource_label, owner_service, is_simple):
+        """
+        run through crud ops on a basic resource
+
+        @param resource_iontype something like RT.BlahBlar
+        @param resource_label something like platform_model
+        @param owner_service a service client instance
+        @param is_simple whether to check for AVAILABLE LCS on create
+        """
+
+        def make_plural(noun):
+            if "y" == noun[-1]:
+                return noun[:-1] + "ies"
+            else:
+                return noun + "s"
+            
         
+        def fill(svc, method, plural=False):
+            reallabel = resource_label
+            if plural:
+                reallabel = make_plural(reallabel)
+                
+            setattr(svc, method,  
+                    getattr(owner_service, "%s_%s" % (method, reallabel)))
+
+
+        resource_labels = make_plural(resource_label)
+        
+        log.info("Finding %ss" % resource_labels)
+
+        #create a fake service object and populate it with the methods we need
+        # basically just a nice package of shortcuts
+        svc = DotDict()
+
+        fill(svc, "create")
+        fill(svc, "read")
+        fill(svc, "update")
+        fill(svc, "delete")
+        fill(svc, "find", True)
+
+
+        num_objs = len(svc.find()["%s_list" % resource_label])
+        log.info("I found %d %s" % (num_objs, resource_labels))
+
+        log.info("Creating a %s" % resource_label)
+        generic_obj = any_old(resource_iontype)
+        generic_id = svc.create(generic_obj)["%s_id" % resource_label]
+
+        log.info("Reading %s #%s" % (resource_label, generic_id))
+        generic_ret = svc.read(generic_id)[resource_label]
+
+        log.info("Verifying equality of stored and retrieved object")
+        self.assertEqual(generic_obj.name, generic_ret.name)
+        self.assertEqual(generic_obj.description, generic_ret.description)
+
+        if is_simple:
+            log.info("Verifying that resource went AVAILABLE on creation")
+            self.assertEqual(generic_ret.lcstate, LCS.AVAILABLE)
+
+        log.info("Updating %s #%s" % (resource_label, generic_id))
+        generic_newname = "%s updated" % generic_ret.name
+        generic_ret.name = generic_newname
+        svc.update(generic_ret)
+
+        log.info("Reading platform model #%s to verify update" % generic_id)
+        generic_ret = svc.read(generic_id)[resource_label]
+
+        self.assertEqual(generic_newname, generic_ret.name)
+        self.assertEqual(generic_obj.description, generic_ret.description)
+
+        log.info("Finding platform models... checking that there's a new one")
+        num_objs2 = len(svc.find()["%s_list" % resource_label])
+
+        self.assertTrue(num_objs2 > num_objs)
+
+        return generic_id
