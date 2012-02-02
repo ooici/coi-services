@@ -10,20 +10,16 @@ import gevent
 from mock import Mock, sentinel, patch
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService, IngestionManagementServiceException
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 import unittest
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber
-from pyon.public import Container
-from pyon.public import Container
-from pyon.util.containers import DotDict
 from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.icontainer_agent import ContainerAgentClient
 
 from interface.objects import BlogPost, BlogComment
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
@@ -136,10 +132,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
                 # since the retrieved document has an extra attribute, rev_id, which the orginal post did not have
                 # it is easier to compare the attributes than the whole objects
+                self.assertTrue(ion_obj.post_id == post.post_id), "The post is not to be found in couch storage"
                 self.assertTrue(ion_obj.author == post.author), "The post is not to be found in couch storage"
                 self.assertTrue(ion_obj.title == post.title), "The post is not to be found in couch storage"
-                self.assertTrue(ion_obj.post_id == post.post_id), "The post is not to be found in couch storage"
-
+                self.assertTrue(ion_obj.updated == post.updated), "The post is not to be found in couch storage"
+                self.assertTrue(ion_obj.content == post.content), "The post is not to be found in couch storage"
 
             elif isinstance(ion_obj, BlogComment):
                 log.debug("ION OBJECT: %s\n" % ion_obj)
@@ -150,6 +147,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 self.assertTrue(ion_obj.author == comment.author), "The comment is not to be found in couch storage"
                 self.assertTrue(ion_obj.content == comment.content), "The comment is not to be found in couch storage"
                 self.assertTrue(ion_obj.ref_id == comment.ref_id), "The comment is not to be found in couch storage"
+                self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
         #------------------------------------------------------------------------
         # Cleanup
