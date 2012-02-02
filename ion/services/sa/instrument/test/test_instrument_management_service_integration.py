@@ -3,6 +3,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
 from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
 
@@ -16,6 +17,8 @@ import unittest
 from pyon.util.log import log
 
 from ion.services.sa.resource_impl_metatest_integration import ResourceImplMetatestIntegration
+
+from ion.services.sa.test.helpers import any_old
 
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
@@ -46,125 +49,72 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #print 'started container'
 
         self.container.start_rel_from_url('res/deploy/r2sa.yml')
+
+        self.RR = ResourceRegistryServiceClient(node=self.container.node)
         
         print 'started services'
 
     def test_just_the_setup(self):
         return
 
-    def notest_createInstrument(self):
-        self.my_inttest_init()
-
-        # Now create client to DataProductManagementService
-        #client = ProcessRPCClient(node=self.container.node, name="instrument_management", iface=IDataProductManagementService)
-        client = DataProductManagementServiceClient(node=self.container.node)
-
-        # test creating a new data product w/o a data producer
-        print 'Creating new data product w/o a data producer'
-        dp_obj = IonObject(RT.DataProduct, 
-                           name='DP1', 
-                           description='some new dp')
-        try:
-            dp_id = client.create_data_product(dp_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new data product")
-        print 'new dp_id = ', dp_id
-        
-        # test creating a duplicate data product
-        print 'Creating the same data product a second time (duplicate)'
-        dp_obj.description = 'the first dp'
-        try:
-            dp_id = client.create_data_product(dp_obj)
-        except BadRequest as ex:
-            print ex
-        else:
-            self.fail("duplicate data product was created with the same name")
-        
+    def test_resources_associations(self):
         """
-        # This is broken until the interceptor handles lists properly (w/o converting them to constants)
-        # and DAMS works with pubsub_management.register_producer() correctly
-        # test creating a new data product with a data producer
-        print 'Creating new data product with a data producer'
-        dp_obj = IonObject(RT.DataProduct, 
-                           name='DP2', 
-                           description='another new dp')
-        data_producer_obj = IonObject(RT.DataProducer, 
-                                      name='DataProducer1', 
-                                      description='a new data producer')
-        try:
-            dp_id = client.create_data_product(dp_obj, data_producer_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new data product")
-        print 'new dp_id = ', dp_id
+        create one of each resource and association used by IMS
+        to guard against problems in ion-definitions
         """
         
-        # test reading a non-existent data product
-        print 'reading non-existent data product' 
-        try:
-            dp_obj = client.read_data_product('some_fake_id')
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("non-existing data product was found during read: %s" %dp_obj)
+        #stuff we control
+        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
+        instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
+        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
+        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
+        platform_agent_instance_id, _ =    self.RR.create(any_old(RT.PlatformAgentInstance))
+        platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
+        platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
+        platform_model_id, _ =             self.RR.create(any_old(RT.PlatformModel))
+        #sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
+        #sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
 
-        # update a data product (tests read also)
-        print 'Updating data product' 
-        # first get the existing dp object      
-        try:
-            dp_obj = client.read_data_product(dp_id)
-        except NotFound as ex:
-            self.fail("existing data product was not found during read")
-        else:
-            pass
-            #print 'dp_obj = ', dp_obj
-        # now tweak the object
-        dp_obj.description = 'the very first dp'
-        # now write the dp back to the registry
-        try:
-            update_result = client.update_data_product(dp_obj)
-        except NotFound as ex:
-            self.fail("existing data product was not found during update")
-        except Conflict as ex:
-            self.fail("revision conflict exception during data product update")
-        else:
-            self.assertTrue(update_result == True)           
-        # now get the dp back to see if it was updated
-        try:
-            dp_obj = client.read_data_product(dp_id)
-        except NotFound as ex:
-            self.fail("existing data product was not found during read")
-        else:
-            pass
-            #print 'dp_obj = ', dp_obj
-        self.assertTrue(dp_obj.description == 'the very first dp')
+        #stuff we associate to
+        logical_platform_id, _   = self.RR.create(any_old(RT.LogicalPlatform))
+        logical_instrument_id, _ = self.RR.create(any_old(RT.LogicalInstrument))
+        data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
+
+        instrument_agent_instance_id #is only a target
         
-        # now 'delete' the data product 
-        print "deleting data product"
-        try:
-            delete_result = client.delete_data_product(dp_id)
-        except NotFound as ex:
-            self.fail("existing data product was not found during delete")
-        self.assertTrue(delete_result == True)
-        # now try to get the deleted dp object      
-        try:
-            dp_obj = client.read_data_product(dp_id)
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("deleted data product was found during read")
+        #instrument_agent
+        self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_agent_id, PRED.hasInstance, instrument_agent_instance_id)
 
-        # now try to delete the already deleted dp object
-        print "deleting non-existing data product"      
-        try:
-            delete_result = client.delete_data_product(dp_id)
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("non-existing data product was found during delete")
+        #instrument_device
+        self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
+        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
+        #self.RR.create_association(instrument_device_id, PRED.hasSensor, sensor_device_id)
+        self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
 
-        # Shut down container
-        #container.stop()
+        instrument_model_id #is only a target
 
+        platform_agent_instance_id #is only a target
+        
+        #platform_agent
+        self.RR.create_association(platform_agent_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_agent_id, PRED.hasInstance, platform_agent_instance_id)
+
+        #platform_device
+        self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_device_id, PRED.hasAssignment, logical_platform_id)
+        self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
+        self.RR.create_association(platform_device_id, PRED.hasInstrument, instrument_device_id)
+
+        platform_model_id #is only a target
+
+        #sensor_device
+        #self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
+
+        #sensor_model_id #is only a target
+
+ 
 rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceIntegration, InstrumentManagementService, log)
 
 rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
