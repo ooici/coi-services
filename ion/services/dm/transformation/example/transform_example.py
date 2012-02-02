@@ -6,7 +6,7 @@
 import commands
 import threading
 import time
-from interface.objects import ProcessDefinition, StreamQuery, BlogPost
+from interface.objects import ProcessDefinition, StreamQuery, BlogPost, BlogComment, BlogAuthor
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
@@ -74,16 +74,31 @@ class TransformCampfire(TransformDataProcess):
 
     def on_start(self):
         super(TransformCampfire,self).on_start()
+        self.limit =5
+
+    def _typeify(self, obj):
+        if isinstance(obj, BlogPost):
+            return "BlogPost"
+        if isinstance(obj, BlogComment):
+            return "BlogComment"
 
     def process(self, packet):
-        with open('/tmp/debug','a') as f:
-            f.write('campfire packet:\n%s\n' % type(packet))
-        if not isinstance(packet,BlogPost):
-            return # do nothing
-        url = 'https://ooici.campfirenow.com/room/448589/speak.json'
+        log.debug('now processing...')
+        if self.limit <= 0:
+            return
 
+        if not isinstance(packet,(BlogPost,BlogComment)):
+            return # do nothing
+
+        url = 'https://ooici.campfirenow.com/room/475552/speak.json'
+        if isinstance(packet.author, BlogAuthor):
+            author = packet.author.name
+        elif isinstance(packet.author,dict):
+            author = packet.author['name']
+        else:
+            author = packet.author
         message = {'message':{
-            'body':'(BlogPost) %s: %s' %(packet.author['name'],packet.content)
+            'body':'(%s) %s: %s' %(self._typeify(packet),author,packet.content)
         }}
         json_message = json.dumps(message)
         json_message += '\r\n\r\n'
@@ -98,6 +113,7 @@ class TransformCampfire(TransformDataProcess):
 
         urllib2.urlopen(url_request)
 
+        self.limit-= 1
 
 
 

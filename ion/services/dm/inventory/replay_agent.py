@@ -31,7 +31,6 @@ class ReplayAgent(BaseReplayAgent):
         # Get the query
         self.query = self.CFG.get('process',{}).get('query',{})
 
-
         # Get the delivery_format
         self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
 
@@ -40,6 +39,8 @@ class ReplayAgent(BaseReplayAgent):
         for name,stream_id in streams.iteritems():
             pub = self.stream_publisher_registrar.create_publisher(stream_id=stream_id)
             setattr(self,name,pub)
+
+
 
     def execute_replay(self):
         ''' Performs the replay action
@@ -54,10 +55,7 @@ class ReplayAgent(BaseReplayAgent):
                 datastore_name = 'dm_datastore'
                 view_name = 'posts/query'
                 key = ''
-            log.debug('REPLAY:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, key)
             for result in self._query(datastore_name,view_name,key):
-                with open('/tmp/debug','a') as f:
-                    f.write('%s\n'% str(result))
                 self.output.publish(result['value'])
         log.debug('(Replay Agent %s)', self.name)
         log.debug('  Published...')

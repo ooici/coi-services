@@ -108,7 +108,7 @@ class FeedStreamer(StreamProcess):
             # Wrap it
             ######################################
 
-            post = BlogPost(id,title,author,updated,content)
+            post = BlogPost(post_id=id,title=title,author=author,updated=updated,content=content)
             entry['post'] = post
 
             ######################################
@@ -124,7 +124,7 @@ class FeedStreamer(StreamProcess):
                     ref_id = id
                     aname = comment['author'][0]['name']['$t']
                     aemail = comment['author'][0]['email']['$t']
-                    author = BlogAuthor(aname,aemail)
+                    author = BlogAuthor(name=aname,email=aemail)
                     updated = comment['updated']['$t']
                     content = comment['content']['$t']
 
@@ -132,7 +132,7 @@ class FeedStreamer(StreamProcess):
                     # Wrap it
                     ######################################
 
-                    comment = BlogComment(ref_id,author,updated,content)
+                    comment = BlogComment(ref_id=ref_id,author=author,updated=updated,content=content)
                     entry['comments'].append(comment)
 
             ######################################
