@@ -18,6 +18,7 @@ from interface.services.dm.itransform_management_service import TransformManagem
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import IonObject, RT, log, PRED
 import json
+import re
 import urllib2
 
 class TransformExampleProducer(StreamProcess):
@@ -76,6 +77,13 @@ class TransformCampfire(TransformDataProcess):
         super(TransformCampfire,self).on_start()
         self.limit =5
 
+    def _remove_html_tags(self,data):
+        p = re.compile(r'<.*?>')
+        without_tags =  p.sub('', data)
+        s = re.compile(r'&.*?;')
+        without_hash = s.sub('',without_tags)
+        return without_hash
+
     def _typeify(self, obj):
         if isinstance(obj, BlogPost):
             return "BlogPost"
@@ -97,8 +105,10 @@ class TransformCampfire(TransformDataProcess):
             author = packet.author['name']
         else:
             author = packet.author
+
+        content = self._remove_html_tags(packet.content)
         message = {'message':{
-            'body':'(%s) %s: %s' %(self._typeify(packet),author,packet.content)
+            'body':'(%s) %s: %s' %(self._typeify(packet),author,content)
         }}
         json_message = json.dumps(message)
         json_message += '\r\n\r\n'
