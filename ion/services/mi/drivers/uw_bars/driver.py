@@ -60,12 +60,11 @@ class BarsInstrumentDriver(InstrumentDriver):
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
 
-        success = InstErrorCode.OK
         result = None
 
         self._state = DriverState.UNCONFIGURED
 
-        return (success, result)
+        return result
 
     def configure(self, configs, timeout=10):
         """
@@ -81,12 +80,11 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         self.config = configs.get(BarsChannel.INSTRUMENT, None)
 
-        success = InstErrorCode.OK
         result = None
 
         self._state = DriverState.DISCONNECTED
 
-        return (success, result)
+        return result
 
     def connect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
@@ -98,7 +96,6 @@ class BarsInstrumentDriver(InstrumentDriver):
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
 
-        success = InstErrorCode.OK
         result = None
 
         self._setup_protocol(self.config)
@@ -112,7 +109,7 @@ class BarsInstrumentDriver(InstrumentDriver):
             raise Exception("Not handled yet. Expecting protocol to be in %s" %
                             BarsProtocolState.COLLECTING_DATA)
 
-        return (success, result)
+        return result
 
     def _setup_protocol(self, config):
         self.protocol = BarsInstrumentProtocol()
@@ -130,7 +127,6 @@ class BarsInstrumentDriver(InstrumentDriver):
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
 
-        success = InstErrorCode.OK
         result = None
 
         self.protocol.disconnect()
@@ -138,7 +134,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         self._state = DriverState.DISCONNECTED
 
-        return (success, result)
+        return result
 
     def detach(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
@@ -156,9 +152,9 @@ class BarsInstrumentDriver(InstrumentDriver):
                            BarsParameter.TIME_BETWEEN_BURSTS)],
             timeout=10):
 
-        success, result = self.protocol.get(params, timeout)
+        result = self.protocol.get(params, timeout)
 
-        return (success, result)
+        return result
 
     def set(self, params, timeout=10):
         """

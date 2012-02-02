@@ -43,17 +43,32 @@ class TestBarsDriver(WithSimulatorTestCase):
         self.dvr_mod = 'ion.services.mi.drivers.uw_bars.driver'
         self.dvr_cls = 'BarsInstrumentDriver'
 
+        self._driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
+            self.evt_port, self.dvr_mod,  self.dvr_cls)
+
+        self._driver_client = ZmqDriverClient(self.server_addr, self.cmd_port,
+                                        self.evt_port)
+        self._driver_client.start_messaging()
+        time.sleep(1)
+
+        self.addCleanup(self._clean_up)
+
+    def _clean_up(self):
+        if self._driver_process:
+            try:
+                self._driver_client.done()
+                self._driver_process.wait()
+            finally:
+                self._driver_process = None
+
+    def tearDown(self):
+        self._clean_up()
+
     def test_config(self):
         """BARS tests with ZMQ driver process and ZMQ client"""
 
-        driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
-            self.evt_port, self.dvr_mod,  self.dvr_cls)
-
-        driver_client = ZmqDriverClient(self.server_addr, self.cmd_port,
-                                        self.evt_port)
-        driver_client.start_messaging()
-        time.sleep(1)
-
+        driver_client = self._driver_client
+        
         reply = driver_client.cmd_dvr('get_current_state')
         print("** get_current_state reply=%s" % str(reply))
         self.assertEqual(DriverState.UNCONFIGURED, reply)
@@ -92,6 +107,3 @@ class TestBarsDriver(WithSimulatorTestCase):
         reply = driver_client.cmd_dvr('initialize', [BarsChannel.INSTRUMENT])
         print("** initialize reply=%s" % str(reply))
         time.sleep(1)
-
-        driver_client.done()
-        driver_process.wait()

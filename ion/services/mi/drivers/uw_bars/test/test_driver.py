@@ -26,19 +26,16 @@ class DriverTest(WithSimulatorTestCase):
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
         # initialize
-        success, result = driver.initialize()
-        self.assertEqual(InstErrorCode.OK, success)
+        result = driver.initialize()
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
         # configure
         configs = {BarsChannel.INSTRUMENT: self.config}
-        success, result = driver.configure(configs)
-        self.assertEqual(InstErrorCode.OK, success)
+        result = driver.configure(configs)
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
 
         # connect
-        success, result = driver.connect([BarsChannel.INSTRUMENT])
-        self.assertEqual(InstErrorCode.OK, success)
+        result = driver.connect([BarsChannel.INSTRUMENT])
         print "connect result = %s" % str(result)
         self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
 
@@ -47,8 +44,7 @@ class DriverTest(WithSimulatorTestCase):
 
         # get a parameter
         cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
-        success, result = driver.get([cp])
-        self.assertEqual(InstErrorCode.OK, success)
+        result = driver.get([cp])
         print "get result = %s" % str(result)
 
         # should be back in AUTOSAMPLE state:
@@ -59,6 +55,5 @@ class DriverTest(WithSimulatorTestCase):
 
         # disconnect
         print "disconnecting"
-        success, result = driver.disconnect([BarsChannel.INSTRUMENT])
-        self.assertEqual(InstErrorCode.OK, success)
+        result = driver.disconnect([BarsChannel.INSTRUMENT])
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())

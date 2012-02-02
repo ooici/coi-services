@@ -71,6 +71,11 @@ class _BurstThread(Thread):
 
 
 class BarsSimulator(object):
+    """
+    Dispatches multiple clients but sequentially. The special command
+    'q' can be requested by a client to make the whole simulator terminate.
+    """
+
 
     def __init__(self, host='', port=0, accept_timeout=None,
                  log_prefix='\t\t\t\t|* '):
@@ -88,6 +93,14 @@ class BarsSimulator(object):
         self._accept_timeout = accept_timeout
         self._port = self._sock.getsockname()[1]
         self._log("bound to port %s" % self._port)
+        self._bt = None
+
+        self._client_no = 0
+
+    def _log_client(self, m):
+        print "%s[%d] BarsSimulator: %s" % (self._log_prefix,
+                                            self._client_no,
+                                            m)
 
     def _log(self, m):
         print "%sBarsSimulator: %s" % (self._log_prefix, m)
@@ -97,34 +110,40 @@ class BarsSimulator(object):
         return self._port
 
     def run(self):
-        self._enabled = True
-        if self._accept_timeout is not None:
-            accept_time_limit = time.time() + self._accept_timeout
         self._sock.settimeout(0.5)
-        self._log('waiting for connection')
-        while True:
-            try:
-                self._conn, addr = self._sock.accept()
-                break  # connected
-            except socket.timeout:
-                if self._accept_timeout is not None and \
-                   time.time() > accept_time_limit:
-                    self._enabled = False
-                    self._log("accept timeout. Simulator stopping")
-                    return
+        explicit_quit = False
+        while not explicit_quit:
+            self._enabled = True
+            if self._accept_timeout is not None:
+                accept_time_limit = time.time() + self._accept_timeout
+            self._log('---waiting for connection---')
+            while True:
+                try:
+                    self._conn, addr = self._sock.accept()
+                    break  # connected
+                except socket.timeout:
+                    if self._accept_timeout is not None and \
+                       time.time() > accept_time_limit:
+                        self._enabled = False
+                        self._log("accept timeout. Simulator stopping")
+                        return
 
-        self._log('Connected by %s' % str(addr))
+            self._client_no += 1
+            self._log_client('Connected by %s' % str(addr))
 
-        bt = _BurstThread(self._conn, self._log_prefix)
-        bt.start()
+            self._bt = _BurstThread(self._conn, self._log_prefix)
+            self._bt.start()
 
-        self._connected(bt)
-        bt.end()
+            explicit_quit = self._connected()
+            self._bt.end()
+            self._bt = None
 
-        self._conn.close()
+            self._conn.close()
+
+            self._log("bye.")
+            time.sleep(1)
+
         self._sock.close()
-
-        self._log("bye.")
 
     def stop(self):
         """Requests that the simulator terminate"""
@@ -142,17 +161,26 @@ class BarsSimulator(object):
                 input = self._conn.recv(1024)
                 if input is not None:
                     input = input.strip()
-                    self._log("recv: '%s'" % input)
+                    self._log_client("recv: '%s'" % input)
                 else:
-                    self._log("recv: None")
+                    self._log_client("recv: None")
                 return input
             except socket.timeout:
                 # ok, retry receiving
                 continue
+            except Exception as e:
+                self._log_client("!!!!! %s " % str(e))
+                break
 
         return None
 
-    def _connected(self, bt):
+    def _connected(self):
+        """
+        Dispatches the main initial state which is streaming data.
+
+        @relval True if an explicit quit command ('q') was received;
+        False otherwise.
+        """
         # set an ad hoc timeout to regularly check whether termination has been
         # requested
         self._conn.settimeout(1.0)
@@ -164,18 +192,20 @@ class BarsSimulator(object):
                 break
 
             if input == "q":
-                break
+                self._log_client("exiting connected upon explicit quit request")
+                return True  # explicit quit
 
             if input == "^S":
-                bt.set_enabled(False)
-                self._main_menu(bt)
+                self._bt.set_enabled(False)
+                self._main_menu()
             else:
                 response = "invalid input: '%s'" % input
-                self._log(response)
+                self._log_client(response)
 
-        self._log("exiting connected")
+        self._log_client("exiting connected")
+        return False
 
-    def _main_menu(self, bt):
+    def _main_menu(self):
         menu = """\
   ***************************************************************
   *                                                             *
@@ -225,11 +255,11 @@ class BarsSimulator(object):
                 self._print_date_time()
 
             elif input == "1":
-                self._restart_data_collection(bt)
+                self._restart_data_collection()
                 break
 
             elif input == "2":
-                self._change_params_menu(bt)
+                self._change_params_menu()
 
             elif input == "3":
                 self._diagnostics()
@@ -238,30 +268,30 @@ class BarsSimulator(object):
                 self._reset_clock()
 
             elif input == "5":
-                self._sensor_power_menu(bt)
+                self._sensor_power_menu()
 
             elif input == "6":
                 self._system_info()
 
             elif input == "7":
-                self._log("exit program -- IGNORED")
+                self._log_client("exit program -- IGNORED")
                 pass
 
             else:
                 # just continue
                 continue
 
-        self._log("exiting _main_menu so resuming data collection")
+        self._log_client("exiting _main_menu so resuming data collection")
 
     def _print_date_time(self):
         # TODO print date time
         self._conn.sendall("TODO date time" + NEWLINE)
 
-    def _restart_data_collection(self, bt):
+    def _restart_data_collection(self):
         """restarts data collection"""
-        bt.set_enabled(True)
+        self._bt.set_enabled(True)
 
-    def _change_params_menu(self, bt):
+    def _change_params_menu(self):
         menu = """\
                                System Parameter Menu
 
@@ -312,7 +342,7 @@ class BarsSimulator(object):
                 # just continue
                 continue
 
-        self._log("exiting _change_params_menu")
+        self._log_client("exiting _change_params_menu")
 
     def _diagnostics(self):
         # TODO diagnostics
@@ -345,10 +375,9 @@ class BarsSimulator(object):
                 # just continue
                 continue
 
-        self._log("exiting _system_info")
+        self._log_client("exiting _system_info")
 
-
-    def _sensor_power_menu(self, bt):
+    def _sensor_power_menu(self):
         menu = """\
                              Sensor Power Control Menu
 
@@ -416,7 +445,7 @@ class BarsSimulator(object):
                 # just continue
                 continue
 
-        self._log("exiting _sensor_power_menu")
+        self._log_client("exiting _sensor_power_menu")
 
 
 if __name__ == '__main__':

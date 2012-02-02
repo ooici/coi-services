@@ -7,8 +7,6 @@ module
 @author Carlos Rueda
 @brief Instrument driver classes to support interaction with the U. Washington
  TRHPH BARS sensor .
-
-@NOTE preliminary skeleton, largely based on Steve's satlantic_par.py
 """
 
 __author__ = 'Carlos Rueda'
@@ -198,26 +196,38 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         #
         # enter main menu
         #
-        success, result = self._fsm.on_event(BarsProtocolEvent.ENTER_MAIN_MENU)
-        if InstErrorCode.is_error(success):
-            return (success, result)
-
+        self._fsm.on_event(BarsProtocolEvent.ENTER_MAIN_MENU)
         self._assert_state(BarsProtocolState.MAIN_MENU)
 
         #
         # enter change param menu
         #
-        success, result = self._fsm.on_event(
-                BarsProtocolEvent.ENTER_CHANGE_PARAMS, params)
-        if InstErrorCode.is_error(success):
-            return (success, result)
+        self._fsm.on_event(BarsProtocolEvent.ENTER_CHANGE_PARAMS, params)
+        self._assert_state(BarsProtocolState.CHANGE_PARAMS_MENU)
 
         #
-        # scan requested value
+        # save the menu to retrieve info below
+        #
+        menu = self._promptbuf
+
+        #
+        # exit change param menu
+        #
+        self._fsm.on_event(BarsProtocolEvent.EXIT_CHANGE_PARAMS)
+        self._assert_state(BarsProtocolState.MAIN_MENU)
+
+        #
+        # return to COLLECTING_DATA
+        #
+        self._fsm.on_event(BarsProtocolEvent.RESTART_DATA_COLLECTION)
+        self._assert_state(BarsProtocolState.COLLECTING_DATA)
+
+        #
+        # scan menu for requested value
         #
         success = InstErrorCode.UNKNOWN_ERROR
         value = "??"
-        mo = re.search(CYCLE_TIME_PATTERN, self._promptbuf)
+        mo = re.search(CYCLE_TIME_PATTERN, menu)
         if mo is not None:
             cycle_time_str = mo.group(1)
             log.debug("scanned cycle_time_str='%s'" % str(cycle_time_str))
@@ -226,27 +236,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         # we got out result
         result = {cp: (success, value)}
 
-        #
-        # exit change param menu
-        #
-        success, result = self._fsm.on_event(
-                BarsProtocolEvent.EXIT_CHANGE_PARAMS)
-        if InstErrorCode.is_error(success):
-            return (success, result)
-
-        self._assert_state(BarsProtocolState.MAIN_MENU)
-
-        #
-        # return to COLLECTING_DATA
-        #
-        success, result = self._fsm.on_event(
-                BarsProtocolEvent.RESTART_DATA_COLLECTION)
-        if InstErrorCode.is_error(success):
-            return (success, result)
-
-        self._assert_state(BarsProtocolState.COLLECTING_DATA)
-
-        return (success, result)
+        return result
 
     ########################################################################
     # State handlers
@@ -260,7 +250,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -270,7 +259,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         # assume collecting data for the moment
         next_state = BarsProtocolState.COLLECTING_DATA
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_collecting_data_enter_main_menu(self, params):
         """
@@ -279,13 +268,11 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        success = InstErrorCode.OK
-
         result = self._do_cmd_resp('^S')
 
         next_state = BarsProtocolState.MAIN_MENU
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def  _wakeup(self, timeout=10):
         """overwritten: no need to send anything"""
@@ -297,7 +284,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -311,7 +297,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         next_state = BarsProtocolState.COLLECTING_DATA
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_main_menu_enter_change_params(self, params):
         """
@@ -322,7 +308,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -332,7 +317,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         next_state = BarsProtocolState.CHANGE_PARAMS_MENU
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_main_menu_show_system_diagnostics(self, params):
         """
@@ -340,7 +325,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -363,7 +347,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         # then, back to main menu:
         next_state = BarsProtocolState.MAIN_MENU
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_main_menu_enter_set_system_clock(self, params):
         """
@@ -371,7 +355,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -399,7 +382,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         # then, back to main menu:
         next_state = BarsProtocolState.MAIN_MENU
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _handler_change_params_menu_exit(self, params):
         """
@@ -408,8 +391,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        success = InstErrorCode.OK
-
         #
         # Send '3'
         #
@@ -417,7 +398,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         next_state = BarsProtocolState.MAIN_MENU
 
-        return (success, next_state, result)
+        return (next_state, result)
 
     def _state_handler_waiting_for_system_info(self, event, params):
         """
@@ -426,7 +407,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(event)
 
-        success = InstErrorCode.OK
         next_state = None
         result = None
 
@@ -445,4 +425,4 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         next_state = BarsProtocolState.MAIN_MENU
 
-        return (success, next_state, result)
+        return (next_state, result)
