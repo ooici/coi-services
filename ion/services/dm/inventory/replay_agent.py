@@ -50,24 +50,24 @@ class ReplayAgent(BaseReplayAgent):
             if self.query:
                 datastore_name = self.query.get('datastore_name','dm_datastore')
                 view_name = self.query.get('view_name','posts/query')
-                key = self.query.get('key','')
+                opts = self.query.get('options',{})
             else:
                 datastore_name = 'dm_datastore'
                 view_name = 'posts/query'
-                key = ''
-            for result in self._query(datastore_name,view_name,key):
+                opts = {}
+            for result in self._query(datastore_name,view_name,opts):
                 self.output.publish(result['value'])
         log.debug('(Replay Agent %s)', self.name)
         log.debug('  Published...')
 
-    def _query(self,datastore_name='dm_datastore', view_name='posts/query', key=''):
+    def _query(self,datastore_name='dm_datastore', view_name='posts/query', opts={}):
         '''
         Performs the query action
         '''
         db = CouchDB_DM_DataStore(datastore_name=datastore_name)
 
         if db.datastore_exists(datastore_name):
-            ret = db.query_view(view_name,key)
+            ret = db.query_view(view_name=view_name,datastore_name=datastore_name,opts=opts)
             return ret
 
 
