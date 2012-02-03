@@ -27,6 +27,7 @@ from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore, sh
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
 from interface.objects import StreamIngestionPolicy, IonObjectBase
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 import time
 
@@ -53,7 +54,11 @@ class IngestionWorker(TransformDataProcess):
         #----------------------------------------------
 
         self.couch_config = self.CFG.get('couch_storage')
-        self.hdf_storage = None # Add it here...
+        self.hdf_storage = self.CFG.get('hdf_storage')
+        self.default_policy = self.CFG.get('default_policy')
+        self.number_of_workers = self.CFG.get('number_of_workers')
+        self.description = self.CFG.get('description')
+
         #@TODO Add the rest of the config args as properties of the instance
 
         self.db = CouchDB_DM_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
@@ -134,17 +139,22 @@ class IngestionWorker(TransformDataProcess):
         stream_id = incoming_packet.stream_id
         log.debug('Getting policy for stream id: %s' % stream_id)
 
+        resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
+
         #@TODO replace the default object with the default set for this ingestion configuration
         policy = StreamIngestionPolicy()
 
-
         try:
             #@TODO add a resource client so we can get the policy from the resource registry.
+            policy = resource_reg_client.find_objects(incoming_packet, PRED.hasPolicy, RT.Policy, False)
             # Later this would be replaced with a notification and caching scheme
             pass
-        except NotFound:
+        except : #@TODO replace this with except NotFound, after BlogPost and BlogComment have archive_data and archive_metadata attributes
             # If there is not policy for this stream use the default policy for this Ingestion Configuration
             log.debug('No policy found for stream id: %s' % stream_id)
+            policy.stream_id = stream_id
+            policy.archive_data = True # later replace this with self.default_policy.archive_data
+            policy.archive_metadata = True # later replace this with self.default_policy.archive_metadata
 
         # return the extracted instruction
         return policy
