@@ -221,13 +221,6 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 	# What prompt to display
 	PROMPT = "ION Telnet Server> "
 	
-	# The function to call to verify authentication data
-	authCallback = None
-	# Does authCallback want a username?
-	authNeedUser = False
-	# Does authCallback want a password?
-	authNeedPass = False
-	
 	username = ''
 	password = ''
 
@@ -684,8 +677,6 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 if __name__ == '__main__':
 	"For command line testing - Accept a single connection"
-	class TNS(SocketServer.TCPServer):
-		allow_reuse_address = True
 				
 	logging.getLogger('').setLevel(logging.DEBUG)
 
@@ -694,7 +685,7 @@ if __name__ == '__main__':
 	username = "admin"
 	password = "123"
 
-	tns = TNS(("localhost", 8023), TelnetHandler)
+	tns = SocketServer.TCPServer(("localhost", 8023), TelnetHandler)
 	tns.handle_request()
 	logging.info("completed request: exiting server")
 

@@ -1,0 +1,1 @@
+/Users/Bill/r2gp: line 6: bin/generate_interfaces: No such file or directory
