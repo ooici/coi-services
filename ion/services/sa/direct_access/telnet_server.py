@@ -26,8 +26,11 @@ import traceback
 import curses.ascii
 import curses.has_key
 import curses
-import logging
 import re
+
+from pyon.util.log import log
+from pyon.core.exception import ServerError
+
 if not hasattr(socket, 'SHUT_RDWR'):
 	socket.SHUT_RDWR = 2
 
@@ -223,6 +226,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 	
 	username = ''
 	password = ''
+	parentInputCallback = None
+	handlerInstance = None
 
 # --------------------------- Environment Setup ----------------------------
 
@@ -233,7 +238,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		With a hostname argument, it connects the instance; a port
 		number is optional.
 		"""
-		global username, password
+		global username, password, parentInputCallback
 		
 		# Am I doing the echoing?
 		self.DOECHO = True
@@ -257,11 +262,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.authCallback = self.authorized
 		self.username = username
 		self.password = password
+		self.parentInputCallback = parentInputCallback
 		SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
 
 	def setterm(self, term):
 		"Set the curses structures for this terminal"
-		logging.debug("Setting termtype to %s" % (term, ))
+		log.debug("Setting termtype to %s" % (term, ))
 		curses.setupterm(term) # This will raise if the termtype is not supported
 		self.TERM = term
 		self.ESCSEQ = {}
@@ -277,6 +283,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def setup(self):
 		"Connect incoming connection to a telnet session"
+		global handlerInstance
+		
+		handlerInstance = self
 		self.setterm(self.TERM)
 		self.sock = self.request._sock
 		for k in self.DOACK.keys():
@@ -311,7 +320,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 #				opttxt = "opt:%d" % ord(opt)
 #		else:
 #			opttxt = ""
-#		logging.debug("OPTION: %s %s" % (cmdtxt, opttxt, ))
+#		log.debug("OPTION: %s %s" % (cmdtxt, opttxt, ))
 		if cmd == NOP:
 			self.sendcommand(NOP)
 		elif cmd == WILL or cmd == WONT:
@@ -334,11 +343,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					self.setterm(subreq[2:])
 				except:
-					logging.debug("Terminal type not known")
+					log.debug("Terminal type not known")
 		elif cmd == SB:
 			pass
 		else:
-			logging.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
+			log.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
 
 	def sendcommand(self, cmd, opt=None):
 		"Send a telnet command (IAC)"
@@ -358,21 +367,21 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				self.DOOPTS[opt] = None
 			if (((cmd == DO) and (self.DOOPTS[opt] != True))
 			or ((cmd == DONT) and (self.DOOPTS[opt] != False))):
-#				logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Sending %s %s" % (cmdtxt, opttxt, ))
 				self.DOOPTS[opt] = (cmd == DO)
 				self.writecooked(IAC + cmd + opt)
 #			else:
-#				logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
 		elif cmd in [WILL, WONT]:
 			if not self.WILLOPTS.has_key(opt):
 				self.WILLOPTS[opt] = ''
 			if (((cmd == WILL) and (self.WILLOPTS[opt] != True))
 			or ((cmd == WONT) and (self.WILLOPTS[opt] != False))):
-#				logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Sending %s %s" % (cmdtxt, opttxt, ))
 				self.WILLOPTS[opt] = (cmd == WILL)
 				self.writecooked(IAC + cmd + opt)
 #			else:
-#				logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
 		else:
 			self.writecooked(IAC + cmd)
 
@@ -630,7 +639,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		return True
 
 	def exitHandler (self):
-		logging.info("Exiting request handler")
+		log.info("Exiting request handler")
 		self.finish()
 	
 	def handle(self):
@@ -644,7 +653,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					username = self.readline()
 				except EOFError:
-					logging.info("Connection lost")
+					log.info("Connection lost")
 					self.exitHandler()
 					return
 			if self.authNeedPass:
@@ -653,13 +662,13 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					password = self.readline(echo=False)
 				except EOFError:
-					logging.info("Connection lost")
+					log.info("Connection lost")
 					self.exitHandler()
 					return
 				if self.DOECHO:
 					self.write("\n")
 			if not self.authCallback(username, password):
-				logging.info("login failed")
+				log.info("login failed")
 				self.writeline("login failed")
 				self.exitHandler()
 				return
@@ -669,24 +678,58 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			try:
 				inputLine = self.readline()
 			except EOFError:
-				logging.debug("Connection lost")
+				log.debug("Connection lost")
 				self.exitHandler()
 				break
 			self.writeline("you typed: " + inputLine)
 
 
+class TelnetServer(object):
+	
+	tns = None
+	
+	def __init__(self, inputCallback=None, Username, Password):
+		global username, password, parentInputCallback
+		
+		log.debug("TelnetServer.__init__()")
+		if not inputCallback:
+			log.warning("TelnetServer.__init__(): callback not specified")
+			raise ServerError("callback not specified")
+		parentInputCallback = inputCallback
+		
+		# TODO: get username and password dynamically
+		username = Username
+		password = Password
+	
+		# TODO: get ip_address & port number dynamically
+		# TODO: ensure that port is not already in use
+		port = 8000
+		ip_address = 'localhost'
+		
+		self.tns = SocketServer.TCPServer((ip_address, port), TelnetHandler)
+		self.tns.handle_request()
+		return ip_address, port
+
+	def stop(self):
+		log.debug("TelnetServer.stop()")
+		self.tns.shutdown()
+		
+	def write(self, data):
+		global handlerInstance
+		
+		handlerInstance.write(data)
+		
+
 if __name__ == '__main__':
 	"For command line testing - Accept a single connection"
 				
-	logging.getLogger('').setLevel(logging.DEBUG)
-
-	logging.info("ION Telnet server starting")
+	log.info("ION Telnet server starting")
 
 	username = "admin"
 	password = "123"
 
 	tns = SocketServer.TCPServer(("localhost", 8023), TelnetHandler)
 	tns.handle_request()
-	logging.info("completed request: exiting server")
+	log.info("completed request: exiting server")
 
 

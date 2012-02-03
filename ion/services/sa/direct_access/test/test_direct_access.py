@@ -8,7 +8,7 @@ from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from ion.services.sa.direct_access.direct_access_server import DirectAccessServer
+from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, directAccessTypes
 
 
 @attr('INT', group='sa')
@@ -27,4 +27,17 @@ class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
         container_client.start_rel_from_url('res/deploy/r2sa.yml')
         print 'started services'
 
-        container_client.spawn_process('DA_Server', 'ion.services.sa.direct_access.direct_access_server', 'DA_SERVER', process_type='immediate')
+
+if __name__ == '__main__':
+    "For command line testing - Accept a single connection"
+    daServer = None
+                
+    def input(data):
+        daServer.write("ECHOING: "+ data)
+        
+    log.info("instatiating a DA Server with username=admin & password=123")
+
+    username = "admin"
+    password = "123"
+
+    daServer = DirectAccessServer(directAccessTypes.telnet, input)
