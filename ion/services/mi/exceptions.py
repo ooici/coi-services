@@ -18,8 +18,8 @@ class InstrumentException(Exception):
     representation in ION.
     """
     
-    def __init__ (self, error_code, msg):
-        
+    def __init__ (self, error_code, msg=""):
+        self.args = (error_code, msg)
         self.error_code = error_code
         self.msg = msg
     
@@ -31,6 +31,7 @@ class InstrumentProtocolException(InstrumentException):
     
     These are generally related to parsing or scripting of what is supposed
     to happen when talking at the lowest layer protocol to a device.
+    @todo Add partial result property?
     """
 
 class InstrumentStateException(InstrumentException):
@@ -45,4 +46,7 @@ class InstrumentDataException(InstrumentException):
     
 class CommsException(InstrumentException):
     """Exception related to upstream communications trouble"""
+    
+
+    
     

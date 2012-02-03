@@ -5,10 +5,10 @@ __license__ = 'Apache 2.0'
 
 from unittest import TestCase
 
-from ion.services.mi.drivers.uwash_bars import UWashBarsInstrumentDriver
+from ion.services.mi.drivers.uw_bars.driver import BarsInstrumentDriver
 
 
-class UWashBarsTest(TestCase):
+class DriverTest(TestCase):
 
     def setUp(self):
         """
@@ -20,7 +20,7 @@ class UWashBarsTest(TestCase):
         """
         """
 
-        dr = UWashBarsInstrumentDriver()
+        BarsInstrumentDriver()
 
         #TODO
 
