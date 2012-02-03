@@ -8,7 +8,7 @@ from interface.services.sa.idata_product_management_service import BaseDataProdu
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, LCS
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
