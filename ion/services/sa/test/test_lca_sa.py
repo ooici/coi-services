@@ -220,15 +220,15 @@ class TestLCASA(IonIntegrationTestCase):
         fill(svc, "find", True)
 
 
-        num_objs = len(svc.find()["%s_list" % resource_label])
+        num_objs = len(svc.find())
         log.info("I found %d %s" % (num_objs, resource_labels))
 
         log.info("Creating a %s" % resource_label)
         generic_obj = any_old(resource_iontype)
-        generic_id = svc.create(generic_obj)["%s_id" % resource_label]
+        generic_id = svc.create(generic_obj)
 
         log.info("Reading %s #%s" % (resource_label, generic_id))
-        generic_ret = svc.read(generic_id)[resource_label]
+        generic_ret = svc.read(generic_id)
 
         log.info("Verifying equality of stored and retrieved object")
         self.assertEqual(generic_obj.name, generic_ret.name)
@@ -244,13 +244,13 @@ class TestLCASA(IonIntegrationTestCase):
         svc.update(generic_ret)
 
         log.info("Reading platform model #%s to verify update" % generic_id)
-        generic_ret = svc.read(generic_id)[resource_label]
+        generic_ret = svc.read(generic_id)
 
         self.assertEqual(generic_newname, generic_ret.name)
         self.assertEqual(generic_obj.description, generic_ret.description)
 
         log.info("Finding platform models... checking that there's a new one")
-        num_objs2 = len(svc.find()["%s_list" % resource_label])
+        num_objs2 = len(svc.find())
 
         self.assertTrue(num_objs2 > num_objs)
 
