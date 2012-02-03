@@ -29,7 +29,8 @@ import time
 
 class IngestionWorker(TransformDataProcess):
     """
-    Instances of this class acts as Ingestion Workers
+    Instances of this class acts as Ingestion Workers. They receive packets and send them to couchdb datastore or
+    hdf storage according to the policy in the data stream or the default policy of the ingestion configuration
     """
 
     def on_start(self):
@@ -43,8 +44,6 @@ class IngestionWorker(TransformDataProcess):
         self.default_policy = self.CFG.get('default_policy')
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
-
-        #@TODO Add the rest of the config args as properties of the instance
 
         self.db = CouchDB_DM_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
 
@@ -60,7 +59,7 @@ class IngestionWorker(TransformDataProcess):
             print 'Already exists'
 
     def process(self, packet):
-        """Processes incoming data!!!!
+        """Process incoming data!!!!
         """
 
         # Get the policy for this stream
@@ -96,7 +95,7 @@ class IngestionWorker(TransformDataProcess):
         @param: policy The policy telling this method what to do with the incoming data stream.
         """
 
-        # Evaluate policy for this stream and determine what to do.
+        #@todo Evaluate policy for this stream and determine what to do.
 
         if isinstance(packet, BlogPost) and not packet.is_replay:
             self.persist_immutable(packet )
@@ -125,8 +124,6 @@ class IngestionWorker(TransformDataProcess):
         stream_id = incoming_packet.stream_id
         log.debug('Getting policy for stream id: %s' % stream_id)
 
-
-        #@TODO replace the default object with the default set for this ingestion configuration
         policy = StreamIngestionPolicy(**self.default_policy)
 
         try:
@@ -135,7 +132,7 @@ class IngestionWorker(TransformDataProcess):
 #            policy = self.resource_reg_client.find_objects(incoming_packet, PRED.hasPolicy, RT.Policy, False)
 
             # Later this would be replaced with a notification and caching scheme
-        except : #@TODO replace this with except NotFound, after BlogPost and BlogComment have archive_data and archive_metadata attributes
+        except :
             # If there is not policy for this stream use the default policy for this Ingestion Configuration
             log.debug('No policy found for stream id: %s' % stream_id)
 

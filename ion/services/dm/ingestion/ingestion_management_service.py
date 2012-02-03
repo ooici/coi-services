@@ -20,12 +20,13 @@ from pyon.ion.transform import TransformDataProcess
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
+from interface.objects import StreamIngestionPolicy
 import time
 
 
 class IngestionManagementServiceException(IonException):
     """
-    Exception class for HDFEncoder exceptions. This class inherits from ScienceObjectTransportException
+    Exception class for IngestionManagementService exceptions. This class inherits from IonException
     and implements the __str__() method.
     """
     def __str__(self):
@@ -179,10 +180,6 @@ class IngestionManagementService(BaseIngestionManagementService):
         # read the transforms
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) > 0:
-            # This is messy - but for now activate_transform, which calls activate subscription is idempotent.
-            # calling it many times is just activating the same subscription many times.
-            #
-            # Maybe we should bypass activate transform and directly call pubsub activate/deactivate?
             try:
                 # need to activate only one transform as both have the same subscription
                 self.clients.transform_management.activate_transform(transform_ids[0])
@@ -196,7 +193,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
 
     def deactivate_ingestion_configuration(self, ingestion_configuration_id=''):
-        """Deactivate an ingestion configuration and the transform processeses that execute it
+        """Deactivate one of the transform processes that uses an ingestion configuration
 
         @param ingestion_configuration_id    str
         @throws NotFound    The ingestion configuration id did not exist
@@ -225,36 +222,47 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param stream_id    str
         @param archive_data    str
         @param archive_metadata    str
-        @retval ingestion_policy_id    str
+        @retval stream_policy_id    str
         """
-        pass
 
-    #        return ingestion_policy_id
+        log.debug("Creating stream policy")
+        stream_policy = StreamIngestionPolicy( name='', description='policy for %s' % stream_id, lcstate='', \
+            ts_created=time.ctime(), ts_updated='', archive_data=archive_data, archive_metadata=archive_metadata, stream_id=stream_id)
+
+        stream_policy_id = self.clients.resource_registry.create(stream_policy)
+        return stream_policy_id
 
     def update_stream_policy(self, stream_policy=None):
         """Change the number of workers or the default policy for ingesting data on each stream (After LCA)
 
         @param stream_policy    Unknown
-        @throws NotFound    if ingestion configuration did not exist
+        @throws NotFound    if policy does not exist
         """
-        pass
+        log.debug("Updating stream policy")
+        stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
+
+        stream_policy.ts_updated = time.ctime()
 
 
     def read_stream_policy(self, stream_policy_id=''):
         """Get an existing stream policy object. (After LCA)
 
         @param stream_policy_id    str
-        @retval ingestion_configuration    IngestionConfiguration
-        @throws NotFound    if ingestion configuration did not exist
+        @retval stream_policy    StreamIngestionPolicy
+        @throws NotFound    if stream policy does not exist
         """
-        pass
 
-    #        return ingestion_configuration
+        log.debug("Reading stream policy")
+        stream_policy = self.clients.resource_registry.read(stream_policy_id)
 
-    def delete_stream_policy(self, ingestion_configuration_id=''):
+        return stream_policy
+
+    def delete_stream_policy(self, stream_policy_id=''):
         """Delete an existing stream policy object. (After LCA)
 
-        @param ingestion_configuration_id    str
-        @throws NotFound    if ingestion configuration did not exist
+        @param stream_policy_id    str
+        @throws NotFound    if stream_policy does not exist
         """
-        pass
+
+        log.debug("Deleting stream policy")
+        self.clients.resource_registry.delete(stream_policy_id)
