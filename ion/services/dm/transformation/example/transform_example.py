@@ -21,6 +21,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 import json
 import re
 import urllib2
+import base64
 
 class TransformExampleProducer(StreamProcess):
     """
@@ -104,7 +105,7 @@ class TransformCampfire(TransformDataProcess):
         log.warn('Attempt to publish to campfire')
 
 
-        url = 'https://ooici.campfirenow.com/room/475552/speak.json'
+
         if isinstance(packet.author, BlogAuthor):
             author = packet.author.name
         elif isinstance(packet.author,dict):
@@ -118,22 +119,23 @@ class TransformCampfire(TransformDataProcess):
         }}
         json_message = json.dumps(message)
         json_message += '\r\n\r\n'
+        room = self.CFG.get('campfire_room', '475552')
+        url = 'https://ooici.campfirenow.com/room/%s/speak.json' % room
+        #@todo: remove default token after debugging has taken place
+        token = self.CFG.get('campfire_token','6beead48575db43d813edd71e76775a1ce853b28')
+        if not token:
+            raise BadRequest('No campfire token was provided.')
 
+        # Campfire Note:
+        #------------------------
+        # A token IS a username
+        # A token IS a poassword
+        # if you have a token, you are an authenticated user, DO NOT GIVE IT OUT
 
-        token = self.CFG.get('campfire_token')
-        user = self.CFG.get('campfire_user')
-        if user is None or token is None:
-            raise BadRequest("No campfire user name or token specified")
-
+        authentication_string = base64.encodestring('%s:%s' %(token,'X'))[:-1]
         headers = {
-            'Authorization':'Basic %s' % token,
-            'User-Agent':user,
-            'Content-Type':'application/json'
-        }
-
-        headers = {
-            'Authorization':'Basic OTgxZGY3YjYyYzMxZWE5ODA4NzExYWNmNTE5MzgwNmIwOTVkMWFmZjpY',
-            'User-Agent':'Luke-transform',
+            'Authorization':'Basic %s' % authentication_string,
+            'User-Agent':'Pyon R2',
             'Content-Type':'application/json'
         }
 

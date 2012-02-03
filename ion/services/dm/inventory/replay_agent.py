@@ -55,26 +55,26 @@ class ReplayAgent(BaseReplayAgent):
         log.debug('(Replay Agent %s)', self.name)
         if self.query:
             datastore_name = self.query.get('datastore_name','dm_datastore')
-            view_name = self.query.get('view_name','posts/query')
+            view_name = self.query.get('view_name','posts/posts_by_id')
             opts = self.query.get('options',{})
         else:
             datastore_name = 'dm_datastore'
-            view_name = 'posts/query'
+            view_name = 'posts/posts_by_id'
             opts = {}
-
-        result = None
-        for result in self._query(datastore_name,view_name,opts):
+        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts);
+        results = self._query(datastore_name=datastore_name,view_name=view_name,opts=opts)
+        for result in results:
             log.warn('Result: %s' % result)
             blog_msg = result['value']
             blog_msg.is_replay= True
             self.output.publish(blog_msg)
-
-        if result is None:
+        #@todo: log when there are not results
+        if results is None:
             log.warn('No results found in replay query!')
         else:
             log.debug('Published replay!')
 
-    def _query(self,datastore_name='dm_datastore', view_name='posts/query', opts={}):
+    def _query(self,datastore_name='dm_datastore', view_name='posts/posts_by_id', opts={}):
         '''
         Performs the query action
         '''
