@@ -2,17 +2,11 @@
 
 '''
 @package ion.services.dm.ingestion
-@file ion/services/dm/ingestion/ingestion.py
+@file ion/services/dm/ingestion/ingestion_worker.py
 @author Swarbhanu Chatterjee
-@brief Ingestion Class. When instantiated the ingestion objects will be able to handle one specific scientific request.
-The scientific request may involved several data subscriptions, retrievals, processing, and data publishing.
-Uses the HDFEncoder and HDFDecoder classes to perform most of its work with the data and the PubSub messaging to
-send data far and wide.
+@brief IngestionWorker Class. An instance of this class acts as an ingestion worker. It is used to store incoming packets
+to couchdb datastore and hdf datastore.
 '''
-
-# import statements
-# import ScienceObject, ScienceObjectTransport, HDFEncoder, HDFDecoder, and the exceptions... i.e.
-# everything in science_object_codec.py
 
 from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
@@ -35,16 +29,8 @@ import time
 
 class IngestionWorker(TransformDataProcess):
     """
-    This Class creates an instance of a science object and science object transport
-     to contain the data for use in inventory (interacts with the inventory as required).
-    It defines a Transformation (interacts with the transformation management),
-    defines a Datastream (interacts with the pubsub management as required), and
-    defines Preservation (interacts with Preservation).
-
-    Instances of this class acts as Ingestion Workers
-    Each instance (i.e. Ingestion Worker) stores a list of configuration ids that it is working on.
-    There is a refresh_config_id_store() method that deletes all configuration ids stored.
-    Alternatively the instance can be killed and a new worker created.
+    Instances of this class acts as Ingestion Workers. They receive packets and send them to couchdb datastore or
+    hdf storage according to the policy in the data stream or the default policy of the ingestion configuration
     """
 
     def on_start(self):
@@ -59,9 +45,9 @@ class IngestionWorker(TransformDataProcess):
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
 
-        #@TODO Add the rest of the config args as properties of the instance
-
         self.db = CouchDB_DM_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
+
+        self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
 
         log.warn(str(self.db))
@@ -73,7 +59,7 @@ class IngestionWorker(TransformDataProcess):
             print 'Already exists'
 
     def process(self, packet):
-        """Processes incoming data!!!!
+        """Process incoming data!!!!
         """
 
         # Get the policy for this stream
@@ -103,14 +89,13 @@ class IngestionWorker(TransformDataProcess):
 
     def process_stream(self, packet, policy):
         """
-        Accepts a stream. Also accepts instruction as a string, and according to what is contained in the instruction,
-        it does things with the stream such as store in hfd_storage, couch_storage or process the data and return the
-        output.
+        Accepts a stream. Also accepts instruction (a policy). According to the received policy it processes the
+        stream such as store in hfd_storage, couch_storage.
         @param: incoming_stream The incoming data stream of type stream.
         @param: policy The policy telling this method what to do with the incoming data stream.
         """
 
-        # Evaluate policy for this stream and determine what to do.
+        #@todo Evaluate policy for this stream and determine what to do.
 
         if isinstance(packet, BlogPost) and not packet.is_replay:
             self.persist_immutable(packet )
@@ -139,22 +124,17 @@ class IngestionWorker(TransformDataProcess):
         stream_id = incoming_packet.stream_id
         log.debug('Getting policy for stream id: %s' % stream_id)
 
-        resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
-
-        #@TODO replace the default object with the default set for this ingestion configuration
-        policy = StreamIngestionPolicy()
+        policy = StreamIngestionPolicy(**self.default_policy)
 
         try:
-            #@TODO add a resource client so we can get the policy from the resource registry.
-            policy = resource_reg_client.find_objects(incoming_packet, PRED.hasPolicy, RT.Policy, False)
-            # Later this would be replaced with a notification and caching scheme
+            # Check for stream specific policy object
             pass
-        except : #@TODO replace this with except NotFound, after BlogPost and BlogComment have archive_data and archive_metadata attributes
+#            policy = self.resource_reg_client.find_objects(incoming_packet, PRED.hasPolicy, RT.Policy, False)
+
+            # Later this would be replaced with a notification and caching scheme
+        except :
             # If there is not policy for this stream use the default policy for this Ingestion Configuration
             log.debug('No policy found for stream id: %s' % stream_id)
-            policy.stream_id = stream_id
-            policy.archive_data = True # later replace this with self.default_policy.archive_data
-            policy.archive_metadata = True # later replace this with self.default_policy.archive_metadata
 
         # return the extracted instruction
         return policy
