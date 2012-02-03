@@ -10,7 +10,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.ion.endpoint import StreamSubscriber
 from pyon.ion.resource import PRED, RT
 from pyon.util.containers import DotDict
@@ -18,6 +18,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
+from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 @attr('UNIT',group='dm')
 class DataRetrieverServiceTest(PyonTestCase):
     def setUp(self):
@@ -89,6 +90,12 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
+        self.couch = CouchDB_DM_DataStore(datastore_name='test_data_retriever')
+        if not self.couch.datastore_exists('test_data_retriever'):
+            self.couch.create_datastore('test_data_retriever')
+        else:
+            raise BadRequest('test_data_retriever data store already exists, please delete it.')
+
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
@@ -96,6 +103,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
     def tearDown(self):
         super(DataRetrieverServiceIntTest,self).tearDown()
+        self.couch.delete_datastore('test_data_retriever')
 
 
     def test_define_replay(self):
@@ -115,6 +123,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         # assert process exists
         self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
+        # clean up
+        self.container.proc_manager.terminate_process(replay.process_id)
 
 
     def test_cancel_replay(self):
@@ -135,8 +145,12 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         # assert the process has stopped
         proc = self.container.proc_manager.procs.get(replay.process_id,None)
         self.assertTrue(not proc)
-
+    @unittest.skip('not implemented yet')
     def test_start_replay(self):
+
+
+
+
         replay_id, stream_id = self.dr_cli.define_replay('123')
         replay = self.rr_cli.read(replay_id)
 
