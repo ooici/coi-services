@@ -2,17 +2,11 @@
 
 '''
 @package ion.services.dm.ingestion
-@file ion/services/dm/ingestion/ingestion.py
+@file ion/services/dm/ingestion/ingestion_worker.py
 @author Swarbhanu Chatterjee
-@brief Ingestion Class. When instantiated the ingestion objects will be able to handle one specific scientific request.
-The scientific request may involved several data subscriptions, retrievals, processing, and data publishing.
-Uses the HDFEncoder and HDFDecoder classes to perform most of its work with the data and the PubSub messaging to
-send data far and wide.
+@brief IngestionWorker Class. An instance of this class acts as an ingestion worker. It is used to store incoming packets
+to couchdb datastore and hdf datastore.
 '''
-
-# import statements
-# import ScienceObject, ScienceObjectTransport, HDFEncoder, HDFDecoder, and the exceptions... i.e.
-# everything in science_object_codec.py
 
 from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
@@ -35,16 +29,7 @@ import time
 
 class IngestionWorker(TransformDataProcess):
     """
-    This Class creates an instance of a science object and science object transport
-     to contain the data for use in inventory (interacts with the inventory as required).
-    It defines a Transformation (interacts with the transformation management),
-    defines a Datastream (interacts with the pubsub management as required), and
-    defines Preservation (interacts with Preservation).
-
     Instances of this class acts as Ingestion Workers
-    Each instance (i.e. Ingestion Worker) stores a list of configuration ids that it is working on.
-    There is a refresh_config_id_store() method that deletes all configuration ids stored.
-    Alternatively the instance can be killed and a new worker created.
     """
 
     def on_start(self):
@@ -105,9 +90,8 @@ class IngestionWorker(TransformDataProcess):
 
     def process_stream(self, packet, policy):
         """
-        Accepts a stream. Also accepts instruction as a string, and according to what is contained in the instruction,
-        it does things with the stream such as store in hfd_storage, couch_storage or process the data and return the
-        output.
+        Accepts a stream. Also accepts instruction (a policy). According to the received policy it processes the
+        stream such as store in hfd_storage, couch_storage.
         @param: incoming_stream The incoming data stream of type stream.
         @param: policy The policy telling this method what to do with the incoming data stream.
         """
