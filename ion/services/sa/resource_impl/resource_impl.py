@@ -249,38 +249,35 @@ class ResourceImpl(object):
         return self._get_resource_type(self.RR.read(resource_id))
 
 
-    def _return_create(self, resource_label, resource_id):
+    def _return_create(self, resource_id):
         """
         return a valid response to a create operation
         @param resource_label what goes in the return value name
         @param resource_id what goes in the return value's value
         """
-        retval = {}
-        retval[resource_label] = resource_id
-        return retval
+        #resource_label = "%s_id" % self.ionlabel
+        return resource_id
 
-    def _return_read(self, resource_type, resource_label, resource_id):
+    def _return_read(self, resource_id):
         """
         return a valid response from a read operation
         @param resource_type the IonObject type
         @param resource_label what goes in the return value name
         @param resource_id the ID of the resource to be returned
         """
-        retval = {}
+        #resource_label = "%s_id" % self.ionlabel
         resource = self.RR.read(resource_id)
-        retval[resource_label] = resource
-        return retval
+        return resource
 
-    def _return_find(self, resource_label, resource_ids):
+    def _return_find(self, resource_ids):
         """
         return a valid response from a read operation
         @param resource_type the IonObject type
         @param resource_label what goes in the return value name
         @param resource_id the ID of the resource to be returned
         """
-        retval = {}
-        retval["%s_list" % resource_label] = resource_ids
-        return retval
+        #retval["%s_list" % self.resource_label] = resource_ids
+        return resource_ids
 
     # return a valid message from an activate
     def _return_activate(self, success_bool):
@@ -313,7 +310,7 @@ class ResourceImpl(object):
 
         self.on_post_create(primary_object_id, primary_object)
 
-        return self._return_create("%s_id" % self.ionlabel, primary_object_id)
+        return self._return_create(primary_object_id)
 
 
     def update_one(self, primary_object={}):
@@ -345,10 +342,7 @@ class ResourceImpl(object):
         read a single object of the predefined type
         @param primary_object_id the id to be retrieved
         """
-        return self._return_read(self.iontype,
-                                 self.ionlabel,
-                                 primary_object_id)
-
+        return self._return_read(primary_object_id)
 
     def delete_one(self, primary_object_id=''):
         """
@@ -374,7 +368,7 @@ class ResourceImpl(object):
         @todo receive definition of the filters object
         """
         results, _ = self.RR.find_resources(self.iontype, None, None, True)
-        return self._return_find(self.ionlabel, results)
+        return self._return_find(results)
 
 
     def _find_having(self, association_predicate, some_object):

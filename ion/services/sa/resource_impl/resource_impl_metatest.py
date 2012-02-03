@@ -280,10 +280,7 @@ class ResourceImplMetatest(object):
                 svc.clients.resource_registry.find_resources.return_value = ([], [])
                 svc.clients.resource_registry.read.return_value = saved_resource
                 
-                response = myimpl.create_one(good_sample_resource)
-                idfield = "%s_id" % impl_instance.ionlabel
-                self.assertIn(idfield, response)
-                sample_resource_id = response[idfield]
+                sample_resource_id = myimpl.create_one(good_sample_resource)
 
                 svc.clients.resource_registry.create.assert_called_once_with(good_sample_resource)
                 self.assertEqual(sample_resource_id, '111')
@@ -366,9 +363,8 @@ class ResourceImplMetatest(object):
 
                 response = myimpl.read_one("111")
                 svc.clients.resource_registry.read.assert_called_once_with("111", "")
-                self.assertIn(impl_instance.ionlabel, response)
-                self.assertEqual(response[impl_instance.ionlabel], myret)
-                #self.assertDictEqual(response[impl_instance.ionlabel].__dict__,
+                self.assertEqual(response, myret)
+                #self.assertDictEqual(response.__dict__,
                 #                     sample_resource().__dict__)
 
                 
@@ -477,10 +473,8 @@ class ResourceImplMetatest(object):
                 svc.clients.resource_registry.find_resources.return_value = ([0], [0])
 
                 response = myimpl.find_some({})
-                out_list = "%s_list" % impl_instance.ionlabel
-                self.assertIn(out_list, response)
-                self.assertIsInstance(response[out_list], list)
-                self.assertNotEqual(0, len(response[out_list]))
+                self.assertIsInstance(response, list)
+                self.assertNotEqual(0, len(response))
                 svc.clients.resource_registry.find_resources.assert_called_once_with(impl_instance.iontype,
                                                                                      None,
                                                                                      None,
