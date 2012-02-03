@@ -224,17 +224,14 @@ class TestSBE37Driver(PyonTestCase):
         
         # Check overall and individual parameter success. Check parameter types.
         self.assert_(InstErrorCode.is_ok(success))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][0]))
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][1], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][1], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][1], tuple)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
         
         # Set up a param dict of the original values.
-        old_ta2 = result[(SBE37Channel.CTD, SBE37Parameter.TA2)][1]
-        old_ptca1 = result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][1]
-        old_tcaldate = result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][1]
+        old_ta2 = result[(SBE37Channel.CTD, SBE37Parameter.TA2)]
+        old_ptca1 = result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)]
+        old_tcaldate = result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)]
                
         orig_params = {
             (SBE37Channel.CTD, SBE37Parameter.TA2): old_ta2,
@@ -261,11 +258,8 @@ class TestSBE37Driver(PyonTestCase):
         
         # Check overall success and success of the individual paramters.
         self.assert_(InstErrorCode.is_ok(success))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][0]))
         
-        # Set the same paramters back from the driver.
+        # Get the same paramters back from the driver.
         get_params = [
             (SBE37Channel.CTD, SBE37Parameter.TA2),
             (SBE37Channel.CTD, SBE37Parameter.PTCA1),
@@ -279,15 +273,12 @@ class TestSBE37Driver(PyonTestCase):
         # Check success, and check that the parameters were set to the
         # new values.
         self.assert_(InstErrorCode.is_ok(success))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][0]))
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][1], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][1], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][1], tuple)
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][1], new_ta2, delta=abs(0.01*new_ta2))
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][1], new_ptcal1, delta=abs(0.01*new_ptcal1))
-        self.assertEqual(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][1], new_tcaldate)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], new_ta2, delta=abs(0.01*new_ta2))
+        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], new_ptcal1, delta=abs(0.01*new_ptcal1))
+        self.assertEqual(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], new_tcaldate)
 
         # Set the paramters back to their original values.        
         reply = driver_client.cmd_dvr('set', orig_params)
@@ -299,20 +290,16 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('get', get_params)
         success = reply[0]
         result = reply[1]        
-        self.assert_(InstErrorCode.is_ok(success))
-        time.sleep(2)
 
         # Check overall and individual sucess, and that paramters were
         # returned to their original values.
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][0]))
-        self.assert_(InstErrorCode.is_ok(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][0]))
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][1], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][1], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][1], tuple)
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.TA2)][1], old_ta2, delta=abs(0.01*old_ta2))
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)][1], old_ptca1, delta=abs(0.01*old_ptca1))
-        self.assertEqual(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)][1], old_tcaldate)
+        self.assert_(InstErrorCode.is_ok(success))
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], old_ta2, delta=abs(0.01*old_ta2))
+        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], old_ptca1, delta=abs(0.01*old_ptca1))
+        self.assertEqual(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], old_tcaldate)
         
         # Disconnect driver from the device.        
         reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])

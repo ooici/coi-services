@@ -20,6 +20,10 @@ from ion.services.mi.instrument_driver import DriverCommand
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.instrument_driver import DriverParameter
+from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.services.mi.exceptions import InstrumentTimeoutException
+from ion.services.mi.exceptions import InstrumentStateException
+from ion.services.mi.exceptions import InstrumentConnectionException
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.instrument_protocol import InstrumentProtocol
@@ -718,8 +722,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         try:
-            command = params['parameter']
-            command = params['value']
+            parameter = params['parameter']
+            value = params['value']
             
         except (TypeError, KeyError):
             # Missing parameter, fail and stay here.
@@ -761,7 +765,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             next_state = None
             result = InstErrorCode.TIMEOUT
         
-        return (success, next_state, result)
+        return (next_state, result)
 
     ########################################################################
     # SBE37State.AUTOSAMPLE
@@ -828,7 +832,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         try:
-            command = params['parameter']
+            parameter = params['parameter']
             
         except (TypeError, KeyError):
             # Missing parameter, fail and stay here.
