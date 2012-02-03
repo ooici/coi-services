@@ -26,13 +26,13 @@ from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 
 
-class TestBarsDriver(WithSimulatorTestCase):
+class DriverAndProcsTest(WithSimulatorTestCase):
     """
     Tests involving ZMQ driver process and ZMQ client.
     """
 
     def setUp(self):
-        super(TestBarsDriver, self).setUp()
+        super(DriverAndProcsTest, self).setUp()
 
         # Zmq parameters used by driver process and client.
         self.server_addr = 'localhost'
@@ -62,6 +62,7 @@ class TestBarsDriver(WithSimulatorTestCase):
                 self._driver_process = None
 
     def tearDown(self):
+        super(DriverAndProcsTest, self).tearDown()
         self._clean_up()
 
     def test_config(self):

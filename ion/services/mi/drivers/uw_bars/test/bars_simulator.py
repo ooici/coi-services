@@ -76,6 +76,7 @@ class BarsSimulator(object):
     'q' can be requested by a client to make the whole simulator terminate.
     """
 
+    _next_simulator_no = 0
 
     def __init__(self, host='', port=0, accept_timeout=None,
                  log_prefix='\t\t\t\t|* '):
@@ -86,6 +87,10 @@ class BarsSimulator(object):
         @param log_prefix a prefix for every log message
         """
 
+        BarsSimulator._next_simulator_no += 1
+        self._simulator_no = BarsSimulator._next_simulator_no
+        self._client_no = 0
+
         self._log_prefix = log_prefix
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.bind((host, port))
@@ -95,38 +100,46 @@ class BarsSimulator(object):
         self._log("bound to port %s" % self._port)
         self._bt = None
 
-        self._client_no = 0
-
     def _log_client(self, m):
-        print "%s[%d] BarsSimulator: %s" % (self._log_prefix,
-                                            self._client_no,
-                                            m)
+        print "%s[%d.%d] BarsSimulator: %s" % (self._log_prefix,
+                                               self._simulator_no,
+                                               self._client_no,
+                                               m)
 
     def _log(self, m):
-        print "%sBarsSimulator: %s" % (self._log_prefix, m)
+        print "%s[%d]BarsSimulator: %s" % (self._log_prefix,
+                                           self._simulator_no,
+                                           m)
 
     @property
     def port(self):
         return self._port
 
     def run(self):
-        self._sock.settimeout(0.5)
+        #
+        # internal timeout for the accept. It allows to check regularly if
+        # the simulator has been requested to terminate.
+        #
+        self._sock.settimeout(0.2)
+        self._enabled = True
         explicit_quit = False
-        while not explicit_quit:
-            self._enabled = True
+        while self._enabled and not explicit_quit:
             if self._accept_timeout is not None:
                 accept_time_limit = time.time() + self._accept_timeout
             self._log('---waiting for connection---')
-            while True:
+            while self._enabled:
                 try:
                     self._conn, addr = self._sock.accept()
                     break  # connected
                 except socket.timeout:
                     if self._accept_timeout is not None and \
                        time.time() > accept_time_limit:
-                        self._enabled = False
+                        # real timeout
                         self._log("accept timeout. Simulator stopping")
                         return
+
+            if not self._enabled:
+                break
 
             self._client_no += 1
             self._log_client('Connected by %s' % str(addr))
