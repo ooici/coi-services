@@ -56,25 +56,25 @@ class TestLCASA(IonIntegrationTestCase):
         return
 
     def test_jg_slide1(self):
-        self.generic_crud_script(RT.MarineFacility, "marine_facility", self.client.MFMS, True)
+        self.generic_fcruf_script(RT.MarineFacility, "marine_facility", self.client.MFMS, True)
 
 
     def test_jg_slide3(self):
-        self.generic_crud_script(RT.Site, "site", self.client.MFMS, True)
+        self.generic_fcruf_script(RT.Site, "site", self.client.MFMS, True)
 
 
 
     def test_jg_slide4(self):
         c = self.client
 
-        site_id = self.generic_crud_script(RT.Site, "site", self.client.MFMS, True)
+        site_id = self.generic_fcruf_script(RT.Site, "site", self.client.MFMS, True)
 
-        platform_model_id = self.generic_crud_script(RT.PlatformModel, 
+        platform_model_id = self.generic_fcruf_script(RT.PlatformModel, 
                                                      "platform_model", 
                                                      self.client.IMS, 
                                                      True)
 
-        logical_platform_id = self.generic_crud_script(RT.LogicalPlatform, 
+        logical_platform_id = self.generic_fcruf_script(RT.LogicalPlatform, 
                                                     "logical_platform", 
                                                     self.client.MFMS, 
                                                     True)
@@ -82,34 +82,35 @@ class TestLCASA(IonIntegrationTestCase):
         log.info("Assigning logical platform to site")
         c.MFMS.assign_logical_platform_to_site(logical_platform_id, site_id)
 
-        platform_device_id = self.generic_crud_script(RT.PlatformDevice, 
+        platform_device_id = self.generic_fcruf_script(RT.PlatformDevice, 
                                                     "platform_device", 
                                                     self.client.IMS, 
                                                     False)
 
-        ("suppresss pyflakes errors:",
-         site_id, 
-         platform_model_id, 
-         logical_platform_id, 
-         platform_device_id,
-         0)
+
+        #delete what we created
+        self.generic_d_script(site_id, "site", self.client.MFMS)
+        self.generic_d_script(platform_model_id, "platform_model", self.client.IMS)
+        self.generic_d_script(logical_platform_id, "logical_platform", self.client.MFMS)
+        self.generic_d_script(platform_device_id, "platform_device", self.client.IMS)
+
 
     def test_jg_slide5ab(self):
         c = self.client
 
-        site_id = self.generic_crud_script(RT.Site, "site", self.client.MFMS, True)
+        site_id = self.generic_fcruf_script(RT.Site, "site", self.client.MFMS, True)
 
-        logical_platform_id = self.generic_crud_script(RT.LogicalPlatform, 
+        logical_platform_id = self.generic_fcruf_script(RT.LogicalPlatform, 
                                                     "logical_platform", 
                                                     self.client.MFMS, 
                                                     True)
 
-        instrument_model_id = self.generic_crud_script(RT.InstrumentModel, 
+        instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel, 
                                                        "instrument_model", 
                                                        self.client.IMS, 
                                                        True)
 
-        logical_instrument_id = self.generic_crud_script(RT.LogicalInstrument, 
+        logical_instrument_id = self.generic_fcruf_script(RT.LogicalInstrument, 
                                                     "logical_instrument", 
                                                     self.client.MFMS, 
                                                     True)
@@ -120,38 +121,60 @@ class TestLCASA(IonIntegrationTestCase):
 
         log.info("Part B")
 
-        instrument_device_id = self.generic_crud_script(RT.InstrumentDevice, 
+        instrument_device_id = self.generic_fcruf_script(RT.InstrumentDevice, 
                                                     "instrument_device", 
                                                     self.client.IMS, 
                                                     False)
 
-        #fixme: policy
+        #todo: policy
         
-        #fixme: find data products
+        #todo: find data products
 
-        ("suppresss pyflakes errors:",
-         site_id, 
-         instrument_model_id, 
-         logical_platform_id, 
-         logical_instrument_id, 
-         instrument_device_id,
-         0)
+        #delete what we created
+        self.generic_d_script(site_id, "site", self.client.MFMS)
+        self.generic_d_script(instrument_model_id, "instrument_model", self.client.IMS)
+        self.generic_d_script(logical_platform_id, "logical_platform", self.client.MFMS)
+        self.generic_d_script(logical_instrument_id, "logical_instrument", self.client.MFMS)
+        self.generic_d_script(instrument_device_id, "instrument_device", self.client.IMS)
+
 
 
     def test_jg_slide6(self):
-        instrument_agent_id = self.generic_crud_script(RT.InstrumentAgent, 
+        instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent, 
                                                        "instrument_agent", 
                                                        self.client.IMS, 
                                                        True)        
         
-        ("suppresss pyflakes errors:",
-         instrument_agent_id, 
-         0)
+        #delete what we created
+        self.generic_d_script(instrument_agent_id, "instrument_agent", self.client.IMS)
 
 
-    def generic_crud_script(self, resource_iontype, resource_label, owner_service, is_simple):
+
+
+
+
+
+    def generic_d_script(self, resource_id, resource_label, owner_service):
         """
-        run through crud ops on a basic resource
+        delete a resource and check that it was properly deleted
+
+        @param resource_id id to be deleted
+        @param resource_label something like platform_model
+        @param owner_service service client instance
+        """
+
+        del_op = getattr(owner_service, "delete_%s" % resource_label)
+        
+        del_op(resource_id)
+
+        self.assertRaises(NotFound, del_op, resource_id)
+
+
+    def generic_fcruf_script(self, resource_iontype, resource_label, owner_service, is_simple):
+        """
+        run through find, create, read, update, and find ops on a basic resource
+
+        NO DELETE in here.
 
         @param resource_iontype something like RT.BlahBlar
         @param resource_label something like platform_model
@@ -167,6 +190,13 @@ class TestLCASA(IonIntegrationTestCase):
             
         
         def fill(svc, method, plural=False):
+            """
+            make a "shortcut service" for testing crud ops.  
+            @param svc a dotdict 
+            @param method the method name to add
+            @param plural whether to maek the resource label plural
+            """
+
             reallabel = resource_label
             if plural:
                 reallabel = make_plural(reallabel)
@@ -190,15 +220,15 @@ class TestLCASA(IonIntegrationTestCase):
         fill(svc, "find", True)
 
 
-        num_objs = len(svc.find()["%s_list" % resource_label])
+        num_objs = len(svc.find())
         log.info("I found %d %s" % (num_objs, resource_labels))
 
         log.info("Creating a %s" % resource_label)
         generic_obj = any_old(resource_iontype)
-        generic_id = svc.create(generic_obj)["%s_id" % resource_label]
+        generic_id = svc.create(generic_obj)
 
         log.info("Reading %s #%s" % (resource_label, generic_id))
-        generic_ret = svc.read(generic_id)[resource_label]
+        generic_ret = svc.read(generic_id)
 
         log.info("Verifying equality of stored and retrieved object")
         self.assertEqual(generic_obj.name, generic_ret.name)
@@ -214,13 +244,13 @@ class TestLCASA(IonIntegrationTestCase):
         svc.update(generic_ret)
 
         log.info("Reading platform model #%s to verify update" % generic_id)
-        generic_ret = svc.read(generic_id)[resource_label]
+        generic_ret = svc.read(generic_id)
 
         self.assertEqual(generic_newname, generic_ret.name)
         self.assertEqual(generic_obj.description, generic_ret.description)
 
         log.info("Finding platform models... checking that there's a new one")
-        num_objs2 = len(svc.find()["%s_list" % resource_label])
+        num_objs2 = len(svc.find())
 
         self.assertTrue(num_objs2 > num_objs)
 

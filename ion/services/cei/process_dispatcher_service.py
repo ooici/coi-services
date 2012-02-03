@@ -63,7 +63,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         @throws NotFound    object with specified id does not exist
         """
         self.clients.resource_registry.create_association(process_definition_id,
-                                                          AT.supportsExecutionEngine,
+                                                          PRED.supportsExecutionEngine,
                                                           execution_engine_definition_id)
 
     def dissociate_execution_engine(self, process_definition_id='', execution_engine_definition_id=''):
@@ -74,7 +74,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         @throws NotFound    object with specified id does not exist
         """
         assoc = self.clients.resource_registry.get_association(process_definition_id,
-                                                          AT.supportsExecutionEngine,
+                                                          PRED.supportsExecutionEngine,
                                                           execution_engine_definition_id)
         self.clients.resource_registry.delete_association(assoc)
 

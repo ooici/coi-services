@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.instrument_device_impl
+@package  ion.services.sa.resource_impl.instrument_device_impl
 @author   Ian Katz
 """
 
@@ -26,7 +26,7 @@ Later TODO
 
 
 
-from ion.services.sa.resource_impl import ResourceImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
 class InstrumentDeviceImpl(ResourceImpl):
     """

@@ -69,7 +69,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
         if not hasattr(object, "_id") or not hasattr(object, "_rev"):
             raise BadRequest("Object does not have required '_id' or '_rev' attribute")
         # Do an check whether LCS has been modified
-        res_obj = self.read(object._id, object._rev)
+        res_obj = self.read(object._id)
         self.assert_condition(res_obj.lcstate == object.lcstate, "Cannot modify life cycle state in update!")
         object.ts_updated = get_ion_ts()
         return self.resource_registry.update(object)

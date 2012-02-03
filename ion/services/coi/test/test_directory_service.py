@@ -24,22 +24,15 @@ class TestDirectoryService(IonIntegrationTestCase):
         # Now create client to bank service
         self.directory_service = DirectoryServiceClient(node=self.container.node)
 
-    def tearDown(self):
-        self._stop_container()
-
     def test_directory_service(self):
         # Lookup of non-existent entry is benign
         ret = self.directory_service.lookup("Foo")
         self.assertTrue(ret == None)
 
         # Find isn't implemented
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.directory_service.find("/", "Foo")
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Not Implemented")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Not Implemented")
 
         # Unregister doesn't raise error if not found
         self.directory_service.unregister("/", "Foo")
