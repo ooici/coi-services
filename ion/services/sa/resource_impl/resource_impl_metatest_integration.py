@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file ion/services/sa/test/resource_impl_metatest_integration.py
+@file ion/services/sa/resource_impl/resource_impl_metatest_integration.py
 @author Ian Katz
 
 """
@@ -10,7 +10,7 @@ import hashlib
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
-from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
+from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
 from pyon.util.log import log
 

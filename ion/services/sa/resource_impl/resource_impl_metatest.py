@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file ion/services/sa/test/resource_impl_metatest.py
+@file ion/services/sa/resource_impl/resource_impl_metatest.py
 @author Ian Katz
 
 """

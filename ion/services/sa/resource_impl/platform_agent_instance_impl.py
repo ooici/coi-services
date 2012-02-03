@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.platform_agent_instance_impl
+@package  ion.services.sa.resource_impl.platform_agent_instance_impl
 @author   Ian Katz
 """
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT
 
-from ion.services.sa.instrument.ims_simple import IMSsimple
+from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 
-class PlatformAgentInstanceImpl(IMSsimple):
+class PlatformAgentInstanceImpl(ResourceSimpleImpl):
     """
     @brief resource management for PlatformAgentInstance resources
     """

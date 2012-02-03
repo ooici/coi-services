@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.marine_facility_management.marine_facility_impl
+@package  ion.services.sa.resource_impl.management.marine_facility_impl
 @author   Ian Katz
 """
 
@@ -9,9 +9,9 @@
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED, RT
 
-from ion.services.sa.marine_facility.mfms_simple import MFMSsimple
+from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 
-class MarineFacilityImpl(MFMSsimple):
+class MarineFacilityImpl(ResourceSimpleImpl):
     """
     @brief resource management for Marine_Facility resources
     """

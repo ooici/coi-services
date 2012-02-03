@@ -15,12 +15,12 @@ from pyon.public import PRED #, RT
 
 from pyon.util.log import log
 
-from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
+from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
-from ion.services.sa.marine_facility.logical_instrument_impl import LogicalInstrumentImpl
-from ion.services.sa.marine_facility.logical_platform_impl import LogicalPlatformImpl
-from ion.services.sa.marine_facility.marine_facility_impl import MarineFacilityImpl
-from ion.services.sa.marine_facility.site_impl import SiteImpl
+from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
+from ion.services.sa.resource_impl.logical_platform_impl import LogicalPlatformImpl
+from ion.services.sa.resource_impl.marine_facility_impl import MarineFacilityImpl
+from ion.services.sa.resource_impl.site_impl import SiteImpl
 
 
 

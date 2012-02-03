@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.resource_impl
-@file     ion/services/sa/resource_impl.py
+@package  ion.services.sa.resource_impl.resource_impl
+@file     ion/services/sa/resource_impl/resource_impl.py
 @author   Ian Katz
 @brief    DRY = Don't Repeat Yourself; base class for CRUD, LCS, and association ops on any ION resource
 """
