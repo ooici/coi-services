@@ -53,6 +53,11 @@ class DataRetrieverService(BaseDataRetrieverService):
 
 
     def start_replay(self, replay_id=''):
+        """
+        Problem: start_replay does not return until execute replay is complete - it is all chained rpc.
+        Execute replay should be a command which is fired, not RPC???
+        """
+
         replay = self.clients.resource_registry.read(replay_id)
         pid = replay.process_id
         cli = ReplayAgentClient(name=pid, node=self.container.node)
