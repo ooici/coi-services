@@ -5,6 +5,7 @@
 @file pyon/ion/replayagent.py
 @description Implementation for the Replay Agent
 '''
+from interface.objects import BlogBase
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from interface.services.dm.ireplay_agent import BaseReplayAgent
 from pyon.public import log
@@ -56,18 +57,42 @@ class ReplayAgent(BaseReplayAgent):
         if self.query:
             datastore_name = self.query.get('datastore_name','dm_datastore')
             view_name = self.query.get('view_name','posts/posts_by_id')
-            opts = self.query.get('options',{})
+            opts = self.query.get('options',{'include_docs=True'})
         else:
             datastore_name = 'dm_datastore'
             view_name = 'posts/posts_by_id'
-            opts = {}
-        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts);
+            opts = {'include_docs=True'}
+
+        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
+
         results = self._query(datastore_name=datastore_name,view_name=view_name,opts=opts)
+
+        #-----------------------
+        # Iteration
+        #-----------------------
+        #  - Go through the results, if the user had include_docs=True in the options field
+        #    then the full document is in result.doc; however if the query did not include_docs,
+        #    then only the doc_id is provided in the result.value.
+        #
+        #  - What this allows us to do is limit the amount of traffic in information for large queries.
+        #    If we only are making a query in a sequence of queries (such as map and reduce) then we don't
+        #    care about the full document, yet, we only care about the doc id and will retrieve the document later.
+        #  - Example:
+        #      Imagine the blogging example, we want the latest blog by author George and all the comments for that blog
+        #      The series of queries would go, post_by_updated -> posts_by_author -> posts_join_comments and then
+        #      in the last query we'll set include_docs to true and parse the docs.
+        #-----------------------
         for result in results:
             log.warn('Result: %s' % result)
-            blog_msg = result['value']
-            blog_msg.is_replay= True
+            if 'doc' in result:
+                log.debug('Result contains document.')
+                blog_msg = result['doc']
+                blog_msg.is_replay = True
+            else:
+                blog_msg = result['value'] # Document ID, not a document
+
             self.output.publish(blog_msg)
+
         #@todo: log when there are not results
         if results is None:
             log.warn('No results found in replay query!')
