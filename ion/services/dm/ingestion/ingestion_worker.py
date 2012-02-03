@@ -20,13 +20,13 @@ from pyon.public import CFG, StreamProcess
 from pyon.ion.endpoint import ProcessPublisher
 from pyon.net.channel import SubscriberChannel
 from pyon.container.procs import ProcManager
-from pyon.core.exception import IonException
+from pyon.core.exception import IonException, BadRequest
 from pyon.ion.transform import TransformDataProcess
 
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore, sha1hex
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
-from interface.objects import StreamIngestionPolicy
+from interface.objects import StreamIngestionPolicy, IonObjectBase
 
 import time
 
@@ -77,6 +77,25 @@ class IngestionWorker(TransformDataProcess):
         # Process the packet
         self.process_stream(packet, policy)
 
+
+    def persist_immutable(self, obj):
+        """
+        This method is not functional yet - the doc object is python specific. The sha1 must be of a language independent form.
+        """
+        doc = self.db._ion_object_to_persistence_dict(obj)
+
+        sha1 = sha1hex(doc)
+
+        try:
+            self.db.create_doc(doc, object_id=sha1)
+        except BadRequest:
+            # Deduplication in action!
+            #@TODO why are we getting so many duplicate comments?
+            log.exception('Failed to write packet!\n%s' % obj)
+
+        # Do the id or revision have a purpose? do we need a return value?
+
+
     def process_stream(self, packet, policy):
         """
         Accepts a stream. Also accepts instruction as a string, and according to what is contained in the instruction,
@@ -88,12 +107,11 @@ class IngestionWorker(TransformDataProcess):
 
         # Evaluate policy for this stream and determine what to do.
 
-        if isinstance(packet, BlogPost):
-            db_post_id, db_post_rev = self.db.create(packet, None )
+        if isinstance(packet, BlogPost) and not packet.is_replay:
+            self.persist_immutable(packet )
 
-
-        if isinstance(packet, BlogComment):
-            db_comment_id, db_comment_rev = self.db.create(packet, None)
+        elif isinstance(packet, BlogComment) and not packet.is_replay:
+            self.persist_immutable(packet)
 
         # Create any events for about the receipt of an update on this stream
 
@@ -116,13 +134,16 @@ class IngestionWorker(TransformDataProcess):
         stream_id = incoming_packet.stream_id
         log.debug('Getting policy for stream id: %s' % stream_id)
 
+        #@TODO replace the default object with the default set for this ingestion configuration
         policy = StreamIngestionPolicy()
+
+
         try:
             #@TODO add a resource client so we can get the policy from the resource registry.
             # Later this would be replaced with a notification and caching scheme
             pass
         except NotFound:
-            # If there is not policy for this stream use the default policy
+            # If there is not policy for this stream use the default policy for this Ingestion Configuration
             log.debug('No policy found for stream id: %s' % stream_id)
 
         # return the extracted instruction

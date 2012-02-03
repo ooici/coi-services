@@ -62,7 +62,12 @@ class FeedStreamer(StreamProcess):
         '''
         num=0
         for entry in self.entries:
+            """
+            We are skipping create stream & register producer here. Create stream should not be called by a steam
+            producing process such as an instrument driver or data agent. It should be called at a higher level.
+            For the reason we will pretend it has already been called and use an unregistered stream.
 
+            """
             p = StreamPublisher(name=(self.xp,'%s.%s' %(num,"data")),process=self,node=self.container.node)
             p.publish(msg=entry['post'])
             for comment in entry['comments']:
