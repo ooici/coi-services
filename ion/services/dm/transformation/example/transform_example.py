@@ -135,7 +135,7 @@ class TransformCampfire(TransformDataProcess):
         authentication_string = base64.encodestring('%s:%s' %(token,'X'))[:-1]
         headers = {
             'Authorization':'Basic %s' % authentication_string,
-            'User-Agent':'Pyon R2',
+            'User-Agent':'Pyon R2 Campfire Agent',
             'Content-Type':'application/json'
         }
 
