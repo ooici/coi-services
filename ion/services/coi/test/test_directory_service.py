@@ -30,13 +30,9 @@ class TestDirectoryService(IonIntegrationTestCase):
         self.assertTrue(ret == None)
 
         # Find isn't implemented
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.directory_service.find("/", "Foo")
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Not Implemented")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Not Implemented")
 
         # Unregister doesn't raise error if not found
         self.directory_service.unregister("/", "Foo")

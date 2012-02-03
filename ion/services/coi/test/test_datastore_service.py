@@ -33,13 +33,9 @@ class TestDatastore(IonIntegrationTestCase):
 
         self.datastore_service.create_datastore(db_name_prefix + "_foo")
 
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.create_datastore(db_name_prefix + "_foo")
-        except BadRequest as ex:
-            self.assertTrue(ex.message.startswith("Data store with name"))
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message.startswith("Data store with name"))
 
         ds_list = self.datastore_service.list_datastores()
         self.assertTrue(db_name_prefix + "_foo" in ds_list)
@@ -55,13 +51,9 @@ class TestDatastore(IonIntegrationTestCase):
         user_info_obj_id, user_info_obj_rev = self.datastore_service.create(user_info_obj)
 
         # Make sure attempt to create object with same id fails
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.create(user_info_obj, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message.startswith("Object with id"))
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message.startswith("Object with id"))
 
         # Persist raw doc
         user_info_doc = {"name": "John Smith"}
@@ -69,34 +61,22 @@ class TestDatastore(IonIntegrationTestCase):
 
         # Make sure attempt to send object with _id to create fails
         bad_user_info_doc = {"name": "John Smith", "_id": "foo"}
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.create_doc(bad_user_info_doc)
-        except BadRequest as ex:
-            self.assertTrue(ex.message.startswith("Doc must not have '_id'"))
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
 
         bad_user_info_doc = {"name": "John Smith", "_rev": "1"}
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.create_doc(bad_user_info_doc)
-        except BadRequest as ex:
-            self.assertTrue(ex.message.startswith("Doc must not have '_rev'"))
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message.startswith("Doc must not have '_rev'"))
 
         # Read IonObject
         read_user_info_obj = self.datastore_service.read(user_info_obj_id)
 
         # Pass something other than str id to read
-        read_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.read(123)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id param is not string")
-            read_failed = True
-        self.assertTrue(read_failed)
+        self.assertTrue(cm.exception.message == "Object id param is not string")
 
         # Read raw dict
         read_user_info_doc = self.datastore_service.read_doc(user_info_doc_id)
@@ -109,13 +89,9 @@ class TestDatastore(IonIntegrationTestCase):
         updated_user_info_obj_id, updated_user_info_obj_rev = self.datastore_service.update(read_user_info_obj)
 
         # Try to pass non-IonObject to update
-        update_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.update(read_user_info_doc)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Obj param is not instance of IonObjectBase")
-            update_failed = True
-        self.assertTrue(update_failed)
+        self.assertTrue(cm.exception.message == "Obj param is not instance of IonObjectBase")
 
         # Update raw doc
         updated_user_info_doc_id, updated_user_info_doc_rev = self.datastore_service.update_doc(read_user_info_doc)
@@ -125,13 +101,9 @@ class TestDatastore(IonIntegrationTestCase):
 
         # Re-read raw doc, try to pass non-IonObject to delete
         re_read_user_info_doc = self.datastore_service.read_doc(user_info_doc_id)
-        delete_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.delete(re_read_user_info_doc)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Obj param is not instance of IonObjectBase or string id")
-            delete_failed = True
-        self.assertTrue(delete_failed)
+        self.assertTrue(cm.exception.message == "Obj param is not instance of IonObjectBase or string id")
 
         # Delete raw doc
         self.datastore_service.delete_doc(user_info_doc_id)
@@ -144,13 +116,9 @@ class TestDatastore(IonIntegrationTestCase):
         sample_obj2 = IonObject("SampleObject", name="Jane Smith", an_int=123)
         sampe_obj_id2, sample_obj_rev2 = self.datastore_service.create(sample_obj2)
         
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.datastore_service.find([["an_int", DataStore.EQUAL]])
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Insufficient criterion values specified.  Much match [<field>, <logical constant>, <value>]")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Insufficient criterion values specified.  Much match [<field>, <logical constant>, <value>]")
         
         res = self.datastore_service.find([["an_int", DataStore.EQUAL, 123]])
         self.assertTrue(len(res) == 2)

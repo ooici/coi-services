@@ -2,7 +2,6 @@
 
 __author__ = 'Michael Meisinger, Thomas Lennan'
 
-from unittest import SkipTest
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, NotFound, Inconsistent
@@ -31,76 +30,50 @@ class TestResourceRegistry(IonIntegrationTestCase):
     def test_crud(self):
         # Some quick registry tests
         # Can't call new with fields that aren't defined in the object's schema
-        new_failed = False
-        try:
-            obj = IonObject("UserInfo", name="name", foo="bar")
-        except TypeError as ex:
-            self.assertTrue(ex.message == "__init__() got an unexpected keyword argument 'foo'")
-            new_failed = True
-        self.assertTrue(new_failed)
+        with self.assertRaises(TypeError) as cm:
+            IonObject("UserInfo", name="name", foo="bar")
+        self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
         # Can't call new with fields that aren't defined in the object's schema
-        try:
-            obj = IonObject("UserInfo", {"name": "name", "foo": "bar"})
-        except TypeError as ex:
-            self.assertTrue(ex.message == "__init__() got an unexpected keyword argument 'foo'")
-            new_failed = True
-        self.assertTrue(new_failed)
+        with self.assertRaises(TypeError) as cm:
+            IonObject("UserInfo", {"name": "name", "foo": "bar"})
+        self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
         # Can't call new with fields that aren't defined in the object's schema
-        try:
-            obj = IonObject("UserInfo", {"name": "name"}, foo="bar")
-        except TypeError as ex:
-            self.assertTrue(ex.message == "__init__() got an unexpected keyword argument 'foo'")
-            new_failed = True
-        self.assertTrue(new_failed)
+        with self.assertRaises(TypeError) as cm:
+            IonObject("UserInfo", {"name": "name"}, foo="bar")
+        self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
         # Instantiate an object
         obj = IonObject("UserInfo", name="name")
         
         # Can set attributes that aren't in the object's schema
-        set_failed = False
-        try:
+        with self.assertRaises(AttributeError) as cm:
             setattr(obj, "foo", "bar")
-        except AttributeError as ex:
-            self.assertTrue(ex.message == "'UserInfo' object has no attribute 'foo'")
-            set_failed = True
-        self.assertTrue(set_failed)
+        self.assertTrue(cm.exception.message == "'UserInfo' object has no attribute 'foo'")
 
         # Cam't call update with object that hasn't been persisted
-        update_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.update(obj)
-        except BadRequest as ex:
-            self.assertTrue(ex.message.startswith("Object does not have required '_id' or '_rev' attribute"))
-            update_failed = True
-        self.assertTrue(update_failed)
+        self.assertTrue(cm.exception.message.startswith("Object does not have required '_id' or '_rev' attribute"))
 
         # Persist object and read it back
         obj_id, obj_rev = self.resource_registry_service.create(obj)
         read_obj = self.resource_registry_service.read(obj_id)
 
         # Cannot create object with _id and _rev fields pre-set        
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create(read_obj)
-        except BadRequest as ex:
-            self.assertTrue(ex.message.startswith("Doc must not have '_id'"))
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
 
         # Update object
         read_obj.name = "John Doe"
         self.resource_registry_service.update(read_obj)
 
         # Update should fail with revision mismatch
-        update_failed = False
-        try:
+        with self.assertRaises(Conflict) as cm:
             self.resource_registry_service.update(read_obj)
-        except Conflict as ex:
-            self.assertTrue(ex.message.startswith("Object not based on most current version"))
-            update_failed = True
-        self.assertTrue(update_failed)
+        self.assertTrue(cm.exception.message.startswith("Object not based on most current version"))
 
         # Re-read and update object
         read_obj = self.resource_registry_service.read(obj_id)
@@ -110,32 +83,17 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.resource_registry_service.delete(obj_id)
 
         # Make sure read, update and delete report error
-        read_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.resource_registry_service.read(obj_id)
-        except NotFound as ex:
-            self.assertTrue(ex.message.startswith("Object with id"))
-            read_failed = True
-        self.assertTrue(read_failed)
+        self.assertTrue(cm.exception.message.startswith("Object with id"))
 
-        update_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.resource_registry_service.update(read_obj)
-        except NotFound as ex:
-            self.assertTrue(ex.message.startswith("Object with id"))
-            update_failed = True
-        except Conflict as ex:
-            self.assertTrue(ex.message.startswith("Object not based on most current version"))
-            update_failed = True
-        self.assertTrue(update_failed)
+        self.assertTrue(cm.exception.message.startswith("Object with id"))
 
-        delete_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.resource_registry_service.delete(obj_id)
-        except NotFound as ex:
-            self.assertTrue(ex.message.startswith("Object with id"))
-            delete_failed = True
-        self.assertTrue(delete_failed)
+        self.assertTrue(cm.exception.message.startswith("Object with id"))
            
     def test_lifecycle(self):
         att = IonObject("Attachment", name='mine', description='desc')
@@ -152,10 +110,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         att2 = self.resource_registry_service.read(rid)
         self.assertEquals(att2.lcstate, LCS.PLANNED)
 
-        try:
+        with self.assertRaises(Inconsistent) as cm:
             self.resource_registry_service.execute_lifecycle_transition(rid, LCE.register)
-        except Inconsistent as ex:
-            self.assertTrue("type=Attachment, lcstate=PLANNED has no transition for event register" in ex.message)
+        self.assertTrue("type=Attachment, lcstate=PLANNED has no transition for event register" in cm.exception.message)
 
         new_state = self.resource_registry_service.execute_lifecycle_transition(rid, LCE.develop, LCS.PLANNED)
         self.assertEquals(new_state, LCS.DEVELOPED)
@@ -175,103 +132,59 @@ class TestResourceRegistry(IonIntegrationTestCase):
         read_user_info_obj = self.resource_registry_service.read(user_info_obj_id)
 
         # Test create failures
-        create_failed = False
-        try:
+        with self.assertRaises(AttributeError) as cm:
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.bogus, user_info_obj_id)
-        except AttributeError as ex:
-            self.assertTrue(ex.message == "bogus")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "bogus")
 
         # Predicate not provided
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(user_identity_obj_id, None, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Association must have all elements set")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Association must have all elements set")
 
         # Bad association type
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, 'bogustype')
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Unsupported assoc_type: bogustype")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Unsupported assoc_type: bogustype")
 
         # Subject id or object not provided
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(None, PRED.hasInfo, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Association must have all elements set")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Association must have all elements set")
 
         # Object id or object not provided
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, None)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Association must have all elements set")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Association must have all elements set")
 
         # Bad subject id
-        create_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.resource_registry_service.create_association("bogus", PRED.hasInfo, user_info_obj_id)
-        except NotFound as ex:
-            self.assertTrue(ex.message == "Object with id bogus does not exist.")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Object with id bogus does not exist.")
 
         # Bad object id
-        create_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, "bogus")
-        except NotFound as ex:
-            self.assertTrue(ex.message == "Object with id bogus does not exist.")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Object with id bogus does not exist.")
 
         # _id missing from subject
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(user_identity_obj, PRED.hasInfo, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Subject id or rev not available")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Subject id or rev not available")
 
         # _id missing from object
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id or rev not available")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Object id or rev not available")
 
         # Wrong subject type
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(user_info_obj_id, PRED.hasInfo, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal subject type UserInfo for predicate hasInfo")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Illegal subject type UserInfo for predicate hasInfo")
 
         # Wrong object type
-        create_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_identity_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal object type UserIdentity for predicate hasInfo")
-            create_failed = True
-        self.assertTrue(create_failed)
+        self.assertTrue(cm.exception.message == "Illegal object type UserIdentity for predicate hasInfo")
 
         # Create duplicate associations
         assoc_id1, assoc_rev1 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
@@ -302,45 +215,25 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(ret1 == ret2 == ret3)
 
         # Search for associations (bad cases)
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_associations(None, None, None)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal parameters")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Illegal parameters")
 
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_associations(user_identity_obj_id, None, None)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal parameters")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Illegal parameters")
 
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_associations(None, None, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal parameters")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Illegal parameters")
 
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_associations(user_identity_obj, None, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id not available in subject")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Object id not available in subject")
 
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_associations(user_identity_obj_id, None, user_info_obj)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id not available in object")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Object id not available in object")
 
         # Find subjects (good cases)
         subj_ret1 = self.resource_registry_service.find_subjects(RT.UserIdentity, PRED.hasInfo, user_info_obj_id, True)
@@ -362,21 +255,13 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(subj_ret5[1][0]._id == subj_ret6[1][0]._id)
 
         # Find subjects (bad cases)
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_subjects(None, None, None)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Must provide object")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Must provide object")
 
-        find_failed = False
-        try:
+        with self.assertRaises(AttributeError) as cm:
             self.resource_registry_service.find_subjects(RT.UserCredentials, PRED.bogus, user_info_obj_id, True)
-        except AttributeError as ex:
-            self.assertTrue(ex.message == "bogus")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "bogus")
 
         ret = self.resource_registry_service.find_subjects(RT.UserInfo, PRED.hasCredentials, user_info_obj_id, True)
         self.assertTrue(len(ret[0]) == 0)
@@ -384,13 +269,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         ret = self.resource_registry_service.find_subjects(RT.UserCredentials, PRED.hasInfo, user_info_obj_id, True)
         self.assertTrue(len(ret[0]) == 0)
 
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_subjects(RT.UserCredentials, PRED.hasInfo, user_info_obj, True)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id not available in object")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Object id not available in object")
 
         # Find objects (good cases)
         subj_ret1 = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasInfo, RT.UserInfo, True)
@@ -412,21 +293,13 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(subj_ret5[1][0]._id == subj_ret6[1][0]._id)
 
         # Find objects (bad cases)
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_objects(None, None, None)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Must provide subject")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Must provide subject")
 
-        find_failed = False
-        try:
+        with self.assertRaises(AttributeError) as cm:
             self.resource_registry_service.find_objects(user_identity_obj_id, PRED.bogus, RT.UserCredentials, True)
-        except AttributeError as ex:
-            self.assertTrue(ex.message == "bogus")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "bogus")
 
         ret = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasCredentials, RT.UserIdentity, True)
         self.assertTrue(len(ret[0]) == 0)
@@ -434,62 +307,34 @@ class TestResourceRegistry(IonIntegrationTestCase):
         ret = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasInfo, RT.UserCredentials, True)
         self.assertTrue(len(ret[0]) == 0)
 
-        find_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_objects(user_identity_obj, PRED.hasInfo, RT.UserInfo, True)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id not available in subject")
-            find_failed = True
-        self.assertTrue(find_failed)
+        self.assertTrue(cm.exception.message == "Object id not available in subject")
 
         # Get association (bad cases)
-        get_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.get_association(None, None, None)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal parameters")
-            get_failed = True
-        self.assertTrue(get_failed)
+        self.assertTrue(cm.exception.message == "Illegal parameters")
 
-        get_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.get_association(user_identity_obj_id, None, None)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal parameters")
-            get_failed = True
-        self.assertTrue(get_failed)
+        self.assertTrue(cm.exception.message == "Illegal parameters")
 
-        get_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.get_association(None, None, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Illegal parameters")
-            get_failed = True
-        self.assertTrue(get_failed)
+        self.assertTrue(cm.exception.message == "Illegal parameters")
 
-        get_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.get_association(user_identity_obj, None, user_info_obj_id)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id not available in subject")
-            get_failed = True
-        self.assertTrue(get_failed)
+        self.assertTrue(cm.exception.message == "Object id not available in subject")
 
-        get_failed = False
-        try:
+        with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.get_association(user_identity_obj_id, None, user_info_obj)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "Object id not available in object")
-            get_failed = True
-        self.assertTrue(get_failed)
+        self.assertTrue(cm.exception.message == "Object id not available in object")
 
-        get_failed = False
-        try:
+        with self.assertRaises(Inconsistent) as cm:
             self.resource_registry_service.get_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
-        except Inconsistent as ex:
-            self.assertTrue(ex.message.startswith("Duplicate associations found for subject/predicate/object"))
-            get_failed = True
-        self.assertTrue(get_failed)
+        self.assertTrue(cm.exception.message.startswith("Duplicate associations found for subject/predicate/object"))
 
         # Delete one of the associations
         self.resource_registry_service.delete_association(assoc_id1)
@@ -498,13 +343,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(assoc._id == assoc_id2)
 
         # Delete (bad cases)
-        delete_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.resource_registry_service.delete_association("bogus")
-        except NotFound as ex:
-            self.assertTrue(ex.message == "Object with id bogus does not exist.")
-            delete_failed = True
-        self.assertTrue(delete_failed)
+        self.assertTrue(cm.exception.message == "Object with id bogus does not exist.")
 
         # Delete other association
         self.resource_registry_service.delete_association(assoc_id2)
@@ -514,13 +355,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.resource_registry_service.delete(user_info_obj_id)
 
     def test_find_resources(self):
-        find_failed = False
-        try:
-            ret = self.resource_registry_service.find_resources(RT.UserInfo, LCS.DRAFT, "name", False)
-        except BadRequest as ex:
-            self.assertTrue(ex.message == "find by name does not support lcstate")
-            find_failed = True
-        self.assertTrue(find_failed)
+        with self.assertRaises(BadRequest) as cm:
+            self.resource_registry_service.find_resources(RT.UserInfo, LCS.DRAFT, "name", False)
+        self.assertTrue(cm.exception.message == "find by name does not support lcstate")
         
         ret = self.resource_registry_service.find_resources(RT.UserInfo, None, "name", False)
         self.assertTrue(len(ret[0]) == 0)

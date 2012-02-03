@@ -458,23 +458,13 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         self.identity_management_service.delete_user_identity(user_id)
  
-        read_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.read_user_identity(user_id)
-        except NotFound as ex:
-            self.assertTrue("does not exist" in ex.message)
-            read_failed = True
-
-        self.assertTrue(read_failed)
+        self.assertTrue("does not exist" in cm.exception.message)
  
-        delete_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.delete_user_identity(user_id)
-        except NotFound as ex:
-            self.assertTrue("does not exist" in ex.message)
-            delete_failed = True
-
-        self.assertTrue(delete_failed)
+        self.assertTrue("does not exist" in cm.exception.message)
 
     def test_user_credentials(self):
         user_identity_obj = IonObject("UserIdentity", {"name": self.subject})        
@@ -483,30 +473,17 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         user_credentials_obj = IonObject("UserCredentials", {"name": self.subject})        
         self.identity_management_service.register_user_credentials(user_id, user_credentials_obj)
 
-        unregister_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.unregister_user_credentials("bad", self.subject)
-        except NotFound as ex:
-            self.assertTrue("does not exist" in ex.message)
-            unregister_failed = True
+        self.assertTrue("does not exist" in cm.exception.message)
 
-        self.assertTrue(unregister_failed)
-
-        unregister_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.unregister_user_credentials(user_id, "bad")
-        except NotFound as ex:
-            self.assertTrue("does not exist" in ex.message)
-            unregister_failed = True
+        self.assertTrue("does not exist" in cm.exception.message)
 
-        self.assertTrue(unregister_failed)
-
-        unregister_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.unregister_user_credentials('bad', 'bad')
-        except NotFound as ex:
-            self.assertTrue("does not exist" in ex.message)
-            unregister_failed = True
+        self.assertTrue("does not exist" in cm.exception.message)
 
         self.identity_management_service.unregister_user_credentials(user_id, self.subject)
 
@@ -522,14 +499,9 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         user_info_obj = IonObject("UserInfo", {"name": "Foo"})        
         user_info = self.identity_management_service.create_user_info(user_id, user_info_obj)
 
-        dup_create_failed = False
-        try:
-            user_info2 = self.identity_management_service.create_user_info(user_id, user_info_obj)
-        except Conflict as ex:
-            self.assertTrue("UserInfo already exists for user id" in ex.message)
-            dup_create_failed = True
-
-        self.assertTrue(dup_create_failed)
+        with self.assertRaises(Conflict) as cm:
+            self.identity_management_service.create_user_info(user_id, user_info_obj)
+        self.assertTrue("UserInfo already exists for user id" in cm.exception.message)
 
         user_info_obj = self.identity_management_service.find_user_info_by_id(user_id)
 
@@ -545,41 +517,21 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         
         self.identity_management_service.delete_user_info(user_info)
 
-        read_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.read_user_info(user_info)
-        except NotFound as ex:
-            self.assertTrue('does not exist' in ex.message)
-            read_failed = True
+        self.assertTrue('does not exist' in cm.exception.message)
 
-        self.assertTrue(read_failed)
-
-        delete_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.delete_user_info(user_info)
-        except NotFound as ex:
-            self.assertTrue('does not exist' in ex.message)
-            delete_failed = True
+        self.assertTrue('does not exist' in cm.exception.message)
 
-        self.assertTrue(delete_failed)
-
-        find_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.find_user_info_by_name("John Doe")
-        except NotFound as ex:
-            self.assertEqual(ex.message, 'UserInfo with name John Doe does not exist')
-            find_failed = True
+        self.assertEqual(cm.exception.message, 'UserInfo with name John Doe does not exist')
 
-        self.assertTrue(find_failed)
-
-        find_failed = False
-        try:
+        with self.assertRaises(NotFound) as cm:
             self.identity_management_service.find_user_info_by_subject("Bogus subject")
-        except NotFound as ex:
-            self.assertEqual(ex.message, "UserCredentials with subject Bogus subject does not exist")
-            find_failed = True
-
-        self.assertTrue(find_failed)
+        self.assertEqual(cm.exception.message, "UserCredentials with subject Bogus subject does not exist")
 
         self.identity_management_service.unregister_user_credentials(user_id, self.subject)
 
