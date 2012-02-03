@@ -56,7 +56,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.number_of_workers = 2
         self.hdf_storage = {'root_path': '', 'filesystem' : ''}
         self.couch_storage = {'server': '', 'couchstorage': '', 'database': self.datastore_name }
-        self.default_policy = {}
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
 
@@ -75,6 +74,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         stream_route = self.pubsub_cli.register_producer(exchange_name=self.exchange_name, stream_id=self.input_stream_id)
         self.ctd_stream1_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), \
                                                                                         process=self.cc)
+
+        self.default_policy = {'name' : 'default_policy', 'description' : 'a default policy',\
+                               'lcstate' : 'DRAFT', 'ts_created' : 'created_now',\
+                               'ts_updated' : 'updated_later', 'archive_data' : True,\
+                               'archive_metadata' : True,'stream_id' : self.input_stream_id}
 
     def tearDown(self):
         """
@@ -100,11 +104,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Publish messages
         #----------------------------------------------------------------------
 
-        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
+        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
 
         self.ctd_stream1_publisher.publish(post)
 
-        comment = BlogComment(ref_id = '1234',author = {}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
+        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
 
         self.ctd_stream1_publisher.publish(comment)
 
@@ -156,11 +160,53 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
         self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
+    def test_default_policy(self):
+        """
+        Test that the default policy is being used properly
+        """
+        """
+        Test that the ingestion workers are writing messages to couch
+        """
+
+        #------------------------------------------------------------------------
+        # Create ingestion configuration and activate it
+        #----------------------------------------------------------------------
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
+            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+
+        #------------------------------------------------------------------------
+        # Publish messages
+        #----------------------------------------------------------------------
+
+        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
+
+        self.ctd_stream1_publisher.publish(post)
+
+        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
+
+        self.ctd_stream1_publisher.publish(comment)
+
+        #------------------------------------------------------------------------
+        # Test that the policy is
+        #----------------------------------------------------------------------
+
+        #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
+
+
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+
+        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
+
 
     def test_ingestion_worker_receives_message(self):
         """
         Test the activation of the ingestion configuration
         """
         pass
+
 
 
