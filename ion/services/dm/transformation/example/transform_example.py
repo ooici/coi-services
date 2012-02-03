@@ -6,17 +6,18 @@
 import commands
 import threading
 import time
-from interface.objects import ProcessDefinition, StreamQuery, BlogPost, BlogComment, BlogAuthor
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
 from pyon.ion.transform import TransformFunction
 from pyon.service.service import BaseService
+from pyon.core.exception import BadRequest
+from pyon.public import IonObject, RT, log, PRED
 
+from interface.objects import ProcessDefinition, StreamQuery, BlogPost, BlogComment, BlogAuthor
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.public import IonObject, RT, log, PRED
 import json
 import re
 import urllib2
@@ -93,10 +94,15 @@ class TransformCampfire(TransformDataProcess):
     def process(self, packet):
         log.debug('now processing...')
         if self.limit <= 0:
+            log.warn('Transform escaping - limit exceeded')
             return
 
         if not isinstance(packet,(BlogPost,BlogComment)):
+            log.warn('Transform escaping - bad packet type: %s' % type(packet))
             return # do nothing
+
+        log.warn('Attempt to publish to campfire')
+
 
         url = 'https://ooici.campfirenow.com/room/475552/speak.json'
         if isinstance(packet.author, BlogAuthor):
@@ -113,11 +119,27 @@ class TransformCampfire(TransformDataProcess):
         json_message = json.dumps(message)
         json_message += '\r\n\r\n'
 
+
+        token = self.CFG.get('campfire_token')
+        user = self.CFG.get('campfire_user')
+        if user is None or token is None:
+            raise BadRequest("No campfire user name or token specified")
+
+        headers = {
+            'Authorization':'Basic %s' % token,
+            'User-Agent':user,
+            'Content-Type':'application/json'
+        }
+
         headers = {
             'Authorization':'Basic OTgxZGY3YjYyYzMxZWE5ODA4NzExYWNmNTE5MzgwNmIwOTVkMWFmZjpY',
             'User-Agent':'Luke-transform',
             'Content-Type':'application/json'
         }
+
+        log.warn(url)
+        log.warn(json_message)
+        log.warn(headers)
 
         url_request = urllib2.Request(url,json_message,headers)
 

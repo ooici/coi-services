@@ -34,31 +34,45 @@ class ReplayAgent(BaseReplayAgent):
         # Get the delivery_format
         self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
 
+
         # Attach a publisher to each stream_name attribute
+        #@TODO does this belong here? Should it be in the container somewhere?
         self.stream_count = len(streams)
         for name,stream_id in streams.iteritems():
             pub = self.stream_publisher_registrar.create_publisher(stream_id=stream_id)
+            log.warn('Setup publisher named: %s' % name)
             setattr(self,name,pub)
 
+        if not hasattr(self,'output'):
+            raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
 
 
     def execute_replay(self):
         ''' Performs the replay action
         Queries the data IAW the query argument and publishes the data on the output streams
         '''
-        if hasattr(self,'output'):
-            if self.query:
-                datastore_name = self.query.get('datastore_name','dm_datastore')
-                view_name = self.query.get('view_name','posts/query')
-                opts = self.query.get('options',{})
-            else:
-                datastore_name = 'dm_datastore'
-                view_name = 'posts/query'
-                opts = {}
-            for result in self._query(datastore_name,view_name,opts):
-                self.output.publish(result['value'])
+
         log.debug('(Replay Agent %s)', self.name)
-        log.debug('  Published...')
+        if self.query:
+            datastore_name = self.query.get('datastore_name','dm_datastore')
+            view_name = self.query.get('view_name','posts/query')
+            opts = self.query.get('options',{})
+        else:
+            datastore_name = 'dm_datastore'
+            view_name = 'posts/query'
+            opts = {}
+
+        result = None
+        for result in self._query(datastore_name,view_name,opts):
+            log.warn('Result: %s' % result)
+            blog_msg = result['value']
+            blog_msg.is_replay= True
+            self.output.publish(blog_msg)
+
+        if result is None:
+            log.warn('No results found in replay query!')
+        else:
+            log.debug('Published replay!')
 
     def _query(self,datastore_name='dm_datastore', view_name='posts/query', opts={}):
         '''
