@@ -90,7 +90,7 @@ class ZmqDriverClient(DriverClient):
                     if driver_client.evt_callback:
                         driver_client.evt_callback(evt)
                 except zmq.ZMQError:
-                    time.sleep(0)
+                    time.sleep(.5)
 
             sock.close()
             context.term()
@@ -142,7 +142,7 @@ class ZmqDriverClient(DriverClient):
 
             except zmq.ZMQError:
                 # Socket not ready to accept send. Sleep and retry later.
-                time.sleep(0)
+                time.sleep(.5)
             
         mi_logger.debug('Awaiting reply.')
         while True:
@@ -155,7 +155,7 @@ class ZmqDriverClient(DriverClient):
 
             except zmq.ZMQError:
                 # Socket not ready with the reply. Sleep and retry later.
-                time.sleep(0)
+                time.sleep(.5)
         mi_logger.debug('Reply: %s.', str(reply))
         return reply
     

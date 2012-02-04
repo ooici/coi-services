@@ -43,6 +43,7 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_check_args
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
 
 
@@ -380,7 +381,13 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.START_AUTO_SAMPLING])
         time.sleep(30)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.STOP_AUTO_SAMPLING])
+        tries = 10
+        count = 0
+        while count < tries:
+            reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.STOP_AUTO_SAMPLING])
+            if InstErrorCode.is_ok(reply[0]):
+                break
+            time.sleep(2)
         time.sleep(2)
 
         reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])

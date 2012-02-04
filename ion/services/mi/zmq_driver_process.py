@@ -106,9 +106,9 @@ class ZmqDriverProcess(driver_process.DriverProcess):
                             sock.send_pyobj(reply)
                             break
                         except zmq.ZMQError:
-                            time.sleep(0)
+                            time.sleep(.1)
                 except zmq.ZMQError:
-                    time.sleep(0)
+                    time.sleep(.1)
         
             sock.close()
             context.term()
@@ -136,10 +136,10 @@ class ZmqDriverProcess(driver_process.DriverProcess):
                             evt = None
                             mi_logger.debug('Event sent!')
                         except zmq.ZMQError:
-                            time.sleep(0)
+                            time.sleep(.1)
                             
                 except IndexError:
-                    time.sleep(0)
+                    time.sleep(.1)
 
             sock.close()
             context.term()

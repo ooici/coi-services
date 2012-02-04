@@ -806,15 +806,15 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                 try:
                     prompt = None
                     while prompt != SBE37Prompt.AUTOSAMPLE:
-                        prompt = self._wakeup()
+                        prompt = self._wakeup(timeout)
                     self._do_cmd_resp('stop')
                     prompt = None
                     while prompt != SBE37Prompt.COMMAND:
-                        prompt = self._wakeup()
+                        prompt = self._wakeup(timeout)
                     next_state = SBE37State.COMMAND
                     result = InstErrorCode.OK
                     
-                except InstruemntTimeoutException:
+                except InstrumentTimeoutException:
                     next_state = None
                     result = InstErrorCode.TIMEOUT
 
@@ -1204,6 +1204,8 @@ class SBE37Driver(InstrumentDriver):
                 cmd_result = \
                     self._channels[SBE37Channel.CTD].execute(command, timeout)                
                 result[channel] = cmd_result
+                if InstErrorCode.is_error(cmd_result):
+                    overall_success = InstErrorCode.EXE_DEVICE_ERR
 
         return (overall_success, result)
         

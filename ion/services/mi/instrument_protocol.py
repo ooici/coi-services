@@ -405,7 +405,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return item
             
             if time.time() > starttime + timeout:
-                raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
+                raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
         
     ########################################################################
     # Command-response helpers.
