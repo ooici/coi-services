@@ -14,6 +14,7 @@ from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, LCS # , PRED
 from nose.plugins.attrib import attr
+import unittest
 
 from ion.services.sa.test.helpers import any_old
 
@@ -35,6 +36,12 @@ log.warn = lambda x: printout("WARNING: %s\n" % x)
 
 @attr('INT', group='sa')
 class TestLCASA(IonIntegrationTestCase):
+    """
+    LCA integration tests
+
+    tests that start with test_jg_slide reference slides found here:
+    https://confluence.oceanobservatories.org/download/attachments/33753448/LCA_Demo_Swimlanes_CI_2012-01-20_ver_0-06.pdf
+    """
 
     def setUp(self):
         # Start container
@@ -55,15 +62,16 @@ class TestLCASA(IonIntegrationTestCase):
     def test_just_the_setup(self):
         return
 
+    #@unittest.skip('temporarily')
     def test_jg_slide1(self):
         self.generic_fcruf_script(RT.MarineFacility, "marine_facility", self.client.MFMS, True)
 
-
+    #@unittest.skip('temporarily')
     def test_jg_slide3(self):
         self.generic_fcruf_script(RT.Site, "site", self.client.MFMS, True)
 
 
-
+    #@unittest.skip('temporarily')
     def test_jg_slide4(self):
         c = self.client
 
@@ -128,17 +136,19 @@ class TestLCASA(IonIntegrationTestCase):
 
         #todo: policy
         
-        #todo: find data products
+        #find data products
+        products = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)
+        print products
 
         #delete what we created
-        self.generic_d_script(site_id, "site", self.client.MFMS)
-        self.generic_d_script(instrument_model_id, "instrument_model", self.client.IMS)
-        self.generic_d_script(logical_platform_id, "logical_platform", self.client.MFMS)
-        self.generic_d_script(logical_instrument_id, "logical_instrument", self.client.MFMS)
         self.generic_d_script(instrument_device_id, "instrument_device", self.client.IMS)
+        self.generic_d_script(instrument_model_id, "instrument_model", self.client.IMS)
+        self.generic_d_script(logical_instrument_id, "logical_instrument", self.client.MFMS)
+        self.generic_d_script(logical_platform_id, "logical_platform", self.client.MFMS)
+        self.generic_d_script(site_id, "site", self.client.MFMS)
 
 
-
+    #@unittest.skip('temporarily')
     def test_jg_slide6(self):
         instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent, 
                                                        "instrument_agent", 
