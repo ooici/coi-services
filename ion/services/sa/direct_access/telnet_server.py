@@ -27,8 +27,8 @@ import curses.ascii
 import curses.has_key
 import curses
 import re
+import logging
 
-from pyon.util.log import log
 from pyon.core.exception import ServerError
 
 if not hasattr(socket, 'SHUT_RDWR'):
@@ -240,6 +240,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		"""
 		global username, password, parentInputCallback
 		
+		logging.debug("TelnetHandler.__init__()")
 		# Am I doing the echoing?
 		self.DOECHO = True
 		# What opts have I sent DO/DONT for and what did I send?
@@ -267,7 +268,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def setterm(self, term):
 		"Set the curses structures for this terminal"
-		log.debug("Setting termtype to %s" % (term, ))
+		logging.debug("Setting termtype to %s" % (term, ))
 		curses.setupterm(term) # This will raise if the termtype is not supported
 		self.TERM = term
 		self.ESCSEQ = {}
@@ -285,6 +286,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		"Connect incoming connection to a telnet session"
 		global handlerInstance
 		
+		logging.debug("TelnetHandler.setup()")
 		handlerInstance = self
 		self.setterm(self.TERM)
 		self.sock = self.request._sock
@@ -294,7 +296,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			self.sendcommand(self.WILLACK[k], k)
 		self.thread_ic = threading.Thread(target=self.inputcooker)
 		self.thread_ic.setDaemon(True)
+		logging.debug("TelnetHandler.setup(): starting inputcooker thread")
 		self.thread_ic.start()
+		logging.debug("TelnetHandler.setup(): started inputcooker thread")
 		# Sleep for 0.5 second to allow options negotiation
 		time.sleep(0.5)
 
@@ -320,7 +324,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 #				opttxt = "opt:%d" % ord(opt)
 #		else:
 #			opttxt = ""
-#		log.debug("OPTION: %s %s" % (cmdtxt, opttxt, ))
+#		logging.debug("OPTION: %s %s" % (cmdtxt, opttxt, ))
 		if cmd == NOP:
 			self.sendcommand(NOP)
 		elif cmd == WILL or cmd == WONT:
@@ -343,11 +347,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					self.setterm(subreq[2:])
 				except:
-					log.debug("Terminal type not known")
+					logging.debug("Terminal type not known")
 		elif cmd == SB:
 			pass
 		else:
-			log.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
+			logging.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
 
 	def sendcommand(self, cmd, opt=None):
 		"Send a telnet command (IAC)"
@@ -367,21 +371,21 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				self.DOOPTS[opt] = None
 			if (((cmd == DO) and (self.DOOPTS[opt] != True))
 			or ((cmd == DONT) and (self.DOOPTS[opt] != False))):
-#				log.debug("Sending %s %s" % (cmdtxt, opttxt, ))
+#				logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
 				self.DOOPTS[opt] = (cmd == DO)
 				self.writecooked(IAC + cmd + opt)
 #			else:
-#				log.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
+#				logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
 		elif cmd in [WILL, WONT]:
 			if not self.WILLOPTS.has_key(opt):
 				self.WILLOPTS[opt] = ''
 			if (((cmd == WILL) and (self.WILLOPTS[opt] != True))
 			or ((cmd == WONT) and (self.WILLOPTS[opt] != False))):
-#				log.debug("Sending %s %s" % (cmdtxt, opttxt, ))
+#				logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
 				self.WILLOPTS[opt] = (cmd == WILL)
 				self.writecooked(IAC + cmd + opt)
 #			else:
-#				log.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
+#				logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
 		else:
 			self.writecooked(IAC + cmd)
 
@@ -529,6 +533,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		"""Get one character from the raw queue. Optionally blocking.
 		Raise EOFError on end of stream. SHOULD ONLY BE CALLED FROM THE
 		INPUT COOKER."""
+		#logging.debug("TelnetHandler._inputcooker_getc()")
 		if self.rawq:
 			ret = self.rawq[0]
 			self.rawq = self.rawq[1:]
@@ -536,7 +541,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		if not block:
 			if select.select([self.sock.fileno()], [], [], 0) == ([], [], []):
 				return ''
-		ret = self.sock.recv(20)
+		while True:
+			try:
+				ret = self.sock.recv(20)
+				break
+			except:
+				time.sleep(.001)
 		self.eof = not(ret)
 		self.rawq = self.rawq + ret
 		if self.eof:
@@ -567,6 +577,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		Set self.eof when connection is closed.  Don't block unless in
 		the midst of an IAC sequence.
 		"""
+		logging.debug("TelnetHandler.inputcooker()")
 		try:
 			while True:
 				c = self._inputcooker_getc()
@@ -639,11 +650,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		return True
 
 	def exitHandler (self):
-		log.info("Exiting request handler")
+		logging.info("Exiting request handler")
 		self.finish()
 	
 	def handle(self):
 		"The actual service to which the user has connected."
+		logging.debug("TelnetServer.handle()")
 		username = None
 		password = None
 		if self.authCallback:
@@ -653,7 +665,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					username = self.readline()
 				except EOFError:
-					log.info("Connection lost")
+					logging.info("Connection lost")
 					self.exitHandler()
 					return
 			if self.authNeedPass:
@@ -662,13 +674,13 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					password = self.readline(echo=False)
 				except EOFError:
-					log.info("Connection lost")
+					logging.info("Connection lost")
 					self.exitHandler()
 					return
 				if self.DOECHO:
 					self.write("\n")
 			if not self.authCallback(username, password):
-				log.info("login failed")
+				logging.info("login failed")
 				self.writeline("login failed")
 				self.exitHandler()
 				return
@@ -678,58 +690,72 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			try:
 				inputLine = self.readline()
 			except EOFError:
-				log.debug("Connection lost")
+				logging.debug("Connection lost")
 				self.exitHandler()
 				break
-			self.writeline("you typed: " + inputLine)
+			logging.info("rcvd: " + inputLine)
+			parentInputCallback(inputLine)
 
 
 class TelnetServer(object):
 	
 	tns = None
+	port = None
+	ip_address = None
 	
-	def __init__(self, inputCallback=None, Username, Password):
+	def __init__(self, inputCallback=None):
 		global username, password, parentInputCallback
 		
-		log.debug("TelnetServer.__init__()")
+		logging.getLogger('').setLevel(logging.DEBUG)
+		logging.debug("TelnetServer.__init__()")
 		if not inputCallback:
-			log.warning("TelnetServer.__init__(): callback not specified")
+			logging.warning("TelnetServer.__init__(): callback not specified")
 			raise ServerError("callback not specified")
 		parentInputCallback = inputCallback
 		
 		# TODO: get username and password dynamically
-		username = Username
-		password = Password
+		username = 'admin'
+		password = '123'
 	
 		# TODO: get ip_address & port number dynamically
 		# TODO: ensure that port is not already in use
-		port = 8000
-		ip_address = 'localhost'
+		self.port = 8000
+		self.ip_address = 'localhost'
 		
-		self.tns = SocketServer.TCPServer((ip_address, port), TelnetHandler)
+		self.tns = SocketServer.TCPServer((self.ip_address, self.port), TelnetHandler)
+		self.thread_ic = threading.Thread(target=self.runServer)
+		self.thread_ic.setDaemon(True)
+		self.thread_ic.start()
+		
+	def runServer(self):
+		logging.debug("TelnetServer.runServer()")
 		self.tns.handle_request()
-		return ip_address, port
+		
+	def getConnectionInfo(self):
+		global username, password
+		return self.ip_address, self.port, username, password
 
 	def stop(self):
-		log.debug("TelnetServer.stop()")
+		logging.debug("TelnetServer.stop()")
 		self.tns.shutdown()
 		
 	def write(self, data):
 		global handlerInstance
 		
+		logging.debug("TelnetServer.write(): data = " + str(data))
 		handlerInstance.write(data)
 		
 
 if __name__ == '__main__':
 	"For command line testing - Accept a single connection"
 				
-	log.info("ION Telnet server starting")
+	logging.info("ION Telnet server starting")
 
 	username = "admin"
 	password = "123"
 
 	tns = SocketServer.TCPServer(("localhost", 8023), TelnetHandler)
 	tns.handle_request()
-	log.info("completed request: exiting server")
+	logging.info("completed request: exiting server")
 
 
