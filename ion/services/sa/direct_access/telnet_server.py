@@ -28,6 +28,8 @@ import curses.has_key
 import curses
 import re
 import logging
+import multiprocessing
+import select
 
 from pyon.core.exception import ServerError
 
@@ -226,8 +228,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 	
 	username = ''
 	password = ''
-	parentInputCallback = None
 	handlerInstance = None
+	child_connection = None
 
 # --------------------------- Environment Setup ----------------------------
 
@@ -238,7 +240,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		With a hostname argument, it connects the instance; a port
 		number is optional.
 		"""
-		global username, password, parentInputCallback
+		global username, password, child_connection
 		
 		logging.debug("TelnetHandler.__init__()")
 		# Am I doing the echoing?
@@ -253,6 +255,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.cookedq = []	# This is the cooked input stream (list of charcodes)
 		self.sbdataq = ''	# Sub-Neg string
 		self.eof = 0		# Has EOF been reached?
+		self.quitIC = False
 		self.iacseq = ''	# Buffer for IAC sequence.
 		self.sb = 0		    # Flag for SB and SE sequence.
 		self.history = []	# Command history
@@ -263,7 +266,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.authCallback = self.authorized
 		self.username = username
 		self.password = password
-		self.parentInputCallback = parentInputCallback
+		self.child_connection = child_connection
 		SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
 
 	def setterm(self, term):
@@ -294,11 +297,14 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			self.sendcommand(self.DOACK[k], k)
 		for k in self.WILLACK.keys():
 			self.sendcommand(self.WILLACK[k], k)
+		self.thread_wr = threading.Thread(target=self.writeReceiver)
+		#logging.debug("TelnetHandler.setup(): starting writeReceiver thread")
+		self.thread_wr.start()
+		#logging.debug("TelnetHandler.setup(): started writeReceiver thread")
 		self.thread_ic = threading.Thread(target=self.inputcooker)
-		self.thread_ic.setDaemon(True)
-		logging.debug("TelnetHandler.setup(): starting inputcooker thread")
+		#logging.debug("TelnetHandler.setup(): starting inputcooker thread")
 		self.thread_ic.start()
-		logging.debug("TelnetHandler.setup(): started inputcooker thread")
+		#logging.debug("TelnetHandler.setup(): started inputcooker thread")
 		# Sleep for 0.5 second to allow options negotiation
 		time.sleep(0.5)
 
@@ -500,8 +506,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			if not len(self.cookedq):
 				return ''
 		while not len(self.cookedq):
-			if self.eof:
-			    raise EOFError
+			if self.eof or self.quitIC:
+				raise EOFError
 			time.sleep(0.05)
 		self.IQUEUELOCK.acquire()
 		ret = self.cookedq[0]
@@ -526,6 +532,18 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.OQUEUELOCK.acquire()
 		self.sock.sendall(text)
 		self.OQUEUELOCK.release()
+		
+	def writeReceiver(self):
+		logging.debug("TelnetHandler.writeReceiver(): starting")
+		while True:
+			if self.child_connection.poll():
+				data = self.child_connection.recv()
+				if data == -1:
+					self.quitIC = True
+					logging.debug("TelnetHandler.writeReceiver(): stopping")
+					return
+				self.write(data)
+			time.sleep(.05)
 
 # ------------------------------- Input Cooker -----------------------------
 
@@ -538,15 +556,21 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			ret = self.rawq[0]
 			self.rawq = self.rawq[1:]
 			return ret
-		if not block:
+		while True:
 			if select.select([self.sock.fileno()], [], [], 0) == ([], [], []):
-				return ''
+				if not block:
+					return ''
+			else:
+				break
+			if self.quitIC:
+				raise EOFError
+			time.sleep(.05)
 		while True:
 			try:
 				ret = self.sock.recv(20)
 				break
 			except:
-				time.sleep(.001)
+				time.sleep(.05)
 		self.eof = not(ret)
 		self.rawq = self.rawq + ret
 		if self.eof:
@@ -577,7 +601,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		Set self.eof when connection is closed.  Don't block unless in
 		the midst of an IAC sequence.
 		"""
-		logging.debug("TelnetHandler.inputcooker()")
+		logging.debug("TelnetHandler.inputcooker(): starting")
 		try:
 			while True:
 				c = self._inputcooker_getc()
@@ -634,7 +658,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 					if cmd in (DO, DONT, WILL, WONT):
 						self.options_handler(self.sock, cmd, c)
 		except EOFError:
-			pass
+			logging.debug("TelnetHandler.inputcooker(): stopping")
 
 # ----------------------- Command Line Processor Engine --------------------
 
@@ -651,6 +675,8 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def exitHandler (self):
 		logging.info("Exiting request handler")
+		if not self.quitIC:
+			self.child_connection.send(-1)
 		self.finish()
 	
 	def handle(self):
@@ -694,7 +720,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				self.exitHandler()
 				break
 			logging.info("rcvd: " + inputLine)
-			parentInputCallback(inputLine)
+			self.child_connection.send(inputLine)
 
 
 class TelnetServer(object):
@@ -702,16 +728,22 @@ class TelnetServer(object):
 	tns = None
 	port = None
 	ip_address = None
+	serverProcess = None
+	parent_connection = None
+	quitProxy = False
+	quitServer = False
+	proxyThread = None
+	parentInputCallback = None
 	
 	def __init__(self, inputCallback=None):
-		global username, password, parentInputCallback
+		global username, password, child_connection
 		
 		logging.getLogger('').setLevel(logging.DEBUG)
 		logging.debug("TelnetServer.__init__()")
 		if not inputCallback:
 			logging.warning("TelnetServer.__init__(): callback not specified")
 			raise ServerError("callback not specified")
-		parentInputCallback = inputCallback
+		self.parentInputCallback = inputCallback
 		
 		# TODO: get username and password dynamically
 		username = 'admin'
@@ -722,28 +754,58 @@ class TelnetServer(object):
 		self.port = 8000
 		self.ip_address = 'localhost'
 		
+		self.parent_connection, child_connection = multiprocessing.Pipe()
+		
 		self.tns = SocketServer.TCPServer((self.ip_address, self.port), TelnetHandler)
-		self.thread_ic = threading.Thread(target=self.runServer)
-		self.thread_ic.setDaemon(True)
-		self.thread_ic.start()
+		self.serverProcess = multiprocessing.Process(target=self.runServer)
+		self.serverProcess.start()
+		
+		self.proxyThread = threading.Thread(target=self.runProxy)
+		#logging.debug("TelnetHandler.setup(): starting proxy thread")
+		self.proxyThread.start()
 		
 	def runServer(self):
-		logging.debug("TelnetServer.runServer()")
-		self.tns.handle_request()
+		logging.debug("TelnetServer.runServer(): starting")
+		self.tns.timeout = 1
+		while True:
+			self.tns.handle_request()
+			if self.quitServer:
+				break
+		logging.debug("TelnetServer.runServer(): stopping")
 		
+	def runProxy(self):
+		logging.debug("TelnetServer.runProxy(): starting")
+		while not self.quitProxy:
+			if self.parent_connection.poll():
+				data = self.parent_connection.recv()
+				self.parentInputCallback(data)
+				if data == -1:
+					break
+			time.sleep(.05)
+		logging.debug("TelnetServer.runProxy(): stopping")
+	
 	def getConnectionInfo(self):
 		global username, password
 		return self.ip_address, self.port, username, password
 
 	def stop(self):
 		logging.debug("TelnetServer.stop()")
+		self.quitProxy = True
+		while self.proxyThread.isAlive():
+			time.sleep(.05)
+		self.parent_connection.send(-1)
+		time.sleep(.1)
+		self.serverProcess.terminate()
+		del self.serverProcess
 		self.tns.shutdown()
+		del self.tns
+		
 		
 	def write(self, data):
 		global handlerInstance
 		
 		logging.debug("TelnetServer.write(): data = " + str(data))
-		handlerInstance.write(data)
+		self.parent_connection.send(data)
 		
 
 if __name__ == '__main__':

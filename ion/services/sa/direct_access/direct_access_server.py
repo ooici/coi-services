@@ -18,23 +18,18 @@ class DirectAccessServer(object):
     """
     
     server = None
-    username = None
-    password = None
-    ip_address = None
-    password = None
     
     def __init__(self, direct_access_type=None, inputCallback=None):
         log.debug("DirectAccessServer.__init__()")
         if not inputCallback:
             log.warning("DirectAccessServer.__init__(): callback not specified")
             raise ServerError("callback not specified")
-        parentInputCallback = inputCallback
         
         if not direct_access_type:
             log.warning("DirectAccessServer.__init__(): direct access type not specified")
             raise ServerError("direct access type not specified")
         if direct_access_type == directAccessTypes.telnet:
-            self.server = TelnetServer(parentInputCallback)
+            self.server = TelnetServer(inputCallback)
         
         
     def getConnectionInfo(self):
@@ -43,6 +38,7 @@ class DirectAccessServer(object):
     def stop(self):
         log.debug("DirectAccessServer.stop()")
         self.server.stop()
+        del self.server
         
     def write(self, data):
         log.debug("DirectAccessServer.write(): data = " + str(data))
