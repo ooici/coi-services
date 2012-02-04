@@ -381,9 +381,7 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.START_AUTO_SAMPLING])
         time.sleep(30)
         
-        tries = 10
-        count = 0
-        while count < tries:
+        while True:
             reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.STOP_AUTO_SAMPLING])
             if InstErrorCode.is_ok(reply[0]):
                 break

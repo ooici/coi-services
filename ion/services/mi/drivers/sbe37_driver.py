@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 import logging
 import time
 import re
+import datetime
 
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
@@ -697,7 +698,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     result = self._do_cmd_resp('ts', timeout=timeout)
                     next_state = None
                 
-                except InstruemntTimeoutException:
+                except InstrumentTimeoutException:
                     next_state = None
                     result = InstErrorCode.TIMEOUT
                         
@@ -707,7 +708,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     next_state = SBE37State.AUTOSAMPLE
                     result = InstErrorCode.OK
                 
-                except InstruemntTimeoutException:
+                except InstrumentTimeoutException:
                     next_state = None
                     result = InstErrorCode.TIMEOUT
 
@@ -877,9 +878,17 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         if self.eoln in self._linebuf:
-            lines = self._linebuf.split(self.eoln)
+            lines = self._linebuf.split(SBE37_NEWLINE)
             self._linebuf = lines[-1]
-            lines = lines[0:-1]
+            for line in lines:
+                sample = self._extract_sample(line)
+                if sample:
+                    if self.send_event:
+                        event = {
+                            'type':'sample',
+                            'value':sample
+                        }
+                        self.send_event(event)
             mi_logger.debug('Streaming data received: %s',str(lines))
     
     def _send_wakeup(self):
@@ -892,14 +901,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         self._do_cmd_resp('ds',timeout=timeout)
         self._do_cmd_resp('dc',timeout=timeout)
-
-    def _extract_sample(self, sampledata):
-        """
-        """
-        lines = sampledata.split(SBE37_NEWLINE)
-        for line in lines:
-            if self._sample_regex.match(line):
-                pass
         
     def _build_simple_command(self, cmd):
         """
@@ -925,11 +926,57 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         mi_logger.debug('Got ts response: %s', repr(response))
-        # Match sample for success.
-        success = InstErrorCode.OK
-        result = None
+        sample = None
+        for line in response.split(SBE37_NEWLINE):
+            sample = self._extract_sample(line)
+            if sample:
+                if self.send_event:
+                    event = {
+                        'type':'sample',
+                        'value':sample
+                    }
+                    self.send_event(event)
+                break
+            
+        return sample
+
+    def _extract_sample(self, line):
+        """
+        """
+        sample = None
+        match = self._sample_regex.match(line)
+        if match:
+            sample = {}
+            sample['temperature'] = float(match.group(1))
+            sample['conductivity'] = float(match.group(2))
+            sample['pressure'] = float(match.group(3))
+
+            # Extract sound velocity and salinity if present.
+            if match.group(5) and match.group(7):
+                sample['salinity'] = float(match.group(5))
+                sample['sound_velocity'] = float(match.group(7))
+            elif match.group(5):
+                if self._get_param_dict(SBE37Parameter.OUTPUTSAL):
+                    sample['salinity'] = float(match.group(5))
+                elif self._get_param_dict(SBE37Parameter.OUTPUTSV):
+                    sample['sound_velocity'] = match.group(5)
         
-        return (success,response)
+            # Extract date and time if present.
+            sample_time = None
+            if  match.group(8):
+                sample_time = time.strptime(match.group(8),', %d %b %Y, %H:%M:%S')
+            
+            elif match.group(15):
+                sample_time = time.strptime(match.group(15),', %m-%d-%Y, %H:%M:%S')
+        
+            if sample_time:
+                sample['device_time'] = \
+                    '%4i-%02i-%02iT:%02i:%02i:%02i' % sample_time[:6]
+
+            # Add UTC time from driver in iso 8601 format.
+            sample['driver_time'] = datetime.datetime.utcnow().isoformat()
+
+        return sample            
 
     def _parse_set_response(self, response, prompt):
         """
