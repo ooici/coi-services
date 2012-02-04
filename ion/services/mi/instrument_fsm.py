@@ -92,6 +92,8 @@ class InstrumentFSM():
         next_state = None
         result = None
         
+        mi_logger.debug('From current state %s, processing event %s...',
+                        self.current_state, event)
         if self.events.has(event):
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:
