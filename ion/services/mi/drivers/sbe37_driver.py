@@ -447,7 +447,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         
         mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.UNCONFIGURED)
-            
+        self._publish_state_change(SBE37State.UNCONFIGURED)
+        
         # Initialize driver configuration.
         try:
             timeout = params['timeout']
@@ -524,6 +525,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.DISCONNECTED)
+        self._publish_state_change(SBE37State.DISCONNECTED)
 
     def _handler_disconnected_exit(self, params):
         """
@@ -636,6 +638,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.COMMAND)
+        self._publish_state_change(SBE37State.COMMAND)
         self._update_params()
 
     def _handler_command_exit(self, params):
@@ -777,6 +780,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.AUTOSAMPLE)
+        self._publish_state_change(SBE37State.AUTOSAMPLE)
         
     def _handler_autosample_exit(self, params):
         """
@@ -881,15 +885,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             lines = self._linebuf.split(SBE37_NEWLINE)
             self._linebuf = lines[-1]
             for line in lines:
-                sample = self._extract_sample(line)
-                if sample:
-                    if self.send_event:
-                        event = {
-                            'type':'sample',
-                            'value':sample
-                        }
-                        self.send_event(event)
-            mi_logger.debug('Streaming data received: %s',str(lines))
+                sample = self._extract_sample(line, True)
     
     def _send_wakeup(self):
         """
@@ -899,8 +895,17 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _update_params(self, timeout=10):
         """
         """
+        old_config = self._get_config_param_dict()
         self._do_cmd_resp('ds',timeout=timeout)
         self._do_cmd_resp('dc',timeout=timeout)
+        new_config = self._get_config_param_dict()            
+        if new_config != old_config:
+            if self.send_event:
+                event = {
+                    'type' : 'config_change',
+                    'value' : new_config
+                }
+                self.send_event(event)
         
     def _build_simple_command(self, cmd):
         """
@@ -918,29 +923,20 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _parse_dsdc_response(self, response, prompt):
         """
         """
-        mi_logger.debug('Got dcds response: %s', repr(response))
         for line in response.split(SBE37_NEWLINE):
             self._update_param_dict(line)
         
     def _parse_ts_response(self, response, prompt):
         """
         """
-        mi_logger.debug('Got ts response: %s', repr(response))
         sample = None
         for line in response.split(SBE37_NEWLINE):
-            sample = self._extract_sample(line)
-            if sample:
-                if self.send_event:
-                    event = {
-                        'type':'sample',
-                        'value':sample
-                    }
-                    self.send_event(event)
-                break
+            sample = self._extract_sample(line, True)
+            if sample: break
             
         return sample
 
-    def _extract_sample(self, line):
+    def _extract_sample(self, line, publish=True):
         """
         """
         sample = None
@@ -976,6 +972,14 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             # Add UTC time from driver in iso 8601 format.
             sample['driver_time'] = datetime.datetime.utcnow().isoformat()
 
+            if publish and self.send_event:
+                event = {
+                    'type':'sample',
+                    'value':sample
+                }
+                self.send_event(event)
+                
+
         return sample            
 
     def _parse_set_response(self, response, prompt):
@@ -985,6 +989,17 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             return InstErrorCode.OK
         else:
             return InstErrorCode.BAD_DRIVER_COMMAND
+
+    def _publish_state_change(self, state):
+        """
+        """
+        if self.send_event:
+            event = {
+                'type': 'state_change',
+                'value': state
+            }
+            self.send_event(event)
+
 
     ########################################################################
     # Static helpers to format set commands.
