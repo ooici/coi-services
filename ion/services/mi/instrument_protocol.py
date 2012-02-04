@@ -346,6 +346,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     
     def _send_wakeup(self):
         """
+        Use the logger to send what needs to be sent to wake up the device.
+        This is intended to be overridden if there is any wake up needed.
         """
         pass
         
@@ -375,7 +377,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return item
             
             if time.time() > starttime + timeout:
-                raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
+                raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
         
     def _get_response(self, timeout=10):
         """
@@ -395,7 +397,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return (item, self._linebuf)
             
             if time.time() > starttime + timeout:
-                raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
+                raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
 
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """

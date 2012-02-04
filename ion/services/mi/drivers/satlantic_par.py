@@ -12,6 +12,7 @@ __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 import logging
+import time
 
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
@@ -20,6 +21,8 @@ from ion.services.mi.instrument_connection import SerialInstrumentConnection
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.instrument_fsm import InstrumentFSM
+from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.services.mi.exceptions import InstrumentTimeoutException
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -97,8 +100,6 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                                   InstErrorCode.UNHANDLED_EVENT)
         self._fsm.add_handler(State.COMMAND_MODE, Event.COMMAND,
                               self._handler_command_command)
-        self._fsm.add_handler(State.COMMAND_MODE, Event.RESET,
-                              self._handler_reset)
         self._fsm.add_handler(State.AUTOSAMPLE_MODE, Event.BREAK,
                               self._handler_autosample_break)
         self._fsm.add_handler(State.AUTOSAMPLE_MODE, Event.STOP,
@@ -116,24 +117,23 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         self._fsm.start(State.UNKNOWN)
 
         self._add_build_handler(Command.SET, self._build_set_command)
-        self._add_build_handler(Command.GET, self._build_simple_command)
+        self._add_build_handler(Command.GET, self._build_param_fetch_command)
         
     # The normal interface for a protocol. These should drive the FSM
     # transitions as they get things done.
     def get(self, params=[]):
-        (success, result) = self._fsm.on_event(Event.COMMAND,
-                                               {'command':Command.GET,
-                                                'params':params})
-
         # check param
+        if ((params == None) or (params == [])):
+            return None
         for param in params:
             if not Parameter.has(param):
-                raise InstrumentProtocolException
-        # build query
-        # get result from instrument
-        # build return
-        pass
-    
+                raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
+ 
+        result = self._fsm.on_event(Event.COMMAND,
+                                    {'command':Command.GET,
+                                     'params':params})
+        return result
+   
     def set(self, params={}):
         # check param
         # build set
@@ -168,7 +168,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         pass
     
     def initialize(self, timeout=10):
-        CommandResponseInstrumentProtocol.initialize(self, timeout)
+        mi_logger.info('Initializing PAR sensor')
         self._fsm.on_event(Event.INITIALIZE)
             
     def _break_from_autosample(self, break_char, timeout=30):
@@ -190,10 +190,9 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             return False
         
         # do the magic sequence of sending lots of characters really fast
-        self._wakeup()
         starttime = time.time()
         while True:
-            self._logger_client.send(Event.BREAK+Event.BREAK)
+            self._logger_client.send(break_char)
             (prompt, result) = self._get_response(timeout)
             mi_logger.debug("Got prompt %s when trying to break from autosample",
                             prompt)
@@ -201,7 +200,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                 return True
             else:
                 if time.time() > starttime + timeout:
-                    raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
+                    raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
                     
         # catch all
         return False
@@ -219,7 +218,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         next_state = None
         result = None
-        
+                
         # Break to command mode, then set next state to command mode
         if self._break_from_autosample(Event.BREAK):
             next_state = State.COMMAND_MODE
@@ -240,6 +239,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                                     "Reset while autosampling!"))
 
         ''' @todo fill this in '''
+        next_state = State.AUTOSAMPLE_MODE
         return (next_state, result)
         
     def _handler_autosample_break(self, params):
@@ -287,7 +287,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         return (next_state, result)
         
 
-    def _handler_command_command(self,params):
+    def _handler_command_command(self, params):
         """Handle State.COMMAND_MODE Event.COMMAND transition
         
         @param params Dict with "command" enum and "params" of the parameters to
@@ -297,6 +297,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         next_state = None
         result = None
+        result_vals = {}
                 
         """ @todo Add command logic handling here """
         if params['command'] == Command.EXIT:
@@ -318,7 +319,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                     break
                 result_vals[param] = self._do_cmd_resp(Command.GET, param)
             result = result_vals
-            
+           
+        mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
 
     def _handler_poll_command(self, params):
@@ -369,7 +371,21 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         # Check to make sure all parameters are valid up front
         
         # return the string to send
-
+        
+    def _build_param_fetch_command(self, cmd, param):
+        """
+        Build a command to fetch the desired argument.
+        
+        @param cmd The command being used (Command.GET in this case)
+        @param param The name of the parameter to fetch
+        @retval Returns string ready for sending to instrument
+        """
+        assert Parameter.has(param)
+        return "show %s%s" % (param, self.eoln)
+    
+    def _wakeup(self, timeout):
+        pass
+        
 class SatlanticPARInstrumentDriver(InstrumentDriver):
     """The InstrumentDriver class for the Satlantic PAR sensor PARAD"""
 
