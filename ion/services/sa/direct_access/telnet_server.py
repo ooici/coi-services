@@ -228,7 +228,6 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 	
 	username = ''
 	password = ''
-	handlerInstance = None
 	child_connection = None
 
 # --------------------------- Environment Setup ----------------------------
@@ -287,10 +286,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def setup(self):
 		"Connect incoming connection to a telnet session"
-		global handlerInstance
-		
 		logging.debug("TelnetHandler.setup()")
-		handlerInstance = self
 		self.setterm(self.TERM)
 		self.sock = self.request._sock
 		for k in self.DOACK.keys():
@@ -299,10 +295,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			self.sendcommand(self.WILLACK[k], k)
 		self.thread_wr = threading.Thread(target=self.writeReceiver)
 		#logging.debug("TelnetHandler.setup(): starting writeReceiver thread")
+		self.thread_wr.setDaemon(True)
 		self.thread_wr.start()
 		#logging.debug("TelnetHandler.setup(): started writeReceiver thread")
 		self.thread_ic = threading.Thread(target=self.inputcooker)
 		#logging.debug("TelnetHandler.setup(): starting inputcooker thread")
+		self.thread_ic.setDaemon(True)
 		self.thread_ic.start()
 		#logging.debug("TelnetHandler.setup(): started inputcooker thread")
 		# Sleep for 0.5 second to allow options negotiation
@@ -310,9 +308,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def finish(self):
 		"End this session"
+		logging.debug("TelnetHandler.finish()")
 		try:
 			self.sock.shutdown(socket.SHUT_RDWR)
-		except:
+		except Exception as ex:
+			logging.debug("exception caught for socket shutdown:" + str(ex))
 			return
 
 # ------------------------- Telnet Options Engine --------------------------
@@ -540,10 +540,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				data = self.child_connection.recv()
 				if data == -1:
 					self.quitIC = True
-					logging.debug("TelnetHandler.writeReceiver(): stopping")
-					return
+					break
 				self.write(data)
+			if self.eof:
+				break
 			time.sleep(.05)
+		logging.debug("TelnetHandler.writeReceiver(): stopping")
 
 # ------------------------------- Input Cooker -----------------------------
 
@@ -673,11 +675,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.writeline(traceback.format_exception_only(exc_type, exc_param)[-1])
 		return True
 
-	def exitHandler (self):
-		logging.info("Exiting request handler")
+	def exitHandler (self, reason):
 		if not self.quitIC:
 			self.child_connection.send(-1)
-		self.finish()
+		time.sleep(.1)
+		logging.info("Exiting telnet request handler: " + reason)
 	
 	def handle(self):
 		"The actual service to which the user has connected."
@@ -691,8 +693,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					username = self.readline()
 				except EOFError:
-					logging.info("Connection lost")
-					self.exitHandler()
+					self.exitHandler("lost connection")
 					return
 			if self.authNeedPass:
 				if self.DOECHO:
@@ -700,8 +701,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					password = self.readline(echo=False)
 				except EOFError:
-					logging.info("Connection lost")
-					self.exitHandler()
+					self.exitHandler("lost connection")
 					return
 				if self.DOECHO:
 					self.write("\n")
@@ -716,12 +716,13 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			try:
 				inputLine = self.readline()
 			except EOFError:
-				logging.debug("Connection lost")
-				self.exitHandler()
+				self.exitHandler("lost connection")
 				break
 			logging.info("rcvd: " + inputLine)
 			self.child_connection.send(inputLine)
 
+class TcpSocketServer(SocketServer.TCPServer):
+	allow_reuse_address = True
 
 class TelnetServer(object):
 	
@@ -731,7 +732,6 @@ class TelnetServer(object):
 	serverProcess = None
 	parent_connection = None
 	quitProxy = False
-	quitServer = False
 	proxyThread = None
 	parentInputCallback = None
 	
@@ -756,21 +756,19 @@ class TelnetServer(object):
 		
 		self.parent_connection, child_connection = multiprocessing.Pipe()
 		
-		self.tns = SocketServer.TCPServer((self.ip_address, self.port), TelnetHandler)
+		self.tns = TcpSocketServer((self.ip_address, self.port), TelnetHandler)
+		self.tns.allow_reuse_address = True
 		self.serverProcess = multiprocessing.Process(target=self.runServer)
 		self.serverProcess.start()
 		
 		self.proxyThread = threading.Thread(target=self.runProxy)
 		#logging.debug("TelnetHandler.setup(): starting proxy thread")
+		self.proxyThread.setDaemon(True)
 		self.proxyThread.start()
 		
 	def runServer(self):
 		logging.debug("TelnetServer.runServer(): starting")
-		self.tns.timeout = 1
-		while True:
-			self.tns.handle_request()
-			if self.quitServer:
-				break
+		self.tns.handle_request()
 		logging.debug("TelnetServer.runServer(): stopping")
 		
 	def runProxy(self):
@@ -794,10 +792,9 @@ class TelnetServer(object):
 		while self.proxyThread.isAlive():
 			time.sleep(.05)
 		self.parent_connection.send(-1)
-		time.sleep(.1)
+		time.sleep(.5)
 		self.serverProcess.terminate()
 		del self.serverProcess
-		self.tns.shutdown()
 		del self.tns
 		
 		

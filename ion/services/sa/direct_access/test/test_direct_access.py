@@ -95,6 +95,7 @@ if __name__ == '__main__':
             if lostConnection:
                 daServer.stop()
                 del daServer
+                lostConnection = False
                 break
             time.sleep(.5)
     
