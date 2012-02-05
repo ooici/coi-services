@@ -28,8 +28,12 @@ class DirectAccessServer(object):
         if not direct_access_type:
             log.warning("DirectAccessServer.__init__(): direct access type not specified")
             raise ServerError("direct access type not specified")
+        
+        # start the correct server based on direct_access_type
         if direct_access_type == directAccessTypes.telnet:
             self.server = TelnetServer(inputCallback)
+        else:
+            raise ServerError("Unsupported direct access type")
         
         
     def getConnectionInfo(self):

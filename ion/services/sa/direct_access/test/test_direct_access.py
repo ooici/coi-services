@@ -44,26 +44,30 @@ if __name__ == '__main__':
     gotData = False
                 
     def isThereUserInput():
+        # check for input on stdin
         return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
     
     def telnetInputProcessor(data):
+        # callback passed to DA Server for receiving input server
         global lostConnection, inputData, gotData
         
-        print ("telnetInputProcessor: data = " + str(data))
         if isinstance(data, int):
+            # not character data, so check for lost connection
             if data == -1:
-                print ("connection lost")
+                print ("telnetInputProcessor: connection lost")
                 lostConnection = True
             else:
-                print ("got unexpected integer " + str(data))
+                print ("telnetInputProcessor: got unexpected integer " + str(data))
             return
-        print ("len of data = " + str(len(data)))
+        print ("telnetInputProcessor: data = " + str(data))
+        #print ("len of data = " + str(len(data)))
         inputData = data
         gotData = True
         
     while True:
+        # prompt for starting server or exiting test
         while True:
-            print ("'start' to start a telnet DA Server, 'exit' to end the test")
+            print (chr(10) + "'start' to start a telnet DA Server, 'exit' to end the test")
             line = sys.stdin.readline()
             if line == 'exit'+chr(10):
                 print ("DA Server test: exiting")
@@ -71,32 +75,40 @@ if __name__ == '__main__':
             if line == 'start'+chr(10):
                 break
         
-        print ("DA Server test: instantiating a telnet DA Server")   
+        #print ("DA Server test: instantiating a telnet DA Server")
+        # start the DA Server using telnet protocol and pass in the callback routine   
         daServer = DirectAccessServer(directAccessTypes.telnet, telnetInputProcessor)
-        print ("DA Server test: started the telnet DA Server")
+        #print ("DA Server test: started the telnet DA Server")
     
+        # get the connection info from the server
         connectionInfo = daServer.getConnectionInfo()
         print ("DA Server test: telnet DA Server connection info = " + str(connectionInfo))
         
-        print ("'stop' to stop the telnet DA Server")
+        print (chr(10) + "'stop' to stop the telnet DA Server")
+        # loop until user enters 'stop' or the connection is lost
         while True:
+            # check for user input
             if isThereUserInput():
                 line = sys.stdin.readline()
                 if line == 'stop'+chr(10):
+                    # user entered 'stop', so stop the server
                     daServer.stop()
                     del daServer
                     lostConnection = False
                     gotData = False
                     print ("DA Server test: telnet DA Server stopped")
                     break
+            # check for input from server
             if gotData:
+                # echo received data back to server and onto the telnet client
                 daServer.write("DA Server test.telnetInputProcessor() rcvd: " + inputData + chr(10))
                 gotData = False
+            # check for lost connection
             if lostConnection:
                 daServer.stop()
                 del daServer
                 lostConnection = False
                 break
-            time.sleep(.5)
+            time.sleep(.5)   # let other code run
     
     

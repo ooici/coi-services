@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+__author__ = 'Bill Bollenbacher'
+__license__ = 'Apache 2.0'
+
+# The following code is based on telnetsrvlib 1.0.2 from Adrian Hungate
+
 """TELNET server class
 
 Based on the telnet client in telnetlib.py
@@ -679,7 +685,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		if not self.quitIC:
 			self.child_connection.send(-1)
 		time.sleep(.1)
-		logging.info("Exiting telnet request handler: " + reason)
+		logging.debug("Exiting telnet request handler: " + reason)
 	
 	def handle(self):
 		"The actual service to which the user has connected."
@@ -718,10 +724,14 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			except EOFError:
 				self.exitHandler("lost connection")
 				break
-			logging.info("rcvd: " + inputLine)
+			logging.debug("rcvd: " + inputLine)
 			self.child_connection.send(inputLine)
 
 class TcpSocketServer(SocketServer.TCPServer):
+	# wrapper class to allow setting the allow_reuse_address attribute to True so
+	# the port can be reused w/o waiting for TIME_WAIT to elapse.  This is needed
+	# to reuse the port before TIME_WAIT has elapsed when the server closes the
+	# connection (TCP socket needs to wait 2*MSL to assure client got ACK for FIN).
 	allow_reuse_address = True
 
 class TelnetServer(object):
@@ -732,13 +742,15 @@ class TelnetServer(object):
 	serverProcess = None
 	parent_connection = None
 	quitProxy = False
-	proxyThread = None
+	callbackProxyThread = None
 	parentInputCallback = None
 	
 	def __init__(self, inputCallback=None):
+		# use globals to pass configuration to telnet handler when it is started by
+		# TCP socket server
 		global username, password, child_connection
 		
-		logging.getLogger('').setLevel(logging.DEBUG)
+		logging.getLogger('').setLevel(logging.INFO)
 		logging.debug("TelnetServer.__init__()")
 		if not inputCallback:
 			logging.warning("TelnetServer.__init__(): callback not specified")
@@ -754,33 +766,41 @@ class TelnetServer(object):
 		self.port = 8000
 		self.ip_address = 'localhost'
 		
+		# setup a pipe to allow telnet server process to communicate with callbackProxy
 		self.parent_connection, child_connection = multiprocessing.Pipe()
 		
+		# create telnet server object and start the server process
 		self.tns = TcpSocketServer((self.ip_address, self.port), TelnetHandler)
-		self.tns.allow_reuse_address = True
 		self.serverProcess = multiprocessing.Process(target=self.runServer)
 		self.serverProcess.start()
 		
-		self.proxyThread = threading.Thread(target=self.runProxy)
-		#logging.debug("TelnetHandler.setup(): starting proxy thread")
-		self.proxyThread.setDaemon(True)
-		self.proxyThread.start()
+		# start the callbackProxy thread to receive client input from telnet server process
+		self.callbackProxyThread = threading.Thread(target=self.runCallbackProxy)
+		#logging.debug("TelnetHandler.setup(): starting callbackProxy thread")
+		self.callbackProxyThread.setDaemon(True)
+		self.callbackProxyThread.start()
 		
 	def runServer(self):
 		logging.debug("TelnetServer.runServer(): starting")
+		# accept a single telnet request
 		self.tns.handle_request()
 		logging.debug("TelnetServer.runServer(): stopping")
 		
-	def runProxy(self):
-		logging.debug("TelnetServer.runProxy(): starting")
+	def runCallbackProxy(self):
+		logging.debug("TelnetServer.runCallbackProxy(): starting")
+		# run until quitProxy is True
 		while not self.quitProxy:
+			# check for input from telnet server
 			if self.parent_connection.poll():
+				# got data, so relay it to parent via callback
 				data = self.parent_connection.recv()
 				self.parentInputCallback(data)
+				# sniff the data to see if 'lost connection' is being sent
+				# to parent, and if so quit the thread
 				if data == -1:
 					break
 			time.sleep(.05)
-		logging.debug("TelnetServer.runProxy(): stopping")
+		logging.debug("TelnetServer.runCallbackProxy(): stopping")
 	
 	def getConnectionInfo(self):
 		global username, password
@@ -788,19 +808,21 @@ class TelnetServer(object):
 
 	def stop(self):
 		logging.debug("TelnetServer.stop()")
+		# tell callbackProxyThread to quit
 		self.quitProxy = True
-		while self.proxyThread.isAlive():
+		# wait until it quits
+		while self.callbackProxyThread.isAlive():
 			time.sleep(.05)
+		# send 'close connection' to telnet server process
 		self.parent_connection.send(-1)
+		# give telnet server process time to terminate threads
 		time.sleep(.5)
 		self.serverProcess.terminate()
 		del self.serverProcess
 		del self.tns
-		
-		
+			
 	def write(self, data):
-		global handlerInstance
-		
+		# send data from parent to telnet server process to forward to client
 		logging.debug("TelnetServer.write(): data = " + str(data))
 		self.parent_connection.send(data)
 		
@@ -813,7 +835,7 @@ if __name__ == '__main__':
 	username = "admin"
 	password = "123"
 
-	tns = SocketServer.TCPServer(("localhost", 8023), TelnetHandler)
+	tns = TcpSocketServer(("localhost", 8000), TelnetHandler)
 	tns.handle_request()
 	logging.info("completed request: exiting server")
 
