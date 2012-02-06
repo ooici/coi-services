@@ -29,10 +29,10 @@ class DataProductImpl(ResourceImpl):
         return self._unlink_resources(data_product_id, PRED.hasDataProducer, data_producer_id)
 
     def link_data_set(self, data_product_id='', data_set_id=''):
-        return self._link_resources(data_product_id, PRED.hasDataSet, data_set_id)
+        return self._link_resources(data_product_id, PRED.hasDataset, data_set_id)
 
     def unlink_data_set(self, data_product_id='', data_set_id=''):
-        return self._unlink_resources(data_product_id, PRED.hasDataSet, data_set_id)
+        return self._unlink_resources(data_product_id, PRED.hasDataset, data_set_id)
 
     def find_having_data_producer(self, data_producer_id):
         return self._find_having(PRED.hasDataProducer, data_producer_id)
@@ -41,7 +41,7 @@ class DataProductImpl(ResourceImpl):
         return self._find_stemming(data_product_id, PRED.hasDataProducer, RT.DataProducer)
 
     def find_having_data_set(self, data_set_id):
-        return self._find_having(PRED.hasDataSet, data_set_id)
+        return self._find_having(PRED.hasDataset, data_set_id)
 
     def find_stemming_data_set(self, data_product_id):
-        return self._find_stemming(data_product_id, PRED.hasDataSet, RT.DataSet)
+        return self._find_stemming(data_product_id, PRED.hasDataset, RT.DataSet)
