@@ -76,8 +76,8 @@ class Prompt(BaseEnum):
     COMMAND = '$'
     
 class Error(BaseEnum):
-    pass
-
+    INVALID_COMMAND = "Invalid command"
+    
 class Capability(BaseEnum):
     pass
 
@@ -119,6 +119,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         self._add_build_handler(Command.SET, self._build_set_command)
         self._add_build_handler(Command.GET, self._build_param_fetch_command)
         
+        self._add_response_handler(Command.SET, self._parse_set_response)
+        
     # The normal interface for a protocol. These should drive the FSM
     # transitions as they get things done.
     def get(self, params=[]):
@@ -135,11 +137,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         return result
    
     def set(self, params={}):
-        # check param
-        # build set
-        # set and get result from instrument
-        # build return
-        pass
+        if ((params == None) or (params == {}) or (isinstance(params, list))):
+            return None
+        for param in params.keys():
+            if not Parameter.has(param):
+                raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
+        result = self._fsm.on_event(Event.COMMAND, {'command':Command.SET,
+                                                    'params':params})
+        return result
     
     def execute(self, command=[]):
         # check command and arguments for validity
@@ -310,7 +315,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             pass
 
         if params['command'] == Command.SET:
-            pass
+            name_values = params['params']
+            for key in name_values.keys():
+                if not Parameter.has(key):
+                    raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
+                    break
+                result_vals[key] = self._do_cmd_resp(Command.SET, key, name_values[key])
+            """@todo raise a parameter error if there was a bad value"""
+            result = result_vals
         
         if params['command'] == Command.GET:
             for param in params['params']:
@@ -341,7 +353,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             self.publish_to_driver((DriverAnnouncement.ERROR,
                                     InstErrorCode.INVALID_COMMAND,
                                     "Could not get sample"))
-            raise InstrumentProtocolException(InstErrCode.INVALID_COMMAND)
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
   
         return (next_state, result)
 
@@ -359,7 +371,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                         
         return (next_state, result)
 
-    def _build_set_command(self, param, value):
+    def _build_set_command(self, command, param, value):
         """
         Build a command that is ready to send out to the instrument. Checks for
         valid parameter name, only handles one value at a time.
@@ -369,8 +381,9 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval Returns string ready for sending to instrument
         """
         # Check to make sure all parameters are valid up front
-        
-        # return the string to send
+        assert Parameter.has(param)
+        assert command == Command.SET
+        return "set %s %s%s" % (param, value, self.eoln)
         
     def _build_param_fetch_command(self, cmd, param):
         """
@@ -383,7 +396,21 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         assert Parameter.has(param)
         return "show %s%s" % (param, self.eoln)
     
+    
+    def _parse_set_response(self, response, prompt):
+        """Determine if a set was successful or not
+        
+        @param response What was sent back from the command that was sent
+        @param prompt The prompt that was returned from the device
+        """
+        mi_logger.debug("Parsing SET response of %s with prompt %s",
+                        response, prompt)
+        if ((prompt != Prompt.COMMAND) or (response == Error.INVALID_COMMAND)):
+            return InstErrorCode.SET_DEVICE_ERR
+        
+    
     def _wakeup(self, timeout):
+        """There is no wakeup sequence for this instrument"""
         pass
         
 class SatlanticPARInstrumentDriver(InstrumentDriver):

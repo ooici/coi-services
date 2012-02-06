@@ -69,6 +69,40 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
                           self.par_proto.get,['bad_param'])
         
     def test_set_param(self):
+        #@todo deal with success/fail flag or catch everywhere?
+        self.par_proto.set({Parameter.TELBAUD:9600})
+        self.mock_logger_client.send.assert_called_with("set %s 9600\n" %
+                                                        Parameter.TELBAUD)
+        
+        self.par_proto.set({Parameter.MAXRATE:10})
+        self.mock_logger_client.send.assert_called_with("set %s 10\n" %
+                                                        Parameter.MAXRATE)
+        
+        # try group
+        self.mock_logger_client.reset_mock()
+        self.par_proto.set({Parameter.TELBAUD:4800,Parameter.MAXRATE:9})
+        self.assertEqual(self.mock_logger_client.send.call_count, 2)
+
+        # try empty set
+        result = self.par_proto.set({})
+        self.assertEquals(result, None)
+        result = self.par_proto.set(None)
+        self.assertEquals(result, None)
+        result = self.par_proto.set([])
+        self.assertEquals(result, None)
+        result = self.par_proto.set(['something'])
+        self.assertEquals(result, None)
+        
+        # try bad param
+        self.assertRaises(InstrumentProtocolException,
+                          self.par_proto.set,{'bad_param':0})
+    
+    def test_get_config(self):
+        fetched_config = self.par_proto.get_config()
+        #assert config is what
+        pass
+    
+    def test_restore_config(self):
         pass
     
     def test_execute_command(self):
@@ -79,6 +113,11 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         pass
     
     def test_connect_disconnect(self):
+        pass
+    
+    def test_state_change_announcements(self):
+        # fire state changes and check for publish_to_driver calls
+        # includes resets, breaks, stops, autosample
         pass
     
 
@@ -92,3 +131,21 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         pass
         # test break from autosample at low data rates
         # test break from autosample at high data rates
+        
+    def test_get(self):
+        pass
+    
+    def test_set(self):
+        pass
+    
+    def test_get_config(self):
+        pass
+    
+    def test_restore_config(self):
+        pass
+    
+    def test_reset(self):
+        pass
+    
+    def test_commands(self):
+        pass
