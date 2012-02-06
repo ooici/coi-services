@@ -8,10 +8,11 @@
 
 
 import json, urllib2
+from gevent.greenlet import Greenlet
 from interface.objects import BlogPost, BlogAuthor, BlogComment
 from pyon.ion.endpoint import StreamPublisher
 from pyon.ion.streamproc import StreamProcess
-import threading
+from gevent.greenlet import Greenlet
 from pyon.net.endpoint import Publisher
 
 class FeedFormatter(object):
@@ -79,8 +80,8 @@ class FeedStreamer(StreamProcess):
         '''
         Initiate the thread to query, organize and publish the data
         '''
-        self.production = threading.Thread(target=self._grab,kwargs={'blog':blog,'callback':lambda : self._on_done()})
-        self.production.start()
+        production = Greenlet(self._grab,blog=blog,callback=lambda : self._on_done())
+        production.start()
 
     def _grab(self, blog, callback):
         ''' Threaded query
