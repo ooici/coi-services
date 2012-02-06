@@ -232,6 +232,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 	# What prompt to display
 	PROMPT = "ION Telnet Server> "
 	
+	# globals to pass configuration from parent to handler
 	username = ''
 	password = ''
 	child_connection = None
@@ -300,15 +301,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		for k in self.WILLACK.keys():
 			self.sendcommand(self.WILLACK[k], k)
 		self.thread_wr = threading.Thread(target=self.writeReceiver)
-		#logging.debug("TelnetHandler.setup(): starting writeReceiver thread")
 		self.thread_wr.setDaemon(True)
 		self.thread_wr.start()
-		#logging.debug("TelnetHandler.setup(): started writeReceiver thread")
 		self.thread_ic = threading.Thread(target=self.inputcooker)
-		#logging.debug("TelnetHandler.setup(): starting inputcooker thread")
 		self.thread_ic.setDaemon(True)
 		self.thread_ic.start()
-		#logging.debug("TelnetHandler.setup(): started inputcooker thread")
 		# Sleep for 0.5 second to allow options negotiation
 		time.sleep(0.5)
 
@@ -318,6 +315,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		try:
 			self.sock.shutdown(socket.SHUT_RDWR)
 		except Exception as ex:
+			# can happen if telnet client closes session first
 			logging.debug("exception caught for socket shutdown:" + str(ex))
 			return
 
@@ -511,8 +509,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		if not block:
 			if not len(self.cookedq):
 				return ''
+		# loop checking for input or a request to close connection
 		while not len(self.cookedq):
+			# check for request to close connection, either from client (eof) or parent (quitIC)
 			if self.eof or self.quitIC:
+				# client or parent wants session to close so kill handler and threads
 				raise EOFError
 			time.sleep(0.05)
 		self.IQUEUELOCK.acquire()
@@ -541,14 +542,17 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		
 	def writeReceiver(self):
 		logging.debug("TelnetHandler.writeReceiver(): starting")
+		# loop checking for input via pipe from parent or EOF from inputcooker
 		while True:
 			if self.child_connection.poll():
 				data = self.child_connection.recv()
 				if data == -1:
+					# parent wants server to close
 					self.quitIC = True
 					break
 				self.write(data)
 			if self.eof:
+				# inputcooker detected telnet client closed
 				break
 			time.sleep(.05)
 		logging.debug("TelnetHandler.writeReceiver(): stopping")
@@ -564,6 +568,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			ret = self.rawq[0]
 			self.rawq = self.rawq[1:]
 			return ret
+		# loop checking for input and quit request via pipe from parent
 		while True:
 			if select.select([self.sock.fileno()], [], [], 0) == ([], [], []):
 				if not block:
@@ -571,6 +576,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			else:
 				break
 			if self.quitIC:
+				# parent wants server to close
 				raise EOFError
 			time.sleep(.05)
 		while True:
@@ -764,7 +770,8 @@ class TelnetServer(object):
 		# TODO: get ip_address & port number dynamically
 		# TODO: ensure that port is not already in use
 		self.port = 8000
-		self.ip_address = 'localhost'
+		#self.ip_address = 'localhost'
+		self.ip_address = '67.58.49.202'
 		
 		# setup a pipe to allow telnet server process to communicate with callbackProxy
 		self.parent_connection, child_connection = multiprocessing.Pipe()
