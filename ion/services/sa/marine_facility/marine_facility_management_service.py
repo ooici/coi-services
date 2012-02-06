@@ -1,22 +1,22 @@
 #!/usr/bin/env python
 
 '''
-@package ion.services.sa.marine_facility_management.marine_facility Implementation of IMarineFacilityManagementService interface
-@file ion/services/sa/marine_facility/marine_facility.py
+@package ion.services.sa.marine_facility.marine_facility Implementation of IMarineFacilityManagementService interface
+@file ion/services/sa/marine_facility/marine_facility_management_service.py
 @author M Manning
 @brief Marine Facility Management service to keep track of Marine Facilities, sites, logical platforms, etc
 and the relationships between them
 '''
 
 from pyon.core.exception import NotFound
-from pyon.public import CFG, IonObject, log, RT, AT, LCS
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS
 
 
 
-from ion.services.sa.marine_facility.logical_instrument_impl import LogicalInstrumentImpl
-from ion.services.sa.marine_facility.logical_platform_impl import LogicalPlatformImpl
-from ion.services.sa.marine_facility.marine_facility_impl import MarineFacilityImpl
-from ion.services.sa.marine_facility.site_impl import SiteImpl
+from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
+from ion.services.sa.resource_impl.logical_platform_impl import LogicalPlatformImpl
+from ion.services.sa.resource_impl.marine_facility_impl import MarineFacilityImpl
+from ion.services.sa.resource_impl.site_impl import SiteImpl
 
 
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService
@@ -267,61 +267,51 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
 
 
+    ############################
+    #
+    #  ASSOCIATIONS
+    #
+    ############################
+
+
+    def assign_platform_to_logical_platform(self, platform_id='', logical_platform_id=''):
+        self.logical_platform.link_platform(logical_platform_id, platform_id)
+
+
+    def unassign_platform_from_logical_platform(self, platform_id='', logical_platform_id=''):
+        self.logical_platform.unlink_platform(logical_platform_id, platform_id)
+
+
+    def assign_logical_instrument_to_logical_platform(self, logical_instrument_id='', logical_platform_id=''):
+        self.logical_platform.link_instrument(logical_platform_id, logical_instrument_id)
+
+    def unassign_logical_instrument_from_logical_platform(self, logical_instrument_id='', logical_platform_id=''):
+        self.logical_platform.unlink_instrument(logical_platform_id, logical_instrument_id)
+
+
+    def assign_site_to_marine_facility(self, site_id='', marine_facility_id=''):
+        self.marine_facility.link_site(marine_facility_id, site_id)
+
+    def unassign_site_from_marine_facility(self, site_id="", marine_facility_id=''):
+        self.marine_facility.unlink_site(marine_facility_id, site_id)
+
+
+    def assign_site_to_site(self, child_site_id='', parent_site_id=''):
+        self.site.link_site(parent_site_id, child_site_id)
+
+    def unassign_site_from_site(self, child_site_id="", parent_site_id=''):
+        self.site.unlink_site(parent_site_id, child_site_id)
+
+    def assign_logical_platform_to_site(self, logical_platform_id='', site_id=''):
+        self.site.link_platform(site_id, logical_platform_id)
+
+    def unassign_logical_platform_from_site(self, logical_platform_id='', site_id=''):
+        self.site.unlink_platform(site_id, logical_platform_id)
 
 
 
 
-    #FIXME: args need to change
-    def assign_platform(self, logical_platform_id='', parent_site_id=''):
-        """
-        @todo the arguments for this function seem incorrect and/or mismatched
-        """
-        raise NotImplementedError()
-        #return self.instrument_agent.assign(instrument_agent_id, instrument_id, instrument_agent_instance)
 
-    def unassign_platform(self, logical_platform_id='', parent_site_id=''):
-        """@todo document this interface!!!
-
-        @param logical_platform_id    str
-        @param parent_site_id    str
-        @retval success    bool
-        """
-        raise NotImplementedError()
-        #return self.instrument_agent.unassign(instrument_agent_id, instrument_device_id, instrument_agent_instance)
-
-
-
-    def assign_site(self, child_site_id='', parent_site_id=''):
-        assert child_site_id and parent_site_id, "Arguments not set"
-        aid = self.clients.resource_registry.create_association(parent_site_id, AT.hasSite, child_site_id)
-        return True
-
-    def unassign_site(self, parent_site_id='', child_site_id=''):
-        assert child_site_id and parent_site_id, "Arguments not set"
-        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, AT.hasSite, child_site_id, True)
-        if not assoc_id:
-            raise NotFound("Association ParentSite hasSite ChildSite does not exist: parent site: %s  child site: %s" % parent_site_id, child_site_id)
-
-        aid = self.clients.resource_registry.delete_association(assoc_id)
-        return True
-
-
-    def assign_instrument(self, logical_instrument_id='', parent_site_id=''):
-        #todo: is platform associated with a Site?
-        assert logical_instrument_id and parent_site_id, "Arguments not set"
-        aid = self.clients.resource_registry.create_association(parent_site_id, AT.hasInstrument, logical_instrument_id)
-        return True
-
-
-    def unassign_instrument(self, logical_instrument_id='', parent_site_id=''):
-        #todo: is instrument associated with a Site?
-        assert logical_instrument_id and parent_site_id, "Arguments not set"
-        assoc_id, _ = self.clients.resource_registry.find_associations(parent_site_id, AT.hasInstrument, logical_instrument_id, True)
-        if not assoc_id:
-            raise NotFound("Association Site hasPlatform LogicalInstrument does not exist: site: %s  instrument: %s" % parent_site_id, logical_instrument_id)
-
-        aid = self.clients.resource_registry.delete_association(assoc_id)
-        return True
 
     def define_observatory_policy(self):
         """method docstring
@@ -334,3 +324,177 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         pass
 
   
+    ############################
+    #
+    #  LIFECYCLE TRANSITIONS
+    #
+    ############################
+
+    def declare_logical_instrument_planned(self, logical_instrument_id=""):
+       """
+       declare a logical_instrument to be in the PLANNED state
+       @param logical_instrument_id the resource id
+       """
+       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.PLANNED)
+
+    def declare_logical_instrument_developed(self, logical_instrument_id=""):
+       """
+       declare a logical_instrument to be in the DEVELOPED state
+       @param logical_instrument_id the resource id
+       """
+       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.DEVELOPED)
+
+    def declare_logical_instrument_integrated(self, logical_instrument_id=""):
+       """
+       declare a logical_instrument to be in the INTEGRATED state
+       @param logical_instrument_id the resource id
+       """
+       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.INTEGRATED)
+
+    def declare_logical_instrument_discoverable(self, logical_instrument_id=""):
+       """
+       declare a logical_instrument to be in the DISCOVERABLE state
+       @param logical_instrument_id the resource id
+       """
+       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.DISCOVERABLE)
+
+    def declare_logical_instrument_available(self, logical_instrument_id=""):
+       """
+       declare a logical_instrument to be in the AVAILABLE state
+       @param logical_instrument_id the resource id
+       """
+       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.AVAILABLE)
+
+    def declare_logical_instrument_retired(self, logical_instrument_id=""):
+       """
+       declare a logical_instrument to be in the RETIRED state
+       @param logical_instrument_id the resource id
+       """
+       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.RETIRED)
+
+    def declare_logical_platform_planned(self, logical_platform_id=""):
+       """
+       declare a logical_platform to be in the PLANNED state
+       @param logical_platform_id the resource id
+       """
+       return self.logical_platform.advance_lcs(logical_platform_id, LCS.PLANNED)
+
+    def declare_logical_platform_developed(self, logical_platform_id=""):
+       """
+       declare a logical_platform to be in the DEVELOPED state
+       @param logical_platform_id the resource id
+       """
+       return self.logical_platform.advance_lcs(logical_platform_id, LCS.DEVELOPED)
+
+    def declare_logical_platform_integrated(self, logical_platform_id=""):
+       """
+       declare a logical_platform to be in the INTEGRATED state
+       @param logical_platform_id the resource id
+       """
+       return self.logical_platform.advance_lcs(logical_platform_id, LCS.INTEGRATED)
+
+    def declare_logical_platform_discoverable(self, logical_platform_id=""):
+       """
+       declare a logical_platform to be in the DISCOVERABLE state
+       @param logical_platform_id the resource id
+       """
+       return self.logical_platform.advance_lcs(logical_platform_id, LCS.DISCOVERABLE)
+
+    def declare_logical_platform_available(self, logical_platform_id=""):
+       """
+       declare a logical_platform to be in the AVAILABLE state
+       @param logical_platform_id the resource id
+       """
+       return self.logical_platform.advance_lcs(logical_platform_id, LCS.AVAILABLE)
+
+    def declare_logical_platform_retired(self, logical_platform_id=""):
+       """
+       declare a logical_platform to be in the RETIRED state
+       @param logical_platform_id the resource id
+       """
+       return self.logical_platform.advance_lcs(logical_platform_id, LCS.RETIRED)
+
+    def declare_marine_facility_planned(self, marine_facility_id=""):
+       """
+       declare a marine_facility to be in the PLANNED state
+       @param marine_facility_id the resource id
+       """
+       return self.marine_facility.advance_lcs(marine_facility_id, LCS.PLANNED)
+
+    def declare_marine_facility_developed(self, marine_facility_id=""):
+       """
+       declare a marine_facility to be in the DEVELOPED state
+       @param marine_facility_id the resource id
+       """
+       return self.marine_facility.advance_lcs(marine_facility_id, LCS.DEVELOPED)
+
+    def declare_marine_facility_integrated(self, marine_facility_id=""):
+       """
+       declare a marine_facility to be in the INTEGRATED state
+       @param marine_facility_id the resource id
+       """
+       return self.marine_facility.advance_lcs(marine_facility_id, LCS.INTEGRATED)
+
+    def declare_marine_facility_discoverable(self, marine_facility_id=""):
+       """
+       declare a marine_facility to be in the DISCOVERABLE state
+       @param marine_facility_id the resource id
+       """
+       return self.marine_facility.advance_lcs(marine_facility_id, LCS.DISCOVERABLE)
+
+    def declare_marine_facility_available(self, marine_facility_id=""):
+       """
+       declare a marine_facility to be in the AVAILABLE state
+       @param marine_facility_id the resource id
+       """
+       return self.marine_facility.advance_lcs(marine_facility_id, LCS.AVAILABLE)
+
+    def declare_marine_facility_retired(self, marine_facility_id=""):
+       """
+       declare a marine_facility to be in the RETIRED state
+       @param marine_facility_id the resource id
+       """
+       return self.marine_facility.advance_lcs(marine_facility_id, LCS.RETIRED)
+
+    def declare_site_planned(self, site_id=""):
+       """
+       declare a site to be in the PLANNED state
+       @param site_id the resource id
+       """
+       return self.site.advance_lcs(site_id, LCS.PLANNED)
+
+    def declare_site_developed(self, site_id=""):
+       """
+       declare a site to be in the DEVELOPED state
+       @param site_id the resource id
+       """
+       return self.site.advance_lcs(site_id, LCS.DEVELOPED)
+
+    def declare_site_integrated(self, site_id=""):
+       """
+       declare a site to be in the INTEGRATED state
+       @param site_id the resource id
+       """
+       return self.site.advance_lcs(site_id, LCS.INTEGRATED)
+
+    def declare_site_discoverable(self, site_id=""):
+       """
+       declare a site to be in the DISCOVERABLE state
+       @param site_id the resource id
+       """
+       return self.site.advance_lcs(site_id, LCS.DISCOVERABLE)
+
+    def declare_site_available(self, site_id=""):
+       """
+       declare a site to be in the AVAILABLE state
+       @param site_id the resource id
+       """
+       return self.site.advance_lcs(site_id, LCS.AVAILABLE)
+
+    def declare_site_retired(self, site_id=""):
+       """
+       declare a site to be in the RETIRED state
+       @param site_id the resource id
+       """
+       return self.site.advance_lcs(site_id, LCS.RETIRED)
+

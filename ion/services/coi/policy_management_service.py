@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
 from pyon.core.exception import Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT
+from pyon.public import PRED, RT
 from pyon.util.log import log
 
 class PolicyManagementService(BasePolicyManagementService):

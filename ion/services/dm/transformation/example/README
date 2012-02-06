@@ -1,0 +1,51 @@
+Running Transform Examples in Pyon
+
+Currently there are (4) examples that can be run. 
+
+   * basic_transform
+        Runs a basic example of a transform. It chains two transforms together, each add 1 to their input
+
+        Producer -> A -> B
+        Producer generates a number every four seconds and publishes it on the 'ctd_output_stream'
+          the producer is acting as a CTD or instrument in this example.
+        A is a basic transform that increments its input and publishes it on the 'transform_output' stream.
+        B is a basic transform that receives input.
+        All transforms write logging data to '/tmp/transform_output' so you can visually see activity of the transforms
+   
+   * reverse_transform
+       Runs a reverse transform example and displays the results of performing the transform
+
+   * even_odd_transform
+       This example script runs a chained three way transform:
+            B
+        A <
+            C
+        Where A is the even_odd transform (generates a stream of even and odd numbers from input)
+        and B and C are the basic transforms that receive even and odd input
+
+   * external_transform
+        This example script illustrates how a transform can interact with the an outside process (very basic)
+        it launches an external_transform example which uses the operating system command 'bc' to add 1 to the input
+
+        Producer -> A -> '/tmp/transform_output'
+        A is an external transform that spawns an OS process to increment the input by 1
+
+From REL file:
+   To run the examples from the REL file:
+      specify the desired example in res/deploy/examples/trasnform_example.yml on line 42 to one of the above example names.
+
+Run the scripts interactively:
+   Get the script source from https://gist.github.com/1640617
+   Check out the transform management service presentation: http://www.youtube.com/watch?v=jiq1MMP5Quw
+   Powerpoint is here: https://docs.google.com/open?id=0BwGScp7mjYjyNjA1Nzk4MWUtYzAxOC00MDZmLTg0ODktNTYzNGU3ODI0NzJm
+   < Place live demonstration video here >
+   
+   Each file in the gist corresponds to a different scenario from the view of the client. You can copy the entire file and paste it into pycc (with %paste) or you can go line by line. 
+
+   -basic_transform.py
+
+   -even_odd.py
+
+   -external_transform.py
+
+   -reverse_transform_example.py

@@ -9,7 +9,7 @@ from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT
+from pyon.public import PRED, RT
 from ion.services.coi.org_management_service import OrgManagementService
 
 
@@ -38,7 +38,7 @@ class TestOrgManagementService(PyonTestCase):
         self.org.name = "Foo"
 
 
-    def test_create_exchange_space(self):
+    def test_create_org(self):
         self.mock_create.return_value = ['111', 1]
 
         org_id = self.org_management_service.create_org(self.org)
@@ -46,7 +46,7 @@ class TestOrgManagementService(PyonTestCase):
         assert org_id == '111'
         self.mock_create.assert_called_once_with(self.org)
 
-    def test_read_and_update_exchange_space(self):
+    def test_read_and_update_org(self):
         self.mock_read.return_value = self.org
 
         org = self.org_management_service.read_org('111')
@@ -62,16 +62,13 @@ class TestOrgManagementService(PyonTestCase):
 
         self.mock_update.assert_called_once_with(org)
 
-    def test_delete_exchange_space(self):
-        self.mock_read.return_value = self.org
-
+    def test_delete_org(self):
         self.org_management_service.delete_org('111')
 
-        self.mock_read.assert_called_once_with('111', '')
-        self.mock_delete.assert_called_once_with(self.org)
+        self.mock_delete.assert_called_once_with('111')
 
-    def test_read_exchange_space_not_found(self):
-        self.mock_read.return_value = None
+    def test_read_org_not_found(self):
+        self.mock_read.side_effect = NotFound('Org bad does not exist')
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
@@ -81,8 +78,8 @@ class TestOrgManagementService(PyonTestCase):
         self.assertEqual(ex.message, 'Org bad does not exist')
         self.mock_read.assert_called_once_with('bad', '')
 
-    def test_delete_exchange_space_not_found(self):
-        self.mock_read.return_value = None
+    def test_delete_org_not_found(self):
+        self.mock_delete.side_effect = NotFound('Org bad does not exist')
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
@@ -90,6 +87,6 @@ class TestOrgManagementService(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Org bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')
+        self.mock_delete.assert_called_once_with('bad')
 
 

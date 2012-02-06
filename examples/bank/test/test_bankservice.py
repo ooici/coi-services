@@ -10,7 +10,7 @@ from mock import Mock, sentinel
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import AT
+from pyon.public import PRED
 from examples.bank.bank_service import BankService
 from pyon.util.unit_test import pop_last_call, PyonTestCase
 
@@ -44,7 +44,7 @@ class TestBankService(PyonTestCase):
         self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'John', True)
         self.mock_ionobj.assert_called_once_with('BankAccount', account_type='Checking')
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
-        self.mock_create_association.assert_called_once_with('id_5', AT.hasAccount, 'id_2', None)
+        self.mock_create_association.assert_called_once_with('id_5', PRED.hasAccount, 'id_2', None)
         self.assertEqual(account_id, 'id_2')
 
     def test_new_acct_new_customer(self):
@@ -70,7 +70,7 @@ class TestBankService(PyonTestCase):
         self.mock_create.assert_called_with(self.mock_ionobj.return_value)
         pop_last_call(self.mock_create)
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
-        self.mock_create_association.assert_called_once_with('cust_id_1', AT.hasAccount, 'acct_id_2', None)
+        self.mock_create_association.assert_called_once_with('cust_id_1', PRED.hasAccount, 'acct_id_2', None)
         self.assertEqual(account_id, 'acct_id_2')
 
     def test_deposit_not_found(self):
@@ -198,7 +198,7 @@ class TestBankService(PyonTestCase):
         status = self.bank_service.buy_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
-        self.mock_find_subjects('BankCustomer', AT.hasAccount, mock_account_obj, False)
+        self.mock_find_subjects('BankCustomer', PRED.hasAccount, mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='buy',
                 on_behalf='Tim', cash_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
@@ -220,7 +220,7 @@ class TestBankService(PyonTestCase):
         status = self.bank_service.buy_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
-        self.mock_find_subjects('BankCustomer', AT.hasAccount, mock_account_obj, False)
+        self.mock_find_subjects('BankCustomer', PRED.hasAccount, mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='buy',
                 on_behalf='Tim', cash_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
@@ -268,7 +268,7 @@ class TestBankService(PyonTestCase):
         status = self.bank_service.sell_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
-        self.mock_find_subjects('BankCustomer', AT.hasAccount,mock_account_obj, False)
+        self.mock_find_subjects('BankCustomer', PRED.hasAccount,mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='sell',
                 on_behalf='Tim', bond_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
@@ -290,7 +290,7 @@ class TestBankService(PyonTestCase):
         status = self.bank_service.sell_bonds('id_5', 4)
 
         self.mock_read.assert_called_once_with('id_5', '')
-        self.mock_find_subjects('BankCustomer', AT.hasAccount, mock_account_obj, False)
+        self.mock_find_subjects('BankCustomer', PRED.hasAccount, mock_account_obj, False)
         self.mock_ionobj.assert_called_once_with('Order', type='sell',
                 on_behalf='Tim', bond_amount=4)
         self.mock_exercise.assert_called_once_with(self.mock_ionobj.return_value)
@@ -314,5 +314,5 @@ class TestBankService(PyonTestCase):
 
         self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'Roger', False)
         self.mock_find_objects.assert_called_once_with(sentinel.customer_obj,
-                AT.hasAccount, 'BankAccount', False)
+                PRED.hasAccount, 'BankAccount', False)
         assert accounts is sentinel.accounts
