@@ -38,8 +38,8 @@ class BarsInstrumentDriver(InstrumentDriver):
 
     # TODO NOTE: Assumes all interaction is for the INSTRUMENT special channel
 
-    def __init__(self):
-        InstrumentDriver.__init__(self)
+    def __init__(self, evt_callback=None):
+        InstrumentDriver.__init__(self, evt_callback)
 
         self.connection = None
         self.protocol = None
