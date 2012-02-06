@@ -253,34 +253,31 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def setup_data_production_chain(self, instrument_device_id=''):
+        """
+        create a data product (L0) for the instrument, and establish provenance
+        between the corresponding data producers
+        """
 
         #get instrument object and instrument's data producer
         inst_obj = self.instrument_device.read_one(instrument_device_id)
-        assoc_ids = self.RR.find_objects(instrument_device_id, PRED.hasDataProducer, RT.DataProducer, True)
+        assoc_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasDataProducer, RT.DataProducer, True)
         inst_pducer_id = assoc_ids[0]
         log.debug("instrument data producer id='%s'" % inst_pducer_id)
 
-        #get data product id from data product management service
-        dpms_pduct_obj = IonObject("DataProduct",
+        #create a new data product
+        dpms_pduct_obj = IonObject(RT.DataProduct,
                                    name=str(inst_obj.name + " L0 Product"),
-                                   description=str("DataProduct for " + inst_obj.name))
+                                   description=str("L0 DataProduct for " + inst_obj.name))
 
-        pduct_id = self.DPMS.create_data_product(data_product=dpms_pduct_obj)
+        pduct_id = self.DPMS.create_data_product(dpms_pduct_obj)
 
 
-        # get data product's data produceer (via association)
-        assoc_ids = self.RR.find_objects(pduct_id, PRED.hasDataProducer, RT.DataProducer, True)
+        # get data product's data producer (via association)
+        assoc_ids, _ = self.RR.find_objects(pduct_id, PRED.hasDataProducer, RT.DataProducer, True)
         prod_pducer_id = assoc_ids[0]
-        log.debug("product data producer id='%s'" % prod_pducer_id)
         
-        # (FIXME: there should only be one assoc_id.  what error to raise?)
-        # FIXME: what error to raise if there are no assoc ids?
-
-        prod_pducer_obj = self.RR.read(prod_pducer_id)
-        inst_pducer_obj = self.RR.read(inst_pducer_id)
-        
-        log.debug("prod_pducer = %s\n\n" % type(prod_pducer_obj).__name__)
-        log.debug("inst_pducer = %s\n\n" % type(inst_pducer_obj).__name__)
+        # (TODO: there should only be one assoc_id.  what error to raise?)
+        # TODO: what error to raise if there are no assoc ids?
 
         # instrument data producer is the parent of the data product producer
         associate_success = self.RR.create_association(prod_pducer_id,
@@ -289,7 +286,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
 
 
-        #FIXME: error checking
+        #TODO: error checking
 
 
 
@@ -305,7 +302,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.DAMS.register_instrument(instrument_device_id)
         
         #TODO: create data producer and product
-        #self.setup_data_production_chain(instrument_device_id)
+        self.setup_data_production_chain(instrument_device_id)
 
         return instrument_device_id
 
