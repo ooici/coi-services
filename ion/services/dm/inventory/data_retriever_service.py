@@ -33,12 +33,11 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay_id, rev = self.clients.resource_registry.create(replay)
         replay._id = replay_id
         replay._rev = rev
-        config = {'process':{'query':query, 'delivery_format':delivery_format,'publish_streams':{'output':replay_stream_id}}}
+        config = {'process':{'query':query, 'type':'agent', 'delivery_format':delivery_format,'publish_streams':{'output':replay_stream_id}}}
         pid = self.container.spawn_process(name=replay_id+'agent',
             module='ion.services.dm.inventory.replay_agent',
             cls='ReplayAgent',
-            config=config,
-            process_type='agent')
+            config=config)
 
         pid = self.container.id + '.' + pid
         replay.process_id = pid
