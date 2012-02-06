@@ -5,10 +5,13 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
+
+from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
+
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, AT, LCS
+from pyon.public import RT, LCS
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -16,6 +19,25 @@ class DataProductManagementService(BaseDataProductManagementService):
         @brief      Implementation of the data product management service
     """
     
+    def on_init(self):
+        self.override_clients(self.clients)
+
+    def override_clients(self, new_clients):
+        """
+        Replaces the service clients with a new set of them... and makes sure they go to the right places
+        """
+        self.data_product   = DataProductImpl(self.clients)
+
+
+    def producer_for_product(self, producer_obj, product_obj):
+        """
+        sets an appropriate name for a data producer that's associated with a given data product
+        """
+        producer_obj.name = str(product_obj.name + " Producer")
+        producer_obj.description = str("DataProducer for " + product_obj.name)
+        return producer_obj
+    
+
     def create_data_product(self, data_product=None, source_resource_id=''):
         """
         @param      data_product IonObject which defines the general data product resource
@@ -41,17 +63,21 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Return a resource ref
         
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
-        
-        result, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, data_product.name, True)
-        if len(result) != 0:
-            raise BadRequest("A data product named '%s' already exists" % data_product.name)  
 
-        data_product_id, version = self.clients.resource_registry.create(data_product)
+        data_product_id = self.data_product.create_one(data_product)
 
         if source_resource_id:
             log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
             self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id)  # TODO: what errors can occur here?
             
+        else:
+            #create a data producer to go with this product, and associate it
+            pducer_obj = self.producer_for_product(IonObject(RT.DataProducer), data_product)
+            pducer_id = self.clients.data_acquisition_management.create_data_producer(pducer_obj)
+            log.debug("I GOT A PRODUCER ID='%s'" % pducer_id)
+            self.data_product.link_data_producer(data_product_id, pducer_id)
+            
+
         return data_product_id
 
 
@@ -64,7 +90,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         log.debug("DataProductManagementService:read_data_product: %s" % str(data_product_id))
         
-        result = self.clients.resource_registry.read(data_product_id)
+        result = self.data_product.read_one(data_product_id)
         
         return result
 
@@ -79,8 +105,17 @@ class DataProductManagementService(BaseDataProductManagementService):
  
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
                
-        self.clients.resource_registry.update(data_product)
-            
+        self.data_product.update_one(data_product)
+
+        #keep associated data producer name in sync with data product
+        data_producer_ids, _ = self.data_product.find_stemming_data_producer(data_product._id)
+        #TODO: error check / consistency check
+        if 1 == len(data_producer_ids):
+            data_producer_id = data_producer_ids[0]
+            data_producer_obj = self.clients.data_acquisition_management.read_data_producer(data_producer_id)
+            data_producer_obj = self.producer_for_product(data_producer_obj, data_product)
+            self.clients.data_acquisition_management.update_data_producer(data_producer_obj)
+
         return
 
 
@@ -95,9 +130,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
         
         # Attempt to change the life cycle state of data product
-        self.clients.resource_registry.delete(data_product_id)
-
-        return
+        self.data_product.delete_one(data_product_id)
 
     def find_data_products(self, filters=None):
         """

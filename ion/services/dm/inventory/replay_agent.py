@@ -5,9 +5,12 @@
 @file pyon/ion/replayagent.py
 @description Implementation for the Replay Agent
 '''
+from interface.objects import BlogBase
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from interface.services.dm.ireplay_agent import BaseReplayAgent
 from pyon.public import log
+from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+
 class ReplayAgent(BaseReplayAgent):
     def __init__(self, *args, **kwargs):
         super(ReplayAgent, self).__init__(*args,**kwargs)
@@ -32,27 +35,81 @@ class ReplayAgent(BaseReplayAgent):
         # Get the delivery_format
         self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
 
+
         # Attach a publisher to each stream_name attribute
+        #@TODO does this belong here? Should it be in the container somewhere?
         self.stream_count = len(streams)
         for name,stream_id in streams.iteritems():
             pub = self.stream_publisher_registrar.create_publisher(stream_id=stream_id)
+            log.warn('Setup publisher named: %s' % name)
             setattr(self,name,pub)
+
+        if not hasattr(self,'output'):
+            raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
+
 
     def execute_replay(self):
         ''' Performs the replay action
         Queries the data IAW the query argument and publishes the data on the output streams
         '''
-        if hasattr(self,'output'):
-            self.output.publish(self._query())
-        log.debug('(Replay Agent %s)', self.name)
-        log.debug('  Published...')
 
-    def _query(self):
+        log.debug('(Replay Agent %s)', self.name)
+        if self.query:
+            datastore_name = self.query.get('datastore_name','dm_datastore')
+            view_name = self.query.get('view_name','posts/posts_by_id')
+            opts = self.query.get('options',{'include_docs=True'})
+        else:
+            datastore_name = 'dm_datastore'
+            view_name = 'posts/posts_by_id'
+            opts = {'include_docs=True'}
+
+        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
+
+        results = self._query(datastore_name=datastore_name,view_name=view_name,opts=opts)
+
+        #-----------------------
+        # Iteration
+        #-----------------------
+        #  - Go through the results, if the user had include_docs=True in the options field
+        #    then the full document is in result.doc; however if the query did not include_docs,
+        #    then only the doc_id is provided in the result.value.
+        #
+        #  - What this allows us to do is limit the amount of traffic in information for large queries.
+        #    If we only are making a query in a sequence of queries (such as map and reduce) then we don't
+        #    care about the full document, yet, we only care about the doc id and will retrieve the document later.
+        #  - Example:
+        #      Imagine the blogging example, we want the latest blog by author George and all the comments for that blog
+        #      The series of queries would go, post_by_updated -> posts_by_author -> posts_join_comments and then
+        #      in the last query we'll set include_docs to true and parse the docs.
+        #-----------------------
+        for result in results:
+            log.warn('Result: %s' % result)
+            if 'doc' in result:
+                log.debug('Result contains document.')
+                blog_msg = result['doc']
+                blog_msg.is_replay = True
+            else:
+                blog_msg = result['value'] # Document ID, not a document
+
+            self.output.publish(blog_msg)
+
+        #@todo: log when there are not results
+        if results is None:
+            log.warn('No results found in replay query!')
+        else:
+            log.debug('Published replay!')
+
+    def _query(self,datastore_name='dm_datastore', view_name='posts/posts_by_id', opts={}):
         '''
         Performs the query action
         '''
-        if not hasattr(self,'_num'):
-            self._num = 0
-        retval= {'num':self._num}
-        self._num+=1
-        return retval
+        db = CouchDB_DM_DataStore(datastore_name=datastore_name)
+        ret = []
+        if db.datastore_exists(datastore_name):
+            ret = db.query_view(view_name=view_name,datastore_name=datastore_name,opts=opts)
+
+        db.close()
+
+        return ret
+
+

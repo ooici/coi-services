@@ -6,19 +6,22 @@
 import commands
 import threading
 import time
-from interface.objects import ProcessDefinition, StreamQuery
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
 from pyon.ion.transform import TransformFunction
 from pyon.service.service import BaseService
+from pyon.core.exception import BadRequest
+from pyon.public import IonObject, RT, log, PRED
 
+from interface.objects import ProcessDefinition, StreamQuery, BlogPost, BlogComment, BlogAuthor
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.public import IonObject, RT, log, PRED
-
-
+import json
+import re
+import urllib2
+import base64
 
 class TransformExampleProducer(StreamProcess):
     """
@@ -69,6 +72,84 @@ class TransformExampleProducer(StreamProcess):
             log.debug("Message %s published", num)
             num += 1
             time.sleep(interval/1000.0)
+
+class TransformCampfire(TransformDataProcess):
+
+    def on_start(self):
+        super(TransformCampfire,self).on_start()
+        self.limit =5
+
+    def _remove_html_tags(self,data):
+        p = re.compile(r'<.*?>')
+        without_tags =  p.sub('', data)
+        s = re.compile(r'&.*?;')
+        without_hash = s.sub('',without_tags)
+        return without_hash
+
+    def _typeify(self, obj):
+        if isinstance(obj, BlogPost):
+            return "BlogPost"
+        if isinstance(obj, BlogComment):
+            return "BlogComment"
+
+    def process(self, packet):
+        log.debug('now processing...')
+        if self.limit <= 0:
+            log.warn('Transform escaping - limit exceeded')
+            return
+
+        if not isinstance(packet,(BlogPost,BlogComment)):
+            log.warn('Transform escaping - bad packet type: %s' % type(packet))
+            return # do nothing
+
+        log.warn('Attempt to publish to campfire')
+
+
+
+        if isinstance(packet.author, BlogAuthor):
+            author = packet.author.name
+        elif isinstance(packet.author,dict):
+            author = packet.author['name']
+        else:
+            author = packet.author
+
+        content = self._remove_html_tags(packet.content)
+        message = {'message':{
+            'body':'(%s) %s: %s' %(self._typeify(packet),author,content)
+        }}
+        json_message = json.dumps(message)
+        json_message += '\r\n\r\n'
+        room = self.CFG.get('campfire_room', '475552')
+        url = 'https://ooici.campfirenow.com/room/%s/speak.json' % room
+        #@todo: remove default token after debugging has taken place
+        token = self.CFG.get('campfire_token','6beead48575db43d813edd71e76775a1ce853b28')
+        if not token:
+            raise BadRequest('No campfire token was provided.')
+
+        # Campfire Note:
+        #------------------------
+        # A token IS a username
+        # A token IS a poassword
+        # if you have a token, you are an authenticated user, DO NOT GIVE IT OUT
+
+        authentication_string = base64.encodestring('%s:%s' %(token,'X'))[:-1]
+        headers = {
+            'Authorization':'Basic %s' % authentication_string,
+            'User-Agent':'Pyon R2 Campfire Agent',
+            'Content-Type':'application/json'
+        }
+
+        log.warn(url)
+        log.warn(json_message)
+        log.warn(headers)
+
+        url_request = urllib2.Request(url,json_message,headers)
+
+        urllib2.urlopen(url_request)
+
+        self.limit-= 1
+
+
 
 class TransformEvenOdd(TransformDataProcess):
     '''A simple transform that takes the input of a number and maps an even and odd sequence

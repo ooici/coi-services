@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.platform_device_impl
+@package  ion.services.sa.resource_impl.platform_device_impl
 @author   Ian Katz
 """
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED, RT
 
-from ion.services.sa.resource_impl import ResourceImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
 class PlatformDeviceImpl(ResourceImpl):
     """

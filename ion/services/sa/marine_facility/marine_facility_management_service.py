@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 '''
-@package ion.services.sa.marine_facility_management.marine_facility Implementation of IMarineFacilityManagementService interface
-@file ion/services/sa/marine_facility/marine_facility.py
+@package ion.services.sa.marine_facility.marine_facility Implementation of IMarineFacilityManagementService interface
+@file ion/services/sa/marine_facility/marine_facility_management_service.py
 @author M Manning
 @brief Marine Facility Management service to keep track of Marine Facilities, sites, logical platforms, etc
 and the relationships between them
@@ -13,10 +13,10 @@ from pyon.public import CFG, IonObject, log, RT, PRED, LCS
 
 
 
-from ion.services.sa.marine_facility.logical_instrument_impl import LogicalInstrumentImpl
-from ion.services.sa.marine_facility.logical_platform_impl import LogicalPlatformImpl
-from ion.services.sa.marine_facility.marine_facility_impl import MarineFacilityImpl
-from ion.services.sa.marine_facility.site_impl import SiteImpl
+from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
+from ion.services.sa.resource_impl.logical_platform_impl import LogicalPlatformImpl
+from ion.services.sa.resource_impl.marine_facility_impl import MarineFacilityImpl
+from ion.services.sa.resource_impl.site_impl import SiteImpl
 
 
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService

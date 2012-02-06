@@ -13,7 +13,7 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from interface.objects import ProcessDefinition, StreamQuery
 
-from ion.services.sa.process.data_process_impl import DataProcessImpl
+from ion.services.sa.resource_impl.data_process_impl import DataProcessImpl
 
 
 class DataProcessManagementService(BaseDataProcessManagementService):

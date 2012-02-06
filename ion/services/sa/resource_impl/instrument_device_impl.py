@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.instrument_device_impl
+@package  ion.services.sa.resource_impl.instrument_device_impl
 @author   Ian Katz
 """
 
@@ -26,7 +26,7 @@ Later TODO
 
 
 
-from ion.services.sa.resource_impl import ResourceImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
 class InstrumentDeviceImpl(ResourceImpl):
     """
@@ -35,8 +35,12 @@ class InstrumentDeviceImpl(ResourceImpl):
     
     def on_impl_init(self):
         #data acquisition management pointer
-        if hasattr(self.clients, "data_acquisition_management_service"):
-            self.DAMS = self.clients.data_acquisition_management_service
+        if hasattr(self.clients, "data_acquisition_management"):
+            self.DAMS = self.clients.data_acquisition_management
+
+        #data product management pointer
+        if hasattr(self.clients, "data_product_management"):
+            self.DPMS = self.clients.data_product_management
 
     def _primary_object_name(self):
         return RT.InstrumentDevice
@@ -116,39 +120,3 @@ class InstrumentDeviceImpl(ResourceImpl):
     # FIXME
 
 
-
-    ##### SPECIAL METHODS
-
-
-    def setup_data_production_chain(self, instrument_device_id=''):
-
-        #get instrument object and instrument's data producer
-        inst_obj = self.read_one(instrument_device_id)
-        assoc_ids, _ = self.RR.find_associations(instrument_device_id, PRED.hasDataProducer, None, True)
-        pducer_id = assoc_ids[0]
-
-        #get data product id from data product management service
-        dpms_pduct_obj = IonObject("DataProduct",
-                                   name=str(inst_obj.name + " L0 Product"),
-                                   description=str("DataProduct for " + inst_obj.name))
-
-        dpms_pducer_obj = IonObject("DataProducer",
-                                    name=str(inst_obj.name + " L0 Producer"),
-                                    description=str("DataProducer for " + inst_obj.name))
-
-        pduct_id = self.DPMS.create_data_product(data_product=dpms_pduct_obj, data_producer=dpms_pducer_obj)
-
-
-        # get data product's data produceer (via association)
-        assoc_ids, _ = self.RR.find_associations(pduct_id, PRED.hasDataProducer, None, True)
-        # (FIXME: there should only be one assoc_id.  what error to raise?)
-        # FIXME: what error to raise if there are no assoc ids?
-
-        # instrument data producer is the parent of the data product producer
-        associate_success = self.RR.create_association(pducer_id, PRED.hasChildDataProducer, assoc_ids[0])
-        log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
-
-
-        #FIXME: error checking
-
-        return self._return_update(True)

@@ -12,7 +12,7 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import IonObject, AT, log
+from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
 
 

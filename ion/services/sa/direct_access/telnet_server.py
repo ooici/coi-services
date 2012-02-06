@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+__author__ = 'Bill Bollenbacher'
+__license__ = 'Apache 2.0'
+
+# The following code is based on telnetsrvlib 1.0.2 from Adrian Hungate
+
 """TELNET server class
 
 Based on the telnet client in telnetlib.py
@@ -26,8 +32,13 @@ import traceback
 import curses.ascii
 import curses.has_key
 import curses
-import logging
 import re
+import logging
+import multiprocessing
+import select
+
+from pyon.core.exception import ServerError
+
 if not hasattr(socket, 'SHUT_RDWR'):
 	socket.SHUT_RDWR = 2
 
@@ -221,15 +232,10 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 	# What prompt to display
 	PROMPT = "ION Telnet Server> "
 	
-	# The function to call to verify authentication data
-	authCallback = None
-	# Does authCallback want a username?
-	authNeedUser = False
-	# Does authCallback want a password?
-	authNeedPass = False
-	
+	# globals to pass configuration from parent to handler
 	username = ''
 	password = ''
+	child_connection = None
 
 # --------------------------- Environment Setup ----------------------------
 
@@ -240,8 +246,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		With a hostname argument, it connects the instance; a port
 		number is optional.
 		"""
-		global username, password
+		global username, password, child_connection
 		
+		logging.debug("TelnetHandler.__init__()")
 		# Am I doing the echoing?
 		self.DOECHO = True
 		# What opts have I sent DO/DONT for and what did I send?
@@ -254,6 +261,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.cookedq = []	# This is the cooked input stream (list of charcodes)
 		self.sbdataq = ''	# Sub-Neg string
 		self.eof = 0		# Has EOF been reached?
+		self.quitIC = False
 		self.iacseq = ''	# Buffer for IAC sequence.
 		self.sb = 0		    # Flag for SB and SE sequence.
 		self.history = []	# Command history
@@ -264,6 +272,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.authCallback = self.authorized
 		self.username = username
 		self.password = password
+		self.child_connection = child_connection
 		SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
 
 	def setterm(self, term):
@@ -284,12 +293,16 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def setup(self):
 		"Connect incoming connection to a telnet session"
+		logging.debug("TelnetHandler.setup()")
 		self.setterm(self.TERM)
 		self.sock = self.request._sock
 		for k in self.DOACK.keys():
 			self.sendcommand(self.DOACK[k], k)
 		for k in self.WILLACK.keys():
 			self.sendcommand(self.WILLACK[k], k)
+		self.thread_wr = threading.Thread(target=self.writeReceiver)
+		self.thread_wr.setDaemon(True)
+		self.thread_wr.start()
 		self.thread_ic = threading.Thread(target=self.inputcooker)
 		self.thread_ic.setDaemon(True)
 		self.thread_ic.start()
@@ -298,9 +311,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def finish(self):
 		"End this session"
+		logging.debug("TelnetHandler.finish()")
 		try:
 			self.sock.shutdown(socket.SHUT_RDWR)
-		except:
+		except Exception as ex:
+			# can happen if telnet client closes session first
+			logging.debug("exception caught for socket shutdown:" + str(ex))
 			return
 
 # ------------------------- Telnet Options Engine --------------------------
@@ -493,9 +509,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		if not block:
 			if not len(self.cookedq):
 				return ''
+		# loop checking for input or a request to close connection
 		while not len(self.cookedq):
-			if self.eof:
-			    raise EOFError
+			# check for request to close connection, either from client (eof) or parent (quitIC)
+			if self.eof or self.quitIC:
+				# client or parent wants session to close so kill handler and threads
+				raise EOFError
 			time.sleep(0.05)
 		self.IQUEUELOCK.acquire()
 		ret = self.cookedq[0]
@@ -520,6 +539,23 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.OQUEUELOCK.acquire()
 		self.sock.sendall(text)
 		self.OQUEUELOCK.release()
+		
+	def writeReceiver(self):
+		logging.debug("TelnetHandler.writeReceiver(): starting")
+		# loop checking for input via pipe from parent or EOF from inputcooker
+		while True:
+			if self.child_connection.poll():
+				data = self.child_connection.recv()
+				if data == -1:
+					# parent wants server to close
+					self.quitIC = True
+					break
+				self.write(data)
+			if self.eof:
+				# inputcooker detected telnet client closed
+				break
+			time.sleep(.05)
+		logging.debug("TelnetHandler.writeReceiver(): stopping")
 
 # ------------------------------- Input Cooker -----------------------------
 
@@ -527,14 +563,28 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		"""Get one character from the raw queue. Optionally blocking.
 		Raise EOFError on end of stream. SHOULD ONLY BE CALLED FROM THE
 		INPUT COOKER."""
+		#logging.debug("TelnetHandler._inputcooker_getc()")
 		if self.rawq:
 			ret = self.rawq[0]
 			self.rawq = self.rawq[1:]
 			return ret
-		if not block:
+		# loop checking for input and quit request via pipe from parent
+		while True:
 			if select.select([self.sock.fileno()], [], [], 0) == ([], [], []):
-				return ''
-		ret = self.sock.recv(20)
+				if not block:
+					return ''
+			else:
+				break
+			if self.quitIC:
+				# parent wants server to close
+				raise EOFError
+			time.sleep(.05)
+		while True:
+			try:
+				ret = self.sock.recv(20)
+				break
+			except:
+				time.sleep(.05)
 		self.eof = not(ret)
 		self.rawq = self.rawq + ret
 		if self.eof:
@@ -565,6 +615,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		Set self.eof when connection is closed.  Don't block unless in
 		the midst of an IAC sequence.
 		"""
+		logging.debug("TelnetHandler.inputcooker(): starting")
 		try:
 			while True:
 				c = self._inputcooker_getc()
@@ -621,7 +672,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 					if cmd in (DO, DONT, WILL, WONT):
 						self.options_handler(self.sock, cmd, c)
 		except EOFError:
-			pass
+			logging.debug("TelnetHandler.inputcooker(): stopping")
 
 # ----------------------- Command Line Processor Engine --------------------
 
@@ -636,12 +687,15 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.writeline(traceback.format_exception_only(exc_type, exc_param)[-1])
 		return True
 
-	def exitHandler (self):
-		logging.info("Exiting request handler")
-		self.finish()
+	def exitHandler (self, reason):
+		if not self.quitIC:
+			self.child_connection.send(-1)
+		time.sleep(.1)
+		logging.debug("Exiting telnet request handler: " + reason)
 	
 	def handle(self):
 		"The actual service to which the user has connected."
+		logging.debug("TelnetServer.handle()")
 		username = None
 		password = None
 		if self.authCallback:
@@ -651,8 +705,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					username = self.readline()
 				except EOFError:
-					logging.info("Connection lost")
-					self.exitHandler()
+					self.exitHandler("lost connection")
 					return
 			if self.authNeedPass:
 				if self.DOECHO:
@@ -660,15 +713,14 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					password = self.readline(echo=False)
 				except EOFError:
-					logging.info("Connection lost")
-					self.exitHandler()
+					self.exitHandler("lost connection")
 					return
 				if self.DOECHO:
 					self.write("\n")
 			if not self.authCallback(username, password):
-				logging.info("login failed")
+				logging.debug("login failed")
 				self.writeline("login failed")
-				self.exitHandler()
+				self.exitHandler("login failed")
 				return
 		while True:
 			if self.DOECHO:
@@ -676,25 +728,121 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			try:
 				inputLine = self.readline()
 			except EOFError:
-				logging.debug("Connection lost")
-				self.exitHandler()
+				self.exitHandler("lost connection")
 				break
-			self.writeline("you typed: " + inputLine)
+			logging.debug("rcvd: " + inputLine)
+			self.child_connection.send(inputLine)
 
+class TcpSocketServer(SocketServer.TCPServer):
+	# wrapper class to allow setting the allow_reuse_address attribute to True so
+	# the port can be reused w/o waiting for TIME_WAIT to elapse.  This is needed
+	# to reuse the port before TIME_WAIT has elapsed when the server closes the
+	# connection (TCP socket needs to wait 2*MSL to assure client got ACK for FIN).
+	allow_reuse_address = True
+
+class TelnetServer(object):
+	
+	tns = None
+	port = None
+	ip_address = None
+	serverProcess = None
+	parent_connection = None
+	quitProxy = False
+	callbackProxyThread = None
+	parentInputCallback = None
+	
+	def __init__(self, inputCallback=None):
+		# use globals to pass configuration to telnet handler when it is started by
+		# TCP socket server
+		global username, password, child_connection
+		
+		logging.getLogger('').setLevel(logging.INFO)
+		logging.debug("TelnetServer.__init__()")
+		if not inputCallback:
+			logging.warning("TelnetServer.__init__(): callback not specified")
+			raise ServerError("callback not specified")
+		self.parentInputCallback = inputCallback
+		
+		# TODO: get username and password dynamically
+		username = 'admin'
+		password = '123'
+	
+		# TODO: get ip_address & port number dynamically
+		# TODO: ensure that port is not already in use
+		self.port = 8000
+		#self.ip_address = 'localhost'
+		self.ip_address = '67.58.49.202'
+		
+		# setup a pipe to allow telnet server process to communicate with callbackProxy
+		self.parent_connection, child_connection = multiprocessing.Pipe()
+		
+		# create telnet server object and start the server process
+		self.tns = TcpSocketServer((self.ip_address, self.port), TelnetHandler)
+		self.serverProcess = multiprocessing.Process(target=self.runServer)
+		self.serverProcess.start()
+		
+		# start the callbackProxy thread to receive client input from telnet server process
+		self.callbackProxyThread = threading.Thread(target=self.runCallbackProxy)
+		#logging.debug("TelnetHandler.setup(): starting callbackProxy thread")
+		self.callbackProxyThread.setDaemon(True)
+		self.callbackProxyThread.start()
+		
+	def runServer(self):
+		logging.debug("TelnetServer.runServer(): starting")
+		# accept a single telnet request
+		self.tns.handle_request()
+		logging.debug("TelnetServer.runServer(): stopping")
+		
+	def runCallbackProxy(self):
+		logging.debug("TelnetServer.runCallbackProxy(): starting")
+		# run until quitProxy is True
+		while not self.quitProxy:
+			# check for input from telnet server
+			if self.parent_connection.poll():
+				# got data, so relay it to parent via callback
+				data = self.parent_connection.recv()
+				self.parentInputCallback(data)
+				# sniff the data to see if 'lost connection' is being sent
+				# to parent, and if so quit the thread
+				if data == -1:
+					break
+			time.sleep(.05)
+		logging.debug("TelnetServer.runCallbackProxy(): stopping")
+	
+	def getConnectionInfo(self):
+		global username, password
+		return self.ip_address, self.port, username, password
+
+	def stop(self):
+		logging.debug("TelnetServer.stop()")
+		# tell callbackProxyThread to quit
+		self.quitProxy = True
+		# wait until it quits
+		while self.callbackProxyThread.isAlive():
+			time.sleep(.05)
+		# send 'close connection' to telnet server process
+		self.parent_connection.send(-1)
+		# give telnet server process time to terminate threads
+		time.sleep(.5)
+		self.serverProcess.terminate()
+		del self.serverProcess
+		del self.tns
+			
+	def write(self, data):
+		# send data from parent to telnet server process to forward to client
+		logging.debug("TelnetServer.write(): data = " + str(data))
+		self.parent_connection.send(data)
+		
 
 if __name__ == '__main__':
 	"For command line testing - Accept a single connection"
-	class TNS(SocketServer.TCPServer):
-		allow_reuse_address = True
 				
-	logging.getLogger('').setLevel(logging.DEBUG)
-
 	logging.info("ION Telnet server starting")
 
 	username = "admin"
 	password = "123"
 
-	tns = TNS(("localhost", 8023), TelnetHandler)
+	tns = TcpSocketServer(("localhost", 8000), TelnetHandler)
 	tns.handle_request()
 	logging.info("completed request: exiting server")
 

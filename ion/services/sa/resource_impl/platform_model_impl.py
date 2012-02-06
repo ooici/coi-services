@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.platform_model_impl
+@package  ion.services.sa.resource_impl.platform_model_impl
 @author   Ian Katz
 """
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT
 
-from ion.services.sa.instrument.ims_simple import IMSsimple
+from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 
-class PlatformModelImpl(IMSsimple):
+class PlatformModelImpl(ResourceSimpleImpl):
     """
     @brief resource management for PlatformModel resources
     """

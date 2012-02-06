@@ -6,6 +6,7 @@
 @author Tim Giguere
 @brief PubSub Management service to keep track of Streams, Publishers, Subscriptions,
 and the relationships between them
+@TODO implement the stream definition
 '''
 
 from interface.services.dm.ipubsub_management_service import\
@@ -16,6 +17,12 @@ from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
 from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
 from interface.objects import Subscription, SubscriptionTypeEnum
+from interface import objects
+from pyon.ion.endpoint import StreamPublisher
+
+
+# Can't make a couchdb data store here...
+### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
 
 
 class BindingChannel(SubscriberChannel):
@@ -35,6 +42,19 @@ class PubsubManagementService(BasePubsubManagementService):
     except ValueError:
         raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
+
+    stream_definition_type_names = CFG.core_stream_types
+
+    stream_definition_types= {}
+
+    for cls_name in stream_definition_type_names:
+        stream_definition_types[cls_name] = getattr(objects,cls_name)
+
+
+    #def __init__(self, *args, **kwargs):
+    #    BasePubsubManagementService.__init__(self, *args, **kwargs)
+    #    self.definition_publisher = StreamPublisher(name=(self.XP, 'dummy_stream'), process=self)
+    
     def create_stream(self, encoding='', original=True, stream_definition_type='', name='', description='', url=''):
         '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
         @param encoding the encoding for data on this stream
@@ -44,20 +64,23 @@ class PubsubManagementService(BasePubsubManagementService):
         @param description (optional) the description of the stream
         @param url (optional) the url where data from this stream can be found (Not implemented)
 
-        @param encoding    str
-        @param original    bool
-        @param stream_definition_type    str
-        @param name    str
-        @param description    str
-        @param url    str
         @retval stream_id    str
         '''
         log.debug("Creating stream object")
+
+        #definition = self.stream_types.get(stream_definition_type, None)
+
         stream_obj = Stream(name=name, description=description)
         stream_obj.original = original
         stream_obj.encoding = encoding
         stream_obj.url = url
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
+
+
+        ### @TODO - what should we do with the stream definition?
+        #self.definition_publisher.publish(definition, to_name=(self.XP, stream_id+'.data'))
+
+
         return stream_id
 
     def update_stream(self, stream=None):

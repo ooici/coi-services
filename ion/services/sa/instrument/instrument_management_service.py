@@ -8,47 +8,31 @@
 
 
 #from pyon.public import Container
-from pyon.public import LCS, LCE
-#from pyon.public import PRED
+from pyon.public import LCS #, LCE
+from pyon.public import RT, PRED
 from pyon.core.bootstrap import IonObject
 #from pyon.core.exception import BadRequest #, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
-#from pyon.util.log import log
+from pyon.util.log import log
 
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
 
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.resource_impl.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.resource_impl.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.resource_impl.platform_model_impl import PlatformModelImpl
+from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
 
-from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
-
-
-######
-"""
-now TODO
-
- - docstrings
+from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
+from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
 
 
-Later TODO (need new methods spec'd out)
-
- - logical and physical stuff?
- - direct access
- - platform direct access
- - attachments
- -
-
-"""
-######
-
-
+# TODO: these are for methods which may belong in DAMS and DPMS
+from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
+from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
 
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
@@ -59,7 +43,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     """
     def on_init(self):
-        IonObject("Resource")  # suppress pyflakes error
+        #suppress a few "variable declared but not used" annoying pyflakes errors
+        IonObject("Resource") 
+        log 
 
         self.override_clients(self.clients)
 
@@ -69,11 +55,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
 
         #shortcut names for the import sub-services
+        # we hide these behind checks even though we expect them so that
+        # the resource_impl_metatests will work
         if hasattr(self.clients, "resource_registry"):
             self.RR    = self.clients.resource_registry
             
-        if hasattr(self.clients, "data_acquisition_management_service"):
-            self.DAMS  = self.clients.data_acquisition_management_service
+        if hasattr(self.clients, "data_acquisition_management"):
+            self.DAMS  = self.clients.data_acquisition_management
+
+        if hasattr(self.clients, "data_product_management"):
+            self.DPMS  = self.clients.data_product_management
 
         #farm everything out to the impls
 
@@ -90,6 +81,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.sensor_model    = SensorModelImpl(self.clients)
         self.sensor_device   = SensorDeviceImpl(self.clients)
 
+        #TODO: may not belong in this service
+        self.data_product   = DataProductImpl(self.clients)
+        self.data_producer  = DataProducerImpl(self.clients)
 
 
     ##########################################################################
@@ -257,6 +251,45 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
+
+    def setup_data_production_chain(self, instrument_device_id=''):
+        """
+        create a data product (L0) for the instrument, and establish provenance
+        between the corresponding data producers
+        """
+
+        #get instrument object and instrument's data producer
+        inst_obj = self.instrument_device.read_one(instrument_device_id)
+        assoc_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasDataProducer, RT.DataProducer, True)
+        inst_pducer_id = assoc_ids[0]
+        log.debug("instrument data producer id='%s'" % inst_pducer_id)
+
+        #create a new data product
+        dpms_pduct_obj = IonObject(RT.DataProduct,
+                                   name=str(inst_obj.name + " L0 Product"),
+                                   description=str("L0 DataProduct for " + inst_obj.name))
+
+        pduct_id = self.DPMS.create_data_product(dpms_pduct_obj)
+
+
+        # get data product's data producer (via association)
+        assoc_ids, _ = self.RR.find_objects(pduct_id, PRED.hasDataProducer, RT.DataProducer, True)
+        prod_pducer_id = assoc_ids[0]
+        
+        # (TODO: there should only be one assoc_id.  what error to raise?)
+        # TODO: what error to raise if there are no assoc ids?
+
+        # instrument data producer is the parent of the data product producer
+        associate_success = self.RR.create_association(prod_pducer_id,
+                                                       PRED.hasInputDataProducer, 
+                                                       inst_pducer_id)
+        log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
+
+
+        #TODO: error checking
+
+
+
     def create_instrument_device(self, instrument_device=None):
         """
         create a new instance
@@ -265,7 +298,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.instrument_device.create_one(instrument_device)
+        instrument_device_id = self.instrument_device.create_one(instrument_device)
+        self.DAMS.register_instrument(instrument_device_id)
+        
+        #TODO: create data producer and product
+        self.setup_data_production_chain(instrument_device_id)
+
+        return instrument_device_id
 
     def update_instrument_device(self, instrument_device=None):
         """
@@ -730,6 +769,34 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_agent_instance_from_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
 
+
+
+    ############################
+    #
+    #  SPECIALIZED FIND METHODS
+    #
+    ############################
+
+    def find_data_product_by_instrument_device(self, instrument_device_id=''):
+        #init return value, a list of data sets
+        data_products = []
+
+        #init working set of data producers to walk
+        data_producers = []
+        pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
+        data_producers += pducers[0]
+
+
+        #iterate through all un-processed data producers (could also do recursively)
+        while 0 < len(data_producers):
+           producer_id = data_producers.pop()
+           #get any products that are associated with this data producer and return them
+           data_products += self.data_product.find_stemming_data_producer(producer_id)[0]
+           #get any producers that receive input from this data producer
+           data_producers += self.data_producer.find_having_input_data_producer(producer_id)[0]
+
+        return data_products
+        
 
 
 

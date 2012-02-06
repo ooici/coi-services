@@ -7,7 +7,7 @@
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import IonObject
-from pyon.public import RT
+from pyon.public import RT, PRED
 from pyon.util.log import log
 
 ######
@@ -26,7 +26,7 @@ Later TODO
 
 
 
-from ion.services.sa.resource_impl import ResourceImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
 class DataProcessImpl(ResourceImpl):
     """
