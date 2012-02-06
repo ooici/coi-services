@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.core.exception import Conflict, Inconsistent, NotFound
 from pyon.core.security.authentication import Authentication
-from pyon.public import AT, RT, IonObject
+from pyon.public import PRED, RT, IonObject
 from pyon.util.log import log
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
@@ -46,7 +46,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         # Create UserCredentials object
         credentials_obj_id, version = self.clients.resource_registry.create(credentials)
         # Create association with user identity object
-        res = self.clients.resource_registry.create_association(user_id, AT.hasCredentials, credentials_obj_id)
+        res = self.clients.resource_registry.create_association(user_id, PRED.hasCredentials, credentials_obj_id)
 
     def unregister_user_credentials(self, user_id='', credentials_name=''):
         # Read UserCredentials
@@ -57,7 +57,7 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise Conflict("Multiple UserCredentials objects found for subject %s" % credentials_name)
         user_credentials_id = objects[0]._id
         # Find and break association with UserIdentity
-        assocs = self.clients.resource_registry.find_associations(user_id, AT.hasCredentials, user_credentials_id)
+        assocs = self.clients.resource_registry.find_associations(user_id, PRED.hasCredentials, user_credentials_id)
         if not assocs or len(assocs) == 0:
             raise NotFound("UserIdentity to UserCredentials association for user id %s to credential %s does not exist" % (user_id,credentials_name))
         association_id = assocs[0]._id
@@ -67,14 +67,14 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def create_user_info(self, user_id="", user_info=None):
         # Ensure UserInfo association does not already exist
-        objects, assocs = self.clients.resource_registry.find_objects(user_id, AT.hasInfo, RT.UserInfo)
+        objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
         if objects:
             raise Conflict("UserInfo already exists for user id %s" % (user_id))
         # Create UserInfo object
         user_info_id, version = self.clients.resource_registry.create(user_info)
         log.warn("user_info_id: %s" % user_info_id)
         # Create association with user identity object
-        self.clients.resource_registry.create_association(user_id, AT.hasInfo, user_info_id)
+        self.clients.resource_registry.create_association(user_id, PRED.hasInfo, user_info_id)
         return user_info_id
 
     def update_user_info(self, user_info=None):
@@ -94,12 +94,12 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not user_info:
             raise NotFound("UserInfo %s does not exist" % user_info_id)
         # Find and break association with UserIdentity
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, AT.hasInfo, user_info_id)
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasInfo, user_info_id)
         if not assocs:
             raise NotFound("UserIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
         user_identity_id = subjects[0]._id
 
-        assocs = self.clients.resource_registry.find_associations(user_identity_id, AT.hasInfo, user_info_id)
+        assocs = self.clients.resource_registry.find_associations(user_identity_id, PRED.hasInfo, user_info_id)
         if not assocs:
             raise NotFound("UserIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
         association_id = assocs[0]._id
@@ -110,7 +110,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def find_user_info_by_id(self, user_id=''):
         # Look up UserInfo via association with UserIdentity
-        objects, assocs = self.clients.resource_registry.find_objects(user_id, AT.hasInfo, RT.UserInfo)
+        objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
         if not objects:
             raise NotFound("UserInfo for user id %s does not exist" % user_id)
         user_info = objects[0]
@@ -132,14 +132,14 @@ class IdentityManagementService(BaseIdentityManagementService):
         if len(objects) > 1:
             raise Inconsistent("Multiple UserCredentials with subject %s exist" % subject)
         user_credentials_id = objects[0]._id
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, AT.hasCredentials, user_credentials_id)
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasCredentials, user_credentials_id)
         if not subjects or len(subjects) == 0:
             raise NotFound("UserIdentity to UserCredentials association for subject %s does not exist" % subject)
         if len(subjects) > 1:
             raise Inconsistent("Multiple UserIdentity to UserCredentials associations for subject %s exist" % subject)
         user_identity_id = subjects[0]._id
         # Look up UserInfo via association with UserIdentity
-        objects, assocs = self.clients.resource_registry.find_objects(user_identity_id, AT.hasInfo, RT.UserInfo)
+        objects, assocs = self.clients.resource_registry.find_objects(user_identity_id, PRED.hasInfo, RT.UserInfo)
         if not objects:
             raise NotFound("UserInfo for subject %s does not exist" % subject)
         if len(objects) > 1:
@@ -169,7 +169,7 @@ class IdentityManagementService(BaseIdentityManagementService):
             user_credentials_id = objects[0]
             log.warn("objects: %s" % str(objects))
             log.warn("user_credentials_id: %s" % user_credentials_id)
-            subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, AT.hasCredentials, user_credentials_id)
+            subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasCredentials, user_credentials_id)
 
             if len(subjects) == 0:
                 raise Conflict("UserIdentity object with subject %s was previously created but is not associated with a UserIdentity object" % subject)

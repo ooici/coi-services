@@ -14,7 +14,7 @@ Features
 - load a subset of objects by type, etc
 """
 
-from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, AT, StreamProcess
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, PRED, StreamProcess
 
 class DatastoreLoader(StreamProcess):
     def on_init(self, *args, **kwargs):

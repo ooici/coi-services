@@ -47,3 +47,6 @@ class InstrumentDataException(InstrumentException):
 class CommsException(InstrumentException):
     """Exception related to upstream communications trouble"""
     
+
+    
+    

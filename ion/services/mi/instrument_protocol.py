@@ -17,16 +17,43 @@ import logging
 import time
 import os
 import signal
-
+import re
 
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
+from ion.services.mi.exceptions import InstrumentConnectionException
 from ion.services.mi.instrument_connection import IInstrumentConnection
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 mi_logger = logging.getLogger('mi_logger')
+
+
+
+class ParameterDictVal(object):
+    """
+    """
+    def __init__(self, name, pattern, f_getval, f_format, value=None):
+        """
+        """
+        self.name = name
+        self.pattern = pattern
+        self.regex = re.compile(pattern)
+        self.f_getval = f_getval
+        self.f_format = f_format
+        self.value = value
+
+    def update(self, input):
+        """
+        """
+        match = self.regex.match(input)
+        if match:
+            self.value = self.f_getval(match)
+            mi_logger.debug('Updated parameter %s=%s', self.name, str(self.value))
+            return True
+        else: return False
+
 
 class InstrumentProtocol(object):
     """The base class for an instrument protocol
@@ -40,7 +67,7 @@ class InstrumentProtocol(object):
     
     implements(IInstrumentConnection)
     
-    def __init__(self, callback=None):
+    def __init__(self, evt_callback=None):
         """Set instrument connect at creation
         
         @param connection An InstrumetnConnection object
@@ -50,7 +77,7 @@ class InstrumentProtocol(object):
         self._logger_popen = None
         self._fsm = None
         
-        self.announce_to_driver = callback
+        self.send_event = evt_callback
         """The driver callback where we an publish events. Should be a link
         to a function."""
         
@@ -73,31 +100,25 @@ class InstrumentProtocol(object):
         """
         """
         mi_logger.info('Configuring for device comms.')        
-        success = InstErrorCode.OK
-        
-        try:
-            method = config['method']
-            
-            if method == 'ethernet':
-                device_addr = config['device_addr']
-                device_port = config['device_port']
-                server_addr = config['server_addr']
-                server_port = config['server_port']
-                self._logger = EthernetDeviceLogger(device_addr, device_port,
-                                                    server_port)
-                self._logger_client = LoggerClient(server_addr, server_port)
 
-            elif method == 'serial':
-                pass
-            
-            else:
-                success = InstErrorCode.INVALID_PARAMETER
+        method = config['method']
+                
+        if method == 'ethernet':
+            device_addr = config['device_addr']
+            device_port = config['device_port']
+            server_addr = config['server_addr']
+            server_port = config['server_port']
+            self._logger = EthernetDeviceLogger(device_addr, device_port,
+                                            server_port)
+            self._logger_client = LoggerClient(server_addr, server_port)
 
-        except KeyError:
-            success = InstErrorCode.INVALID_PARAMETER
-
-        return success
-
+        elif method == 'serial':
+            # The config dict does not have a valid connection method.
+            raise InstrumentConnectionException()
+                
+        else:
+            # The config dict does not have a valid connection method.
+            raise InstrumentConnectionException()
     
     def connect(self, timeout=10):
         """Connect via the instrument connection object
@@ -106,6 +127,7 @@ class InstrumentProtocol(object):
         @throws InstrumentConnectionException
         """
         mi_logger.info('Connecting to device.')
+        
         logger_pid = self._logger.get_pid()
         mi_logger.info('Found logger pid: %s.', str(logger_pid))
         if not logger_pid:
@@ -118,12 +140,12 @@ class InstrumentProtocol(object):
                 mi_logger.debug('os.wait() threw %s: %s' %
                                (e.__class__.__name__, str(e)))
             mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
-        time.sleep(1)         
-        self.attach()
-
-        success = InstErrorCode.OK
-        return success
-    
+            time.sleep(1)         
+            self.attach()
+        else:
+            # There was a pidfile for the device.
+            raise InstrumentConnectionException()
+        
     def disconnect(self, timeout=10):
         """Disconnect via the instrument connection object
         
@@ -322,6 +344,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
 
         self._build_handlers = {}
         self._response_handlers = {}
+        self._parameters = {}
+                   
+    ########################################################################
+    # Incomming data callback.
+    ########################################################################            
 
     def _add_build_handler(self, cmd, func):
         """
@@ -347,7 +374,10 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Update the line and prompt buffers.
         self._linebuf += data        
         self._promptbuf += data
-        
+
+    ########################################################################
+    # Wakeup helpers.
+    ########################################################################            
     
     def _send_wakeup(self):
         """
@@ -380,8 +410,22 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return item
             
             if time.time() > starttime + timeout:
-                raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
+                raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
         
+    ########################################################################
+    # Command-response helpers.
+    ########################################################################    
+
+    def _add_build_handler(self, cmd, func):
+        """
+        """
+        self._build_handlers[cmd] = func
+        
+    def _add_response_handler(self, cmd, func):
+        """
+        """
+        self._response_handlers[cmd] = func
+
     def _get_response(self, timeout=10):
         """
         Get a response from the instrument
@@ -415,6 +459,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @throw InstrumentTimeoutException Timeout
         """
         timeout = kwargs.get('timeout', 10)
+        retval = None
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
@@ -472,6 +517,48 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
         self._logger_client.send(cmd_line)        
 
+        return InstErrorCode.OK
+
+    ########################################################################
+    # Parameter dict helpers.
+    ########################################################################    
+
+    def _add_param_dict(self, name, pattern, f_getval, f_format, value=None):
+        """
+        """
+        self._parameters[name] = ParameterDictVal(name, pattern, f_getval,
+                            f_format, value)
+    
+    def _get_param_dict(self, name):
+        """
+        """
+        return self._parameters[name].value
+
+    def _get_config_param_dict(self):
+        """
+        """
+        config = {}
+        for (key, val) in self._parameters.iteritems():
+            config[key] = val.value
+        return config
+
+    def _set_param_dict(self, name, value):
+        """
+        """
+        self._parameters[name] = value
+        
+    def _update_param_dict(self, input):
+        """
+        """
+        for (name, val) in self._parameters.iteritems():
+            if val.update(input):
+                break
+            
+    def _format_param_dict(self, name, val):
+        """
+        """
+        return self._parameters[name].f_format(val)
+
     def _build_simple_command(self, command):
         """
         Build a very simple command string consisting of the command and the
@@ -483,3 +570,4 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         return command+self.eoln
             
+

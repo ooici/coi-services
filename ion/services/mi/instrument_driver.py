@@ -92,6 +92,7 @@ class DriverEvent(BaseEnum):
     EXIT = 'DRIVER_EVENT_EXIT'
     ATTACH = 'DRIVER_EVENT_ATTACH'
     DETACH = 'DRIVER_EVENT_DETACH'
+    UPDATE_PARAMS = 'DRIVER_EVENT_UPDATE_PARAMS'
     
 
 class DriverStatus(BaseEnum):
@@ -139,12 +140,13 @@ class InstrumentDriver(object):
     @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
     """
 
-    def __init__(self):
+    def __init__(self, evt_callback):
 
         # Instrument channel dict.
         # A dictionary of channel-name keys and channel protocol object values.
         # We need to change this to protocol or connection name, rather than channel.
         self.channels = {}
+        self.send_event = evt_callback
         
         # Below are old members with comments from EH.
         #

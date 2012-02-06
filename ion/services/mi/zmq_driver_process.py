@@ -92,7 +92,7 @@ class ZmqDriverProcess(driver_process.DriverProcess):
             context = zmq.Context()
             sock = context.socket(zmq.REP)
             sock.bind(zmq_driver_process.cmd_host_string)
-            mi_logger.info('Driver rpocess cmd socket bound to %s',
+            mi_logger.info('Driver process cmd socket bound to %s',
                            zmq_driver_process.cmd_host_string)
         
             zmq_driver_process.stop_cmd_thread = False
@@ -106,9 +106,9 @@ class ZmqDriverProcess(driver_process.DriverProcess):
                             sock.send_pyobj(reply)
                             break
                         except zmq.ZMQError:
-                            time.sleep(0)
+                            time.sleep(.1)
                 except zmq.ZMQError:
-                    time.sleep(0)
+                    time.sleep(.1)
         
             sock.close()
             context.term()
@@ -136,10 +136,10 @@ class ZmqDriverProcess(driver_process.DriverProcess):
                             evt = None
                             mi_logger.debug('Event sent!')
                         except zmq.ZMQError:
-                            time.sleep(0)
+                            time.sleep(.1)
                             
                 except IndexError:
-                    time.sleep(0)
+                    time.sleep(.1)
 
             sock.close()
             context.term()
