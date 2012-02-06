@@ -29,6 +29,8 @@ import ion.services.mi.mi_logger
 import logging
 log = logging.getLogger('mi_logger')
 
+CONTROL_S = '\x13'
+
 
 class BarsProtocolState(BaseEnum):
     PRE_INIT = "PRE_INIT"
@@ -53,10 +55,10 @@ class BarsProtocolEvent(BaseEnum):
 
 
 # TODO synchronize with actual instrument and simulator
-NEWLINE = '\n'
+NEWLINE = '\r\n'
 
 # some patters
-DATA_LINE_PATTERN = re.compile(r'(\d+\.\d*\s+)+.*')
+DATA_LINE_PATTERN = re.compile(r'(\d+\.\d*\s*){12}.*')
 CYCLE_TIME_PATTERN = re.compile(
         r'present value for the Cycle Time is\s+([^.]*)\.')
 
@@ -125,7 +127,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         # we start in the PRE_INIT state
         self._fsm.start(BarsProtocolState.PRE_INIT)
 
-        self._add_build_handler('^S', self._build_simple_cmd)
+        self._add_build_handler(CONTROL_S, self._build_simple_cmd)
         for c in range(8):
             self._add_build_handler('%d' % c, self._build_simple_cmd)
 
@@ -268,7 +270,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        result = self._do_cmd_resp('^S')
+        result = self._do_cmd_resp(CONTROL_S)
 
         next_state = BarsProtocolState.MAIN_MENU
 

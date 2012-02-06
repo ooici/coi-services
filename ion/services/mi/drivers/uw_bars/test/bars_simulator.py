@@ -7,9 +7,7 @@
 
 @brief A simple simulator for the BARS instrument intended to facilitate
 testing. It accepts a TCP connection on a port and starts by sending out
-bursts of (random) data every few seconds. It dispatches the commands using,
-for the momennt, ad hoc strings (not necessarily the exact strings used by
-the real instrument).
+bursts of (random) data every few seconds.
 """
 
 __author__ = 'Carlos Rueda'
@@ -22,9 +20,27 @@ import time
 from threading import Thread
 
 
-NEWLINE = '\n'
+NEWLINE = '\r\n'
+EOF = '\x04'
+
+CONTROL_S = '\x13'
 
 time_between_bursts = 2
+
+
+def _escape(str):
+    str = str.replace('\r', '\\r')
+    str = str.replace('\n', '\\n')
+    str = str.replace(EOF, '^D')
+    s = ''
+    for c in str:
+        o = ord(c)
+        if o < 32 or (127 <= o < 160):
+            s += '\\%02d' % o
+        else:
+            s += c
+    str = s
+    return str
 
 
 class _BurstThread(Thread):
@@ -168,16 +184,30 @@ class BarsSimulator(object):
         self._conn.sendall(clear_screen + info)
 
     def _recv(self):
-        """does the recv call with handling of timeout"""
+        """
+        does the recv call with handling of timeout
+        """
         while self._enabled:
             try:
-                input = self._conn.recv(1024)
-                if input is not None:
-                    input = input.strip()
-                    self._log_client("recv: '%s'" % input)
+                input = None
+
+                recv = self._conn.recv(1)
+
+                if recv is not None:
+                    self._log_client("RECV: '%s'" % _escape(recv))
+                    if EOF in recv:
+                        self._enabled = False
+                        break
+                    if len(recv.strip()) > 0:
+                        input = recv.strip()
+                    else:
+                        input = recv
+
+                    self._log_client("input: '%s'" % _escape(input))
                 else:
-                    self._log_client("recv: None")
-                return input
+                    self._log_client("RECV: None")
+                if input is not None:
+                    return input
             except socket.timeout:
                 # ok, retry receiving
                 continue
@@ -194,6 +224,9 @@ class BarsSimulator(object):
         @relval True if an explicit quit command ('q') was received;
         False otherwise.
         """
+
+        #self._conn.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1)
+
         # set an ad hoc timeout to regularly check whether termination has been
         # requested
         self._conn.settimeout(1.0)
@@ -208,11 +241,11 @@ class BarsSimulator(object):
                 self._log_client("exiting connected upon explicit quit request")
                 return True  # explicit quit
 
-            if input == "^S":
+            if input == CONTROL_S:
                 self._bt.set_enabled(False)
                 self._main_menu()
             else:
-                response = "invalid input: '%s'" % input
+                response = "invalid input: '%s'" % _escape(input)
                 self._log_client(response)
 
         self._log_client("exiting connected")
