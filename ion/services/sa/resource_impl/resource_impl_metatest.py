@@ -128,7 +128,7 @@ class ResourceImplMetatest(object):
         
     def add_resource_impl_unittests(self,
                                       resource_impl_class, 
-                                      resource_params):
+                                      resource_params={}):
         """
         Add tests for the resorce_impl_class to the (self.)resource_tester_class
 

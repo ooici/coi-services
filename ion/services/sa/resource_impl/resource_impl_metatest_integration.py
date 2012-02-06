@@ -35,7 +35,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
         
     def add_resource_impl_inttests(self,
                                    resource_impl_class, 
-                                   resource_params):
+                                   resource_params={}):
         """
         Add tests for the resorce_impl_class to the (self.)resource_tester_class
 
