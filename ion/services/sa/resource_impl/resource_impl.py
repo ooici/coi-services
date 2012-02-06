@@ -7,7 +7,7 @@
 @brief    DRY = Don't Repeat Yourself; base class for CRUD, LCS, and association ops on any ION resource
 """
 
-from pyon.core.exception import BadRequest, NotFound
+from pyon.core.exception import BadRequest, NotFound, Inconsistent
 #from pyon.core.bootstrap import IonObject
 from pyon.public import PRED, RT, LCS
 from pyon.util.log import log
@@ -226,9 +226,23 @@ class ResourceImpl(object):
             # New after all.  PROCEED.
             pass
         else:
-            if 0 < len(found_res):
-                raise BadRequest("%s resource named '%s' already exists"
-                                 % (resource_type, name))
+            # should never be more than one with a given name
+            if 1 < len(found_res):
+                raise Inconsistent("Multiple %s resources with name '%s' exist" % (resource_type, name))
+
+            # if creating
+            if not hasattr(primary_object, "_id"):
+                # must not be any matching names
+                if 0 < len(found_res): 
+                    raise BadRequest("%s resource named '%s' already exists"
+                                     % (resource_type, name))
+            else: #updating
+            # any existing name must match the id
+                if 1 == len(found_res) and primary_object._id != found_res[0]:
+                    raise BadRequest("%s resource named '%s' already exists"
+                                     % (resource_type, name))
+                    
+                           
 
 
     def _get_resource_type(self, resource):

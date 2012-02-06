@@ -278,11 +278,43 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             doc  = make_doc("Reading a %s resource that doesn't exist" % impl_instance.iontype)
             add_test_method(name, doc, fun)
 
-
-
         def gen_test_update():
+            gen_test_update_samename()
+            gen_test_update_differentname()
+
+        def gen_test_update_samename():
             """
-            generate the function to test the create
+            generate the function to test the update, but use the same name
+            """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                # get objects
+                svc = self._rimi_getservice()
+                myimpl = getattr(svc, impl_attr)                 
+                                
+                # prep and put objects
+                good_sample_resource = sample_resource()
+                res_id = myimpl.create_one(good_sample_resource)
+
+                # read and change
+                good_sample_duplicate = myimpl.read_one(res_id)
+                myimpl.update_one(good_sample_duplicate)
+
+                # verify change
+                good_sample_triplicate = myimpl.read_one(res_id)
+                self.assertEqual(good_sample_duplicate.name, good_sample_triplicate.name)
+
+                
+            name = make_name("resource_impl_update_samename")
+            doc  = make_doc("Updating a %s resource keeping name the same" % impl_instance.iontype)
+            add_test_method(name, doc, fun)
+
+
+        def gen_test_update_differentname():
+            """
+            generate the function to test the update, use a new name
             """
             def fun(self):
                 """
@@ -307,10 +339,9 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 self.assertEqual(newname, good_sample_triplicate.name)
 
                 
-            name = make_name("resource_impl_update")
-            doc  = make_doc("Updating a %s resource" % impl_instance.iontype)
+            name = make_name("resource_impl_update_differentname")
+            doc  = make_doc("Updating a %s resource to have a different name" % impl_instance.iontype)
             add_test_method(name, doc, fun)
-
 
 
         def gen_test_update_bad_noid():
