@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.ims_simple
+@package  ion.services.sa.resource_impl.resource_simple_impl
 @author   Ian Katz
 """
 
@@ -9,12 +9,12 @@
 #from pyon.core.bootstrap import IonObject
 from pyon.public import LCS
 
-from ion.services.sa.resource_impl import ResourceImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
 
-class IMSsimple(ResourceImpl):
+class ResourceSimpleImpl(ResourceImpl):
     """
-    @brief A base class for management of ION resources in IMS that have a simple LCS
+    @brief A base class for management of ION resources that have a simple LCS
     """
 
     def on_impl_init(self):

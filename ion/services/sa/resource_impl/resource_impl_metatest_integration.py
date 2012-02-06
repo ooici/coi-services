@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file ion/services/sa/test/resource_impl_metatest_integration.py
+@file ion/services/sa/resource_impl/resource_impl_metatest_integration.py
 @author Ian Katz
 
 """
@@ -10,7 +10,7 @@ import hashlib
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 
-from ion.services.sa.resource_impl_metatest import ResourceImplMetatest
+from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
 from pyon.util.log import log
 
@@ -35,7 +35,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
         
     def add_resource_impl_inttests(self,
                                    resource_impl_class, 
-                                   resource_params):
+                                   resource_params={}):
         """
         Add tests for the resorce_impl_class to the (self.)resource_tester_class
 
@@ -147,12 +147,10 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 good_sample_resource = sample_resource()
                 
 
-                response = myimpl.create_one(good_sample_resource)
-                idfield = "%s_id" % impl_instance.ionlabel
-                self.assertIn(idfield, response)
-                #sample_resource_id = response[idfield]
+                sample_resource_id = myimpl.create_one(good_sample_resource)
 
-                log.debug("got response: %s" % response)
+
+                log.debug("got resource id: %s" % sample_resource_id)
 
             name = make_name("resource_impl_create")
             doc  = make_doc("Creation of a new %s resource" % impl_instance.iontype)
@@ -246,18 +244,15 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 myimpl = getattr(svc, impl_attr)                 
                                 
                 # put in an object
-                response = myimpl.create_one(sample_resource())
-                sample_resource_id = response["%s_id" % impl_instance.ionlabel]
+                sample_resource_id = myimpl.create_one(sample_resource())
 
-                response = myimpl.read_one(sample_resource_id)
+                returned_resource = myimpl.read_one(sample_resource_id)
 
-                self.assertIn(impl_instance.ionlabel, response)
-                
                 #won't work because of changes in _rev and lcstate
-                #self.assertDictEqual(response[impl_instance.ionlabel].__dict__,
+                #self.assertDictEqual(returned_resource.__dict__,
                 #                     sample_resource().__dict__)
 
-                self.assertEqual(response[impl_instance.ionlabel]._id,
+                self.assertEqual(returned_resource._id,
                                  sample_resource_id)
                 
             name = make_name("resource_impl_read")
@@ -283,11 +278,13 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             doc  = make_doc("Reading a %s resource that doesn't exist" % impl_instance.iontype)
             add_test_method(name, doc, fun)
 
-
-
         def gen_test_update():
+            gen_test_update_samename()
+            gen_test_update_differentname()
+
+        def gen_test_update_samename():
             """
-            generate the function to test the create
+            generate the function to test the update, but use the same name
             """
             def fun(self):
                 """
@@ -299,24 +296,52 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                                 
                 # prep and put objects
                 good_sample_resource = sample_resource()
-                resp = myimpl.create_one(good_sample_resource)
-                res_id = resp["%s_id" % impl_instance.ionlabel]
+                res_id = myimpl.create_one(good_sample_resource)
 
                 # read and change
-                good_sample_duplicate = myimpl.read_one(res_id)[impl_instance.ionlabel]
+                good_sample_duplicate = myimpl.read_one(res_id)
+                myimpl.update_one(good_sample_duplicate)
+
+                # verify change
+                good_sample_triplicate = myimpl.read_one(res_id)
+                self.assertEqual(good_sample_duplicate.name, good_sample_triplicate.name)
+
+                
+            name = make_name("resource_impl_update_samename")
+            doc  = make_doc("Updating a %s resource keeping name the same" % impl_instance.iontype)
+            add_test_method(name, doc, fun)
+
+
+        def gen_test_update_differentname():
+            """
+            generate the function to test the update, use a new name
+            """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                # get objects
+                svc = self._rimi_getservice()
+                myimpl = getattr(svc, impl_attr)                 
+                                
+                # prep and put objects
+                good_sample_resource = sample_resource()
+                res_id = myimpl.create_one(good_sample_resource)
+
+                # read and change
+                good_sample_duplicate = myimpl.read_one(res_id)
                 newname = "updated %s" % good_sample_duplicate.name
                 good_sample_duplicate.name = newname
                 myimpl.update_one(good_sample_duplicate)
 
                 # verify change
-                good_sample_triplicate = myimpl.read_one(res_id)[impl_instance.ionlabel]
+                good_sample_triplicate = myimpl.read_one(res_id)
                 self.assertEqual(newname, good_sample_triplicate.name)
 
                 
-            name = make_name("resource_impl_update")
-            doc  = make_doc("Updating a %s resource" % impl_instance.iontype)
+            name = make_name("resource_impl_update_differentname")
+            doc  = make_doc("Updating a %s resource to have a different name" % impl_instance.iontype)
             add_test_method(name, doc, fun)
-
 
 
         def gen_test_update_bad_noid():
@@ -359,12 +384,10 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 oldname = good_sample_resource.name
                 good_sample_duplicate.name = "DEFINITELY NOT A DUPLICATE"
 
-                resp = myimpl.create_one(good_sample_resource)
-                resp = myimpl.create_one(good_sample_duplicate)
+                myimpl.create_one(good_sample_resource)
+                dup_id = myimpl.create_one(good_sample_duplicate)
                 
-                dup_id = resp["%s_id" % impl_instance.ionlabel]
-
-                good_sample_duplicate = myimpl.read_one(dup_id)[impl_instance.ionlabel]
+                good_sample_duplicate = myimpl.read_one(dup_id)
                 good_sample_duplicate.name = oldname
                 
                 self.assertRaises(BadRequest, myimpl.update_one, good_sample_duplicate)
@@ -388,8 +411,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 myimpl = getattr(svc, impl_attr)                 
 
                 # put in an object
-                response = myimpl.create_one(sample_resource())
-                sample_resource_id = response["%s_id" % impl_instance.ionlabel]
+                sample_resource_id = myimpl.create_one(sample_resource())
 
                 log.debug("Attempting to delete newly created object with id=%s" % 
                           sample_resource_id)
@@ -439,21 +461,17 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
 
                 # put in 2 objects
                 sr = sample_resource()
-                response = myimpl.create_one(sr)
-                sample_resource_id = response["%s_id" % impl_instance.ionlabel]
+                sample_resource_id = myimpl.create_one(sr)
 
                 sr.name = "NOT A DUPE"
-                response = myimpl.create_one(sr)
-                sample_resource_id2 = response["%s_id" % impl_instance.ionlabel]
+                sample_resource_id2 = myimpl.create_one(sr)
 
-                response = myimpl.find_some({})
-                out_list = "%s_list" % impl_instance.ionlabel
-                self.assertIn(out_list, response)
-                self.assertIsInstance(response[out_list], list)
-                self.assertNotEqual(0, len(response[out_list]))
-                self.assertNotEqual(1, len(response[out_list]))
-                self.assertIn(sample_resource_id, response[out_list])
-                self.assertIn(sample_resource_id2, response[out_list])
+                resources = myimpl.find_some({})
+                self.assertIsInstance(resources, list)
+                self.assertNotEqual(0, len(resources))
+                self.assertNotEqual(1, len(resources))
+                self.assertIn(sample_resource_id, resources)
+                self.assertIn(sample_resource_id2, resources)
 
                 
             name = make_name("resource_impl_find")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.instrument_agent_impl
+@package  ion.services.sa.resource_impl.instrument_agent_impl
 @author   Ian Katz
 """
 
@@ -9,9 +9,9 @@
 from pyon.public import PRED, RT
 
 
-from ion.services.sa.instrument.ims_simple import IMSsimple
+from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 
-class InstrumentAgentImpl(IMSsimple):
+class InstrumentAgentImpl(ResourceSimpleImpl):
     """
     @brief Resource management for InstrumentAgent resources
     """

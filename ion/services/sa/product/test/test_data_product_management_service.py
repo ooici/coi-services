@@ -5,6 +5,8 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.product.data_product_management_service import DataProductManagementService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
+
+
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, LCS, PRED
@@ -12,6 +14,12 @@ from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
+
+from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
+from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
+from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
+
+
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -27,26 +35,13 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         self.data_product_management_service = DataProductManagementService()
         self.data_product_management_service.clients = self.clients
 
+        # must call this manually
+        self.data_product_management_service.on_init()
+
         self.data_source = Mock()
         self.data_source.name = 'data_source_name'
         self.data_source.description = 'data source desc'
 
-    def test_createDataProduct_success(self):
-        # setup
-        self.resource_registry.find_resources.return_value = ([], 'do not care')
-        self.resource_registry.create.return_value = ('SOME_RR_ID', 'Version_1')
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some new dp')
-
-        # test call
-        dp_id = self.data_product_management_service.create_data_product(dp_obj)
-
-        # check results
-        self.assertEqual(dp_id, 'SOME_RR_ID')
-        self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dp_obj.name, True)
-        self.resource_registry.create.assert_called_once_with(dp_obj)
 
     def test_createDataProduct_and_DataProducer_success(self):
         # setup
@@ -91,214 +86,6 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, "Object with id SOME_RR_ID1 does not exist.")
 
-    def test_createDataProduct_already_exists_BadRequest(self):
-        # setup
-        self.resource_registry.find_resources.return_value = (['SOME_RR_ID'], 'Version_X')
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some new dp')
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            dp_id = self.data_product_management_service.create_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dp_obj.name, True)
-        ex = cm.exception
-        self.assertEqual(ex.message, "A data product named 'DP_X' already exists")
-
-    def test_createDataProduct_with_id_BadRequest(self):
-        # setup
-        self.resource_registry.find_resources.return_value = ([], 'do not care')
-        self.resource_registry.create.side_effect = BadRequest("Create cannot create document with ID: ")
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some other new dp')
-        dp_obj._id = "SOME_OTHER_RR_ID"
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            dp_id = self.data_product_management_service.create_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dp_obj.name, True)
-        self.resource_registry.create.assert_called_once_with(dp_obj)
-        ex = cm.exception
-        print 'ex.message = ', ex.message
-        self.assertEqual(ex.message, "Create cannot create document with ID: ")
-
-    def test_createDataProduct_with_rev_BadRequest(self):
-        # setup
-        self.resource_registry.find_resources.return_value = ([], 'do not care')
-        self.resource_registry.create.side_effect = BadRequest("Create cannot create document with Rev: ")
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some other new dp')
-        dp_obj._rev = "SOME_REV"
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            dp_id = self.data_product_management_service.create_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dp_obj.name, True)
-        self.resource_registry.create.assert_called_once_with(dp_obj)
-        ex = cm.exception
-        self.assertEqual(ex.message, "Create cannot create document with Rev: ")
-
-    def test_readDataProduct_success(self):
-        # setup
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some new dp')
-        self.resource_registry.read.return_value = (dp_obj)
-
-        # test call
-        returned_dp_obj = self.data_product_management_service.read_data_product('SOME_RR_ID1')
-
-        # check results
-        self.assertEqual(returned_dp_obj, dp_obj)
-        self.resource_registry.read.assert_called_once_with('SOME_RR_ID1', '')
-
-    def test_readDataProduct_NotFound(self):
-        # setup
-        self.resource_registry.read.side_effect = NotFound("Object with id SOME_RR_ID1 does not exist.")
-
-        # test call
-        with self.assertRaises(NotFound) as cm:
-            returned_dp_obj = self.data_product_management_service.read_data_product('SOME_RR_ID1')
-
-        # check results
-        self.resource_registry.read.assert_called_once_with('SOME_RR_ID1', '')
-        ex = cm.exception
-        self.assertEqual(ex.message, "Object with id SOME_RR_ID1 does not exist.")
-
-    def test_updateDataProduct_success(self):
-        # setup
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some existing dp')
-        self.resource_registry.update.return_value = ('SOME_RR_ID1', 'Version_1')
-
-        # test call
-        result = self.data_product_management_service.update_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.update.assert_called_once_with(dp_obj)
-
-    def test_updateDataProduct_without_id_BadRequest(self):
-        # setup
-        self.resource_registry.update.side_effect = BadRequest("Update failed: Document has no ID: ")
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some existing dp')
-        result = None
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            result = self.data_product_management_service.update_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.update.assert_called_once_with(dp_obj)
-        ex = cm.exception
-        self.assertEqual(ex.message, "Update failed: Document has no ID: ")
-        self.assertEqual(result, None)
-
-    def test_updateDataProduct_without_rev_BadRequest(self):
-        # setup
-        self.resource_registry.update.side_effect = BadRequest("Update failed: Document has no Rev: ")
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some existing dp')
-        result = None
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            result = self.data_product_management_service.update_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.update.assert_called_once_with(dp_obj)
-        ex = cm.exception
-        self.assertEqual(ex.message, "Update failed: Document has no Rev: ")
-        self.assertEqual(result, None)
-
-    def test_updateDataProduct_not_current_version_BadRequest(self):
-        # setup
-        self.resource_registry.update.side_effect = BadRequest("Object not based on most current version")
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some existing dp')
-        result = None
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            result = self.data_product_management_service.update_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.update.assert_called_once_with(dp_obj)
-        ex = cm.exception
-        self.assertEqual(ex.message, "Object not based on most current version")
-        self.assertEqual(result, None)
-
-    def test_updateDataProduct_setting_lcs_BadRequest(self):
-        # setup
-        self.resource_registry.update.side_effect = BadRequest("Cannot modify life cycle state in update!")
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some existing dp')
-        result = None
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            result = self.data_product_management_service.update_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.update.assert_called_once_with(dp_obj)
-        ex = cm.exception
-        self.assertEqual(ex.message, "Cannot modify life cycle state in update!")
-        self.assertEqual(result, None)
-
-    def test_deleteDataProduct_success(self):
-        # setup
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some existing dp')
-        self.resource_registry.delete.return_value = (dp_obj)
-
-        # test call
-        result = self.data_product_management_service.delete_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.delete.assert_called_once_with(dp_obj)
-
-    def test_deleteDataProduct_NotFound(self):
-        # setup
-        self.resource_registry.delete.side_effect = BadRequest("Object with id SOME_RR_ID1 does not exist.")
-        # Data Product
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP_X',
-                           description='some existing dp')
-        result = None
-
-        # test call
-        with self.assertRaises(BadRequest) as cm:
-            result = self.data_product_management_service.delete_data_product(dp_obj)
-
-        # check results
-        self.resource_registry.delete.assert_called_once_with(dp_obj)
-        ex = cm.exception
-        self.assertEqual(ex.message, "Object with id SOME_RR_ID1 does not exist.")
-        self.assertEqual(result, None)
 
     def test_findDataProduct_success(self):
         # setup
@@ -320,7 +107,7 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
 #@unittest.skip('not working')
 class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
 
-    def test_createDataProduct(self):
+    def setUp(self):
         # Start container
         #print 'instantiating container'
         self._start_container()
@@ -329,16 +116,18 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2sa.yml')
 
         print 'started services'
 
         # Now create client to DataProductManagementService
-        client = DataProductManagementServiceClient(node=self.container.node)
-        rrclient = ResourceRegistryServiceClient(node=self.container.node)
+        self.client = DataProductManagementServiceClient(node=self.container.node)
+        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
+
+    def test_createDataProduct(self):
+        client = self.client
+        rrclient = self.rrclient
+
 
         # set up initial data source and its associated data producer
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
@@ -451,3 +240,15 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
 
         # Shut down container
         #container.stop()
+
+ 
+#dynamically add tests to the test classes. THIS MUST HAPPEN OUTSIDE THE CLASS
+
+#unit
+rim = ResourceImplMetatest(Test_DataProductManagementService_Unit, DataProductManagementService, log)
+rim.add_resource_impl_unittests(DataProductImpl)
+
+
+#integration
+rimi = ResourceImplMetatestIntegration(Test_DataProductManagementService_Integration, DataProductManagementService, log)
+rimi.add_resource_impl_inttests(DataProductImpl)

@@ -9,7 +9,7 @@
 from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
-from pyon.public import AT, RT
+from pyon.public import RT
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -164,7 +164,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to unregister instrument producer: %s" %ex)
 
-
+    @unittest.skip('Illegal subject type ExternalDataset for predicate hasAgentInstance')
     def test_eoi_resources(self):
 
             #

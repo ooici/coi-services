@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.instrument_model_impl
+@package  ion.services.sa.resource_impl.instrument_model_impl
 @author   Ian Katz
 """
 
@@ -10,11 +10,11 @@
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, LCS
 
-from ion.services.sa.instrument.ims_simple import IMSsimple
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
+from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
 
-class InstrumentModelImpl(IMSsimple):
+class InstrumentModelImpl(ResourceSimpleImpl):
     """
     @brief resource management for InstrumentModel resources
     """

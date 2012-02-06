@@ -16,20 +16,20 @@ from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
 
-from ion.services.sa.resource_impl_metatest_integration import ResourceImplMetatestIntegration
+from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
 
 from ion.services.sa.test.helpers import any_old
 
-from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
-from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
-from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
+from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.resource_impl.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.resource_impl.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.resource_impl.platform_model_impl import PlatformModelImpl
+from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
+from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
 
 
 class FakeProcess(LocalContextMixin):
@@ -49,7 +49,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #print 'started container'
 
         self.container.start_rel_from_url('res/deploy/r2sa.yml')
-
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         
         print 'started services'
@@ -72,8 +71,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
         platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
         platform_model_id, _ =             self.RR.create(any_old(RT.PlatformModel))
-        #sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
-        #sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
+        sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
+        sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
 
         #stuff we associate to
         logical_platform_id, _   = self.RR.create(any_old(RT.LogicalPlatform))
@@ -110,9 +109,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         platform_model_id #is only a target
 
         #sensor_device
-        #self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
+        self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
 
-        #sensor_model_id #is only a target
+        sensor_model_id #is only a target
 
  
 rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceIntegration, InstrumentManagementService, log)
