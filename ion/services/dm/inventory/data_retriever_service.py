@@ -37,8 +37,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         pid = self.container.spawn_process(name=replay_id+'agent',
             module='ion.services.dm.inventory.replay_agent',
             cls='ReplayAgent',
-            config=config,
-            process_type='agent')
+            config=config)
 
         pid = self.container.id + '.' + pid
         replay.process_id = pid

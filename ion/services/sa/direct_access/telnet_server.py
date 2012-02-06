@@ -718,9 +718,9 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				if self.DOECHO:
 					self.write("\n")
 			if not self.authCallback(username, password):
-				logging.info("login failed")
+				logging.debug("login failed")
 				self.writeline("login failed")
-				self.exitHandler()
+				self.exitHandler("login failed")
 				return
 		while True:
 			if self.DOECHO:

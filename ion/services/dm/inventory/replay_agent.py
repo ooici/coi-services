@@ -5,13 +5,16 @@
 @file pyon/ion/replayagent.py
 @description Implementation for the Replay Agent
 '''
-from interface.objects import BlogBase
 from pyon.ion.endpoint import StreamPublisherRegistrar
-from interface.services.dm.ireplay_agent import BaseReplayAgent
 from pyon.public import log
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 
+from interface.objects import BlogBase
+from interface.services.dm.ireplay_agent import BaseReplayAgent
+
 class ReplayAgent(BaseReplayAgent):
+    process_type = "standalone"
+
     def __init__(self, *args, **kwargs):
         super(ReplayAgent, self).__init__(*args,**kwargs)
         #@todo Init stuff
