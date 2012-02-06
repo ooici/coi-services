@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
-
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
+
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
 
@@ -97,4 +96,3 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         @throws NotFound    object with specified id does not exist
         """
         pass
-
