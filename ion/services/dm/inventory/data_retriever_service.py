@@ -26,8 +26,9 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay = Replay()
         replay.delivery_format = delivery_format
         replay.query = query
-        #@todo: make an actual process id
-
+        #-----------------------------
+        #@todo: Add in CEI integration
+        #-----------------------------
         replay.process_id = 0
 
         replay_id, rev = self.clients.resource_registry.create(replay)
