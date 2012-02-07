@@ -5,9 +5,13 @@
 @file ion/services/mi/drivers/test/bars_simulator.py
 @author Carlos Rueda
 
-@brief A simple simulator for the BARS instrument intended to facilitate
-testing. It accepts a TCP connection on a port and starts by sending out
-bursts of (random) data every few seconds.
+@brief A partial simulator for the BARS instrument intended to facilitate
+testing.
+It accepts a TCP connection on a port and starts by sending out bursts of
+random data every few seconds. By default it binds the service to an
+automatically assigned port.
+It accepts multiple clients but in sequential order.
+
 """
 
 __author__ = 'Carlos Rueda'
