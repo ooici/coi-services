@@ -732,6 +732,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
 
+    def assign_instrument_model_to_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
+        self.instrument_agent.link_model(instrument_agent_id, instrument_model_id)
+
+    def unassign_instrument_model_from_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
+        self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
+
 
     def assign_X_to_Y(self, X_id='', Y_id=''):
         self.Y.link_Z(Y_id, X_id)
@@ -770,6 +776,35 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
 
 
+    ############################
+    #
+    #  ASSOCIATION FIND METHODS
+    #
+    ############################
+
+
+    def find_instrument_model_by_instrument_device(self, instrument_device_id):
+        return self.instrument_device.find_stemming_model(instrument_device_id)
+
+    def find_instrument_device_by_instrument_model(self, instrument_model_id):
+        return self.instrument_device.find_having_model(instrument_model_id)
+
+
+    def find_instrument_model_by_instrument_agent(self, instrument_agent_id):
+        return self.instrument_agent.find_stemming_model(instrument_agent_id)
+
+    def find_instrument_agent_by_instrument_model(self, instrument_model_id):
+        return self.instrument_agent.find_having_model(instrument_model_id)
+
+
+    def find_instrument_device_by_platform_device(self, platform_device_id):
+        return self.platform_device.find_stemming_instrument(platform_device_id)
+
+    def find_platform_device_by_instrument_device(self, instrument_device_id):
+        return self.platform_device.find_having_instrument(instrument_device_id)
+
+    
+
 
     ############################
     #
@@ -796,8 +831,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
            data_producers += self.data_producer.find_having_input_data_producer(producer_id)[0]
 
         return data_products
-        
 
+    def find_data_product_by_platform_device(self, platform_device_id=''):
+        ret = []
+        instrument_device_ids, _ = self.find_instrument_device_by_platform_device(platform_device_id)
+        for i in instrument_device_ids:
+            data_products = self.find_data_product_by_instrument_device(i)
+            for d in data_products:
+                if not d in ret:
+                    ret.append(d)
+
+        return ret
+        
 
 
     ############################
