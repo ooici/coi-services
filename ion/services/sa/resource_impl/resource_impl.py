@@ -393,10 +393,11 @@ class ResourceImpl(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        return self.RR.find_subjects(self.iontype,
-                                     association_predicate,
-                                     some_object,
-                                     True)
+        ret, _ = self.RR.find_subjects(self.iontype,
+                                       association_predicate,
+                                       some_object,
+                                       True)
+        return ret
 
     def _find_stemming(self, primary_object_id, association_predicate, some_object_type):
         """
@@ -407,10 +408,11 @@ class ResourceImpl(object):
         @param association_prediate the association type
         @param some_object_type the type of associated object
         """
-        return self.RR.find_objects(primary_object_id,
-                                    association_predicate,
-                                    some_object_type,
-                                    True)
+        ret, _ = self.RR.find_objects(primary_object_id,
+                                      association_predicate,
+                                      some_object_type,
+                                      True)
+        return ret
 
 
     def find_having_attachment(self, attachment_id):

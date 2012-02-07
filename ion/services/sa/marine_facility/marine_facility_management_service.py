@@ -384,18 +384,15 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
     def find_instrument_device_by_logical_platform(self, logical_platform_id=''):
         ret = []
-        log_insts, _ = self.logical_platform.find_stemming_instrument(logical_platform_id)
-        for l in log_insts:
-            insts, _ = self.instrument_device.find_having_assignment(l)
-            for i in insts:
+        for l in self.logical_platform.find_stemming_instrument(logical_platform_id):
+            for i in self.instrument_device.find_having_assignment(l):
                 if not i in ret:
                     ret.append(i)
         return ret
 
     def find_instrument_device_by_site(self, site_id=''):
         ret = []
-        log_plats, _ = self.find_logical_platform_by_site(site_id)
-        for l in log_plats:
+        for l in self.find_logical_platform_by_site(site_id):
             for i in self.find_instrument_device_by_logical_platform(l):
                 if not i in ret:
                     ret.append(i)
@@ -404,8 +401,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
     def find_instrument_device_by_marine_facility(self, marine_facility_id=''):
         ret = []
-        sites, _ = self.find_site_by_marine_facility(marine_facility_id)
-        for s in sites:
+        for s in self.find_site_by_marine_facility(marine_facility_id):
             for i in self.find_instrument_device_by_site(s):
                 if not i in ret:
                     ret.append(i)

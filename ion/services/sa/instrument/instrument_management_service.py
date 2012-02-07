@@ -260,8 +260,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #get instrument object and instrument's data producer
         inst_obj = self.instrument_device.read_one(instrument_device_id)
-        assoc_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasDataProducer, RT.DataProducer, True)
-        inst_pducer_id = assoc_ids[0]
+        inst_pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
+        inst_pducer_id = inst_pducers[0]
         log.debug("instrument data producer id='%s'" % inst_pducer_id)
 
         #create a new data product
@@ -273,18 +273,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         # get data product's data producer (via association)
-        assoc_ids, _ = self.RR.find_objects(pduct_id, PRED.hasDataProducer, RT.DataProducer, True)
-        prod_pducer_id = assoc_ids[0]
+        prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
+        prod_pducer_id = prod_pducers[0]
         
         # (TODO: there should only be one assoc_id.  what error to raise?)
         # TODO: what error to raise if there are no assoc ids?
 
         # instrument data producer is the parent of the data product producer
-        associate_success = self.RR.create_association(prod_pducer_id,
-                                                       PRED.hasInputDataProducer, 
-                                                       inst_pducer_id)
-        log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
-
+        self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
 
         #TODO: error checking
 
@@ -819,23 +815,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #init working set of data producers to walk
         data_producers = []
         pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
-        data_producers += pducers[0]
+        data_producers += pducers
 
 
         #iterate through all un-processed data producers (could also do recursively)
         while 0 < len(data_producers):
            producer_id = data_producers.pop()
            #get any products that are associated with this data producer and return them
-           data_products += self.data_product.find_stemming_data_producer(producer_id)[0]
+           data_products += self.data_product.find_stemming_data_producer(producer_id)
            #get any producers that receive input from this data producer
-           data_producers += self.data_producer.find_having_input_data_producer(producer_id)[0]
+           data_producers += self.data_producer.find_having_input_data_producer(producer_id)
 
         return data_products
 
     def find_data_product_by_platform_device(self, platform_device_id=''):
         ret = []
-        instrument_device_ids, _ = self.find_instrument_device_by_platform_device(platform_device_id)
-        for i in instrument_device_ids:
+        for i in self.find_instrument_device_by_platform_device(platform_device_id):
             data_products = self.find_data_product_by_instrument_device(i)
             for d in data_products:
                 if not d in ret:

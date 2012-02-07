@@ -517,7 +517,7 @@ class ResourceImplMetatest(object):
 
                             #call the impl
                             response = myfind("111")
-                            self.assertEqual(reply, response)
+                            self.assertEqual(response, ['333'])
                         
                         name = make_name("resource_impl_find_having_%s_link" % assn_type)
                         doc  = make_doc("Checking find %s having %s" % (impl_instance.iontype, assn_type))
@@ -552,7 +552,7 @@ class ResourceImplMetatest(object):
 
                             #call the impl
                             response = myfind("111")
-                            self.assertEqual(reply, response)
+                            self.assertEqual(response, ['333'])
                         
                         name = make_name("resource_impl_find_stemming_%s_links" % assn_type)
                         doc  = make_doc("Checking find %s stemming from %s" % (assn_type, impl_instance.iontype))
