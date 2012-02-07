@@ -25,9 +25,10 @@ The commands are:
 
 Note, at the beginning of the interaction (assuming the instrument is in data
 streaming mode) a number of ^S commands must typically be attempted to get to
-the main menu. Then, interaction is straightforward, that is, no need to
-re-attempt any of the commands except for the ^S case. This same behavior is
-also seen when using telnet (both directly or via pexpect.spawn.interact).
+the main menu. This same behavior is also seen when using telnet (both
+directly or via pexpect.spawn.interact). Then, interaction is straightforward,
+that is, no need to re-attempt any of the commands except for the ^S case.
+The special command '!' makes the program do the multiple ^S attempts.
 """
 
 import sys
@@ -105,7 +106,6 @@ class _Recv(Thread):
 #                print "### LINE: '%s'" % str
 
 
-
 class _Direct(object):
     """
     Main program.
@@ -180,7 +180,7 @@ class _Direct(object):
         @param char must satisfy 'a' <= char.lower() <= 'z'
         """
         char = char.lower()
-        'a' <= char <= 'z'
+        assert 'a' <= char <= 'z'
         a = ord(char)
         a = a - ord('a') + 1
         return self.send(chr(a))
