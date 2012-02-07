@@ -17,7 +17,6 @@ import unittest
 
 from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
 
 
 
@@ -27,7 +26,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('UNIT', group='sa')
 #@unittest.skip('not working')
-class Test_DataProductManagementService_Unit(PyonTestCase):
+class TestDataProductManagementServiceUnit(PyonTestCase):
 
     def setUp(self):
         self.clients = self._create_service_mock('data_product_management')
@@ -105,7 +104,7 @@ class Test_DataProductManagementService_Unit(PyonTestCase):
 
 @attr('INT', group='sa')
 #@unittest.skip('not working')
-class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
+class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
@@ -245,10 +244,6 @@ class Test_DataProductManagementService_Integration(IonIntegrationTestCase):
 #dynamically add tests to the test classes. THIS MUST HAPPEN OUTSIDE THE CLASS
 
 #unit
-rim = ResourceImplMetatest(Test_DataProductManagementService_Unit, DataProductManagementService, log)
+rim = ResourceImplMetatest(TestDataProductManagementServiceUnit, DataProductManagementService, log)
 rim.add_resource_impl_unittests(DataProductImpl)
 
-
-#integration
-rimi = ResourceImplMetatestIntegration(Test_DataProductManagementService_Integration, DataProductManagementService, log)
-rimi.add_resource_impl_inttests(DataProductImpl)
