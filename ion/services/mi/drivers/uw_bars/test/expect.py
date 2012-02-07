@@ -7,7 +7,11 @@ __license__ = 'Apache 2.0'
 A simple program exercising the pexpect library to communicate with the BARS
 instrument.
 
-You can test it with the BARS simulator:
+NOTE:
+ - works fine with immediate pexpect.spawn.interact
+ - but there're sync issues with pexpect in general
+
+Try this program with the BARS simulator:
     First, run the simulator:
     $ bin/python ion/services/mi/drivers/uw_bars/test/bars_simulator.py
             |* BarsSimulator: bound to port 63179
@@ -42,6 +46,7 @@ logfile = None
 NEWLINE = '\r\n'
 DATA_LINE_PATTERN = r'(\d+\.\d*\s*){12}.*'
 
+
 def escape(str):
     str = str.replace('\r', '\\r')
     str = str.replace('\n', '\\n')
@@ -49,18 +54,23 @@ def escape(str):
     str = str.replace('\x04', '^D')
     return str
 
-prefix = "\n\t| "
-def print_str(child, str):
+PREFIX = "\n\t| "
+
+
+def prefix(child, str):
     str = str.replace('\r\n', '\\r\\n\n')
     str = str.replace('\x13', '^S')
     str = str.replace('\x04', '^D')
-    print prefix + str.replace('\n', prefix)
+    return PREFIX + str.replace('\n', PREFIX)
+
 
 def print_match(child):
-    print_str(child, child.after)
+    print prefix(child, child.after)
+
 
 def print_before(child):
-    print_str(child, child.before)
+    print prefix(child, child.before)
+
 
 def expect_data(child, timeout=30):
     print "# expecting data (timeout=%d)" % timeout
@@ -73,30 +83,21 @@ def expect_data(child, timeout=30):
         print_before(child)
     return got_data
 
+
 def send_newline(child):
     time.sleep(1)
-    print "# sending newline '%s'" % escape(NEWLINE)
-#    child.send(NEWLINE)
-    
+    print "# sending ^M"
     child.sendcontrol('m')
-    child.sendcontrol('m')
+
 
 def send_char(child, c, msg):
     assert len(c) == 1
     time.sleep(1)
 
     print "# sending '%s' (%s)" % (escape(c), msg)
+    child.send(c + '\r')
+#    child.sendcontrol('m')
 
-    print "# first %s" % c
-    child.send(c)
-    child.sendcontrol('m')
-
-    print "# second %s" % c
-    child.send(c)
-    child.sendcontrol('m')
-
-#    c = c + NEWLINE
-#    child.send(c)
 
 def terminate(simulator, child):
     if child.isalive():
@@ -125,9 +126,10 @@ print "# spawning telnet"
 child = pexpect.spawn('telnet', [host, port], logfile=logfile)
 
 
-#if not simulator:
-#    child.interact()
-#    terminate(simulator, child)
+### Note: immediate interaction with real instrument works fine with pexpect,
+### but not as well when doing step-by-step interaction.
+#child.interact()
+#terminate(simulator, child)
 
 if not expect_data(child):
     terminate(simulator, child)
@@ -138,20 +140,20 @@ got_prompt = False
 limit_time = time.time() + 20  # the following for up to ~ 20+2 secs
 while not got_prompt and time.time() < limit_time:
     print "# sending ^S and waiting for prompt"
-
     child.sendcontrol('s')
     if simulator:
-        send_newline(child)
-
+        child.sendcontrol('m')
     index = child.expect(['.*--> ', pexpect.TIMEOUT], timeout=2)
     got_prompt = 0 == index
 
 if got_prompt:
     print "# got prompt"
-    print "# BEFORE:"
-    print_before(child)
     print "# MATCH:"
     print_match(child)
+
+    send_newline(child)
+
+    time.sleep(3)
 
     send_char(child, '6', "system info")
     child.expect('.*--> ')
@@ -162,7 +164,6 @@ if got_prompt:
     print "# expecting prompt (main menu)"
     child.expect('.*--> ')
     print_match(child)
-
 
     expect_data(child)
 

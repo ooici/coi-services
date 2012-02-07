@@ -116,6 +116,10 @@ class BarsSimulator(object):
         self._log("bound to port %s" % self._port)
         self._bt = None
 
+        # helps to ignore \r coming right after normal commands, which would
+        # have already been dispatched.
+        self._pre_recv = ''
+
     def _log_client(self, m):
         print "%s[%d.%d] BarsSimulator: %s" % (self._log_prefix,
                                                self._simulator_no,
@@ -181,12 +185,14 @@ class BarsSimulator(object):
 
     def _clear_screen(self, info):
         clear_screen = NEWLINE * 20
+        info = info.replace('\n', NEWLINE)
         self._conn.sendall(clear_screen + info)
 
     def _recv(self):
         """
         does the recv call with handling of timeout
         """
+
         while self._enabled:
             try:
                 input = None
@@ -194,20 +200,37 @@ class BarsSimulator(object):
                 recv = self._conn.recv(1)
 
                 if recv is not None:
-                    self._log_client("RECV: '%s'" % _escape(recv))
-                    if EOF in recv:
+                    self._log_client("RECV: '%s'   _pre_recv = '%s'" % (
+                        _escape(recv), _escape(self._pre_recv)))
+                    if EOF == recv:
                         self._enabled = False
                         break
-                    if len(recv.strip()) > 0:
+                    if '\r' == recv:
+                        if self._pre_recv == '':
+                            input = recv
+                        else:
+                            # ignore \r, self._pre_recv already notified
+                            self._pre_recv = ''
+                            self._log_client("\\r IGNORED.")
+                            continue
+
+                    elif len(recv.strip()) > 0:
                         input = recv.strip()
+                        if input != CONTROL_S:
+                            self._pre_recv += input
+                            self._log_client("APPENDED _pre_recv = '%s'" % \
+                                _escape(self._pre_recv))
                     else:
                         input = recv
 
-                    self._log_client("input: '%s'" % _escape(input))
                 else:
                     self._log_client("RECV: None")
+                    self._pre_recv = ''
+
                 if input is not None:
+                    self._log_client("input: '%s'" % _escape(input))
                     return input
+
             except socket.timeout:
                 # ok, retry receiving
                 continue
@@ -406,7 +429,6 @@ class BarsSimulator(object):
   System Serial #: 002
 
   Press Enter to return to the Main Menu. --> """
-        info = info.replace('\n', NEWLINE)
 
         while self._enabled:
             self._clear_screen(info)
@@ -417,6 +439,8 @@ class BarsSimulator(object):
             if not input:
                 break
 
+            if input == "\r":
+                break
             else:
                 # just continue
                 continue
