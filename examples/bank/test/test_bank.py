@@ -7,7 +7,7 @@ from interface.services.examples.bank.ibank_service import BankServiceClient
 
 from nose.plugins.attrib import attr
 
-@attr('INT')
+@attr('INT',group='example')
 class Test_Bank(IonIntegrationTestCase):
 
     def test_bank(self):
