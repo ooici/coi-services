@@ -62,23 +62,32 @@ class TestLCASA(IonIntegrationTestCase):
     def test_just_the_setup(self):
         return
 
-    #@unittest.skip('temporarily')
-    def test_lca_step_1(self):
-        log.info("LCA steps 1.3, 1.4, 1.5, 1.6, 1.7: FCRUF marine facility")
-        self.generic_fcruf_script(RT.MarineFacility, "marine_facility", self.client.MFMS, True)
-
-    #@unittest.skip('temporarily')
-    def test_lca_step_3(self):
-        log.info("LCA steps 3.1, 3.2, 3.3, 3.4: FCRF site")
-        self.generic_fcruf_script(RT.Site, "site", self.client.MFMS, True)
 
 
     #@unittest.skip('temporarily')
-    def test_lca_step_4(self):
+    def test_lca_step_1_to_6(self):
         c = self.client
 
-        log.info("setting up requirements for LCA step 4: a site")
-        site_id = self.generic_fcruf_script(RT.Site, "site", self.client.MFMS, True)
+        log.info("LCA steps 1.3, 1.4, 1.5, 1.6, 1.7: FCRUF marine facility")
+        marine_facility_id = self.generic_fcruf_script(RT.MarineFacility, 
+                                          "marine_facility", 
+                                          self.client.MFMS, 
+                                          True)
+
+        log.info("LCA steps 3.1, 3.2, 3.3, 3.4: FCRF site")
+        site_id = self.generic_fcruf_script(RT.Site, 
+                                            "site", 
+                                            self.client.MFMS, 
+                                            True)
+
+        log.info("LCA <missing step>: associate site with marine facility")
+        self.generic_association_script(c.MFMS.assign_site_to_marine_facility,
+                                        c.MFMS.find_marine_facility_by_site,
+                                        c.MFMS.find_site_by_marine_facility,
+                                        marine_facility_id,
+                                        site_id)
+
+        
 
         log.info("LCA step 4.1, 4.2: FCU platform model")
         platform_model_id = self.generic_fcruf_script(RT.PlatformModel, 
@@ -99,27 +108,27 @@ class TestLCASA(IonIntegrationTestCase):
                                                     False)
 
         log.info("LCA step 4.6: Assign logical platform to site")
-        c.MFMS.assign_logical_platform_to_site(logical_platform_id, site_id)
+        self.generic_association_script(c.MFMS.assign_logical_platform_to_site,
+                                        c.MFMS.find_site_by_logical_platform,
+                                        c.MFMS.find_logical_platform_by_site,
+                                        site_id,
+                                        logical_platform_id)
 
-        #TODO: LCA script seems to be missing "assign_logical_platform_to_platform_device"
+        log.info("LCA <missing step>: assign_platform_model_to_platform_device")
+        self.generic_association_script(c.IMS.assign_platform_model_to_platform_device,
+                                        c.IMS.find_platform_device_by_platform_model,
+                                        c.IMS.find_platform_model_by_platform_device,
+                                        platform_device_id,
+                                        platform_model_id)
 
 
-        # code to delete what we created is in generic_d_script
-        self.generic_d_script(site_id, "site", self.client.MFMS)
-        self.generic_d_script(platform_model_id, "platform_model", self.client.IMS)
-        self.generic_d_script(logical_platform_id, "logical_platform", self.client.MFMS)
-        self.generic_d_script(platform_device_id, "platform_device", self.client.IMS)
+        log.info("LCA <missing step>: assign_logical_platform_to_platform_device")
+        self.generic_association_script(c.IMS.assign_logical_platform_to_platform_device,
+                                        c.IMS.find_platform_device_by_logical_platform,
+                                        c.IMS.find_logical_platform_by_platform_device,
+                                        platform_device_id,
+                                        logical_platform_id)
 
-
-    def test_lca_step5(self):
-        c = self.client
-
-        log.info("setting up requirements for LCA step 5: site + logical platform")
-        site_id = self.generic_fcruf_script(RT.Site, "site", self.client.MFMS, True)
-        logical_platform_id = self.generic_fcruf_script(RT.LogicalPlatform, 
-                                                    "logical_platform", 
-                                                    self.client.MFMS, 
-                                                    True)
 
         log.info("LCA step 5.1, 5.2: FCU instrument model")
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel, 
@@ -134,15 +143,20 @@ class TestLCASA(IonIntegrationTestCase):
                                                     True)
 
         log.info("Assigning logical instrument to logical platform")
-        c.MFMS.assign_logical_instrument_to_logical_platform(logical_instrument_id, logical_platform_id)
-
-
-
         log.info("LCA step 5.4: list logical instrument by platform")
-        #TODO
+        self.generic_association_script(c.MFMS.assign_logical_instrument_to_logical_platform,
+                                        c.MFMS.find_logical_platform_by_logical_instrument,
+                                        c.MFMS.find_logical_instrument_by_logical_platform,
+                                        logical_platform_id,
+                                        logical_instrument_id)
 
+
+
+        #THIS STEP IS IN THE WRONG PLACE...
         log.info("LCA step 5.5: list instruments by observatory")
-        #TODO
+        insts = c.MFMS.find_instrument_device_by_marine_facility(marine_facility_id)
+        self.assertEqual(0, len(insts))
+        #self.assertIn(instrument_device_id, insts)
 
         log.info("LCA step 5.6, 5.7, 5.9: CRU instrument_device")
         instrument_device_id = self.generic_fcruf_script(RT.InstrumentDevice, 
@@ -150,38 +164,51 @@ class TestLCASA(IonIntegrationTestCase):
                                                     self.client.IMS, 
                                                     False)
 
+        log.info("LCA <missing step>: assign logical instrument to instrument device")
+        self.generic_association_script(c.IMS.assign_logical_instrument_to_instrument_device,
+                                        c.IMS.find_instrument_device_by_logical_instrument,
+                                        c.IMS.find_logical_instrument_by_instrument_device,
+                                        instrument_device_id,
+                                        logical_instrument_id)
+
+        log.info("LCA <missing step>: assign instrument device to platform device")
+        self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
+                                        c.IMS.find_platform_device_by_instrument_device,
+                                        c.IMS.find_instrument_device_by_platform_device,
+                                        platform_device_id,
+                                        instrument_device_id)
+
+
+        #THIS IS WHERE THE STEP SHOULD BE
+        log.info("LCA step 5.5: list instruments by observatory")
+        insts = c.MFMS.find_instrument_device_by_marine_facility(marine_facility_id)
+        self.assertIn(instrument_device_id, insts)
+
+
         log.info("LCA step 5.8: instrument device policy?")
         #TODO
         
         log.info("LCA step 5.10a: find data products by instrument device")
-        
-        #find data products
         products = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)
-        print products
+        self.assertNotEqual(0, len(products))
+        data_product_id = products[0]
 
         log.info("LCA step 5.10b: find data products by platform")
-        log.info("LCA step 5.10c: find data products by site")
-        log.info("LCA step 5.10d: find data products by marine facility")
-        #TODO
+        products = self.client.IMS.find_data_product_by_platform_device(platform_device_id)
+        self.assertIn(data_product_id, products)
 
+        log.info("LCA step 5.10c: find data products by logical platform")
+        products = self.client.MFMS.find_data_product_by_logical_platform(logical_platform_id)
+        self.assertIn(data_product_id, products)
 
+        log.info("LCA step 5.10d: find data products by site")
+        products = self.client.MFMS.find_data_product_by_site(site_id)
+        self.assertIn(data_product_id, products)
 
-        #delete what we created
-        self.generic_d_script(instrument_device_id, "instrument_device", self.client.IMS)
-        self.generic_d_script(instrument_model_id, "instrument_model", self.client.IMS)
-        self.generic_d_script(logical_instrument_id, "logical_instrument", self.client.MFMS)
-        self.generic_d_script(logical_platform_id, "logical_platform", self.client.MFMS)
-        self.generic_d_script(site_id, "site", self.client.MFMS)
+        log.info("LCA step 5.10e: find data products by marine facility")
+        products = self.client.MFMS.find_data_product_by_marine_facility(marine_facility_id)
+        self.assertIn(data_product_id, products)
 
-
-    #@unittest.skip('temporarily')
-    def test_lca_step_6(self):
-
-        log.info("setting up requirements for LCA step 6: instrument model")
-        instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel, 
-                                                       "instrument_model", 
-                                                       self.client.IMS, 
-                                                       True)
 
 
         log.info("LCA step 6.1, 6.2: FCU instrument agent")
@@ -191,19 +218,46 @@ class TestLCASA(IonIntegrationTestCase):
                                                        True)        
         
         log.info("LCA step 6.3: associate instrument model to instrument agent")
-        #TODO
-
         log.info("LCA step 6.4: find instrument model by instrument agent")
-        #TODO
-
-        #delete what we created
-        self.generic_d_script(instrument_agent_id, "instrument_agent", self.client.IMS)
-        self.generic_d_script(instrument_model_id, "instrument_model", self.client.IMS)
-
-
+        self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_agent,
+                                        c.IMS.find_instrument_agent_by_instrument_model,
+                                        c.IMS.find_instrument_model_by_instrument_agent,
+                                        instrument_agent_id,
+                                        instrument_model_id)
 
 
 
+
+
+
+
+    def generic_association_script(self,
+                                   assign_obj_to_subj_fn,
+                                   find_subj_fn,
+                                   find_obj_fn,
+                                   subj_id,
+                                   obj_id):
+        """
+        create an association and test that it went properly
+
+        @param assign_obj_to_subj_fn the service method that takes (obj, subj) and associates them
+        @param find_subj_fn the service method that returns a list of subjects given an object
+        @param find_obj_fn the service method that returns a list of objects given a subject
+        @param subj_id the subject id to associate
+        @param obj_id the object id to associate
+        """
+        log.debug("Creating association")
+        assign_obj_to_subj_fn(obj_id, subj_id)
+
+        log.debug("Verifying find-subj-by-obj")
+        subjects = find_subj_fn(obj_id)
+        self.assertEqual(1, len(subjects))
+        self.assertIn(subj_id, subjects)
+
+        log.debug("Verifying find-obj-by-subj")
+        objects = find_obj_fn(subj_id)
+        self.assertEqual(1, len(objects))
+        self.assertIn(obj_id, objects)
 
 
 

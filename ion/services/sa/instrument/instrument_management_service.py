@@ -735,12 +735,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
 
-    def assign_X_to_Y(self, X_id='', Y_id=''):
-        self.Y.link_Z(Y_id, X_id)
-
-    def unassign_X_from_Y(self, X_id='', Y_id=''):
-        self.Y.unlink_Z(Y_id, X_id)
-
     def assign_sensor_model_to_sensor_device(self, sensor_model_id='', sensor_device_id=''):
         self.sensor_device.link_model(sensor_device_id, sensor_model_id)
 
@@ -753,11 +747,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_platform_model_from_platform_device(self, platform_model_id='', platform_device_id=''):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
+    def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
+        self.platform_device.link_instrument(platform_device_id, instrument_device_id)
+
+    def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
+        self.platform_device.unlink_instrument(platform_device_id, instrument_device_id)
+
     def assign_logical_instrument_to_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
         self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
 
     def unassign_logical_instrument_from_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
         self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
+
+    def assign_logical_platform_to_platform_device(self, logical_platform_id='', platform_device_id=''):
+        self.platform_device.link_assignment(platform_device_id, logical_platform_id)
+
+    def unassign_logical_platform_from_platform_device(self, logical_platform_id='', platform_device_id=''):
+        self.platform_device.unlink_assignment(platform_device_id, logical_platform_id)
 
     def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
         self.platform_agent.link_instance(platform_agent_id, platform_agent_instance_id)
@@ -779,27 +785,42 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ############################
 
 
-    def find_instrument_model_by_instrument_device(self, instrument_device_id):
+    def find_instrument_model_by_instrument_device(self, instrument_device_id=''):
         return self.instrument_device.find_stemming_model(instrument_device_id)
 
-    def find_instrument_device_by_instrument_model(self, instrument_model_id):
+    def find_instrument_device_by_instrument_model(self, instrument_model_id=''):
         return self.instrument_device.find_having_model(instrument_model_id)
 
+    def find_platform_model_by_platform_device(self, platform_device_id=''):
+        return self.platform_device.find_stemming_model(platform_device_id)
 
-    def find_instrument_model_by_instrument_agent(self, instrument_agent_id):
+    def find_platform_device_by_platform_model(self, platform_model_id=''):
+        return self.platform_device.find_having_model(platform_model_id)
+
+    def find_instrument_model_by_instrument_agent(self, instrument_agent_id=''):
         return self.instrument_agent.find_stemming_model(instrument_agent_id)
 
-    def find_instrument_agent_by_instrument_model(self, instrument_model_id):
+    def find_instrument_agent_by_instrument_model(self, instrument_model_id=''):
         return self.instrument_agent.find_having_model(instrument_model_id)
 
-
-    def find_instrument_device_by_platform_device(self, platform_device_id):
+    def find_instrument_device_by_platform_device(self, platform_device_id=''):
         return self.platform_device.find_stemming_instrument(platform_device_id)
 
-    def find_platform_device_by_instrument_device(self, instrument_device_id):
+    def find_platform_device_by_instrument_device(self, instrument_device_id=''):
         return self.platform_device.find_having_instrument(instrument_device_id)
 
-    
+    def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
+        return self.instrument_device.find_having_assignment(logical_instrument_id)
+
+    def find_logical_instrument_by_instrument_device(self, instrument_device_id=''):
+        return self.instrument_device.find_stemming_assignment(instrument_device_id)
+
+    def find_platform_device_by_logical_platform(self, logical_platform_id=''):
+        return self.platform_device.find_having_assignment(logical_platform_id)
+
+    def find_logical_platform_by_platform_device(self, platform_device_id=''):
+        return self.platform_device.find_stemming_assignment(platform_device_id)
+
 
 
     ############################
@@ -809,6 +830,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ############################
 
     def find_data_product_by_instrument_device(self, instrument_device_id=''):
+        log.debug("FIND DATA PRODUCT BY INSTRUMNET DEVICE")
         #init return value, a list of data sets
         data_products = []
 
@@ -821,10 +843,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #iterate through all un-processed data producers (could also do recursively)
         while 0 < len(data_producers):
            producer_id = data_producers.pop()
+           log.debug("Analyzing data producer '%s'" % producer_id)
            #get any products that are associated with this data producer and return them
-           data_products += self.data_product.find_stemming_data_producer(producer_id)
+           new_data_products = self.data_product.find_having_data_producer(producer_id)
            #get any producers that receive input from this data producer
-           data_producers += self.data_producer.find_having_input_data_producer(producer_id)
+           new_data_producers = self.data_producer.find_having_input_data_producer(producer_id)
+
+           log.debug("Got %d new products, %d new producers" % (len(new_data_products), 
+                                                                len(new_data_producers)))
+
+           data_products  += new_data_products
+           data_producers += new_data_producers
 
         return data_products
 

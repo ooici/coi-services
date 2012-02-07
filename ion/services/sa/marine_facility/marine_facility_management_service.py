@@ -375,13 +375,6 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ############################
 
-
-    def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
-        return self.instrument_device.find_having_assignment(logical_instrument_id)
-
-    def find_platform_device_by_logical_platform(self, logical_platform_id=''):
-        return self.platform_device.find_having_assignment(logical_platform_id)
-
     def find_instrument_device_by_logical_platform(self, logical_platform_id=''):
         ret = []
         for l in self.logical_platform.find_stemming_instrument(logical_platform_id):
