@@ -17,12 +17,12 @@ class TelnetServer(object):
 	server_socket = None
 	port = None
 	ip_address = None
-	parentInputCallback = None
+	parent_input_callback = None
 	username = None
 	password = None
 	fileobj = None
-	parentRequestedClose = False
-	telnetPrompt = 'ION telnet>'
+	parent_requested_close = False
+	TELNET_PROMPT = 'ION telnet>'
 
 	def write(self, text):
 		self.fileobj.write(text)
@@ -40,9 +40,9 @@ class TelnetServer(object):
 			log.debug("un=" + username + " pw=" + password + " sun=" + self.username + " spw=" + self.password)
 			return False
 	
-	def exitHandler (self, reason):
-		if not self.parentRequestedClose:
-			self.parentInputCallback(-1)
+	def exit_handler (self, reason):
+		if not self.parent_requested_close:
+			self.parent_input_callback(-1)
 		else:		
 			try:
 				self.server_socket.shutdown(socket.SHUT_RDWR)
@@ -63,52 +63,52 @@ class TelnetServer(object):
 		try:
 			username = self.fileobj.readline().rstrip('\n\r')
 		except EOFError:
-			self.exitHandler("lost connection")
+			self.exit_handler("lost connection")
 			return
 		if username == '':
-			self.exitHandler("lost connection")
+			self.exit_handler("lost connection")
 			return
 		self.write("Password: ")
 		try:
 			password = self.fileobj.readline().rstrip('\n\r')
 		except EOFError:
-			self.exitHandler("lost connection")
+			self.exit_handler("lost connection")
 			return
 		if not self.authorized(username, password):
 			log.debug("login failed")
 			self.writeline("login failed")
-			self.exitHandler("login failed")
+			self.exit_handler("login failed")
 			return
 		while True:
-			self.write(self.telnetPrompt)
+			self.write(self.TELNET_PROMPT)
 			try:
-				inputLine = self.fileobj.readline()
+				input_line = self.fileobj.readline()
 			except EOFError:
-				self.exitHandler("lost connection")
+				self.exit_handler("lost connection")
 				break
-			if inputLine == '':
-				self.exitHandler("lost connection")
+			if input_line == '':
+				self.exit_handler("lost connection")
 				break
-			log.debug("rcvd: " + inputLine)
-			log.debug("len=" + str(len(inputLine)))
-			self.parentInputCallback(inputLine.rstrip('\n\r'))
+			log.debug("rcvd: " + input_line)
+			log.debug("len=" + str(len(input_line)))
+			self.parent_input_callback(input_line.rstrip('\n\r'))
 			
-	def serverGreenlet(self):
-		log.debug("TelnetServer.serverGreenlet(): started")
+	def server_greenlet(self):
+		log.debug("TelnetServer.server_greenlet(): started")
 		self.server_socket = socket.socket()
 		self.server_socket.allow_reuse_address = True
 		self.server_socket.bind((self.ip_address, self.port))
 		self.server_socket.listen(1)
 		new_socket, address = self.server_socket.accept()
 		self.handler(new_socket, address)
-		log.debug("TelnetServer.serverGreenlet(): stopping")
+		log.debug("TelnetServer.server_greenlet(): stopping")
 		
-	def __init__(self, inputCallback=None):
+	def __init__(self, input_callback=None):
 		log.debug("TelnetServer.__init__()")
-		if not inputCallback:
+		if not input_callback:
 			log.warning("TelnetServer.__init__(): callback not specified")
 			raise ServerError("callback not specified")
-		self.parentInputCallback = inputCallback
+		self.parent_input_callback = input_callback
 		
 		# TODO: get username and password dynamically
 		self.username = 'admin'
@@ -121,14 +121,14 @@ class TelnetServer(object):
 		#self.ip_address = '67.58.49.202'
 			
 		# create telnet server object and start the server process
-		gevent.spawn(self.serverGreenlet)
+		gevent.spawn(self.server_greenlet)
 		
-	def getConnectionInfo(self):
+	def get_connection_info(self):
 		return self.ip_address, self.port, self.username, self.password
 
 	def stop(self):
 		log.debug("TelnetServer.stop()")
-		self.parentRequestedClose = True
+		self.parent_requested_close = True
 		try:
 			self.server_socket.shutdown(socket.SHUT_RDWR)
 		except Exception as ex:

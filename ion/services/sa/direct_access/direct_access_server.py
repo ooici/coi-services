@@ -8,7 +8,7 @@ from pyon.core.exception import ServerError
 
 from ion.services.sa.direct_access.ion_telnet_server import TelnetServer
 
-class directAccessTypes:
+class DirectAccessTypes:
     (telnet, vsp, ssh) = range(1, 4)
     
 
@@ -19,26 +19,26 @@ class DirectAccessServer(object):
     
     server = None
     
-    def __init__(self, direct_access_type=None, inputCallback=None):
+    def __init__(self, direct_access_type=None, input_callback=None):
         log.debug("DirectAccessServer.__init__()")
 
         if not direct_access_type:
             log.warning("DirectAccessServer.__init__(): direct access type not specified")
             raise ServerError("direct access type not specified")
 
-        if not inputCallback:
+        if not input_callback:
             log.warning("DirectAccessServer.__init__(): callback not specified")
             raise ServerError("callback not specified")
                
         # start the correct server based on direct_access_type
-        if direct_access_type == directAccessTypes.telnet:
-            self.server = TelnetServer(inputCallback)
+        if direct_access_type == DirectAccessTypes.telnet:
+            self.server = TelnetServer(input_callback)
         else:
             raise ServerError("Unsupported direct access type")
         
         
-    def getConnectionInfo(self):
-        return self.server.getConnectionInfo()
+    def get_connection_info(self):
+        return self.server.get_connection_info()
     
     def stop(self):
         log.debug("DirectAccessServer.stop()")
