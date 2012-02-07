@@ -29,8 +29,8 @@ class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
         #print 'got CC client'
         container_client.start_rel_from_url('res/deploy/examples/ia_mock.yml')
         print 'started services'
-        time.sleep(1)
-        print("quiting test")
+        #time.sleep(1)
+        print("quitting test")
 
         
 if __name__ == '__main__':

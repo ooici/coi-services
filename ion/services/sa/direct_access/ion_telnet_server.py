@@ -91,7 +91,7 @@ class TelnetServer(object):
 				break
 			log.debug("rcvd: " + inputLine)
 			log.debug("len=" + str(len(inputLine)))
-			self.parentInputCallback(inputLine)
+			self.parentInputCallback(inputLine.rstrip('\n\r'))
 			
 	def serverGreenlet(self):
 		log.debug("TelnetServer.serverGreenlet(): started")
@@ -101,6 +101,7 @@ class TelnetServer(object):
 		self.server_socket.listen(1)
 		new_socket, address = self.server_socket.accept()
 		self.handler(new_socket, address)
+		log.debug("TelnetServer.serverGreenlet(): stopping")
 		
 	def __init__(self, inputCallback=None):
 		log.debug("TelnetServer.__init__()")

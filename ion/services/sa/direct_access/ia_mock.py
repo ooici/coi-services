@@ -9,38 +9,42 @@ from pyon.agent.agent import ResourceAgent, UserAgent
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, directAccessTypes
 import gevent
 
-daServer = None
-lostConnection = False
     
-def telnetInputProcessor(data):
-    # callback passed to DA Server for receiving input server
-    global daServer, lostConnection
-    
-    if isinstance(data, int):
-        # not character data, so check for lost connection
-        if data == -1:
-            print ("InstAgentMock.telnetInputProcessor: connection lost")
-            lostConnection = True
-        else:
-            print ("InstAgentMock.telnetInputProcessor: got unexpected integer " + str(data))
-        return
-    #print ("InstAgentMock.telnetInputProcessor: data = " + str(data))
-    daServer.send("InstAgentMock.telnetInputProcessor() rcvd: " + data + chr(10))
-
 class InstAgentMock(UserAgent):
     
-    def on_start(self):
-        global daServer
-        
+    daServer = None
+    lostConnection = False
+    quit = False
+    
+    def telnetInputProcessor(self, data):
+        # callback passed to DA Server for receiving input server       
+        if isinstance(data, int):
+            # not character data, so check for lost connection
+            if data == -1:
+                print ("InstAgentMock.telnetInputProcessor: connection lost")
+                self.lostConnection = True
+            else:
+                print ("InstAgentMock.telnetInputProcessor: got unexpected integer " + str(data))
+            return
+        print ("InstAgentMock.telnetInputProcessor: data = " + str(data) + " len=" + str(len(data)))
+        self.daServer.send("InstAgentMock.telnetInputProcessor() rcvd: " + data + chr(10))
+        if data == 'quit':
+            self.quit = True
+    
+    def on_start(self):        
         print ("InstAgentMock.on_start(): entering")
-        daServer = DirectAccessServer(directAccessTypes.telnet, telnetInputProcessor)
-        connectionInfo = daServer.getConnectionInfo()
-        print ("InstAgentMock: telnet DA Server connection info = " + str(connectionInfo))
         while True:
-            if lostConnection:
+            self.daServer = DirectAccessServer(directAccessTypes.telnet, self.telnetInputProcessor)
+            connectionInfo = self.daServer.getConnectionInfo()
+            print ("InstAgentMock: telnet DA Server connection info = " + str(connectionInfo))
+            while True:
+                if self.lostConnection:
+                    self.lostConnection = False
+                    break
+                gevent.sleep(1)
+            self.daServer.stop()
+            del self.daServer
+            if self.quit == True:
                 break
-            gevent.sleep(1)
-        daServer.stop()
-        del daServer
         print ("InstAgentMock.on_start(): leaving")
 

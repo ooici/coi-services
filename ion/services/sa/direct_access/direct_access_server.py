@@ -21,14 +21,15 @@ class DirectAccessServer(object):
     
     def __init__(self, direct_access_type=None, inputCallback=None):
         log.debug("DirectAccessServer.__init__()")
-        if not inputCallback:
-            log.warning("DirectAccessServer.__init__(): callback not specified")
-            raise ServerError("callback not specified")
-        
+
         if not direct_access_type:
             log.warning("DirectAccessServer.__init__(): direct access type not specified")
             raise ServerError("direct access type not specified")
-        
+
+        if not inputCallback:
+            log.warning("DirectAccessServer.__init__(): callback not specified")
+            raise ServerError("callback not specified")
+               
         # start the correct server based on direct_access_type
         if direct_access_type == directAccessTypes.telnet:
             self.server = TelnetServer(inputCallback)
