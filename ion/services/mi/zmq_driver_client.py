@@ -55,7 +55,7 @@ class ZmqDriverClient(DriverClient):
         self.event_thread = None
         self.stop_event_thread = True
         
-    def start_messaging(self):
+    def start_messaging(self, evt_callback=None):
         """
         Initialize and start messaging resources for the driver process client.
         Initializes command socket for sending requests,
@@ -67,6 +67,7 @@ class ZmqDriverClient(DriverClient):
         self.zmq_cmd_socket.connect(self.cmd_host_string)
         mi_logger.info('Driver client cmd socket connected to %s.',
                        self.cmd_host_string)        
+        self.evt_callback = evt_callback
         
         def recv_evt_messages(driver_client):
             """
@@ -86,9 +87,10 @@ class ZmqDriverClient(DriverClient):
                 try:
                     evt = sock.recv_pyobj(flags=zmq.NOBLOCK)
                     mi_logger.debug('got event: %s', str(evt))
-                    driver_client.events.append(evt)
+                    if driver_client.evt_callback:
+                        driver_client.evt_callback(evt)
                 except zmq.ZMQError:
-                    time.sleep(0)
+                    time.sleep(.5)
 
             sock.close()
             context.term()
@@ -111,6 +113,7 @@ class ZmqDriverClient(DriverClient):
         self.stop_event_thread = True                    
         #self.event_thread.join()
         self.event_thread = None
+        self.evt_callback = None
         mi_logger.info('Driver client messaging closed.')        
     
     def cmd_dvr(self, cmd, *args, **kwargs):
@@ -139,7 +142,7 @@ class ZmqDriverClient(DriverClient):
 
             except zmq.ZMQError:
                 # Socket not ready to accept send. Sleep and retry later.
-                time.sleep(0)
+                time.sleep(.5)
             
         mi_logger.debug('Awaiting reply.')
         while True:
@@ -152,7 +155,7 @@ class ZmqDriverClient(DriverClient):
 
             except zmq.ZMQError:
                 # Socket not ready with the reply. Sleep and retry later.
-                time.sleep(0)
+                time.sleep(.5)
         mi_logger.debug('Reply: %s.', str(reply))
         return reply
     

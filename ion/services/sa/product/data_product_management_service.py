@@ -20,7 +20,6 @@ class DataProductManagementService(BaseDataProductManagementService):
     """
     
     def on_init(self):
-        log.debug("init")
         self.override_clients(self.clients)
 
     def override_clients(self, new_clients):

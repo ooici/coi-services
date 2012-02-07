@@ -12,6 +12,11 @@ __license__ = 'Apache 2.0'
 
 import logging
 from subprocess import Popen
+from subprocess import PIPE
+import signal
+import os
+import sys
+import time
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -54,19 +59,18 @@ class DriverProcess(object):
         configuration.
         @retval True if successful, False otherwise.
         """
-        
         import_str = 'import %s as dvr_mod' % self.driver_module
-        ctor_str = 'driver = dvr_mod.%s()' % self.driver_class
-        
+        ctor_str = 'driver = dvr_mod.%s(self.send_event)' % self.driver_class
         try:
             exec import_str
             mi_logger.info('Imported driver module %s', self.driver_module)
             exec ctor_str
             mi_logger.info('Constructed driver %s', self.driver_class)
             
-        except (ImportError, NameError, AttributeError):
+        except (ImportError, NameError, AttributeError) as e:
             mi_logger.error('Could not import/construct driver module %s, class %s.',
                       self.driver_module, self.driver_class)
+            mi_logger.error('%s', str(e))
             return False
 
         else:
@@ -121,17 +125,20 @@ class DriverProcess(object):
         elif cmd == 'test_events':
             events = kwargs['events']
             self.events += events
-            #self.events.append('I am event number 1!')
-            #self.events.append('And I am event number 2!')
             reply = 'test_events'
         elif cmd == 'process_echo':
-            reply = msg
+            reply = 'process_echo: %s' % str(args[0])
         elif cmd_func:
             reply = cmd_func(*args, **kwargs)
         else:
             reply = 'Unknown driver command'
         
         return reply        
+            
+    def send_event(self, evt):
+        """
+        """
+        self.events.append(evt)
             
     def run(self):
         """
@@ -140,9 +147,11 @@ class DriverProcess(object):
         """
         
         mi_logger.info('Driver process started.')
-
+        
         if self.construct_driver():
             self.start_messaging()
 
         self.shutdown()
-
+        time.sleep(1)
+        os._exit(0)
+        
