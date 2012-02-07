@@ -3,11 +3,12 @@
 @file ion/services/dm/inventory/data_retriever_service.py
 @description Data Retriever Service
 '''
-from interface.services.dm.ireplay_agent import ReplayAgentClient
+
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
+from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay
 from pyon.public import PRED
-from pyon.service.service import BaseService
+
 
 
 class DataRetrieverService(BaseDataRetrieverService):
@@ -36,8 +37,8 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay._rev = rev
         config = {'process':{'query':query, 'delivery_format':delivery_format,'publish_streams':{'output':replay_stream_id}}}
         pid = self.container.spawn_process(name=replay_id+'agent',
-            module='ion.services.dm.inventory.replay_agent',
-            cls='ReplayAgent',
+            module='ion.services.dm.inventory.replay_process',
+            cls='ReplayProcess',
             config=config)
 
         pid = self.container.id + '.' + pid
@@ -60,7 +61,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         replay = self.clients.resource_registry.read(replay_id)
         pid = replay.process_id
-        cli = ReplayAgentClient(name=pid, node=self.container.node)
+        cli = ReplayProcessClient(name=pid)
         cli.execute_replay()
 
     def cancel_replay(self, replay_id=''):

@@ -7,19 +7,17 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-
+from interface.objects import BlogBase
+from pyon.core.exception import BadRequest
 from pyon.ion.endpoint import StreamPublisherRegistrar
+from pyon.ion.process import SimpleProcess
 from pyon.public import log
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
-
-from interface.objects import BlogBase
-from interface.services.dm.ireplay_agent import BaseReplayAgent
-
-class ReplayAgent(BaseReplayAgent):
-    process_type = "standalone"
-
+from interface.services.dm.ireplay_process import BaseReplayProcess
+class ReplayProcess(BaseReplayProcess):
+    process_type="standalone"
     def __init__(self, *args, **kwargs):
-        super(ReplayAgent, self).__init__(*args,**kwargs)
+        super(ReplayProcess, self).__init__(*args,**kwargs)
         #@todo Init stuff
         # mutex for shared resources between threads
         self.lock = RLock()
@@ -54,6 +52,7 @@ class ReplayAgent(BaseReplayAgent):
 
         if not hasattr(self,'output'):
             raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
+
 
     def _publish_query(self, results):
         '''
@@ -97,37 +96,58 @@ class ReplayAgent(BaseReplayAgent):
 
 
     def execute_replay(self):
-        '''
-        Performs the replay action in a threaded manner
-        Queries the data IAW the query argument and publishes the data on the output streams
-        '''
-
         log.debug('(Replay Agent %s)', self.name)
+
+        # Handle the query
         if self.query:
             datastore_name = self.query.get('datastore_name','dm_datastore')
-            view_name = self.query.get('view_name','posts/posts_by_id')
-            opts = self.query.get('options',{'include_docs=True'})
+            post_id = self.query.get('post_id','7877516528284978243')
         else:
-            datastore_name = 'dm_datastore'
-            view_name = 'posts/posts_by_id'
-            opts = {'include_docs=True'}
+            raise BadRequest('(Replay Agent %s): Improper Query Received' % self.name)
 
-        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
-
-        #@todo: Evaluate the possibility of a separate stream per thread
-        #---------------------
-        # Threaded (greenlet)
-        #---------------------
-        # Execute_replay is now non_blocking
-        # execute_replay is thread safe so it can be called multiple times,
-        # there is a bottleneck at the stream, if the thread is publishing a large stream,
-        # the other threads have to wait until it is done.
-
-
-        g = Greenlet(self._query,datastore_name=datastore_name,view_name=view_name,opts=opts,
-            callback = lambda results: self._publish_query(results))
-
+        # Got the post ID, pull the post and the comments
+        view_name = 'posts/posts_join_comments'
+        opts = {
+            'start_key':[post_id, 0],
+            'end_key':[post_id,2],
+            'include_docs': True
+        }
+        g = Greenlet(self._query,datastore_name=datastore_name, view_name=view_name, opts=opts,
+            callback=lambda results: self._publish_query(results))
         g.start()
+
+#    def execute_replay(self):
+#        '''
+#        Performs the replay action in a threaded manner
+#        Queries the data IAW the query argument and publishes the data on the output streams
+#        '''
+#
+#        log.debug('(Replay Agent %s)', self.name)
+#        if self.query:
+#            datastore_name = self.query.get('datastore_name','dm_datastore')
+#            view_name = self.query.get('view_name','posts/posts_by_id')
+#            opts = self.query.get('options',{'include_docs=True'})
+#        else:
+#            datastore_name = 'dm_datastore'
+#            view_name = 'posts/posts_by_id'
+#            opts = {'include_docs=True'}
+#
+#        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
+#
+#        #@todo: Evaluate the possibility of a separate stream per thread
+#        #---------------------
+#        # Threaded (greenlet)
+#        #---------------------
+#        # Execute_replay is now non_blocking
+#        # execute_replay is thread safe so it can be called multiple times,
+#        # there is a bottleneck at the stream, if the thread is publishing a large stream,
+#        # the other threads have to wait until it is done.
+#
+#
+#        g = Greenlet(self._query,datastore_name=datastore_name,view_name=view_name,opts=opts,
+#            callback = lambda results: self._publish_query(results))
+#
+#        g.start()
 
 
 
@@ -135,7 +155,7 @@ class ReplayAgent(BaseReplayAgent):
         '''
         Performs the query action
         '''
-
+        log.debug('Couch Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
         db = CouchDB_DM_DataStore(datastore_name=datastore_name)
         ret = []
         if db.datastore_exists(datastore_name):
