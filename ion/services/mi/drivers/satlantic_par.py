@@ -40,6 +40,7 @@ class Command(BaseEnum):
     EXIT_AND_RESET = 'exit!'
     GET = 'get'
     SET = 'set'
+    GET_SINGLE_VALUE = 'get_single_value'
 
 class State(BaseEnum):
     COMMAND_MODE = 'COMMAND_MODE'
@@ -120,11 +121,28 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         self._add_build_handler(Command.GET, self._build_param_fetch_command)
         
         self._add_response_handler(Command.SET, self._parse_set_response)
+        # self._add_response_handler(Command.GET, self._parse_get_response)
+
+        self._add_param_dict(Parameter.TELBAUD,
+                             r'Telemetry Baud Rate:\s+(\d+) bps',
+                             lambda match : int(match.group(1)),
+                             self._int_to_string)
+        
+        self._add_param_dict(Parameter.MAXRATE,
+                             r'Maximum Frame Rate:\s+(\d+) Hz',
+                             lambda match : int(match.group(1)),
+                             self._int_to_string)
         
     # The normal interface for a protocol. These should drive the FSM
     # transitions as they get things done.
     def get(self, params=[]):
-        # check param
+        """ Get the given parameters from the instrument
+        
+        @param params The parameter values to get
+        @retval None if nothing was done, otherwise result of FSM event handle
+        Should be a dict of parameters and values
+        @throws InstrumentProtocolException On invalid parameter
+        """
         if ((params == None) or (params == [])):
             return None
         for param in params:
@@ -134,9 +152,16 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = self._fsm.on_event(Event.COMMAND,
                                     {'command':Command.GET,
                                      'params':params})
+        assert (isinstance(result, dict))
         return result
    
     def set(self, params={}):
+        """ Set the given parameters on the instrument
+        
+        @param params The parameters and values to set
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid parameter
+        """
         if ((params == None) or (params == {}) or (isinstance(params, list))):
             return None
         for param in params.keys():
@@ -147,30 +172,51 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         return result
     
     def execute(self, command=[]):
-        # check command and arguments for validity
-        # build command string
-        # execute and get result from instrument
-        # build return
-        pass
-    
+        """ Execute the given commands on the instrument
+        
+        @param command The command and args to execute [cmd, arg1, ..., argN]
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command
+        """
+        if ((command == None) or (command == [])):
+            return None
+        assert (isinstance(command, list))
+        command_name = command.pop(0)
+        if (not Command.has(command_name)):
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+        result = self._fsm.on_event(Event.COMMAND, {'command':command_name,
+                                                    'params':command})
+        return result
+        
     def get_config(self):
-        # build query
-        # get result from instrument
-        # build return
-        pass
-    
+        """ Get the entire configuration for the instrument
+        
+        @param params The parameters and values to set
+        @retval None if nothing was done, otherwise result of FSM event handle
+        Should be a dict of parameters and values
+        @throws InstrumentProtocolException On invalid parameter
+        """
+        result = self.get([Parameter.TELBAUD, Parameter.MAXRATE])
+        assert (isinstance(result, dict))
+        return result
+        
     def restore_config(self, config={}):
-        # check param list
-        # build set string
-        # set and get result from instrument
-        # build return
-        pass
-    
+        if ((config == None) or (config == {})):
+            return None
+        
+        assert (isinstance(config, dict))
+        for item in config.keys():
+            self.set(item, config[item])
+        
+        
     def get_status(self):
-        # build status query
-        # get result from instrument
-        # build return
-        pass
+        """
+        Get the current state of the state machine as the instrument
+        doesnt maintain a status beyond its configuration and its active mode
+        
+        @retval Something from the State enum
+        """
+        return self._fsm.current_state()
     
     def initialize(self, timeout=10):
         mi_logger.info('Initializing PAR sensor')
@@ -240,7 +286,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
         if (self._break_from_autosample(Event.RESET)):
-            self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+            self.announce_to_driver((DriverAnnouncement.STATE_CHANGE, None,
                                     "Reset while autosampling!"))
 
         ''' @todo fill this in '''
@@ -258,11 +304,11 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = None
         
         if (self._break_from_autosample(Event.BREAK)):
-            self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+            self.announce_to_driver((DriverAnnouncement.STATE_CHANGE, None,
                                     "Leaving auto sample!"))
             next_state = State.COMMAND_MODE
         else:
-            self.publish_to_driver((DriverAnnouncement.ERROR,
+            self.announce_to_driver((DriverAnnouncement.ERROR,
                                     InstErrorCode.HARDWARE_ERROR,
                                     "Could not break from autosample!"))
             raise InstrumentProtocolException(InstErrorCode.HARDWARE_ERROR)
@@ -280,11 +326,11 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = None
         
         if (self._break_from_autosample(Event.STOP)):
-            self.publish_to_driver((DriverAnnouncement.STATE_CHANGE, None,
+            self.announce_to_driver((DriverAnnouncement.STATE_CHANGE, None,
                                     "Leaving auto sample!"))
             next_state = State.POLL_MODE
         else:
-            self.publish_to_driver((DriverAnnouncement.ERROR,
+            self.announce_to_driver((DriverAnnouncement.ERROR,
                                     InstErrorCode.HARDWARE_ERROR,
                                     "Could not stop autosample!"))
             raise InstrumentProtocolException(InstErrorCode.HARDWARE_ERROR)
@@ -350,7 +396,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             # get the sample
             pass
         else:
-            self.publish_to_driver((DriverAnnouncement.ERROR,
+            self.announce_to_driver((DriverAnnouncement.ERROR,
                                     InstErrorCode.INVALID_COMMAND,
                                     "Could not get sample"))
             raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
@@ -408,6 +454,15 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         if ((prompt != Prompt.COMMAND) or (response == Error.INVALID_COMMAND)):
             return InstErrorCode.SET_DEVICE_ERR
         
+    def _parse_get_response(self, response, prompt):
+        """ Parse the response from the instrument for a couple of different
+        query responses.
+        
+        @param response The response string from the instrument
+        @param prompt The prompt received from the instrument
+        @retval return The numerical value of the parameter in the known units
+        """
+        pass
     
     def _wakeup(self, timeout):
         """There is no wakeup sequence for this instrument"""

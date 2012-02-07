@@ -164,7 +164,7 @@ class InstrumentProtocol(object):
         pass
     
     def set(self, params, timeout=10):
-        """Get some parameters
+        """Set some parameters
         
         @param params A dict with the parameters to fetch. Must be in the
         fetchable list
@@ -335,7 +335,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @param cmd The high level key of the command to responsd to.
         """
         self._response_handlers[cmd] = func
-        
+                
     def _got_data(self, data):
         """
         """
@@ -479,4 +479,31 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @retval The complete command, ready to send to the device.
         """
         return command+self.eoln
-            
+
+    @staticmethod
+    def _int_to_string(v):
+        """
+        Write an int value to string formatted for sbe37 set operations.
+        @param v An int val.
+        @retval an int string formatted for sbe37 set operations, or None if
+            the input is not a valid int value.
+        """
+        
+        if not isinstance(v,int):
+            return None
+        else:
+            return '%i' % v
+
+    @staticmethod
+    def _float_to_string(v):
+        """
+        Write a float value to string formatted for sbe37 set operations.
+        @param v A float val.
+        @retval a float string formatted for sbe37 set operations, or None if
+            the input is not a valid float value.
+        """
+
+        if not isinstance(v,float):
+            return None
+        else:
+            return '%e' % v

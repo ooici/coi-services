@@ -98,26 +98,79 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
                           self.par_proto.set,{'bad_param':0})
     
     def test_get_config(self):
+        fetched_config = {}
         fetched_config = self.par_proto.get_config()
-        #assert config is what
-        pass
+        self.assert_(isinstance(fetched_config, dict))
+        self.mock_logger_client.send.assert_called_with("show %s\n" %
+                                                        Parameter.TELBAUD)
+        self.mock_logger_client.send.assert_called_with("show %s\n" %
+                                                        Parameter.MAXRATE)
+        self.assertEquals(len(fetched_config), 2)
+        self.assertTrue(fetched_config.has_key(Parameter.TELBAUD))
+        self.assertTrue(fetched_config.has_key(Parameter.MAXRATE))
     
     def test_restore_config(self):
-        pass
+        test_config = {Parameter.TELBAUD:19200, Parameter.MAXRATE:2}
+        restore_result = self.par_proto.restore_config(test_config)
+        self.mock_logger_client.send.assert_called_with("set %s %s\n" %
+                                                        Parameter.TELBAUD,
+                                                        19200)
+        self.mock_logger_client.send.assert_called_with("set %s %s\n" %
+                                                        Parameter.MAXRATE, 2)        
+
+        restore_result = self.par_proto.restore_config({})
+        self.assertEquals(restore_result, None)
+        
+        restore_result = self.par_proto.restore_config(None)
+        self.assertEquals(restore_result, None)
+        
+        self.assertRaises(InstrumentProtocolException,
+                          self.par_proto.restore_config,{'bad_param':0})
+        
     
     def test_execute_command(self):
-        pass
+        exec_result = self.par_proto.execute([Command.SAVE, Command.EXIT])
+        self.mock_logger_client.send.assert_called_with("%s\n" %
+                                                        Command.SAVE)
+        self.mock_logger_client.send.assert_called_with("%s\n" %
+                                                        Command.EXIT)
+
+        exec_result = self.par_proto.execute([])
+        self.assertEquals(exec_result, None)
+            
+        exec_result = self.par_proto.execute(None)
+        self.assertEquals(exec_result, None)
+
+        self.assertRaises(InstrumentProtocolException,
+                          self.par_proto.execute,['BAD_COMMAND'])
         
-    def test_break_to_command(self):
-        # do we need this?
-        pass
+    def test_get_single_value(self):
+        result = self.par_proto.execute([Command.GET_SINGLE_VALUE])
+        self.mock_logger_client.send.assert_called_with(Event.STOP)
+        self.mock_logger_client.send.assert_called_with(Event.SAMPLE)
+        self.mock_logger_client.send.assert_called_with(Event.AUTOSAMPLE)
+        
+    def test_breaks(self):
+        result = self.par_proto._break_from_autosample(Event.BREAK, 5)
+        self.mock_logger_client.send.assert_called_with(Event.BREAK)        
+        self.assertEqual(self.mock_callback.call_count, 1)
+        self.mock_callback.reset_mock()
+        
+        result = self.par_proto._break_from_autosample(Event.STOP, 5)
+        self.mock_logger_client.send.assert_called_with(Event.STOP)
+        self.assertEqual(self.mock_callback.call_count, 1)
+        self.mock_callback.reset_mock()
+
+        result = self.par_proto._break_from_autosample(Event.RESET, 5)
+        self.mock_logger_client.send.assert_called_with(Event.RESET)
+        self.assertEqual(self.mock_callback.call_count, 1)
+        self.mock_callback.reset_mock()
+        
+        self.assertRaises(InstrumentTimeoutException,
+                          self.par_proto._break_from_autosample,
+                          [Event.RESET, 0])
     
     def test_connect_disconnect(self):
-        pass
-    
-    def test_state_change_announcements(self):
-        # fire state changes and check for publish_to_driver calls
-        # includes resets, breaks, stops, autosample
         pass
     
 
