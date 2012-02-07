@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Ian Katz'
-__author__ = 'Alon Yaari'
+__author__ = 'Bill Bollenbacher'
 __license__ = 'Apache 2.0'
 
 from ion.services.sa.direct_access.direct_access import DirectAccess
@@ -20,8 +20,8 @@ class InstrumentDirectAccess(DirectAccess):
                         "instrument_agent_id":  string  ID of the instrument agent
         @retval     results dict
                         "success":  bool    TRUE=success, FALSE=unable to connect
-                        "ip":       string  IP address of the agent-side socat
-                        "port":     string  IP port of the agent-side socat
+                        "ip":       string  IP address of the agent-side server
+                        "port":     string  IP port of the agent-side server
         @throws     BadRequest if the instrument_agent_id is missing
         """
         log.debug("InstrumentDirectAccess: request()")
@@ -31,28 +31,30 @@ class InstrumentDirectAccess(DirectAccess):
 
         # Validate the instrument agent ID
         if not request_params["instrument_agent_id"]:
-            throw BadRequest("")
+            raise BadRequest("no instrument agent ID")
 
         results = {"success": False, "da_ip": "", "da_port": ""}
-        # TODO: Turn the following description into code
 
-        # 1. Save the state and the current parameters of the instrument agent
-        #       - Call to instrument_agent_get()
-        #       - Store results in local variables
-        # 2. Request transistion to direct access state
-        #       - Call instrument_agent_request_direct_access()
+        # TODO: Turn the following description into code
+        # 2. Request IA transistion to direct access state
+        #       - Call instrument_agent_request_direct_access(DA_type)
         #       - Expected responses:
-        #           True, (IP Address, Port Number)
+        #           True
         #               Success.  The instrument agent did this:
-        #                   - Launched socat
-        #                   - Is effectively connecting the driver to socat
+        #                   - Saved the state and the current parameters of the instrument
+        #                   - Launched Direct Access Server with DA type (telnet, SSH, VSP)
+        #                          The da_server did this:
+        #                             - Launched protocol server(s)
+        #                             - Is effectively connected to the IA (via streams?)
         #                   - Changed state to "DIRECT_ACCESS"
-        #           False, ()
-        #               Failure.  Instrument agent could complete its tasks
+        #                   - returns IP Address, Port Number
+        #           False
+        #               Failure.  Instrument agent could not complete its tasks
         #                   - State could be anything now
+        #                   - return failure to caller
 
         return results
 
     def stop(self, stop_params={}):
-        log.debug("InstrumentDirectAccess: request()")
+        log.debug("InstrumentDirectAccess: stop()")
 

@@ -72,6 +72,8 @@ Link git submodule ion-definitions, containing object and service definitions an
     > cd coi-services
     > git submodule update --init
 
+(see Pyon README for hints with submodule anonymous checkout and password-less push)
+
 
 PACKAGE DEPENDENCIES
 ====================

@@ -2,11 +2,10 @@
 
 __author__ = 'Michael Meisinger'
 
-from pyon.public import CFG, IonObject, log, RT, AT
+from pyon.public import CFG, IonObject, log, RT, PRED
 
 from interface.services.coi.iexchange_management_service import BaseExchangeManagementService
 from pyon.core.exception import Conflict, Inconsistent, NotFound
-from pyon.public import AT, RT
 from pyon.util.log import log
 
 class ExchangeManagementService(BaseExchangeManagementService):
@@ -16,7 +15,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
     """
     def create_exchange_space(self, exchange_space=None, org_id=''):
-        """Creates an Exchange Space distributed resource from the parameter exchangespace object.
+        """Creates an Exchange Space distributed resource from the parameter exchange_space object.
 
         @param exchange_space    ExchangeSpace
         @param org_id    str
@@ -25,9 +24,15 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         log.debug("create_exchange_space(%s, org_id=%s)" % (exchange_space, org_id))
         self.assert_condition(exchange_space and org_id, "Arguments not set")
+
+        #First make sure that Org with the org_id exists, otherwise bail
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
         exchange_space_id,rev = self.clients.resource_registry.create(exchange_space)
 
-        aid = self.clients.resource_registry.create_association(org_id, AT.hasExchangeSpace, exchange_space_id)
+        aid = self.clients.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
 
         # Now do the work
         if exchange_space.name == "ioncore":
@@ -92,7 +97,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         exchange_name_id,rev = self.clients.resource_registry.create(exchange_name)
 
-        aid = self.clients.resource_registry.create_association(exchange_space, AT.hasExchangeName, exchange_name_id)
+        aid = self.clients.resource_registry.create_association(exchange_space, PRED.hasExchangeName, exchange_name_id)
 
         return exchange_name_id  #QUestion - is this the correct canonical name?
 
@@ -124,7 +129,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
 
-        #aid = self.clients.resource_registry.create_association(exchange_space_id, AT.hasExchangePoint, exchange_point_id)
+        #aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
 
         return exchange_point_id
 

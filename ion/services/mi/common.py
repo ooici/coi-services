@@ -345,7 +345,11 @@ class InstErrorCode(BaseEnum):
         @retval True if x is a success value, False otherwise.
         """
         
-        x = cls.get_list_val(x)
+        try:
+            x = cls.get_list_val(x)
+            
+        except AssertionError:
+            return False
         
         return x == cls.OK
     
@@ -356,7 +360,12 @@ class InstErrorCode(BaseEnum):
         @param x a str, tuple or list to match to an error code error value.
         @retval True if x is an error value, False otherwise.
         """
-        x = cls.get_list_val(x)
+        
+        try:
+            x = cls.get_list_val(x)
+            
+        except AssertionError:
+            return False
         
         return (cls.has(x) and x != cls.OK)
         

@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 
 
+
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from flask import Flask, request, jsonify
 from gevent.wsgi import WSGIServer
-import inspect, json, simplejson, collections
+import inspect, json, simplejson, collections, ast
 
-from pyon.public import AT, RT, IonObject, Container, ProcessRPCClient
+from pyon.public import PRED, RT, IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
+from pyon.core.registry import get_message_class_in_parm_type, getextends
+from pyon.ion.resource import ResourceTypes
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
@@ -37,6 +40,8 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.http_server = None
         self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
         self.server_port = DEFAULT_WEB_SERVER_PORT
+        self.web_server_enabled = True
+        self.logging = None
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
@@ -50,11 +55,14 @@ class ServiceGatewayService(BaseServiceGatewayService):
                     self.server_hostname = web_server_cfg['hostname']
                 if 'port' in web_server_cfg:
                     self.server_port = web_server_cfg['port']
+                if 'enabled' in web_server_cfg:
+                    self.web_server_enabled = web_server_cfg['enabled']
+                if 'log' in web_server_cfg:
+                    self.logging = web_server_cfg['log']
 
-
-
-        #probably need to specify the host name and port in configuration file and need to figure out how to redirect HTTP logging to a file
-        self.start_service(self.server_hostname,self.server_port)
+        #need to figure out how to redirect HTTP logging to a file
+        if self.web_server_enabled:
+            self.start_service(self.server_hostname,self.server_port)
 
     def on_quit(self):
         self.stop_service()
@@ -63,17 +71,18 @@ class ServiceGatewayService(BaseServiceGatewayService):
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
         """Responsible for starting the gevent based web server."""
 
-        if self.http_server != None:
+        if self.http_server is not None:
             self.stop_service()
 
-        self.http_server = WSGIServer((hostname, port), app)
+        self.http_server = WSGIServer((hostname, port), app, log=self.logging)
         self.http_server.start()
 
         return True
 
     def stop_service(self):
         """Responsible for stopping the gevent based web server."""
-        self.http_server.stop()
+        if self.http_server is not None:
+            self.http_server.stop()
         return True
 
         
@@ -92,28 +101,28 @@ class ServiceGatewayService(BaseServiceGatewayService):
 def process_gateway_request(service_name, operation):
 
 
-    #Retrieve service definition
-    from pyon.service import service
-    target_service = service.get_service_by_name(service_name)
-
-    if not target_service:
-        raise NotFound("Target service name not found in the URL")
-
-    if operation == '':
-        raise NotFound("Service operation not specified in the URL")
-
-
-    #Find the concrete client class for making the RPC calls.
-    target_client = None
-    for name, cls in inspect.getmembers(inspect.getmodule(target_service),inspect.isclass):
-        if issubclass(cls, ProcessRPCClient) and not name.endswith('ProcessRPCClient'):
-            target_client = cls
-            break
-
-    if not target_client:
-        raise NotFound("Service operation not correctly specified in the URL")
-
     try:
+        #Retrieve service definition
+        from pyon.core.bootstrap import service_registry
+        # MM: Note: service_registry can do more now
+        target_service = service_registry.get_service_base(service_name)
+
+        if not target_service:
+            raise NotFound("Target service name not found in the URL")
+
+        if operation == '':
+            raise NotFound("Service operation not specified in the URL")
+
+
+        #Find the concrete client class for making the RPC calls.
+        target_client = None
+        for name, cls in inspect.getmembers(inspect.getmodule(target_service),inspect.isclass):
+            if issubclass(cls, ProcessRPCClient) and not name.endswith('ProcessRPCClient'):
+                target_client = cls
+                break
+
+        if not target_client:
+            raise NotFound("Service operation not correctly specified in the URL")
 
         jsonParms = None
         if request.method == "POST":
@@ -134,20 +143,31 @@ def process_gateway_request(service_name, operation):
         parm_list = {}
         method_args = inspect.getargspec(getattr(target_client,operation))
         for arg in method_args[0]:
-            if arg == 'self': continue # skip self
+            if arg == 'self' or arg == 'headers': continue # skip self and headers from being set
 
             if not jsonParms:
                 if request.args.has_key(arg):
-                    parm_list[arg] = convert_unicode(request.args[arg])  # should be fixed to convert to proper type when necessary; ie "True" -> True
+                    parm_type = get_message_class_in_parm_type(service_name, operation, arg)
+                    if parm_type == 'str':
+                        parm_list[arg] = convert_unicode(request.args[arg])
+                    else:
+                        parm_list[arg] = ast.literal_eval(convert_unicode(request.args[arg]))
             else:
                 if jsonParms['serviceRequest']['params'].has_key(arg):
-                    if isinstance(jsonParms['serviceRequest']['params'][arg], list):
+                    if isinstance(jsonParms['serviceRequest']['params'][arg], list):  #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
                         # For some reason, UNICODE strings are not supported with ION objects
                         ion_object_name = convert_unicode(jsonParms['serviceRequest']['params'][arg][0])
                         object_parms = convert_unicode(jsonParms['serviceRequest']['params'][arg][1])
 
-                        parm_list[arg] = IonObject(ion_object_name, object_parms)
-                    else:
+                        new_obj = IonObject(ion_object_name)
+                        #Iterate over the parameters to add to object; have to do this instead
+                        #of passing a dict to get around restrictions in object creation on setting _id, _rev params
+                        for parm in object_parms:
+                            setattr(new_obj, parm, object_parms.get(parm))
+
+                        new_obj._validate() # verify that all of the object fields were set with proper types
+                        parm_list[arg] = new_obj
+                    else:  # The else branch is for simple types ( non-ION objects )
                         parm_list[arg] = convert_unicode(jsonParms['serviceRequest']['params'][arg])
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
@@ -189,24 +209,56 @@ def convert_unicode(data):
 def list_resource_types():
 
 
-    resultSet = set()
-    from pyon.core.object import IonObjectRegistry
-    base_type_list = IonObjectRegistry.extended_objects
+    try:
+        #Look to see if a specific resource type has been specified - if not default to all
+        if request.args.has_key('type'):
+            resultSet = set(getextends(request.args['type'])) if getextends(request.args['type']) is not None else set()
+        else:
+            type_list = getextends('Resource')
+            type_list.append('Resource')
+            resultSet = set(type_list)
 
-    #Look to see if a specific resource type has been specified - if not default to all
-    if request.args.has_key('type'):
-        resultSet = set(base_type_list.get(request.args['type'])) if base_type_list.get(request.args['type']) is not None else set()
-    else:
-        for res in base_type_list:
-            ext_types = base_type_list.get(res)
-            for res2 in ext_types:
-                resultSet.add(res2)
+        ret_list = []
+        for res in sorted(resultSet):
+            ret_list.append(res)
 
-    ret_list = []
-    for res in sorted(resultSet):
-        ret_list.append(res)
+        return jsonify(data=ret_list)
 
-    return jsonify(data=ret_list)
+    except Exception, e:
+        ret =  "Error: %s" % e.message
+        return jsonify(data=ret)
+
+
+#Returns a json object for a specified resource type with all default values.
+@app.route('/ion-service/resource_type_schema/<resource_type>')
+def get_resource_schema(resource_type):
+
+
+    try:
+        ion_object_name = convert_unicode(resource_type)
+        ret_obj = IonObject(ion_object_name, {})
+
+        # If it's an op input param or response message object.
+        # Walk param list instantiating any params that were marked None as default.
+        if hasattr(ret_obj, "_svc_name"):
+            schema = ret_obj._schema
+            for field in ret_obj._schema:
+                if schema[field]["default"] is None:
+                    try:
+                        value = IonObject(schema[field]["type"], {})
+                    except NotFound:
+                        # TODO
+                        # Some other non-IonObject type.  Just use None as default for now.
+                        value = None
+                    setattr(ret_obj, field, value)
+
+        ret = simplejson.dumps(ret_obj, default=ion_object_encoder)
+
+
+    except Exception, e:
+        ret =  "Error: %s" % e.message
+
+    return jsonify(data=ret)
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -233,8 +285,8 @@ def get_resource(resource_id):
 
 
 #Example operation to return a list of resources of a specific type like
-#http://hostname:port/ion-service/list_resources/BankAccount
-@app.route('/ion-service/rest/list_resources/<resource_type>')
+#http://hostname:port/ion-service/find_resources/BankAccount
+@app.route('/ion-service/rest/find_resources/<resource_type>')
 def list_resources_by_type(resource_type):
 
     ret = None

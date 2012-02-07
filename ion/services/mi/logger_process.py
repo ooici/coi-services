@@ -354,16 +354,18 @@ class BaseLoggerProcess(DaemonProcess):
         
         while self._device_connected():
             self._accept_driver_comms()
-            data = self.read_driver()
-            if data:
-                self.write_device(data)
-                self.logfile.write(self.delim[0]+data+self.delim[1])
+            driver_data = self.read_driver()
+            if driver_data:
+                self.write_device(driver_data)
+                self.logfile.write(self.delim[0]+driver_data+self.delim[1])
                 self.logfile.flush()
-            data = self.read_device()
-            if data:
-                self.write_driver(data)
-                self.logfile.write(data)
+            device_data = self.read_device()
+            if device_data:
+                self.write_driver(device_data)
+                self.logfile.write(device_data)
                 self.logfile.flush()
+            if not driver_data and not device_data:
+                time.sleep(.1)
 
 class EthernetDeviceLogger(BaseLoggerProcess):
     """
@@ -722,6 +724,6 @@ class Listener(threading.Thread):
                             print 'from device:%s' % item
                 
             except socket.error:
-                time.sleep(0)
+                time.sleep(.1)
         #logging.info('listener done')
         mi_logger.info('Logger client done listening.')

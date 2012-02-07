@@ -11,46 +11,47 @@ THISDIR=$(git rev-parse --show-toplevel)
 cd $THISDIR
 
 if [ -r "scripts/get-latest-code-local-hooks.sh" ]; then
-    echo "\n\n=== EXECUTING LOCAL HOOK ===\n"
+    echo -e "\n\n=== EXECUTING LOCAL HOOK ===\n"
     sh scripts/get-latest-code-local-hooks.sh
 else
-    echo "\n\nLooked for a script named scripts/get-latest-code-local-hooks.sh"
-    echo "  (containing your local pre-update commands) but it didn't exist."
+    echo -e "\n\nLooked for a script named scripts/get-latest-code-local-hooks.sh"
+    echo -e "  (containing your local pre-update commands) but it didn't exist."
 fi
 
-echo "\n\n=== UPDATING PYON ===\n"
+echo -e "\n\n=== UPDATING PYON ===\n"
 cd ../pyon
 git pull --rebase
+git submodule update
 
-echo "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
+echo -e "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
 cd extern/ion-definitions
 git checkout master
 if [ $? -ne 0 ]; then
     git status
-    echo "\n$(basename $0) aborting due to inability to switch branches"
+    echo -e "\n$(basename $0) aborting due to inability to switch branches"
     exit 1
 fi
 git pull --rebase origin master
 
-echo "\n\n=== UPDATING COI-SERVICES ===\n"
+echo -e "\n\n=== UPDATING COI-SERVICES ===\n"
 cd $THISDIR
 git pull --rebase
 if [ $? -ne 0 ]; then
     git status
-    echo "\n$(basename $0) aborting because pull failed (probably have unstashed changes)"
+    echo -e "\n$(basename $0) aborting because pull failed (probably have unstashed changes)"
     exit 1
 fi
 git submodule update
 
-echo "\n\n=== CLEANING UP ===\n"
+echo -e "\n\n=== CLEANING UP ===\n"
 ant clean
 sh scripts/cc-cleanup.sh
 
-echo "\n\n=== BOOTSTRAPPING ===\n"
+echo -e "\n\n=== BOOTSTRAPPING ===\n"
 python bootstrap.py
 
-echo "\n\n=== BUILDING OUT ===\n"
+echo -e "\n\n=== BUILDING OUT ===\n"
 bin/buildout
 
-echo "\n\n=== GENERATING INTERFACES ===\n"
+echo -e "\n\n=== GENERATING INTERFACES ===\n"
 bin/generate_interfaces --force

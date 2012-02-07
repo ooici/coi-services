@@ -4,7 +4,7 @@ __author__ = 'Thomas R. Lennan, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 from pyon.core.bootstrap import sys_name
-from pyon.core.exception import NotFound, Inconsistent
+from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.datastore.mockdb.mockdb_datastore import MockDB_DataStore
 from pyon.ion.resource import lcs_workflows
@@ -48,6 +48,14 @@ class ResourceRegistryService(BaseResourceRegistryService):
         self.dss = self.resource_registry.server[resource_registry_name] if persistent else None
         self.ds = self.resource_registry
 
+    def on_stop(self):
+        BaseResourceRegistryService.on_stop(self)
+        self.resource_registry.close()
+
+    def _on_quit(self):
+        BaseResourceRegistryService._on_quit(self)
+        self.resource_registry.close()
+
     def create(self, object={}):
         cur_time = get_ion_ts()
         object.ts_created = cur_time
@@ -58,8 +66,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.read(object_id, rev_id)
 
     def update(self, object={}):
+        if not hasattr(object, "_id") or not hasattr(object, "_rev"):
+            raise BadRequest("Object does not have required '_id' or '_rev' attribute")
         # Do an check whether LCS has been modified
-        res_obj = self.read(object._id, object._rev)
+        res_obj = self.read(object._id)
         self.assert_condition(res_obj.lcstate == object.lcstate, "Cannot modify life cycle state in update!")
         object.ts_updated = get_ion_ts()
         return self.resource_registry.update(object)
@@ -111,8 +121,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def find_associations(self, subject="", predicate="", object="", id_only=False):
         return self.resource_registry.find_associations(subject, predicate, object, id_only=id_only)
 
-    def get_association(self, subject="", predicate="", object=""):
-        assoc = self.resource_registry.find_associations(subject, predicate, object, id_only=True)
+    def get_association(self, subject="", predicate="", object="", id_only=False):
+        assoc = self.resource_registry.find_associations(subject, predicate, object, id_only=id_only)
         if not assoc:
             raise NotFound("Association for subject/predicate/object %s/%s/%s not found" % (str(subject),str(predicate),str(object)))
         elif len(assoc) > 1:
