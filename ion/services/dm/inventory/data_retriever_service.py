@@ -5,9 +5,10 @@
 '''
 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
+from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay
 from pyon.public import PRED
-from pyon.service.service import BaseService
+
 
 
 class DataRetrieverService(BaseDataRetrieverService):
@@ -60,8 +61,8 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         replay = self.clients.resource_registry.read(replay_id)
         pid = replay.process_id
-        replay_process = self.container.proc_manager.procs[pid]
-        replay_process.execute_replay()
+        cli = ReplayProcessClient(name=pid)
+        cli.execute_replay()
 
     def cancel_replay(self, replay_id=''):
         replay = self.clients.resource_registry.read(replay_id)

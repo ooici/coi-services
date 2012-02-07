@@ -13,9 +13,9 @@ from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.ion.process import SimpleProcess
 from pyon.public import log
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
-
-
-class ReplayProcess(SimpleProcess):
+from interface.services.dm.ireplay_process import BaseReplayProcess
+class ReplayProcess(BaseReplayProcess):
+    process_type="standalone"
     def __init__(self, *args, **kwargs):
         super(ReplayProcess, self).__init__(*args,**kwargs)
         #@todo Init stuff
