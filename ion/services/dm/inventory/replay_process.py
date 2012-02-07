@@ -10,14 +10,14 @@ from gevent.coros import RLock
 from interface.objects import BlogBase
 from pyon.core.exception import BadRequest
 from pyon.ion.endpoint import StreamPublisherRegistrar
-from interface.services.dm.ireplay_agent import BaseReplayAgent
+from pyon.ion.process import SimpleProcess
 from pyon.public import log
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 
 
-class ReplayAgent(BaseReplayAgent):
+class ReplayProcess(SimpleProcess):
     def __init__(self, *args, **kwargs):
-        super(ReplayAgent, self).__init__(*args,**kwargs)
+        super(ReplayProcess, self).__init__(*args,**kwargs)
         #@todo Init stuff
         # mutex for shared resources between threads
         self.lock = RLock()
@@ -52,6 +52,7 @@ class ReplayAgent(BaseReplayAgent):
 
         if not hasattr(self,'output'):
             raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
+
 
     def _publish_query(self, results):
         '''
