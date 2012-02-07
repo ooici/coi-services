@@ -35,7 +35,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('META', group='sa')
-class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
+class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
@@ -55,7 +55,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         return
 
  
-rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceIntegration, InstrumentManagementService, log)
+rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceMeta, InstrumentManagementService, log)
 
 rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rimi.add_resource_impl_inttests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
