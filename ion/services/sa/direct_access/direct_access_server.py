@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 from pyon.util.log import log
 from pyon.core.exception import ServerError
 
-from ion.services.sa.direct_access.telnet_server import TelnetServer
+from ion.services.sa.direct_access.ion_telnet_server import TelnetServer
 
 class directAccessTypes:
     (telnet, vsp, ssh) = range(1, 4)
@@ -44,9 +44,9 @@ class DirectAccessServer(object):
         self.server.stop()
         del self.server
         
-    def write(self, data):
-        log.debug("DirectAccessServer.write(): data = " + str(data))
-        self.server.write(data)
+    def send(self, data):
+        log.debug("DirectAccessServer.send(): data = " + str(data))
+        self.server.send(data)
         
         
         

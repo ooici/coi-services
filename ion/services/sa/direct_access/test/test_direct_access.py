@@ -19,7 +19,6 @@ from ion.services.sa.direct_access.direct_access_server import DirectAccessServe
 class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
 
     def test_directAccessServer(self):
-        """
         # Start container
         #print 'starting container'
         self._start_container()
@@ -28,10 +27,10 @@ class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
         # Establish endpoint with container
         container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
         #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+        container_client.start_rel_from_url('res/deploy/examples/ia_mock.yml')
         print 'started services'
-        """
-        pprint.pprint(sys.path)
+        time.sleep(1)
+        print("quiting test")
 
         
 if __name__ == '__main__':
