@@ -462,6 +462,43 @@ class ResourceImpl(object):
         return associate_success
 
 
+    def _link_resources_exclusive(self, subject_id='', association_type='', object_id='', raise_exn=True):
+        """
+        create an association where only one at a time can exist
+         if there is an existing association, the choice is left to the user whether to raise exception
+         or quietly remove/replace the existing one.
+
+        @param subject_id the resource ID of the predefined type
+        @param association_type the predicate
+        @param object_id the resource ID of the type to be joined
+        @param raise_exn whether a BadRequest error should be raised if a duplicate is attempted
+        @todo check for errors: does RR check for bogus ids?
+        """
+
+        # see if there are any other objects of this type and pred on this subject
+        obj_type = self._get_resource_type_by_id(object_id)
+        existing_links, _ = self._find_stemming(subject_id, association_type, obj_type)
+        
+        if len(existing_links) > 1:
+            raise Inconsistent("Multiple %s-%s objects found on the same %s subject with id='%s'", 
+                               (association_type, obj_type, self.iontype, subject_id))
+        elif len(existing_links) > 0:
+            if raise_exn:
+                raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'",
+                                 (association_type, obj_type, self.iontype, subject_id))
+            else:
+                self._unlink_resources(self, subject_id, association_type, existing_links[0])
+
+        associate_success = self.RR.create_association(subject_id,
+                                                       association_type,
+                                                       object_id)
+
+        log.debug("Create %s Association: %s"
+                  % (self._assn_name(association_type),
+                     str(associate_success)))
+        return associate_success
+
+
     def _unlink_resources(self, subject_id='', association_type='', object_id=''):
         """
         delete an association
