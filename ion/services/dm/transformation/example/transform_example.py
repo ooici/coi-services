@@ -109,7 +109,7 @@ class TransformCampfire(TransformDataProcess):
         if isinstance(packet.author, BlogAuthor):
             author = packet.author.name
         elif isinstance(packet.author,dict):
-            author = packet.author['name']
+            author = packet.author.get('name','')
         else:
             author = packet.author
 
