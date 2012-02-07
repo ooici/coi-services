@@ -140,8 +140,6 @@ class _Direct(object):
                 self.send_control('m')
             elif cmd == "!":
                 self._automatic_control_s()
-                # one ^m to try to clean up any ^2 leftover
-                self.send_control('m')
             else:
                 print "### sending '%s' + ^m" % cmd
                 self.send(cmd)
@@ -163,6 +161,8 @@ class _Direct(object):
             got_prompt = re.match('.*--> ', str) is not None
 
         print "### got prompt."
+        print "### sending one ^m to try to clean up any ^S leftover"
+        self.send_control('m')
 
     def stop(self):
         self._sock.close()
