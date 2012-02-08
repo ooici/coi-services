@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from pyon.core.exception import BadRequest
 
 __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
@@ -7,6 +8,9 @@ __license__ = 'Apache 2.0'
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService
 
 class DatasetManagementService(BaseDatasetManagementService):
+    def __init__(self, *args, **kwargs):
+        super(DatasetManagementService, self).__init__(*args,**kwargs)
+        self.logging_name = '(DatasetManagementService %s)' % (self.name or self.id)
 
     """
     class docstring
@@ -16,51 +20,37 @@ class DatasetManagementService(BaseDatasetManagementService):
         """
         method docstring
         """
-        # This method creates an empty dataset resource and returns its ID.
-        # It assumes that the caller provides an Instrument Info Object in a Resource Configuration Request message which should be made into a resource.
-        # Return Value
-        # ------------
-        # {dataset_id: ''}
-        #
-        pass
+        if not dataset:
+            raise BadRequest('%s: No dataset provided.' % self.logging_name)
+        dataset_id, _ = self.clients.resource_registry.create(dataset)
+        return dataset_id
 
     def update_dataset(self, dataset=None):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        # 
-        pass
+        if not (dataset and dataset._id):
+            raise BadRequest('%s: Dataset either not provided or malformed.' % self.logging_name)
+        self.clients.resource_registry.update(dataset)
+        #@todo: Check to make sure retval is boolean
+        return True
 
     def read_dataset(self, dataset_id=''):
         """
-        method docstring
+
+        @throws NotFound if resource does not exist.
         """
-        # Return Value
-        # ------------
-        # dataset: {}
-        #
-        pass
+        return self.clients.resource_registry.read(dataset_id)
 
     def delete_dataset(self, dataset_id=''):
         """
-        method docstring
+        @throws NotFound if resource does not exist.
         """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        pass
+        self.clients.resource_registry.delete(dataset_id)
 
     def find_datasets(self, filters=None):
         """
         method docstring
         """
-        # Return Value
-        # ------------
-        # dataset_list: []
-        #
         pass
   
