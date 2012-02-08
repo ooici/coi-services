@@ -15,9 +15,10 @@ import unittest
 
 from nose.plugins.attrib import attr
 from interface.services.icontainer_agent import ContainerAgentClient
-from pyon.agent.agent import ResouceAgentClient
+from pyon.agent.agent import ResourceAgentClient
 from pyon.util.int_test import IonIntegrationTestCase
-import unittest
+from pyon.public import log
+
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_x
 
@@ -43,8 +44,8 @@ rac=ResourceAgentClient(name=agent_id etc)
 rac.execute()
 """
 
+@unittest.skip('Do not run hardware test.')
 @attr('INT', group='sa')
-#unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
 class TestInstrumentAgent(IonIntegrationTestCase):
 
     def setUp(self):
@@ -52,12 +53,30 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._start_container()
 
         # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+        self._container_client = ContainerAgentClient(node=self.container.node,
+                                                      name=self.container.name)
+        
+        # Bring up services in a deploy file.        
+        self._container_client.start_rel_from_url('res/deploy/r2sa.yml')
+
+        # Launch an instrument agent process.
+        self._ia_name = 'agent007'
+        self._ia_mod = 'ion.services.mi.instrument_agent'
+        self._ia_class = 'InstrumentAgent'
+        self._ia_pid = self._container_client.spawn_process(name=self._ia_name,
+                                       module=self._ia_mod, cls=self._ia_class)      
+        log.info('got pid=%s', str(self._ia_pid))
+        
+        # Start a resource agent client to talk with the instrument agent.
+        self._ia_client = ResourceAgentClient(self._ia_pid, name=self._ia_name)
+        log.info('got ia client %s', str(self._ia_client))
 
 
     def test_x(self):
         """
         """
-        pass
+        retval = self._ia_client.get_capabilities()
+        log.info('capabilities = %s', str(retval))
+    
+    
+    
