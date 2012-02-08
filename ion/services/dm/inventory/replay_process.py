@@ -7,12 +7,10 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from interface.objects import BlogBase
 from pyon.core.exception import BadRequest
 from pyon.ion.endpoint import StreamPublisherRegistrar
-from pyon.ion.process import SimpleProcess
 from pyon.public import log
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from interface.services.dm.ireplay_process import BaseReplayProcess
 class ReplayProcess(BaseReplayProcess):
     process_type="standalone"
@@ -156,7 +154,7 @@ class ReplayProcess(BaseReplayProcess):
         Performs the query action
         '''
         log.debug('Couch Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
-        db = CouchDB_DM_DataStore(datastore_name=datastore_name)
+        db = CouchDB_DataStore(datastore_name=datastore_name)
         ret = []
         if db.datastore_exists(datastore_name):
             ret = db.query_view(view_name=view_name,datastore_name=datastore_name,opts=opts)

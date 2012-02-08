@@ -17,7 +17,7 @@ from pyon.core.exception import IonException
 from interface.objects import StreamQuery, ExchangeQuery
 from pyon.ion.transform import TransformDataProcess
 
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
 from interface.objects import StreamIngestionPolicy

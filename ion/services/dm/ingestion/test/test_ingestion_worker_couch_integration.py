@@ -22,7 +22,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from interface.objects import BlogPost, BlogComment
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 
 
 @attr('INT', group='dm')
@@ -63,8 +63,10 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Refresh datastore before testing
         #----------------------------------------------------------------------
 
-        self.db = CouchDB_DM_DataStore()
-        self.db.delete_datastore(self.datastore_name)
+        self.db = CouchDB_DataStore()
+        if self.db.datastore_exists(self.datastore_name):
+            self.db.delete_datastore(self.datastore_name)
+
 
         #------------------------------------------------------------------------
         # Stream publisher

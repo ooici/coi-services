@@ -9,6 +9,7 @@ to couchdb datastore and hdf datastore.
 '''
 
 from pyon.core.exception import NotFound
+from pyon.datastore.datastore import DataStore
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG, StreamProcess
 from pyon.ion.endpoint import ProcessPublisher
@@ -17,7 +18,7 @@ from pyon.container.procs import ProcManager
 from pyon.core.exception import IonException, BadRequest
 from pyon.ion.transform import TransformDataProcess
 
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore, sha1hex
+from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore, sha1hex
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
 from interface.objects import StreamIngestionPolicy, IonObjectBase
@@ -44,8 +45,8 @@ class IngestionWorker(TransformDataProcess):
         self.default_policy = self.CFG.get('default_policy')
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
-
-        self.db = CouchDB_DM_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
+        self.datastore_name = self.couch_config['database']
+        self.db = CouchDB_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
@@ -54,7 +55,8 @@ class IngestionWorker(TransformDataProcess):
 
         # Create dm_datastore if it does not exist already
         try:
-            self.db.create_datastore()
+            #@todo: change this as necessary
+            self.db.create_datastore(self.datastore_name, profile= DataStore.DS_PROFILE.EXAMPLES)
         except BadRequest:
             print 'Already exists'
 
