@@ -30,9 +30,9 @@ class InstAgentMock(UserAgent):
         self.da_server.send("InstAgentMock.telnetInputProcessor() rcvd: " + data + chr(10))
         if data == 'quit':
             self.quit = True
-    
-    def on_start(self):        
-        print ("InstAgentMock.on_start(): entering")
+            
+    def server(self):
+        print ("InstAgentMock.server(): entering")
         while True:
             self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor)
             connection_info = self.da_server.get_connection_info()
@@ -46,5 +46,11 @@ class InstAgentMock(UserAgent):
             del self.da_server
             if self.quit == True:
                 break
+        setattr(self.container, 'ia_mock_quit', True)
+        print ("InstAgentMock.server(): leaving")
+   
+    def on_start(self):        
+        print ("InstAgentMock.on_start(): entering")
+        gevent.spawn(self.server)
         print ("InstAgentMock.on_start(): leaving")
 
