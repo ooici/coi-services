@@ -20,7 +20,7 @@ class DirectoryService(BaseDirectoryService):
 
         # For easier interactive debugging
         self.dss = None
-        self.ds = self.directory.datastore
+        self.ds = self.directory.dir_store
         try:
             self.dss = self.directory.datastore.server[self.directory.datastore.datastore_name]
         except Exception:
