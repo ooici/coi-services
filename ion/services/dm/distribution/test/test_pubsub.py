@@ -13,7 +13,7 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import PRED, RT, StreamPublisher, StreamSubscriber, log, StreamSubscriberRegistrar
+from pyon.public import PRED, RT, StreamPublisher, StreamSubscriber, log, StreamSubscriberRegistrar, StreamPublisherRegistrar
 from nose.plugins.attrib import attr
 import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum
@@ -474,17 +474,24 @@ class PubSubIntTest(IonIntegrationTestCase):
             "Sample Exchange Subscription Description")
 
 
-        # cheat to make a publisher object to send messages in the test.
-        # it is really hokey to pass process=self.cc but it works
-        self.stream_publisher = StreamPublisherRegistrar(process=self.cc, node=self.cc.node)
+        pid = self.container.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+        dummy_process = self.container.proc_manager.procs['%s.%s' % (str(self.container.id), str(pid))]
 
-        self.ctd_stream1_publisher = self.stream_publisher.create_publisher(stream_id=self.ctd_stream1_id)
 
-        self.ctd_stream2_publisher = self.stream_publisher.create_publisher(stream_id=self.ctd_stream2_id)
+        # Normally the user does not see or create the publisher, this is part of the containers business.
+        # For the test we need to set it up explicitly
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+
+        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream1_id)
+
+        self.ctd_stream2_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream2_id)
 
 
         # Cheat and use the cc as the process - I don't think it is used for anything...
-        self.stream_subscriber = StreamSubscriberRegistrar(process=self.cc, node=self.cc.node)
+        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.cc.node)
 
 
 
@@ -508,7 +515,7 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
         self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(ar.get(timeout=10), 'message1')
+        self.assertEqual(ar.get(timeout=30), 'message1')
 
         ar = gevent.event.AsyncResult()
 
