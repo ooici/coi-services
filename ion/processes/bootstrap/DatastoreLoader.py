@@ -18,8 +18,8 @@ import yaml
 import os
 import os.path
 
-from pyon.datastore.datastore import DataStore, DatastoreManager
-from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, PRED, StreamProcess
+from pyon.datastore.datastore import DataStore
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, PRED, StreamProcess, Container
 
 
 class DatastoreLoader(StreamProcess):
@@ -36,7 +36,7 @@ def dump_datastore(ds_name, path=None, clear_dir=True):
     if CFG.system.mockdb:
         log.warn("Cannot dump from MockDB")
         return
-    ds = DatastoreManager.get_datastore(ds_name)
+    ds = Container.instance.datastore_manager.get_datastore(ds_name)
     if not ds:
         return
     outpath_base = "res/preload/local/dump"
