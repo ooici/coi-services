@@ -5,13 +5,14 @@ __license__ = 'Apache 2.0'
 
 from ion.services.mi.drivers.uw_bars.test.bars_simulator import BarsSimulator
 
+from pyon.util.unit_test import PyonTestCase
+
 from threading import Thread
-from unittest import TestCase
 
 import os
 
 
-class BarsTestCase(TestCase):
+class BarsTestCase(PyonTestCase):
     """
     Base class for BARS test cases.
 

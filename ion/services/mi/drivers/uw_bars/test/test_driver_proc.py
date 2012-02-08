@@ -25,7 +25,10 @@ from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 
+from nose.plugins.attrib import attr
 
+
+@attr('UNIT', group='mi')
 class DriverAndProcsTest(BarsTestCase):
     """
     Tests involving ZMQ driver process and ZMQ client.
@@ -69,7 +72,7 @@ class DriverAndProcsTest(BarsTestCase):
         """BARS tests with ZMQ driver process and ZMQ client"""
 
         driver_client = self._driver_client
-        
+
         reply = driver_client.cmd_dvr('get_current_state')
         print("** get_current_state reply=%s" % str(reply))
         self.assertEqual(DriverState.UNCONFIGURED, reply)

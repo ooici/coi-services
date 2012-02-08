@@ -13,8 +13,10 @@ from ion.services.mi.common import InstErrorCode
 
 import time
 
+from nose.plugins.attrib import attr
 
 
+@attr('UNIT', group='mi')
 class DriverTest(BarsTestCase):
 
     def test(self):

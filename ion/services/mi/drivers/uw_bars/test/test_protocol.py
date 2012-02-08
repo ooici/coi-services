@@ -10,7 +10,10 @@ from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 import time
 
+from nose.plugins.attrib import attr
 
+
+@attr('UNIT', group='mi')
 class ProtocolTest(BarsTestCase):
 
     def test(self):
@@ -28,7 +31,6 @@ class ProtocolTest(BarsTestCase):
 
         self.assertEqual(BarsProtocolState.COLLECTING_DATA,
                          protocol.get_current_state())
-
 
         print "sleeping for a bit"
         time.sleep(5)
