@@ -8,22 +8,15 @@
 to couchdb datastore and hdf datastore.
 '''
 
-from pyon.core.exception import NotFound
-from pyon.public import RT, PRED, log, IonObject
-from pyon.public import CFG, StreamProcess
-from pyon.ion.endpoint import ProcessPublisher
-from pyon.net.channel import SubscriberChannel
-from pyon.container.procs import ProcManager
-from pyon.core.exception import IonException, BadRequest
+from pyon.datastore.datastore import DataStore, DatastoreManager
+from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore, sha1hex
+from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
-from interface.objects import StreamIngestionPolicy, IonObjectBase
+from interface.objects import StreamIngestionPolicy
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-
-import time
 
 
 
@@ -44,19 +37,14 @@ class IngestionWorker(TransformDataProcess):
         self.default_policy = self.CFG.get('default_policy')
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
-
-        self.db = CouchDB_DM_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
+        self.datastore_name = self.couch_config['database'] or 'dm_datastore'
+        self.db = DatastoreManager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
 
         log.warn(str(self.db))
 
-        # Create dm_datastore if it does not exist already
-        try:
-            self.db.create_datastore()
-        except BadRequest:
-            print 'Already exists'
 
     def process(self, packet):
         """Process incoming data!!!!

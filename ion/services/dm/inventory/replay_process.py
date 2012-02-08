@@ -7,12 +7,10 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from interface.objects import BlogBase
 from pyon.core.exception import BadRequest
+from pyon.datastore.datastore import DataStore, DatastoreManager
 from pyon.ion.endpoint import StreamPublisherRegistrar
-from pyon.ion.process import SimpleProcess
 from pyon.public import log
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 from interface.services.dm.ireplay_process import BaseReplayProcess
 class ReplayProcess(BaseReplayProcess):
     process_type="standalone"
@@ -40,6 +38,8 @@ class ReplayProcess(BaseReplayProcess):
 
         # Get the delivery_format
         self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
+
+        self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
 
 
         # Attach a publisher to each stream_name attribute
@@ -75,6 +75,7 @@ class ReplayProcess(BaseReplayProcess):
         #-----------------------
 
         #@todo: Add thread sync here because self.output is shared and deadlocks COULD occur
+        log.warn('results: %s', results)
 
         for result in results:
             log.warn('Result: %s' % result)
@@ -156,12 +157,11 @@ class ReplayProcess(BaseReplayProcess):
         Performs the query action
         '''
         log.debug('Couch Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
-        db = CouchDB_DM_DataStore(datastore_name=datastore_name)
-        ret = []
-        if db.datastore_exists(datastore_name):
-            ret = db.query_view(view_name=view_name,datastore_name=datastore_name,opts=opts)
+        #@todo: Fix this datastore management profile with correct data profile in near future
+        db = DatastoreManager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
 
-        db.close()
+
+        ret = db.query_view(view_name=view_name,opts=opts)
 
         callback(ret)
 
