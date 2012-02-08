@@ -37,7 +37,7 @@ class IngestionWorker(TransformDataProcess):
         self.default_policy = self.CFG.get('default_policy')
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
-        self.datastore_name = self.couch_config['database']
+        self.datastore_name = self.couch_config['database'] or 'dm_datastore'
         self.db = DatastoreManager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)

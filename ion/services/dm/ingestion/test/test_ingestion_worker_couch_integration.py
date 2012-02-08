@@ -119,7 +119,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # List the posts and the comments that should have been written to couch
         #----------------------------------------------------------------------
 
-        objs = self.db.list_objects(self.couch_storage['database'])
+        objs = self.db.list_objects()
 
         # the list of ion_objects... in our case BlogPost and BlogComment
         ion_objs = []
