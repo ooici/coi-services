@@ -30,6 +30,7 @@ setup(  name = 'coi-services',
         test_suite = 'pyon',
         install_requires = [
             'pyon',
-            'Flask==0.8'
+            'Flask==0.8',
+            'WebTest'
         ],
      )
