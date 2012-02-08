@@ -73,6 +73,20 @@ class TransformExampleProducer(StreamProcess):
             num += 1
             time.sleep(interval/1000.0)
 
+class TransformCapture(TransformDataProcess):
+    def on_start(self):
+        super(TransformCapture, self).on_start()
+#        #@todo: Remove debugging statements
+        log.debug('(Transform: %s) Starting...',self.name)
+        self.file_name = self.CFG.get('process',{}).get('file_name','/tmp/transform_output')
+
+
+    def process(self, packet):
+        with open(self.file_name,'a') as f:
+            f.write('%s: ' % time.strftime("%Y-%m-%dT%H:%M:%S-05"))
+            f.write('%s' % packet)
+            f.write('\n')
+
 class TransformCampfire(TransformDataProcess):
 
     def on_start(self):
@@ -109,7 +123,7 @@ class TransformCampfire(TransformDataProcess):
         if isinstance(packet.author, BlogAuthor):
             author = packet.author.name
         elif isinstance(packet.author,dict):
-            author = packet.author['name']
+            author = packet.author.get('name','')
         else:
             author = packet.author
 

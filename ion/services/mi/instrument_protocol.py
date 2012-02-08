@@ -442,7 +442,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 if self._promptbuf.endswith(item):
                     mi_logger.debug('Got prompt: %s', repr(item))
                     return (item, self._linebuf)
-            
+                else:
+                    time.sleep(.1)
             if time.time() > starttime + timeout:
                 raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
 

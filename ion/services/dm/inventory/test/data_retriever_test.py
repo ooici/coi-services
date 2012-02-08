@@ -5,11 +5,12 @@
 '''
 import gevent
 from mock import Mock
-from interface.objects import Replay, Query, StreamQuery
+from interface.objects import Replay, Query, StreamQuery, BlogPost, BlogAuthor
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
+from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 from pyon.core.exception import NotFound, BadRequest
 from pyon.ion.endpoint import StreamSubscriber
 from pyon.ion.resource import PRED, RT
@@ -17,7 +18,7 @@ from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-import unittest
+import unittest, time
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 @attr('UNIT',group='dm')
 class DataRetrieverServiceTest(PyonTestCase):
@@ -93,6 +94,39 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.couch = CouchDB_DM_DataStore(datastore_name='test_data_retriever')
         if not self.couch.datastore_exists('test_data_retriever'):
             self.couch.create_datastore('test_data_retriever')
+            views = {
+                "_id": "_design/posts",
+                "views": {
+                    "comments_by_updated": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.updated,doc._id);}}"
+                    },
+                    "posts_by_title": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.title,doc._id);}}"
+                    },
+                    "comments_by_post_id": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.ref_id,doc._id);}}"
+                    },
+                    "posts_by_author": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.author.name,doc._id);}}"
+                    },
+                    "posts_by_author_date": {
+                        "map": "function(doc) {\n  if(doc.type_==\"BlogPost\")\n    emit([doc.author.name,doc.updated,doc.post_id], doc.post_id);\n  else if(doc.type==\"BlogComment\")\n    emit([doc.author.name,doc.updated,doc.ref_id], doc.ref_id);\n}"
+                    },
+                    "comments_by_author": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.author.name,doc._id);}}"
+                    },
+                    "posts_join_comments": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit([doc.post_id,0],doc._id);}\n\telse if(doc.type_==\"BlogComment\") { emit([doc.ref_id,1],doc._id);}\n}"
+                    },
+                    "posts_by_id": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.post_id,doc._id);}}"
+                    },
+                    "posts_by_updated": {
+                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.updated,doc._id);}}"
+                    }
+                }
+            }
+            self.couch.server['test_data_retriever'].create(views)
         else:
             raise BadRequest('test_data_retriever data store already exists, please delete it.')
 
@@ -145,13 +179,19 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         # assert the process has stopped
         proc = self.container.proc_manager.procs.get(replay.process_id,None)
         self.assertTrue(not proc)
-    @unittest.skip('not implemented yet')
+
     def test_start_replay(self):
+        post = BlogPost(title='test blog post', post_id='12345', author=BlogAuthor(name='Jon Doe'), content='this is a blog post',
+        updated=time.strftime("%Y-%m-%dT%H:%M%S-05"))
 
+        self.couch.create(post)
 
+        query = {
+            'datastore_name':'test_data_retriever',
+            'post_id':'12345'
+        }
 
-
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        replay_id, stream_id = self.dr_cli.define_replay(query=query)
         replay = self.rr_cli.read(replay_id)
 
 
@@ -175,10 +215,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.ps_cli.activate_subscription(subscription_id)
 
         self.dr_cli.start_replay(replay_id)
-        self.assertEqual(ar.get(timeout=10),{'num':0})
+        self.assertEqual(ar.get(timeout=10).post_id,post.post_id)
 
-        self.dr_cli.start_replay(replay_id)
-        self.assertEqual(ar.get(timeout=10),{'num':1})
         subscriber.stop()
 
 

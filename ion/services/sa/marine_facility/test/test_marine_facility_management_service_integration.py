@@ -16,15 +16,7 @@ from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
 
-from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
-
 from ion.services.sa.test.helpers import any_old
-
-from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
-from ion.services.sa.resource_impl.logical_platform_impl import LogicalPlatformImpl
-from ion.services.sa.resource_impl.marine_facility_impl import MarineFacilityImpl
-from ion.services.sa.resource_impl.site_impl import SiteImpl
-
 
 
 
@@ -89,13 +81,5 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
         #site
         self.RR.create_association(site_id, PRED.hasSite, site2_id)
 
-
-
-rimi = ResourceImplMetatestIntegration(TestMarineFacilityManagementServiceIntegration, MarineFacilityManagementService, log)
-
-rimi.add_resource_impl_inttests(LogicalInstrumentImpl, {})
-rimi.add_resource_impl_inttests(LogicalPlatformImpl, {"buoyname": "steve", "buoyheight": "3"})
-rimi.add_resource_impl_inttests(MarineFacilityImpl, {})
-rimi.add_resource_impl_inttests(SiteImpl, {})
 
 

@@ -18,6 +18,10 @@ from ion.services.sa.resource_impl.logical_platform_impl import LogicalPlatformI
 from ion.services.sa.resource_impl.marine_facility_impl import MarineFacilityImpl
 from ion.services.sa.resource_impl.site_impl import SiteImpl
 
+#for logical/physical associations, it makes sense to search from MFMS
+from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
+
 
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService
 
@@ -40,6 +44,9 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         if hasattr(self.clients, "resource_registry"):
             self.RR    = self.clients.resource_registry
             
+        if hasattr(self.clients, "instrument_management"):
+            self.IMS   = self.clients.instrument_management
+            
 
         #farm everything out to the impls
 
@@ -48,7 +55,8 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         self.marine_facility     = MarineFacilityImpl(self.clients)
         self.site                = SiteImpl(self.clients)
 
-
+        self.instrument_device   = InstrumentDeviceImpl(self.clients)
+        self.platform_device     = PlatformDeviceImpl(self.clients)
 
 
 
@@ -323,7 +331,105 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         #
         pass
 
+
+
+
+
+    ############################
+    #
+    #  ASSOCIATION FIND METHODS
+    #
+    ############################
+
+    def find_logical_instrument_by_logical_platform(self, logical_platform_id=''):
+        return self.logical_platform.find_stemming_instrument(logical_platform_id)
+
+    def find_logical_platform_by_logical_instrument(self, logical_instrument_id=''):
+        return self.logical_platform.find_having_instrument(logical_instrument_id)
+
+
+    def find_site_by_child_site(self, child_site_id=''):
+        return self.site.find_having_site(child_site_id)
+
+    def find_site_by_parent_site(self, parent_site_id=''):
+        return self.site.find_stemming_site(parent_site_id)
+
+
+    def find_logical_platform_by_site(self, site_id=''):
+        return self.site.find_stemming_platform(site_id)
+
+    def find_site_by_logical_platform(self, logical_platform_id=''):
+        return self.site.find_having_platform(logical_platform_id)
+
+
+    def find_site_by_marine_facility(self, marine_facility_id=''):
+        return self.marine_facility.find_stemming_site(marine_facility_id)
+
+    def find_marine_facility_by_site(self, site_id=''):
+        return self.marine_facility.find_having_site(site_id)
+
+
+    ############################
+    #
+    #  SPECIALIZED FIND METHODS
+    #
+    ############################
+
+    def find_instrument_device_by_logical_platform(self, logical_platform_id=''):
+        ret = []
+        for l in self.logical_platform.find_stemming_instrument(logical_platform_id):
+            for i in self.instrument_device.find_having_assignment(l):
+                if not i in ret:
+                    ret.append(i)
+        return ret
+
+    def find_instrument_device_by_site(self, site_id=''):
+        ret = []
+        for l in self.find_logical_platform_by_site(site_id):
+            for i in self.find_instrument_device_by_logical_platform(l):
+                if not i in ret:
+                    ret.append(i)
+
+        return ret
+
+    def find_instrument_device_by_marine_facility(self, marine_facility_id=''):
+        ret = []
+        for s in self.find_site_by_marine_facility(marine_facility_id):
+            for i in self.find_instrument_device_by_site(s):
+                if not i in ret:
+                    ret.append(i)
+
+        return ret
+        
+    def find_data_product_by_logical_platform(self, logical_platform_id=''):
+        ret = []
+        for i in self.find_instrument_device_by_logical_platform(logical_platform_id):
+            for dp in self.IMS.find_data_product_by_instrument_device(i):
+                if not dp in ret:
+                    ret.append(dp)
+
+        return ret
   
+    def find_data_product_by_site(self, site_id=''):
+        ret = []
+        for i in self.find_instrument_device_by_site(site_id):
+            for dp in self.IMS.find_data_product_by_instrument_device(i):
+                if not dp in ret:
+                    ret.append(dp)
+
+        return ret
+  
+    def find_data_product_by_marine_facility(self, marine_facility_id=''):
+        ret = []
+        for i in self.find_instrument_device_by_marine_facility(marine_facility_id):
+            for dp in self.IMS.find_data_product_by_instrument_device(i):
+                if not dp in ret:
+                    ret.append(dp)
+
+        return ret
+  
+
+
     ############################
     #
     #  LIFECYCLE TRANSITIONS
