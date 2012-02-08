@@ -19,8 +19,8 @@ import datetime
 import os
 import os.path
 
-from pyon.datastore.datastore import DataStore, DatastoreManager
-from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, PRED, StreamProcess
+from pyon.datastore.datastore import DataStore
+from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, PRED, StreamProcess, Container
 
 
 class DatastoreLoader(StreamProcess):
@@ -38,11 +38,10 @@ class DatastoreLoader(StreamProcess):
         if CFG.system.mockdb:
             log.warn("Cannot load into MockDB")
             return
-        ds = DatastoreManager.get_datastore(ds_name)
+        ds = Container.instance.datastore_manager.get_datastore(ds_name)
         if not ds:
             return
         path = path or "res/preload/default"
-
 
     @classmethod
     def dump_datastore(cls, ds_name=None, path=None, clear_dir=True):
@@ -61,10 +60,11 @@ class DatastoreLoader(StreamProcess):
             path = "res/preload/local/dump_%s" % dtstr
         if ds_name:
             # 1 Check ds_name exists
-            ds = DatastoreManager.get_datastore("objects")
+            ds = Container.instance.datastore_manager.get_datastore("objects")
             if ds.datastore_exists(ds_name):
-
-            cls._dump_datastore(ds, path, clear_dir)
+                pass
+            else:
+                cls._dump_datastore(ds, path, clear_dir)
         else:
             ds_list = [ds_name] if ds_name else ['resources','objects','state','events',]
             for ds in ds_list:
@@ -72,7 +72,7 @@ class DatastoreLoader(StreamProcess):
 
     @classmethod
     def _dump_datastore(cls, ds_name, outpath_base, clear_dir=True):
-        ds = DatastoreManager.get_datastore(ds_name)
+        ds = Container.instance.datastore_manager.get_datastore(ds_name)
         if not ds:
             return
         if not os.path.exists(outpath):

@@ -16,7 +16,7 @@ class DirectoryService(BaseDirectoryService):
     """
 
     def on_init(self):
-        self.directory = Directory.get_instance()
+        self.directory = self.container.directory
 
         # For easier interactive debugging
         self.dss = None
