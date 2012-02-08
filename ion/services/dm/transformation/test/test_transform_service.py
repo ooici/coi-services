@@ -119,7 +119,6 @@ class TransformManagementServiceTest(PyonTestCase):
             config=out_config)
         self.assertTrue(self.mock_rr_create.called)
 
-
     def test_create_transform_no_config(self):
         # mocks
         proc_def = DotDict()
@@ -354,6 +353,9 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         proc = self.container.proc_manager.procs.get(pid)
         self.assertIsInstance(proc,TransformExample)
 
+        # clean up
+        self.tms_cli.delete_transform(transform_id)
+
     def test_create_transform_no_procdef(self):
         with self.assertRaises(NotFound):
             self.tms_cli.create_transform(name='test',in_subscription_id=self.input_subscription_id)
@@ -363,7 +365,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             self.tms_cli.create_transform(name='test',
                 in_subscription_id=self.input_subscription_id,
                 process_definition_id='bad')
-
+    
     def test_create_transform_no_config(self):
         transform_id = self.tms_cli.create_transform(
             name='test_transform',
@@ -371,6 +373,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             out_streams={'output':self.output_stream_id},
             process_definition_id=self.process_definition_id,
         )
+        self.tms_cli.delete_transform(transform_id)
 
     def test_create_transform_name_failure(self):
         transform_id = self.tms_cli.create_transform(
@@ -386,6 +389,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
                 out_streams={'output':self.output_stream_id},
                 process_definition_id=self.process_definition_id,
             )
+        self.tms_cli.delete_transform(transform_id)
 
     def test_create_no_output(self):
         transform_id = self.tms_cli.create_transform(
@@ -406,6 +410,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         proc = self.container.proc_manager.procs.get(pid)
         self.assertIsInstance(proc,TransformExample)
 
+        self.tms_cli.delete_transform(transform_id)
     def test_read_transform_exists(self):
         trans_obj = IonObject(RT.Transform,name='trans_obj')
         trans_id, _ = self.rr_cli.create(trans_obj)
@@ -414,7 +419,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         actual = self.rr_cli.read(trans_id)
 
         self.assertEquals(res._id,actual._id)
-
+        self.tms_cli.delete_transform(trans_id)
     def test_read_transform_nonexist(self):
         with self.assertRaises(NotFound) as e:
             res = self.tms_cli.read_transform('123')
@@ -431,6 +436,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.tms_cli.activate_transform(transform_id)
 
         # pubsub check if activated?
+        self.tms_cli.delete_transform(transform_id)
 
     def test_activate_transform_nonexist(self):
         with self.assertRaises(NotFound):
@@ -466,6 +472,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         retval = self.tms_cli.execute_transform(process_definition_id,data)
 
         self.assertEquals(retval,[3,2,1])
+
 
     def test_integrated_transform(self):
         '''
@@ -647,3 +654,6 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.pubsub_cli.delete_stream(even_stream_id)
         self.pubsub_cli.delete_stream(even_stream_plus1_id)
         self.pubsub_cli.delete_stream(odd_stream_plus1_id)
+
+        self.tms_cli.delete_transform(even_transform_id)
+        self.tms_cli.delete_transform(odd_transform_id)
