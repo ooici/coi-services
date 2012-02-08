@@ -12,8 +12,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 from pyon.core.exception import NotFound, BadRequest
-from pyon.ion.endpoint import StreamSubscriber
-from pyon.ion.resource import PRED, RT
+from pyon.public import StreamSubscriber, StreamSubscriberRegistrar
+from pyon.public import PRED, RT
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
@@ -204,10 +204,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         def consume(message, headers):
             ar.set(message)
 
-        subscriber = StreamSubscriber(node=self.container.node,
-            process=self,
-            name=('science_data','test_queue'),
-            callback=lambda m,h: consume(m,h))
+        stream_subscriber = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        subscriber = stream_subscriber.create_subscriber(exchange_name='test_queue', callback=consume)
         subscriber.start()
 
         query = StreamQuery(stream_ids=[stream_id])

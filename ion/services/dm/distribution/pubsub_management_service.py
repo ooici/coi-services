@@ -19,7 +19,7 @@ from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.ion.endpoint import StreamPublisher
-
+from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
 
 # Can't make a couchdb data store here...
 ### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
@@ -36,19 +36,25 @@ class PubsubManagementService(BasePubsubManagementService):
         to create streams and subscriptions.
     '''
 
-    xs_dot_xp = CFG.core_xps.science_data
-    try:
-        XS, XP = xs_dot_xp.split('.')
-    except ValueError:
-        raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
 
-    stream_definition_type_names = CFG.core_stream_types
+    def __init__(self, *args, **kwargs):
+        BasePubsubManagementService.__init__(self,*args,**kwargs)
 
-    stream_definition_types= {}
+        xs_dot_xp = CFG.core_xps.science_data
+        try:
+            self.XS, xp_base = xs_dot_xp.split('.')
+            self.XP = '.'.join([bootstrap.sys_name, xp_base])
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    for cls_name in stream_definition_type_names:
-        stream_definition_types[cls_name] = getattr(objects,cls_name)
+
+        self.stream_definition_type_names = CFG.core_stream_types
+
+        self.stream_definition_types= {}
+
+        for cls_name in self.stream_definition_type_names:
+            self.stream_definition_types[cls_name] = getattr(objects,cls_name)
 
 
     #def __init__(self, *args, **kwargs):
