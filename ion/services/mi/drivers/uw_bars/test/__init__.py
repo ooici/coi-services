@@ -11,24 +11,56 @@ from unittest import TestCase
 import os
 
 
-class WithSimulatorTestCase(TestCase):
+class BarsTestCase(TestCase):
     """
-    Base class for test cases needing a simulator.
-    Actually the simulator is launched only if the environment variable
-    BARS is not defined. If it is defined then it is assumed that a BARS
-    instrument is already running. The BARS value is expected to be in
-    the format address:port"""
+    Base class for BARS test cases.
+
+    The whole test case is skipped if the environment variable BARS is
+    not defined.
+
+    If BARS is defined with the literal value "simulator", then a simulator is
+    launched in setUp and terminated in tearDown.
+
+    Otherwise, if BARS is defined, it is assumed to be in the format
+    address:port, then a connection to such service will be used.
+
+    In both BARS cases above, corresponding self.config object initialized
+    accordingly.
+    """
+
+    bars = os.getenv('BARS', None)
+
+    #
+    # The following attempts to use some unittest internals to
+    # conditionally skip the whole test case. A regular skipTest is used
+    # in setUp if this internal mechanism is not valid anymore.
+    # Interestingly, unittest does not provide a decorator for a
+    # conditional skip similar to the unconditional unittest.skip(reason).
+    #
+    __unittest_skip__ = None == bars
+    __unittest_skip_why__ = "Environment variable BARS not defined"
+
 
     def setUp(self):
-        """Starts simulator"""
+        """
+        Sets up the test case, launching a simulator if so specified and
+        preparing self.config.
+        """
 
-        bars = os.getenv('BARS', None)
+        self.simulator = None
+
+        bars = BarsTestCase.bars
+
         if bars is None:
+            # should not happen (unless unittest has changed some of its
+            # internals). Just skip explicitly here using regular API:
+            self.skipTest("Environment variable BARS undefined")
+
+        if bars == "simulator":
             self.simulator = BarsSimulator(accept_timeout=10.0)
             self.device_port = self.simulator.port
             self.device_address = 'localhost'
         else:
-            self.simulator = None
             a, p = bars.split(':')
             print "==ASSUMING BARS is listening on %s:%s==" % (a, p)
             self.device_address = a
@@ -49,7 +81,8 @@ class WithSimulatorTestCase(TestCase):
 
     def tearDown(self):
         """
-        Stops simulator and joins calling thread to that of the simulator.
+        Stops simulator if so specified and joins calling thread to that of the
+        simulator.
         """
         if self.simulator is not None:
             print "==stopping simulator=="

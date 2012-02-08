@@ -22,6 +22,12 @@ from ion.services.mi.drivers.uw_bars.common import BarsParameter
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.instrument_fsm import InstrumentFSM
 
+from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.services.mi.exceptions import InstrumentTimeoutException
+
+import time
+import sys
+import os
 import re
 
 
@@ -30,6 +36,19 @@ import logging
 log = logging.getLogger('mi_logger')
 
 CONTROL_S = '\x13'
+CONTROL_M = '\x0d'
+
+# TODO synchronize with actual instrument and simulator
+NEWLINE = '\r\n'
+
+GENERIC_PROMPT_PATTERN = re.compile(r'--> $')
+
+DATA_LINE_PATTERN = re.compile(r'(\d+\.\d*\s*){12}.*')
+
+CYCLE_TIME_PATTERN = re.compile(
+        r'present value for the Cycle Time is\s+([^.]*)\.')
+
+
 
 
 class BarsProtocolState(BaseEnum):
@@ -52,15 +71,6 @@ class BarsProtocolEvent(BaseEnum):
     EXIT_PROGRAM = '6'  # defined for completeness -- NOT TO BE USED.
 
     EXIT_CHANGE_PARAMS = '3'
-
-
-# TODO synchronize with actual instrument and simulator
-NEWLINE = '\r\n'
-
-# some patters
-DATA_LINE_PATTERN = re.compile(r'(\d+\.\d*\s*){12}.*')
-CYCLE_TIME_PATTERN = re.compile(
-        r'present value for the Cycle Time is\s+([^.]*)\.')
 
 
 class BarsPrompt(BaseEnum):
@@ -86,6 +96,9 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         callback, prompts, newline = None, BarsPrompt, NEWLINE
         CommandResponseInstrumentProtocol.__init__(self, callback, prompts,
                                                    newline)
+
+        self._outfile = sys.stdout
+        self._outfile = file("protoc_output.txt", "w")
 
         self._fsm = InstrumentFSM(BarsProtocolState, BarsProtocolEvent,
                                   None,
@@ -127,9 +140,15 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         # we start in the PRE_INIT state
         self._fsm.start(BarsProtocolState.PRE_INIT)
 
+        # add build command handlers
         self._add_build_handler(CONTROL_S, self._build_simple_cmd)
+        self._add_build_handler(CONTROL_M, self._build_simple_cmd)
         for c in range(8):
-            self._add_build_handler('%d' % c, self._build_simple_cmd)
+            char ='%d' % c
+            self._add_build_handler(char, self._build_simple_cmd)
+
+        # add response handlers
+        self._add_response_handler(CONTROL_S, self._control_s_response_handler)
 
     def _assert_state(self, state):
         cs = self.get_current_state()
@@ -142,6 +161,15 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         return cmd
 
+    def _control_s_response_handler(self, response, prompt):
+        """
+        """
+        log.debug("_control_s_response_handler: response='%s'  prompt='%s'" %
+                  (str(response), str(prompt)))
+
+        # TODO
+        return response
+
     def _logEvent(self, params):
         #log.info
         print("_logEvent: curr_state=%s, params=%s" %
@@ -152,6 +180,10 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         #super(BarsInstrumentProtocol, self)._got_data(data)
 
+        if self._outfile:
+            os.write(self._outfile.fileno(), data)
+            self._outfile.flush()
+
         if re.match(DATA_LINE_PATTERN, data):
             # clear prompt buffer
             self._promptbuf = ''
@@ -159,7 +191,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
             self._process_streaming_data(data)
         else:
             self._promptbuf += data
-            self._show_buffer('_promptbuf', data)
+            #self._show_buffer('_promptbuf', data)
 
     def _show_buffer(self, title, buffer, prefix='\n\t| '):
         """
@@ -270,7 +302,48 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._logEvent(params)
 
-        result = self._do_cmd_resp(CONTROL_S)
+        time_limit = time.time() + 60
+        log.debug("### automatic ^S")
+        got_prompt = False
+        while not got_prompt and time.time() <= time_limit:
+            log.debug("### sending ^S")
+            result = None
+            try:
+                result = self._do_cmd_resp(CONTROL_S, timeout=2)
+            except InstrumentTimeoutException:
+                pass  # ignore
+
+            # TODO remove the following except case when
+            # InstrumentTimeoutException is used by the core class
+            # consistently.
+            except InstrumentProtocolException as e:
+                if e.error_code != InstErrorCode.TIMEOUT:
+                    raise
+
+            time.sleep(1)
+            log.debug("### ******** result = '%s'" % str(result))
+            log.debug("### ******** linebuff = '%s'" % self._linebuf)
+            log.debug("### ******** _promptbuf = '%s'" % self._promptbuf)
+            string = self._promptbuf
+            got_prompt = GENERIC_PROMPT_PATTERN.search(string) is not None
+
+        if not got_prompt:
+            # TODO: raise InstrumentTimeoutException()
+            raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
+
+        log.debug("### got prompt. Sending one ^m to clean up any ^S leftover")
+        result = self._do_cmd_resp(CONTROL_M, timeout=10)
+
+        time.sleep(1)
+        log.debug("### ******** result = '%s'" % str(result))
+        log.debug("### ******** linebuff = '%s'" % self._linebuf)
+        log.debug("### ******** _promptbuf = '%s'" % self._promptbuf)
+        string = self._linebuf
+        got_prompt = GENERIC_PROMPT_PATTERN.match(string) is not None
+
+        if not got_prompt:
+            raise InstrumentProtocolException(
+                    msg="Unexpected, should have gotten prompt after enter.")
 
         next_state = BarsProtocolState.MAIN_MENU
 
@@ -290,7 +363,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = None
 
         # send '1' not expecting response:
-        result = self._do_cmd_no_resp('1')
+        result = self._do_cmd_no_resp('1', timeout=60)
 
         print "restart_data_coll result='%s'" % str(result)
 
@@ -313,7 +386,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
 
-        result = self._do_cmd_resp('2')
+        result = self._do_cmd_resp('2', timeout=10)
 
         print "XXX2 result='%s'" % str(result)
 

@@ -16,7 +16,7 @@ monkey.patch_all()
 
 import time
 
-from ion.services.mi.drivers.uw_bars.test import WithSimulatorTestCase
+from ion.services.mi.drivers.uw_bars.test import BarsTestCase
 
 from ion.services.mi.instrument_driver import DriverState
 
@@ -26,7 +26,7 @@ from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 
 
-class DriverAndProcsTest(WithSimulatorTestCase):
+class DriverAndProcsTest(BarsTestCase):
     """
     Tests involving ZMQ driver process and ZMQ client.
     """

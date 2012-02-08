@@ -3,7 +3,7 @@
 __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
-from ion.services.mi.drivers.uw_bars.test import WithSimulatorTestCase
+from ion.services.mi.drivers.uw_bars.test import BarsTestCase
 from ion.services.mi.drivers.uw_bars.driver import BarsInstrumentDriver
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
@@ -14,7 +14,8 @@ from ion.services.mi.common import InstErrorCode
 import time
 
 
-class DriverTest(WithSimulatorTestCase):
+
+class DriverTest(BarsTestCase):
 
     def test(self):
         """

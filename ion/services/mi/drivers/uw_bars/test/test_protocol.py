@@ -4,14 +4,14 @@ __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
 
-from ion.services.mi.drivers.uw_bars.test import WithSimulatorTestCase
+from ion.services.mi.drivers.uw_bars.test import BarsTestCase
 from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
 from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 import time
 
 
-class ProtocolTest(WithSimulatorTestCase):
+class ProtocolTest(BarsTestCase):
 
     def test(self):
         """
