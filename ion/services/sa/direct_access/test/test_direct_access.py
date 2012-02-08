@@ -10,6 +10,7 @@ from nose.plugins.attrib import attr
 import unittest
 import sys, pprint, time, types, select
 from pyon.util.log import log
+import gevent
 
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
 
@@ -45,3 +46,20 @@ class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
         #time.sleep(1)
         print("quitting test")
 
+if __name__ == '__main__':
+    # For command line testing of telnet DA Server w/o nosetest timeouts
+
+    print("starting IA mock test for DA Server")
+    container = Container()
+    setattr(container, 'ia_mock_quit', False)
+    print("CC created")
+    container.start()
+    print("CC started")
+    container_client = ContainerAgentClient(node=container.node, name=container.name)
+    print("CC client created")
+    container_client.start_rel_from_url('res/deploy/examples/ia_mock.yml')
+    while True:
+        if container.ia_mock_quit == True:
+            break
+        gevent.sleep(1)
+    print("stopping IA mock test for DA Server")
