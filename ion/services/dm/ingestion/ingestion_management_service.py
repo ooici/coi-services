@@ -38,8 +38,6 @@ class IngestionManagementService(BaseIngestionManagementService):
     def __init__(self):
         BaseIngestionManagementService.__init__(self)
 
-    def on_start(self):
-        super(IngestionManagementService,self).on_start()
         xs_dot_xp = CFG.core_xps.science_data
         try:
             self.XS, xp_base = xs_dot_xp.split('.')
@@ -47,6 +45,10 @@ class IngestionManagementService(BaseIngestionManagementService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
+
+
+    def on_start(self):
+        super(IngestionManagementService,self).on_start()
 
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
