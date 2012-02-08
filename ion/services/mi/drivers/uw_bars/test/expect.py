@@ -21,24 +21,17 @@ Try this program with the BARS simulator:
     $ bin/python ion/services/mi/drivers/uw_bars/test/expect.py 63179
 
 With the actual instrument:
-    $ bin/python ion/services/mi/drivers/uw_bars/test/expect.py 10.180.80.172 2001
+ $ bin/python ion/services/mi/drivers/uw_bars/test/expect.py 10.180.80.172 2001
 """
 
 try:
     import pexpect
+    pexpect_ok = True
 except:
-    print "This program requires pexpect."
-    exit()
+    pexpect_ok = False
 
 import sys
 import time
-
-if len(sys.argv) <= 1:
-    print """USAGE:
-    expect.py port          # assume connection to simulator on localhost:port
-    expect.py address port  # connect to real instrument on address:port
-    """
-    exit()
 
 logfile = None
 #logfile = sys.stdout
@@ -113,64 +106,80 @@ def terminate(simulator, child):
 
     exit()
 
-simulator = False
-if len(sys.argv) == 2:
-    host = 'localhost'
-    port = sys.argv[1]
-    simulator = True
-else:
-    host = sys.argv[1]
-    port = sys.argv[2]
 
-print "# spawning telnet"
-child = pexpect.spawn('telnet', [host, port], logfile=logfile)
+def main():
+    simulator = False
+    if len(sys.argv) == 2:
+        host = 'localhost'
+        port = sys.argv[1]
+        simulator = True
+    else:
+        host = sys.argv[1]
+        port = sys.argv[2]
 
+    print "# spawning telnet"
+    child = pexpect.spawn('telnet', [host, port], logfile=logfile)
 
-### Note: immediate interaction with real instrument works fine with pexpect,
-### but not as well when doing step-by-step interaction.
-#child.interact()
-#terminate(simulator, child)
+    ### Note: immediate interaction with real instrument works fine with
+    ### pexpect, but not as well when doing step-by-step interaction.
+    #child.interact()
+    #terminate(simulator, child)
 
-if not expect_data(child):
+    if not expect_data(child):
+        terminate(simulator, child)
+
+    time.sleep(2)
+
+    got_prompt = False
+    limit_time = time.time() + 20  # the following for up to ~ 20+2 secs
+    while not got_prompt and time.time() < limit_time:
+        print "# sending ^S and waiting for prompt"
+        child.sendcontrol('s')
+        if simulator:
+            child.sendcontrol('m')
+        index = child.expect(['.*--> ', pexpect.TIMEOUT], timeout=2)
+        got_prompt = 0 == index
+
+    if got_prompt:
+        print "# got prompt"
+        print "# MATCH:"
+        print_match(child)
+
+        send_newline(child)
+
+        time.sleep(3)
+
+        send_char(child, '6', "system info")
+        child.expect('.*--> ')
+        print_match(child)
+
+        send_newline(child)
+
+        print "# expecting prompt (main menu)"
+        child.expect('.*--> ')
+        print_match(child)
+
+        expect_data(child)
+
+    #    print("# Entering interact mode. Escape character is '^]'.\n")
+    #    sys.stdout.write(child.after)
+    #    sys.stdout.flush()
+    #    child.interact()
+    #    print '# Left interactive mode.'
+
     terminate(simulator, child)
 
-time.sleep(2)
 
-got_prompt = False
-limit_time = time.time() + 20  # the following for up to ~ 20+2 secs
-while not got_prompt and time.time() < limit_time:
-    print "# sending ^S and waiting for prompt"
-    child.sendcontrol('s')
-    if simulator:
-        child.sendcontrol('m')
-    index = child.expect(['.*--> ', pexpect.TIMEOUT], timeout=2)
-    got_prompt = 0 == index
+if __name__ == '__main__':
+    if not pexpect_ok:
+        print "This program requires pexpect."
+        exit()
 
-if got_prompt:
-    print "# got prompt"
-    print "# MATCH:"
-    print_match(child)
+    if len(sys.argv) <= 1:
+        print """USAGE:
+        expect.py port          # connect to localhost:port
+        expect.py address port  # connect to address:port
+        """
+        exit()
 
-    send_newline(child)
-
-    time.sleep(3)
-
-    send_char(child, '6', "system info")
-    child.expect('.*--> ')
-    print_match(child)
-
-    send_newline(child)
-
-    print "# expecting prompt (main menu)"
-    child.expect('.*--> ')
-    print_match(child)
-
-    expect_data(child)
-
-#    print("# Entering interact mode. Escape character is '^]'.\n")
-#    sys.stdout.write(child.after)
-#    sys.stdout.flush()
-#    child.interact()
-#    print '# Left interactive mode.'
-
-terminate(simulator, child)
+    main()
