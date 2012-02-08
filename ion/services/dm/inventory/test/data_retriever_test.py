@@ -92,44 +92,44 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
         self.couch = CouchDB_DM_DataStore(datastore_name='test_data_retriever')
-        if not self.couch.datastore_exists('test_data_retriever'):
-            self.couch.create_datastore('test_data_retriever')
-            views = {
-                "_id": "_design/posts",
-                "views": {
-                    "comments_by_updated": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.updated,doc._id);}}"
-                    },
-                    "posts_by_title": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.title,doc._id);}}"
-                    },
-                    "comments_by_post_id": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.ref_id,doc._id);}}"
-                    },
-                    "posts_by_author": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.author.name,doc._id);}}"
-                    },
-                    "posts_by_author_date": {
-                        "map": "function(doc) {\n  if(doc.type_==\"BlogPost\")\n    emit([doc.author.name,doc.updated,doc.post_id], doc.post_id);\n  else if(doc.type==\"BlogComment\")\n    emit([doc.author.name,doc.updated,doc.ref_id], doc.ref_id);\n}"
-                    },
-                    "comments_by_author": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.author.name,doc._id);}}"
-                    },
-                    "posts_join_comments": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit([doc.post_id,0],doc._id);}\n\telse if(doc.type_==\"BlogComment\") { emit([doc.ref_id,1],doc._id);}\n}"
-                    },
-                    "posts_by_id": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.post_id,doc._id);}}"
-                    },
-                    "posts_by_updated": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.updated,doc._id);}}"
-                    }
+        if self.couch.datastore_exists('test_data_retriever'):
+            self.couch.delete_datastore('test_data_retriever')
+
+        self.couch.create_datastore('test_data_retriever')
+
+        views = {
+            "_id": "_design/posts",
+            "views": {
+                "comments_by_updated": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.updated,doc._id);}}"
+                },
+                "posts_by_title": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.title,doc._id);}}"
+                },
+                "comments_by_post_id": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.ref_id,doc._id);}}"
+                },
+                "posts_by_author": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.author.name,doc._id);}}"
+                },
+                "posts_by_author_date": {
+                    "map": "function(doc) {\n  if(doc.type_==\"BlogPost\")\n    emit([doc.author.name,doc.updated,doc.post_id], doc.post_id);\n  else if(doc.type==\"BlogComment\")\n    emit([doc.author.name,doc.updated,doc.ref_id], doc.ref_id);\n}"
+                },
+                "comments_by_author": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.author.name,doc._id);}}"
+                },
+                "posts_join_comments": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit([doc.post_id,0],doc._id);}\n\telse if(doc.type_==\"BlogComment\") { emit([doc.ref_id,1],doc._id);}\n}"
+                },
+                "posts_by_id": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.post_id,doc._id);}}"
+                },
+                "posts_by_updated": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.updated,doc._id);}}"
                 }
             }
-            self.couch.server['test_data_retriever'].create(views)
-        else:
-            raise BadRequest('test_data_retriever data store already exists, please delete it.')
-
+        }
+        self.couch.server['test_data_retriever'].create(views)
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
