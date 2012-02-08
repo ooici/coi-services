@@ -281,7 +281,7 @@ def get_resource(resource_id):
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
-            result = client.read(resource_id)
+            result = client.read(convert_unicode(resource_id))
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
@@ -302,7 +302,7 @@ def list_resources_by_type(resource_type):
 
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
-        res_list,_ = client.find_resources(restype=resource_type )
+        res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
         result = []
         for res in res_list:
             result.append(res)
