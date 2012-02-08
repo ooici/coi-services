@@ -14,6 +14,8 @@ from pyon.ion.endpoint import StreamPublisher
 from pyon.ion.streamproc import StreamProcess
 from gevent.greenlet import Greenlet
 from pyon.net.endpoint import Publisher
+from pyon.util.config import CFG
+from pyon.core import bootstrap
 
 class FeedFormatter(object):
     '''
@@ -47,9 +49,17 @@ class FeedStreamer(StreamProcess):
         '''
         Sets the name, the blog and loads the form feeder (URL and JSON Query Object)
         '''
+        xs_dot_xp = CFG.core_xps.science_data
+        try:
+            self.XS, xp_base = xs_dot_xp.split('.')
+            self.XP = '.'.join([bootstrap.sys_name, xp_base])
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
+
         self.name = self.CFG.get('name','feed_streamer')
         blog = self.CFG.get('process',{}).get('blog','saintsandspinners')
-        self.xp = self.CFG.get('process',{}).get('exchange_point','science_data')
+
         self.feed = FeedFormatter(blog=blog)
 
         # Start the thread
@@ -69,7 +79,7 @@ class FeedStreamer(StreamProcess):
             For the reason we will pretend it has already been called and use an unregistered stream.
 
             """
-            p = StreamPublisher(name=(self.xp,'%s.%s' %(num,"data")),process=self,node=self.container.node)
+            p = StreamPublisher(name=(self.XP,'%s.%s' %(num,"data")),process=self,node=self.container.node)
             p.publish(msg=entry['post'])
             for comment in entry['comments']:
                 p.publish(msg=comment)

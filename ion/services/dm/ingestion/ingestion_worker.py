@@ -9,7 +9,7 @@ to couchdb datastore and hdf datastore.
 '''
 
 from pyon.core.exception import NotFound
-from pyon.datastore.datastore import DataStore
+from pyon.datastore.datastore import DataStore, DatastoreManager
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG, StreamProcess
 from pyon.ion.endpoint import ProcessPublisher
@@ -46,19 +46,13 @@ class IngestionWorker(TransformDataProcess):
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
         self.datastore_name = self.couch_config['database']
-        self.db = CouchDB_DataStore(host=self.couch_config['server'], datastore_name = self.couch_config['database'])
+        self.db = DatastoreManager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
 
         log.warn(str(self.db))
 
-        # Create dm_datastore if it does not exist already
-        try:
-            #@todo: change this as necessary
-            self.db.create_datastore(self.datastore_name, profile= DataStore.DS_PROFILE.EXAMPLES)
-        except BadRequest:
-            print 'Already exists'
 
     def process(self, packet):
         """Process incoming data!!!!
