@@ -164,8 +164,6 @@ class ReplayProcess(BaseReplayProcess):
 
         ret = db.query_view(view_name=view_name,opts=opts)
 
-        db.close()
-
         callback(ret)
 
 
