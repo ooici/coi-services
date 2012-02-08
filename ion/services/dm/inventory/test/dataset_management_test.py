@@ -25,15 +25,14 @@ class DatasetManagementTest(PyonTestCase):
     def test_create_dataset(self):
         # mocks
         self.mock_rr_create.return_value = ('dataset_id','rev')
-        mock_dataset = {'dataset':'mocked'}
 
         # execution
-        dataset_id = self.dataset_management.create_dataset(dataset=mock_dataset)
+        dataset_id = self.dataset_management.create_dataset(name='123')
 
 
         # assertions
         self.assertEquals(dataset_id,'dataset_id')
-        self.mock_rr_create.assert_called_with(mock_dataset)
+        self.assertTrue(self.mock_rr_create.called)
 
     def test_update_dataset(self):
         # mocks

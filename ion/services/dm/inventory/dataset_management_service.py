@@ -6,6 +6,7 @@ __license__ = 'Apache 2.0'
 
 
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService
+from interface.objects import DataSet
 
 class DatasetManagementService(BaseDatasetManagementService):
     def __init__(self, *args, **kwargs):
@@ -16,18 +17,36 @@ class DatasetManagementService(BaseDatasetManagementService):
     class docstring
     """
 
-    def create_dataset(self, dataset=None):
+    def create_dataset(self, stream_id='', name='', description='', contact=None, user_metadata={}):
+        """@brief Create a resource which defines a dataset. For LCA it is assumed that datasets are organized by stream.
+        @param stream_id is the primary key used in the couch view to retrieve the content or metadata
+        @param contact is the contact information for the dataset adminstrator
+        @param user_metadata is user defined metadata which can be added to this dataset. Should be annotation via association
+        @param name is the name of the dataset resource
+        @param description is a description of the dataset resource
+
+        @param stream_id    str
+        @param name    str
+        @param description    str
+        @param contact    ContactInformation
+        @param user_metadata    Unknown
+        @retval dataset_id    str
         """
-        method docstring
-        """
-        if not dataset:
-            raise BadRequest('%s: No dataset provided.' % self.logging_name)
+
+        dataset = DataSet()
+        dataset.description=description
+        dataset.name=name
+        dataset.primary_view_key=stream_id
+        #@todo: fill this in
+        dataset.view_name=''
+
         dataset_id, _ = self.clients.resource_registry.create(dataset)
         return dataset_id
 
     def update_dataset(self, dataset=None):
-        """
-        method docstring
+        """@todo document this interface!!!
+
+        @param dataset    DataSet
         """
         if not (dataset and dataset._id):
             raise BadRequest('%s: Dataset either not provided or malformed.' % self.logging_name)
@@ -48,6 +67,29 @@ class DatasetManagementService(BaseDatasetManagementService):
         """
         self.clients.resource_registry.delete(dataset_id)
 
+    def get_dataset_bounds(self, dataset_id=''):
+        """@brief Get the bounding coordinates of the dataset using a couch map/reduce query
+        @param dataset_id
+        @result bounds is a dictionary containing spatial and temporal bounds of the dataset in standard units
+
+        @param dataset_id    str
+        @retval bounds    Unknown
+        """
+        dataset = self.read_dataset(dataset_id=dataset_id)
+        #@todo: Perform Query
+        return ''
+
+    def get_dataset_metadata(self, dataset_id=''):
+        """@brief Get the metadata for the dataset using a couch map/reduce query
+        @param dataset_id
+        @result the aggregated available metadata for the specified dataset
+
+        @param dataset_id    str
+        @retval metadata    Unknown
+        """
+        dataset = self.read_dataset(dataset_id=dataset_id)
+        #@todo: Perform Query
+        return ''
     def find_datasets(self, filters=None):
         """
         method docstring
