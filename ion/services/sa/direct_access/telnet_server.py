@@ -33,11 +33,12 @@ import curses.ascii
 import curses.has_key
 import curses
 import re
-import logging
+#import logging as log
 import multiprocessing
 import select
 
 from pyon.core.exception import ServerError
+from pyon.util.log import log
 
 if not hasattr(socket, 'SHUT_RDWR'):
 	socket.SHUT_RDWR = 2
@@ -248,7 +249,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		"""
 		global username, password, child_connection
 		
-		logging.debug("TelnetHandler.__init__()")
+		log.debug("TelnetHandler.__init__()")
 		# Am I doing the echoing?
 		self.DOECHO = True
 		# What opts have I sent DO/DONT for and what did I send?
@@ -277,7 +278,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def setterm(self, term):
 		"Set the curses structures for this terminal"
-		logging.debug("Setting termtype to %s" % (term, ))
+		log.debug("Setting termtype to %s" % (term, ))
 		curses.setupterm(term) # This will raise if the termtype is not supported
 		self.TERM = term
 		self.ESCSEQ = {}
@@ -293,7 +294,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def setup(self):
 		"Connect incoming connection to a telnet session"
-		logging.debug("TelnetHandler.setup()")
+		log.debug("TelnetHandler.setup()")
 		self.setterm(self.TERM)
 		self.sock = self.request._sock
 		for k in self.DOACK.keys():
@@ -311,12 +312,12 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 
 	def finish(self):
 		"End this session"
-		logging.debug("TelnetHandler.finish()")
+		log.debug("TelnetHandler.finish()")
 		try:
 			self.sock.shutdown(socket.SHUT_RDWR)
 		except Exception as ex:
 			# can happen if telnet client closes session first
-			logging.debug("exception caught for socket shutdown:" + str(ex))
+			log.debug("exception caught for socket shutdown:" + str(ex))
 			return
 
 # ------------------------- Telnet Options Engine --------------------------
@@ -334,7 +335,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 #				opttxt = "opt:%d" % ord(opt)
 #		else:
 #			opttxt = ""
-#		logging.debug("OPTION: %s %s" % (cmdtxt, opttxt, ))
+#		log.debug("OPTION: %s %s" % (cmdtxt, opttxt, ))
 		if cmd == NOP:
 			self.sendcommand(NOP)
 		elif cmd == WILL or cmd == WONT:
@@ -357,11 +358,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				try:
 					self.setterm(subreq[2:])
 				except:
-					logging.debug("Terminal type not known")
+					log.debug("Terminal type not known")
 		elif cmd == SB:
 			pass
 		else:
-			logging.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
+			log.debug("Unhandled option: %s %s" % (cmdtxt, opttxt, ))
 
 	def sendcommand(self, cmd, opt=None):
 		"Send a telnet command (IAC)"
@@ -381,21 +382,21 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				self.DOOPTS[opt] = None
 			if (((cmd == DO) and (self.DOOPTS[opt] != True))
 			or ((cmd == DONT) and (self.DOOPTS[opt] != False))):
-#				logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Sending %s %s" % (cmdtxt, opttxt, ))
 				self.DOOPTS[opt] = (cmd == DO)
 				self.writecooked(IAC + cmd + opt)
 #			else:
-#				logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
 		elif cmd in [WILL, WONT]:
 			if not self.WILLOPTS.has_key(opt):
 				self.WILLOPTS[opt] = ''
 			if (((cmd == WILL) and (self.WILLOPTS[opt] != True))
 			or ((cmd == WONT) and (self.WILLOPTS[opt] != False))):
-#				logging.debug("Sending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Sending %s %s" % (cmdtxt, opttxt, ))
 				self.WILLOPTS[opt] = (cmd == WILL)
 				self.writecooked(IAC + cmd + opt)
 #			else:
-#				logging.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
+#				log.debug("Not resending %s %s" % (cmdtxt, opttxt, ))
 		else:
 			self.writecooked(IAC + cmd)
 
@@ -541,7 +542,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		self.OQUEUELOCK.release()
 		
 	def writeReceiver(self):
-		logging.debug("TelnetHandler.writeReceiver(): starting")
+		log.debug("TelnetHandler.writeReceiver(): starting")
 		# loop checking for input via pipe from parent or EOF from inputcooker
 		while True:
 			if self.child_connection.poll():
@@ -555,7 +556,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				# inputcooker detected telnet client closed
 				break
 			time.sleep(.05)
-		logging.debug("TelnetHandler.writeReceiver(): stopping")
+		log.debug("TelnetHandler.writeReceiver(): stopping")
 
 # ------------------------------- Input Cooker -----------------------------
 
@@ -563,7 +564,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		"""Get one character from the raw queue. Optionally blocking.
 		Raise EOFError on end of stream. SHOULD ONLY BE CALLED FROM THE
 		INPUT COOKER."""
-		#logging.debug("TelnetHandler._inputcooker_getc()")
+		#log.debug("TelnetHandler._inputcooker_getc()")
 		if self.rawq:
 			ret = self.rawq[0]
 			self.rawq = self.rawq[1:]
@@ -615,7 +616,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		Set self.eof when connection is closed.  Don't block unless in
 		the midst of an IAC sequence.
 		"""
-		logging.debug("TelnetHandler.inputcooker(): starting")
+		log.debug("TelnetHandler.inputcooker(): starting")
 		try:
 			while True:
 				c = self._inputcooker_getc()
@@ -672,7 +673,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 					if cmd in (DO, DONT, WILL, WONT):
 						self.options_handler(self.sock, cmd, c)
 		except EOFError:
-			logging.debug("TelnetHandler.inputcooker(): stopping")
+			log.debug("TelnetHandler.inputcooker(): stopping")
 
 # ----------------------- Command Line Processor Engine --------------------
 
@@ -691,11 +692,11 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 		if not self.quitIC:
 			self.child_connection.send(-1)
 		time.sleep(.1)
-		logging.debug("Exiting telnet request handler: " + reason)
+		log.debug("Exiting telnet request handler: " + reason)
 	
 	def handle(self):
 		"The actual service to which the user has connected."
-		logging.debug("TelnetServer.handle()")
+		log.debug("TelnetServer.handle()")
 		username = None
 		password = None
 		if self.authCallback:
@@ -718,7 +719,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 				if self.DOECHO:
 					self.write("\n")
 			if not self.authCallback(username, password):
-				logging.debug("login failed")
+				log.debug("login failed")
 				self.writeline("login failed")
 				self.exitHandler("login failed")
 				return
@@ -730,7 +731,7 @@ class TelnetHandler(SocketServer.BaseRequestHandler):
 			except EOFError:
 				self.exitHandler("lost connection")
 				break
-			logging.debug("rcvd: " + inputLine)
+			log.debug("rcvd: " + inputLine)
 			self.child_connection.send(inputLine)
 
 class TcpSocketServer(SocketServer.TCPServer):
@@ -756,10 +757,10 @@ class TelnetServer(object):
 		# TCP socket server
 		global username, password, child_connection
 		
-		logging.getLogger('').setLevel(logging.INFO)
-		logging.debug("TelnetServer.__init__()")
+		#log.getLogger('').setLevel(log.DEBUG)
+		log.debug("TelnetServer.__init__()")
 		if not inputCallback:
-			logging.warning("TelnetServer.__init__(): callback not specified")
+			log.warning("TelnetServer.__init__(): callback not specified")
 			raise ServerError("callback not specified")
 		self.parentInputCallback = inputCallback
 		
@@ -783,18 +784,18 @@ class TelnetServer(object):
 		
 		# start the callbackProxy thread to receive client input from telnet server process
 		self.callbackProxyThread = threading.Thread(target=self.runCallbackProxy)
-		#logging.debug("TelnetHandler.setup(): starting callbackProxy thread")
+		#log.debug("TelnetHandler.setup(): starting callbackProxy thread")
 		self.callbackProxyThread.setDaemon(True)
 		self.callbackProxyThread.start()
 		
 	def runServer(self):
-		logging.debug("TelnetServer.runServer(): starting")
+		log.debug("TelnetServer.runServer(): starting")
 		# accept a single telnet request
 		self.tns.handle_request()
-		logging.debug("TelnetServer.runServer(): stopping")
+		log.debug("TelnetServer.runServer(): stopping")
 		
 	def runCallbackProxy(self):
-		logging.debug("TelnetServer.runCallbackProxy(): starting")
+		log.debug("TelnetServer.runCallbackProxy(): starting")
 		# run until quitProxy is True
 		while not self.quitProxy:
 			# check for input from telnet server
@@ -807,14 +808,14 @@ class TelnetServer(object):
 				if data == -1:
 					break
 			time.sleep(.05)
-		logging.debug("TelnetServer.runCallbackProxy(): stopping")
+		log.debug("TelnetServer.runCallbackProxy(): stopping")
 	
 	def getConnectionInfo(self):
 		global username, password
 		return self.ip_address, self.port, username, password
 
 	def stop(self):
-		logging.debug("TelnetServer.stop()")
+		log.debug("TelnetServer.stop()")
 		# tell callbackProxyThread to quit
 		self.quitProxy = True
 		# wait until it quits
@@ -830,20 +831,20 @@ class TelnetServer(object):
 			
 	def write(self, data):
 		# send data from parent to telnet server process to forward to client
-		logging.debug("TelnetServer.write(): data = " + str(data))
+		log.debug("TelnetServer.write(): data = " + str(data))
 		self.parent_connection.send(data)
 		
 
 if __name__ == '__main__':
 	"For command line testing - Accept a single connection"
 				
-	logging.info("ION Telnet server starting")
+	log.info("ION Telnet server starting")
 
 	username = "admin"
 	password = "123"
 
 	tns = TcpSocketServer(("localhost", 8000), TelnetHandler)
 	tns.handle_request()
-	logging.info("completed request: exiting server")
+	info("completed request: exiting server")
 
 

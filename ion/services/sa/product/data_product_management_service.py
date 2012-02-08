@@ -108,7 +108,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product.update_one(data_product)
 
         #keep associated data producer name in sync with data product
-        data_producer_ids, _ = self.data_product.find_stemming_data_producer(data_product._id)
+        data_producer_ids = self.data_product.find_stemming_data_producer(data_product._id)
         #TODO: error check / consistency check
         if 1 == len(data_producer_ids):
             data_producer_id = data_producer_ids[0]

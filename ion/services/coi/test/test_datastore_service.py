@@ -13,7 +13,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.idatastore_service import DatastoreServiceClient, DatastoreServiceProcessClient
 
-@attr('INT', group='datastore')
+@attr('INT', group='coi')
 class TestDatastore(IonIntegrationTestCase):
     
     def setUp(self):
