@@ -1,25 +1,28 @@
 #!/usr/bin/env python
 
-__author__ = 'Thomas R. Lennan'
+__author__ = 'Thomas R. Lennan, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 from pyon.core.exception import BadRequest
-from pyon.directory.directory import Directory
+from pyon.ion.directory import Directory
+
 from interface.services.coi.idirectory_service import BaseDirectoryService
 
-class DirectoryService(BaseDirectoryService):
 
+class DirectoryService(BaseDirectoryService):
     """
     Provides a directory of services and other resources specific to an Org.
+    The directory is backed by a persistent datastore and is system/Org wide.
     """
 
     def on_init(self):
-        self.directory = Directory()
+        self.directory = Directory.get_instance()
+
         # For easier interactive debugging
         self.dss = None
-        self.ds = self.directory.datastore
+        self.ds = self.directory.dir_store
         try:
-            self.dss = self.directory.datastore.server[self.directory.datastore.datastore_name]
+            self.dss = self.directory.dir_store.server[self.directory.datastore.datastore_name]
         except Exception:
             pass
 

@@ -18,7 +18,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.transformation.transform_management_service import TransformManagementService
 from ion.services.dm.transformation.example.transform_example import TransformExample
 from interface.objects import ProcessDefinition, StreamQuery
-from pyon.public import StreamPublisher, StreamSubscriber
+from pyon.public import StreamPublisher, StreamSubscriber, StreamSubscriberRegistrar, StreamPublisherRegistrar
 import gevent
 
 import unittest
@@ -118,7 +118,6 @@ class TransformManagementServiceTest(PyonTestCase):
             cls='class',
             config=out_config)
         self.assertTrue(self.mock_rr_create.called)
-
 
     def test_create_transform_no_config(self):
         # mocks
@@ -351,8 +350,11 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         # test process creation
         transform = self.tms_cli.read_transform(transform_id)
         pid = transform.process_id
-        proc = self.container.proc_manager.procs[pid]
-        self.assertTrue(isinstance(proc,TransformExample))
+        proc = self.container.proc_manager.procs.get(pid)
+        self.assertIsInstance(proc,TransformExample)
+
+        # clean up
+        self.tms_cli.delete_transform(transform_id)
 
     def test_create_transform_no_procdef(self):
         with self.assertRaises(NotFound):
@@ -363,7 +365,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             self.tms_cli.create_transform(name='test',
                 in_subscription_id=self.input_subscription_id,
                 process_definition_id='bad')
-
+    
     def test_create_transform_no_config(self):
         transform_id = self.tms_cli.create_transform(
             name='test_transform',
@@ -371,6 +373,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             out_streams={'output':self.output_stream_id},
             process_definition_id=self.process_definition_id,
         )
+        self.tms_cli.delete_transform(transform_id)
 
     def test_create_transform_name_failure(self):
         transform_id = self.tms_cli.create_transform(
@@ -386,6 +389,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
                 out_streams={'output':self.output_stream_id},
                 process_definition_id=self.process_definition_id,
             )
+        self.tms_cli.delete_transform(transform_id)
 
     def test_create_no_output(self):
         transform_id = self.tms_cli.create_transform(
@@ -403,9 +407,10 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         # test process creation
         transform = self.tms_cli.read_transform(transform_id)
         pid = transform.process_id
-        proc = self.container.proc_manager.procs[pid]
-        self.assertTrue(isinstance(proc,TransformExample))
+        proc = self.container.proc_manager.procs.get(pid)
+        self.assertIsInstance(proc,TransformExample)
 
+        self.tms_cli.delete_transform(transform_id)
     def test_read_transform_exists(self):
         trans_obj = IonObject(RT.Transform,name='trans_obj')
         trans_id, _ = self.rr_cli.create(trans_obj)
@@ -414,7 +419,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         actual = self.rr_cli.read(trans_id)
 
         self.assertEquals(res._id,actual._id)
-
+        self.tms_cli.delete_transform(trans_id)
     def test_read_transform_nonexist(self):
         with self.assertRaises(NotFound) as e:
             res = self.tms_cli.read_transform('123')
@@ -431,6 +436,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.tms_cli.activate_transform(transform_id)
 
         # pubsub check if activated?
+        self.tms_cli.delete_transform(transform_id)
 
     def test_activate_transform_nonexist(self):
         with self.assertRaises(NotFound):
@@ -466,6 +472,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         retval = self.tms_cli.execute_transform(process_definition_id,data)
 
         self.assertEquals(retval,[3,2,1])
+
 
     def test_integrated_transform(self):
         '''
@@ -588,8 +595,9 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             if odd_msg_count[0] == total_msg_count/2:
                 ar_odd.set(1)
 
-        even_subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','evenplus1_queue'), callback=even1_message_received, process=self.cc)
-        odd_subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','oddplus1_queue'), callback=odd1_message_received, process=self.cc)
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        even_subscriber = subscriber_registrar.create_subscriber(exchange_name='evenplus1_queue', callback=even1_message_received)
+        odd_subscriber = subscriber_registrar.create_subscriber(exchange_name='oddplus1_queue', callback=odd1_message_received)
 
         # Start subscribers
         even_subscriber.start()
@@ -603,8 +611,16 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         # Set up fake stream producer
         #-------------------------------
 
-        stream_route = self.pubsub_cli.register_producer(exchange_name='producer_doesnt_have_a_name', stream_id=input_stream_id)
-        stream_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), process=self.cc)
+        pid = self.container.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+        dummy_process = self.container.proc_manager.procs['%s.%s' % (str(self.container.id), str(pid))]
+
+        # Normally the user does not see or create the publisher, this is part of the containers business.
+        # For the test we need to set it up explicitly
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+        stream_publisher = publisher_registrar.create_publisher(stream_id=input_stream_id)
 
         #-------------------------------
         # Start test
@@ -638,3 +654,6 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.pubsub_cli.delete_stream(even_stream_id)
         self.pubsub_cli.delete_stream(even_stream_plus1_id)
         self.pubsub_cli.delete_stream(odd_stream_plus1_id)
+
+        self.tms_cli.delete_transform(even_transform_id)
+        self.tms_cli.delete_transform(odd_transform_id)

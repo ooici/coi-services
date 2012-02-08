@@ -14,7 +14,7 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 import unittest
-from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar
 from pyon.public import Container
 from pyon.public import Container
 from pyon.util.containers import DotDict
@@ -214,9 +214,19 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #----------------------------------------------------------------------
 
         self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
-        stream_route = self.pubsub_cli.register_producer(exchange_name=self.exchange_name, stream_id=self.input_stream_id)
-        self.ctd_stream1_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), \
-                                                                                        process=self.cc)
+
+
+        pid = self.container.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+        dummy_process = self.container.proc_manager.procs['%s.%s' % (str(self.container.id), str(pid))]
+
+        # Normally the user does not see or create the publisher, this is part of the containers business.
+        # For the test we need to set it up explicitly
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.input_stream_id)
+
 
 
     def tearDown(self):

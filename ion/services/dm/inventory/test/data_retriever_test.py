@@ -12,8 +12,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
 from pyon.core.exception import NotFound, BadRequest
-from pyon.ion.endpoint import StreamSubscriber
-from pyon.ion.resource import PRED, RT
+from pyon.public import StreamSubscriber, StreamSubscriberRegistrar
+from pyon.public import PRED, RT
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
@@ -92,44 +92,44 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
         self.couch = CouchDB_DM_DataStore(datastore_name='test_data_retriever')
-        if not self.couch.datastore_exists('test_data_retriever'):
-            self.couch.create_datastore('test_data_retriever')
-            views = {
-                "_id": "_design/posts",
-                "views": {
-                    "comments_by_updated": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.updated,doc._id);}}"
-                    },
-                    "posts_by_title": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.title,doc._id);}}"
-                    },
-                    "comments_by_post_id": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.ref_id,doc._id);}}"
-                    },
-                    "posts_by_author": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.author.name,doc._id);}}"
-                    },
-                    "posts_by_author_date": {
-                        "map": "function(doc) {\n  if(doc.type_==\"BlogPost\")\n    emit([doc.author.name,doc.updated,doc.post_id], doc.post_id);\n  else if(doc.type==\"BlogComment\")\n    emit([doc.author.name,doc.updated,doc.ref_id], doc.ref_id);\n}"
-                    },
-                    "comments_by_author": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.author.name,doc._id);}}"
-                    },
-                    "posts_join_comments": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit([doc.post_id,0],doc._id);}\n\telse if(doc.type_==\"BlogComment\") { emit([doc.ref_id,1],doc._id);}\n}"
-                    },
-                    "posts_by_id": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.post_id,doc._id);}}"
-                    },
-                    "posts_by_updated": {
-                        "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.updated,doc._id);}}"
-                    }
+        if self.couch.datastore_exists('test_data_retriever'):
+            self.couch.delete_datastore('test_data_retriever')
+
+        self.couch.create_datastore('test_data_retriever')
+
+        views = {
+            "_id": "_design/posts",
+            "views": {
+                "comments_by_updated": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.updated,doc._id);}}"
+                },
+                "posts_by_title": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.title,doc._id);}}"
+                },
+                "comments_by_post_id": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.ref_id,doc._id);}}"
+                },
+                "posts_by_author": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.author.name,doc._id);}}"
+                },
+                "posts_by_author_date": {
+                    "map": "function(doc) {\n  if(doc.type_==\"BlogPost\")\n    emit([doc.author.name,doc.updated,doc.post_id], doc.post_id);\n  else if(doc.type==\"BlogComment\")\n    emit([doc.author.name,doc.updated,doc.ref_id], doc.ref_id);\n}"
+                },
+                "comments_by_author": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogComment\") { emit(doc.author.name,doc._id);}}"
+                },
+                "posts_join_comments": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit([doc.post_id,0],doc._id);}\n\telse if(doc.type_==\"BlogComment\") { emit([doc.ref_id,1],doc._id);}\n}"
+                },
+                "posts_by_id": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.post_id,doc._id);}}"
+                },
+                "posts_by_updated": {
+                    "map": "function(doc)\n{\tif(doc.type_==\"BlogPost\") { emit(doc.updated,doc._id);}}"
                 }
             }
-            self.couch.server['test_data_retriever'].create(views)
-        else:
-            raise BadRequest('test_data_retriever data store already exists, please delete it.')
-
+        }
+        self.couch.server['test_data_retriever'].create(views)
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
@@ -204,10 +204,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         def consume(message, headers):
             ar.set(message)
 
-        subscriber = StreamSubscriber(node=self.container.node,
-            process=self,
-            name=('science_data','test_queue'),
-            callback=lambda m,h: consume(m,h))
+        stream_subscriber = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        subscriber = stream_subscriber.create_subscriber(exchange_name='test_queue', callback=consume)
         subscriber.start()
 
         query = StreamQuery(stream_ids=[stream_id])
