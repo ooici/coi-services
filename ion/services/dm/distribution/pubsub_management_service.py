@@ -18,7 +18,6 @@ from pyon.public import CFG
 from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
-from pyon.ion.endpoint import StreamPublisher
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
 
 # Can't make a couchdb data store here...
