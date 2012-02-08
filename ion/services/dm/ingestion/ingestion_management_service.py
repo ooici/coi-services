@@ -10,17 +10,10 @@ from interface.services.dm.iingestion_management_service import BaseIngestionMan
 from pyon.core import bootstrap
 from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
-from pyon.public import CFG, StreamProcess
-from pyon.ion.endpoint import ProcessPublisher
-from pyon.net.channel import SubscriberChannel
-from pyon.container.procs import ProcManager
+from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import StreamQuery, ExchangeQuery
-from pyon.ion.transform import TransformDataProcess
+from interface.objects import ExchangeQuery
 
-from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
-from interface.objects import BlogPost, BlogComment
-from pyon.core.exception import BadRequest
 from interface.objects import StreamIngestionPolicy
 import time
 

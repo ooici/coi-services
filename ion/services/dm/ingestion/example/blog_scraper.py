@@ -8,12 +8,10 @@
 
 
 import json, urllib2
-from gevent.greenlet import Greenlet
 from interface.objects import BlogPost, BlogAuthor, BlogComment
 from pyon.ion.endpoint import StreamPublisher
 from pyon.ion.streamproc import StreamProcess
 from gevent.greenlet import Greenlet
-from pyon.net.endpoint import Publisher
 from pyon.util.config import CFG
 from pyon.core import bootstrap
 

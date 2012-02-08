@@ -11,7 +11,6 @@ from pyon.core.exception import BadRequest
 from pyon.datastore.datastore import DataStore, DatastoreManager
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
-from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from interface.services.dm.ireplay_process import BaseReplayProcess
 class ReplayProcess(BaseReplayProcess):
     process_type="standalone"

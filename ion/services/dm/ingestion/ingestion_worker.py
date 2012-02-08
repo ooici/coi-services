@@ -8,23 +8,15 @@
 to couchdb datastore and hdf datastore.
 '''
 
-from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore, DatastoreManager
-from pyon.public import RT, PRED, log, IonObject
-from pyon.public import CFG, StreamProcess
-from pyon.ion.endpoint import ProcessPublisher
-from pyon.net.channel import SubscriberChannel
-from pyon.container.procs import ProcManager
-from pyon.core.exception import IonException, BadRequest
+from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 
-from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore, sha1hex
+from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
-from interface.objects import StreamIngestionPolicy, IonObjectBase
+from interface.objects import StreamIngestionPolicy
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-
-import time
 
 
 
