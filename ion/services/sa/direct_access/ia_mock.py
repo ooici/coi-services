@@ -10,7 +10,7 @@ from ion.services.sa.direct_access.direct_access_server import DirectAccessServe
 import gevent
 
     
-class InstAgentMock(UserAgent):
+class InstAgentMock(ResourceAgent):
     
     da_server = None
     lost_connection = False
