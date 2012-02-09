@@ -37,7 +37,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay._rev = rev
         config = {'process':{'query':query, 'delivery_format':delivery_format,'publish_streams':{'output':replay_stream_id}}}
         pid = self.container.spawn_process(name=replay_id+'agent',
-            module='ion.services.dm.inventory.replay_process',
+            module='ion.processes.data.replay_process',
             cls='ReplayProcess',
             config=config)
 

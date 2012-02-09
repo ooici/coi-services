@@ -2,7 +2,7 @@
 
 '''
 @author Luke Campbell <lcampbell@asascience.com>
-@file pyon/ion/replayagent.py
+@file ion/processes/data/replay_process.py
 @description Implementation for the Replay Agent
 '''
 from gevent.greenlet import Greenlet
