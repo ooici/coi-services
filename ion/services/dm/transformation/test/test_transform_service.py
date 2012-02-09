@@ -10,18 +10,16 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.containers import DotDict
-from pyon.public import IonObject, RT, log, PRED
+from pyon.public import IonObject, RT, PRED
 from pyon.util.unit_test import PyonTestCase
 from mock import Mock
 from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.transformation.transform_management_service import TransformManagementService
-from ion.services.dm.transformation.example.transform_example import TransformExample
+from ion.processes.data.transforms.transform_example import TransformExample
 from interface.objects import ProcessDefinition, StreamQuery
-from pyon.public import StreamPublisher, StreamSubscriber, StreamSubscriberRegistrar, StreamPublisherRegistrar
+from pyon.public import   StreamSubscriberRegistrar, StreamPublisherRegistrar
 import gevent
-
-import unittest
 
 @attr('UNIT',group='dm')
 class TransformManagementServiceTest(PyonTestCase):
@@ -320,7 +318,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.output_stream_id = self.pubsub_cli.create_stream(name='output_stream',original=True)
 
         self.process_definition = ProcessDefinition(name='basic_transform_definition')
-        self.process_definition.executable = {'module': 'ion.services.dm.transformation.example.transform_example',
+        self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',
                                               'class':'TransformExample'}
         self.process_definition_id, _= self.rr_cli.create(self.process_definition)
 
@@ -463,7 +461,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
     def test_execute_transform(self):
         # set up
         process_definition = ProcessDefinition(name='procdef_execute')
-        process_definition.executable['module'] = 'ion.services.dm.transformation.example.transform_example'
+        process_definition.executable['module'] = 'ion.processes.data.transforms.transform_example'
         process_definition.executable['class'] = 'ReverseTransform'
         data = [1,2,3]
 
@@ -490,7 +488,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         # Create the process definition for the basic transform
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
         basic_transform_definition_id, _ = self.rr_cli.create(process_definition)
@@ -498,7 +496,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         # Create The process definition for the TransformEvenOdd
         process_definition = IonObject(RT.ProcessDefinition, name='evenodd_transform_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformEvenOdd'
         }
         evenodd_transform_definition_id, _ = self.rr_cli.create(process_definition)
