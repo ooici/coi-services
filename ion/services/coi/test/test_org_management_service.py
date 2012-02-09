@@ -136,3 +136,19 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         self.assertIn("does not exist", cm.exception.message)
 
 
+    def test_org_affiliation(self):
+
+        root_org = None
+        root_org = self.org_management_service.find_org()
+        self.assertNotEqual(root_org, None)
+
+        org_obj = IonObject("Org", {"name": "Test Facility"})
+        org_id = self.org_management_service.create_org(org_obj)
+        self.assertNotEqual(org_id, None)
+
+        ret = self.org_management_service.affiliate_org(root_org._id, org_id)
+        self.assertTrue(ret)
+
+        ret = self.org_management_service.unaffiliate_org(root_org._id, org_id)
+        self.assertTrue(ret)
+

@@ -95,7 +95,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not org2:
             raise NotFound("Org %s does not exist" % affiliate_org_id)
 
-        aid = self.clients.resource_registry.create_association(org_id, PRED.hasOrgAffiliation, affiliate_org_id)
+        aid = self.clients.resource_registry.create_association(org1, PRED.affiliatedWith, org2)
         if not aid:
             return False
 
@@ -119,14 +119,11 @@ class OrgManagementService(BaseOrgManagementService):
         if not org2:
             raise NotFound("Org %s does not exist" % affiliate_org_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, PRED.hasOrgAffiliation, affiliate_org_id)
+        aid = self.clients.resource_registry.get_association(org1, PRED.affiliatedWith, org2)
         if not aid:
             raise NotFound("The affiliation association between the specified Orgs is not found")
 
-        aid2 = self.clients.resource_registry.delete_association(aid)
-        if not aid2:
-            return False
-
+        self.clients.resource_registry.delete_association(aid)
         return True
 
     def enroll_member(self, org_id='', user_id=''):
@@ -146,7 +143,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        aid = self.clients.resource_registry.create_association(org_id, PRED.hasMembership, user_id)
+        aid = self.clients.resource_registry.create_association(org, PRED.hasMembership, user)
         if not aid:
             return False
 
@@ -169,14 +166,11 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, PRED.hasMembership, user_id)
+        aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, user)
         if not aid:
             raise NotFound("The membership association between the specified user and Org is not found")
 
-        aid2 = self.clients.resource_registry.delete_association(aid)
-        if not aid2:
-            return False
-
+        self.clients.resource_registry.delete_association(aid)
         return True
 
     def is_enrolled(self, org_id='', user_id=''):
@@ -196,7 +190,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, PRED.hasMembership, user_id)
+        aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, user)
         if not aid:
             return False
 
@@ -220,7 +214,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        aid = self.clients.resource_registry.create_association(org_id, PRED.hasResource, resource_id)
+        aid = self.clients.resource_registry.create_association(org, PRED.hasResource, resource)
         if not aid:
             return False
 
@@ -243,14 +237,11 @@ class OrgManagementService(BaseOrgManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        aid = self.clients.resource_registry.get_association(org_id, PRED.hasMembership, resource_id)
+        aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, resource)
         if not aid:
             raise NotFound("The shared association between the specified resource and Org is not found")
 
-        aid2 = self.clients.resource_registry.delete_association(aid)
-        if not aid2:
-            return False
-
+        self.clients.resource_registry.delete_association(aid)
         return True
 
 

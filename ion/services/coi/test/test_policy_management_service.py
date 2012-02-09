@@ -74,8 +74,7 @@ class TestPolicyManagementService(PyonTestCase):
 
         self.policy_management_service.delete_policy('111')
 
-        self.mock_read.assert_called_once_with('111', '')
-        self.mock_delete.assert_called_once_with(self.policy)
+        self.mock_delete.assert_called_once_with('111')
 
     def test_read_policy_not_found(self):
         self.mock_read.return_value = None
@@ -129,8 +128,7 @@ class TestPolicyManagementService(PyonTestCase):
 
         self.policy_management_service.delete_role('123')
 
-        self.mock_read.assert_called_once_with('123', '')
-        self.mock_delete.assert_called_once_with(self.user_role)
+        self.mock_delete.assert_called_once_with('123')
 
     def test_read_user_role_not_found(self):
         self.mock_read.return_value = None
