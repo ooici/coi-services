@@ -7,19 +7,13 @@ __license__ = 'Apache 2.0'
 @description Implementation for IngestionManagementService
 '''
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
+from pyon.core import bootstrap
 from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
-from pyon.public import CFG, StreamProcess
-from pyon.ion.endpoint import ProcessPublisher
-from pyon.net.channel import SubscriberChannel
-from pyon.container.procs import ProcManager
+from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import StreamQuery, ExchangeQuery
-from pyon.ion.transform import TransformDataProcess
+from interface.objects import ExchangeQuery
 
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
-from interface.objects import BlogPost, BlogComment
-from pyon.core.exception import BadRequest
 from interface.objects import StreamIngestionPolicy
 import time
 
@@ -44,6 +38,18 @@ class IngestionManagementService(BaseIngestionManagementService):
     def __init__(self):
         BaseIngestionManagementService.__init__(self)
 
+        xs_dot_xp = CFG.core_xps.science_data
+        try:
+            self.XS, xp_base = xs_dot_xp.split('.')
+            self.XP = '.'.join([bootstrap.sys_name, xp_base])
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
+
+
+    def on_start(self):
+        super(IngestionManagementService,self).on_start()
+
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
                                        number_of_workers=0, default_policy=None):
@@ -57,14 +63,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval ingestion_configuration_id    str
         """
 
-        xs_dot_xp = CFG.core_xps.science_data
-        try:
-            XS, XP = xs_dot_xp.split('.')
-        except ValueError:
-            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
         # Give each ingestion configuration its own queue name to receive data on
-        exchange_name = XP + '_ingestion_queue'
+        exchange_name = self.XP + '_ingestion_queue'
 
 
         #########################################################################################################
@@ -88,8 +89,8 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # create an ingestion_configuration instance and update the registry
         # @todo: right now sending in the exchange_point_id as the name...
-        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = XP)
-        ingestion_configuration.description = '%s exchange point ingestion configuration' % XP
+        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = self.XP)
+        ingestion_configuration.description = '%s exchange point ingestion configuration' % self.XP
         ingestion_configuration.number_of_workers = number_of_workers
         ingestion_configuration.hdf_storage.update(hdf_storage or {})
         ingestion_configuration.couch_storage.update(couch_storage or {'server':'localhost','database':'dm_datastore'})

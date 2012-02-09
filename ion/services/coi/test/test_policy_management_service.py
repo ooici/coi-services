@@ -6,12 +6,14 @@ __license__ = 'Apache 2.0'
 import unittest
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, IonObject
 from ion.services.coi.policy_management_service import PolicyManagementService
-from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
+from interface.services.icontainer_agent import ContainerAgentClient
+from interface.services.coi.ipolicy_management_service import PolicyManagementServiceClient
 
 @attr('UNIT', group='coi')
 class TestPolicyManagementService(PyonTestCase):
@@ -72,8 +74,7 @@ class TestPolicyManagementService(PyonTestCase):
 
         self.policy_management_service.delete_policy('111')
 
-        self.mock_read.assert_called_once_with('111', '')
-        self.mock_delete.assert_called_once_with(self.policy)
+        self.mock_delete.assert_called_once_with('111')
 
     def test_read_policy_not_found(self):
         self.mock_read.return_value = None
@@ -127,8 +128,7 @@ class TestPolicyManagementService(PyonTestCase):
 
         self.policy_management_service.delete_role('123')
 
-        self.mock_read.assert_called_once_with('123', '')
-        self.mock_delete.assert_called_once_with(self.user_role)
+        self.mock_delete.assert_called_once_with('123')
 
     def test_read_user_role_not_found(self):
         self.mock_read.return_value = None
@@ -151,3 +151,75 @@ class TestPolicyManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Role bad role does not exist')
         self.mock_read.assert_called_once_with('bad role', '')
+
+
+@attr('INT', group='coi')
+class TestPolicyManagementServiceInt(IonIntegrationTestCase):
+
+    def setUp(self):
+
+        # Start container
+        self._start_container()
+
+        # Establish endpoint with container
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+
+        self.policy_management_service = PolicyManagementServiceClient(node=self.container.node)
+
+
+    def test_policy_crud(self):
+        policy_obj = IonObject("Policy", {"name": "Test Policy"})
+        policy_id = self.policy_management_service.create_policy(policy_obj)
+        self.assertNotEqual(policy_id, None)
+
+        policy = None
+        policy = self.policy_management_service.read_policy(policy_id)
+        self.assertNotEqual(policy, None)
+
+        policy.name = 'Updated Test Policy'
+        self.policy_management_service.update_policy(policy)
+
+        policy = None
+        policy = self.policy_management_service.read_policy(policy_id)
+        self.assertNotEqual(policy, None)
+        self.assertEqual(policy.name, 'Updated Test Policy')
+
+        self.policy_management_service.delete_policy(policy_id)
+
+        with self.assertRaises(NotFound) as cm:
+            self.policy_management_service.read_policy(policy_id)
+        self.assertIn("does not exist", cm.exception.message)
+
+        with self.assertRaises(NotFound) as cm:
+            self.policy_management_service.delete_policy(policy_id)
+        self.assertIn("does not exist", cm.exception.message)
+
+
+    def test_role_crud(self):
+        user_role_obj = IonObject("UserRole", {"name": "Test User Role"})
+        user_role_id = self.policy_management_service.create_policy(user_role_obj)
+        self.assertNotEqual(user_role_id, None)
+
+        user_role = None
+        user_role = self.policy_management_service.read_policy(user_role_id)
+        self.assertNotEqual(user_role, None)
+
+        user_role.name = 'Test User Role'
+        self.policy_management_service.update_policy(user_role)
+
+        user_role = None
+        user_role = self.policy_management_service.read_policy(user_role_id)
+        self.assertNotEqual(user_role, None)
+        self.assertEqual(user_role.name, 'Test User Role')
+
+        self.policy_management_service.delete_policy(user_role_id)
+
+        with self.assertRaises(NotFound) as cm:
+            self.policy_management_service.read_policy(user_role_id)
+        self.assertIn("does not exist", cm.exception.message)
+
+        with self.assertRaises(NotFound) as cm:
+            self.policy_management_service.delete_policy(user_role_id)
+        self.assertIn("does not exist", cm.exception.message)
+

@@ -28,7 +28,7 @@ class TransformExampleProducer(StreamProcess):
     Used as a data producer in examples.
     It publishes input for the following examples as {'num':<int>} where <int> is the integer.
     The production is published every 4 seconds and the published data is incremented by 1
-    id_p = cc.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
+    id_p = cc.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
     cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
     """
 
@@ -314,7 +314,7 @@ class TransformExampleLauncher(BaseService):
 
         process_definition = IonObject(RT.ProcessDefinition, name='transform_process_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
         process_definition_id, _ = rr_cli.create(process_definition)
@@ -369,7 +369,7 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
 
         # Create a producing example process
-        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
+        id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 
     #-------------------------------
@@ -388,7 +388,7 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
         process_definition = IonObject(RT.ProcessDefinition, name='transform_process_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'ReverseTransform'
         }
         process_definition_id, _ = rr_cli.create(process_definition)
@@ -426,7 +426,7 @@ class TransformExampleLauncher(BaseService):
         # Create the process definition for the basic transform
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
         basic_transform_definition_id, _ = rr_cli.create(process_definition)
@@ -434,7 +434,7 @@ class TransformExampleLauncher(BaseService):
         # Create The process definition for the TransformEvenOdd
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformEvenOdd'
         }
         evenodd_transform_definition_id, _ = rr_cli.create(process_definition)
@@ -498,7 +498,7 @@ class TransformExampleLauncher(BaseService):
         # Spawn the Streaming Producer
         #-------------------------------
 
-        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
+        id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 
     #-------------------------------
@@ -520,7 +520,7 @@ class TransformExampleLauncher(BaseService):
         # Process Definition
         #-------------------------------
         process_definition = ProcessDefinition(name='external_transform_definition')
-        process_definition.executable['module'] = 'ion.services.dm.transformation.example.transform_example'
+        process_definition.executable['module'] = 'ion.processes.data.transforms.transform_example'
         process_definition.executable['class'] = 'ExternalTransform'
         process_definition_id, _ = rr_cli.create(process_definition)
 
@@ -551,6 +551,6 @@ class TransformExampleLauncher(BaseService):
         # Launch Producer
         #-------------------------------
 
-        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
+        id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 

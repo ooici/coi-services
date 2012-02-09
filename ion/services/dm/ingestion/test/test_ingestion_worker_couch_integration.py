@@ -22,8 +22,8 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from interface.objects import BlogPost, BlogComment
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
-
+from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
+from pyon.datastore.datastore import DataStore
 
 @attr('INT', group='dm')
 class IngestionManagementServiceIntTest(IonIntegrationTestCase):
@@ -63,8 +63,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Refresh datastore before testing
         #----------------------------------------------------------------------
 
-        self.db = CouchDB_DM_DataStore()
-        self.db.delete_datastore(self.datastore_name)
+        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, CFG)
 
         #------------------------------------------------------------------------
         # Stream publisher
@@ -84,7 +83,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         """
         Cleanup. Delete Subscription, Stream, Process Definition
         """
-        self.pubsub_cli.delete_stream(self.input_stream_id)
         self._stop_container()
 
 
@@ -117,7 +115,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # List the posts and the comments that should have been written to couch
         #----------------------------------------------------------------------
 
-        objs = self.db.list_objects(self.couch_storage['database'])
+        objs = self.db.list_objects()
 
         # the list of ion_objects... in our case BlogPost and BlogComment
         ion_objs = []
@@ -125,7 +123,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         for obj in objs:
 
             # read the document returned by list
-            result = self.db.read_doc(objs[0], '', 'dm_datastore')
+            result = self.db.read_doc(objs[0])
 
             # convert the persistence dict to an ion_object
             ion_obj = self.db._persistence_dict_to_ion_object(result)

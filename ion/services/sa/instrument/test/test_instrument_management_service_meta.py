@@ -65,6 +65,6 @@ rimi.add_resource_impl_inttests(PlatformAgentInstanceImpl, {"exchange_name": "sa
 rimi.add_resource_impl_inttests(PlatformAgentImpl, {"description": "the big donut"})
 rimi.add_resource_impl_inttests(PlatformDeviceImpl, {"serial_number": "2345"})
 rimi.add_resource_impl_inttests(PlatformModelImpl, {"description": "tammy breathed deeply"})
-rimi.add_resource_impl_inttests(SensorDeviceImpl, {"serialnumber": "123"})
-rimi.add_resource_impl_inttests(SensorModelImpl, {"model": "redundant field?", "weight": 2})
+rimi.add_resource_impl_inttests(SensorDeviceImpl, {"serial_number": "123"})
+rimi.add_resource_impl_inttests(SensorModelImpl, {"model_label": "redundant field?"})
 

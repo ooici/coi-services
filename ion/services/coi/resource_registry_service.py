@@ -4,7 +4,7 @@ __author__ = 'Thomas R. Lennan, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
-from pyon.datastore.datastore import DataStore, DatastoreManager
+from pyon.datastore.datastore import DataStore
 from pyon.ion.resource import lcs_workflows
 from pyon.public import log, LCS
 from pyon.util.containers import get_ion_ts
@@ -19,7 +19,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def on_init(self):
         # Get an instance of datastore configured for resource registry.
         # May be persistent or mock, forced clean, with indexes
-        self.rr_store = DatastoreManager.get_datastore("resources", DataStore.DS_PROFILE.RESOURCES, self.CFG)
+        self.rr_store = self.container.datastore_manager.get_datastore("resources", DataStore.DS_PROFILE.RESOURCES, self.CFG)
 
         # For easier interactive shell debugging
         self.dss = self.rr_store.server[self.rr_store.datastore_name] if hasattr(self.rr_store, 'server') else None

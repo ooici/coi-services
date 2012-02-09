@@ -162,7 +162,7 @@ def process_gateway_request(service_name, operation):
                         #Iterate over the parameters to add to object; have to do this instead
                         #of passing a dict to get around restrictions in object creation on setting _id, _rev params
                         for parm in object_parms:
-                            setattr(new_obj, parm, object_parms.get(parm))
+                            set_object_field(new_obj, parm, object_parms.get(parm))
 
                         new_obj._validate() # verify that all of the object fields were set with proper types
                         parm_list[arg] = new_obj
@@ -182,9 +182,20 @@ def process_gateway_request(service_name, operation):
 
     return jsonify(data=ret)
 
+#Use this function internally to recursively set sub object field values
+def set_object_field(obj, field, field_val):
+    if isinstance(field_val,dict):
+        sub_obj = getattr(obj,field)
+        for sub_field in field_val:
+            set_object_field(sub_obj, sub_field, field_val.get(sub_field))
+    else:
+        setattr(obj, field, field_val)
+
+#Used by json encoder
 def ion_object_encoder(obj):
     return obj.__dict__
 
+#Used to recursively convert unicode in JSON structures into proper data structures
 def convert_unicode(data):
     if isinstance(data, unicode):
         return str(data)
@@ -270,7 +281,7 @@ def get_resource(resource_id):
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
-            result = client.read(resource_id)
+            result = client.read(convert_unicode(resource_id))
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
@@ -291,7 +302,7 @@ def list_resources_by_type(resource_type):
 
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
-        res_list,_ = client.find_resources(restype=resource_type )
+        res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
         result = []
         for res in res_list:
             result.append(res)
