@@ -92,11 +92,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        self.couch = CouchDB_DataStore(datastore_name='test_data_retriever')
-        if self.couch.datastore_exists('test_data_retriever'):
-            self.couch.delete_datastore('test_data_retriever')
+        self.couch = self.container.datastore_manager.get_datastore('test_data_retriever', profile=DataStore.DS_PROFILE.EXAMPLES)
 
-        self.couch.create_datastore('test_data_retriever',profile=DataStore.DS_PROFILE.EXAMPLES)
 
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
@@ -105,7 +102,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
     def tearDown(self):
         super(DataRetrieverServiceIntTest,self).tearDown()
-        self.couch.delete_datastore('test_data_retriever')
+
 
 
     def test_define_replay(self):
