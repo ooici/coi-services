@@ -13,6 +13,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         super(DatasetManagementService, self).__init__(*args,**kwargs)
         self.logging_name = '(DatasetManagementService %s)' % (self.name or self.id)
 
+
     """
     class docstring
     """
@@ -38,7 +39,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.name=name
         dataset.primary_view_key=stream_id
         #@todo: fill this in
-        dataset.view_name=''
+        dataset.view_name='dataset_by_id'
+
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
         return dataset_id
