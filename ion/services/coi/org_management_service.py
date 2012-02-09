@@ -62,6 +62,21 @@ class OrgManagementService(BaseOrgManagementService):
         """
         self.clients.resource_registry.delete(org_id)
 
+    def find_org(self, name='ION'):
+        """Finds an Org object with the specified name. Defaults to the
+        root ION object. Throws a NotFound exception if the object
+        does not exist.
+
+        @param name    str
+        @retval org    Org
+        @throws NotFound    Org with name does not exist
+        """
+        res_list,_  = self.clients.resource_registry.find_resources(restype='Org', name=name)
+        if not res_list:
+            raise NotFound('The Org with name %s does not exist' % name )
+        return res_list[0]
+
+
     def affiliate_org(self, org_id='', affiliate_org_id=''):
         """Creates an association between multiple Orgs as an affiliation
         so that they may coordinate activities between them.
