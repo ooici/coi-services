@@ -13,8 +13,12 @@ __license__ = 'Apache 2.0'
 from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
 
 from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.instrument_driver import DriverState
 
 from ion.services.mi.common import InstErrorCode
+from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
+from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 
 #import ion.services.mi.mi_logger
@@ -22,36 +26,166 @@ import logging
 log = logging.getLogger('mi_logger')
 
 
-#
-# TODO this is not functional yet
-#
-
 class BarsInstrumentDriver(InstrumentDriver):
     """The InstrumentDriver class for the TRHPH BARS sensor.
 
     @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
     """
 
-    def __init__(self):
-        InstrumentDriver.__init__(self)
+    # TODO actual handling of the "channel" concept in the design.
+
+    # TODO harmonize with base class.
+
+    # TODO NOTE: Assumes all interaction is for the INSTRUMENT special channel
+
+    def __init__(self, evt_callback=None):
+        InstrumentDriver.__init__(self, evt_callback)
 
         self.connection = None
         self.protocol = None
+        self.config = None
 
-    def configure(self, config, timeout=10):
-        # TODO harmonize with base class
+        self._state = DriverState.UNCONFIGURED
 
-        success = InstErrorCode.OK
+    def get_current_state(self):
+        return self._state
 
-        self._configure_connection(config)
-        self._configure_protocol(config)
+    def initialize(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+        """
+        Return a device channel to an unconnected, unconfigured state.
+        @param channels List of channel names to initialize.
+        @param timeout Number of seconds before this operation times out
+        """
 
-        return success
+        assert len(channels) == 1
+        assert channels[0] == BarsChannel.INSTRUMENT
 
-    def _configure_connection(self, config):
-        # TODO
-        self.connection = object()
+        result = None
 
-    def _configure_protocol(self, config):
-        # TODO use self.connection
-        self.protocol = BarsInstrumentProtocol(config)
+        self._state = DriverState.UNCONFIGURED
+
+        return result
+
+    def configure(self, configs, timeout=10):
+        """
+        Configure the driver for communications with an instrument channel.
+        @param config A dict containing channel name keys, with
+        dict values containing the comms configuration for the named channel.
+        @param timeout Number of seconds before this operation times out
+        """
+
+        assert isinstance(configs, dict)
+        assert len(configs) == 1
+        assert BarsChannel.INSTRUMENT in configs
+
+        self.config = configs.get(BarsChannel.INSTRUMENT, None)
+
+        result = None
+
+        self._state = DriverState.DISCONNECTED
+
+        return result
+
+    def connect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+        """
+        Establish communications with a device channel.
+        @param channels List of channel names to connect.
+        @param timeout Number of seconds before this operation times out
+        """
+
+        assert len(channels) == 1
+        assert channels[0] == BarsChannel.INSTRUMENT
+
+        result = None
+
+        self._setup_protocol(self.config)
+
+        prot_state = self.protocol.get_current_state()
+        if prot_state == BarsProtocolState.COLLECTING_DATA:
+            self._state = DriverState.AUTOSAMPLE
+        else:
+            #
+            # TODO proper handling
+            raise Exception("Not handled yet. Expecting protocol to be in %s" %
+                            BarsProtocolState.COLLECTING_DATA)
+
+        return result
+
+    def _setup_protocol(self, config):
+        self.protocol = BarsInstrumentProtocol()
+        self.protocol.configure(self.config)
+        self.protocol.connect()
+
+    def disconnect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+        """
+        Disconnect communications with a device channel.
+        @param channels List of channel names to disconnect.
+        @param timeout Number of seconds before this operation times out
+
+        """
+
+        assert len(channels) == 1
+        assert channels[0] == BarsChannel.INSTRUMENT
+
+        result = None
+
+        self.protocol.disconnect()
+        self.protocol = None
+
+        self._state = DriverState.DISCONNECTED
+
+        return result
+
+    def detach(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+        """
+        Disconnect communications with a device channel.
+        @param channels List of channel names to disconnect.
+        @param timeout Number of seconds before this operation times out
+        """
+        pass
+
+    ########################################################################
+    # Channel command interface.
+    ########################################################################
+
+    def get(self, params=[(BarsChannel.INSTRUMENT,
+                           BarsParameter.TIME_BETWEEN_BURSTS)],
+            timeout=10):
+
+        result = self.protocol.get(params, timeout)
+
+        return result
+
+    def set(self, params, timeout=10):
+        """
+        @param timeout Number of seconds before this operation times out
+        """
+        pass
+
+    def execute(self, channels, command, timeout=10):
+        """
+        """
+        pass
+
+    def execute_direct(self, channels, bytes):
+        """
+        """
+        pass
+
+    ########################################################################
+    # TBD.
+    ########################################################################
+
+    def get_status(self, params, timeout=10):
+        """
+        @param timeout Number of seconds before this operation times out
+        """
+
+        # TODO for the moment just returning the current driver state
+        return self.get_current_state()
+
+    def get_capabilities(self, params, timeout=10):
+        """
+        @param timeout Number of seconds before this operation times out
+        """
+        pass

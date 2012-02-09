@@ -55,8 +55,8 @@ class BaseLoggerProcess(DaemonProcess):
         #print str(spawnargs)
         return Popen(spawnargs)    
     
-    def __init__(self, server_port, pidfname, logfname, statusfname, workdir='/',
-                 delim=['<<','>>'], sniffer_port=None):
+    def __init__(self, server_port, pidfname, logfname, statusfname,
+                 workdir='/tmp/', delim=['<<','>>'], sniffer_port=None):
         """
         @param server_port The port to listen on for driver connections.
         @param pidfname The file name of the process ID file, used by
@@ -155,7 +155,7 @@ class BaseLoggerProcess(DaemonProcess):
         if they exist. Log with status file.
         """
         if self.driver_sock:
-            self.driver_sock.shutdown(socket.SHUT_RDWR)
+            #-self.driver_sock.shutdown(socket.SHUT_RDWR)
             self.driver_sock.close()
             self.driver_sock = None
             self.driver_addr = None
@@ -373,7 +373,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
     Provides functionality opening, closing, reading, writing and checking
     connection status of device.
     """    
-    def __init__(self, device_host, device_port, server_port, workdir='/',
+    def __init__(self, device_host, device_port, server_port, workdir='/tmp/',
                  delim=['<<','>>'], sniffer_port=None):
         """
         @param server_port The port to listen on for driver connections.
@@ -460,7 +460,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         Close ethernet device comms and log with status file.
         """
         if self.device_sock:
-            self.device_sock.shutdown(socket.SHUT_RDWR)
+            #-self.device_sock.shutdown(socket.SHUT_RDWR)
             self.device_sock.close()
             self.device_sock = None
             time.wait(1)
@@ -636,7 +636,7 @@ class LoggerClient(object):
         """
         self.listener_thread.done()
         self.listener_thread.join()
-        self.sock.shutdown(socket.SHUT_RDWR)
+        #-self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
         self.sock = None
         mi_logger.info('Loggerr client comms stopped.')
