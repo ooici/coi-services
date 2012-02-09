@@ -158,7 +158,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         log.debug('Couch Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
         #@todo: Fix this datastore management profile with correct data profile in near future
-        db = DatastoreManager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
+        db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
 
 
         ret = db.query_view(view_name=view_name,opts=opts)
