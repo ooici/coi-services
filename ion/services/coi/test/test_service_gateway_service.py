@@ -20,7 +20,7 @@ from pyon.util.log import log
 
 
 
-@attr('INT', group='service_gateway')
+@attr('INT', group='coi')
 class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
     def setUp(self):
