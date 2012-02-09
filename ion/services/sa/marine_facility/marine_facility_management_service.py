@@ -436,171 +436,31 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ############################
 
-    def declare_logical_instrument_planned(self, logical_instrument_id=""):
+    def set_logical_instrument_lifecycle(self, logical_instrument_id="", lifecycle_state=""):
        """
-       declare a logical_instrument to be in the PLANNED state
+       declare a logical_instrument to be in the given lifecycle state
        @param logical_instrument_id the resource id
        """
-       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.PLANNED)
+       return self.logical_instrument.advance_lcs(logical_instrument_id, lifecycle_state)
 
-    def declare_logical_instrument_developed(self, logical_instrument_id=""):
+    def set_logical_platform_lifecycle(self, logical_platform_id="", lifecycle_state=""):
        """
-       declare a logical_instrument to be in the DEVELOPED state
-       @param logical_instrument_id the resource id
-       """
-       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.DEVELOPED)
-
-    def declare_logical_instrument_integrated(self, logical_instrument_id=""):
-       """
-       declare a logical_instrument to be in the INTEGRATED state
-       @param logical_instrument_id the resource id
-       """
-       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.INTEGRATED)
-
-    def declare_logical_instrument_discoverable(self, logical_instrument_id=""):
-       """
-       declare a logical_instrument to be in the DISCOVERABLE state
-       @param logical_instrument_id the resource id
-       """
-       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.DISCOVERABLE)
-
-    def declare_logical_instrument_available(self, logical_instrument_id=""):
-       """
-       declare a logical_instrument to be in the AVAILABLE state
-       @param logical_instrument_id the resource id
-       """
-       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.AVAILABLE)
-
-    def declare_logical_instrument_retired(self, logical_instrument_id=""):
-       """
-       declare a logical_instrument to be in the RETIRED state
-       @param logical_instrument_id the resource id
-       """
-       return self.logical_instrument.advance_lcs(logical_instrument_id, LCS.RETIRED)
-
-    def declare_logical_platform_planned(self, logical_platform_id=""):
-       """
-       declare a logical_platform to be in the PLANNED state
+       declare a logical_platform to be in the given lifecycle state
        @param logical_platform_id the resource id
        """
-       return self.logical_platform.advance_lcs(logical_platform_id, LCS.PLANNED)
+       return self.logical_platform.advance_lcs(logical_platform_id, lifecycle_state)
 
-    def declare_logical_platform_developed(self, logical_platform_id=""):
+    def set_marine_facility_lifecycle(self, marine_facility_id="", lifecycle_state=""):
        """
-       declare a logical_platform to be in the DEVELOPED state
-       @param logical_platform_id the resource id
-       """
-       return self.logical_platform.advance_lcs(logical_platform_id, LCS.DEVELOPED)
-
-    def declare_logical_platform_integrated(self, logical_platform_id=""):
-       """
-       declare a logical_platform to be in the INTEGRATED state
-       @param logical_platform_id the resource id
-       """
-       return self.logical_platform.advance_lcs(logical_platform_id, LCS.INTEGRATED)
-
-    def declare_logical_platform_discoverable(self, logical_platform_id=""):
-       """
-       declare a logical_platform to be in the DISCOVERABLE state
-       @param logical_platform_id the resource id
-       """
-       return self.logical_platform.advance_lcs(logical_platform_id, LCS.DISCOVERABLE)
-
-    def declare_logical_platform_available(self, logical_platform_id=""):
-       """
-       declare a logical_platform to be in the AVAILABLE state
-       @param logical_platform_id the resource id
-       """
-       return self.logical_platform.advance_lcs(logical_platform_id, LCS.AVAILABLE)
-
-    def declare_logical_platform_retired(self, logical_platform_id=""):
-       """
-       declare a logical_platform to be in the RETIRED state
-       @param logical_platform_id the resource id
-       """
-       return self.logical_platform.advance_lcs(logical_platform_id, LCS.RETIRED)
-
-    def declare_marine_facility_planned(self, marine_facility_id=""):
-       """
-       declare a marine_facility to be in the PLANNED state
+       declare a marine_facility to be in the given lifecycle state
        @param marine_facility_id the resource id
        """
-       return self.marine_facility.advance_lcs(marine_facility_id, LCS.PLANNED)
+       return self.marine_facility.advance_lcs(marine_facility_id, lifecycle_state)
 
-    def declare_marine_facility_developed(self, marine_facility_id=""):
+    def set_site_lifecycle(self, site_id="", lifecycle_state=""):
        """
-       declare a marine_facility to be in the DEVELOPED state
-       @param marine_facility_id the resource id
-       """
-       return self.marine_facility.advance_lcs(marine_facility_id, LCS.DEVELOPED)
-
-    def declare_marine_facility_integrated(self, marine_facility_id=""):
-       """
-       declare a marine_facility to be in the INTEGRATED state
-       @param marine_facility_id the resource id
-       """
-       return self.marine_facility.advance_lcs(marine_facility_id, LCS.INTEGRATED)
-
-    def declare_marine_facility_discoverable(self, marine_facility_id=""):
-       """
-       declare a marine_facility to be in the DISCOVERABLE state
-       @param marine_facility_id the resource id
-       """
-       return self.marine_facility.advance_lcs(marine_facility_id, LCS.DISCOVERABLE)
-
-    def declare_marine_facility_available(self, marine_facility_id=""):
-       """
-       declare a marine_facility to be in the AVAILABLE state
-       @param marine_facility_id the resource id
-       """
-       return self.marine_facility.advance_lcs(marine_facility_id, LCS.AVAILABLE)
-
-    def declare_marine_facility_retired(self, marine_facility_id=""):
-       """
-       declare a marine_facility to be in the RETIRED state
-       @param marine_facility_id the resource id
-       """
-       return self.marine_facility.advance_lcs(marine_facility_id, LCS.RETIRED)
-
-    def declare_site_planned(self, site_id=""):
-       """
-       declare a site to be in the PLANNED state
+       declare a site to be in the given lifecycle state
        @param site_id the resource id
        """
-       return self.site.advance_lcs(site_id, LCS.PLANNED)
-
-    def declare_site_developed(self, site_id=""):
-       """
-       declare a site to be in the DEVELOPED state
-       @param site_id the resource id
-       """
-       return self.site.advance_lcs(site_id, LCS.DEVELOPED)
-
-    def declare_site_integrated(self, site_id=""):
-       """
-       declare a site to be in the INTEGRATED state
-       @param site_id the resource id
-       """
-       return self.site.advance_lcs(site_id, LCS.INTEGRATED)
-
-    def declare_site_discoverable(self, site_id=""):
-       """
-       declare a site to be in the DISCOVERABLE state
-       @param site_id the resource id
-       """
-       return self.site.advance_lcs(site_id, LCS.DISCOVERABLE)
-
-    def declare_site_available(self, site_id=""):
-       """
-       declare a site to be in the AVAILABLE state
-       @param site_id the resource id
-       """
-       return self.site.advance_lcs(site_id, LCS.AVAILABLE)
-
-    def declare_site_retired(self, site_id=""):
-       """
-       declare a site to be in the RETIRED state
-       @param site_id the resource id
-       """
-       return self.site.advance_lcs(site_id, LCS.RETIRED)
+       return self.site.advance_lcs(site_id, lifecycle_state)
 

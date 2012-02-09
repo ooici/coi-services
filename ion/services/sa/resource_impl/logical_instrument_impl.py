@@ -28,8 +28,21 @@ class LogicalInstrumentImpl(ResourceSimpleImpl):
     def unlink_agent(self, logical_instrument_id='', instrument_agent_id=''):
         return self._unlink_resources(logical_instrument_id, PRED.hasAgent, instrument_agent_id)
 
+    def link_data_product(self, logical_instrument_id='', data_product_id=''):
+        return self._link_resources(logical_instrument_id, PRED.hasDataProduct, data_product_id)
+
+    def unlink_data_product(self, logical_instrument_id='', data_product_id=''):
+        return self._unlink_resources(logical_instrument_id, PRED.hasDataProduct, data_product_id)
+
     def find_having_agent(self, instrument_agent_id):
         return self._find_having(PRED.hasAgent, instrument_agent_id)
 
     def find_stemming_agent(self, logical_instrument_id):
         return self._find_stemming(logical_instrument_id, PRED.hasAgent, RT.InstrumentAgent)
+
+    def find_having_data_product(self, data_product_id):
+        return self._find_having(PRED.hasDataProduct, data_product_id)
+
+    def find_stemming_data_product(self, logical_instrument_id):
+        return self._find_stemming(logical_instrument_id, PRED.hasDataProduct, RT.DataProduct)
+

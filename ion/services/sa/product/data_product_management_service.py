@@ -151,3 +151,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:  # TODO: code for all the filter types
             objects = []
         return objects
+
+
+
+    def set_data_product_lifecycle(self, data_product_id="", lifecycle_state=""):
+       """
+       declare a data_product to be in a given state
+       @param data_product_id the resource id
+       """
+       return self.data_product.advance_lcs(data_product_id, lifecycle_state)
