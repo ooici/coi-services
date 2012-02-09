@@ -184,7 +184,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Create the process definition for the basic transform
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
         transform_definition_id, _ = self.clients.resource_registry.create(process_definition)
