@@ -233,7 +233,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         """
         Cleanup. Delete Subscription, Stream, Process Definition
         """
-        self.pubsub_cli.delete_stream(self.input_stream_id)
         self._stop_container()
 
     def test_create_ingestion_configuration(self):
