@@ -60,7 +60,7 @@ class TransformManagementService(BaseTransformManagementService):
         if not process_definition_id:
             raise NotFound('No process definition was provided')
         process_definition = self.clients.resource_registry.read(process_definition_id)
-        module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
+        module = process_definition.executable.get('module','ion.processes.data.transforms.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
 
         # Transform Resource for association management and pid
