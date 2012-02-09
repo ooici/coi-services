@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.core.bootstrap import sys_name
 from pyon.core.exception import NotFound
-from pyon.datastore.datastore import DataStore, DatastoreManager
+from pyon.datastore.datastore import DataStore
 
 from interface.services.coi.idatastore_service import BaseDatastoreService
 
@@ -19,7 +19,7 @@ class DataStoreService(BaseDatastoreService):
     def on_init(self):
         # Get an instance of datastore configured for persistent objects.
         # May be persistent or mock, forced clean, with indexes
-        self.obj_store = DatastoreManager.get_datastore("objects", DataStore.DS_PROFILE.OBJECTS, self.CFG)
+        self.obj_store = self.container.datastore_manager.get_datastore("objects", DataStore.DS_PROFILE.OBJECTS, self.CFG)
 
         # For easier interactive shell debugging
         self.dss = self.obj_store.server[self.obj_store.datastore_name] if hasattr(self.obj_store, 'server') else None

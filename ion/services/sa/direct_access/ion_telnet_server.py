@@ -23,6 +23,8 @@ class TelnetServer(object):
 	fileobj = None
 	parent_requested_close = False
 	TELNET_PROMPT = 'ION telnet>'
+	PORT_RANGE_LOWER = 8000
+	PORT_RANGE_UPPER = 8010
 
 	def write(self, text):
 		self.fileobj.write(text)
@@ -40,7 +42,7 @@ class TelnetServer(object):
 			log.debug("un=" + username + " pw=" + password + " sun=" + self.username + " spw=" + self.password)
 			return False
 	
-	def exit_handler (self, reason):
+	def close_connection(self):
 		if not self.parent_requested_close:
 			self.parent_input_callback(-1)
 		else:		
@@ -50,6 +52,9 @@ class TelnetServer(object):
 				# can happen if telnet client closes session first
 				log.debug("exception caught for socket shutdown:" + str(ex))
 			self.server_socket.close()
+	
+	def exit_handler (self, reason):
+		self.close_connection()
 		log.debug("TelnetServer.handler(): stopping, " + reason)
 	
 	def handler(self, new_socket, address):
@@ -95,9 +100,6 @@ class TelnetServer(object):
 			
 	def server_greenlet(self):
 		log.debug("TelnetServer.server_greenlet(): started")
-		self.server_socket = socket.socket()
-		self.server_socket.allow_reuse_address = True
-		self.server_socket.bind((self.ip_address, self.port))
 		self.server_socket.listen(1)
 		new_socket, address = self.server_socket.accept()
 		self.handler(new_socket, address)
@@ -116,11 +118,24 @@ class TelnetServer(object):
 	
 		# TODO: get ip_address & port number dynamically
 		# TODO: ensure that port is not already in use
-		self.port = 8000
+		self.port = self.PORT_RANGE_LOWER
 		self.ip_address = 'localhost'
 		#self.ip_address = '67.58.49.202'
 			
 		# create telnet server object and start the server process
+		self.server_socket = socket.socket()
+		self.server_socket.allow_reuse_address = True
+		while True:
+			try:
+				self.server_socket.bind((self.ip_address, self.port))
+				break
+			except:
+				self.port = self.port + 1
+				print("port=" + str(self.port))
+				if self.port > self.PORT_RANGE_UPPER:
+					log.warning("TelnetServer.server_greenlet(): no available ports for server")
+					self.close_connection()
+					return
 		gevent.spawn(self.server_greenlet)
 		
 	def get_connection_info(self):
