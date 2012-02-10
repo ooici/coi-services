@@ -25,6 +25,7 @@ class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
         #print 'starting container'
         self._start_container()
         #print 'started container'
+        setattr(self.container, 'ia_mock_quit', False)
 
         # Establish endpoint with container
         container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
@@ -34,20 +35,17 @@ class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
 
         self.container_client = container_client
 
-    def test_just_the_setup(self):
-        """
-        does nothing on its own, but will implicitly call setUp and 
-           trigger any errors that might be in there
-        """
-        pass
-
-    @unittest.skip('not completed')
     def test_direct_access_server(self):
-        #time.sleep(1)
+        while True:
+            if self.container.ia_mock_quit == True:
+                break
+            gevent.sleep(1)
         print("quitting test")
 
 if __name__ == '__main__':
     # For command line testing of telnet DA Server w/o nosetest timeouts
+    # use information returned from IA to manually telnet into DA Server.
+    # type 'quit' at the DA Server prompt to kill the server after telnet session is closed
 
     print("starting IA mock test for DA Server")
     container = Container()
