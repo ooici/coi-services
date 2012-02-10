@@ -56,7 +56,7 @@ class TestMarineFacilityManagementServiceMeta(IonIntegrationTestCase):
 rimi = ResourceImplMetatestIntegration(TestMarineFacilityManagementServiceMeta, MarineFacilityManagementService, log)
 
 rimi.add_resource_impl_inttests(LogicalInstrumentImpl, {})
-rimi.add_resource_impl_inttests(LogicalPlatformImpl, {"buoyname": "steve", "buoyheight": "3"})
+rimi.add_resource_impl_inttests(LogicalPlatformImpl, {})
 rimi.add_resource_impl_inttests(MarineFacilityImpl, {})
 rimi.add_resource_impl_inttests(SiteImpl, {})
 
