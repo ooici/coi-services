@@ -101,13 +101,23 @@ class DriverAndProcsTest(BarsTestCase):
 
         reply = driver_client.cmd_dvr('get_status', [BarsChannel.INSTRUMENT])
         print("** get_status reply=%s" % str(reply))
+        self.assertEqual(DriverState.AUTOSAMPLE, reply)
 
         time.sleep(1)
 
+        # TODO the reply of the main operation should probably include
+        # an item indicating the current state of the driver so there is no
+        # need to explicitly query for it.
         reply = driver_client.cmd_dvr('disconnect', [BarsChannel.INSTRUMENT])
         print("** disconnect reply=%s" % str(reply))
+        reply = driver_client.cmd_dvr('get_current_state')
+        print("** get_current_state reply=%s" % str(reply))
+        self.assertEqual(DriverState.DISCONNECTED, reply)
         time.sleep(1)
 
         reply = driver_client.cmd_dvr('initialize', [BarsChannel.INSTRUMENT])
         print("** initialize reply=%s" % str(reply))
+        reply = driver_client.cmd_dvr('get_current_state')
+        print("** get_current_state reply=%s" % str(reply))
+        self.assertEqual(DriverState.UNCONFIGURED, reply)
         time.sleep(1)

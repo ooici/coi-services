@@ -27,9 +27,8 @@ log = logging.getLogger('mi_logger')
 
 
 class BarsInstrumentDriver(InstrumentDriver):
-    """The InstrumentDriver class for the TRHPH BARS sensor.
-
-    @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
+    """
+    The InstrumentDriver class for the TRHPH BARS sensor.
     """
 
     # TODO actual handling of the "channel" concept in the design.
@@ -50,12 +49,35 @@ class BarsInstrumentDriver(InstrumentDriver):
     def get_current_state(self):
         return self._state
 
+    def _assert_state(self, obj):
+        """
+        Asserts that the current state is the same as the one given (if not
+        a list) or is one of the elements of the given list.
+        """
+        cs = self.get_current_state()
+        if isinstance(obj, list):
+            if cs in obj:
+                return
+            else:
+                raise AssertionError("current state=%s, expected one of %s" %
+                                 (cs, str(obj)))
+        state = obj
+        if cs != state:
+            raise AssertionError("current state=%s, expected=%s" % (cs, state))
+
     def initialize(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
         Return a device channel to an unconnected, unconfigured state.
         @param channels List of channel names to initialize.
         @param timeout Number of seconds before this operation times out
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("initialize: channels=%s timeout=%s" %
+                      (channels, timeout))
+
+        self._assert_state([DriverState.UNCONFIGURED,
+                            DriverState.DISCONNECTED])
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -73,6 +95,11 @@ class BarsInstrumentDriver(InstrumentDriver):
         dict values containing the comms configuration for the named channel.
         @param timeout Number of seconds before this operation times out
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("configure: configs=%s timeout=%s" % (configs, timeout))
+
+        self._assert_state(DriverState.UNCONFIGURED)
 
         assert isinstance(configs, dict)
         assert len(configs) == 1
@@ -92,6 +119,11 @@ class BarsInstrumentDriver(InstrumentDriver):
         @param channels List of channel names to connect.
         @param timeout Number of seconds before this operation times out
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("connect: channels=%s timeout=%s" % (channels, timeout))
+
+        self._assert_state(DriverState.DISCONNECTED)
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -124,6 +156,10 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         """
 
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("disconnect: channels=%s timeout=%s" %
+                      (channels, timeout))
+
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
 
@@ -152,6 +188,9 @@ class BarsInstrumentDriver(InstrumentDriver):
                            BarsParameter.TIME_BETWEEN_BURSTS)],
             timeout=10):
 
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get: params=%s timeout=%s" % (params, timeout))
+
         result = self.protocol.get(params, timeout)
 
         return result
@@ -160,16 +199,26 @@ class BarsInstrumentDriver(InstrumentDriver):
         """
         @param timeout Number of seconds before this operation times out
         """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("set: params=%s timeout=%s" % (params, timeout))
+
         pass
 
     def execute(self, channels, command, timeout=10):
         """
         """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("execute: channels=%s timeout=%s" % (channels, timeout))
+
         pass
 
     def execute_direct(self, channels, bytes):
         """
         """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("execute_direct: channels=%s bytes=%s" %
+                      (channels, repr(bytes)))
+
         pass
 
     ########################################################################

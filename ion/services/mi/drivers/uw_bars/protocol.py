@@ -210,7 +210,17 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         return self._fsm.get_current_state()
 
     def connect(self, timeout=10):
+        """
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("connect: timeout=%s" % timeout)
+
+        self._assert_state(BarsProtocolState.PRE_INIT)
         super(BarsInstrumentProtocol, self).connect(timeout)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("connect: connected.")
+
         self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
 
     def get(self, params=[(BarsChannel.INSTRUMENT,
@@ -218,6 +228,9 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
             timeout=10):
 
         # TODO only handles (INSTRUMENT, TIME_BETWEEN_BURSTS) for the moment
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get: params=%s timeout=%s" % (params, timeout))
 
         assert isinstance(params, list)
         assert len(params) == 1

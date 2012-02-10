@@ -15,7 +15,10 @@ import time
 
 from nose.plugins.attrib import attr
 
+from unittest import skip
 
+
+@skip('not yet easy to test driver in isolation')
 @attr('UNIT', group='mi')
 class DriverTest(BarsTestCase):
 
@@ -31,16 +34,19 @@ class DriverTest(BarsTestCase):
         # initialize
         result = driver.initialize()
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
+        print "driver state = %s" % str(driver.get_current_state())
 
         # configure
         configs = {BarsChannel.INSTRUMENT: self.config}
         result = driver.configure(configs)
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
+        print "driver state = %s" % str(driver.get_current_state())
 
         # connect
         result = driver.connect([BarsChannel.INSTRUMENT])
         print "connect result = %s" % str(result)
         self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
+        print "driver state = %s" % str(driver.get_current_state())
 
         print "sleeping for a bit to see data streaming"
         time.sleep(4)
@@ -52,6 +58,7 @@ class DriverTest(BarsTestCase):
 
         # should be back in AUTOSAMPLE state:
         self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
+        print "driver state = %s" % str(driver.get_current_state())
 
         print "sleeping a bit more"
         time.sleep(4)
@@ -60,3 +67,4 @@ class DriverTest(BarsTestCase):
         print "disconnecting"
         result = driver.disconnect([BarsChannel.INSTRUMENT])
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
+        print "driver state = %s" % str(driver.get_current_state())
