@@ -97,7 +97,7 @@ class TransformManagementService(BaseTransformManagementService):
                         cls=cls,
                         config=configuration)
 
-        transform_res.process_id = '%s.%s' % (str(self.container.id), str(pid))
+        transform_res.process_id =  pid
         
         # ------------------------------------------------------------------------------------
         # Handle Resources
@@ -199,13 +199,12 @@ class TransformManagementService(BaseTransformManagementService):
             }
         }
 
-        id = self.container.spawn_process(name=name,
+        pid = self.container.spawn_process(name=name,
                         module=module,
                         cls=cls,
                         config=configuration)
 
 
-        pid = '%s.%s' %(self.container.id, id)
         process_instance = self.container.proc_manager.procs[pid]
         retval = process_instance.execute(data)
 

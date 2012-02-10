@@ -285,7 +285,8 @@ class TransformManagementServiceTest(PyonTestCase):
 
         def mock_execution(input):
             return '2'
-        self.mock_cc_procs['1.1'] = DotDict(execute=mock_execution)
+
+        self.transform_service.container.proc_manager.procs['1']= DotDict(execute=mock_execution)
 
         # Execution
         ret = self.transform_service.execute_transform(process_definition_id='123',data='123')
@@ -293,7 +294,7 @@ class TransformManagementServiceTest(PyonTestCase):
         # Assertions
         self.assertEquals(ret,'2')
         self.assertTrue(self.mock_cc_spawn.called)
-        self.mock_cc_terminate.assert_called_with('1.1')
+        self.mock_cc_terminate.assert_called_with('1')
 
 
 @attr('INT', group='dm')
@@ -613,7 +614,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             module='pyon.ion.process',
             cls='SimpleProcess',
             config={})
-        dummy_process = self.container.proc_manager.procs['%s.%s' % (str(self.container.id), str(pid))]
+        dummy_process = self.container.proc_manager.procs[pid]
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
