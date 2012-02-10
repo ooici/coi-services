@@ -59,7 +59,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
                             description='some new dpd',
                             process_source='some_source_reference')
         try:
-            dprocd_id = self.Processclient.create_data_process_definition(dpd_obj)
+            dprocdef_id = self.Processclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
@@ -101,7 +101,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestIntDataProcessManagementService: create_data_process start")
         try:
-            dprocd_id = self.Processclient.create_data_process(dprocd_id, input_dp_id, output_dp_id)
+            dproc_id = self.Processclient.create_data_process(dprocdef_id, input_dp_id, output_dp_id)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
@@ -133,3 +133,15 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         self.ctd_stream1_publisher.publish(msg)
 
         # See /tmp/transform_output for results.....
+
+        # clean up the data process
+        try:
+            self.Processclient.delete_data_process(dproc_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data process definition: %s" %ex)
+
+        try:
+            self.Processclient.delete_data_process_definition(dprocdef_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data process definition: %s" %ex)
+
