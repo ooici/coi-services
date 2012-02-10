@@ -20,7 +20,7 @@ import os
 import os.path
 
 from pyon.datastore.datastore import DataStore
-from pyon.public import CFG, IonObject, log, sys_name, RT, LCS, PRED, StreamProcess, Container
+from pyon.public import CFG, IonObject, log, RT, LCS, PRED, StreamProcess, Container
 
 
 class DatastoreLoader(StreamProcess):
