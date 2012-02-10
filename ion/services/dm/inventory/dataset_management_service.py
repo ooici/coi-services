@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import gevent
+from gevent.greenlet import Greenlet
 from pyon.core.exception import BadRequest
 
 __author__ = 'Maurice Manning'
@@ -7,12 +9,17 @@ __license__ = 'Apache 2.0'
 
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService
 from interface.objects import DataSet
+from pyon.datastore.datastore import DataStore
 
 class DatasetManagementService(BaseDatasetManagementService):
     def __init__(self, *args, **kwargs):
         super(DatasetManagementService, self).__init__(*args,**kwargs)
         self.logging_name = '(DatasetManagementService %s)' % (self.name or self.id)
 
+    def on_start(self):
+        super(DatasetManagementService,self).on_start()
+        self.datastore_name = self.CFG.get('process',{}).get('datastore_name','scidata')
+        self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
     """
     class docstring
@@ -44,6 +51,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
         return dataset_id
+
 
     def update_dataset(self, dataset=None):
         """@todo document this interface!!!
@@ -77,9 +85,22 @@ class DatasetManagementService(BaseDatasetManagementService):
         @param dataset_id    str
         @retval bounds    Unknown
         """
-        dataset = self.read_dataset(dataset_id=dataset_id)
-        #@todo: Perform Query
-        return ''
+        ar = gevent.event.AsyncResult()
+        def ar_timeout(db):
+            results = db.query_view("datasets/bounds")[0]['value']
+            ar.set(results)
+
+
+
+        g = Greenlet(ar_timeout, self.db)
+        g.start()
+
+        bounds = ar.get(timeout=5)
+
+
+
+
+        return bounds
 
     def get_dataset_metadata(self, dataset_id=''):
         """@brief Get the metadata for the dataset using a couch map/reduce query
@@ -97,4 +118,4 @@ class DatasetManagementService(BaseDatasetManagementService):
         method docstring
         """
         pass
-  
+
