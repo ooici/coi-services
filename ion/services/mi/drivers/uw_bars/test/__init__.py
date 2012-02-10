@@ -5,18 +5,23 @@ __license__ = 'Apache 2.0'
 
 from ion.services.mi.drivers.uw_bars.test.bars_simulator import BarsSimulator
 
-from pyon.util.unit_test import PyonTestCase
 from threading import Thread
 import os
-from unittest import skipIf
+import unittest
 
 
-@skipIf(None == os.getenv('UW_BARS'), 'UW_BARS environment variable undefined')
-class BarsTestCase(PyonTestCase):
+@unittest.skipIf(None == os.getenv('UW_BARS'),
+                 'UW_BARS environment variable undefined')
+class BarsTestCase(unittest.TestCase):
     """
-    Base class for BARS test cases.
+    Base class for test cases dependent on the UW_BARS environment variable
+    and providing some supporting functionality related with configuration
+    and launch of simulator.
 
-    The whole test case is skipped if the environment variable UW_BARS is
+    This base class does not reference any Pyon elements, but can be used as a
+    mixin, see PyonBarsTestCase.
+
+    The test case is skipped if the environment variable UW_BARS is
     not defined.
 
     If UW_BARS is defined with the literal value "simulator", then a simulator
@@ -29,15 +34,13 @@ class BarsTestCase(PyonTestCase):
     accordingly.
     """
 
-    bars = os.getenv('UW_BARS')
-
     def setUp(self):
         """
         Sets up the test case, launching a simulator if so specified and
         preparing self.config.
         """
 
-        bars = BarsTestCase.bars
+        bars = os.getenv('UW_BARS')
 
         if bars is None:
             # should not happen, but anyway just skip here:

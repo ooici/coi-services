@@ -44,6 +44,7 @@ class _Recv(Thread):
         self._active = True
         self._outfile = outfile
         self.setDaemon(True)
+        log.debug("### _Recv created.")
 
     def _update_lines(self, recv):
         if recv == '\n':
@@ -77,17 +78,27 @@ class BarsClient(object):
         """
         Establishes the connection and starts the receiving thread.
         """
-        log.debug("### connecting to %s:%s" % (host, port))
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._sock.connect((host, port))
-        self._bt = _Recv(self._sock, outfile)
-        self._bt.start()
+        self._host = host
+        self._port = port
+        self._sock = None
+        self._outfile = outfile
+        self._bt = None
 
         """sleep time used just before sending data"""
         self.delay_before_send = 0.2
 
         """sleep time used just before a expect operation"""
         self.delay_before_expect = 2
+
+    def connect(self):
+        host, port = self._host, self._port
+        log.debug("### connecting to %s:%s" % (host, port))
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.connect((host, port))
+        log.debug("### connected to %s:%s" % (host, port))
+        self._bt = _Recv(self._sock, self._outfile)
+        self._bt.start()
+        log.debug("### _Recv started.")
 
     def is_collecting_data(self, timeout=30):
         """
@@ -225,6 +236,7 @@ def main(host, port, outfile=sys.stdout):
                    (by default, sys.stdout).
     """
     bars_client = BarsClient(host, port, outfile)
+    bars_client.connect()
 
     print ":: is instrument collecting data?"
     if bars_client.is_collecting_data():

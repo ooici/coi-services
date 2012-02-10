@@ -16,7 +16,7 @@ monkey.patch_all()
 
 import time
 
-from ion.services.mi.drivers.uw_bars.test import BarsTestCase
+from ion.services.mi.drivers.uw_bars.test.pyon_test import PyonBarsTestCase
 
 from ion.services.mi.instrument_driver import DriverState
 
@@ -32,7 +32,7 @@ from nose.plugins.attrib import attr
 
 
 @attr('UNIT', group='mi')
-class BarsDriverTest(BarsTestCase):
+class BarsDriverTest(PyonBarsTestCase):
     """
     Tests involving ZMQ driver process and ZMQ client.
     """
