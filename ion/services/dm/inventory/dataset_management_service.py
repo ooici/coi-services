@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import gevent
+from gevent.greenlet import Greenlet
 from pyon.core.exception import BadRequest
 
 __author__ = 'Maurice Manning'
@@ -16,7 +18,8 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def on_start(self):
         super(DatasetManagementService,self).on_start()
-        self.db = self.container.datastore_manager.get_datastore('scidata',DataStore.DS_PROFILE.SCIDATA)
+        self.datastore_name = self.CFG.get('process',{}).get('datastore_name','scidata')
+        self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
     """
     class docstring
@@ -48,6 +51,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
         return dataset_id
+
 
     def update_dataset(self, dataset=None):
         """@todo document this interface!!!
@@ -81,26 +85,21 @@ class DatasetManagementService(BaseDatasetManagementService):
         @param dataset_id    str
         @retval bounds    Unknown
         """
-        #dataset = self.read_dataset(dataset_id=dataset_id)
-        bounds = {
-            'geo':{
-                'latmin':0,
-                'lonmin':0,
-                'latmax':0,
-                'lonmax':0
-            },
-            'height':[0,0],
-            'time':[0,0]
-        }
+        ar = gevent.event.AsyncResult()
+        def ar_timeout(db):
+            results = db.query_view("datasets/bounds")[0]['value']
+            ar.set(results)
 
-        bounds['geo']['latmin'] = self.db.query_view('datasets/lattitude_min')[0]['value']
-        bounds['geo']['latmax'] = self.db.query_view('datasets/lattitude_max')[0]['value']
-        bounds['geo']['lonmin'] = self.db.query_view('datasets/longitude_min')[0]['value']
-        bounds['geo']['lonmax'] = self.db.query_view('datasets/longitude_max')[0]['value']
-        bounds['height'][0] = self.db.query_view('datasets/depth_min')[0]['value']
-        bounds['height'][1] = self.db.query_view('datasets/depth_max')[0]['value']
-        bounds['time'][0] = self.db.query_view('datasets/time_min')[0]['value']
-        bounds['time'][1] = self.db.query_view('datasets/time_max')[0]['value']
+
+
+        g = Greenlet(ar_timeout, self.db)
+        g.start()
+
+        bounds = ar.get(timeout=5)
+
+
+
+
         return bounds
 
     def get_dataset_metadata(self, dataset_id=''):
@@ -119,4 +118,4 @@ class DatasetManagementService(BaseDatasetManagementService):
         method docstring
         """
         pass
-  
+
