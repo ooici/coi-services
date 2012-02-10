@@ -41,7 +41,6 @@ class DataRetrieverService(BaseDataRetrieverService):
             cls='ReplayProcess',
             config=config)
 
-        pid = self.container.id + '.' + pid
         replay.process_id = pid
 
         self.clients.resource_registry.update(replay)

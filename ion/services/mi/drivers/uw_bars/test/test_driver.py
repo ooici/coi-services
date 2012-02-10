@@ -3,25 +3,60 @@
 __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
-from unittest import TestCase
-
+from ion.services.mi.drivers.uw_bars.test import BarsTestCase
 from ion.services.mi.drivers.uw_bars.driver import BarsInstrumentDriver
+from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
+
+from ion.services.mi.instrument_driver import DriverState
+from ion.services.mi.common import InstErrorCode
+
+import time
+
+from nose.plugins.attrib import attr
 
 
-class DriverTest(TestCase):
+@attr('UNIT', group='mi')
+class DriverTest(BarsTestCase):
 
-    def setUp(self):
+    def test(self):
         """
+        BARS driver tests
         """
 
-        pass
+        driver = BarsInstrumentDriver()
 
-    def test_basic(self):
-        """
-        """
+        self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
-        BarsInstrumentDriver()
+        # initialize
+        result = driver.initialize()
+        self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
-        #TODO
+        # configure
+        configs = {BarsChannel.INSTRUMENT: self.config}
+        result = driver.configure(configs)
+        self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
 
-        pass
+        # connect
+        result = driver.connect([BarsChannel.INSTRUMENT])
+        print "connect result = %s" % str(result)
+        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
+
+        print "sleeping for a bit to see data streaming"
+        time.sleep(4)
+
+        # get a parameter
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        result = driver.get([cp])
+        print "get result = %s" % str(result)
+
+        # should be back in AUTOSAMPLE state:
+        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
+
+        print "sleeping a bit more"
+        time.sleep(4)
+
+        # disconnect
+        print "disconnecting"
+        result = driver.disconnect([BarsChannel.INSTRUMENT])
+        self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())

@@ -234,12 +234,12 @@ class ResourceImpl(object):
             if not hasattr(primary_object, "_id"):
                 # must not be any matching names
                 if 0 < len(found_res): 
-                    raise BadRequest("%s resource named '%s' already exists"
-                                     % (resource_type, name))
+                    raise BadRequest("%s resource named '%s' already exists with ID '%s'"
+                                     % (resource_type, name, found_res[0]))
             else: #updating
             # any existing name must match the id
                 if 1 == len(found_res) and primary_object._id != found_res[0]:
-                    raise BadRequest("%s resource named '%s' already exists"
+                    raise BadRequest("%s resource named '%s' already exists with a different ID"
                                      % (resource_type, name))
                     
                            

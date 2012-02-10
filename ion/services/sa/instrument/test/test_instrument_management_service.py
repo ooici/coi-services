@@ -58,7 +58,7 @@ rim.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange_name": "sa
 rim.add_resource_impl_unittests(PlatformAgentImpl, {"description": "the big donut"})
 rim.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
 rim.add_resource_impl_unittests(PlatformModelImpl, {"description": "tammy breathed deeply"})
-rim.add_resource_impl_unittests(SensorDeviceImpl, {"serialnumber": "123"})
-rim.add_resource_impl_unittests(SensorModelImpl, {"model": "redundant field?", "weight": 2})
+rim.add_resource_impl_unittests(SensorDeviceImpl, {"serial_number": "123"})
+rim.add_resource_impl_unittests(SensorModelImpl, {"model_label": "redundant field?"})
 
 
