@@ -220,7 +220,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             module='pyon.ion.process',
             cls='SimpleProcess',
             config={})
-        dummy_process = self.container.proc_manager.procs['%s.%s' % (str(self.container.id), str(pid))]
+        dummy_process = self.container.proc_manager.procs[pid]
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
