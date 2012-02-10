@@ -15,8 +15,10 @@ import time
 
 from ion.services.mi.drivers.uw_bars.test import BarsTestCase
 from nose.plugins.attrib import attr
+import unittest
 
 
+@unittest.skip('Does not work in conjunction with pyon internal preparations')
 @attr('UNIT', group='mi')
 class DriverTest(BarsTestCase):
 
