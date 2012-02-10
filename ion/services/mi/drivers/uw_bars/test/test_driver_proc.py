@@ -24,18 +24,21 @@ from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
+
+import unittest
 from nose.plugins.attrib import attr
 
 
 @attr('UNIT', group='mi')
-class DriverAndProcsTest(BarsTestCase):
+class BarsDriverTest(BarsTestCase):
     """
     Tests involving ZMQ driver process and ZMQ client.
     """
 
     def setUp(self):
-        super(DriverAndProcsTest, self).setUp()
+        super(BarsDriverTest, self).setUp()
 
         # Zmq parameters used by driver process and client.
         self.server_addr = 'localhost'
@@ -65,11 +68,11 @@ class DriverAndProcsTest(BarsTestCase):
                 self._driver_process = None
 
     def tearDown(self):
-        super(DriverAndProcsTest, self).tearDown()
+        super(BarsDriverTest, self).tearDown()
         self._clean_up()
 
-    def test_config(self):
-        """BARS tests with ZMQ driver process and ZMQ client"""
+    def _connect(self, state):
+        """Connects and asserts the given state is the current one"""
 
         driver_client = self._driver_client
 
@@ -105,6 +108,9 @@ class DriverAndProcsTest(BarsTestCase):
 
         time.sleep(1)
 
+    def _disconnect(self):
+        driver_client = self._driver_client
+
         # TODO the reply of the main operation should probably include
         # an item indicating the current state of the driver so there is no
         # need to explicitly query for it.
@@ -121,3 +127,29 @@ class DriverAndProcsTest(BarsTestCase):
         print("** get_current_state reply=%s" % str(reply))
         self.assertEqual(DriverState.UNCONFIGURED, reply)
         time.sleep(1)
+
+    def test_connect_disconnect(self):
+        """BARS connect and disconnect"""
+
+        self._connect(DriverState.AUTOSAMPLE)
+        self._disconnect()
+
+    @unittest.skip('not yet ready')
+    def test_get(self):
+        """BARS get"""
+
+        self._connect(DriverState.AUTOSAMPLE)
+
+        driver_client = self._driver_client
+
+        # get a parameter
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        get_params = [cp]
+
+        reply = driver_client.cmd_dvr('get', get_params)
+        print "get reply = %s" % str(reply)
+#        success = reply[0]
+#        result = reply[1]
+        
+
+        self._disconnect()

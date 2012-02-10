@@ -349,13 +349,14 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         time.sleep(1)
         log.debug("### ******** result = '%s'" % str(result))
-        log.debug("### ******** linebuff = '%s'" % self._linebuf)
-        log.debug("### ******** _promptbuf = '%s'" % self._promptbuf)
-        string = self._linebuf
-        got_prompt = GENERIC_PROMPT_PATTERN.match(string) is not None
+        log.debug("### ******** linebuff = '%s'" % repr(self._linebuf))
+        log.debug("### ******** _promptbuf = '%s'" % repr(self._promptbuf))
+        string = self._promptbuf
+        got_prompt = GENERIC_PROMPT_PATTERN.search(string) is not None
 
         if not got_prompt:
             raise InstrumentProtocolException(
+                    InstErrorCode.UNKNOWN_ERROR,
                     msg="Unexpected, should have gotten prompt after enter.")
 
         next_state = BarsProtocolState.MAIN_MENU
