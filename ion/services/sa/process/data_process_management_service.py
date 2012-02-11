@@ -97,6 +97,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @param  out_data_product_id: ID of the output data product
         @retval data_process_id: ID of the newly created data process object
         """
+
+        #
+        #
+        #
+        #todo: break this method up into: 1. create data process, 2. assign in/out products, 3. activate data proces
+        #
+        #
+        #
         inform = "Input Data Product:       "+str(in_data_product_id)+\
                  "Transformed by:           "+str(data_process_definition_id)+\
                  "To create output Product: "+str(out_data_product_id)
@@ -131,7 +139,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(data_process_id, PRED.hasOutputProduct, out_data_product_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None)
+        stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
         if not stream_ids:
             raise NotFound("No Stream created for output Data Product " + str(out_data_product_id))
         if len(stream_ids) != 1:
@@ -168,12 +176,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
         in_data_product_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
         query = StreamQuery(stream_ids=[in_stream_id])
-        input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
-        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
+        self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
+        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(self.input_subscription_id))
 
-        # add the subscription id to the resource
+        # add the subscription id to the resource for clean up later
         data_process_obj = self.clients.resource_registry.read(data_process_id)
-        data_process_obj.input_subscription_id = input_subscription_id;
+        data_process_obj.input_subscription_id = self.input_subscription_id;
         self.clients.resource_registry.update(data_process_obj)
 
 
@@ -190,12 +198,20 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         # Launch the first transform process
-        log.debug("DataProcessManagementService:create_data_process - Launch the first transform process")
-        transform_id = self.clients.transform_management.create_transform( name='basic_transform', description='basic_transform',
-                           in_subscription_id=input_subscription_id,
+        log.debug("DataProcessManagementService:create_data_process - Launch the first transform process: ")
+        log.debug("DataProcessManagementService:create_data_process - input_subscription_id: "   +  str(self.input_subscription_id) )
+        log.debug("DataProcessManagementService:create_data_process - out_stream_id: "   +  str(out_stream_id) )
+        log.debug("DataProcessManagementService:create_data_process - transform_definition_id: "   +  str(transform_definition_id) )
+        log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
+
+        transform_id = self.clients.transform_management.create_transform( name='data_process_id', description='data_process_id',
+                           in_subscription_id=self.input_subscription_id,
                            out_streams={'output':out_stream_id},
                            process_definition_id=transform_definition_id,
                            configuration={})
+
+        log.debug("DataProcessManagementService:create_data_process - transform_id: "   +  str(transform_id) )
+
         self.clients.resource_registry.create_association(data_process_id, PRED.hasTransform, transform_id)
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process   transform_id"  +  str(transform_id))
 
