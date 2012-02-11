@@ -11,6 +11,7 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.drivers.uw_bars.bars_client import BarsClient
+import ion.services.mi.drivers.uw_bars.bars as bars
 
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverState
@@ -31,8 +32,6 @@ class BarsInstrumentDriver(InstrumentDriver):
     """
 
     # TODO actual handling of the "channel" concept in the design.
-
-    # TODO harmonize with base class.
 
     # TODO NOTE: Assumes all interaction is for the INSTRUMENT special channel
 
@@ -129,7 +128,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         result = None
 
-        self._setup_protocol(self.config)
+        self._setup_bars_client(self.config)
 
         if self.bars_client.is_collecting_data():
             self._state = DriverState.AUTOSAMPLE
@@ -140,14 +139,13 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def _setup_protocol(self, config):
+    def _setup_bars_client(self, config):
         config = self.config
         host = config['device_addr']
         port = config['device_port']
         outfile = file('driver0.txt', 'w')
         self.bars_client = BarsClient(host, port, outfile)
-        #-self.protocol.configure(self.config)
-        #-self.protocol.connect()
+        self.bars_client.connect()
 
     def disconnect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
         """
@@ -192,12 +190,31 @@ class BarsInstrumentDriver(InstrumentDriver):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("get: params=%s timeout=%s" % (params, timeout))
 
-        self._assert_state(DriverState.CONNECTED)
-        result = None
+        self._assert_state(DriverState.AUTOSAMPLE)
 
-        # TODO
-        #self.bars_client.get(params, timeout)
+        log.debug("get: break data streaming to enter main menu")
+        self.bars_client.enter_main_menu()
 
+        log.debug("get: select 2 to get system parameter menu")
+        self.bars_client.send_option('2')
+        self.bars_client.expect_generic_prompt()
+
+        buffer = self.bars_client.get_last_buffer()
+        log.debug("get: BUFFER='%s'" % repr(buffer))
+        value = bars.get_cycle_time(buffer)
+        log.debug("get: VALUE='%s'" % value)
+
+        log.debug("get: send 3 to return to main menu")
+        self.bars_client.send_option('3')
+        self.bars_client.expect_generic_prompt()
+
+        buffer = self.bars_client.get_last_buffer()
+        log.debug("get: BUFFER='%s'" % repr(buffer))
+
+        log.debug("get: resume data streaming")
+        self.bars_client.send_option('1')
+
+        result = value
         return result
 
     def set(self, params, timeout=10):

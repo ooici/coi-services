@@ -56,8 +56,11 @@ import unittest
 from threading import Thread
 import time
 from nose.plugins.attrib import attr
+import os
 
-@unittest.skip('Does not work in conjunction with pyon internal preparations')
+
+# Does not work in conjunction with pyon internal preparations
+@unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this.')
 @attr('UNIT', group='mi')
 class _T(Thread):
     def __init__(self):

@@ -10,9 +10,11 @@ import time
 from ion.services.mi.drivers.uw_bars.test import BarsTestCase
 from nose.plugins.attrib import attr
 import unittest
+import os
 
 
-@unittest.skip('Does not work in conjunction with pyon internal preparations')
+# Does not work in conjunction with pyon internal preparations
+@unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this.')
 @attr('UNIT', group='mi')
 class BarsClientTest(BarsTestCase):
 

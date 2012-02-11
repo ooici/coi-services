@@ -29,6 +29,8 @@ DATA_LINE_PATTERN = re.compile(r'.*(\d+\.\d*\s*){12}.*')
 
 GENERIC_PROMPT_PATTERN = re.compile(r'.*--> ')
 
+MAX_NUM_LINES = 100
+
 
 class _Recv(Thread):
     """
@@ -41,6 +43,7 @@ class _Recv(Thread):
         self._conn = conn
         self._last_line = ''
         self._new_line = ''
+        self._lines = []
         self._active = True
         self._outfile = outfile
         self.setDaemon(True)
@@ -50,6 +53,9 @@ class _Recv(Thread):
         if recv == '\n':
             self._last_line = self._new_line
             self._new_line = ''
+            self._lines.append(self._last_line)
+            if len(self._lines) > MAX_NUM_LINES:
+                self._lines = self._lines[MAX_NUM_LINES - 1:]
             return True
         else:
             self._new_line += recv
@@ -67,6 +73,7 @@ class _Recv(Thread):
             if self._outfile:
                 os.write(self._outfile.fileno(), recv)
                 self._outfile.flush()
+        log.debug("### _Recv.run done.")
 
 
 class BarsClient(object):
@@ -132,6 +139,9 @@ class BarsClient(object):
         log.debug("### got prompt. Sending one ^m to clean up any ^S leftover")
         self._send_control('m')
 
+    def get_last_buffer(self):
+        return '\n'.join(self._bt._lines)
+
     def send_enter(self):
         """
         Sleeps for self.delay_before_send and calls self._send_control('m').
@@ -196,6 +206,7 @@ class BarsClient(object):
         """
         Ends the client.
         """
+        log.debug("### ending")
         self._bt.end()
         self._sock.close()
 
