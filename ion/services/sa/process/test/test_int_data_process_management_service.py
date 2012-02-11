@@ -27,7 +27,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 @attr('INT', group='sa')
-#unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+@unittest.skip('need to fix...')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -71,12 +71,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         data_producer_id = self.DAMSclient.register_instrument(instrument_id)
         log.debug("TestIntDataProcessManagementService  data_producer_id %s" % data_producer_id)
 
-        # Retrieve the stream via the Instrument->DataProducer->Stream associations
-        stream_ids, _ = self.RRclient.find_objects(data_producer_id, PRED.hasStream, None, True)
 
-        log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
-        self.in_stream_id = stream_ids[0]
-        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
         #-------------------------------
         # Input Data Product
@@ -88,6 +83,12 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new input data product: %s" %ex)
 
+        # Retrieve the stream via the Instrument->DataProducer->Stream associations
+        stream_ids, _ = self.RRclient.find_objects(input_dp_id, PRED.hasStream, None, True)
+
+        log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
+        self.in_stream_id = stream_ids[0]
+        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
         #-------------------------------
         # Output Data Product

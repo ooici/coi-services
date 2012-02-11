@@ -127,7 +127,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("non-existing data source was found during delete")
 
 
-    #@unittest.skip('Not done yet.')
+    @unittest.skip('Not done yet.')
     def test_create_producer(self):
         # Create a data producer in coordination with DM PubSub: create stream, register and create producer object
 

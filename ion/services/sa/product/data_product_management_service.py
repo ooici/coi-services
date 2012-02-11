@@ -11,7 +11,7 @@ from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, LCS
+from pyon.public import RT, LCS, PRED
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -28,14 +28,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         self.data_product   = DataProductImpl(self.clients)
 
-
-    def producer_for_product(self, producer_obj, product_obj):
-        """
-        sets an appropriate name for a data producer that's associated with a given data product
-        """
-        producer_obj.name = str(product_obj.name + " Producer")
-        producer_obj.description = str("DataProducer for " + product_obj.name)
-        return producer_obj
     
 
     def create_data_product(self, data_product=None, source_resource_id=''):
@@ -68,14 +60,14 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         if source_resource_id:
             log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
-            self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id)  # TODO: what errors can occur here?
+            self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id, True)  # TODO: what errors can occur here?
             
-        else:
-            #create a data producer to go with this product, and associate it
-            pducer_obj = self.producer_for_product(IonObject(RT.DataProducer), data_product)
-            pducer_id = self.clients.data_acquisition_management.create_data_producer(pducer_obj)
-            log.debug("I GOT A PRODUCER ID='%s'" % pducer_id)
-            self.data_product.link_data_producer(data_product_id, pducer_id)
+#        else:
+#            #create a data producer to go with this product, and associate it
+#            pducer_obj = self.producer_for_product(IonObject(RT.DataProducer), data_product)
+#            pducer_id = self.clients.data_acquisition_management.create_data_producer(pducer_obj)
+#            log.debug("I GOT A PRODUCER ID='%s'" % pducer_id)
+#            self.data_product.link_data_producer(data_product_id, pducer_id)
             
 
         return data_product_id
@@ -109,12 +101,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         #keep associated data producer name in sync with data product
         data_producer_ids = self.data_product.find_stemming_data_producer(data_product._id)
-        #TODO: error check / consistency check
-        if 1 == len(data_producer_ids):
-            data_producer_id = data_producer_ids[0]
-            data_producer_obj = self.clients.data_acquisition_management.read_data_producer(data_producer_id)
-            data_producer_obj = self.producer_for_product(data_producer_obj, data_product)
-            self.clients.data_acquisition_management.update_data_producer(data_producer_obj)
+        #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
         return
 
@@ -152,7 +139,37 @@ class DataProductManagementService(BaseDataProductManagementService):
             objects = []
         return objects
 
+    def activate_data_product_persistence(self, data_product_id=''):
+        """Persist data product data into a data set
 
+        @param data_product_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        #dataset_management, ingestion_management]
+
+        # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
+        streams, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
+        if len(streams) > 1:
+            raise BadRequest('There are  multiple streams linked to this Data Product %s' % str(data_product_id))
+
+
+        # delete the transform associations link as well
+        self.clients.dataset_management.create_dataset(self, stream_id='', name='', description='', contact=None, user_metadata={})
+
+
+
+
+        pass
+
+    def suspend_data_product_persistence(self, data_product_id='', type=''):
+        """Suspend data product data persistnce into a data set, multiple options
+
+        @param data_product_id    str
+        @param type    str
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
 
     def set_data_product_lifecycle(self, data_product_id="", lifecycle_state=""):
        """
