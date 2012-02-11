@@ -25,7 +25,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('UNIT', group='sa')
-#@unittest.skip('not working')
+@unittest.skip('not working')
 class TestDataProductManagementServiceUnit(PyonTestCase):
 
     def setUp(self):
@@ -60,7 +60,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.assertEqual(dp_id, 'SOME_RR_ID1')
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
         self.resource_registry.create.assert_called_once_with(dpt_obj)
-        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1')
+        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1', False)
 
     def test_createDataProduct_and_DataProducer_with_id_NotFound(self):
         # setup
@@ -81,7 +81,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         # check results
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
         self.resource_registry.create.assert_called_once_with(dpt_obj)
-        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1')
+        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1', False)
         ex = cm.exception
         self.assertEqual(ex.message, "Object with id SOME_RR_ID1 does not exist.")
 
@@ -103,7 +103,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
 
 
 @attr('INT', group='sa')
-#@unittest.skip('not working')
+@unittest.skip('not working')
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):

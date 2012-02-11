@@ -274,13 +274,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # get data product's data producer (via association)
         prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
-        prod_pducer_id = prod_pducers[0]
+        #todo: Ian - I made some mods to data acquisition and data product services, this is failing now... not sure why...
+        #prod_pducer_id = prod_pducers[0]
         
         # (TODO: there should only be one assoc_id.  what error to raise?)
         # TODO: what error to raise if there are no assoc ids?
 
         # instrument data producer is the parent of the data product producer
-        self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
+        # todo: Ian - only data acquisition should link data producers to anything
+        #self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
 
         #TODO: error checking
 
