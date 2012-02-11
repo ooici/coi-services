@@ -26,7 +26,7 @@ import unittest
 class FakeProcess(LocalContextMixin):
     name = ''
 
-@attr('INT', group='sa')
+@attr('INT', group='mmm')
 @unittest.skip('need to fix...')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
@@ -83,10 +83,10 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new input data product: %s" %ex)
 
-        # Retrieve the stream via the Instrument->DataProducer->Stream associations
+        # Retrieve the stream via the DataProduct->Stream associations
         stream_ids, _ = self.RRclient.find_objects(input_dp_id, PRED.hasStream, None, True)
 
-        log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
+        log.debug("TestIntDataProcessManagementService: in stream_ids "   +  str(stream_ids))
         self.in_stream_id = stream_ids[0]
         log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
@@ -97,6 +97,8 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         output_dp_obj = IonObject(RT.DataProduct, name='OutDataProduct',description='transform output')
         output_dp_id = self.DPMSclient.create_data_product(output_dp_obj)
 
+        # this will NOT create a stream for the product becuase the data process (source) resource has not been created yet.
+
         #-------------------------------
         # Create the data process
         #-------------------------------
@@ -104,7 +106,9 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         try:
             dproc_id = self.Processclient.create_data_process(dprocdef_id, input_dp_id, output_dp_id)
         except BadRequest as ex:
-            self.fail("failed to create new data process definition: %s" %ex)
+            self.fail("failed to create new data process: %s" %ex)
+
+        self.DAMSclient.assign_data_product(dproc_id, output_dp_id, False)
 
         log.debug("TestIntDataProcessManagementService: create_data_process return")
 

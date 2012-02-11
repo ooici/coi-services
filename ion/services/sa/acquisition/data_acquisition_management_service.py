@@ -110,6 +110,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if res_ids is None:
             raise NotFound("Data Producer for Data Process %d does not exist" % data_process_id)
 
+        # TODO: remove associations
+
         return self._remove_producer(data_process_id, res_ids)
 
     def register_instrument(self, instrument_id=''):
@@ -140,6 +142,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         res_ids, _ = self.clients.resource_registry.find_objects(instrument_id, PRED.hasDataProducer, None, True)
         if res_ids is None:
             raise NotFound("Data Producer for Instrument %d does not exist" % instrument_id)
+
+        # TODO: remove associations
 
         return self._remove_producer(instrument_id, res_ids)
 
@@ -178,27 +182,35 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #create data producer resource and associate to this instrument_id
         data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+        log.debug("assign_data_product: data producer resource %s" % data_producer_id)
 
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
         # Associate the Producer with the main Producer
         self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  self.primary_producer)
+        # Associate the input resource with the child data Producer
+        self.clients.resource_registry.create_association(input_resource_id,  PRED.hasDataProducer, data_producer_id)
 
         #Create the stream if requested
+        log.debug("assign_data_product: create_stream %s" % create_stream)
         if create_stream:
             stream_id = self.clients.pubsub_management.create_stream(name=data_product_obj.name,  description=data_product_obj.description)
+            log.debug("assign_data_product: create stream stream_id %s" % stream_id)
             # Associate the Stream with the main Data Product
             self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
 
         return
 
-    def unassign_data_product(self, input_resource_id='', data_product_id=''):
-        """@todo document this interface!!!
+    def unassign_data_product(self, data_product_id=''):
+        """
+        Disconnect the Data Product from the Data Producer
 
-        @param input_resource_id    str
         @param data_product_id    str
         @throws NotFound    object with specified id does not exist
         """
+
+        # TODO: remove associations and data product, remove the stream?
+
         pass
 
 

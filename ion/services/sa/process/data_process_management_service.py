@@ -115,49 +115,54 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: " +  str(data_process_id))
 
+        # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
+        log.debug("DataProcessManagementService:create_data_process - Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream")
+        #TODO: should this be outside this method? Called by orchastration?
+        data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
+
+        #Assign the output Data Product to this producer resource
+        #todo: check that the product is not already associated with a producer
+        #TODO: should this be outside this method? Called by orchastration?
+        self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, True)
+
         # Associate with dataProcess
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
         self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
         self.clients.resource_registry.create_association(data_process_id, PRED.hasOutputProduct, out_data_product_id)
 
-        # Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream
-        log.debug("DataProcessManagementService:create_data_process - Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream")
-        data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
-        stream_ids, _ = self.clients.resource_registry.find_objects(data_producer_id, PRED.hasStream, RT.Stream, True)
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None)
         if not stream_ids:
-            raise NotFound("No Stream created for this Data Producer " + str(data_producer_id))
+            raise NotFound("No Stream created for output Data Product " + str(out_data_product_id))
         if len(stream_ids) != 1:
-            raise BadRequest("Data Producer should only have ONE stream at this time" + str(data_producer_id))
+            raise BadRequest("Data Product should only have ONE stream at this time" + str(out_data_product_id))
         out_stream_id = stream_ids[0]
         log.debug("DataProcessManagementService:create_data_process -Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream  out_stream_id: " +  str(out_stream_id))
 
-        # Connect the out_data_product with this process
-        #todo: check that the product is not already associated with a producer
-        self.clients.data_acquisition_management.assign_data_product(input_resource_id=data_process_id, data_product_id=out_data_product_id)
 
         #-------------------------------
         # Create subscription from in_data_product, which should already be associated with a stream via the Data Producer
         #-------------------------------
 
-        # first - get the data producer associated with this IN data product
-        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product")
-        producer_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
-        if not producer_ids:
-            raise NotFound("No Data Producer created for this Data Product " + str(in_data_product_id))
-        if len(producer_ids) != 1:
-            raise BadRequest("Data Product should only have ONE Data Producers at this time" + str(in_data_product_id))
-        in_product_producer = producer_ids[0]
-        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product  in_product_producer: " +  str(in_product_producer))
+#        # first - get the data producer associated with this IN data product
+#        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product")
+#        producer_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+#        if not producer_ids:
+#            raise NotFound("No Data Producer created for this Data Product " + str(in_data_product_id))
+#        if len(producer_ids) != 1:
+#            raise BadRequest("Data Product should only have ONE Data Producers at this time" + str(in_data_product_id))
+#        in_product_producer = producer_ids[0]
+#        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product  in_product_producer: " +  str(in_product_producer))
 
-        # second - get the stream associated with this IN data producer
-        log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data producer")
-        stream_ids, _ = self.clients.resource_registry.find_objects(in_product_producer, PRED.hasStream, RT.Stream, True)
+        # second - get the stream associated with this IN data product
+        log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data product")
+        stream_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasStream, RT.Stream, True)
         if not stream_ids:
-            raise NotFound("No Stream created for this IN Data Producer " + str(in_product_producer))
+            raise NotFound("No Stream created for this IN Data Product " + str(in_data_product_id))
         if len(stream_ids) != 1:
-            raise BadRequest("IN Data Producer should only have ONE stream at this time" + str(in_product_producer))
+            raise BadRequest("IN Data Product should only have ONE stream at this time" + str(in_data_product_id))
         in_stream_id = stream_ids[0]
-        log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data producer   in_stream_id"  +  str(in_stream_id))
+        log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data product   in_stream_id"  +  str(in_stream_id))
 
         # Finally - create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
@@ -186,7 +191,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Launch the first transform process
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process")
-        transform_id = self.clients.transform_management.create_transform( name='basic_transform',
+        transform_id = self.clients.transform_management.create_transform( name='basic_transform', description='basic_transform',
                            in_subscription_id=input_subscription_id,
                            out_streams={'output':out_stream_id},
                            process_definition_id=transform_definition_id,

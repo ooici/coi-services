@@ -113,67 +113,6 @@ class TestDataAcquisitionManagement(PyonTestCase):
 
 
 
-  ##############################################################################################
-    #
-    #  DataProducer
-    #
-    ##############################################################################################
-
-
-#    def test_create_data_producer(self):
-#        self.mock_create.return_value = ('111', 'bla')
-#
-#        data_prod_id = self.data_acquisition_mgmt_service.create_data_producer(name='foo', description='bar', False)
-#
-#        #self.mock_create.assert_called_once_with(self.data_producer)
-#        #self.assertEqual(data_prod_id, '111')
-#
-#    def test_read_and_update_data_producer(self):
-#        self.mock_read.return_value = self.data_producer
-#
-#        dp = self.data_acquisition_mgmt_service.read_data_producer('111')
-#
-#        assert dp is self.mock_read.return_value
-#        self.mock_read.assert_called_once_with('111', '')
-#
-#        dp.description = 'new description'
-#        self.mock_update.return_value = ['111', 2]
-#
-#        self.data_acquisition_mgmt_service.update_data_producer(dp)
-#        self.mock_update.assert_called_once_with(dp)
-#
-#
-#    def test_delete_data_producer(self):
-#        self.mock_read.return_value = self.data_producer
-#
-#        self.data_acquisition_mgmt_service.delete_data_producer('111')
-#
-#        self.mock_read.assert_called_once_with('111', '')
-#        self.mock_delete.assert_called_once_with(self.data_producer)
-#
-#    def test_read_data_producer_not_found(self):
-#        self.mock_read.return_value = None
-#
-#        # TEST: Execute the service operation call
-#        with self.assertRaises(NotFound) as cm:
-#            self.data_acquisition_mgmt_service.read_data_producer('bad')
-#
-#        ex = cm.exception
-#        self.assertEqual(ex.message, 'Data producer bad does not exist')
-#        self.mock_read.assert_called_once_with('bad', '')
-#
-#    def test_delete_data_producer_not_found(self):
-#        self.mock_read.return_value = None
-#
-#        # TEST: Execute the service operation call
-#        with self.assertRaises(NotFound) as cm:
-#            self.data_acquisition_mgmt_service.delete_data_producer('bad')
-#
-#        ex = cm.exception
-#        self.assertEqual(ex.message, 'Data producer bad does not exist')
-#        self.mock_read.assert_called_once_with('bad', '')
-
-
     def test_register_process(self):
         self.mock_read.return_value = self.data_process
         self.mock_create.return_value = ('111', 'bla')

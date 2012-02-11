@@ -40,7 +40,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         #   2. Validate that the data product IonObject does not contain an id_ element     
         #   3. Create a new data product
         #       - User must supply the name in the data product
-        #   4. Create a new data producer if supplied
         
         # Create will validate and register a new data product within the system
 
@@ -50,7 +49,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Create necessary associations to owner, instrument, etc
 
-        # Call Data Aquisition Mgmt Svc:create_data_producer to coordinate creation of topic and connection to source
+        # Call Data Aquisition Mgmt Svc:assign_data_product to coordinate connection of the data product to data producer and to the source resource
 
         # Return a resource ref
         
@@ -60,14 +59,8 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         if source_resource_id:
             log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
+            # TODO: currently create stream for the product is ALWAYS on, this should be surfaced
             self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id, True)  # TODO: what errors can occur here?
-            
-#        else:
-#            #create a data producer to go with this product, and associate it
-#            pducer_obj = self.producer_for_product(IonObject(RT.DataProducer), data_product)
-#            pducer_id = self.clients.data_acquisition_management.create_data_producer(pducer_obj)
-#            log.debug("I GOT A PRODUCER ID='%s'" % pducer_id)
-#            self.data_product.link_data_producer(data_product_id, pducer_id)
             
 
         return data_product_id
@@ -99,8 +92,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                
         self.data_product.update_one(data_product)
 
-        #keep associated data producer name in sync with data product
-        data_producer_ids = self.data_product.find_stemming_data_producer(data_product._id)
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
         return
@@ -115,6 +106,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
 
         log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
+
+        self.clients.data_acquisition_management.unassign_data_product(data_product_id)
         
         # Attempt to change the life cycle state of data product
         self.data_product.delete_one(data_product_id)
@@ -146,21 +139,28 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        #dataset_management, ingestion_management]
+        # Verify that product id are valid
+        data_product_obj = self.clients.resource_registry.read(data_product_id)
+        if not data_product_obj:
+            raise BadRequest("Data Product resource %s does not exist" % data_product_id)
 
         # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
         streams, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
-        if len(streams) > 1:
-            raise BadRequest('There are  multiple streams linked to this Data Product %s' % str(data_product_id))
+        if len(streams) > 1 or len(streams) == 0:
+            raise BadRequest('Data Product must have one stream associated%s' % str(data_product_id))
 
+        # create the dataset for this product
+        dataset_id = self.clients.dataset_management.create_dataset(self, streams[0], data_product_obj.name, data_product_obj.description)
+        log.debug("DataProductManagementService:activate_data_product_persistence: dataset_id = %s" % dataset_id)
 
-        # delete the transform associations link as well
-        self.clients.dataset_management.create_dataset(self, stream_id='', name='', description='', contact=None, user_metadata={})
+        # Call ingestion management to create a ingestion configuration
+        #todo: how to get ingestion configuration?
+        #ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
+        # activate an ingestion configuration
+        #ret = self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
-
-
-        pass
+        return
 
     def suspend_data_product_persistence(self, data_product_id='', type=''):
         """Suspend data product data persistnce into a data set, multiple options
