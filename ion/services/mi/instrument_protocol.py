@@ -132,8 +132,13 @@ class InstrumentProtocol(object):
         mi_logger.info('Found logger pid: %s.', str(logger_pid))
         if not logger_pid:
             self._logger_popen = self._logger.launch_process()
-            retval = os.wait()
-            mi_logger.debug('os.wait returned %s', str(retval))
+            time.sleep(0.2)
+            try:
+                retval = os.wait()
+                mi_logger.debug('os.wait returned %s' % str(retval))
+            except Exception as e:
+                mi_logger.debug('os.wait() threw %s: %s' %
+                               (e.__class__.__name__, str(e)))
             mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
             time.sleep(1)         
             self.attach()
@@ -437,7 +442,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 if self._promptbuf.endswith(item):
                     mi_logger.debug('Got prompt: %s', repr(item))
                     return (item, self._linebuf)
-            
+                else:
+                    time.sleep(.1)
             if time.time() > starttime + timeout:
                 raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
 

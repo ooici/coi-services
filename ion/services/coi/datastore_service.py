@@ -3,8 +3,6 @@
 __author__ = 'Thomas R. Lennan, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
-from pyon.core.bootstrap import sys_name
-from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore
 
 from interface.services.coi.idatastore_service import BaseDatastoreService

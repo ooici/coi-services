@@ -19,7 +19,7 @@ import datetime
 import os
 import os.path
 
-from pyon.public import CFG, log, sys_name, StreamProcess, Container
+from pyon.public import CFG, log, StreamProcess, Container
 
 
 class DatastoreLoader(StreamProcess):

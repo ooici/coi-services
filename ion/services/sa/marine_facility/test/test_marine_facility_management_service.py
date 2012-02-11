@@ -52,7 +52,7 @@ class TestMarineFacilityManagement(PyonTestCase):
 rim = ResourceImplMetatest(TestMarineFacilityManagement, MarineFacilityManagementService, log)
 
 rim.add_resource_impl_unittests(LogicalInstrumentImpl, {})
-rim.add_resource_impl_unittests(LogicalPlatformImpl, {"buoyname": "steve", "buoyheight": "3"})
+rim.add_resource_impl_unittests(LogicalPlatformImpl, {})
 rim.add_resource_impl_unittests(MarineFacilityImpl, {})
 rim.add_resource_impl_unittests(SiteImpl, {})
 
