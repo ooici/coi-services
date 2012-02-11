@@ -19,27 +19,73 @@ import datetime
 import os
 import os.path
 
-from pyon.public import CFG, log, StreamProcess, Container
+from pyon.public import CFG, log, ImmediateProcess, Container
 
 
-class DatastoreLoader(StreamProcess):
-    def on_init(self, *args, **kwargs):
+class DatastoreLoader(ImmediateProcess):
+    def on_init(self):
         pass
 
-    def on_start(self, *args, **kwargs):
+    def on_start(self):
         datastore = self.CFG.get("datastore", "")
         path = self.CFG.get("path", None)
         op = self.CFG.get("op", None)
         if op:
             if op == "load":
-                self.load_datastore(datastore, path)
+                self.load_datastore(path, datastore, ignore_errors=False)
             elif op == "dump":
-                self.dump_datastore(datastore, path)
+                self.dump_datastore(path, datastore)
             else:
                 log.warn("No operation specified")
 
-    def on_quit(self, *args, **kwargs):
+    def on_quit(self):
         pass
+
+    @classmethod
+    def load_datastore(cls, path=None, ds_name=None, ignore_errors=True):
+        if CFG.system.mockdb:
+            log.warn("Cannot load into MockDB")
+            return
+        if not ds_name:
+            log.warn("Datastore name not provided")
+
+
+        path = path or "res/preload/default"
+        if not os.path.exists(path):
+            log.path("Load path not found: %s" % path)
+            return
+        if not os.path.isdir(path):
+            log.error("Path is not a directory: %s" % path)
+
+        if ds_name:
+            # Here we expect path to contain YML files for given datastore
+            cls._load_datastore(path, ds_name, ignore_errors)
+        else:
+            # Here we expect path to have subdirs that are named according to logical
+            # datastores, e.g. "resources"
+            for fn in os.listdir(path):
+                fp = os.path.join(path, fn)
+                if not os.path.exists(path):
+                    log.warn("Item %s is not a directory" % fp)
+                    continue
+                cls._load_datastore(fp, fn, ignore_errors)
+
+    @classmethod
+    def _load_datastore(cls, path=None, ds_name=None, ignore_errors=True):
+        if not Container.instance.datastore_manager.exists(ds_name):
+            log.warn("Datastore does not exist: %s" % ds_name)
+        ds = Container.instance.datastore_manager.get_datastore(ds_name)
+        if not ds:
+            return
+        for fn in os.listdir(path):
+            fp = os.path.join(path, fn)
+            try:
+                cls._read_and_create_obj(ds, fp)
+            except Exception as ex:
+                if ignore_errors:
+                    log.warn("load error id=%s err=%s" % (fn, str(ex)))
+                else:
+                    raise ex
 
     @classmethod
     def _read_and_create_obj(cls, ds, fp):
@@ -49,32 +95,7 @@ class DatastoreLoader(StreamProcess):
         ds._preload_create_doc(obj)
 
     @classmethod
-    def load_datastore(cls, ds_name, path=None):
-        if CFG.system.mockdb:
-            log.warn("Cannot load into MockDB")
-            return
-        if not ds_name:
-            log.warn("Datastore name not provided")
-        if not Container.instance.datastore_manager.exists(ds_name):
-            log.warn("Datastore does not exist")
-
-        ds = Container.instance.datastore_manager.get_datastore(ds_name)
-
-        path = path or "res/preload/default"
-        if not os.path.exists(path):
-            log.warn("Load file or dir not found")
-            return
-
-        if os.path.isdir(path) == True:
-            for fn in os.listdir(path):
-                fp = os.path.join(path, fn)
-                cls._read_and_create_obj(ds, fp)
-        else:
-            cls._read_and_create_obj(ds, path)
-
-
-    @classmethod
-    def dump_datastore(cls, ds_name=None, path=None, clear_dir=True):
+    def dump_datastore(cls, path=None, ds_name=None, clear_dir=True):
         """
         Dumps CouchDB datastores into a directory as YML files.
         @param ds_name Logical name (such as "resources") of an ION datastore
@@ -96,21 +117,21 @@ class DatastoreLoader(StreamProcess):
         else:
             ds_list = [ds_name] if ds_name else ['resources','objects','state','events',]
             for ds in ds_list:
-                cls._dump_datastore(ds, path, clear_dir)
+                cls._dump_datastore(path, ds, clear_dir)
 
     @classmethod
-    def _dump_datastore(cls, ds_name, outpath_base, clear_dir=True):
+    def _dump_datastore(cls, outpath_base, ds_name, clear_dir=True):
         ds = Container.instance.datastore_manager.get_datastore(ds_name)
         if not ds:
             return
         if not os.path.exists(outpath_base):
             os.makedirs(outpath_base)
-        if clear_dir:
-            [os.remove(os.path.join(outpath_base, f)) for f in os.listdir(outpath_base)]
 
         outpath = "%s/%s" % (outpath_base, ds_name)
         if not os.path.exists(outpath):
             os.makedirs(outpath)
+        if clear_dir:
+            [os.remove(os.path.join(outpath, f)) for f in os.listdir(outpath)]
 
         objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
         numwrites = 0
