@@ -19,7 +19,7 @@ class DataRetrieverService(BaseDataRetrieverService):
     def on_start(self):
         super(DataRetrieverService,self).on_start()
 
-    def define_replay(self, dataset_id='', query={}, delivery_format={}):
+    def define_replay(self, dataset_id='',datastore_name='', query={}, delivery_format={}):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         '''
         # first things first, let's get a stream
@@ -35,7 +35,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay_id, rev = self.clients.resource_registry.create(replay)
         replay._id = replay_id
         replay._rev = rev
-        config = {'process':{'query':query, 'delivery_format':delivery_format,'publish_streams':{'output':replay_stream_id}}}
+        config = {'process':{'query':query,'datastore_name':datastore_name, 'delivery_format':delivery_format,'publish_streams':{'output':replay_stream_id}}}
         pid = self.container.spawn_process(name=replay_id+'agent',
             module='ion.processes.data.replay_process',
             cls='ReplayProcess',

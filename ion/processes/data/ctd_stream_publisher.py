@@ -43,6 +43,7 @@ class SimpleCtdPublisher(StandaloneProcess):
         # Get the stream(s)
         stream_id = self.CFG.get('process',{}).get('stream_id','')
 
+        self.greenlet_queue = []
 
         # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
         if not stream_id:
@@ -75,6 +76,12 @@ class SimpleCtdPublisher(StandaloneProcess):
         g = Greenlet(self._trigger_func, stream_id)
         log.debug('Starting publisher thread for simple ctd data.')
         g.start()
+        self.greenlet_queue.append(g)
+
+    def on_quit(self):
+        for greenlet in self.greenlet_queue:
+            greenlet.kill()
+        super(SimpleCtdPublisher,self).on_quit()
 
 
     def _trigger_func(self, stream_id):
