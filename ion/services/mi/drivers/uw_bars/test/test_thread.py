@@ -13,10 +13,6 @@ in pyon that don't play well with threads.
 Just remove the pyon.util.unit_test import, and the test runs fine with any
 of the launch methods.
 
-**NOTE**
-This test is unconditionally skipped because it does not work when
-other pyon based tests are running as part of the same nosetests set.
-
 The following two require a ^\ to kill them (the thread is not started).
 
 $ bin/nosetests -sv ion/services/mi/drivers/uw_bars/test/test_thread.py
