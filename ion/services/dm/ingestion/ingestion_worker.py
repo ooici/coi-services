@@ -8,6 +8,8 @@
 to couchdb datastore and hdf datastore.
 '''
 
+from interface.objects import DataContainer, DataStream
+
 from pyon.datastore.datastore import DataStore, DatastoreManager
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
@@ -85,8 +87,19 @@ class IngestionWorker(TransformDataProcess):
 
         #@todo Evaluate policy for this stream and determine what to do.
 
-        if isinstance(packet, BlogPost) and not packet.is_replay:
+        if isinstance(packet, DataContainer):
+
+            for item in packet.identifiables:
+                if isinstance(item, DataStream):
+                    hdfstring = item.values
+                    item.values = ''
+                    
+
             self.persist_immutable(packet )
+
+        elif isinstance(packet, BlogPost) and not packet.is_replay:
+            self.persist_immutable(packet )
+
 
         elif isinstance(packet, BlogComment) and not packet.is_replay:
             self.persist_immutable(packet)
