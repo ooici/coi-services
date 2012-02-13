@@ -17,6 +17,8 @@ It accepts multiple clients but in sequential order.
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
+import ion.services.mi.drivers.uw_bars.bars as bars
+
 import socket
 import random
 import time
@@ -279,41 +281,7 @@ class BarsSimulator(object):
         return False
 
     def _main_menu(self):
-        menu = """\
-  ***************************************************************
-  *                                                             *
-  *            Welcome to the BARS Program Main Menu            *
-  *              (Benthic And Resistivity Sensors)              *
-  *                    (Serial Number 002)                      *
-  *                                                             *
-  ***************************************************************
-
-             Version 1.7 - Last Revision: July 11, 2011
-
-                           Written by:
-
-                           Rex Johnson
-                           Engineering Services
-                           School of Oceanography
-                           University of Washington
-                           Seattle, WA 98195
-
-
-              The System Clock has not been set.
-                Use option 4 to Set the Clock.
-
-              Select one of the following functions:
-
-                  0).  Reprint Time & this Menu.
-                  1).  Restart Data Collection.
-                  2).  Change Data Collection Parameters.
-                  3).  System Diagnostics.
-                  4).  Set the System Clock.
-                  5).  Control Power to Sensors.
-                  6).  Provide Information on this System.
-                  7).  Exit this Program.
-
-                Enter 0, 1, 2, 3, 4, 5, 6 or 7 here  --> """
+        menu = bars.MAIN_MENU
 
         while self._enabled:
             self._clear_screen(menu)
@@ -365,28 +333,7 @@ class BarsSimulator(object):
         self._bt.set_enabled(True)
 
     def _change_params_menu(self):
-        menu = """\
-                               System Parameter Menu
-
-*****************************************************************************
-
-                       The present value for the Cycle Time is
-                                 20 Seconds.
-
-                  The present setting for Verbose versus Data only is
-                                     Data Only.
-
-*****************************************************************************
-
-
-                Select one of the following functions:
-
-                      0).  Reprint this Menu.
-                      1).  Change the Cycle Time.
-                      2).  Change the Verbose Setting.
-                      3).  Return to the Main Menu.
-
-                    Enter 0, 1, 2, or 3 here  --> """
+        menu = bars.SYSTEM_PARAMETER_MENU
 
         while self._enabled:
             self._clear_screen(menu)
@@ -426,13 +373,7 @@ class BarsSimulator(object):
         self._conn.sendall("TODO reset clock" + NEWLINE)
 
     def _system_info(self):
-        info = """\
-  System Name: BARS (Benthic And Resistivity Sensors)
-  System Owner: Marv Lilley, University of Washington
-  Owner Contact Phone #: 206-543-0859
-  System Serial #: 002
-
-  Press Enter to return to the Main Menu. --> """
+        info = bars.SYSTEM_INFO
 
         while self._enabled:
             self._clear_screen(info)
@@ -452,33 +393,7 @@ class BarsSimulator(object):
         self._log_client("exiting _system_info")
 
     def _sensor_power_menu(self):
-        menu = """\
-                             Sensor Power Control Menu
-
-*****************************************************************************
-
-                 Here is the current status of power to each sensor
-
-                      Res Sensor Power is ............. On
-                      Instrumentation Amp Power is .... On
-                      eH Isolation Amp Power is ....... On
-                      Hydrogen Power .................. On
-                      Reference Temperature Power ..... On
-
-*****************************************************************************
-
-
-            Select one of the following functions:
-
-                  0).  Reprint this Menu.
-                  1).  Toggle Power to Res Sensor.
-                  2).  Toggle Power to the Instrumentation Amp.
-                  3).  Toggle Power to the eH Isolation Amp.
-                  4).  Toggle Power to the Hydrogen Sensor.
-                  5).  Toggle Power to the Reference Temperature Sensor.
-                  6).  Return to the Main Menu.
-
-                Enter 0, 1, 2, 3, 4, 5, or 6 here  --> """
+        menu = bars.SENSOR_POWER_CONTROL_MENU
 
         while self._enabled:
             self._clear_screen(menu)
