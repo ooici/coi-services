@@ -33,7 +33,7 @@ class DatasetManagementTest(PyonTestCase):
         self.mock_rr_create.return_value = ('dataset_id','rev')
 
         # execution
-        dataset_id = self.dataset_management.create_dataset(name='123')
+        dataset_id = self.dataset_management.create_dataset(name='123',stream_id='123',datastore_name='fake_datastore')
 
 
         # assertions
