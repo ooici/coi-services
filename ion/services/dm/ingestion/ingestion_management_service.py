@@ -15,6 +15,7 @@ from pyon.core.exception import IonException
 from interface.objects import ExchangeQuery
 
 from interface.objects import StreamIngestionPolicy
+from pyon.event.event import StreamIngestionPolicyEventPublisher
 import time
 
 
@@ -49,9 +50,9 @@ class IngestionManagementService(BaseIngestionManagementService):
 
     def on_start(self):
         super(IngestionManagementService,self).on_start()
+        self.event_publisher = StreamIngestionPolicyEventPublisher(node = self.container.node)
 
-
-    def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
+    def create_ingestion_configuration(self, exchange_point_id='', couch_storage={}, hdf_storage={},\
                                        number_of_workers=0, default_policy=None):
         """Setup ingestion workers to ingest all the data from a single exchange point.
 
@@ -217,7 +218,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         return True
 
-    def create_stream_policy(self, stream_id='', archive_data='', archive_metadata=''):
+    def create_stream_policy(self, stream_id='', archive_data=True, archive_metadata=True):
         """Create a policy for a particular stream and associate it to the ingestion configuration for the exchange point the stream is on. (After LCA)
 
         @param stream_id    str
@@ -231,6 +232,17 @@ class IngestionManagementService(BaseIngestionManagementService):
             ts_created=time.ctime(), ts_updated='', archive_data=archive_data, archive_metadata=archive_metadata, stream_id=stream_id)
 
         stream_policy_id = self.clients.resource_registry.create(stream_policy)
+
+
+        self.event_publisher.create_and_publish(
+            origin='ingestion_management',
+            stream_id =stream_id,
+            archive_data=True,
+            archive_metadata=True,
+            resource_id = stream_policy_id
+            )
+
+
         return stream_policy_id
 
     def update_stream_policy(self, stream_policy=None):
