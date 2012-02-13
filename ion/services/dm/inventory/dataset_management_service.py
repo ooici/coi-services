@@ -40,10 +40,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         @param user_metadata    Unknown
         @retval dataset_id    str
         """
+        if not stream_id:
+            raise BadRequest("You must provide a stream_id by which to identify this dataset.")
 
         dataset = DataSet()
         dataset.description=description
-        dataset.name=name
+        dataset.name=name or stream_id
         dataset.primary_view_key=stream_id
         #@todo: fill this in
         dataset.view_name='dataset_by_id'
@@ -85,20 +87,23 @@ class DatasetManagementService(BaseDatasetManagementService):
         @param dataset_id    str
         @retval bounds    Unknown
         """
+        dataset = self.read_dataset(dataset_id=dataset_id)
+        key = dataset.primary_view_key # stream_id
         ar = gevent.event.AsyncResult()
         def ar_timeout(db):
-            results = db.query_view("datasets/bounds")[0]['value']
+            opts = {
+                'start_key':[key,0],
+                'end_key':[key,2]
+            }
+            try:
+                results = db.query_view("datasets/bounds",opts=opts)[0]['value']
+            except IndexError:
+                # Means there are no results
+                results = {}
             ar.set(results)
-
-
-
         g = Greenlet(ar_timeout, self.db)
         g.start()
-
         bounds = ar.get(timeout=5)
-
-
-
 
         return bounds
 
