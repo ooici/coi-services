@@ -59,7 +59,7 @@ class SimpleCtdPublisher(StandaloneProcess):
         # Get the name of the data store where records will go so we can create the stream definition and put it in there
         datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
 
-        db = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
+        db = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA, self.CFG)
 
         ctd_def = ctd_stream_definition(stream_id=stream_id)
 
@@ -73,7 +73,7 @@ class SimpleCtdPublisher(StandaloneProcess):
 
 
         g = Greenlet(self._trigger_func, stream_id)
-        log.debug('Starting publisher thread for simpel ctd data.')
+        log.debug('Starting publisher thread for simple ctd data.')
         g.start()
 
 

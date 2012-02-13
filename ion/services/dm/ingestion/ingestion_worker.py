@@ -88,13 +88,11 @@ class IngestionWorker(TransformDataProcess):
         #@todo Evaluate policy for this stream and determine what to do.
 
         if isinstance(packet, DataContainer):
-
-            for item in packet.identifiables:
-                if isinstance(item, DataStream):
-                    hdfstring = item.values
-                    item.values = ''
+            for key,value in packet.identifiables.iteritems():
+                if isinstance(value, DataStream):
+                    hdfstring = value
+                    packet.identifiables[key]=''
                     
-
             self.persist_immutable(packet )
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:
