@@ -59,9 +59,15 @@ class FeedStreamer(StreamProcess):
         blog = self.CFG.get('process',{}).get('blog','saintsandspinners')
 
         self.feed = FeedFormatter(blog=blog)
+        self.greenlet_queue = []
 
         # Start the thread
         self.run(blog)
+
+    def on_quit(self):
+        for greenlet in self.greenlet_queue:
+            greenlet.kill()
+        super(FeedStreamer,self).on_quit()
 
 
     def _on_done(self):
@@ -90,6 +96,7 @@ class FeedStreamer(StreamProcess):
         '''
         production = Greenlet(self._grab,blog=blog,callback=lambda : self._on_done())
         production.start()
+        self.greenlet_queue.append(production)
 
     def _grab(self, blog, callback):
         ''' Threaded query
