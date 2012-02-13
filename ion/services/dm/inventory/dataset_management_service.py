@@ -25,7 +25,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     class docstring
     """
 
-    def create_dataset(self, stream_id='', name='', description='', contact=None, user_metadata={}):
+    def create_dataset(self, stream_id='', name='', description='', datastore_name='', contact=None, user_metadata={}):
         """@brief Create a resource which defines a dataset. For LCA it is assumed that datasets are organized by stream.
         @param stream_id is the primary key used in the couch view to retrieve the content or metadata
         @param contact is the contact information for the dataset adminstrator
@@ -40,13 +40,14 @@ class DatasetManagementService(BaseDatasetManagementService):
         @param user_metadata    Unknown
         @retval dataset_id    str
         """
-        if not stream_id:
-            raise BadRequest("You must provide a stream_id by which to identify this dataset.")
+        if not (stream_id and datastore_name):
+            raise BadRequest("You must provide a stream_id and datastore name by which to identify this dataset.")
 
         dataset = DataSet()
         dataset.description=description
         dataset.name=name or stream_id
         dataset.primary_view_key=stream_id
+        dataset.datastore_name = datastore_name
         #@todo: fill this in
         dataset.view_name='dataset_by_id'
 

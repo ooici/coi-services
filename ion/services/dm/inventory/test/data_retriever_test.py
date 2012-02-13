@@ -106,7 +106,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
 
     def test_define_replay(self):
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        replay_id, stream_id = self.dr_cli.define_replay()
 
         # assert resources created
         replay = self.rr_cli.read(replay_id)
@@ -127,7 +127,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
 
     def test_cancel_replay(self):
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        replay_id, stream_id = self.dr_cli.define_replay()
         replay = self.rr_cli.read(replay_id)
 
         # assert that the process was created
