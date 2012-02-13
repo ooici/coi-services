@@ -5,12 +5,13 @@
 '''
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from interface.objects import DataSet
+from prototype.sci_data.ctd_stream import ctd_stream_packet
 from pyon.datastore.datastore import DataStore
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
+import random
 
 
 @attr('UNIT',group='DM')
@@ -74,49 +75,30 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
         self.dataset_management_client = DatasetManagementServiceClient(node=self.container.node)
 
-    def _generate_points(self,number):
+    def _random_data(self, entropy):
+        random_pressures = [(random.random()*100) for i in xrange(entropy)]
+        random_salinity = [(random.random()*28) for i in xrange(entropy)]
+        random_temperature = [(random.random()*10)+32 for i in xrange(entropy)]
+        random_times = [random.randrange(1328205227, 1328896395) for i in xrange(entropy)]
+        random_lat = [(random.random()*10)+30 for i in xrange(entropy)]
+        random_lon = [(random.random()*10)+70 for i in xrange(entropy)]
+        return [random_pressures, random_salinity, random_temperature, random_times, random_lat, random_lon]
 
-        import random
-        import time
-
-        random_temps = list(random.normalvariate(48.0,8) for x in xrange(80))
-
-
-
+    def _generate_point(self, entropy=5):
         points = []
-        for d in xrange(number):
-            sci_point = {
-                "type_": "SciData",
-                "temp": random.normalvariate(48.0,8),
-                "depth": ((random.random() * 20) + 50),
-                "origin_id": 1,
-                "area": 1,
-                "latitude": ((random.random() * 10)+30),
-                "longitude": ((random.random() * 10)+70),
-                "latitude_hemisphere": "N",
-                "longitude_hemisphere": "W",
-                "latitude_precision": 8,
-                "longitude_precision": 8,
-                "time": time.strftime("%Y-%m-%dT%H:%M:%S-05"),
-                "submitting_entity": "OOICI-DM",
-                "instutition": "OOICI",
-                "organization": "ASA",
-                "platform": None,
-                "depth_units": "ft"
-            }
-            points.append(sci_point)
-
-        return points
-
-    def _populate_with_mock_scidata(self):
-        for point in self._generate_points(100):
-            self.db_raw[self.db.datastore_name].create(point)
+        random_values = self._random_data(entropy)
+        point = ctd_stream_packet(stream_id='ctd_data', p=random_values[0], c=random_values[1], t=random_values[2],time=random_values[3], lat=random_values[4], lon=random_values[5], create_hdf=False)
+        return point
 
 
     def test_get_dataset_bounds(self):
-        self._populate_with_mock_scidata()
+        for i in xrange(3):
+            point = self._generate_point()
+            self.db.create(point)
 
         bounds = self.dataset_management_client.get_dataset_bounds()
-        self.assertTrue(bounds['min_lat'] > 30 and bounds['max_lat'] < 40, '%s' % bounds)
-        self.assertTrue(bounds['min_lon'] > 70 and bounds['min_lon'] < 80, '%s' % bounds)
-        self.assertTrue(bounds['min_depth'] > 50 and bounds['max_depth'] < 70, '%s' % bounds)
+
+        self.assertTrue(bounds['latitude_bounds'][0] > 30.0)
+        self.assertTrue(bounds['latitude_bounds'][1] < 40.0)
+        self.assertTrue(bounds['longitude_bounds'][0] > 70.0)
+        self.assertTrue(bounds['longitude_bounds'][1] < 80.0)
