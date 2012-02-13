@@ -87,7 +87,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
     def _generate_point(self, entropy=5):
         points = []
         random_values = self._random_data(entropy)
-        point = ctd_stream_packet(stream_id='ctd_data', p=random_values[0], c=random_values[1], t=random_values[2],time=random_values[3], lat=random_values[4], lon=random_values[5], create_hdf=False)
+        point = ctd_stream_packet(stream_id='test_data', p=random_values[0], c=random_values[1], t=random_values[2],time=random_values[3], lat=random_values[4], lon=random_values[5], create_hdf=False)
         return point
 
 
@@ -96,9 +96,14 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
             point = self._generate_point()
             self.db.create(point)
 
-        bounds = self.dataset_management_client.get_dataset_bounds()
+        dataset_id = self.dataset_management_client.create_dataset(stream_id='test_data')
+
+
+        bounds = self.dataset_management_client.get_dataset_bounds(dataset_id=dataset_id)
 
         self.assertTrue(bounds['latitude_bounds'][0] > 30.0)
         self.assertTrue(bounds['latitude_bounds'][1] < 40.0)
         self.assertTrue(bounds['longitude_bounds'][0] > 70.0)
         self.assertTrue(bounds['longitude_bounds'][1] < 80.0)
+
+        self.dataset_management_client.delete_dataset(dataset_id)
