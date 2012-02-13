@@ -6,6 +6,7 @@
 @description A simple example process which publishes prototype ctd data
 
 To Run:
+bin/pycc --rel res/deploy/r2dm.yml
 pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher')
 
 '''
