@@ -19,9 +19,16 @@ class DataRetrieverService(BaseDataRetrieverService):
     def on_start(self):
         super(DataRetrieverService,self).on_start()
 
-    def define_replay(self, dataset_id='',datastore_name='', query={}, delivery_format={}):
+    def define_replay(self, dataset_id='', query={}, delivery_format={}):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         '''
+        # Get the datastore name from the dataset object, use dm_datastore by default.
+        if dataset_id:
+            dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
+            datastore_name = dataset.datastore_name
+        else:
+            datastore_name = 'dm_datastore'
+
         # first things first, let's get a stream
         replay_stream_id = self.clients.pubsub_management.create_stream(original=True)
         replay = Replay()
