@@ -174,7 +174,6 @@ class IngestionManagementService(BaseIngestionManagementService):
         else:
             log.debug("No transforms attached as ingestion workers to the ingestion configuration object.")
 
-
         # delete the associations too...
         associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
         for association in associations:
