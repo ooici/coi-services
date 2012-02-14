@@ -142,7 +142,7 @@ class DatastoreLoader(ImmediateProcess):
             fn = obj_id
             # Some object ids start with slash
             if obj_id.startswith("/"):
-                fn = "_" + obj_id
+                fn = obj_id.replace("/","_")
             with open("%s/%s.yml" % (outpath, fn), 'w') as f:
                 yaml.dump(obj, f, default_flow_style=False)
                 numwrites += 1

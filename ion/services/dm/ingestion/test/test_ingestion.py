@@ -18,12 +18,14 @@ from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, Str
 from pyon.public import Container
 from pyon.public import Container
 from pyon.util.containers import DotDict
-from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery
+from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery, HdfStorage, CouchStorage, StreamPolicy
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+
+
 
 
 @attr('UNIT', group='dm')
@@ -55,16 +57,16 @@ class IngestionTest(PyonTestCase):
         self.exchange_point_id = "exchange_point_id"
 
         # Couch storage
-        self.couch_storage = {'filesystem':"SampleFileSystem", 'root_path':"SampleRootPath"}
+        self.couch_storage = CouchStorage()
 
         # hfd_storage
-        self.hdf_storage = {'server':"SampleServer", 'database':"SampleDatabase"}
+        self.hdf_storage = HdfStorage()
 
         # number of workers
         self.number_of_workers = 2
 
         # default policy
-        self.default_policy = {} # todo: later use Mock(specset = 'StreamIngestionPolicy')
+        self.default_policy = StreamPolicy()
 
 
 
@@ -204,9 +206,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #----------------------------------------------------------------------
         self.exchange_point_id = 'science_data'
         self.number_of_workers = 2
-        self.hdf_storage = {'root_path': '', 'filesystem' : 'a filesystem'}
-        self.couch_storage = {'server': '', 'couchstorage': 'a couchstorage', 'database': '' }
-        self.default_policy = {}
+        self.hdf_storage = HdfStorage(file_system='mysystem')
+        self.couch_storage = CouchStorage(database_name='test_database')
+        self.default_policy = StreamPolicy(archive_metadata=False)
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
 
@@ -257,9 +259,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ingestion_configuration = self.ingestion_cli.read_ingestion_configuration(ingestion_configuration_id)
 
         self.assertEquals(ingestion_configuration.number_of_workers, self.number_of_workers)
-        self.assertEquals(ingestion_configuration.hdf_storage, self.hdf_storage)
-        self.assertEquals(ingestion_configuration.couch_storage, self.couch_storage)
-        self.assertEquals(ingestion_configuration.default_policy, self.default_policy)
+        self.assertEquals(ingestion_configuration.hdf_storage.file_system, self.hdf_storage.file_system)
+        self.assertEquals(ingestion_configuration.couch_storage.database_name, self.couch_storage.database_name)
+        self.assertEquals(ingestion_configuration.default_policy.archive_metadata, self.default_policy.archive_metadata)
 
         #------------------------------------------------------------------------
         # Cleanup
