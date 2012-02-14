@@ -12,7 +12,7 @@ from pyon.ion.transform import TransformProcessAdaptor
 from pyon.ion.transform import TransformFunction
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
-from pyon.public import IonObject, RT, log, PRED
+from pyon.public import IonObject, RT, log
 
 from interface.objects import ProcessDefinition, StreamQuery, BlogPost, BlogComment, BlogAuthor
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient

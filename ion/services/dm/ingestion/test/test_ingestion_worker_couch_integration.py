@@ -6,15 +6,11 @@
 @test ion.services.dm.ingestion.ingestion_management_service test suite to cover all ingestion mgmt service code
 '''
 
-import gevent
-from mock import Mock, sentinel, patch
-from pyon.util.unit_test import PyonTestCase
+
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound, BadRequest
-import unittest
-from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber
-from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery, HdfStorage, CouchStorage, StreamPolicy
+from pyon.public import CFG, log, StreamPublisher
+from interface.objects import HdfStorage, CouchStorage, StreamPolicy
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -22,7 +18,6 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from interface.objects import BlogPost, BlogComment
-from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.datastore.datastore import DataStore
 
 @attr('INT', group='dm')

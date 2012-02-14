@@ -106,7 +106,8 @@ class DatasetManagementService(BaseDatasetManagementService):
                 # Means there are no results
                 results = {}
             ar.set(results)
-        g = Greenlet(ar_timeout, self.db)
+        db = self.container.datastore_manager.get_datastore(dataset.datastore_name)
+        g = Greenlet(ar_timeout,db)
         g.start()
         bounds = ar.get(timeout=5)
 
