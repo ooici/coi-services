@@ -39,8 +39,17 @@ class IngestionWorker(TransformDataProcess):
         self.default_policy = self.CFG.get('default_policy')
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
-        self.datastore_name = self.couch_config['database'] or 'dm_datastore'
-        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
+
+        self.datastore_name = self.couch_config['database_name'] or 'dm_datastore'
+
+        try:
+            self.datastore_profile = getattr(DataStore.DS_PROFILE, self.couch_config.get('datastore_profile','SCIDATA'))
+        except AttributeError:
+            log.exception('Invalid datastore profile passed to ingestion worker. Defaulting to SCIDATA')
+
+            self.datastore_profile = DataStore.DS_PROFILE.SCIDATA
+
+        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, self.datastore_profile, self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
@@ -126,7 +135,7 @@ class IngestionWorker(TransformDataProcess):
         stream_id = incoming_packet.data_stream_id
         log.debug('Getting policy for stream id: %s' % stream_id)
 
-        policy = StreamIngestionPolicy(**self.default_policy)
+        policy = self.default_policy
 
         try:
             # Check for stream specific policy object
