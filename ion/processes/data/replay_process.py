@@ -7,8 +7,7 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from pyon.core.exception import BadRequest
-from pyon.datastore.datastore import DataStore, DatastoreManager
+from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
 from interface.services.dm.ireplay_process import BaseReplayProcess

@@ -10,8 +10,6 @@ from pyon.ion.transform import TransformDataProcess
 from pyon.public import log
 from gevent.greenlet import Greenlet
 
-
-
 class IngestionExampleProducer(StreamProcess):
     """
     Replace this with a generic example
