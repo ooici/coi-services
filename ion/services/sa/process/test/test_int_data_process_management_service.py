@@ -27,7 +27,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 @attr('INT', group='sa')
-#unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+#@unittest.skip('need to fix...')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -59,7 +59,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
                             description='some new dpd',
                             process_source='some_source_reference')
         try:
-            dprocd_id = self.Processclient.create_data_process_definition(dpd_obj)
+            dprocdef_id = self.Processclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
@@ -71,12 +71,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         data_producer_id = self.DAMSclient.register_instrument(instrument_id)
         log.debug("TestIntDataProcessManagementService  data_producer_id %s" % data_producer_id)
 
-        # Retrieve the stream via the Instrument->DataProducer->Stream associations
-        stream_ids, _ = self.RRclient.find_objects(data_producer_id, PRED.hasStream, None, True)
 
-        log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
-        self.in_stream_id = stream_ids[0]
-        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
         #-------------------------------
         # Input Data Product
@@ -88,6 +83,12 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new input data product: %s" %ex)
 
+        # Retrieve the stream via the DataProduct->Stream associations
+        stream_ids, _ = self.RRclient.find_objects(input_dp_id, PRED.hasStream, None, True)
+
+        log.debug("TestIntDataProcessManagementService: in stream_ids "   +  str(stream_ids))
+        self.in_stream_id = stream_ids[0]
+        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
         #-------------------------------
         # Output Data Product
@@ -96,14 +97,18 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         output_dp_obj = IonObject(RT.DataProduct, name='OutDataProduct',description='transform output')
         output_dp_id = self.DPMSclient.create_data_product(output_dp_obj)
 
+        # this will NOT create a stream for the product becuase the data process (source) resource has not been created yet.
+
         #-------------------------------
         # Create the data process
         #-------------------------------
         log.debug("TestIntDataProcessManagementService: create_data_process start")
         try:
-            dprocd_id = self.Processclient.create_data_process(dprocd_id, input_dp_id, output_dp_id)
+            dproc_id = self.Processclient.create_data_process(dprocdef_id, input_dp_id, output_dp_id)
         except BadRequest as ex:
-            self.fail("failed to create new data process definition: %s" %ex)
+            self.fail("failed to create new data process: %s" %ex)
+
+        self.DAMSclient.assign_data_product(dproc_id, output_dp_id, False)
 
         log.debug("TestIntDataProcessManagementService: create_data_process return")
 
@@ -133,3 +138,15 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         self.ctd_stream1_publisher.publish(msg)
 
         # See /tmp/transform_output for results.....
+
+        # clean up the data process
+        try:
+            self.Processclient.delete_data_process(dproc_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data process definition: %s" %ex)
+
+        try:
+            self.Processclient.delete_data_process_definition(dprocdef_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data process definition: %s" %ex)
+

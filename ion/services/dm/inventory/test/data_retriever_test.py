@@ -8,6 +8,7 @@ from mock import Mock
 from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
@@ -93,9 +94,10 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
         self.couch = self.container.datastore_manager.get_datastore('test_data_retriever', profile=DataStore.DS_PROFILE.EXAMPLES)
-
+        self.datastore_name = 'test_data_retriever'
 
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
+        self.dsm_cli = DatasetManagementServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
 
@@ -106,57 +108,59 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
 
     def test_define_replay(self):
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id='12345',
+            datastore_name=self.datastore_name,
+            view_name='posts/posts_join_comments',
+            name='test define replay'
+        )
+        replay_id, stream_id = self.dr_cli.define_replay(dataset_id=dataset_id)
 
-        # assert resources created
         replay = self.rr_cli.read(replay_id)
-        self.assertTrue(replay._id == replay_id)
 
-        stream = self.rr_cli.read(stream_id)
-        self.assertTrue(stream._id == stream_id)
+        # Assert that the process was created
 
-        # assert association created
-        assocs = self.rr_cli.find_associations(replay_id,PRED.hasStream, id_only=True)
-        self.assertTrue(len(assocs)>0)
-
-        # assert process exists
         self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
-        # clean up
-        self.container.proc_manager.terminate_process(replay.process_id)
-
-
+        self.dr_cli.cancel_replay(replay_id)
     def test_cancel_replay(self):
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id='12345',
+            datastore_name=self.datastore_name,
+            view_name='posts/posts_join_comments',
+            name='test define replay'
+        )
+        replay_id, stream_id = self.dr_cli.define_replay(dataset_id=dataset_id)
+
         replay = self.rr_cli.read(replay_id)
 
-        # assert that the process was created
+        # Assert that the process was created
 
         self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
-        # delete the process
         self.dr_cli.cancel_replay(replay_id)
 
-        # assert that the resource was deleted
+        # assert that the process is no more
+        self.assertFalse(replay.process_id in self.container.proc_manager.procs)
+
+        # assert that the resource no longer exists
         with self.assertRaises(NotFound):
             self.rr_cli.read(replay_id)
-
-        # assert the process has stopped
-        proc = self.container.proc_manager.procs.get(replay.process_id,None)
-        self.assertTrue(not proc)
 
     def test_start_replay(self):
         post = BlogPost(title='test blog post', post_id='12345', author=BlogAuthor(name='Jon Doe'), content='this is a blog post',
         updated=time.strftime("%Y-%m-%dT%H:%M%S-05"))
 
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id='12345',
+            datastore_name=self.datastore_name,
+            view_name='posts/posts_join_comments',
+            name='blog posts test'
+        )
+
         self.couch.create(post)
 
-        query = {
-            'datastore_name':'test_data_retriever',
-            'post_id':'12345'
-        }
-
-        replay_id, stream_id = self.dr_cli.define_replay(query=query)
+        replay_id, stream_id = self.dr_cli.define_replay(dataset_id)
         replay = self.rr_cli.read(replay_id)
 
 

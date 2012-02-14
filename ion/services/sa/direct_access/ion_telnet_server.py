@@ -131,7 +131,7 @@ class TelnetServer(object):
 				break
 			except:
 				self.port = self.port + 1
-				print("port=" + str(self.port))
+				log.debug("trying to bind to port " + str(self.port))
 				if self.port > self.PORT_RANGE_UPPER:
 					log.warning("TelnetServer.server_greenlet(): no available ports for server")
 					self.close_connection()

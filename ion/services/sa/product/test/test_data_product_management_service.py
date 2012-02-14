@@ -5,6 +5,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.product.data_product_management_service import DataProductManagementService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 
 
 from pyon.util.context import LocalContextMixin
@@ -60,7 +61,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.assertEqual(dp_id, 'SOME_RR_ID1')
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
         self.resource_registry.create.assert_called_once_with(dpt_obj)
-        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1')
+        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1', True)
 
     def test_createDataProduct_and_DataProducer_with_id_NotFound(self):
         # setup
@@ -81,7 +82,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         # check results
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
         self.resource_registry.create.assert_called_once_with(dpt_obj)
-        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1')
+        self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1', True)
         ex = cm.exception
         self.assertEqual(ex.message, "Object with id SOME_RR_ID1 does not exist.")
 
@@ -122,6 +123,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # Now create client to DataProductManagementService
         self.client = DataProductManagementServiceClient(node=self.container.node)
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
+        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
 
     def test_createDataProduct(self):
         client = self.client
@@ -131,9 +133,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # set up initial data source and its associated data producer
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
         instrument_id, rev = rrclient.create(instrument_obj)
-        dataproducer_obj = IonObject(RT.DataProducer, name='InstDataProducer',description='an example data producer')
-        dataproducer_id, rev = rrclient.create(dataproducer_obj)
-        rrclient.create_association(instrument_id, PRED.hasDataProducer, dataproducer_id)
+        self.damsclient.register_instrument(instrument_id)
+
 
         # test creating a new data product w/o a data producer
         print 'Creating new data product w/o a data producer'
