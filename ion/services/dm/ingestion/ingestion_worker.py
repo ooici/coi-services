@@ -8,16 +8,15 @@
 to couchdb datastore and hdf datastore.
 '''
 
-from interface.objects import DataContainer, DataStream, StreamGranuleContainer
+from interface.objects import DataStream, StreamGranuleContainer
 
-from pyon.datastore.datastore import DataStore, DatastoreManager
+from pyon.datastore.datastore import DataStore
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest
-from interface.objects import StreamIngestionPolicy
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 
@@ -75,7 +74,6 @@ class IngestionWorker(TransformDataProcess):
         This method is not functional yet - the doc object is python specific. The sha1 must be of a language independent form.
         """
         doc = self.db._ion_object_to_persistence_dict(obj)
-
         sha1 = sha1hex(doc)
 
         try:
@@ -98,13 +96,14 @@ class IngestionWorker(TransformDataProcess):
 
         #@todo Evaluate policy for this stream and determine what to do.
 
-        if isinstance(packet, StreamGranuleContainer):
+        if isinstance(packet, StreamGranuleContainer) and not packet.is_replay:
             for key,value in packet.identifiables.iteritems():
                 if isinstance(value, DataStream):
                     hdfstring = value
                     packet.identifiables[key]=''
                     
             self.persist_immutable(packet )
+
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:
             self.persist_immutable(packet )

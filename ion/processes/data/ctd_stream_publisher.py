@@ -52,7 +52,8 @@ class SimpleCtdPublisher(StandaloneProcess):
             stream_id = pubsub_cli.create_stream(stream_definition_type='simple_ctd',name='Example CTD Data', original=True, encoding='ION R2')
 
         self.stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
-
+        # Needed to get the originator's stream_id
+        self.stream_id= stream_id
 
         ###
         ### This next bit is none of the publishers business, but we need it for now until it can be done by pubsub/ingestion
