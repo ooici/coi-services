@@ -11,7 +11,7 @@ Usage:
 # Create a CommConfig object.  Use the factory method to get the correct object type.
 # NOTE: We need a metadata object when we construct the CommConfig object (for the driver name)
 #
-comm_config = get_config_from_type('ethernet', metadata):
+comm_config = get_config_from_type(metadata, 'ethernet'):
 
 #
 # Get config from the console
@@ -85,7 +85,8 @@ class CommConfig(object):
         @brief initialize the object from yaml data.  This method should be sub classed
         @param yamlInput yaml data structure
         """
-        pass
+        if( yamlInput ):
+            self.config_type = yamlInput['comm'].get('type')
 
     def _config_dictionary(self):
         """
@@ -145,7 +146,8 @@ class CommConfig(object):
 
         if( input ):
             self._init_from_yaml( input )
-            infile.close()
+
+        infile.close()
 
     def get_from_console(self):
         """
@@ -183,7 +185,7 @@ class CommConfig(object):
         """
         print( "\nDriver Comm Configuration" )
         type = prompt.text( 'Type [' + CommConfig.valid_type_string() + ']', default_type )
-        config = CommConfig.get_config_from_type(type, metadata)
+        config = CommConfig.get_config_from_type(metadata, type)
 
         if( config ):
             return config
@@ -191,19 +193,34 @@ class CommConfig(object):
             return CommConfig.get_config_from_console(metadata, default_type)
 
     @staticmethod
-    def get_config_from_type(type, metadata):
+    def get_config_from_type(metadata, type):
         """
         @brief Factory method.  Get a CommConfig object for the type passed in
-        @param type Type of CommConfig object to create
         @param metadata IDK Metadata object used when constructing the CommConfig object.
+        @param type Type of CommConfig object to create
         @retval A CommConfig object for the type entered on the console
         """
         valid_types = CommConfig.valid_type_list()
         if( valid_types.count( type ) ):
-            return CommConfigEthernet(metadata)
+            config = CommConfigEthernet(metadata)
+            return config
         else:
-            print "Invalid type."
-            return False
+            raise Exception( "Invalid type." )
+
+    @staticmethod
+    def get_config_from_file(metadata, config_file = None):
+        """
+        @brief Factory method.  Get a CommConfig object for the type stored in a driver comm_config file
+        @param metadata IDK Metadata object used when constructing the CommConfig object.
+        @param config_file read comm config from this file instead of the default comm config file.
+        @retval A CommConfig object for the type specified in the comm config file.
+        """
+        config = CommConfig(metadata)
+
+        if(config.config_type):
+            return CommConfig.get_config_from_type(metadata,config.config_type)
+        else:
+            return None
 
     @staticmethod
     def valid_type_list():
@@ -234,11 +251,12 @@ class CommConfigEthernet(CommConfig):
     def type(): return 'ethernet'
 
     def __init__(self, metadata):
-        CommConfig.__init__(self, metadata)
         self.device_address = None
         self.device_port = None
         self.server_address = None
         self.server_port = None
+
+        CommConfig.__init__(self, metadata)
 
     def _init_from_yaml(self, yamlInput):
         CommConfig._init_from_yaml(self, yamlInput)
@@ -281,7 +299,7 @@ if __name__ == '__main__':
     metadata = Metadata( name = 'sbe37', author = 'foo', email = 'goo', notes = 'foosd' );
 
     #comm_config = CommConfig.get_config_from_console(metadata)
-    comm_config = CommConfig.get_config_from_type('ethernet', metadata)
+    comm_config = CommConfig.get_config_from_type(metadata, 'ethernet')
     comm_config.read_from_file()
     comm_config.get_from_console()
 

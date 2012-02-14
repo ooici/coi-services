@@ -4,14 +4,20 @@
 @brief Main script class for running the package_driver process
 """
 
-from idk.metadata import *
-from idk.driver_generator import *
+from ion.processes.idk.metadata import *
+from ion.processes.idk.nose_test import *
 
 class PackageDriver():
+
+    def __init__(self):
+        self.metadata = Metadata()
 
     def run_qualification_tests(self):
         """
         """
+        test = NoseTest(self.metadata)
+        test.run()
+
         return True
 
     def generate_manifest_file(self):

@@ -62,10 +62,13 @@ class Metadata():
         """
         @brief Constructor
         """
-        self.author = author
-        self.email = email
-        self.name = name
-        self.notes = notes
+        if( name or author or email or notes ):
+            self.author = author
+            self.email = email
+            self.name = name
+            self.notes = notes
+        else:
+            self.read_from_file()
 
     def _init_from_yaml(self, yamlInput):
         """
