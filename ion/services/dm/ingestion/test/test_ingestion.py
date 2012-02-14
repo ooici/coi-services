@@ -436,3 +436,50 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Cleanup
         #----------------------------------------------------------------------
         self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
+
+    def test_create_stream_policy(self):
+        """
+        Test creating a stream policy
+        """
+
+
+        # Create the ingestion workers
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+
+        # get the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        #Get the ingestion process instances:
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        log.info("PROCESS 1: %s" % str(proc_1))
+
+        # Over ride the call back for the event subscriber
+        ar_1 = gevent.event.AsyncResult()
+        def message_received_1(message):
+            ar_1.set(message)
+
+        proc_1.event_subscriber._callback = message_received_1
+
+        # Over ride the call back for the event subscriber
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        log.info("PROCESS 2: %s" % str(proc_2))
+
+        ar_2 = gevent.event.AsyncResult()
+        def message_received_2(message):
+            ar_2.set(message)
+
+        proc_2.event_subscriber._callback = message_received_2
+
+
+        # Create a stream policy which sends an event
+
+        stream_policy_id = self.ingestion_cli.create_stream_policy(self, stream_id=self.input_stream_id , archive_data=True, archive_metadata=False)
+        stream_policy = self.rr_cli.read(stream_policy_id)
+
+        self.assertEquals(stream_policy.stream_id, self.input_stream_id)
+        self.assertEquals(stream_policy.archive_data, True)
+        self.assertEquals(stream_policy.archive_metadata, False)
+
+
+        self.assertEqual(ar_1.get(timeout=10).stream_id,self.input_stream_id)

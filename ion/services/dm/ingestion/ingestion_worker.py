@@ -56,14 +56,14 @@ class IngestionWorker(TransformDataProcess):
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
+
+        self.stream_policies = {}
         # update the policy
         def receive_policy_event(self, event_msg):
-            policy_dict = self._get_event_msg_fields(event_msg)
-            self.default_policy.archive_data = policy_dict['archive_data']
-            self.default_policy.archive_metadata = policy_dict['archive_metadata']
-            self.default_policy.stream_id = policy_dict['stream_id']
+            self.stream_policies[event_msg.stream_id] = event_msg
 
         self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, callback=receive_policy_event)
+
 
         log.warn(str(self.db))
 
