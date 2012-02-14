@@ -122,11 +122,9 @@ class IngestionManagementService(BaseIngestionManagementService):
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
-            try:
-                self.clients.resource_registry.create_association(ingestion_configuration_id, PRED.hasTransform, transform_id)
-            except Exception as exc:
-                raise IngestionManagementServiceException\
-                    ('Associations could not be generated between ingestion configuration and transform %s' % transform_id)
+
+            self.clients.resource_registry.create_association(ingestion_configuration_id, PRED.hasTransform, transform_id)
+            #@todo How should we deal with failure?
 
     def update_ingestion_configuration(self, ingestion_configuration=None):
         """Change the number of workers or the default policy for ingesting data on each stream
@@ -157,33 +155,26 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
         log.debug("Deleting ingestion configuration: %s", ingestion_configuration_id)
 
-        try:
-            ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        except:
-            raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
+
+        #ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
+        #@todo Should we check to see if the ingestion configuration exists?
 
         #delete the transforms associated with the ingestion_configuration_id
-        try:
-            transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
 
-            if transform_ids:
-                # need to activate only one transform as both have the same subscription
-                self.clients.transform_management.delete_transform(transform_ids[0])
-            else:
-                log.debug("No transforms attached as ingestion workers to the ingestion configuration object.")
+        if len(transform_ids) is 0:
+            log.warn('No transforms associated with this ingestion configuration!')
 
-        except Exception as exc:
-            log.debug('Error while using transform_management to activate transform: %s\n'\
-                % exc.message)
+        for transform_id in transform_ids:
+            # To Delete - we need to actually remove each of the transforms
+            self.clients.transform_management.delete_transform(transform_id)
+
 
         # delete the associations too...
-        try:
-            associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
-            for association in associations:
-                self.clients.resource_registry.delete_association(association)
-        except Exception as exc:
-            log.debug('Error while using transform_management to activate transform: %s\n'\
-            % exc.message)
+        associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+            #@todo How should we deal with failure?
 
 
         self.clients.resource_registry.delete(ingestion_configuration_id)
@@ -199,22 +190,18 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Activating ingestion configuration")
 
         # check whether the ingestion configuration object exists
-        try:
-            ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        except:
-            raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
+        #ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
+        #@todo Should we check to see if the ingestion configuration exists?
 
         # read the transforms
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) > 0:
-            try:
-                # need to activate only one transform as both have the same subscription
-                self.clients.transform_management.activate_transform(transform_ids[0])
-            except Exception as exc:
-                raise IngestionManagementServiceException('Error while using transform_management to activate transform %s.'\
-                % transform_id)
+            # need to activate only one transform as both have the same subscription
+            self.clients.transform_management.activate_transform(transform_ids[0])
+
         else:
-            log.debug("No transforms attached as ingestion workers to the ingestion configuration object.")
+            #@todo - should this be a failure? If so what?
+            log.warn("No transforms attached as ingestion workers to the ingestion configuration object.")
 
         return True
 
@@ -228,13 +215,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Deactivating ingestion configuration")
 
         # check whether the ingestion configuration object exists
-        try:
-            ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        except:
-            raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
+        #ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
+        #@todo Should we check to see if the ingestion configuration exists?
 
 
-        #        # use the deactivate method in transformation management service
+        # use the deactivate method in transformation management service
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
