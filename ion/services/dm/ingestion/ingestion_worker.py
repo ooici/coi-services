@@ -15,10 +15,11 @@ from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
-from interface.objects import BlogPost, BlogComment
+from interface.objects import BlogPost, BlogComment, StreamPolicy
 from pyon.core.exception import BadRequest
-from interface.objects import StreamIngestionPolicy
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.event.event import StreamIngestionPolicyEventSubscriber
+
 
 
 
@@ -37,6 +38,9 @@ class IngestionWorker(TransformDataProcess):
         self.couch_config = self.CFG.get('couch_storage')
         self.hdf_storage = self.CFG.get('hdf_storage')
         self.default_policy = self.CFG.get('default_policy')
+        if self.default_policy:
+            self.default_policy = StreamPolicy()
+
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
 
@@ -52,9 +56,27 @@ class IngestionWorker(TransformDataProcess):
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
+        # update the policy
+        def receive_policy_event(self, event_msg):
+            policy_dict = self._get_event_msg_fields(event_msg)
+            self.default_policy.archive_data = policy_dict['archive_data']
+            self.default_policy.archive_metadata = policy_dict['archive_metadata']
+            self.default_policy.stream_id = policy_dict['stream_id']
+
+        self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, callback=receive_policy_event)
 
         log.warn(str(self.db))
 
+    def _get_event_msg_fields(self, msg):
+        """
+        A helper method to extract a disctionary of fields from a message object
+        """
+        msgargs = {}
+
+        for k in msg.__dict__:
+            v = getattr(msg, k)
+            msgargs[k] = v
+        return msgargs
 
     def process(self, packet):
         """Process incoming data!!!!
