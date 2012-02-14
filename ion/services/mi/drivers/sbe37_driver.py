@@ -25,11 +25,12 @@ from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
 from ion.services.mi.exceptions import InstrumentConnectionException
+from ion.services.mi.exceptions import RequiredParameterException
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
-from ion.services.mi.instrument_fsm import InstrumentFSM
+from ion.services.mi.instrument_fsm_args import InstrumentFSM
 
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
@@ -340,90 +341,76 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # Protocol connection interface.
     ########################################################################
 
-    def initialize(self, timeout=10):
+    def initialize(self, *args, **kwargs):
         """
         """
         
         # Construct state machine params and fire event.
-        fsm_params = {'timeout':timeout}
-        return self._fsm.on_event(SBE37Event.INITIALIZE, fsm_params)
+        return self._fsm.on_event(SBE37Event.INITIALIZE, *args, **kwargs)
     
-    def configure(self, config, timeout=10):
+    def configure(self, *args, **kwargs):
         """
         """
 
         # Construct state machine params and fire event.
-        fsm_params = {'config':config, 'timeout':timeout}
-        return self._fsm.on_event(SBE37Event.CONFIGURE, fsm_params)
+        return self._fsm.on_event(SBE37Event.CONFIGURE, *args, **kwargs)
     
-    def connect(self, timeout=10):
+    def connect(self, *args, **kwargs):
         """
         """
 
         # Construct state machine params and fire event.
-        fsm_params = {'timeout':timeout}        
-        return self._fsm.on_event(SBE37Event.CONNECT, fsm_params)
+        return self._fsm.on_event(SBE37Event.CONNECT, *args, **kwargs)
     
-    def disconnect(self, timeout=10):
+    def disconnect(self, *args, **kwargs):
         """
         """
 
         # Construct state machine params and fire event.
-        fsm_params = {'timeout':timeout}        
-        return self._fsm.on_event(SBE37Event.DISCONNECT, fsm_params)
+        return self._fsm.on_event(SBE37Event.DISCONNECT, *args, **kwargs)
     
-    def detach(self, timeout=10):
+    def detach(self, *args, **kwargs):
         """
         """
 
         # Construct state machine params and fire event.
-        fsm_params = {'timeout':timeout}        
-        return self._fsm.on_event(SBE37Event.DETACH, fsm_params)
+        return self._fsm.on_event(SBE37Event.DETACH, *args, **kwargs)
 
     ########################################################################
     # Protocol command interface.
     ########################################################################
 
-    def get(self, parameter, timeout=10):
+    def get(self, *args, **kwargs):
         """
         """
-        fsm_params = {'parameter':parameter, 'timeout':timeout}
-        return self._fsm.on_event(SBE37Event.GET, fsm_params)
+        return self._fsm.on_event(SBE37Event.GET, *args, **kwargs)
     
-    def set(self, parameter, val, timeout=10):
+    def set(self, *args, **kwargs):
         """
         """
-        fsm_params = {'parameter':parameter, 'value':val, 'timeout':timeout}
-        return self._fsm.on_event(SBE37Event.SET, fsm_params)
+        return self._fsm.on_event(SBE37Event.SET, *args, **kwargs)
 
-    def execute(self, command, timeout=10):
+    def execute(self, *args, **kwargs):
         """
         """
-        fsm_params = {'command':command, 'timeout':timeout}
-        return self._fsm.on_event(SBE37Event.EXECUTE, fsm_params)
+        return self._fsm.on_event(SBE37Event.EXECUTE, *args, **kwargs)
 
-    def execute_direct(self, bytes):
+    def execute_direct(self, *args, **kwargs):
         """
         """
-        fsm_params = {'bytes':bytes}
-        return self._fsm.on_event(SBE37Event.EXECUTE, fsm_params)
+        return self._fsm.on_event(SBE37Event.EXECUTE, *args, **kwargs)
     
-    def update_params(self, timeout=10):
+    def update_params(self, *args, **kwargs):
         """
         """
-        fsm_params = {'timeout':timeout}
-        return self._fsm.on_event(SBE37Event.UPDATE_PARAMS, fsm_params)
+        return self._fsm.on_event(SBE37Event.UPDATE_PARAMS, *args, **kwargs)
     
     ########################################################################
     # Protocol query interface.
     ########################################################################
     
-    def get_status(self):
-        """
-        """
-        pass
     
-    def get_capabilities(self):
+    def get_capabilities(self, capabilities, *args, **kwargs):
         """
         """
         pass
@@ -441,78 +428,49 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # SBE37State.UNCONFIGURED
     ########################################################################
     
-    def _handler_unconfigured_enter(self, params):
+    def _handler_unconfigured_enter(self, *args, **kwargs):
         """
         """
         
-        mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
+        mi_logger.info('channel %s entered state %s', SBE37Channel.CTD,
                            SBE37State.UNCONFIGURED)
         self._publish_state_change(SBE37State.UNCONFIGURED)
         
-        # Initialize driver configuration.
-        try:
-            timeout = params['timeout']
-            
-        except (TypeError, KeyError):
-            timeout = 10
-        
         # Initialize throws no exceptions.
-        InstrumentProtocol.initialize(self, timeout)
+        InstrumentProtocol.initialize(self, *args, **kwargs)
     
-    def _handler_unconfigured_exit(self, params):
+    def _handler_unconfigured_exit(self, *args, **kwargs):
         """
         """
         pass
 
-    def _handler_unconfigured_initialize(self, params):
+    def _handler_unconfigured_initialize(self, *args, **kwargs):
         """
         """
         next_state = None
-        result = InstErrorCode.OK
+        result = None
         
         # Reenter initialize.
         next_state = SBE37State.UNCONFIGURED
 
         return (next_state, result)
 
-    def _handler_unconfigured_configure(self, params):
+    def _handler_unconfigured_configure(self, *args, **kwargs):
         """
         """
-        # Attempt to configure driver, switch to disconnected if successful.
+        next_state = None
+        result = None
+        
         try:
-            config = params['config']
-        
-        except TypeError:
-            # The params is not a dict. Fail and stay here.
-            result = InstErrorCode.REQUIRED_PARAMETER
+            InstrumentProtocol.configure(self, *args, **kwargs)
+                
+        except (TypeError, KeyError, InstrumentConnectionException, IndexError):
+            result = InstErrorCode.INVALID_PARAMETER
             next_state = None
-        
+                
+        # Everything worked, set next state.
         else:
-            try:
-                timeout = params['timeout']
-            
-            except KeyError:
-                timeout = 10
-
-            try:
-                InstrumentProtocol.configure(self, config, timeout)
-                
-            except (TypeError, KeyError, InstrumentConnectionException):
-                # Config is not a dict., e.g. None.
-                # Config is missing required keys.
-                # Config specifies invalid connection method.
-                result = InstErrorCode.INVALID_PARAMETER
-                next_state = None
-                
-            #except:
-            #    # Unknown exception, do not proceed.
-            #    result = InstErrorCode.UNKNOWN_ERROR
-            #    next_state = None
-                
-            # Everything worked, set next state.
-            else:
-                next_state = SBE37State.DISCONNECTED
-                result = InstErrorCode.OK
+            next_state = SBE37State.DISCONNECTED
                 
         return (next_state, result)
         
@@ -520,86 +478,54 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # SBE37State.DISCONNECTED
     ########################################################################
 
-    def _handler_disconnected_enter(self, params):
+    def _handler_disconnected_enter(self, *args, **kwargs):
         """
         """
         mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.DISCONNECTED)
         self._publish_state_change(SBE37State.DISCONNECTED)
 
-    def _handler_disconnected_exit(self, params):
+    def _handler_disconnected_exit(self, *args, **kwargs):
         """
         """
         pass
 
-    def _handler_disconnected_initialize(self, params):
+    def _handler_disconnected_initialize(self, *args, **kwargs):
         """
         """
-        result = InstErrorCode.OK
+        next_state = None
+        result = None
         
         # Switch to unconfigured to initialize comms.
         next_state = SBE37State.UNCONFIGURED
 
         return (next_state, result)
 
-    def _handler_disconnected_configure(self, params):
+    def _handler_disconnected_configure(self, *args, **kwargs):
         """
         """
-
-        # Attempt to configure driver, switch to disconnected if successful.
-        try:
-            config = params['config']
+        next_state = None
+        result = None
         
-        except TypeError:
-        # The params is not a dict. Fail and initialize comms.
-            result = InstErrorCode.REQUIRED_PARAMETER
+        try:
+            InstrumentProtocol.configure(self, *args, **kwargs)
+                
+        except (TypeError, KeyError, InstrumentConnectionException, IndexError):
+            result = InstErrorCode.INVALID_PARAMETER
             next_state = SBE37State.UNCONFIGURED
-            
-        else:
-            try:
-                timeout = params['timeout']
-            
-            except KeyError:
-                # Use a default timeout.
-                timeout = 10
-
-            try:
-                InstrumentProtocol.configure(self, config, timeout)
-                
-            except (TypeError, KeyError, InstrumentConnectionException):
-                # Config is not valid, initialize comms.
-                # Config is not a dict., e.g. None.
-                # Config is missing required keys.
-                # Config specifies invalid connection method.
-                result = InstErrorCode.INVALID_PARAMETER
-                next_state = SBE37State.UNCONFIGURED
-
-            #except:
-            #    # Unknown exception, return to unconfigured.
-            #    result = InstErrorCode.UNKNOWN_ERROR
-            #    next_state = SBE37State.UNCONFIGURED
-            
-            else:
-                # Conif successful, stay here.
-                next_state = None
-                result = InstErrorCode.OK
-                
 
         return (next_state, result)
 
-    def _handler_disconnected_connect(self, params):
+    def _handler_disconnected_connect(self, *args, **kwargs):
         """
         @throw InstrumentTimeoutException on timeout
-        """
+        """        
+        next_state = None
+        result = None
+
         try:
-            timeout = params['timeout']
-            
-        except (TypeError, KeyError):
-            # Use a default timeout.
-            timeout = 10
-        
-        try:
-            InstrumentProtocol.connect(self, timeout)
+            InstrumentProtocol.connect(self, *args, **kwargs)
+            timeout = kwargs.get('timeout', 10)
             prompt = self._wakeup(timeout)
             if prompt == SBE37Prompt.COMMAND:
                 next_state = SBE37State.COMMAND
@@ -614,18 +540,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         
         except InstrumentTimeoutException:
             # Timeout connecting or waking device. Stay disconnected.
-            InstrumentProtocol.disconnect(self)
+            InstrumentProtocol.disconnect(self, *args, **kwargs)
             next_state = None
             result = InstErrorCode.DRIVER_CONNECT_FAILED
-            
-        #except:
-        #    # Unknown exception, stay disconnected.
-        #    next_state = None
-        #    result = InstErrorCode.UNKNOWN_ERROR
-            
-        else:
-            next_state = SBE37State.COMMAND
-            result = InstErrorCode.OK
 
         return (next_state, result)
 
@@ -633,30 +550,27 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # SBE37State.COMMAND
     ########################################################################
 
-    def _handler_command_enter(self, params):
+    def _handler_command_enter(self, *args, **kwargs):
         """
         """
         mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.COMMAND)
         self._publish_state_change(SBE37State.COMMAND)
-        self._update_params()
+        self._update_params(*args, **kwargs)
 
-    def _handler_command_exit(self, params):
+    def _handler_command_exit(self, *args, **kwargs):
         """
         """
         pass
 
-    def _handler_command_disconnect(self, params):
+    def _handler_command_disconnect(self, *args, **kwargs):
         """
         """
-        try:
-            timeout = params['timeout']
-            
-        except (TypeError, KeyError):
-            timeout = 10
+        next_state = None
+        result = None
         
         try:
-            InstrumentProtocol.disconnect(self, timeout)
+            InstrumentProtocol.disconnect(self, *args, **kwargs)
             next_state = SBE37State.DISCONNECTED
 
         except InstrumentConnectionException:
@@ -664,109 +578,74 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             next_state = None
             result = InstErrorCode.DISCONNECT_FAILED
             
-        #except:
-        #    next_state = None
-        #    result = InstErrorCode.UNKNOWN_ERROR
-            
         else:
             next_state = SBE37State.DISCONNECTED
             result = InstErrorCode.OK
 
         return (next_state, result)
 
-    def _handler_command_execute(self, params):
+    def _handler_command_execute(self, cmd, *args, **kwargs):
         """
         @throw InstrumentProtocolException on invalid command
         """
-        
-        try:
-            command = params['command']
-            cmd = command[0]
-            
-        except (TypeError, KeyError, IndexError):
-            # Missing parameter, fail and stay here.
-            next_state = None
-            result = InstErrorCode.REQUIRED_PARAMETER
-            
-        else:
+        next_state = None
+        result = None
+                
+        if cmd == SBE37Command.ACQUIRE_SAMPLE:
             try:
-                timeout = params['timeout']
-                
-            except KeyError:
-                timeout = 10
-
-                
-            if cmd == SBE37Command.ACQUIRE_SAMPLE:
-                try:
-                    result = self._do_cmd_resp('ts', timeout=timeout)
-                    next_state = None
-                
-                except InstrumentTimeoutException:
-                    next_state = None
-                    result = InstErrorCode.TIMEOUT
-                        
-            elif cmd == SBE37Command.START_AUTO_SAMPLING:
-                try:
-                    self._do_cmd_no_resp('startnow', timeout=timeout)                
-                    next_state = SBE37State.AUTOSAMPLE
-                    result = InstErrorCode.OK
-                
-                except InstrumentTimeoutException:
-                    next_state = None
-                    result = InstErrorCode.TIMEOUT
-
-            else:
-                # Invalid command, fail and stay here.
-                result = InstErrorCode.INVALID_COMMAND
+                result = self._do_cmd_resp('ts', *args, **kwargs)
                 next_state = None
-                
-        return (next_state, result)
-
-    def _handler_command_set(self, params):
-        """
-        """
-        try:
-            parameter = params['parameter']
-            value = params['value']
             
-        except (TypeError, KeyError):
-            # Missing parameter, fail and stay here.
-            next_state = None
-            result = InstErrorCode.REQUIRED_PARAMETER
-            
-        else:
-            try:
-                timeout = params['timeout']
-                
-            except KeyError:
-                timeout = 10
-
-            try:
-                result = self._do_cmd_resp('set', parameter, value, timeout=timeout)            
-                next_state = None
-                
             except InstrumentTimeoutException:
                 next_state = None
                 result = InstErrorCode.TIMEOUT
+                    
+        elif cmd == SBE37Command.START_AUTO_SAMPLING:
+            try:
+                self._do_cmd_no_resp('startnow', *args, **kwargs)                
+                next_state = SBE37State.AUTOSAMPLE
+            
+            except InstrumentTimeoutException:
+                next_state = None
+                result = InstErrorCode.TIMEOUT
+
+        else:
+            # Invalid command, fail and stay here.
+            result = InstErrorCode.INVALID_COMMAND
+            next_state = None
+                
+        return (next_state, result)
+
+    def _handler_command_set(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+
+        try:
+            result = self._do_cmd_resp('set', *args, **kwargs)            
+            next_state = None
+            
+        except InstrumentTimeoutException:
+            next_state = None
+            result = InstErrorCode.TIMEOUT
+        
+        except IndexError:
+            next_state = None
+            result = InstErrorCode.REQUIRED_PARAMETER
         
         return (next_state, result)
 
-    def _handler_command_update_params(self, params):
+    def _handler_command_update_params(self, *args, **kwargs):
         """
         """
-        try:
-            timeout = params['timeout']
-            
-        except (TypeError, KeyError):
-            timeout = 10
+        next_state = None
+        result = None
 
         try:
-            self._update_params(timeout)
-            next_state = None
-            result = InstErrorCode.OK
+            self._update_params(*args, **kwargs)
         
         except InstrumentTimeoutError:
-            next_state = None
             result = InstErrorCode.TIMEOUT
         
         return (next_state, result)
@@ -775,57 +654,42 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # SBE37State.AUTOSAMPLE
     ########################################################################
 
-    def _handler_autosample_enter(self, params):
+    def _handler_autosample_enter(self, *args, **kwargs):
         """
         """
         mi_logger.info('channel %s entered state %s',SBE37Channel.CTD,
                            SBE37State.AUTOSAMPLE)
         self._publish_state_change(SBE37State.AUTOSAMPLE)
         
-    def _handler_autosample_exit(self, params):
+    def _handler_autosample_exit(self,  *args, **kwargs):
         """
         """
         pass
 
-    def _handler_autosample_execute(self, params):
+    def _handler_autosample_execute(self,  cmd, *args, **kwargs):
         """
         @throw InstrumentProtocolException on invalid command
         """
-        try:
-            command = params['command']
-            cmd = command[0]
-            
-        except (TypeError, KeyError, IndexError):
-            # Missing parameter, fail and stay here.
-            next_state = None
-            result = InstErrorCode.REQUIRED_PARAMETER
-            
-        else:
+        next_state = None
+        result = None
+        
+        if cmd == SBE37Command.STOP_AUTO_SAMPLING:
             try:
-                timeout = params['timeout']
+                prompt = None
+                timeout = kwargs.get('timeout', 10)
+                while prompt != SBE37Prompt.AUTOSAMPLE:
+                    prompt = self._wakeup(timeout)
+                self._do_cmd_resp('stop', *args, **kwargs)
+                prompt = None
+                while prompt != SBE37Prompt.COMMAND:
+                    prompt = self._wakeup(timeout)
+                next_state = SBE37State.COMMAND
                 
-            except KeyError:
-                timeout = 10
-                
-            if cmd == SBE37Command.STOP_AUTO_SAMPLING:
-                try:
-                    prompt = None
-                    while prompt != SBE37Prompt.AUTOSAMPLE:
-                        prompt = self._wakeup(timeout)
-                    self._do_cmd_resp('stop')
-                    prompt = None
-                    while prompt != SBE37Prompt.COMMAND:
-                        prompt = self._wakeup(timeout)
-                    next_state = SBE37State.COMMAND
-                    result = InstErrorCode.OK
-                    
-                except InstrumentTimeoutException:
-                    next_state = None
-                    result = InstErrorCode.TIMEOUT
+            except InstrumentTimeoutException:
+                result = InstErrorCode.TIMEOUT
 
-            else:
-                next_state = None
-                result = InstErrorCode.INVALID_COMMAND
+        else:
+            result = InstErrorCode.INVALID_COMMAND
 
         return (next_state, result)
 
@@ -833,31 +697,24 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     # SBE37State.COMMAND and SBE37State.AUTOSAMPLE common handlers.
     ########################################################################
 
-    def _handler_command_autosample_get(self, params):
+    def _handler_command_autosample_get(self, *args, **kwargs):
         """
         """
+        next_state = None
+        result = None
+        
         try:
-            parameter = params['parameter']
+            parameter = args[0]
             
-        except (TypeError, KeyError):
-            # Missing parameter, fail and stay here.
-            next_state = None
+        except IndexError:
             result = InstErrorCode.REQUIRED_PARAMETER
             
         else:
             try:
-                timeout = params['timeout']
-        
-            except KeyError:
-                timeout = 10
-
-            try:
                 result = self._get_param_dict(parameter)
-                next_state = None
 
             except KeyError:
                 result = InstErrorCode.INVALID_PARAMETER
-                next_state = None
             
         return (next_state, result)
 
@@ -892,9 +749,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         self._logger_client.send(SBE37_NEWLINE)
 
-    def _update_params(self, timeout=10):
+    def _update_params(self, *args, **kwargs):
         """
         """
+        timeout = kwargs.get('timeout', 10)
         old_config = self._get_config_param_dict()
         self._do_cmd_resp('ds',timeout=timeout)
         self._do_cmd_resp('dc',timeout=timeout)
@@ -1124,154 +982,140 @@ class SBE37Driver(InstrumentDriver):
     # Channel connection interface.
     ########################################################################
     
-    def initialize(self, channels=[SBE37Channel.CTD], timeout=10):
+    def initialize(self, channels = [SBE37Channel.CTD], *args, **kwargs):
         """
         """
-        (overall_success, result, valid_channels) = \
-                self._check_channel_args(channels)
+        try:        
+            (result, valid_channels) = self._check_channel_args(channels)
 
-        for channel in valid_channels:
-            init_result = self._channels[channel].initialize(timeout)
-            result[channel] = init_result
-            if InstErrorCode.is_error(init_result):
-                overall_success = init_result
+            for channel in valid_channels:
+                result[channel] = self._channels[channel].initialize(*args, **kwargs)
+                    
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
                 
-        return (overall_success, result)
+        return result
     
-    def configure(self, configs, timeout=10):
+    def configure(self, configs, *args, **kwargs):
         """
         """        
-        if configs == None or not isinstance(configs, dict):
-            return (InstErrorCode.INVALID_PARAMETER, None)
-        
-        channels = configs.keys()
-        (overall_success, result, valid_channels) = \
-                self._check_channel_args(channels)
-
-        for channel in valid_channels:
-            config = configs[channel]
-            config_result = self._channels[channel].configure(config, timeout)
-            result[channel] = config_result
-            if InstErrorCode.is_error(config_result):
-                overall_success = config_result
-
-        return (overall_success, result)
+        try:
+            channels = configs.keys()
+            (result, valid_channels) = self._check_channel_args(channels)
     
-    def connect(self, channels=[SBE37Channel.CTD], timeout=10):
-        """
-        """
-        (overall_success, result, valid_channels) = \
-                self._check_channel_args(channels)
+            for channel in valid_channels:
+                config = configs[channel]
+                result[channel] = self._channels[channel].configure(config, *args, **kwargs)
+                    
+        except (RequiredParameterException, TypeError):
+            result = InstErrorCode.REQUIRED_PARAMETER
 
-        for channel in valid_channels:
-            connect_result = self._channels[channel].connect(timeout)
-            result[channel] = connect_result
-            if InstErrorCode.is_error(connect_result):
-                overall_success = connect_result
-                
-        return (overall_success, result)
+        return result
     
-    def disconnect(self, channels=[SBE37Channel.CTD], timeout=10):
+    def connect(self, channels = [SBE37Channel.CTD], *args, **kwargs):
         """
-        """
-        (overall_success, result, valid_channels) = \
-                self._check_channel_args(channels)
+        """        
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
 
-        for channel in valid_channels:
-            disconnect_result = self._channels[channel].disconnect(timeout)
-            result[channel] = disconnect_result
-            if InstErrorCode.is_error(disconnect_result):
-                overall_success = disconnect_result
+            for channel in valid_channels:
+                result[channel] = self._channels[channel].connect(*args, **kwargs)
                 
-        return (overall_success, result)
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+                
+        return result
+    
+    def disconnect(self, channels = [SBE37Channel.CTD], *args, **kwargs):
+        """
+        """
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
+
+            for channel in valid_channels:
+                result[channel] = self._channels[channel].disconnect(*args, **kwargs)
+                    
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+                
+        return result
             
-    def detach(self, channels=[SBE37Channel.CTD], timeout=10):
+    def detach(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
-        (overall_success, result, valid_channels) = \
-                self._check_channel_args(channels)
-
-        for channel in valid_channels:
-            detach_result = self._channels[channel].detach(timeout)
-            result[channel] = detach_result
-            if InstErrorCode.is_error(detach_result):
-                overall_success = detach_result
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
+    
+            for channel in valid_channels:
+                result[channel] = self._channels[channel].detach(*args, **kwargs)
+            
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
                 
-        return (overall_success, result)
+        return result
 
     ########################################################################
     # Channel command interface.
     ########################################################################
 
-    def get(self, params, timeout=10):
+    def get(self, params, *args, **kwargs):
         """
         """
-
-        if params == None or not isinstance(params, (list, tuple)):
-            return (InstErrorCode.INVALID_PARAMETER, None)
-        
-        (overall_success, result, params) = self._check_get_args(params)
-        
-        for (channel, parameter) in params:        
-            success = InstErrorCode.OK
-            val = self._channels[channel].get(parameter, timeout)
-            if InstErrorCode.is_error(val):
-                overall_success = InstErrorCode.GET_DEVICE_ERR
-                mi_logger.debug('Error retrieving parameter %s', parameter)
-            result[(channel, parameter)] = val
-                
-        # Return overall success and individual results.
-        return (overall_success, result)
+        try:
+            (result, params) = self._check_get_args(params)
             
-    def set(self, params, timeout=10):
+            for (channel, parameter) in params:        
+                success = InstErrorCode.OK
+                result[(channel, parameter)] = self._channels[channel].get(parameter, *args, **kwargs)
+                
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+            
+        # Return overall success and individual results.
+        return result
+            
+    def set(self, params, *args, **kwargs):
         """
         """
-        if params == None or not isinstance(params, dict):
-            return (InstErrorCode.INVALID_PARAMETER, None)
+        try:
+            (result, params) = self._check_set_args(params)
+            
+            updated_channels = []
+            
+            # Process each parameter-value pair.
+            for (key, val) in params.iteritems():
+                channel = key[0]
+                parameter = key[1]
+                result[key] = self._channels[channel].set(parameter, val, *args, **kwargs)
+                if channel not in updated_channels:
+                    updated_channels.append(channel)                
+                    
+            for channel in updated_channels:
+                self._channels[channel].update_params(*args, **kwargs)
         
-        (overall_success, result, params) = self._check_set_args(params)
-        
-        updated_channels = []
-        
-        # Process each parameter-value pair.
-        for (key, val) in params.iteritems():
-            channel = key[0]
-            parameter = key[1]
-            set_result = self._channels[channel].set(parameter, val)
-            if InstErrorCode.is_error(set_result):
-                overall_success = InstErrorCode.SET_DEVICE_ERR
-            elif channel not in updated_channels:
-                updated_channels.append(channel)                
-            result[key] = set_result
-        
-        for channel in updated_channels:
-            self._channels[channel].update_params(timeout)
-        
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
         # Additional checking can go here.
         
         # Return overall success and individual results.
-        return (overall_success, result)
+        return result
 
-    def execute(self, channels=[SBE37Channel.CTD], command=[], timeout=10):
+    def execute(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
-        (overall_success, result, valid_channels) = \
-                self._check_channel_args(channels)
-
-        if not isinstance(command, (list, tuple)) or len(command) == 0:
-            overall_success == InstErrorCode.INVALID_PARAMETER
-            
-        else:
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
+    
             for channel in valid_channels:
-                cmd_result = \
-                    self._channels[SBE37Channel.CTD].execute(command, timeout)                
-                result[channel] = cmd_result
-                if InstErrorCode.is_error(cmd_result):
-                    overall_success = InstErrorCode.EXE_DEVICE_ERR
+                result[channel] = self._channels[SBE37Channel.CTD].\
+                    execute(*args, **kwargs)                
 
-        return (overall_success, result)
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+
+        return result
         
-    def execute_direct(self, channels=[SBE37Channel.CTD], bytes=''):
+    def execute_direct(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
         pass
@@ -1279,13 +1123,8 @@ class SBE37Driver(InstrumentDriver):
     ########################################################################
     # TBD.
     ########################################################################    
-    
-    def get_status(self, params, timeout=10):
-        """
-        """
-        pass
-    
-    def get_capabilities(self, params, timeout=10):
+        
+    def get_capabilities(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
         pass
@@ -1294,18 +1133,31 @@ class SBE37Driver(InstrumentDriver):
         """
         """
         return SBE37Channels.list()
-        
+    
+    def get_active_channels(self):
+        """
+        """
+        state = self.get_current_state()
+        if state in [SBE37State.COMMAND, SBE37State.AUTOSAMPLE]:
+            result = [SBE37Channel.CTD]
+        else:
+            result = []
+            
+        return result
+    
     def get_current_state(self, channels=[SBE37Channel.CTD]):
         """
         """
-        (overall_success, result, valid_channels) = \
-                self._check_channel_args(channels)
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
 
-        for channel in valid_channels:
-            state = self._channels[channel].get_current_state()
-            result[channel] = state
+            for channel in valid_channels:
+                result[channel] = self._channels[channel].get_current_state()
+        
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
 
-        return (overall_success, result)
+        return result
 
     ########################################################################
     # Private helpers.
@@ -1315,15 +1167,14 @@ class SBE37Driver(InstrumentDriver):
     def _check_channel_args(channels):
         """
         """
-        overall_success = InstErrorCode.OK
         valid_channels = []
         result = {}
         
         if channels == None or not isinstance(channels, (list, tuple)):
-            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            raise RequiredParameterException()
             
         elif len(channels) == 0:
-            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            raise RequiredParameterException()
             
         else:
             clist = SBE37Channel.list()
@@ -1345,23 +1196,21 @@ class SBE37Driver(InstrumentDriver):
             # Build result dict with invalid entries.
             for c in invalid_channels:
                 result[c] = InstErrorCode.INVALID_CHANNEL
-                overall_success = InstErrorCode.INVALID_CHANNEL
                                         
-        return (overall_success, result, valid_channels)
+        return (result, valid_channels)
 
     @staticmethod
     def _check_get_args(params):
         """
         """
-        overall_success = InstErrorCode.OK
         valid_params = []
         result = {}
         
         if params == None or not isinstance(params, (list, tuple)):
-            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            raise RequiredParameterException()
             
         elif len(params) == 0:
-            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            raise RequiredParameterException()
             
         else:
             temp_list = []
@@ -1394,26 +1243,23 @@ class SBE37Driver(InstrumentDriver):
             # Build result
             for (c, p) in invalid_params:
                 result[(c, p)] = InstErrorCode.INVALID_PARAMETER
-                overall_success = InstErrorCode.GET_DEVICE_ERR
             for (c, p) in invalid_channels:
                 result[(c, p)] = InstErrorCode.INVALID_CHANNEL
-                overall_success = InstErrorCode.GET_DEVICE_ERR
 
-        return (overall_success, result, valid_params)
+        return (result, valid_params)
    
     @staticmethod
     def _check_set_args(params):
         """
         """
-        overall_success = InstErrorCode.OK
         valid_params = {}
         result = {}
         
         if params == None or not isinstance(params, dict):
-            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            raise RequiredParameterException()
             
         elif len(params) == 0:
-            overall_success = InstErrorCode.REQUIRED_PARAMETER
+            raise RequiredParameterException()
             
         else:
             
@@ -1435,15 +1281,13 @@ class SBE37Driver(InstrumentDriver):
             for (key, val) in temp_params.iteritems():
                 if key[0] not in clist:
                     result[key] = InstErrorCode.INVALID_CHANNEL
-                    overall_success = InstErrorCode.SET_DEVICE_ERR
                     params.pop(key)
                 
                 elif key[1] not in plist:
                     result[key] = InstErrorCode.INVALID_PARAMETER
-                    overall_success = InstErrorCode.SET_DEVICE_ERR
                     params.pop(key)
                 
-        return (overall_success, result, params)
+        return (result, params)
 
     ########################################################################
     # Misc and temp.
