@@ -156,10 +156,29 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if ingestion configuration did not exist
         """
         log.debug("Deleting ingestion configuration: %s", ingestion_configuration_id)
-        ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
 
-        if ingestion_configuration is None:
-            log.debug("Ingestion configuration %d does not exist" % ingestion_configuration_id)
+        try:
+            ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
+        except:
+            raise NotFound("Ingestion configuration %d does not exist" % str(ingestion_configuration_id))
+
+        #delete the transforms associated with the ingestion_configuration_id
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        if len(transform_ids) > 0:
+            try:
+                # need to activate only one transform as both have the same subscription
+                self.clients.transform_management.delete_transform(transform_ids[0])
+            except Exception as exc:
+                raise IngestionManagementServiceException('Error while using transform_management to activate transform %s.'\
+                % transform_id)
+        else:
+            log.debug("No transforms attached as ingestion workers to the ingestion configuration object.")
+
+
+        # delete the associations too...
+        associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
 
         self.clients.resource_registry.delete(ingestion_configuration_id)
 
