@@ -14,6 +14,7 @@ data and verifies that the initial input matched the replayed data.
 '''
 
 import gevent
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
@@ -100,6 +101,7 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         self.ingestion_cli = IngestionManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
         self.dr_cli = DataRetrieverServiceClient(node=self.cc.node)
+        self.dsm_cli = DatasetManagementServiceClient(node=self.cc.node)
 
 
 
@@ -282,18 +284,14 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         """
         Define the replay
         """
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id=post_id,
+            datastore_name='dm_datastore',
+            view_name='posts/posts_join_comments'
+        )
 
-        query = {
 
-            'datastore_name':'dm_datastore',
-            'post_id':post_id
-            #'options':{
-            #    'limit':3,
-            #    'include_docs':True
-            #}
-        }
-
-        return self.dr_cli.define_replay(query=query)
+        return self.dr_cli.define_replay(dataset_id)
 
 
 

@@ -40,6 +40,8 @@ class ReplayProcess(BaseReplayProcess):
         self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
 
         self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
+        self.view_name = self.CFG.get('process',{}).get('view_name')
+        self.key_id = self.CFG.get('process',{}).get('key_id')
 
 
         # Attach a publisher to each stream_name attribute
@@ -100,17 +102,15 @@ class ReplayProcess(BaseReplayProcess):
         log.debug('(Replay Agent %s)', self.name)
 
         # Handle the query
-        if self.query:
-            datastore_name = self.query.get('datastore_name','dm_datastore')
-            post_id = self.query.get('post_id','7877516528284978243')
-        else:
-            raise BadRequest('(Replay Agent %s): Improper Query Received' % self.name)
+        datastore_name = self.datastore_name
+        key_id = self.key_id
+
 
         # Got the post ID, pull the post and the comments
-        view_name = 'posts/posts_join_comments'
+        view_name = self.view_name
         opts = {
-            'start_key':[post_id, 0],
-            'end_key':[post_id,2],
+            'start_key':[key_id, 0],
+            'end_key':[key_id,2],
             'include_docs': True
         }
         g = Greenlet(self._query,datastore_name=datastore_name, view_name=view_name, opts=opts,
