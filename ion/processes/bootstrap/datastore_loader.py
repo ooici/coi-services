@@ -5,7 +5,7 @@
 __author__ = 'Michael Meisinger, Thomas Lennan'
 
 """
-Features
+Possible Features
 - load objects into different datastores
 - load from a directory of YML files in ion-definitions
 - load from a ZIP of YMLs
@@ -19,25 +19,29 @@ import datetime
 import os
 import os.path
 
-from pyon.public import CFG, log, ImmediateProcess, Container
-
+from pyon.public import CFG, log, ImmediateProcess, iex
+from pyon.datastore.datastore import DatastoreManager
 
 class DatastoreLoader(ImmediateProcess):
     def on_init(self):
         pass
 
     def on_start(self):
-        datastore = self.CFG.get("datastore", "")
-        path = self.CFG.get("path", None)
         op = self.CFG.get("op", None)
-        log.info("DatastoreLoader: op=%s path=%s" % (op, path))
+        datastore = self.CFG.get("datastore", None)
+        path = self.CFG.get("path", None)
+        log.info("DatastoreLoader: op=%s datastore=%s path=%s" % (op, datastore, path))
         if op:
             if op == "load":
                 self.load_datastore(path, datastore, ignore_errors=False)
             elif op == "dump":
                 self.dump_datastore(path, datastore)
+            elif op == "clear":
+                self.clear_datastore(datastore)
             else:
-                log.warn("No operation specified")
+                raise iex.BadRequest("Operation unknown")
+        else:
+            raise iex.BadRequest("No operation specified")
 
     def on_quit(self):
         pass
@@ -47,23 +51,22 @@ class DatastoreLoader(ImmediateProcess):
         if CFG.system.mockdb:
             log.warn("Cannot load into MockDB")
             return
-        if not ds_name:
-            log.warn("Datastore name not provided")
-
 
         path = path or "res/preload/default"
         if not os.path.exists(path):
-            log.path("Load path not found: %s" % path)
+            log.warn("Load path not found: %s" % path)
             return
         if not os.path.isdir(path):
             log.error("Path is not a directory: %s" % path)
 
         if ds_name:
             # Here we expect path to contain YML files for given datastore
+            log.info("DatastoreLoader: LOAD datastore=%s" % ds_name)
             cls._load_datastore(path, ds_name, ignore_errors)
         else:
             # Here we expect path to have subdirs that are named according to logical
             # datastores, e.g. "resources"
+            log.info("DatastoreLoader: LOAD ALL DATASTORES")
             for fn in os.listdir(path):
                 fp = os.path.join(path, fn)
                 if not os.path.exists(path):
@@ -73,11 +76,9 @@ class DatastoreLoader(ImmediateProcess):
 
     @classmethod
     def _load_datastore(cls, path=None, ds_name=None, ignore_errors=True):
-        if not Container.instance.datastore_manager.exists(ds_name):
+        if not DatastoreManager.exists(ds_name):
             log.warn("Datastore does not exist: %s" % ds_name)
-        ds = Container.instance.datastore_manager.get_datastore(ds_name)
-        if not ds:
-            return
+        ds = DatastoreManager.get_datastore_instance(ds_name)
         for fn in os.listdir(path):
             fp = os.path.join(path, fn)
             try:
@@ -122,9 +123,11 @@ class DatastoreLoader(ImmediateProcess):
 
     @classmethod
     def _dump_datastore(cls, outpath_base, ds_name, clear_dir=True):
-        ds = Container.instance.datastore_manager.get_datastore(ds_name)
-        if not ds:
+        if not DatastoreManager.exists(ds_name):
+            log.warn("Datastore does not exist: %s" % ds_name)
             return
+        ds = DatastoreManager.get_datastore_instance(ds_name)
+
         if not os.path.exists(outpath_base):
             os.makedirs(outpath_base)
 
@@ -147,3 +150,9 @@ class DatastoreLoader(ImmediateProcess):
                 yaml.dump(obj, f, default_flow_style=False)
                 numwrites += 1
         log.info("Wrote %s objects to %s" % (numwrites, outpath))
+
+    @classmethod
+    def clear_datastore(cls, ds_name=None):
+        pass
+
+DatastoreAdmin = DatastoreLoader
