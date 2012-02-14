@@ -8,7 +8,7 @@
 to couchdb datastore and hdf datastore.
 '''
 
-from interface.objects import DataContainer, DataStream
+from interface.objects import DataContainer, DataStream, StreamGranuleContainer
 
 from pyon.datastore.datastore import DataStore, DatastoreManager
 from pyon.public import log
@@ -53,7 +53,10 @@ class IngestionWorker(TransformDataProcess):
         """
 
         # Get the policy for this stream
-        policy = self.extract_policy_packet(packet)
+        if not (isinstance(packet, BlogPost) or isinstance(packet, BlogComment)):
+            policy = self.extract_policy_packet(packet)
+        else:
+            policy = ''
 
         # Process the packet
         self.process_stream(packet, policy)
@@ -87,7 +90,7 @@ class IngestionWorker(TransformDataProcess):
 
         #@todo Evaluate policy for this stream and determine what to do.
 
-        if isinstance(packet, DataContainer):
+        if isinstance(packet, StreamGranuleContainer):
             for key,value in packet.identifiables.iteritems():
                 if isinstance(value, DataStream):
                     hdfstring = value
@@ -120,7 +123,7 @@ class IngestionWorker(TransformDataProcess):
         Extracts and returns the policy from the data stream
         """
 
-        stream_id = incoming_packet.stream_id
+        stream_id = incoming_packet.data_stream_id
         log.debug('Getting policy for stream id: %s' % stream_id)
 
         policy = StreamIngestionPolicy(**self.default_policy)
