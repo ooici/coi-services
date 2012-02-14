@@ -69,7 +69,7 @@ class IngestionWorker(TransformDataProcess):
 
     def _get_event_msg_fields(self, msg):
         """
-        A helper method to extract a disctionary of fields from a message object
+        A helper method to extract a dictionary of fields from a message object
         """
         msgargs = {}
 
