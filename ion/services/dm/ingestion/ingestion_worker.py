@@ -41,9 +41,7 @@ class IngestionWorker(TransformDataProcess):
         self.description = self.CFG.get('description')
 
         self.datastore_name = self.couch_config.get('datastore_name',None) or 'dm_datastore'
-        log.debug('CONFIG: %s' % self.couch_config)
         try:
-            log.debug('specd: %s' % self.couch_config.get('datastore_profile'))
             self.datastore_profile = getattr(DataStore.DS_PROFILE, self.couch_config.get('datastore_profile','SCIDATA'))
         except AttributeError:
             log.exception('Invalid datastore profile passed to ingestion worker. Defaulting to SCIDATA')
