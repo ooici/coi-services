@@ -25,7 +25,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 
-from interface.objects import StreamQuery, ExchangeQuery, ProcessDefinition
+from interface.objects import StreamQuery, ExchangeQuery, ProcessDefinition, CouchStorage
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from interface.objects import BlogPost, BlogComment
 import time
@@ -112,8 +112,13 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         # Create and activate ingestion configuration
         #-------------------------------------------------------------------------------------------------------
 
-        ingestion_configuration_id = self.ingestion_cli.create_ingestion_configuration(exchange_point_id='science_data', couch_storage={'database_name':'dm_datastore','datastore_profile':'EXAMPLES'},\
-            hdf_storage={},  number_of_workers=6, default_policy={})
+        ingestion_configuration_id = self.ingestion_cli.create_ingestion_configuration(
+            exchange_point_id='science_data',
+            couch_storage=CouchStorage(datastore_name='dm_datastore',datastore_profile='EXAMPLES'),
+            hdf_storage={},
+            number_of_workers=6,
+            default_policy={}
+        )
         # activates the transforms... so bindings will be created in this step
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
