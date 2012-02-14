@@ -46,7 +46,7 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
 
-#@unittest.skip('Do not run hardware test.')
+@unittest.skip('Do not run hardware test.')
 @attr('UNIT', group='mi')
 class TestSBE37Driver(PyonTestCase):    
     """
