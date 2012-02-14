@@ -207,7 +207,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.exchange_point_id = 'science_data'
         self.number_of_workers = 2
         self.hdf_storage = HdfStorage(file_system='mysystem')
-        self.couch_storage = CouchStorage(database_name='test_database')
+        self.couch_storage = CouchStorage(datastore_name='test_datastore')
         self.default_policy = StreamPolicy(archive_metadata=False)
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
@@ -260,7 +260,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.assertEquals(ingestion_configuration.number_of_workers, self.number_of_workers)
         self.assertEquals(ingestion_configuration.hdf_storage.file_system, self.hdf_storage.file_system)
-        self.assertEquals(ingestion_configuration.couch_storage.database_name, self.couch_storage.database_name)
+        self.assertEquals(ingestion_configuration.couch_storage.datastore_name, self.couch_storage.datastore_name)
         self.assertEquals(ingestion_configuration.default_policy.archive_metadata, self.default_policy.archive_metadata)
 
         #------------------------------------------------------------------------
@@ -272,6 +272,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
     def test_ingestion_workers(self):
         """
+        test_ingestion_workers
         1. Test whether the ingestion workers are launched correctly.
         2. Test the associations between the ingestion configuration object and the transforms.
 	    3. Test the number of worker processes created by getting the process object from the container

@@ -116,7 +116,7 @@ class DatastoreLoader(ImmediateProcess):
             else:
                 log.warn("Datastore does not exist")
         else:
-            ds_list = [ds_name] if ds_name else ['resources','objects','state','events',]
+            ds_list = [ds_name] if ds_name else ['resources','objects','state','events', 'directory']
             for ds in ds_list:
                 cls._dump_datastore(path, ds, clear_dir)
 
