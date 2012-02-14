@@ -1,17 +1,21 @@
 #!/usr/bin/env python
 
 '''
-@file ion/services/dm/ingestion/test/test_ingestion.py
+@file ion/services/dm/test/test_blog_integration.py
 @author Swarbhanu Chatterjee
-@test ion.services.dm.ingestion.ingestion_management_service test suite to cover all ingestion mgmt service code
+@author David Stuebe
+@test ion.services.dm.test.test_blog_integration Covers a demonstration of the basic capability to ingest and replay
+simple data from a blog consisting of posts and comments.
+
+This test starts the DM services and sets up ingestion for the science_data exachange point. Data is published by a
+scapper providing input to the system and then replayed as part of the test. The test also subscribes to the incoming
+data and verifies that the initial input matched the replayed data.
+
 '''
 
 import gevent
-from mock import Mock, sentinel, patch
-from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -24,9 +28,6 @@ from interface.objects import StreamQuery, ExchangeQuery, ProcessDefinition
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from interface.objects import BlogPost, BlogComment
 import time
-from sets import Set
-
-
 
 class BlogListener(object):
 
@@ -66,9 +67,9 @@ class BlogListener(object):
             self.blogs[message.ref_id] = self.blogs.get(message.ref_id, {})
 
             # make a dictionary to contain the comments if it doesn't already exist...
-            self.blogs[message.ref_id]['comment'] = self.blogs[message.ref_id].get('comment', {})
+            self.blogs[message.ref_id]['comments'] = self.blogs[message.ref_id].get('comments', {})
 
-            self.blogs[message.ref_id]['comment'][message.updated] = (message)
+            self.blogs[message.ref_id]['comments'][message.updated] = (message)
 
 
 
@@ -132,11 +133,9 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------------------------
         self._launch_blog_scraper()
 
-        # wait five seconds for some data to come in...
-        log.warn('Sleeping for 5 seconds to wait for some input')
-        time.sleep(5)
-
-
+        # wait ten seconds for some data to come in...
+        log.warn('Sleeping for 10 seconds to wait for some input')
+        time.sleep(10)
 
 
         #------------------------------------------------------------------------------------------------------
@@ -144,8 +143,27 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
 
-        self.assertTrue(len(captured_input.blogs)>3)
-        post_ids = [id for idx, id in enumerate(captured_input.blogs.iterkeys()) if idx < 3]
+        # Cute list comprehension method does not give enough control
+        #self.assertTrue(len(captured_input.blogs)>3)
+        #post_ids = [id for idx, id in enumerate(captured_input.blogs.iterkeys()) if idx < 3]
+
+        post_ids = []
+
+        if len(captured_input.blogs) < 1:
+            self.fail('No data returned in ten seconds by the blog scrappers!')
+
+        for post_id, blog in captured_input.blogs.iteritems(): # Use items not iter items - I copy of fixed length
+
+            log.info('Captured Input: %s' % post_id)
+            if len(blog.get('comments',[])) > 2:
+                post_ids.append(post_id)
+
+            if len(post_ids) >3:
+                break
+
+        else:
+            self.fail('Not enough comments returned by the blog scrappers in 30 seconds')
+
 
 
         #------------------------------------------------------------------------------------------------------
@@ -193,10 +211,13 @@ class BlogIntegrationTest(IonIntegrationTestCase):
             # can't deterministically assert that the number of comments is the same...
             matched_comments[post_id] = 0
 
-            for updated, comment in replayed_blog.get('comment',{}).iteritems():
-                self.assertIn(updated, input_blog['comment'])
+            for updated, comment in replayed_blog.get('comments',{}).iteritems():
+                self.assertIn(updated, input_blog['comments'])
                 matched_comments[post_id] += 1
 
+
+        # Assert that we got some comments back!
+        self.assertTrue(sum(matched_comments.values()) > 0)
 
         log.info('Matched comments on the following blogs: %s' % matched_comments)
 
@@ -237,12 +258,14 @@ class BlogIntegrationTest(IonIntegrationTestCase):
             'strobist',
             'chrome',
             'hellohighprices',
-            'saintsandspinners']
+            'saintsandspinners',
+            'warnakubrunei']
 
 
         blogs = [
-            'google-code-featured',
-            'googleblog',
+            'saintsandspinners',
+            'strobist',
+            'voodoofunk'
             ]
 
 
