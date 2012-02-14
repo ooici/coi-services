@@ -15,6 +15,7 @@ __license__ = 'Apache 2.0'
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
+from pyon.core import exception as iex
 
 import time
 
@@ -36,6 +37,11 @@ class InstrumentAgentState(BaseEnum):
     OBSERVATORY = 'INSTRUMENT_AGENT_STATE_OBSERVATORY'
     STREAMING = 'INSTRUMENT_AGENT_STATE_STREAMING'
     DIRECT_ACCESS = 'INSTRUMENT_AGENT_STATE_DIRECT_ACCESS'
+    
+ACTIVE_OBSERVATORY_STATES = [
+    InstrumentAgentState.OBSERVATORY,
+    InstrumentAgentState.STREAMING
+    ]    
     
 class InstrumentAgentEvent(BaseEnum):
     """
@@ -245,6 +251,62 @@ class InstrumentAgent(ResourceAgent):
         return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
     ###############################################################################
+    # Instrument agent resouce interface.
+    ###############################################################################
+
+    def get_capabilities(self, resource_id="", capability_types=[]):
+        capability_types = capability_types or ["CONV_TYPE", "AGT_CMD", "AGT_PAR", "RES_CMD", "RES_PAR"]
+        cap_list = []
+        if "CONV_TYPE" in capability_types:
+            cap_list.extend([("CONV_TYPE", cap) for cap in self._get_agent_conv_types()])
+        if "AGT_CMD" in capability_types:
+            cap_list.extend([("AGT_CMD", cap) for cap in self._get_agent_commands()])
+        if "AGT_PAR" in capability_types:
+            cap_list.extend([("AGT_PAR", cap) for cap in self._get_agent_params()])
+        if "RES_CMD" in capability_types:
+            cap_list.extend([("RES_CMD", cap) for cap in self._get_resource_commands()])
+        if "RES_PAR" in capability_types:
+            cap_list.extend([("RES_PAR", cap) for cap in self._get_resource_params()])
+        return cap_list
+
+    def get_param(self, resource_id="", params=None):
+        state = self._fsm.get_current_state()
+        if state in ACTIVE_OBSERVATORY_STATES:
+            return self._dvr_client.cmd_dvr('get', params)
+        else:
+            raise iex.Conflict('Cannot retrieve device parmeters in this state.')
+        
+    def set_param(self, resource_id="", params=None):
+        state = self._fsm.get_current_state()
+        if state in ACTIVE_OBSERVATORY_STATES:
+            return self._dvr_client.cmd_dvr('set', params)
+        else:
+            raise iex.Conflict('Cannot set device parmeters in this state.')
+        
+    def execute(self, resource_id="", command=None):
+        state = self._fsm.get_current_state()
+        if state in ACTIVE_OBSERVATORY_STATES:
+            return self._execute("execute_", command)
+        else:
+            raise iex.Conflict('Cannot command device in this state.')
+
+    def _execute(self, cprefix, command):
+        if not command:
+            raise iex.BadRequest("execute argument 'command' not present")
+        if not command.command:
+            raise iex.BadRequest("command not set")
+
+        cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
+                            command=command.command)
+        cmd_res.ts_execute = get_ion_ts()
+        res = self._dvr_client.cmd_dvr(command.command, *command.args,
+                                           **command.kwargs)
+        cmd_res.status = 0
+        cmd_res.result = res
+
+        return cmd_res
+
+    ###############################################################################
     # Instrument agent transaction interface.
     ###############################################################################
 
@@ -315,7 +377,7 @@ class InstrumentAgent(ResourceAgent):
         result = self._start_driver(dvr_config, comms_config)
         if not result:
             next_state = InstrumentAgentState.INACTIVE
-            
+
         return (next_state, result)
 
     def _handler_uninitialized_reset(self,  *args, **kwargs):
@@ -358,15 +420,10 @@ class InstrumentAgent(ResourceAgent):
         result = self._stop_driver()
         if result:
             return (next_state, result)
-
-        self._dvr_config = None
-        self._comms_config = None
             
         result = self._start_driver(dvr_config, comms_config)
         if not result:
             next_state = InstrumentAgentState.INACTIVE
-            self._dvr_config = dvr_config
-            self._comms_config = comms_config
                 
         return (next_state, result)
 
@@ -380,12 +437,10 @@ class InstrumentAgent(ResourceAgent):
         result = self._stop_driver()
         if not result:
             next_state = InstrumentAgentState.UNINITIALIZED
-            self._dvr_config = None
-            self._comms_config = None
         
         return (next_state, result)
 
-    def _handler_inactive_go_active(self,  comms_config, *args, **kwargs):
+    def _handler_inactive_go_active(self, *args, **kwargs):
         """
         Establish communications with the device and switch to active if
         successful.
@@ -396,13 +451,11 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        self._comms_config = comms_config or self._comms_config
-        (overall_success, cfg_result) = self._dvr_client.cmd_dvr('configure',
-                                        self._comms_config)
+        cfg_result = self._dvr_client.cmd_dvr('configure', self._comms_config)
         
         channels = [key for (key, val) in cfg_result.iteritems() if not
             InstErrorCode.is_error(val)]
-            
+        
         con_result = self._dvr_client.cmd_dvr('connect', channels)
 
         result = cfg_result.copy()
@@ -444,19 +497,14 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        try:
-            channels = args[0]
+        channels = self._dvr_client.cmd_dvr('get_active_channels')
+        dis_result = self._dvr_client.cmd_dvr('disconnect', channels)
         
-        except IndexError:
-            channels = self._dvr_client.cmd_dvr('get_activwe_channels')
-            
-        (overall_success, dis_result) = self._dvr_client.cmd_dvr('disconnect',
-                                                                 channels)
         [key for (key, val) in dis_result.iteritems() if not
             InstErrorCode.is_error(val)]
         
-        (overall_success, init_result) = self._dvr_client.cmd_dvr('initialize',
-                                                                  channels)
+        init_result = self._dvr_client.cmd_dvr('initialize', channels)
+
         result = dis_result.copy()
         for (key, val) in init_result.iteritems():
             result[key] = val
@@ -483,7 +531,7 @@ class InstrumentAgent(ResourceAgent):
         @retval None or error.
         """
         result = None
-        next_state = None
+        next_state = InstrumentAgentState.OBSERVATORY
         
         return (next_state, result)
 
@@ -721,17 +769,18 @@ class InstrumentAgent(ResourceAgent):
             return InstErrorCode.AGENT_INIT_FAILED
 
         self._dvr_config = dvr_config
-        self._comms_config = comms_config or self._comms_config        
+        self._comms_config = comms_config        
 
     def _stop_driver(self):
         """
         Stop the driver process and driver client.
         @retval None.
         """
-        self._dvr_client.done()
-        self._dvr_proc.wait()
-        self._dvr_proc = None
-        self._dvr_client = None
+        if self._dvr_client:
+            self._dvr_client.done()
+            self._dvr_proc.wait()
+            self._dvr_proc = None
+            self._dvr_client = None
         time.sleep(1)
         
     ###############################################################################

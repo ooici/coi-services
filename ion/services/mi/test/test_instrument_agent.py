@@ -13,16 +13,18 @@ __license__ = 'Apache 2.0'
 import time
 import unittest
 
+from pyon.public import log
 from nose.plugins.attrib import attr
 from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.public import log
+from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 
 
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_x
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
 
 """
 now regarding the client
@@ -50,7 +52,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-#@unittest.skip('Do not run hardware test.')
+@unittest.skip('Do not run hardware test.')
 @attr('INT', group='sa')
 class TestInstrumentAgent(IonIntegrationTestCase):
 
@@ -68,11 +70,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Comms config.
         self.comms_config = {
-            'method':'ethernet',
-            'dev_addr': '137.110.112.119',
-            'dev_port': 4001,
-            'svr_addr': 'localhost',
-            'svr_port': 8888            
+            SBE37Channel.CTD: {
+                'method':'ethernet',
+                'device_addr': '137.110.112.119',
+                'device_port': 4001,
+                'server_addr': 'localhost',
+                'server_port': 8888
+            }
         }
         
         # Start container
@@ -98,32 +102,41 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                                               process=FakeProcess())
         log.info('got ia client %s', str(self._ia_client))
 
-
-    def test_x(self):
+    def test_initialize(self):
         """
         """
-        
-        
-        #cmd = AgentCommand(command='makesay', args=['res_agent_1', 'HI'])
-        #res = self.rac.execute(cmd)
-        
-        #retval = self._ia_client.get_capabilities()
-        #log.info('negotiate = %s', str(retval))
         args = [
             self.driver_config,
             self.comms_config
         ]
         cmd = AgentCommand(command='initialize', args=args)
-        retval = self._ia_client.execute_agent(cmd)
-        log.info('RETVAL: %s' % str(retval))
-        
+        retval = self._ia_client.execute_agent(cmd)        
         time.sleep(2)
         
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('RETVAL: %s' % str(retval))
 
+    def test_go_active(self):
+        """
+        """
+        args = [
+            self.driver_config,
+            self.comms_config
+        ]
+        cmd = AgentCommand(command='initialize', args=args)
+        retval = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+        
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
 
+        cmd = AgentCommand(command='go_inactive')
+        retval = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
 
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
 
 

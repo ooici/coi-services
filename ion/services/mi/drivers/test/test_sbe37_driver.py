@@ -40,7 +40,6 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_config
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_check_args
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
@@ -339,6 +338,9 @@ class TestSBE37Driver(PyonTestCase):
         time.sleep(2)
 
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('get_active_channels')
         time.sleep(2)
         
         reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], SBE37Command.ACQUIRE_SAMPLE)

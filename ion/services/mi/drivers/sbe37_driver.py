@@ -666,7 +666,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         pass
 
-    def _handler_autosample_execute(self,  cmd, *args, **kwargs):
+    def _handler_autosample_execute(self, cmd, *args, **kwargs):
         """
         @throw InstrumentProtocolException on invalid command
         """
@@ -1137,7 +1137,7 @@ class SBE37Driver(InstrumentDriver):
     def get_active_channels(self):
         """
         """
-        state = self.get_current_state()
+        state = self.get_current_state()[SBE37Channel.CTD]
         if state in [SBE37State.COMMAND, SBE37State.AUTOSAMPLE]:
             result = [SBE37Channel.CTD]
         else:
