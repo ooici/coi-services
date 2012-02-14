@@ -112,7 +112,7 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         # Create and activate ingestion configuration
         #-------------------------------------------------------------------------------------------------------
 
-        ingestion_configuration_id = self.ingestion_cli.create_ingestion_configuration(exchange_point_id='science_data', couch_storage={},\
+        ingestion_configuration_id = self.ingestion_cli.create_ingestion_configuration(exchange_point_id='science_data', couch_storage={'database_name':'dm_datastore','datastore_profile':'EXAMPLES'},\
             hdf_storage={},  number_of_workers=6, default_policy={})
         # activates the transforms... so bindings will be created in this step
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
