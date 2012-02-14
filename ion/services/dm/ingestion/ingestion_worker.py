@@ -60,23 +60,12 @@ class IngestionWorker(TransformDataProcess):
         self.stream_policies = {}
         # update the policy
         def receive_policy_event(self, event_msg):
-            self.stream_policies[event_msg.stream_id] = event_msg
+            self.stream_policies[event_msg.policy.stream_id] = event_msg
 
         self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, callback=receive_policy_event)
 
 
         log.warn(str(self.db))
-
-    def _get_event_msg_fields(self, msg):
-        """
-        A helper method to extract a dictionary of fields from a message object
-        """
-        msgargs = {}
-
-        for k in msg.__dict__:
-            v = getattr(msg, k)
-            msgargs[k] = v
-        return msgargs
 
     def process(self, packet):
         """Process incoming data!!!!
