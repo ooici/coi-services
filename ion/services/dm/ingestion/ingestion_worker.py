@@ -9,11 +9,9 @@ to couchdb datastore and hdf datastore.
 '''
 
 from interface.objects import DataStream, StreamGranuleContainer
-
 from pyon.datastore.datastore import DataStore
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
-
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import BlogPost, BlogComment
 from pyon.core.exception import BadRequest

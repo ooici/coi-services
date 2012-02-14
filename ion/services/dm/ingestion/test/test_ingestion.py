@@ -7,25 +7,19 @@
 '''
 
 import gevent
-from mock import Mock, sentinel, patch
+from mock import Mock
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService, IngestionManagementServiceException
 from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound, BadRequest
-import unittest
-from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar
-from pyon.public import Container
-from pyon.public import Container
-from pyon.util.containers import DotDict
-from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery, HdfStorage, CouchStorage, StreamPolicy
+from pyon.core.exception import NotFound
+from pyon.public import log, StreamPublisherRegistrar
+from interface.objects import HdfStorage, CouchStorage, StreamPolicy
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-
-
 
 
 @attr('UNIT', group='dm')
