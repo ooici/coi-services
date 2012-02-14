@@ -4,8 +4,8 @@
 @description Transform Examples, Transform Example Launcher
 '''
 import commands
-import threading
 import time
+from gevent.greenlet import Greenlet
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
@@ -46,9 +46,7 @@ class TransformExampleProducer(StreamProcess):
         else:
             self.output_streams = None
 
-        self.producer_proc = threading.Thread(target=self._trigger_func)
-
-
+        self.producer_proc = Greenlet(self._trigger_func)
         self.producer_proc.start()
 
 
@@ -56,7 +54,8 @@ class TransformExampleProducer(StreamProcess):
         pass
 
     def on_quit(self):
-        log.debug("StreamProducer quit")
+        log.debug("TransformExampleProducer quit")
+        self.producer_proc.kill()
 
     def _trigger_func(self):
         interval = self.CFG.get('stream_producer').get('interval')

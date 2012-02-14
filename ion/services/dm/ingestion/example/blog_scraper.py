@@ -15,6 +15,8 @@ from gevent.greenlet import Greenlet
 from pyon.util.config import CFG
 from pyon.core import bootstrap
 
+from pyon.public import log
+
 class FeedFormatter(object):
     '''
     A feed formatting class for handling blog queries
@@ -42,7 +44,6 @@ class FeedStreamer(StreamProcess):
 
     '''
 
-    entries = []
     def on_start(self):
         '''
         Sets the name, the blog and loads the form feeder (URL and JSON Query Object)
@@ -59,9 +60,18 @@ class FeedStreamer(StreamProcess):
         blog = self.CFG.get('process',{}).get('blog','saintsandspinners')
 
         self.feed = FeedFormatter(blog=blog)
+        self.greenlet_queue = []
+
+        # Make a separate list for each instance of the Feed Streamer
+        self.entries=[]
 
         # Start the thread
         self.run(blog)
+
+    def on_quit(self):
+        for greenlet in self.greenlet_queue:
+            greenlet.kill()
+        super(FeedStreamer,self).on_quit()
 
 
     def _on_done(self):
@@ -79,9 +89,12 @@ class FeedStreamer(StreamProcess):
             """
             p = StreamPublisher(name=(self.XP,'%s.%s' %(num,"data")),process=self,node=self.container.node)
             p.publish(msg=entry['post'])
+            log.debug('Published post id %s' % entry['post'].post_id)
             for comment in entry['comments']:
                 p.publish(msg=comment)
             num+=1
+
+        log.info('Completed Publishing Blog Results for Blog %s' % self.feed.blog)
 
 
     def run(self, blog):
@@ -90,6 +103,7 @@ class FeedStreamer(StreamProcess):
         '''
         production = Greenlet(self._grab,blog=blog,callback=lambda : self._on_done())
         production.start()
+        self.greenlet_queue.append(production)
 
     def _grab(self, blog, callback):
         ''' Threaded query
@@ -102,8 +116,13 @@ class FeedStreamer(StreamProcess):
         '''
         data = json.load(self.feed.query())
         if not 'entry' in data['feed']:
+            log.warn('No Data Found from the blog: %s' % blog)
             return # No entries in this blog
         for field in data['feed']['entry']:
+
+            if len(self.entries) > 4:
+                break
+
             entry = {'post':None, 'comments':[]}
 
             ######################################
@@ -149,8 +168,15 @@ class FeedStreamer(StreamProcess):
                     comment = BlogComment(ref_id=ref_id,author=author,updated=updated,content=content)
                     entry['comments'].append(comment)
 
-            ######################################
-            # Push entry on queue
-            ######################################
-            self.entries.append(entry)
+            if len(entry['comments']) >4:
+                ######################################
+                # Push entry on queue
+                ######################################
+                self.entries.append(entry)
+
+            log.info('Got comments %d from the blog: %s' % (len(entry.get('comments',[])), blog))
+
+
+
+
         callback()
