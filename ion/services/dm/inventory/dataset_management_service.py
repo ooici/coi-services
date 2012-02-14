@@ -25,15 +25,19 @@ class DatasetManagementService(BaseDatasetManagementService):
     class docstring
     """
 
-    def create_dataset(self, stream_id='', name='', description='', datastore_name='', contact=None, user_metadata={}):
+    def create_dataset(self, stream_id='', datastore_name='', view_name='', name='', description='', contact=None, user_metadata={}):
         """@brief Create a resource which defines a dataset. For LCA it is assumed that datasets are organized by stream.
         @param stream_id is the primary key used in the couch view to retrieve the content or metadata
+        @param datastore_name is the name of the datastore where this dataset resides.
+        @param view_name is the name of the view which joins the dataset definition to the dataset
         @param contact is the contact information for the dataset adminstrator
         @param user_metadata is user defined metadata which can be added to this dataset. Should be annotation via association
         @param name is the name of the dataset resource
         @param description is a description of the dataset resource
 
         @param stream_id    str
+        @param datastore_name    str
+        @param view_name    str
         @param name    str
         @param description    str
         @param contact    ContactInformation
@@ -49,7 +53,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.primary_view_key=stream_id
         dataset.datastore_name = datastore_name
         #@todo: fill this in
-        dataset.view_name='dataset_by_id'
+        dataset.view_name=view_name or 'dataset_by_id'
 
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
@@ -119,6 +123,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset = self.read_dataset(dataset_id=dataset_id)
         #@todo: Perform Query
         return ''
+
+
     def find_datasets(self, filters=None):
         """
         method docstring
