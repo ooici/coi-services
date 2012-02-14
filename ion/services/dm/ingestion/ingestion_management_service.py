@@ -160,24 +160,31 @@ class IngestionManagementService(BaseIngestionManagementService):
         try:
             ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
         except:
-            raise NotFound("Ingestion configuration %d does not exist" % str(ingestion_configuration_id))
+            raise NotFound("Ingestion configuration %s does not exist" % str(ingestion_configuration_id))
 
         #delete the transforms associated with the ingestion_configuration_id
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
-        if len(transform_ids) > 0:
-            try:
+        try:
+            transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+
+            if transform_ids:
                 # need to activate only one transform as both have the same subscription
                 self.clients.transform_management.delete_transform(transform_ids[0])
-            except Exception as exc:
-                raise IngestionManagementServiceException('Error while using transform_management to activate transform %s.'\
-                % transform_id)
-        else:
-            log.debug("No transforms attached as ingestion workers to the ingestion configuration object.")
+            else:
+                log.debug("No transforms attached as ingestion workers to the ingestion configuration object.")
+
+        except Exception as exc:
+            log.debug('Error while using transform_management to activate transform: %s\n'\
+                % exc.message)
 
         # delete the associations too...
-        associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+        try:
+            associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
+            for association in associations:
+                self.clients.resource_registry.delete_association(association)
+        except Exception as exc:
+            log.debug('Error while using transform_management to activate transform: %s\n'\
+            % exc.message)
+
 
         self.clients.resource_registry.delete(ingestion_configuration_id)
 
