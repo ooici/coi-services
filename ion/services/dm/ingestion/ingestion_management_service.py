@@ -97,9 +97,9 @@ class IngestionManagementService(BaseIngestionManagementService):
             ingestion_configuration.hdf_storage.root_path =  hdf_storage.root_path
 
         if couch_storage is not None:
-            ingestion_configuration.couch_storage.datastore_name = couch_storage.get('datastore_name')
-            ingestion_configuration.couch_storage.datastore_profile = couch_storage.get('datastore_profile')
-            ingestion_configuration.couch_storage.server = couch_storage.get('server')
+            ingestion_configuration.couch_storage.datastore_name = couch_storage.datastore_name
+            ingestion_configuration.couch_storage.datastore_profile = couch_storage.datastore_profile
+            ingestion_configuration.couch_storage.server = couch_storage.server
 
         if default_policy is not None:
 

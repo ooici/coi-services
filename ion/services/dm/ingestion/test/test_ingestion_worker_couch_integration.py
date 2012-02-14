@@ -55,7 +55,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.datastore_name = 'dm_datastore'
         self.number_of_workers = 2
         self.hdf_storage = HdfStorage()
-        self.couch_storage = CouchStorage(database_name = self.datastore_name)
+        self.couch_storage = CouchStorage(datastore_name = self.datastore_name)
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
 
