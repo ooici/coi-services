@@ -16,6 +16,7 @@ from pyon.util.context import LocalContextMixin
 
 from ion.services.sa.acquisition.data_acquisition_management_service import DataAcquisitionManagementService
 from interface.services.sa.idata_acquisition_management_service import IDataAcquisitionManagementService, DataAcquisitionManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from nose.plugins.attrib import attr
@@ -42,6 +43,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         # Now create client to DataAcquisitionManagementService
         self.client = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
+        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
 
     def tearDown(self):
         pass
@@ -128,21 +130,6 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
 
     #@unittest.skip('Not done yet.')
-    def test_create_producer(self):
-        # Create a data producer in coordination with DM PubSub: create stream, register and create producer object
-
-        # test creating a new data source
-        print 'Creating new data producer'
-        dataproducer_obj = IonObject(RT.DataProducer,
-                           name='DataProducer1',
-                           description='instrument producer')
-        try:
-            ds_id = self.client.create_data_producer(dataproducer_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new data producer: %s" %ex)
-        print 'new data producer id = ', ds_id
-
-    #@unittest.skip('Not done yet.')
     def test_register_instrument(self):
         # Register an instrument as a data producer in coordination with DM PubSub: create stream, register and create producer object
 
@@ -151,6 +138,9 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
         instrument_id, rev = self.rrclient.create(instrument_obj)
 
+        dataproduct_obj = IonObject(RT.DataProduct, name='DataProduct1',description='sample data product')
+        dataproduct_id, rev = self.rrclient.create(dataproduct_obj)
+
         # test registering a new data producer
         try:
             ds_id = self.client.register_instrument(instrument_id)
@@ -158,13 +148,90 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("failed to create new data producer: %s" %ex)
         print 'new data producer id = ', ds_id
 
+
+        # test assigning a data product to an instrument, creating the stream for the product
+        try:
+            self.client.assign_data_product(instrument_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+
+
+        # todo:  call UNassign_data_product
+
         # test UNregistering a new data producer
         try:
             ds_id = self.client.unregister_instrument(instrument_id)
-        except BadRequest as ex:
+        except NotFound as ex:
             self.fail("failed to unregister instrument producer: %s" %ex)
 
-    @unittest.skip('Illegal subject type ExternalDataset for predicate hasAgentInstance')
+
+    def test_register_external_data_set(self):
+        # Register an external data set as a data producer in coordination with DM PubSub: create stream, register and create producer object
+
+
+        # set up initial instrument to register
+        ext_dataset_obj = IonObject(RT.ExternalDataset, name='DataSet1',description='an external data feed')
+        ext_dataset_id, rev = self.rrclient.create(ext_dataset_obj)
+
+        # test registering a new external data set
+        try:
+            ds_id = self.client.register_external_data_set(ext_dataset_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+        print 'new data producer id = ', ds_id
+
+        # todo:  call assign_data_product
+
+        # todo:  call UNassign_data_product
+
+        # test UNregistering a external data set
+        try:
+            ds_id = self.client.unregister_external_data_set(ext_dataset_id)
+        except NotFound as ex:
+            self.fail("failed to unregister instrument producer: %s" %ex)
+
+
+
+    def test_register_process(self):
+        # Register a data process as a data producer in coordination with DM PubSub: create stream, register and create producer object
+
+
+        # set up initial instrument to register
+        process_obj = IonObject(RT.DataProcess, name='Proc1',description='a data process transform')
+        process_id, rev = self.rrclient.create(process_obj)
+
+        dataproduct_obj = IonObject(RT.DataProduct, name='DataProduct1',description='sample data product')
+        dataproduct_id, rev = self.rrclient.create(dataproduct_obj)
+
+
+        # test registering a new process
+        try:
+            ds_id = self.client.register_process(process_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+        print 'new data producer id = ', ds_id
+
+        # test assigning a data product to a process
+        try:
+            self.client.assign_data_product(process_id, dataproduct_id, False)
+        except BadRequest as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to create new data producer: %s" %ex)
+
+
+        # todo:  call UNassign_data_product
+
+        # test UNregistering a process
+        try:
+            ds_id = self.client.unregister_process(process_id)
+        except NotFound as ex:
+            self.fail("failed to unregister instrument producer: %s" %ex)
+
+
+    #@unittest.skip('not ready')
     def test_eoi_resources(self):
 
             #

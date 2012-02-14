@@ -4,16 +4,12 @@
 @description an IngestionExampleProducer class used to produce streams, IngestionExample class that allows ingestion workers to
 handle the streams.
 '''
-import threading
 import time
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from pyon.ion.endpoint import ProcessPublisher
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.public import log
-from pyon.public import IonObject
-from pyon.service.service import BaseService
+from gevent.greenlet import Greenlet
+
 
 
 class IngestionExampleProducer(StreamProcess):
@@ -37,9 +33,7 @@ class IngestionExampleProducer(StreamProcess):
         else:
             self.output_streams = None
 
-        self.producer_proc = threading.Thread(target=self._trigger_func)
-
-
+        self.producer_proc = Greenlet(self._trigger_func)
         self.producer_proc.start()
 
     def process(self, packet):
@@ -47,6 +41,7 @@ class IngestionExampleProducer(StreamProcess):
 
     def on_quit(self):
         log.debug("StreamProducer quit")
+        self.producer_proc.kill()
 
     def _trigger_func(self):
         interval = self.CFG.get('stream_producer').get('interval')

@@ -14,7 +14,7 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 import unittest
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber
-from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery
+from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery, HdfStorage, CouchStorage, StreamPolicy
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -54,8 +54,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.exchange_point_id = 'science_data'
         self.datastore_name = 'dm_datastore'
         self.number_of_workers = 2
-        self.hdf_storage = {'root_path': '', 'filesystem' : ''}
-        self.couch_storage = {'server': '', 'couchstorage': '', 'database': self.datastore_name }
+        self.hdf_storage = HdfStorage()
+        self.couch_storage = CouchStorage(datastore_name = self.datastore_name)
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
 
@@ -74,10 +74,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ctd_stream1_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), \
                                                                                         process=self.cc)
 
-        self.default_policy = {'name' : 'default_policy', 'description' : 'a default policy',\
-                               'lcstate' : 'DRAFT', 'ts_created' : 'created_now',\
-                               'ts_updated' : 'updated_later', 'archive_data' : True,\
-                               'archive_metadata' : True,'stream_id' : self.input_stream_id}
+        self.default_policy = StreamPolicy(stream_id=self.input_stream_id)
 
     def tearDown(self):
         """
