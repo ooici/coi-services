@@ -10,6 +10,8 @@ import time
 import hashlib
 from pyon.public import log, IonObject, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
+from pyon.core.object import IonObjectSerializer, IonObjectBase
+
 
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
 
@@ -21,6 +23,8 @@ class TransformManagementService(BaseTransformManagementService):
     """
     def __init__(self):
         BaseTransformManagementService.__init__(self)
+
+        self.serializer = IonObjectSerializer()
 
 
 
@@ -45,7 +49,12 @@ class TransformManagementService(BaseTransformManagementService):
         # Resources and Initial Configs
         # ------------------------------------------------------------------------------------
         # Determine Transform Name
-        if not configuration:
+
+        if isinstance(configuration, IonObjectBase):
+            #@todo Is this the right way to handle configs that come as IonObjects?
+            configuration = self.serializer.serialize(configuration)
+
+        elif not configuration:
             configuration = {}
 
         # Handle the name uniqueness factor
@@ -73,6 +82,7 @@ class TransformManagementService(BaseTransformManagementService):
 
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
         listen_name = subscription.exchange_name
+
 
         configuration['process'] = {
             'name':transform_name,

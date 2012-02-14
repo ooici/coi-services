@@ -30,6 +30,7 @@ class DatastoreLoader(ImmediateProcess):
         datastore = self.CFG.get("datastore", "")
         path = self.CFG.get("path", None)
         op = self.CFG.get("op", None)
+        log.info("DatastoreLoader: op=%s path=%s" % (op, path))
         if op:
             if op == "load":
                 self.load_datastore(path, datastore, ignore_errors=False)

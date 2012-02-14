@@ -12,9 +12,10 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery
+from interface.objects import ExchangeQuery, HdfStorage, CouchStorage, StreamIngestionPolicy
 
 from interface.objects import StreamIngestionPolicy
+from pyon.event.event import StreamIngestionPolicyEventPublisher
 import time
 
 
@@ -46,10 +47,9 @@ class IngestionManagementService(BaseIngestionManagementService):
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
 
-
     def on_start(self):
         super(IngestionManagementService,self).on_start()
-
+        self.event_publisher = StreamIngestionPolicyEventPublisher(node = self.container.node)
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
                                        number_of_workers=0, default_policy=None):
@@ -92,9 +92,20 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration = IonObject(RT.IngestionConfiguration, name = self.XP)
         ingestion_configuration.description = '%s exchange point ingestion configuration' % self.XP
         ingestion_configuration.number_of_workers = number_of_workers
-        ingestion_configuration.hdf_storage.update(hdf_storage or {})
-        ingestion_configuration.couch_storage.update(couch_storage or {'server':'localhost','database':'dm_datastore'})
-        ingestion_configuration.default_policy.update(default_policy or {})
+        if hdf_storage is not None:
+            ingestion_configuration.hdf_storage.file_system =  hdf_storage.file_system
+            ingestion_configuration.hdf_storage.root_path =  hdf_storage.root_path
+
+        if couch_storage is not None:
+            ingestion_configuration.couch_storage.database_name = couch_storage.database_name
+            ingestion_configuration.couch_storage.database_profile = couch_storage.database_profile
+            ingestion_configuration.couch_storage.server = couch_storage.server
+
+        if default_policy is not None:
+
+            ingestion_configuration.default_policy.archive_data = default_policy.archive_data
+            ingestion_configuration.default_policy.archive_metadata = default_policy.archive_metadata
+            ingestion_configuration.default_policy.stream_id = default_policy.stream_id
 
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
@@ -106,18 +117,20 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
         This method spawns the two transform processes without activating them...Note: activating the transforms does the binding
         """
-        config = {}
-        for key in ingestion_configuration._schema.keys():
-            config[key] = getattr(ingestion_configuration,key)
 
         description = 'Ingestion worker'
 
         # launch the transforms
         for i in range(number_of_workers):
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
-            transform_id = self.clients.transform_management.create_transform(name = name, description = description,\
-                in_subscription_id= subscription_id, out_streams = {}, process_definition_id=process_definition_id,\
-                configuration=config)
+            transform_id = self.clients.transform_management.create_transform(
+                name = name,
+                description = description,
+                in_subscription_id= subscription_id,
+                out_streams = {},
+                process_definition_id=process_definition_id,
+                configuration=ingestion_configuration) # The config is the ingestion configuration object!
+
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
@@ -217,7 +230,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         return True
 
-    def create_stream_policy(self, stream_id='', archive_data='', archive_metadata=''):
+    def create_stream_policy(self, stream_id='', archive_data=True, archive_metadata=True):
         """Create a policy for a particular stream and associate it to the ingestion configuration for the exchange point the stream is on. (After LCA)
 
         @param stream_id    str
@@ -226,11 +239,28 @@ class IngestionManagementService(BaseIngestionManagementService):
         @retval stream_policy_id    str
         """
 
+        if not stream_id:
+            raise IngestionManagementServiceException('Must pass a stream id to create stream policy')
+
         log.debug("Creating stream policy")
-        stream_policy = StreamIngestionPolicy( name='', description='policy for %s' % stream_id, lcstate='', \
-            ts_created=time.ctime(), ts_updated='', archive_data=archive_data, archive_metadata=archive_metadata, stream_id=stream_id)
+        stream_policy = StreamIngestionPolicy(  name='',
+                                                description='policy for %s' % stream_id,
+                                                archive_data=archive_data,
+                                                archive_metadata=archive_metadata,
+                                                stream_id=stream_id)
 
         stream_policy_id = self.clients.resource_registry.create(stream_policy)
+
+
+        self.event_publisher.create_and_publish(
+            origin='ingestion_management',
+            stream_id =stream_id,
+            archive_data=True,
+            archive_metadata=True,
+            resource_id = stream_policy_id
+            )
+
+
         return stream_policy_id
 
     def update_stream_policy(self, stream_policy=None):
@@ -242,7 +272,13 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Updating stream policy")
         stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
 
-        stream_policy.ts_updated = time.ctime()
+        self.event_publisher.create_and_publish(
+            origin='ingestion_management',
+            stream_id =stream_id,
+            archive_data=True,
+            archive_metadata=True,
+            resource_id = stream_policy_id
+        )
 
 
     def read_stream_policy(self, stream_policy_id=''):
@@ -267,3 +303,12 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         log.debug("Deleting stream policy")
         self.clients.resource_registry.delete(stream_policy_id)
+
+        self.event_publisher.create_and_publish(
+            origin='ingestion_management',
+            stream_id =stream_id,
+            archive_data=True,
+            archive_metadata=True,
+            resource_id = stream_policy_id,
+            deleted = True
+        )

@@ -40,6 +40,8 @@ class ReplayProcess(BaseReplayProcess):
         self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
 
         self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
+        self.view_name = self.CFG.get('process',{}).get('view_name')
+        self.key_id = self.CFG.get('process',{}).get('key_id')
 
 
         # Attach a publisher to each stream_name attribute
@@ -100,55 +102,21 @@ class ReplayProcess(BaseReplayProcess):
         log.debug('(Replay Agent %s)', self.name)
 
         # Handle the query
-        if self.query:
-            datastore_name = self.query.get('datastore_name','dm_datastore')
-            post_id = self.query.get('post_id','7877516528284978243')
-        else:
-            raise BadRequest('(Replay Agent %s): Improper Query Received' % self.name)
+        datastore_name = self.datastore_name
+        key_id = self.key_id
+
 
         # Got the post ID, pull the post and the comments
-        view_name = 'posts/posts_join_comments'
+        view_name = self.view_name
         opts = {
-            'start_key':[post_id, 0],
-            'end_key':[post_id,2],
+            'start_key':[key_id, 0],
+            'end_key':[key_id,2],
             'include_docs': True
         }
         g = Greenlet(self._query,datastore_name=datastore_name, view_name=view_name, opts=opts,
             callback=lambda results: self._publish_query(results))
         g.start()
 
-#    def execute_replay(self):
-#        '''
-#        Performs the replay action in a threaded manner
-#        Queries the data IAW the query argument and publishes the data on the output streams
-#        '''
-#
-#        log.debug('(Replay Agent %s)', self.name)
-#        if self.query:
-#            datastore_name = self.query.get('datastore_name','dm_datastore')
-#            view_name = self.query.get('view_name','posts/posts_by_id')
-#            opts = self.query.get('options',{'include_docs=True'})
-#        else:
-#            datastore_name = 'dm_datastore'
-#            view_name = 'posts/posts_by_id'
-#            opts = {'include_docs=True'}
-#
-#        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
-#
-#        #@todo: Evaluate the possibility of a separate stream per thread
-#        #---------------------
-#        # Threaded (greenlet)
-#        #---------------------
-#        # Execute_replay is now non_blocking
-#        # execute_replay is thread safe so it can be called multiple times,
-#        # there is a bottleneck at the stream, if the thread is publishing a large stream,
-#        # the other threads have to wait until it is done.
-#
-#
-#        g = Greenlet(self._query,datastore_name=datastore_name,view_name=view_name,opts=opts,
-#            callback = lambda results: self._publish_query(results))
-#
-#        g.start()
 
 
 
