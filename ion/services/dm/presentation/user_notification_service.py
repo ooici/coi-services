@@ -18,23 +18,31 @@ class UserEventProcessor(object):
     user_email_addr = None
     notifications = []
     
-    def __init__(self, user_id=None):
+    def __init__(self, user_id=None, email_addr=None):
         self.user_id = user_id
-        # TODO: get user's email and store it
+        self.user_email_addr = email_addr
+        log.debug("UserEventProcessor.__init__(): email for user %s set to %s" %(self.user_id, self.user_email_addr))
     
     def subscription_callback(self):
         # TODO: send event notification to user's email address
         pass
     
     def add_notification(self, notification=None):
+        for n in self.notifications:
+            if n == notification:
+                raise BadRequest("UserEventProcessor.add_notification(): notification " + 
+                                 str(notification) + " already exists for " + self.user_id)                
+        self.notifications.append(notification)
         # setup subscription using subscription_callback()
-        # add notification info to notifications list
-        log.debug("UserEventProcessor.add_notification(): adding notification " + str(notification) + " to user " + str(self.user_id))
-        pass
+        log.debug("UserEventProcessor.add_notification(): adding notification " + str(notification) + " to user " + self.user_id)
     
     def remove_notification(self, notification=None):
+        try:
+            self.notifications.remove(notification)  
+        except:      
+            raise BadRequest("UserEventProcessor.remove_notification(): notification " +
+                             str(notification) + " does not exist for " + self.user_id)                
         # remove subscription
-        # remove notification
         # return the number of notifications left for this user
         return len(self.notifications)
     
@@ -70,7 +78,16 @@ class UserNotificationService(BaseUserNotificationService):
         self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
         if user_id not in self.user_event_processors:
-            self.user_event_processors[user_id] = UserEventProcessor(user_id)
+            # Retrieve the user's user_info object
+            objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
+            if not objects:
+                raise NotFound("UserNotificationService.create_notification(): No user_info for user " + user_id)
+            if len(objects) != 1:
+                raise BadRequest("UserNotificationService.create_notification(): there should be only ONE user_info for " + user_id)
+            user_info = objects[0]
+            if not user_info.contact.email or user_info.contact.email == '':
+                raise NotFound("UserNotificationService.create_notification(): No email address in user_info for user " + user_id)
+            self.user_event_processors[user_id] = UserEventProcessor(user_id, user_info.contact.email)
             log.debug("UserNotificationService.create_notification(): added event processor " + str(self.user_event_processors[user_id]))
         
         user_event_processor = self.user_event_processors[user_id]

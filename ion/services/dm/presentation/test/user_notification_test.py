@@ -65,20 +65,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
         
-    def test_create_one_user_notification(self):
-        user_object = IonObject(RT.UserIdentity, name="user1")
-        user_id, _ = self.rrc.create(user_object)
-        notification_object = IonObject(RT.NotificationRequest, name="notification")
-        self.unsc.create_notification(notification_object, user_id)
-
     def test_create_two_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
-        notification_object = IonObject(RT.NotificationRequest, name="notification1")
+        notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
+                                                                 "origin_list":['Some_Resource_Agent_ID1'],
+                                                                 "events_list":['RESOURCE_LIFECYCLE_EVENT']})
         self.unsc.create_notification(notification_object, user_id)
-        notification_object = IonObject(RT.NotificationRequest, name="notification2")
+        notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
+                                                                 "origin_list":['Some_Resource_Agent_ID2'],
+                                                                 "events_list":['DATA_EVENT']})
         self.unsc.create_notification(notification_object, user_id)
 
 
