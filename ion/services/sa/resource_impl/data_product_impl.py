@@ -9,9 +9,9 @@
 from pyon.public import PRED, RT
 
 
-from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
-class DataProductImpl(ResourceSimpleImpl):
+class DataProductImpl(ResourceImpl):
     """
     @brief Resource management for DataProduct resources
     """
