@@ -289,13 +289,19 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param stream_policy    Unknown
         @throws NotFound    if policy does not exist
         """
+
+        log.warn('stream policy to update: %s' % stream_policy)
+
         log.debug("Updating stream policy")
         stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
+
+
+        log.warn('stream_policy_id: %s' % stream_policy_id)
 
         self.event_publisher.create_and_publish_event(
             origin='ingestion_management',
             description='junk!',
-            stream_id =stream_id,
+            stream_id =stream_policy.policy.stream_id,
             archive_data=True,
             archive_metadata=True,
             resource_id = stream_policy_id
@@ -322,12 +328,14 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if stream_policy does not exist
         """
 
+        stream_policy = self.clients.resource_registry.read(stream_policy_id)
+
         log.debug("Deleting stream policy")
         self.clients.resource_registry.delete(stream_policy_id)
 
         self.event_publisher.create_and_publish_event(
             origin='ingestion_management',
-            stream_id =stream_id,
+            stream_id =stream_policy.policy.stream_id,
             archive_data=True,
             archive_metadata=True,
             resource_id = stream_policy_id,
