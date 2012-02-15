@@ -53,7 +53,7 @@ class IngestionTest(PyonTestCase):
         self.mock_find_objects = mock_clients.resource_registry.find_objects
         self.mock_find_associations = mock_clients.resource_registry.find_associations
         self.mock_transform_activate = mock_clients.transform_management.activate_transform
-        self.mock_transform_deactivate = mock_clients.transform_management.activate_transform
+        self.mock_transform_deactivate = mock_clients.transform_management.deactivate_transform
 
         self.mock_transform_delete = mock_clients.transform_management.delete_transform
 
