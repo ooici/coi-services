@@ -491,11 +491,64 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEqual(ar_2.get(timeout=10).stream_id,self.input_stream_id)
 
 
-    def test_stream_policy_stream_not_found(self):
+    def test_create_stream_policy_stream_not_found(self):
         pass
         # try to create a stream policy for a stream that does not exist
         # Assert that the operation fails
 
+
+    def test_event_subscriber(self):
+        """
+        Test that an event subscriber is created for each ingestion worker that subscribes to events
+        Assert that the subscriber receives messages
+        """
+
+        pass
+
+    def test_update_stream_policy(self):
+        """
+        Test updating a stream policy
+        """
+
+        pass
+
+    def test_update_stream_policy_not_found(self):
+        """
+        Test updating a stream policy that does not exist
+        Assert that the operation fails
+        """
+
+        pass
+
+    def test_read_stream_policy(self):
+        """
+        Test reading a stream policy
+        """
+
+        pass
+
+    def test_read_stream_policy_not_found(self):
+        """
+        Test reading a stream policy that does not exist
+        Assert that the operation fails
+        """
+
+        pass
+
+    def test_delete_stream_policy(self):
+        """
+        Test deleting a strema policy
+        """
+
+        pass
+
+    def test_delete_stream_policy_not_found(self):
+        """
+        Test delting a stream that does not exist
+        Assert that the operation fails
+        """
+
+        pass
 
     def test_ingestion_workers_writes_to_couch(self):
         """
