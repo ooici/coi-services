@@ -424,7 +424,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return item
             
             if time.time() > starttime + timeout:
-                raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
+                raise InstrumentTimeoutException()
 
     ########################################################################
     # Command-response helpers.
@@ -459,7 +459,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 else:
                     time.sleep(.1)
             if time.time() > starttime + timeout:
-                raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
+                raise InstrumentTimeoutException()
 
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """

@@ -18,7 +18,7 @@ class InstrumentException(Exception):
     representation in ION.
     """
     
-    def __init__ (self, error_code=None, msg=""):
+    def __init__ (self, error_code=None, msg=None):
         self.args = (error_code, msg)
         self.error_code = error_code
         self.msg = msg
@@ -39,7 +39,7 @@ class InstrumentStateException(InstrumentException):
     
 class InstrumentTimeoutException(InstrumentException):
     """Exception related to a command, request, or communication timing out"""
-    def __init__(self, error_code=InstErrorCode.TIMEOUT, msg=""):
+    def __init__(self, error_code=InstErrorCode.TIMEOUT, msg=None):
         InstrumentException.__init__(error_code, msg)
     
 class InstrumentDataException(InstrumentException):
