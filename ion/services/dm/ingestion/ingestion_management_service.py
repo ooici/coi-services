@@ -52,14 +52,13 @@ class IngestionManagementService(BaseIngestionManagementService):
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
                                        number_of_workers=0, default_policy=None):
-        """Setup ingestion workers to ingest all the data from a single exchange point.
-
-        @param exchange_point_id    str
-        @param couch_storage    Unknown
-        @param hfd_storage    Unknown
-        @param number_of_workers    int
-        @param default_policy    Unknown
-        @retval ingestion_configuration_id    str
+        """
+        @brief Setup ingestion workers to ingest all the data from a single exchange point.
+        @param exchange_point_id is the resource id for the exchagne point to ingest from
+        @param couch_storage is the specification of the couch database to use
+        @param hdf_storage is the specification of the filesystem to use for hdf data files
+        @param number_of_workers is the number of ingestion workers to create
+        @param default_policy is the default policy for streams ingested on this exchange point
         """
 
 
@@ -91,20 +90,16 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingestion_configuration = IonObject(RT.IngestionConfiguration, name = self.XP)
         ingestion_configuration.description = '%s exchange point ingestion configuration' % self.XP
         ingestion_configuration.number_of_workers = number_of_workers
+
         if hdf_storage is not None:
-            ingestion_configuration.hdf_storage.file_system =  hdf_storage.file_system
-            ingestion_configuration.hdf_storage.root_path =  hdf_storage.root_path
+            ingestion_configuration.hdf_storage.update(hdf_storage)
 
         if couch_storage is not None:
-            ingestion_configuration.couch_storage.datastore_name = couch_storage.datastore_name
-            ingestion_configuration.couch_storage.datastore_profile = couch_storage.datastore_profile
-            ingestion_configuration.couch_storage.server = couch_storage.server
+            ingestion_configuration.couch_storage.update(couch_storage)
 
         if default_policy is not None:
+            ingestion_configuration.default_policy.update(default_policy)
 
-            ingestion_configuration.default_policy.archive_data = default_policy.archive_data
-            ingestion_configuration.default_policy.archive_metadata = default_policy.archive_metadata
-            ingestion_configuration.default_policy.stream_id = default_policy.stream_id
 
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
@@ -206,13 +201,11 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # read the transforms
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
-        if len(transform_ids) > 0:
-            # need to activate only one transform as both have the same subscription
-            self.clients.transform_management.activate_transform(transform_ids[0])
+        if len(transform_ids) < 1:
+            raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
 
-        else:
-            #@todo - should this be a failure? If so what?
-            log.warn("No transforms attached as ingestion workers to the ingestion configuration object.")
+        # since all ingestion worker transforms have the same subscription, only deactivate one
+        self.clients.transform_management.activate_transform(transform_ids[0])
 
         return True
 
@@ -234,7 +227,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
-            # since both transforms have the same subscription, only deactivate one
+
+        # since all ingestion worker transforms have the same subscription, only deactivate one
         self.clients.transform_management.deactivate_transform(transform_ids[0])
 
         return True
