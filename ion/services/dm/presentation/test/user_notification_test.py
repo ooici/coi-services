@@ -34,7 +34,6 @@ class UserNotificationTest(PyonTestCase):
         # execution
         notification_id = self.user_notification.create_notification(self.notification_object, 'user_1')
 
-
         # assertions
         self.assertEquals(notification_id,'notification_id')
         self.assertTrue(self.mock_rr_client.create.called)

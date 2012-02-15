@@ -33,16 +33,16 @@ class UserEventProcessor(object):
         # TODO: send event notification to user's email address
         pass
     
-    def add_notification(self, notification=None):
+    def add_notification(self, notification=None, cc_node=None):
         for n in self.notifications:
             if n.notification == notification:
                 raise BadRequest("UserEventProcessor.add_notification(): notification " + 
                                  str(notification) + " already exists for " + self.user_id)                
         # setup subscription using subscription_callback()
-        subscription = EventSubscriber(node=self.container.node, 
+        subscription = EventSubscriber(node=cc_node, 
                                        origin=notification.origin_list[0],
                                        event_name=notification.events_list[0], 
-                                       callback=self.subscription_callback())
+                                       callback=self.subscription_callback)
         n = Notification(notification)
         n.subscription = subscription
         self.notifications.append(n)
@@ -106,7 +106,7 @@ class UserNotificationService(BaseUserNotificationService):
         
         # add notification to user's event_processor
         user_event_processor = self.user_event_processors[user_id]       
-        Notification = user_event_processor.add_notification(notification)
+        Notification = user_event_processor.add_notification(notification, self.container.node)
 
         # Persist Notification object 
         notification_id, version = self.clients.resource_registry.create(notification)
