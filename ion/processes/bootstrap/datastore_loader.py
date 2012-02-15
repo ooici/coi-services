@@ -23,6 +23,9 @@ from pyon.public import CFG, log, ImmediateProcess, iex
 from pyon.datastore.datastore import DatastoreManager
 
 class DatastoreAdmin(ImmediateProcess):
+    """
+    bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=clear prefix=ion
+    """
     def on_init(self):
         pass
 
