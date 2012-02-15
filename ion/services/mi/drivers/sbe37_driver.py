@@ -430,19 +430,16 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     ########################################################################
     
     
-    def get_capabilities(self, capability_types=[], *args, **kwargs):
+    def get_resource_commands(self):
         """
         """
-        cap_list = []
-        capability_types = capability_types or ['RES_CMD', 'RES_PAR']
-        if 'RES_CMD' in capability_types:
-            cap_list.extend([('RES_CMD', cap) for cap in dir(self) if cap.startswith('execute_')])
+        [cmd for cmd in dir(self) if cmd.startswith(execute_)]    
         
-        if 'RES_PAR' in capability_types:
-            cap_list.extend([('RES_PAR', cap) for cap in self._get_param_dict_names()])
+    def get_resource_params(self):
+        """
+        """
+        return self._get_param_dict_names()
         
-        return caps_list
-
     def get_current_state(self):
         """
         """
@@ -1198,20 +1195,20 @@ class SBE37Driver(InstrumentDriver):
     # TBD.
     ########################################################################    
         
-    def get_capabilities(self, channels=[SBE37Channel.CTD], *args, **kwargs):
-        """
-        """
-        try:
-            (result, valid_channels) = self._check_channel_args(channels)
-    
-            for channel in valid_channels:
-                result[channel] = self._channels[SBE37Channel.CTD].\
-                    get_capabilities(*args, **kwargs)                
 
-        except RequiredParameterException:
-            result = InstErrorCode.REQUIRED_PARAMETER
-    
+    def get_resource_commands(self):
+        """
+        """        
+        cmds = self._channels[SBE37Channel.CTD].get_resource_commands()
+        result = [(SBE37Channel.CTD, cmd) for cmd in cmds]
         return result
+    
+    def get_resource_parameters(self):
+        """
+        """
+        params = self._channels[SBE37Channel.CTD].get_resource_commands()
+        result = [(SBE37Channel.CTD, param) for param in params]
+        return result        
 
     def get_channels(self):
         """
