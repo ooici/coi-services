@@ -843,11 +843,54 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ctd_stream1_publisher.publish(comment)
 
         #------------------------------------------------------------------------
-        # Test that the policy is
+        # Test that the policy is implemented
         #----------------------------------------------------------------------
 
         #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
 
+        # get the ingestion workers
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+        # get the self.stream_policies of each ingestion worker
+        worker1_policy = proc_1.stream_policies
+        worker2_policy = proc_2.stream_policies
+
+        # for the particular stream that is being published get the policy for that stream, by doing
+
+        stream_id = 'dfdfdf'
+
+        stream_policy_1 = worker1_policy[stream_id]
+        stream_policy_2 = worker2_policy[stream_id]
+
+        # get values for the archive_data and archive_metadata
+        archive_data_worker_1 = stream_policy_1.policy.archive_data
+        archive_metadata_worker_2 = stream_policy_2.policy.archive_metadata
+
+        #------------------------------------------------------------------------
+        # now do things according to what the values of archive_data and archive_metadata are:
+        #------------------------------------------------------------------------
+
+        if archive_data_worker_1:
+            # do something
+            pass
+        else:
+            # do something else
+            pass
+
+        if archive_metadata_worker_1:
+            # do something
+            pass
+        else:
+            # do something else
+            pass
+
+        #------------------------------------------------------------------------
+        # Repeat for the other worker
+        #----------------------------------------------------------------------
 
         #------------------------------------------------------------------------
         # Cleanup
