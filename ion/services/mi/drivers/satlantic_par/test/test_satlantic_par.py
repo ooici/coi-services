@@ -131,36 +131,23 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         self.assertTrue(fetched_config.has_key(Parameter.MAXRATE))
     
     def test_restore_config(self):
-        restore_result = self.par_proto.restore_config(None)
-        self.assertEquals(restore_result, None)
+        self.assertRaises(InstrumentProtocolException,
+                          self.par_proto.restore_config, None)    
+     
+        self.assertRaises(InstrumentProtocolException,
+                          self.par_proto.restore_config, {})
         
         self.assertRaises(InstrumentProtocolException,
-                          self.par_proto.restore_config,{})
-        
-        self.assertRaises(InstrumentProtocolException,
-                          self.par_proto.restore_config,{'bad_param':0})
+                          self.par_proto.restore_config, {'bad_param':0})
 
         test_config = {Parameter.TELBAUD:19200, Parameter.MAXRATE:2}
         restore_result = self.par_proto.restore_config(test_config)
         calls = [call("set %s %s\n" % (Parameter.TELBAUD, 19200)),
                  call("set %s %s\n" % (Parameter.MAXRATE, 2))]
         self.mock_logger_client.send.assert_has_calls(calls, any_order=True)
-            
-    def test_execute_command(self):
-        
-        exec_result = self.par_proto.execute([Command.SAVE])
-        self.mock_logger_client.send.assert_called_once_with("%s\n" % Command.SAVE)
-        self.assertEquals(exec_result, InstErrorCode.OK)
-        
-        self.assertRaises(InstrumentProtocolException,
-                          self.par_proto.execute, [])            
-        self.assertRaises(InstrumentProtocolException,
-                          self.par_proto.execute, None)            
-        self.assertRaises(InstrumentProtocolException,
-                          self.par_proto.execute,['BAD_COMMAND'])
         
     def test_get_single_value(self):
-        result = self.par_proto.execute([Command.POLL])
+        result = self.par_proto.execute_poll()
         calls = [call("%s\n" % Command.EXIT),
                  call(Command.STOP),
                  call(Command.SAMPLE),
@@ -170,36 +157,30 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         
     def test_breaks(self):
         # test kick to autosample, then back
-        result = self.par_proto.execute([Command.EXIT])        
+        result = self.par_proto.execute_exit()        
         self.mock_callback.reset_mock()
-        result = self.par_proto.execute([Command.BREAK])
+        result = self.par_proto.execute_break()
         self.mock_logger_client.send.assert_called_with(Command.BREAK)        
         self.assertEqual(self.mock_callback.call_count, 1)
 
         # test autosample to poll change
-        result = self.par_proto.execute([Command.EXIT])
+        result = self.par_proto.execute_exit()
         self.mock_callback.reset_mock()
-        result = self.par_proto.execute([Command.STOP])
+        result = self.par_proto.execute_stop()
         self.mock_logger_client.send.assert_called_with(Command.STOP)
         self.assertEqual(self.mock_callback.call_count, 1)
 
-        result = self.par_proto.execute([Command.AUTOSAMPLE])
+        result = self.par_proto.execute_autosample()
         self.mock_callback.reset_mock()
-        result = self.par_proto.execute([Command.RESET])
+        result = self.par_proto.execute_reset()
         self.mock_logger_client.send.assert_called_with(Command.RESET)
         self.assertEqual(self.mock_callback.call_count, 1)
-        
-        self.assertRaises(InstrumentProtocolException, self.par_proto.execute,
-                          ['bad command'])
-        
-        self.assertRaises(InstrumentProtocolException, self.par_proto.execute,
-                          [Command.EXIT])
   
     def test_got_data(self):
         # Cant trigger easily since the async command/response, so short circut
         # the test early.
         self.mock_callback.reset_mock()
-        result = self.par_proto.execute([Command.EXIT])
+        result = self.par_proto.execute_exit()
         self.assertEqual(self.mock_callback.call_count, 1)
         self.assert_(result)
         self.mock_callback.reset_mock()
@@ -211,7 +192,7 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         
     
     def test_save(self):
-        result = self.par_proto.execute([Command.SAVE])
+        result = self.par_proto.execute_save()
         self.assertNotEqual(result, None)
         self.mock_logger_client.send.assert_called_with("%s\n" % Command.SAVE)
     

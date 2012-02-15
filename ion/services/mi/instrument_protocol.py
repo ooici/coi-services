@@ -24,7 +24,7 @@ from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
 from ion.services.mi.exceptions import InstrumentConnectionException
 from ion.services.mi.instrument_connection import IInstrumentConnection
-from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import InstErrorCode, EventKey
 from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 mi_logger = logging.getLogger('mi_logger')
@@ -79,7 +79,7 @@ class InstrumentProtocol(object):
         
         self.send_event = evt_callback
         """The driver callback where we an publish events. Should be a link
-        to a function."""
+        to a function. Currently a dict with keys in EventKey enum."""
         
     ########################################################################
     # Protocol connection interface.
@@ -239,6 +239,25 @@ class InstrumentProtocol(object):
        Called by the logger whenever there is data available
        """
        pass
+
+    def announce_to_driver(self, type, error_code=None, msg=None):
+        """
+        Announce an event to the driver via the callback
+        
+        @param type The DriverAnnouncement enum type of the event
+        @param args Any arguments involved
+        @param msg A message to be included
+        @todo Clean this up, promote to InstrumentProtocol?
+        """
+        assert type != None
+        event = {EventKey:type}
+        
+        if error_code:
+            event.update({EventKey.ERROR_CODE:error_code})
+        if msg:
+            event.update({EventKey.MESSAGE:msg})
+            
+        self.send_event(event)
 
 class BinaryInstrumentProtocol(InstrumentProtocol):
     """Instrument protocol description for a binary-based instrument

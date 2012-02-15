@@ -22,7 +22,7 @@ from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_connection import SerialInstrumentConnection
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
-from ion.services.mi.instrument_fsm import InstrumentFSM
+from ion.services.mi.instrument_fsm_args import InstrumentFSM
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentDataException
@@ -96,6 +96,9 @@ class Prompt(BaseEnum):
 class Error(BaseEnum):
     INVALID_COMMAND = "Invalid command"
     
+class KwargsKey(BaseEnum):
+    COMMAND = 'command'
+
 class Capability(BaseEnum):
     pass
 
@@ -171,7 +174,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                 
     # The normal interface for a protocol. These should drive the FSM
     # transitions as they get things done.
-    def get(self, params=[]):
+    def get(self, *args, **kwargs):
         """ Get the given parameters from the instrument
         
         @param params The parameter values to get
@@ -179,13 +182,13 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid parameter
         """
         # Parameters checked in Handler
-        result = self._fsm.on_event(Event.GET, params)
+        result = self._fsm.on_event(Event.GET, *args, **kwargs)
         if result == None:
             raise InstrumentProtocolException(InstErrorCode.INCORRECT_STATE)
         assert (isinstance(result, dict))
         return result
    
-    def set(self, params={}):
+    def set(self, *args, **kwargs):
         """ Set the given parameters on the instrument
         
         @param params The dict of parameters and values to set
@@ -193,29 +196,87 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid parameter
         """
         # Parameters checked in handler
-        result = self._fsm.on_event(Event.SET, params)
+        result = self._fsm.on_event(Event.SET, *args, **kwargs)
         if result == None:
             raise InstrumentProtocolException(InstErrorCode.INCORRECT_STATE)
         assert(isinstance(result, dict))
         return result
     
-    def execute(self, command=[]):
-        """ Execute the given command on the instrument
-        
-        @param command The command and args to execute [cmd, arg1, ..., argN]
+    def execute_save(self, *args, **kwargs):
+        """ Execute the save command
+
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        if (command == None) or (command == []):
-            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+        kwargs.update({KwargsKey.COMMAND:Command.SAVE})
+        return self._fsm.on_event(Event.COMMAND, *args, **kwargs)
+        
+    def execute_exit(self, *args, **kwargs):
+        """ Execute the exit command
 
-        assert (isinstance(command, list))
-            
-        command_name = command.pop(0)
-        # command checked in handler
-        result = self._fsm.on_event(Event.COMMAND, {'command':command_name,
-                                                    'params':command})
-        return result
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        kwargs.update({KwargsKey.COMMAND:Command.EXIT})
+        return self._fsm.on_event(Event.COMMAND, *args, **kwargs)
+        
+    def execute_exit_and_reset(self, *args, **kwargs):
+        """ Execute the exit and reset command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        kwargs.update({KwargsKey.COMMAND:Command.EXIT_AND_RESET})
+        return self._fsm.on_event(Event.COMMAND, *args, **kwargs)
+    
+    def execute_poll(self, *args, **kwargs):
+        """ Execute the poll command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        kwargs.update({KwargsKey.COMMAND:Command.POLL})
+        return self._fsm.on_event(Event.COMMAND, *args, **kwargs)
+    
+    def execute_reset(self, *args, **kwargs):
+        """ Execute the reset command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        return self._fsm.on_event(Event.RESET, *args, **kwargs)
+    
+    def execute_break(self, *args, **kwargs):
+        """ Execute the break command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        return self._fsm.on_event(Event.BREAK, *args, **kwargs)
+    
+    def execute_stop(self, *args, **kwargs):
+        """ Execute the stop command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        return self._fsm.on_event(Event.STOP, *args, **kwargs)
+    
+    def execute_autosample(self, *args, **kwargs):
+        """ Execute the autosample command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        return self._fsm.on_event(Event.AUTOSAMPLE, *args, **kwargs) 
+    
+    def execute_sample(self, *args, **kwargs):
+        """ Execute the sample command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        return self._fsm.on_event(Event.SAMPLE, *args, **kwargs)
         
     def get_config(self):
         """ Get the entire configuration for the instrument
@@ -231,14 +292,15 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         assert (result.has_key(Parameter.MAXRATE))
         return result
         
-    def restore_config(self, config={}):
+    def restore_config(self, config=None):
         """ Apply a complete configuration.
         
         In this instrument, it is simply a compound set that must contain all
         of the parameters.
+        @throws InstrumentProtocolException on missing or bad config
         """
         if (config == None):
-            return None
+            raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
         
         if ((config.has_key(Parameter.TELBAUD))
             and (config.has_key(Parameter.MAXRATE))):  
@@ -257,14 +319,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         return self._fsm.current_state()
     
-    def initialize(self, timeout=10):
+    def initialize(self, *args, **kwargs):
         mi_logger.info('Initializing PAR sensor')
-        self._fsm.on_event(Event.INITIALIZE)
+        self._fsm.on_event(Event.INITIALIZE, *args, **kwargs)
 
     ################
     # State handlers
     ################
-    def _handler_initialize(self, params):
+    def _handler_initialize(self, *args, **kwargs):
         """Handle transition from UNKNOWN state to a known one.
         
         This method determines what state the device is in or gets it to a
@@ -277,14 +339,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                 
         # Break to command mode, then set next state to command mode
         if self._send_break(Command.BREAK):
-            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
-                                    "Initialized, in command mode")            
+            self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
+                                    msg="Initialized, in command mode")            
             next_state = State.COMMAND_MODE
             
         return (next_state, result)
         
         
-    def _handler_reset(self, params):
+    def _handler_reset(self, *args, **kwargs):
         """Handle reset condition for all states.
         
         @param params Parameters to pass to the state
@@ -293,13 +355,13 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
         if (self._send_break(Command.RESET)):
-            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
-                                    "Reset!")
+            self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
+                                    msg="Reset!")
             next_state = State.AUTOSAMPLE_MODE
             
         return (next_state, result)
         
-    def _handler_autosample_break(self, params):
+    def _handler_autosample_break(self, *args, **kwargs):
         """Handle State.AUTOSAMPLE_MODE Event.BREAK
         
         @param params Parameters to pass to the state
@@ -310,18 +372,18 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = None
         
         if (self._send_break(Command.BREAK)):
-            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
-                                    "Leaving auto sample!")
+            self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
+                                    msg="Leaving auto sample!")
             next_state = State.COMMAND_MODE
         else:
-            self._announce_to_driver(DriverAnnouncement.ERROR,
-                                    InstErrorCode.HARDWARE_ERROR,
-                                    "Could not break from autosample!")
+            self.announce_to_driver(DriverAnnouncement.ERROR,
+                                    error_code=InstErrorCode.HARDWARE_ERROR,
+                                    msg="Could not break from autosample!")
             raise InstrumentProtocolException(InstErrorCode.HARDWARE_ERROR)
             
         return (next_state, result)
         
-    def _handler_autosample_stop(self, params):
+    def _handler_autosample_stop(self, *args, **kwargs):
         """Handle State.AUTOSAMPLE_MODE Event.STOP
         
         @param params Parameters to pass to the state
@@ -332,18 +394,18 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = None
         
         if (self._send_break(Command.STOP)):
-            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
-                                    "Leaving auto sample!")
+            self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
+                                    msg="Leaving auto sample!")
             next_state = State.POLL_MODE
         else:
-            self._announce_to_driver(DriverAnnouncement.ERROR,
-                                    InstErrorCode.HARDWARE_ERROR,
-                                    "Could not stop autosample!")
+            self.announce_to_driver(DriverAnnouncement.ERROR,
+                                    error_code=InstErrorCode.HARDWARE_ERROR,
+                                    msg="Could not stop autosample!")
             raise InstrumentProtocolException(InstErrorCode.HARDWARE_ERROR)
                 
         return (next_state, result)
 
-    def _handler_autosample_command(self, params):
+    def _handler_autosample_command(self, *args, **kwargs):
         """Handle State.AUTOSAMPLE_MODE Event.COMMAND transition
         
         @param params Dict with "command" enum and "params" of the parameters to
@@ -353,25 +415,22 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         next_state = None
         result = None
-        result_vals = {} 
-        
-        if (params == None) or (params['command'] == None):
-            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
-            
-        cmd = params['command']
+                    
+        cmd = kwargs.get(KwargsKey.COMMAND, None)
+
         if (cmd == Command.BREAK):
-            result = self._fsm.on_event(Event.BREAK)
+            result = self._fsm.on_event(Event.BREAK, *args, **kwargs)
         elif (cmd == Command.STOP):
-            result = self._fsm.on_event(Event.STOP)
+            result = self._fsm.on_event(Event.STOP, *args, **kwargs)
         elif (cmd == Command.RESET):
-            result = self._fsm.on_event(Event.RESET)
+            result = self._fsm.on_event(Event.RESET, *args, **kwargs)
         else:
             raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
         
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
 
-    def _handler_command_command(self, params):
+    def _handler_command_command(self, *args, **kwargs):
         """Handle State.COMMAND_MODE Event.COMMAND transition
         
         @param params Dict with "command" enum and "params" of the parameters to
@@ -381,48 +440,49 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         next_state = None
         result = None
-        result_vals = {}    
-        
-        if not Command.has(params['command']):
-            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
-            
-        if params['command'] == Command.EXIT:
+        cmd = kwargs.get(KwargsKey.COMMAND, None)
+
+        if cmd == Command.EXIT:
             result = self._do_cmd_no_resp(Command.EXIT, None)
             if result:
-                self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
-                                         "Starting auto sample")
+                self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
+                                         msg="Starting auto sample")
                 next_state = State.AUTOSAMPLE_MODE
             
-        if params['command'] == Command.EXIT_AND_RESET:
+        elif cmd == Command.EXIT_AND_RESET:
             result = self._do_cmd_no_resp(Command.EXIT_AND_RESET, None)
             if result:
-                self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
-                                         "Starting auto sample")
+                self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
+                                         msg="Starting auto sample")
                 next_state = State.AUTOSAMPLE_MODE
             
-        if params['command'] == Command.SAVE:
+        elif cmd == Command.SAVE:
             result = self._do_cmd_no_resp(Command.SAVE, None)
         
-        if params['command'] == Command.POLL:
+        elif cmd == Command.POLL:
             try:
-                result = self._fsm.on_event(Event.COMMAND, {'command':Command.EXIT})
-                result = self._fsm.on_event(Event.STOP)
-                result = self._fsm.on_event(Event.SAMPLE)
+                kwargs.update({KwargsKey.COMMAND:Command.EXIT})
+                result = self._fsm.on_event(Event.COMMAND, *args, **kwargs)
+                result = self._fsm.on_event(Event.STOP, *args, **kwargs)
+                result = self._fsm.on_event(Event.SAMPLE, *args, **kwargs)
                 # result should have data, right?
-                mi_logger.debug("*** Sample: %s", result)
-                result = self._fsm.on_event(Event.AUTOSAMPLE)
-                result = self._fsm.on_event(Event.BREAK)   
+                mi_logger.debug("Polled sample: %s", result)
+                result = self._fsm.on_event(Event.AUTOSAMPLE, *args, **kwargs)
+                result = self._fsm.on_event(Event.BREAK, *args, **kwargs)   
             except (InstrumentTimeoutException, InstrumentProtocolException) as e:
                 if self._fsm.current_state == State.AUTOSAMPLE_MODE:
-                    result = self._fsm.on_event(Event.BREAK)
+                    result = self._fsm.on_event(Event.BREAK, *args, **kwargs)
                 elif (self._fsm.current_state == State.POLL_MODE):
-                    result = self._fsm.on_event(Event.AUTOSAMPLE)
-                    result = self._fsm.on_event(Event.BREAK)
+                    result = self._fsm.on_event(Event.AUTOSAMPLE, *args, **kwargs)
+                    result = self._fsm.on_event(Event.BREAK, *args, **kwargs)
+        
+        else:
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
 
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
 
-    def _handler_command_get(self, params):
+    def _handler_command_get(self, params=None, *args, **kwargs):
         """Handle getting data from command mode
          
         @param params List of the parameters to pass to the state
@@ -446,7 +506,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
 
-    def _handler_command_set(self, params):
+    def _handler_command_set(self, params, *args, **kwargs):
         """Handle setting data from command mode
          
         @param params Dict of the parameters and values to pass to the state
@@ -471,10 +531,9 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
 
-    def _handler_poll_sample(self, params):
+    def _handler_poll_sample(self, *args, **kwargs):
         """Handle State.POLL_MODE Event.SAMPLE
         
-        @param params Parameters to pass to the state
         @retval return (next state, result)
         @throw InstrumentProtocolException For invalid command
         """
@@ -482,27 +541,27 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = None
         
         result = self._do_cmd_resp(Command.SAMPLE, None)
-        # do something with the data?
-        
+
+        self.announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
+                                msg=result)          
         return (next_state, result)
 
-    def _handler_poll_autosample(self, params):
+    def _handler_poll_autosample(self, *args, **kwargs):
         """Handle State.POLL_MODE Event.AUTOSAMPLE
         
-        @param params Parameters to pass to the state
         @retval return (success/fail code, next state, result)
         """
         next_state = None
         result = None
                 
         if (self._do_cmd_no_resp(Command.AUTOSAMPLE, None)):
-            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
-                                     "Starting auto sample")
+            self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
+                                    msg="Starting auto sample")
             next_state = State.AUTOSAMPLE_MODE
                         
         return (next_state, result)
         
-    def _handler_poll_command(self, params):
+    def _handler_poll_command(self, *args, **kwargs):
         """Handle State.POLL_MODE Event.COMMAND transition
         
         @param params Dict with "command" enum and "params" of the parameters to
@@ -514,16 +573,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result = None
         result_vals = {} 
         
-        if (params == None) or (params['command'] == None):
-            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
-            
-        cmd = params['command']
+        cmd = kwargs.get(KwargsKey.COMMAND, None)
+        
         if (cmd == Command.AUTOSAMPLE):
-            result = self._fsm.on_event(Event.AUTOSAMPLE)
+            result = self._fsm.on_event(Event.AUTOSAMPLE, *args, **kwargs)
         elif (cmd == Command.RESET):
-            result = self._fsm.on_event(Event.RESET)
+            result = self._fsm.on_event(Event.RESET, *args, **kwargs)
         elif (cmd == Command.POLL):
-            result = self._fsm.on_event(Event.SAMPLE)
+            result = self._fsm.on_event(Event.SAMPLE, *args, **kwargs)
         else:
             raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
         
@@ -609,19 +666,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     def _wakeup(self, timeout):
         """There is no wakeup sequence for this instrument"""
         pass
-        
-    def _announce_to_driver(self, type, error_code, msg):
-        """
-        Announce an event to the driver via the callback
-        
-        @param type The DriverAnnouncement enum type of the event
-        @param args Any arguments involved
-        @param msg A message to be included
-        @todo Clean this up, promote to InstrumentProtocol?
-        """
-        event = {'type':type, 'value':msg}
-        self.send_event(event)
-    
+            
     def _send_break(self, break_char, timeout=30):
         """Break out of autosample mode.
         
@@ -674,8 +719,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                 lines = self._linebuf.split(self.eoln)
                 self._linebuf = lines[-1]
                 for line in lines:
-                    self._announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
-                                             None, line)    
+                    self.announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
+                                            msg=line)    
         
 
 class SatlanticPARInstrumentDriver(InstrumentDriver):

@@ -275,6 +275,15 @@ class MetadataParameter(BaseEnum):
     DESCRIPTION = 'META_DESCRIPTION'
     ALL = 'META_ALL'
 
+class EventKey(BaseEnum):
+    """Keys to the event dictionary fields as used by the InstrumentProtocol
+    and InstrumentDriver classes.
+    """
+    TYPE = 'type'
+    ERROR_CODE = 'error_code'
+    MESSAGE = 'message'
+    
+
 ###############################################################################
 # Error constants.
 ##############################################################################
