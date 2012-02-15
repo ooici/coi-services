@@ -25,7 +25,6 @@ from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definiti
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
 class SimpleCtdPublisher(StandaloneProcess):
-    process_type="standalone"
     def __init__(self, *args, **kwargs):
         super(StandaloneProcess, self).__init__(*args,**kwargs)
         #@todo Init stuff
