@@ -18,13 +18,16 @@ from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, Str
 from pyon.public import Container
 from pyon.public import Container
 from pyon.util.containers import DotDict
-from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery, HdfStorage, CouchStorage, StreamPolicy
+from interface.objects import HdfStorage, CouchStorage, StreamPolicy
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
+from pyon.datastore.datastore import DataStore
+
+from interface.objects import BlogPost, BlogComment
 
 
 
@@ -236,6 +239,10 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # For the test we need to set it up explicitly
         publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
         self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.input_stream_id)
+
+
+        self.db = self.container.datastore_manager.get_datastore('dm_datastore', DataStore.DS_PROFILE.EXAMPLES, CFG)
+
 
 
 
@@ -456,7 +463,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # Over ride the call back for the event subscriber
         ar_1 = gevent.event.AsyncResult()
-        def message_received_1(message):
+        def message_received_1(message, headers):
             ar_1.set(message)
 
         proc_1.event_subscriber._callback = message_received_1
@@ -466,7 +473,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         log.info("PROCESS 2: %s" % str(proc_2))
 
         ar_2 = gevent.event.AsyncResult()
-        def message_received_2(message):
+        def message_received_2(message, headers):
             ar_2.set(message)
 
         proc_2.event_subscriber._callback = message_received_2
@@ -482,4 +489,125 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 #        self.assertEquals(stream_policy.policy.archive_metadata, False)
 
 
-        self.assertEqual(ar_1.get(timeout=10),self.input_stream_id)
+        self.assertEqual(ar_1.get(timeout=10).stream_id,self.input_stream_id)
+        self.assertEqual(ar_2.get(timeout=10).stream_id,self.input_stream_id)
+
+
+    def test_stream_policy_stream_not_found(self):
+        pass
+        # try to create a stream policy for a stream that does not exist
+        # Assert that the operation fails
+
+
+    def test_ingestion_workers_writes_to_couch(self):
+        """
+        Test that the ingestion workers are writing messages to couch
+        """
+
+        #------------------------------------------------------------------------
+        # Create ingestion configuration and activate it
+        #----------------------------------------------------------------------
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
+            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+
+        #------------------------------------------------------------------------
+        # Publish messages
+        #----------------------------------------------------------------------
+
+        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
+
+        self.ctd_stream1_publisher.publish(post)
+
+        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
+
+        self.ctd_stream1_publisher.publish(comment)
+
+
+        #------------------------------------------------------------------------
+        # List the posts and the comments that should have been written to couch
+        #----------------------------------------------------------------------
+
+        objs = self.db.list_objects()
+
+        # the list of ion_objects... in our case BlogPost and BlogComment
+        ion_objs = []
+
+        for obj in objs:
+
+            # read the document returned by list
+            result = self.db.read_doc(objs[0])
+
+            # convert the persistence dict to an ion_object
+            ion_obj = self.db._persistence_dict_to_ion_object(result)
+
+            if isinstance(ion_obj, BlogPost):
+                log.debug("ION OBJECT: %s\n" % ion_obj)
+                log.debug("POST: %s\n" % post)
+
+                # since the retrieved document has an extra attribute, rev_id, which the orginal post did not have
+                # it is easier to compare the attributes than the whole objects
+                self.assertTrue(ion_obj.post_id == post.post_id), "The post is not to be found in couch storage"
+                self.assertTrue(ion_obj.author == post.author), "The post is not to be found in couch storage"
+                self.assertTrue(ion_obj.title == post.title), "The post is not to be found in couch storage"
+                self.assertTrue(ion_obj.updated == post.updated), "The post is not to be found in couch storage"
+                self.assertTrue(ion_obj.content == post.content), "The post is not to be found in couch storage"
+
+            elif isinstance(ion_obj, BlogComment):
+                log.debug("ION OBJECT: %s\n" % ion_obj)
+                log.debug("COMMENT: %s\n" % comment)
+
+                # since the retrieved document has an extra attribute, rev_id, which the orginal post did not have
+                # it is easier to compare the attributes than the whole objects
+                self.assertTrue(ion_obj.author == comment.author), "The comment is not to be found in couch storage"
+                self.assertTrue(ion_obj.content == comment.content), "The comment is not to be found in couch storage"
+                self.assertTrue(ion_obj.ref_id == comment.ref_id), "The comment is not to be found in couch storage"
+                self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
+
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+
+        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
+
+    def test_default_policy(self):
+        """
+        Test that the default policy is being used properly
+        """
+        """
+        Test that the ingestion workers are writing messages to couch
+        """
+
+        #------------------------------------------------------------------------
+        # Create ingestion configuration and activate it
+        #----------------------------------------------------------------------
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
+            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+
+        #------------------------------------------------------------------------
+        # Publish messages
+        #----------------------------------------------------------------------
+
+        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
+
+        self.ctd_stream1_publisher.publish(post)
+
+        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
+
+        self.ctd_stream1_publisher.publish(comment)
+
+        #------------------------------------------------------------------------
+        # Test that the policy is
+        #----------------------------------------------------------------------
+
+        #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
+
+
+        #------------------------------------------------------------------------
+        # Cleanup
+        #----------------------------------------------------------------------
+
+        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)

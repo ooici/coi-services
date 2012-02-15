@@ -13,6 +13,7 @@ from interface.objects import DataContainer, DataStream, StreamGranuleContainer
 from pyon.datastore.datastore import DataStore, DatastoreManager
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
+from pyon.util.async import spawn
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import BlogPost, BlogComment, StreamPolicy
@@ -59,11 +60,17 @@ class IngestionWorker(TransformDataProcess):
 
         self.stream_policies = {}
         # update the policy
-        def receive_policy_event(self, event_msg):
-            self.stream_policies[event_msg.policy.stream_id] = event_msg
+        def receive_policy_event(event_msg, headers):
+            log.warn('Got a message!!!!')
+            self.stream_policies[event_msg.stream_id] = event_msg
 
-        self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, callback=receive_policy_event)
 
+        #Use the Exchang Point name (id?) as the origin for stream policy events
+        XP = self.stream_subscriber_registrar.XP
+        # @todo Find a better way to get the XP that the ingestion worker is subscribed too
+
+        self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, origin=XP, callback=receive_policy_event)
+        self.gl = spawn(self.event_subscriber.listen)
 
         log.warn(str(self.db))
 

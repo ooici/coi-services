@@ -253,6 +253,11 @@ class IngestionManagementService(BaseIngestionManagementService):
             raise IngestionManagementServiceException('Must pass a stream id to create stream policy')
 
         log.debug("Creating stream policy")
+
+        # Read the stream to get the stream definition
+        stream = self.clients.pubsub_management.read_stream(stream_id=stream_id)
+
+
         policy = StreamPolicy(  archive_data=archive_data,
                                 archive_metadata=archive_metadata,
                                 stream_id=stream_id)
@@ -264,8 +269,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         stream_policy_id, _ = self.clients.resource_registry.create(stream_policy)
 
 
+        #Use the Exchang Point name (id?) as the origin for stream policy events
+        #@todo Once XP is really a resource get the exchange_point id for the stream
+        XP = self.XP
+
         self.event_publisher.create_and_publish_event(
-            origin='ingestion_management',
+            origin=XP,
             stream_id =stream_id,
             archive_data=archive_data,
             archive_metadata=archive_metadata,
@@ -286,6 +295,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.event_publisher.create_and_publish_event(
             origin='ingestion_management',
+            description='junk!',
             stream_id =stream_id,
             archive_data=True,
             archive_metadata=True,
