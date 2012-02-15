@@ -89,14 +89,14 @@ class InstrumentProtocol(object):
     @todo Move this into the driver state machine?
     """
     
-    def initialize(self, timeout=10):
+    def initialize(self, *args, **kwargs):
         """
         """
         mi_logger.info('Initializing device comms.')        
         self._logger = None
         self._logger_client = None
     
-    def configure(self, config, timeout=10):
+    def configure(self, config, *args, **kwargs):
         """
         """
         mi_logger.info('Configuring for device comms.')        
@@ -120,7 +120,7 @@ class InstrumentProtocol(object):
             # The config dict does not have a valid connection method.
             raise InstrumentConnectionException()
     
-    def connect(self, timeout=10):
+    def connect(self, *args, **kwargs):
         """Connect via the instrument connection object
         
         @param args connection arguments
@@ -132,16 +132,23 @@ class InstrumentProtocol(object):
         mi_logger.info('Found logger pid: %s.', str(logger_pid))
         if not logger_pid:
             self._logger_popen = self._logger.launch_process()
-            retval = os.wait()
-            mi_logger.debug('os.wait returned %s', str(retval))
+            time.sleep(0.2)
+            try:
+                retval = os.wait()
+                mi_logger.debug('os.wait returned %s' % str(retval))
+            except Exception as e:
+                mi_logger.debug('os.wait() threw %s: %s' %
+                               (e.__class__.__name__, str(e)))
             mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
             time.sleep(1)         
             self.attach()
         else:
             # There was a pidfile for the device.
             raise InstrumentConnectionException()
+
+        return logger_pid
         
-    def disconnect(self, timeout=10):
+    def disconnect(self, *args, **kwargs):
         """Disconnect via the instrument connection object
         
         @throws InstrumentConnectionException
@@ -150,19 +157,19 @@ class InstrumentProtocol(object):
         self.detach()
         self._logger.stop()
     
-    def attach(self, timeout=10):
+    def attach(self, *args, **kwargs):
         """
         """
         mi_logger.info('Attaching to device.')        
         self._logger_client.init_comms(self._got_data)
     
-    def detach(self, timeout=10):
+    def detach(self, *args, **kwargs):
         """
         """
         mi_logger.info('Detaching from device.')
         self._logger_client.stop_comms()
         
-    def reset(self):
+    def reset(self, *args, **kwargs):
         """Reset via the instrument connection object"""
         # Call logger reset here.
         pass
@@ -171,7 +178,7 @@ class InstrumentProtocol(object):
     # Protocol command interface.
     ########################################################################
         
-    def get(self, params, timeout=10):
+    def get(self, *args, **kwargs):
         """Get some parameters
         
         @param params A list of parameters to fetch. These must be in the
@@ -185,11 +192,9 @@ class InstrumentProtocol(object):
         """
         pass
     
-    def set(self, params, timeout=10):
-        """Set some parameters
+    def set(self, *args, **kwargs):
+        """Get some parameters
         
-        @param params A dict with the parameters to fetch. Must be in the
-        fetchable list
         @throws InstrumentProtocolException Confusion dealing with the
         physical device
         @throws InstrumentStateException Unable to handle current or future
@@ -198,7 +203,7 @@ class InstrumentProtocol(object):
         """
         pass
 
-    def execute(self, command, timeout=10):
+    def execute(self, *args, **kwargs):
         """Execute a command
         
         @param command A single command as a list with the command ID followed
@@ -211,7 +216,7 @@ class InstrumentProtocol(object):
         """
         pass
     
-    def execute_direct(self, bytes):
+    def execute_direct(self, *args, **kwargs):
         """
         """
         pass
@@ -220,13 +225,6 @@ class InstrumentProtocol(object):
     # TBD.
     ########################################################################
     
-    def get_status(self):
-        """Gets the current status of the instrument.
-        
-        @retval status A dict of the current status of the instrument. Keys are
-        listed in the status parameter list.
-        """
-        pass
     
     def get_capabilities(self):
         """
@@ -439,7 +437,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 if self._promptbuf.endswith(item):
                     mi_logger.debug('Got prompt: %s', repr(item))
                     return (item, self._linebuf)
-            
+                else:
+                    time.sleep(.1)
             if time.time() > starttime + timeout:
                 raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
 
@@ -530,6 +529,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         """
         return self._parameters[name].value
+
+    def _get_param_dict_names(self):
+        """
+        """
+        return self._parameters.keys()
 
     def _get_config_param_dict(self):
         """

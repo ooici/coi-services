@@ -10,6 +10,8 @@ import time
 import hashlib
 from pyon.public import log, IonObject, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
+from pyon.core.object import IonObjectSerializer, IonObjectBase
+
 
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
 
@@ -21,6 +23,8 @@ class TransformManagementService(BaseTransformManagementService):
     """
     def __init__(self):
         BaseTransformManagementService.__init__(self)
+
+        self.serializer = IonObjectSerializer()
 
 
 
@@ -45,7 +49,12 @@ class TransformManagementService(BaseTransformManagementService):
         # Resources and Initial Configs
         # ------------------------------------------------------------------------------------
         # Determine Transform Name
-        if not configuration:
+
+        if isinstance(configuration, IonObjectBase):
+            #@todo Is this the right way to handle configs that come as IonObjects?
+            configuration = self.serializer.serialize(configuration)
+
+        elif not configuration:
             configuration = {}
 
         # Handle the name uniqueness factor
@@ -60,7 +69,7 @@ class TransformManagementService(BaseTransformManagementService):
         if not process_definition_id:
             raise NotFound('No process definition was provided')
         process_definition = self.clients.resource_registry.read(process_definition_id)
-        module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
+        module = process_definition.executable.get('module','ion.processes.data.transforms.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
 
         # Transform Resource for association management and pid
@@ -73,6 +82,7 @@ class TransformManagementService(BaseTransformManagementService):
 
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
         listen_name = subscription.exchange_name
+
 
         configuration['process'] = {
             'name':transform_name,
@@ -97,7 +107,7 @@ class TransformManagementService(BaseTransformManagementService):
                         cls=cls,
                         config=configuration)
 
-        transform_res.process_id = '%s.%s' % (str(self.container.id), str(pid))
+        transform_res.process_id =  pid
         
         # ------------------------------------------------------------------------------------
         # Handle Resources
@@ -199,13 +209,12 @@ class TransformManagementService(BaseTransformManagementService):
             }
         }
 
-        id = self.container.spawn_process(name=name,
+        pid = self.container.spawn_process(name=name,
                         module=module,
                         cls=cls,
                         config=configuration)
 
 
-        pid = '%s.%s' %(self.container.id, id)
         process_instance = self.container.proc_manager.procs[pid]
         retval = process_instance.execute(data)
 

@@ -11,7 +11,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
 
-@attr('INT', group='resource')
+@attr('INT', group='coi')
 class TestResourceRegistry(IonIntegrationTestCase):
     
 #    service_dependencies = [('resource_registry', {'resource_registry': {'persistent': True, 'force_clean': True}})]

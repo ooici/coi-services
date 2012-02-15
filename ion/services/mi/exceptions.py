@@ -18,8 +18,7 @@ class InstrumentException(Exception):
     representation in ION.
     """
     
-    def __init__ (self, error_code, msg=""):
-        Exception.__init__(self)
+    def __init__ (self, error_code=None, msg=""):
         self.args = (error_code, msg)
         self.error_code = error_code
         self.msg = msg
@@ -34,7 +33,7 @@ class InstrumentProtocolException(InstrumentException):
     to happen when talking at the lowest layer protocol to a device.
     @todo Add partial result property?
     """
-
+    
 class InstrumentStateException(InstrumentException):
     """Exception related to an instrument state of any sort"""
     
@@ -50,6 +49,7 @@ class InstrumentDataException(InstrumentException):
 class CommsException(InstrumentException):
     """Exception related to upstream communications trouble"""
     
-
+class RequiredParameterException(InstrumentException):
+    """A required parameter is not supplied"""
     
     

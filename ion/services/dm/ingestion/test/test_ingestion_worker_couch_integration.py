@@ -14,7 +14,7 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 import unittest
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber
-from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery
+from interface.objects import ProcessDefinition, StreamQuery, ExchangeQuery, HdfStorage, CouchStorage, StreamPolicy
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -22,8 +22,8 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from interface.objects import BlogPost, BlogComment
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
-
+from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
+from pyon.datastore.datastore import DataStore
 
 @attr('INT', group='dm')
 class IngestionManagementServiceIntTest(IonIntegrationTestCase):
@@ -54,8 +54,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.exchange_point_id = 'science_data'
         self.datastore_name = 'dm_datastore'
         self.number_of_workers = 2
-        self.hdf_storage = {'root_path': '', 'filesystem' : ''}
-        self.couch_storage = {'server': '', 'couchstorage': '', 'database': self.datastore_name }
+        self.hdf_storage = HdfStorage()
+        self.couch_storage = CouchStorage(datastore_name = self.datastore_name)
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
 
@@ -63,8 +63,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Refresh datastore before testing
         #----------------------------------------------------------------------
 
-        self.db = CouchDB_DM_DataStore()
-        self.db.delete_datastore(self.datastore_name)
+        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.EXAMPLES, CFG)
 
         #------------------------------------------------------------------------
         # Stream publisher
@@ -75,16 +74,12 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ctd_stream1_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), \
                                                                                         process=self.cc)
 
-        self.default_policy = {'name' : 'default_policy', 'description' : 'a default policy',\
-                               'lcstate' : 'DRAFT', 'ts_created' : 'created_now',\
-                               'ts_updated' : 'updated_later', 'archive_data' : True,\
-                               'archive_metadata' : True,'stream_id' : self.input_stream_id}
+        self.default_policy = StreamPolicy(stream_id=self.input_stream_id)
 
     def tearDown(self):
         """
         Cleanup. Delete Subscription, Stream, Process Definition
         """
-        self.pubsub_cli.delete_stream(self.input_stream_id)
         self._stop_container()
 
 
@@ -117,7 +112,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # List the posts and the comments that should have been written to couch
         #----------------------------------------------------------------------
 
-        objs = self.db.list_objects(self.couch_storage['database'])
+        objs = self.db.list_objects()
 
         # the list of ion_objects... in our case BlogPost and BlogComment
         ion_objs = []
@@ -125,7 +120,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         for obj in objs:
 
             # read the document returned by list
-            result = self.db.read_doc(objs[0], '', 'dm_datastore')
+            result = self.db.read_doc(objs[0])
 
             # convert the persistence dict to an ion_object
             ion_obj = self.db._persistence_dict_to_ion_object(result)

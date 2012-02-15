@@ -64,7 +64,7 @@ class PolicyManagementService(BasePolicyManagementService):
         policy = self.clients.resource_registry.read(policy_id)
         if not policy:
             raise NotFound("Policy %s does not exist" % policy_id)
-        self.clients.resource_registry.delete(policy)
+        self.clients.resource_registry.delete(policy_id)
 
     def enable_policy(self, policy_id=''):
         """Advances the lifecycle state of the specified Policy object to be enabled. Only
@@ -134,7 +134,7 @@ class PolicyManagementService(BasePolicyManagementService):
         user_role = self.clients.resource_registry.read(user_role_id)
         if not user_role:
             raise NotFound("Role %s does not exist" % user_role_id)
-        self.clients.resource_registry.delete(user_role)
+        self.clients.resource_registry.delete(user_role_id)
 
 
     def grant_role(self, org_id='', user_id='', user_role_id='', scope=None):

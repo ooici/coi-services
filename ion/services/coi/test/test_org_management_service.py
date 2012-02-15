@@ -6,12 +6,14 @@ __license__ = 'Apache 2.0'
 import unittest
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, IonObject
 from ion.services.coi.org_management_service import OrgManagementService
-
+from interface.services.icontainer_agent import ContainerAgentClient
+from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 
 @attr('UNIT', group='coi')
 class TestOrgManagementService(PyonTestCase):
@@ -89,4 +91,64 @@ class TestOrgManagementService(PyonTestCase):
         self.assertEqual(ex.message, 'Org bad does not exist')
         self.mock_delete.assert_called_once_with('bad')
 
+
+@attr('INT', group='coi')
+class TestOrgManagementServiceInt(IonIntegrationTestCase):
+
+    def setUp(self):
+
+        # Start container
+        self._start_container()
+
+        # Establish endpoint with container
+        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
+        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+
+        self.org_management_service = OrgManagementServiceClient(node=self.container.node)
+
+
+    def test_org_crud(self):
+        org_obj = IonObject("Org", {"name": "Test Facility"})
+        org_id = self.org_management_service.create_org(org_obj)
+        self.assertNotEqual(org_id, None)
+
+        org = None
+        org = self.org_management_service.read_org(org_id)
+        self.assertNotEqual(org, None)
+
+
+        org.name = 'Updated Test Facility'
+        self.org_management_service.update_org(org)
+
+        org = None
+        org = self.org_management_service.read_org(org_id)
+        self.assertNotEqual(org, None)
+        self.assertEqual(org.name, 'Updated Test Facility')
+
+        self.org_management_service.delete_org(org_id)
+
+        with self.assertRaises(NotFound) as cm:
+            self.org_management_service.read_org(org_id)
+        self.assertIn("does not exist", cm.exception.message)
+
+        with self.assertRaises(NotFound) as cm:
+            self.org_management_service.delete_org(org_id)
+        self.assertIn("does not exist", cm.exception.message)
+
+
+    def test_org_affiliation(self):
+
+        root_org = None
+        root_org = self.org_management_service.find_org()
+        self.assertNotEqual(root_org, None)
+
+        org_obj = IonObject("Org", {"name": "Test Facility"})
+        org_id = self.org_management_service.create_org(org_obj)
+        self.assertNotEqual(org_id, None)
+
+        ret = self.org_management_service.affiliate_org(root_org._id, org_id)
+        self.assertTrue(ret)
+
+        ret = self.org_management_service.unaffiliate_org(root_org._id, org_id)
+        self.assertTrue(ret)
 

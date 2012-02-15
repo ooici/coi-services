@@ -4,8 +4,8 @@
 @description Transform Examples, Transform Example Launcher
 '''
 import commands
-import threading
 import time
+from gevent.greenlet import Greenlet
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
@@ -28,7 +28,7 @@ class TransformExampleProducer(StreamProcess):
     Used as a data producer in examples.
     It publishes input for the following examples as {'num':<int>} where <int> is the integer.
     The production is published every 4 seconds and the published data is incremented by 1
-    id_p = cc.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
+    id_p = cc.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':'forced'}},'stream_producer':{'interval':4000}})
     cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
     """
 
@@ -46,9 +46,7 @@ class TransformExampleProducer(StreamProcess):
         else:
             self.output_streams = None
 
-        self.producer_proc = threading.Thread(target=self._trigger_func)
-
-
+        self.producer_proc = Greenlet(self._trigger_func)
         self.producer_proc.start()
 
 
@@ -56,7 +54,8 @@ class TransformExampleProducer(StreamProcess):
         pass
 
     def on_quit(self):
-        log.debug("StreamProducer quit")
+        log.debug("TransformExampleProducer quit")
+        self.producer_proc.kill()
 
     def _trigger_func(self):
         interval = self.CFG.get('stream_producer').get('interval')
@@ -72,6 +71,20 @@ class TransformExampleProducer(StreamProcess):
             log.debug("Message %s published", num)
             num += 1
             time.sleep(interval/1000.0)
+
+class TransformCapture(TransformDataProcess):
+    def on_start(self):
+        super(TransformCapture, self).on_start()
+#        #@todo: Remove debugging statements
+        log.debug('(Transform: %s) Starting...',self.name)
+        self.file_name = self.CFG.get('process',{}).get('file_name','/tmp/transform_output')
+
+
+    def process(self, packet):
+        with open(self.file_name,'a') as f:
+            f.write('%s: ' % time.strftime("%Y-%m-%dT%H:%M:%S-05"))
+            f.write('%s' % packet)
+            f.write('\n')
 
 class TransformCampfire(TransformDataProcess):
 
@@ -109,7 +122,7 @@ class TransformCampfire(TransformDataProcess):
         if isinstance(packet.author, BlogAuthor):
             author = packet.author.name
         elif isinstance(packet.author,dict):
-            author = packet.author['name']
+            author = packet.author.get('name','')
         else:
             author = packet.author
 
@@ -300,7 +313,7 @@ class TransformExampleLauncher(BaseService):
 
         process_definition = IonObject(RT.ProcessDefinition, name='transform_process_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
         process_definition_id, _ = rr_cli.create(process_definition)
@@ -355,7 +368,7 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
 
         # Create a producing example process
-        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
+        id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 
     #-------------------------------
@@ -374,7 +387,7 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
         process_definition = IonObject(RT.ProcessDefinition, name='transform_process_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'ReverseTransform'
         }
         process_definition_id, _ = rr_cli.create(process_definition)
@@ -412,7 +425,7 @@ class TransformExampleLauncher(BaseService):
         # Create the process definition for the basic transform
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
         basic_transform_definition_id, _ = rr_cli.create(process_definition)
@@ -420,7 +433,7 @@ class TransformExampleLauncher(BaseService):
         # Create The process definition for the TransformEvenOdd
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
         process_definition.executable = {
-            'module': 'ion.services.dm.transformation.example.transform_example',
+            'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformEvenOdd'
         }
         evenodd_transform_definition_id, _ = rr_cli.create(process_definition)
@@ -484,7 +497,7 @@ class TransformExampleLauncher(BaseService):
         # Spawn the Streaming Producer
         #-------------------------------
 
-        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
+        id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 
     #-------------------------------
@@ -506,7 +519,7 @@ class TransformExampleLauncher(BaseService):
         # Process Definition
         #-------------------------------
         process_definition = ProcessDefinition(name='external_transform_definition')
-        process_definition.executable['module'] = 'ion.services.dm.transformation.example.transform_example'
+        process_definition.executable['module'] = 'ion.processes.data.transforms.transform_example'
         process_definition.executable['class'] = 'ExternalTransform'
         process_definition_id, _ = rr_cli.create(process_definition)
 
@@ -537,6 +550,6 @@ class TransformExampleLauncher(BaseService):
         # Launch Producer
         #-------------------------------
 
-        id_p = self.container.spawn_process('myproducer', 'ion.services.dm.transformation.example.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
+        id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
         self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
 

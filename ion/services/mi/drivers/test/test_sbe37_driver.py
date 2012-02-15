@@ -40,13 +40,12 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_config
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_check_args
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
 
-@unittest.skip('Do not run hardware test.')
+#@unittest.skip('Do not run hardware test.')
 @attr('UNIT', group='mi')
 class TestSBE37Driver(PyonTestCase):    
     """
@@ -78,6 +77,20 @@ class TestSBE37Driver(PyonTestCase):
         # self.addCleanup()
         
         self.events = None
+
+    def tearDown(self):
+        """
+        """
+        mi_logger.info('Running tear down function.')
+        #psout = subprocess.check_output(['ps -e | grep python'], shell=True)
+        
+        """
+        1724 ??         0:00.01 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c import ion.services.mi.logger_process as lp; l = lp.EthernetD
+        1721 ttys000    0:00.24 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c from ion.services.mi.zmq_driver_process import ZmqDriverProce
+        
+1742 ??         0:00.01 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c import ion.services.mi.logger_process as lp; l = lp.EthernetDeviceLogger("137.110.112.119", 4001, 8888, "/", ["<<",">>"]); l.start()        
+1739 ttys000    0:02.66 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c from ion.services.mi.zmq_driver_process import ZmqDriverProcess; dp = ZmqDriverProcess(5556, 5557, "ion.services.mi.drivers.sbe37_driver", "SBE37Driver");dp.run()
+        """
         
     def clear_events(self):
         """
@@ -219,20 +232,18 @@ class TestSBE37Driver(PyonTestCase):
             (SBE37Channel.CTD, SBE37Parameter.ALL)            
         ]
         reply = driver_client.cmd_dvr('get', get_params)
-        success = reply[0]
-        result = reply[1]
         time.sleep(2)
         
         # Check overall and individual parameter success. Check parameter types.
-        self.assert_(InstErrorCode.is_ok(success))
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertIsInstance(reply, dict)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
         
         # Set up a param dict of the original values.
-        old_ta2 = result[(SBE37Channel.CTD, SBE37Parameter.TA2)]
-        old_ptca1 = result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)]
-        old_tcaldate = result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)]
+        old_ta2 = reply[(SBE37Channel.CTD, SBE37Parameter.TA2)]
+        old_ptca1 = reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)]
+        old_tcaldate = reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)]
                
         orig_params = {
             (SBE37Channel.CTD, SBE37Parameter.TA2): old_ta2,
@@ -253,12 +264,11 @@ class TestSBE37Driver(PyonTestCase):
         
         # Set the params to their new values.
         reply = driver_client.cmd_dvr('set', new_params)
-        success = reply[0]
-        result = reply[1]        
         time.sleep(2)
         
         # Check overall success and success of the individual paramters.
-        self.assert_(InstErrorCode.is_ok(success))
+        self.assertIsInstance(reply, dict)
+        mi_logger.debug('set result: %s', str(reply))
         
         # Get the same paramters back from the driver.
         get_params = [
@@ -267,40 +277,35 @@ class TestSBE37Driver(PyonTestCase):
             (SBE37Channel.CTD, SBE37Parameter.TCALDATE)
         ]
         reply = driver_client.cmd_dvr('get', get_params)
-        success = reply[0]
-        result = reply[1]        
         time.sleep(2)
 
         # Check success, and check that the parameters were set to the
         # new values.
-        self.assert_(InstErrorCode.is_ok(success))
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], new_ta2, delta=abs(0.01*new_ta2))
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], new_ptcal1, delta=abs(0.01*new_ptcal1))
-        self.assertEqual(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], new_tcaldate)
+        self.assertIsInstance(reply, dict)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], new_ta2, delta=abs(0.01*new_ta2))
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], new_ptcal1, delta=abs(0.01*new_ptcal1))
+        self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], new_tcaldate)
 
         # Set the paramters back to their original values.        
         reply = driver_client.cmd_dvr('set', orig_params)
-        success = reply[0]
-        result = reply[1]
-        self.assert_(InstErrorCode.is_ok(success))
+        self.assertIsInstance(reply, dict)
+        mi_logger.debug('set result: %s', str(reply))
 
         # Get the parameters back from the driver.
         reply = driver_client.cmd_dvr('get', get_params)
-        success = reply[0]
-        result = reply[1]        
 
         # Check overall and individual sucess, and that paramters were
         # returned to their original values.
-        self.assert_(InstErrorCode.is_ok(success))
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.TA2)], old_ta2, delta=abs(0.01*old_ta2))
-        self.assertAlmostEqual(result[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], old_ptca1, delta=abs(0.01*old_ptca1))
-        self.assertEqual(result[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], old_tcaldate)
+        self.assertIsInstance(reply, dict)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], old_ta2, delta=abs(0.01*old_ta2))
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], old_ptca1, delta=abs(0.01*old_ptca1))
+        self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], old_tcaldate)
         
         # Disconnect driver from the device.        
         reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
@@ -335,13 +340,16 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
+        reply = driver_client.cmd_dvr('get_active_channels')
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
+        reply = driver_client.cmd_dvr('execute_acquire_sample', [SBE37Channel.CTD])
+        time.sleep(2)
+        
+        reply = driver_client.cmd_dvr('execute_acquire_sample', [SBE37Channel.CTD])
         time.sleep(2)
 
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.ACQUIRE_SAMPLE])
+        reply = driver_client.cmd_dvr('execute_acquire_sample', [SBE37Channel.CTD])
         time.sleep(2)
 
         print 'EVENTS RECEIVED:'
@@ -378,12 +386,12 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.START_AUTO_SAMPLING])
+        reply = driver_client.cmd_dvr('execute_start_autosample', [SBE37Channel.CTD])
         time.sleep(30)
         
         while True:
-            reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], [SBE37Command.STOP_AUTO_SAMPLING])
-            if InstErrorCode.is_ok(reply[0]):
+            reply = driver_client.cmd_dvr('execute_stop_autosample', [SBE37Channel.CTD])
+            if not reply[SBE37Channel.CTD]:
                 break
             time.sleep(2)
         time.sleep(2)
@@ -399,84 +407,6 @@ class TestSBE37Driver(PyonTestCase):
         driver_client.done()
         driver_process.wait()
         
-    """
-    def test_check_args(self):
-        
-        
-        
-        c1 = [SBE37Channel.ALL]
-        c2 = [SBE37Channel.CTD]
-        c3 = [SBE37Channel.CTD, SBE37Channel.CTD]
-        c4 = [SBE37Channel.CTD, SBE37Channel.ALL]
-        c5 = ['bogus1', 'bogus2', SBE37Channel.CTD, SBE37Channel.ALL]
-        
-        result = SBE37Driver._check_channel_args(c1)
-        print str(result)
-        result = SBE37Driver._check_channel_args(c2)
-        print str(result)
-        result = SBE37Driver._check_channel_args(c3)
-        print str(result)
-        result = SBE37Driver._check_channel_args(c4)
-        print str(result)
-        result = SBE37Driver._check_channel_args(c5)
-        print str(result)
-        
-        g1 = [(SBE37Channel.CTD, SBE37Parameter.TA0)]
-        g2 = [(SBE37Channel.ALL, SBE37Parameter.TA0)]
-        g3 = [(SBE37Channel.ALL, SBE37Parameter.ALL)]
-        g4 = [(SBE37Channel.ALL, SBE37Parameter.CH),
-                    (SBE37Channel.ALL, SBE37Parameter.TA0),
-                    (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL)]
-        g5 = [(SBE37Channel.CTD, SBE37Parameter.CH),
-                    (SBE37Channel.CTD, SBE37Parameter.TA0),
-                    (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL)]
-        g6 = [('bogus', SBE37Parameter.CH),
-                    (SBE37Channel.CTD, 'bogus'),
-                    (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL)]
-        
-        result = SBE37Driver._check_get_args(g1)
-        print str(result)
-        result = SBE37Driver._check_get_args(g2)
-        print str(result)
-        result = SBE37Driver._check_get_args(g3)
-        print str(result)
-        result = SBE37Driver._check_get_args(g4)
-        print str(result)
-        result = SBE37Driver._check_get_args(g5)
-        print str(result)
-        result = SBE37Driver._check_get_args(g6)
-        print str(result)
-        
-        s1 = {
-            (SBE37Channel.CTD, SBE37Parameter.CH) : 0.95,
-            (SBE37Channel.CTD, SBE37Parameter.TA0) : 0.95,
-            (SBE37Channel.CTD, SBE37Parameter.OUTPUTSAL) : True            
-        }
-        s2 = {
-            (SBE37Channel.ALL, SBE37Parameter.CH) : 0.95,
-            (SBE37Channel.ALL, SBE37Parameter.TA0) : 0.95,
-            (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL) : True            
-        }
-        s3 = {
-            (SBE37Channel.ALL, SBE37Parameter.ALL) : 0.95,
-            (SBE37Channel.ALL, SBE37Parameter.TA0) : 0.95,
-            (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL) : True            
-        }
-        s4 = {
-            (SBE37Channel.ALL, 'bogus') : 0.95,
-            ('bogus', SBE37Parameter.TA0) : 0.95,
-            (SBE37Channel.ALL, SBE37Parameter.OUTPUTSAL) : True            
-        }
-        
-        result = SBE37Driver._check_set_args(s1)
-        print str(result)
-        result = SBE37Driver._check_set_args(s2)
-        print str(result)
-        result = SBE37Driver._check_set_args(s3)
-        print str(result)
-        result = SBE37Driver._check_set_args(s4)
-        print str(result)
-        """
 
 
     

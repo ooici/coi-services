@@ -13,7 +13,7 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import PRED, RT, StreamPublisher, StreamSubscriber, log
+from pyon.public import PRED, RT, StreamPublisher, StreamSubscriber, log, StreamSubscriberRegistrar, StreamPublisherRegistrar
 from nose.plugins.attrib import attr
 import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum
@@ -474,13 +474,26 @@ class PubSubIntTest(IonIntegrationTestCase):
             "Sample Exchange Subscription Description")
 
 
-        # cheat to make a publisher object to send messages in the test.
-        # it is really hokey to pass process=self.cc but it works
-        stream_route = self.pubsub_cli.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.ctd_stream1_id)
-        self.ctd_stream1_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), process=self.cc)
+        pid = self.container.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+        dummy_process = self.container.proc_manager.procs[pid]
 
-        stream_route = self.pubsub_cli.register_producer(exchange_name='producer_doesnt_have_a_name2', stream_id=self.ctd_stream2_id)
-        self.ctd_stream2_publisher = StreamPublisher(node=self.cc.node, name=('science_data',stream_route.routing_key), process=self.cc)
+
+        # Normally the user does not see or create the publisher, this is part of the containers business.
+        # For the test we need to set it up explicitly
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+
+        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream1_id)
+
+        self.ctd_stream2_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream2_id)
+
+
+        # Cheat and use the cc as the process - I don't think it is used for anything...
+        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.cc.node)
+
+
 
     def tearDown(self):
         self.pubsub_cli.delete_subscription(self.ctd_subscription_id)
@@ -496,13 +509,13 @@ class PubSubIntTest(IonIntegrationTestCase):
         def message_received(message, headers):
             ar.set(message)
 
-        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'), callback=message_received, process=self.cc)
+        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
         self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(ar.get(timeout=10), 'message1')
+        self.assertEqual(ar.get(timeout=30), 'message1')
 
         ar = gevent.event.AsyncResult()
 
@@ -519,7 +532,7 @@ class PubSubIntTest(IonIntegrationTestCase):
         def message_received(message, headers):
             ar.set(message)
 
-        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','another_queue'), callback=message_received, process=self.cc)
+        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
@@ -541,7 +554,7 @@ class PubSubIntTest(IonIntegrationTestCase):
         def message_received(message, headers):
             ar.set(message)
 
-        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','a_queue'), callback=message_received, process=self.cc)
+        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
@@ -570,7 +583,8 @@ class PubSubIntTest(IonIntegrationTestCase):
         def message_received(message, headers):
             ar.set(message)
 
-        subscriber = StreamSubscriber(node=self.cc.node, name=('science_data','another_queue'), callback=message_received, process=self.cc)
+
+        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)

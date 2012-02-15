@@ -4,7 +4,7 @@ __author__ = 'Thomas Lennan'
 
 from nose.plugins.attrib import attr
 
-from pyon.core.bootstrap import sys_name
+from pyon.core.bootstrap import get_sys_name
 from pyon.core.exception import BadRequest
 from pyon.datastore.datastore import DataStore
 from pyon.public import IonObject, RT
@@ -13,7 +13,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.idatastore_service import DatastoreServiceClient, DatastoreServiceProcessClient
 
-@attr('INT', group='datastore')
+@attr('INT', group='coi')
 class TestDatastore(IonIntegrationTestCase):
     
     def setUp(self):
@@ -28,7 +28,7 @@ class TestDatastore(IonIntegrationTestCase):
         self.datastore_service = DatastoreServiceClient(node=self.container.node)
 
     def test_manage_datastore(self):
-        db_name_prefix = sys_name.lower()
+        db_name_prefix = get_sys_name().lower()
         self.datastore_service.delete_datastore(db_name_prefix + "_foo")
 
         self.datastore_service.create_datastore(db_name_prefix + "_foo")

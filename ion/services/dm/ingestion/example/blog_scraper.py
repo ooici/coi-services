@@ -11,8 +11,11 @@ import json, urllib2
 from interface.objects import BlogPost, BlogAuthor, BlogComment
 from pyon.ion.endpoint import StreamPublisher
 from pyon.ion.streamproc import StreamProcess
-import threading
-from pyon.net.endpoint import Publisher
+from gevent.greenlet import Greenlet
+from pyon.util.config import CFG
+from pyon.core import bootstrap
+
+from pyon.public import log
 
 class FeedFormatter(object):
     '''
@@ -41,18 +44,34 @@ class FeedStreamer(StreamProcess):
 
     '''
 
-    entries = []
     def on_start(self):
         '''
         Sets the name, the blog and loads the form feeder (URL and JSON Query Object)
         '''
+        xs_dot_xp = CFG.core_xps.science_data
+        try:
+            self.XS, xp_base = xs_dot_xp.split('.')
+            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
+
         self.name = self.CFG.get('name','feed_streamer')
         blog = self.CFG.get('process',{}).get('blog','saintsandspinners')
-        self.xp = self.CFG.get('process',{}).get('exchange_point','science_data')
+
         self.feed = FeedFormatter(blog=blog)
+        self.greenlet_queue = []
+
+        # Make a separate list for each instance of the Feed Streamer
+        self.entries=[]
 
         # Start the thread
         self.run(blog)
+
+    def on_quit(self):
+        for greenlet in self.greenlet_queue:
+            greenlet.kill()
+        super(FeedStreamer,self).on_quit()
 
 
     def _on_done(self):
@@ -68,19 +87,23 @@ class FeedStreamer(StreamProcess):
             For the reason we will pretend it has already been called and use an unregistered stream.
 
             """
-            p = StreamPublisher(name=(self.xp,'%s.%s' %(num,"data")),process=self,node=self.container.node)
+            p = StreamPublisher(name=(self.XP,'%s.%s' %(num,"data")),process=self,node=self.container.node)
             p.publish(msg=entry['post'])
+            log.debug('Published post id %s' % entry['post'].post_id)
             for comment in entry['comments']:
                 p.publish(msg=comment)
             num+=1
+
+        log.info('Completed Publishing Blog Results for Blog %s' % self.feed.blog)
 
 
     def run(self, blog):
         '''
         Initiate the thread to query, organize and publish the data
         '''
-        self.production = threading.Thread(target=self._grab,kwargs={'blog':blog,'callback':lambda : self._on_done()})
-        self.production.start()
+        production = Greenlet(self._grab,blog=blog,callback=lambda : self._on_done())
+        production.start()
+        self.greenlet_queue.append(production)
 
     def _grab(self, blog, callback):
         ''' Threaded query
@@ -93,8 +116,13 @@ class FeedStreamer(StreamProcess):
         '''
         data = json.load(self.feed.query())
         if not 'entry' in data['feed']:
+            log.warn('No Data Found from the blog: %s' % blog)
             return # No entries in this blog
         for field in data['feed']['entry']:
+
+            if len(self.entries) > 4:
+                break
+
             entry = {'post':None, 'comments':[]}
 
             ######################################
@@ -140,8 +168,15 @@ class FeedStreamer(StreamProcess):
                     comment = BlogComment(ref_id=ref_id,author=author,updated=updated,content=content)
                     entry['comments'].append(comment)
 
-            ######################################
-            # Push entry on queue
-            ######################################
-            self.entries.append(entry)
+            if len(entry['comments']) >4:
+                ######################################
+                # Push entry on queue
+                ######################################
+                self.entries.append(entry)
+
+            log.info('Got comments %d from the blog: %s' % (len(entry.get('comments',[])), blog))
+
+
+
+
         callback()

@@ -234,12 +234,12 @@ class ResourceImpl(object):
             if not hasattr(primary_object, "_id"):
                 # must not be any matching names
                 if 0 < len(found_res): 
-                    raise BadRequest("%s resource named '%s' already exists"
-                                     % (resource_type, name))
+                    raise BadRequest("%s resource named '%s' already exists with ID '%s'"
+                                     % (resource_type, name, found_res[0]))
             else: #updating
             # any existing name must match the id
                 if 1 == len(found_res) and primary_object._id != found_res[0]:
-                    raise BadRequest("%s resource named '%s' already exists"
+                    raise BadRequest("%s resource named '%s' already exists with a different ID"
                                      % (resource_type, name))
                     
                            
@@ -393,10 +393,11 @@ class ResourceImpl(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        return self.RR.find_subjects(self.iontype,
-                                     association_predicate,
-                                     some_object,
-                                     True)
+        ret, _ = self.RR.find_subjects(self.iontype,
+                                       association_predicate,
+                                       some_object,
+                                       True)
+        return ret
 
     def _find_stemming(self, primary_object_id, association_predicate, some_object_type):
         """
@@ -407,10 +408,11 @@ class ResourceImpl(object):
         @param association_prediate the association type
         @param some_object_type the type of associated object
         """
-        return self.RR.find_objects(primary_object_id,
-                                    association_predicate,
-                                    some_object_type,
-                                    True)
+        ret, _ = self.RR.find_objects(primary_object_id,
+                                      association_predicate,
+                                      some_object_type,
+                                      True)
+        return ret
 
 
     def find_having_attachment(self, attachment_id):
@@ -451,6 +453,43 @@ class ResourceImpl(object):
         @param object_id the resource ID of the type to be joined
         @todo check for errors: does RR check for bogus ids?
         """
+
+        associate_success = self.RR.create_association(subject_id,
+                                                       association_type,
+                                                       object_id)
+
+        log.debug("Create %s Association: %s"
+                  % (self._assn_name(association_type),
+                     str(associate_success)))
+        return associate_success
+
+
+    def _link_resources_exclusive(self, subject_id='', association_type='', object_id='', raise_exn=True):
+        """
+        create an association where only one at a time can exist
+         if there is an existing association, the choice is left to the user whether to raise exception
+         or quietly remove/replace the existing one.
+
+        @param subject_id the resource ID of the predefined type
+        @param association_type the predicate
+        @param object_id the resource ID of the type to be joined
+        @param raise_exn whether a BadRequest error should be raised if a duplicate is attempted
+        @todo check for errors: does RR check for bogus ids?
+        """
+
+        # see if there are any other objects of this type and pred on this subject
+        obj_type = self._get_resource_type_by_id(object_id)
+        existing_links, _ = self._find_stemming(subject_id, association_type, obj_type)
+        
+        if len(existing_links) > 1:
+            raise Inconsistent("Multiple %s-%s objects found on the same %s subject with id='%s'", 
+                               (association_type, obj_type, self.iontype, subject_id))
+        elif len(existing_links) > 0:
+            if raise_exn:
+                raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'",
+                                 (association_type, obj_type, self.iontype, subject_id))
+            else:
+                self._unlink_resources(self, subject_id, association_type, existing_links[0])
 
         associate_success = self.RR.create_association(subject_id,
                                                        association_type,

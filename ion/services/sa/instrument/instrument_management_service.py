@@ -260,8 +260,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #get instrument object and instrument's data producer
         inst_obj = self.instrument_device.read_one(instrument_device_id)
-        assoc_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasDataProducer, RT.DataProducer, True)
-        inst_pducer_id = assoc_ids[0]
+        inst_pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
+        inst_pducer_id = inst_pducers[0]
         log.debug("instrument data producer id='%s'" % inst_pducer_id)
 
         #create a new data product
@@ -273,18 +273,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         # get data product's data producer (via association)
-        assoc_ids, _ = self.RR.find_objects(pduct_id, PRED.hasDataProducer, RT.DataProducer, True)
-        prod_pducer_id = assoc_ids[0]
+        prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
+        #todo: Ian - I made some mods to data acquisition and data product services, this is failing now... not sure why...
+        #prod_pducer_id = prod_pducers[0]
         
         # (TODO: there should only be one assoc_id.  what error to raise?)
         # TODO: what error to raise if there are no assoc ids?
 
         # instrument data producer is the parent of the data product producer
-        associate_success = self.RR.create_association(prod_pducer_id,
-                                                       PRED.hasInputDataProducer, 
-                                                       inst_pducer_id)
-        log.debug("Create hasChildDataProducer Association: %s" % str(associate_success))
-
+        # todo: Ian - only data acquisition should link data producers to anything
+        #self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
 
         #TODO: error checking
 
@@ -732,12 +730,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
 
+    def assign_instrument_model_to_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
+        self.instrument_agent.link_model(instrument_agent_id, instrument_model_id)
 
-    def assign_X_to_Y(self, X_id='', Y_id=''):
-        self.Y.link_Z(Y_id, X_id)
+    def unassign_instrument_model_from_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
+        self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
-    def unassign_X_from_Y(self, X_id='', Y_id=''):
-        self.Y.unlink_Z(Y_id, X_id)
 
     def assign_sensor_model_to_sensor_device(self, sensor_model_id='', sensor_device_id=''):
         self.sensor_device.link_model(sensor_device_id, sensor_model_id)
@@ -751,11 +749,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_platform_model_from_platform_device(self, platform_model_id='', platform_device_id=''):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
+    def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
+        self.platform_device.link_instrument(platform_device_id, instrument_device_id)
+
+    def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
+        self.platform_device.unlink_instrument(platform_device_id, instrument_device_id)
+
     def assign_logical_instrument_to_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
         self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
 
     def unassign_logical_instrument_from_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
         self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
+
+    def assign_logical_platform_to_platform_device(self, logical_platform_id='', platform_device_id=''):
+        self.platform_device.link_assignment(platform_device_id, logical_platform_id)
+
+    def unassign_logical_platform_from_platform_device(self, logical_platform_id='', platform_device_id=''):
+        self.platform_device.unlink_assignment(platform_device_id, logical_platform_id)
 
     def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
         self.platform_agent.link_instance(platform_agent_id, platform_agent_instance_id)
@@ -770,6 +780,50 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
 
 
+    ############################
+    #
+    #  ASSOCIATION FIND METHODS
+    #
+    ############################
+
+
+    def find_instrument_model_by_instrument_device(self, instrument_device_id=''):
+        return self.instrument_device.find_stemming_model(instrument_device_id)
+
+    def find_instrument_device_by_instrument_model(self, instrument_model_id=''):
+        return self.instrument_device.find_having_model(instrument_model_id)
+
+    def find_platform_model_by_platform_device(self, platform_device_id=''):
+        return self.platform_device.find_stemming_model(platform_device_id)
+
+    def find_platform_device_by_platform_model(self, platform_model_id=''):
+        return self.platform_device.find_having_model(platform_model_id)
+
+    def find_instrument_model_by_instrument_agent(self, instrument_agent_id=''):
+        return self.instrument_agent.find_stemming_model(instrument_agent_id)
+
+    def find_instrument_agent_by_instrument_model(self, instrument_model_id=''):
+        return self.instrument_agent.find_having_model(instrument_model_id)
+
+    def find_instrument_device_by_platform_device(self, platform_device_id=''):
+        return self.platform_device.find_stemming_instrument(platform_device_id)
+
+    def find_platform_device_by_instrument_device(self, instrument_device_id=''):
+        return self.platform_device.find_having_instrument(instrument_device_id)
+
+    def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
+        return self.instrument_device.find_having_assignment(logical_instrument_id)
+
+    def find_logical_instrument_by_instrument_device(self, instrument_device_id=''):
+        return self.instrument_device.find_stemming_assignment(instrument_device_id)
+
+    def find_platform_device_by_logical_platform(self, logical_platform_id=''):
+        return self.platform_device.find_having_assignment(logical_platform_id)
+
+    def find_logical_platform_by_platform_device(self, platform_device_id=''):
+        return self.platform_device.find_stemming_assignment(platform_device_id)
+
+
 
     ############################
     #
@@ -778,26 +832,43 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ############################
 
     def find_data_product_by_instrument_device(self, instrument_device_id=''):
+        log.debug("FIND DATA PRODUCT BY INSTRUMNET DEVICE")
         #init return value, a list of data sets
         data_products = []
 
         #init working set of data producers to walk
         data_producers = []
         pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
-        data_producers += pducers[0]
+        data_producers += pducers
 
 
         #iterate through all un-processed data producers (could also do recursively)
         while 0 < len(data_producers):
            producer_id = data_producers.pop()
+           log.debug("Analyzing data producer '%s'" % producer_id)
            #get any products that are associated with this data producer and return them
-           data_products += self.data_product.find_stemming_data_producer(producer_id)[0]
+           new_data_products = self.data_product.find_having_data_producer(producer_id)
            #get any producers that receive input from this data producer
-           data_producers += self.data_producer.find_having_input_data_producer(producer_id)[0]
+           new_data_producers = self.data_producer.find_having_input_data_producer(producer_id)
+
+           log.debug("Got %d new products, %d new producers" % (len(new_data_products), 
+                                                                len(new_data_producers)))
+
+           data_products  += new_data_products
+           data_producers += new_data_producers
 
         return data_products
-        
 
+    def find_data_product_by_platform_device(self, platform_device_id=''):
+        ret = []
+        for i in self.find_instrument_device_by_platform_device(platform_device_id):
+            data_products = self.find_data_product_by_instrument_device(i)
+            for d in data_products:
+                if not d in ret:
+                    ret.append(d)
+
+        return ret
+        
 
 
     ############################
@@ -807,381 +878,73 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ############################
 
 
-    def declare_instrument_agent_planned(self, instrument_agent_id=""):
+    def set_instrument_agent_lifecycle(self, instrument_agent_id="", lifecycle_state=""):
        """
-       declare a instrument_agent to be in the PLANNED state
+       declare a instrument_agent to be in a given state
        @param instrument_agent_id the resource id
        """
-       return self.instrument_agent.advance_lcs(instrument_agent_id, LCS.PLANNED)
+       return self.instrument_agent.advance_lcs(instrument_agent_id, lifecycle_state)
 
-    def declare_instrument_agent_developed(self, instrument_agent_id=""):
+    def set_instrument_agent_instance_lifecycle(self, instrument_agent_instance_id="", lifecycle_state=""):
        """
-       declare a instrument_agent to be in the DEVELOPED state
-       @param instrument_agent_id the resource id
-       """
-       return self.instrument_agent.advance_lcs(instrument_agent_id, LCS.DEVELOPED)
-
-    def declare_instrument_agent_integrated(self, instrument_agent_id=""):
-       """
-       declare a instrument_agent to be in the INTEGRATED state
-       @param instrument_agent_id the resource id
-       """
-       return self.instrument_agent.advance_lcs(instrument_agent_id, LCS.INTEGRATED)
-
-    def declare_instrument_agent_discoverable(self, instrument_agent_id=""):
-       """
-       declare a instrument_agent to be in the DISCOVERABLE state
-       @param instrument_agent_id the resource id
-       """
-       return self.instrument_agent.advance_lcs(instrument_agent_id, LCS.DISCOVERABLE)
-
-    def declare_instrument_agent_available(self, instrument_agent_id=""):
-       """
-       declare a instrument_agent to be in the AVAILABLE state
-       @param instrument_agent_id the resource id
-       """
-       return self.instrument_agent.advance_lcs(instrument_agent_id, LCS.AVAILABLE)
-
-    def declare_instrument_agent_retired(self, instrument_agent_id=""):
-       """
-       declare a instrument_agent to be in the RETIRED state
-       @param instrument_agent_id the resource id
-       """
-       return self.instrument_agent.advance_lcs(instrument_agent_id, LCS.RETIRED)
-
-    def declare_instrument_agent_instance_planned(self, instrument_agent_instance_id=""):
-       """
-       declare a instrument_agent_instance to be in the PLANNED state
+       declare a instrument_agent_instance to be in a given state
        @param instrument_agent_instance_id the resource id
        """
-       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCS.PLANNED)
+       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, lifecycle_state)
 
-    def declare_instrument_agent_instance_developed(self, instrument_agent_instance_id=""):
+    def set_instrument_model_lifecycle(self, instrument_model_id="", lifecycle_state=""):
        """
-       declare a instrument_agent_instance to be in the DEVELOPED state
-       @param instrument_agent_instance_id the resource id
-       """
-       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCS.DEVELOPED)
-
-    def declare_instrument_agent_instance_integrated(self, instrument_agent_instance_id=""):
-       """
-       declare a instrument_agent_instance to be in the INTEGRATED state
-       @param instrument_agent_instance_id the resource id
-       """
-       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCS.INTEGRATED)
-
-    def declare_instrument_agent_instance_discoverable(self, instrument_agent_instance_id=""):
-       """
-       declare a instrument_agent_instance to be in the DISCOVERABLE state
-       @param instrument_agent_instance_id the resource id
-       """
-       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCS.DISCOVERABLE)
-
-    def declare_instrument_agent_instance_available(self, instrument_agent_instance_id=""):
-       """
-       declare a instrument_agent_instance to be in the AVAILABLE state
-       @param instrument_agent_instance_id the resource id
-       """
-       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCS.AVAILABLE)
-
-    def declare_instrument_agent_instance_retired(self, instrument_agent_instance_id=""):
-       """
-       declare a instrument_agent_instance to be in the RETIRED state
-       @param instrument_agent_instance_id the resource id
-       """
-       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCS.RETIRED)
-
-    def declare_instrument_model_planned(self, instrument_model_id=""):
-       """
-       declare a instrument_model to be in the PLANNED state
+       declare a instrument_model to be in a given state
        @param instrument_model_id the resource id
        """
-       return self.instrument_model.advance_lcs(instrument_model_id, LCS.PLANNED)
+       return self.instrument_model.advance_lcs(instrument_model_id, lifecycle_state)
 
-    def declare_instrument_model_developed(self, instrument_model_id=""):
+    def set_instrument_device_lifecycle(self, instrument_device_id="", lifecycle_state=""):
        """
-       declare a instrument_model to be in the DEVELOPED state
-       @param instrument_model_id the resource id
+       declare an instrument_device to be in a given state
+       @param instrument_device_id the resource id
        """
-       return self.instrument_model.advance_lcs(instrument_model_id, LCS.DEVELOPED)
+       return self.instrument_device.advance_lcs(instrument_device_id, lifecycle_state)
 
-    def declare_instrument_model_integrated(self, instrument_model_id=""):
+    def set_platform_agent_lifecycle(self, platform_agent_id="", lifecycle_state=""):
        """
-       declare a instrument_model to be in the INTEGRATED state
-       @param instrument_model_id the resource id
-       """
-       return self.instrument_model.advance_lcs(instrument_model_id, LCS.INTEGRATED)
-
-    def declare_instrument_model_discoverable(self, instrument_model_id=""):
-       """
-       declare a instrument_model to be in the DISCOVERABLE state
-       @param instrument_model_id the resource id
-       """
-       return self.instrument_model.advance_lcs(instrument_model_id, LCS.DISCOVERABLE)
-
-    def declare_instrument_model_available(self, instrument_model_id=""):
-       """
-       declare a instrument_model to be in the AVAILABLE state
-       @param instrument_model_id the resource id
-       """
-       return self.instrument_model.advance_lcs(instrument_model_id, LCS.AVAILABLE)
-
-    def declare_instrument_model_retired(self, instrument_model_id=""):
-       """
-       declare a instrument_model to be in the RETIRED state
-       @param instrument_model_id the resource id
-       """
-       return self.instrument_model.advance_lcs(instrument_model_id, LCS.RETIRED)
-
-    def declare_platform_agent_planned(self, platform_agent_id=""):
-       """
-       declare a platform_agent to be in the PLANNED state
+       declare a platform_agent to be in a given state
        @param platform_agent_id the resource id
        """
-       return self.platform_agent.advance_lcs(platform_agent_id, LCS.PLANNED)
+       return self.platform_agent.advance_lcs(platform_agent_id, lifecycle_state)
 
-    def declare_platform_agent_developed(self, platform_agent_id=""):
+    def set_platform_agent_instance_lifecycle(self, platform_agent_instance_id="", lifecycle_state=""):
        """
-       declare a platform_agent to be in the DEVELOPED state
-       @param platform_agent_id the resource id
-       """
-       return self.platform_agent.advance_lcs(platform_agent_id, LCS.DEVELOPED)
-
-    def declare_platform_agent_integrated(self, platform_agent_id=""):
-       """
-       declare a platform_agent to be in the INTEGRATED state
-       @param platform_agent_id the resource id
-       """
-       return self.platform_agent.advance_lcs(platform_agent_id, LCS.INTEGRATED)
-
-    def declare_platform_agent_discoverable(self, platform_agent_id=""):
-       """
-       declare a platform_agent to be in the DISCOVERABLE state
-       @param platform_agent_id the resource id
-       """
-       return self.platform_agent.advance_lcs(platform_agent_id, LCS.DISCOVERABLE)
-
-    def declare_platform_agent_available(self, platform_agent_id=""):
-       """
-       declare a platform_agent to be in the AVAILABLE state
-       @param platform_agent_id the resource id
-       """
-       return self.platform_agent.advance_lcs(platform_agent_id, LCS.AVAILABLE)
-
-    def declare_platform_agent_retired(self, platform_agent_id=""):
-       """
-       declare a platform_agent to be in the RETIRED state
-       @param platform_agent_id the resource id
-       """
-       return self.platform_agent.advance_lcs(platform_agent_id, LCS.RETIRED)
-
-    def declare_platform_agent_instance_planned(self, platform_agent_instance_id=""):
-       """
-       declare a platform_agent_instance to be in the PLANNED state
+       declare a platform_agent_instance to be in a given state
        @param platform_agent_instance_id the resource id
        """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, LCS.PLANNED)
+       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, lifecycle_state)
 
-    def declare_platform_agent_instance_developed(self, platform_agent_instance_id=""):
+    def set_platform_model_lifecycle(self, platform_model_id="", lifecycle_state=""):
        """
-       declare a platform_agent_instance to be in the DEVELOPED state
-       @param platform_agent_instance_id the resource id
-       """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, LCS.DEVELOPED)
-
-    def declare_platform_agent_instance_integrated(self, platform_agent_instance_id=""):
-       """
-       declare a platform_agent_instance to be in the INTEGRATED state
-       @param platform_agent_instance_id the resource id
-       """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, LCS.INTEGRATED)
-
-    def declare_platform_agent_instance_discoverable(self, platform_agent_instance_id=""):
-       """
-       declare a platform_agent_instance to be in the DISCOVERABLE state
-       @param platform_agent_instance_id the resource id
-       """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, LCS.DISCOVERABLE)
-
-    def declare_platform_agent_instance_available(self, platform_agent_instance_id=""):
-       """
-       declare a platform_agent_instance to be in the AVAILABLE state
-       @param platform_agent_instance_id the resource id
-       """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, LCS.AVAILABLE)
-
-    def declare_platform_agent_instance_retired(self, platform_agent_instance_id=""):
-       """
-       declare a platform_agent_instance to be in the RETIRED state
-       @param platform_agent_instance_id the resource id
-       """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, LCS.RETIRED)
-
-    def declare_platform_model_planned(self, platform_model_id=""):
-       """
-       declare a platform_model to be in the PLANNED state
+       declare a platform_model to be in a given state
        @param platform_model_id the resource id
        """
-       return self.platform_model.advance_lcs(platform_model_id, LCS.PLANNED)
+       return self.platform_model.advance_lcs(platform_model_id, lifecycle_state)
 
-    def declare_platform_model_developed(self, platform_model_id=""):
+    def set_platform_device_lifecycle(self, platform_device_id="", lifecycle_state=""):
        """
-       declare a platform_model to be in the DEVELOPED state
-       @param platform_model_id the resource id
-       """
-       return self.platform_model.advance_lcs(platform_model_id, LCS.DEVELOPED)
-
-    def declare_platform_model_integrated(self, platform_model_id=""):
-       """
-       declare a platform_model to be in the INTEGRATED state
-       @param platform_model_id the resource id
-       """
-       return self.platform_model.advance_lcs(platform_model_id, LCS.INTEGRATED)
-
-    def declare_platform_model_discoverable(self, platform_model_id=""):
-       """
-       declare a platform_model to be in the DISCOVERABLE state
-       @param platform_model_id the resource id
-       """
-       return self.platform_model.advance_lcs(platform_model_id, LCS.DISCOVERABLE)
-
-    def declare_platform_model_available(self, platform_model_id=""):
-       """
-       declare a platform_model to be in the AVAILABLE state
-       @param platform_model_id the resource id
-       """
-       return self.platform_model.advance_lcs(platform_model_id, LCS.AVAILABLE)
-
-    def declare_platform_model_retired(self, platform_model_id=""):
-       """
-       declare a platform_model to be in the RETIRED state
-       @param platform_model_id the resource id
-       """
-       return self.platform_model.advance_lcs(platform_model_id, LCS.RETIRED)
-
-    def declare_platform_device_planned(self, platform_device_id=""):
-       """
-       declare a platform_device to be in the PLANNED state
+       declare a platform_device to be in a given state
        @param platform_device_id the resource id
        """
-       return self.platform_device.advance_lcs(platform_device_id, LCS.PLANNED)
+       return self.platform_device.advance_lcs(platform_device_id, lifecycle_state)
 
-    def declare_platform_device_developed(self, platform_device_id=""):
+    def set_sensor_model_lifecycle(self, sensor_model_id="", lifecycle_state=""):
        """
-       declare a platform_device to be in the DEVELOPED state
-       @param platform_device_id the resource id
-       """
-       return self.platform_device.advance_lcs(platform_device_id, LCS.DEVELOPED)
-
-    def declare_platform_device_integrated(self, platform_device_id=""):
-       """
-       declare a platform_device to be in the INTEGRATED state
-       @param platform_device_id the resource id
-       """
-       return self.platform_device.advance_lcs(platform_device_id, LCS.INTEGRATED)
-
-    def declare_platform_device_discoverable(self, platform_device_id=""):
-       """
-       declare a platform_device to be in the DISCOVERABLE state
-       @param platform_device_id the resource id
-       """
-       return self.platform_device.advance_lcs(platform_device_id, LCS.DISCOVERABLE)
-
-    def declare_platform_device_available(self, platform_device_id=""):
-       """
-       declare a platform_device to be in the AVAILABLE state
-       @param platform_device_id the resource id
-       """
-       return self.platform_device.advance_lcs(platform_device_id, LCS.AVAILABLE)
-
-    def declare_platform_device_retired(self, platform_device_id=""):
-       """
-       declare a platform_device to be in the RETIRED state
-       @param platform_device_id the resource id
-       """
-       return self.platform_device.advance_lcs(platform_device_id, LCS.RETIRED)
-
-    def declare_sensor_model_planned(self, sensor_model_id=""):
-       """
-       declare a sensor_model to be in the PLANNED state
+       declare a sensor_model to be in a given state
        @param sensor_model_id the resource id
        """
-       return self.sensor_model.advance_lcs(sensor_model_id, LCS.PLANNED)
+       return self.sensor_model.advance_lcs(sensor_model_id, lifecycle_state)
 
-    def declare_sensor_model_developed(self, sensor_model_id=""):
+    def set_sensor_device_lifecycle(self, sensor_device_id="", lifecycle_state=""):
        """
-       declare a sensor_model to be in the DEVELOPED state
-       @param sensor_model_id the resource id
-       """
-       return self.sensor_model.advance_lcs(sensor_model_id, LCS.DEVELOPED)
-
-    def declare_sensor_model_integrated(self, sensor_model_id=""):
-       """
-       declare a sensor_model to be in the INTEGRATED state
-       @param sensor_model_id the resource id
-       """
-       return self.sensor_model.advance_lcs(sensor_model_id, LCS.INTEGRATED)
-
-    def declare_sensor_model_discoverable(self, sensor_model_id=""):
-       """
-       declare a sensor_model to be in the DISCOVERABLE state
-       @param sensor_model_id the resource id
-       """
-       return self.sensor_model.advance_lcs(sensor_model_id, LCS.DISCOVERABLE)
-
-    def declare_sensor_model_available(self, sensor_model_id=""):
-       """
-       declare a sensor_model to be in the AVAILABLE state
-       @param sensor_model_id the resource id
-       """
-       return self.sensor_model.advance_lcs(sensor_model_id, LCS.AVAILABLE)
-
-    def declare_sensor_model_retired(self, sensor_model_id=""):
-       """
-       declare a sensor_model to be in the RETIRED state
-       @param sensor_model_id the resource id
-       """
-       return self.sensor_model.advance_lcs(sensor_model_id, LCS.RETIRED)
-
-    def declare_sensor_device_planned(self, sensor_device_id=""):
-       """
-       declare a sensor_device to be in the PLANNED state
+       declare a sensor_device to be in a given state
        @param sensor_device_id the resource id
        """
-       return self.sensor_device.advance_lcs(sensor_device_id, LCS.PLANNED)
-
-    def declare_sensor_device_developed(self, sensor_device_id=""):
-       """
-       declare a sensor_device to be in the DEVELOPED state
-       @param sensor_device_id the resource id
-       """
-       return self.sensor_device.advance_lcs(sensor_device_id, LCS.DEVELOPED)
-
-    def declare_sensor_device_integrated(self, sensor_device_id=""):
-       """
-       declare a sensor_device to be in the INTEGRATED state
-       @param sensor_device_id the resource id
-       """
-       return self.sensor_device.advance_lcs(sensor_device_id, LCS.INTEGRATED)
-
-    def declare_sensor_device_discoverable(self, sensor_device_id=""):
-       """
-       declare a sensor_device to be in the DISCOVERABLE state
-       @param sensor_device_id the resource id
-       """
-       return self.sensor_device.advance_lcs(sensor_device_id, LCS.DISCOVERABLE)
-
-    def declare_sensor_device_available(self, sensor_device_id=""):
-       """
-       declare a sensor_device to be in the AVAILABLE state
-       @param sensor_device_id the resource id
-       """
-       return self.sensor_device.advance_lcs(sensor_device_id, LCS.AVAILABLE)
-
-    def declare_sensor_device_retired(self, sensor_device_id=""):
-       """
-       declare a sensor_device to be in the RETIRED state
-       @param sensor_device_id the resource id
-       """
-       return self.sensor_device.advance_lcs(sensor_device_id, LCS.RETIRED)
+       return self.sensor_device.advance_lcs(sensor_device_id, lifecycle_state)
 

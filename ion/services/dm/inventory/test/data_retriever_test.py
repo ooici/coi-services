@@ -5,20 +5,23 @@
 '''
 import gevent
 from mock import Mock
-from interface.objects import Replay, Query, StreamQuery
+from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
-from pyon.core.exception import NotFound, BadRequest
-from pyon.ion.endpoint import StreamSubscriber
-from pyon.ion.resource import PRED, RT
+from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
+from pyon.core.exception import NotFound
+from pyon.datastore.datastore import DataStore
+from pyon.public import  StreamSubscriberRegistrar
+from pyon.public import PRED
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-import unittest
-from pyon.datastore.couchdb.couchdb_dm_datastore import CouchDB_DM_DataStore
+import unittest, time
+
 @attr('UNIT',group='dm')
 class DataRetrieverServiceTest(PyonTestCase):
     def setUp(self):
@@ -90,68 +93,74 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        self.couch = CouchDB_DM_DataStore(datastore_name='test_data_retriever')
-        if not self.couch.datastore_exists('test_data_retriever'):
-            self.couch.create_datastore('test_data_retriever')
-        else:
-            raise BadRequest('test_data_retriever data store already exists, please delete it.')
+        self.couch = self.container.datastore_manager.get_datastore('test_data_retriever', profile=DataStore.DS_PROFILE.EXAMPLES)
+        self.datastore_name = 'test_data_retriever'
 
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
+        self.dsm_cli = DatasetManagementServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
 
 
     def tearDown(self):
         super(DataRetrieverServiceIntTest,self).tearDown()
-        self.couch.delete_datastore('test_data_retriever')
+
 
 
     def test_define_replay(self):
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id='12345',
+            datastore_name=self.datastore_name,
+            view_name='posts/posts_join_comments',
+            name='test define replay'
+        )
+        replay_id, stream_id = self.dr_cli.define_replay(dataset_id=dataset_id)
 
-        # assert resources created
         replay = self.rr_cli.read(replay_id)
-        self.assertTrue(replay._id == replay_id)
 
-        stream = self.rr_cli.read(stream_id)
-        self.assertTrue(stream._id == stream_id)
+        # Assert that the process was created
 
-        # assert association created
-        assocs = self.rr_cli.find_associations(replay_id,PRED.hasStream, id_only=True)
-        self.assertTrue(len(assocs)>0)
-
-        # assert process exists
         self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
-        # clean up
-        self.container.proc_manager.terminate_process(replay.process_id)
-
-
+        self.dr_cli.cancel_replay(replay_id)
     def test_cancel_replay(self):
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id='12345',
+            datastore_name=self.datastore_name,
+            view_name='posts/posts_join_comments',
+            name='test define replay'
+        )
+        replay_id, stream_id = self.dr_cli.define_replay(dataset_id=dataset_id)
+
         replay = self.rr_cli.read(replay_id)
 
-        # assert that the process was created
+        # Assert that the process was created
 
         self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
-        # delete the process
         self.dr_cli.cancel_replay(replay_id)
 
-        # assert that the resource was deleted
+        # assert that the process is no more
+        self.assertFalse(replay.process_id in self.container.proc_manager.procs)
+
+        # assert that the resource no longer exists
         with self.assertRaises(NotFound):
             self.rr_cli.read(replay_id)
 
-        # assert the process has stopped
-        proc = self.container.proc_manager.procs.get(replay.process_id,None)
-        self.assertTrue(not proc)
-    @unittest.skip('not implemented yet')
     def test_start_replay(self):
+        post = BlogPost(title='test blog post', post_id='12345', author=BlogAuthor(name='Jon Doe'), content='this is a blog post',
+        updated=time.strftime("%Y-%m-%dT%H:%M%S-05"))
 
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id='12345',
+            datastore_name=self.datastore_name,
+            view_name='posts/posts_join_comments',
+            name='blog posts test'
+        )
 
+        self.couch.create(post)
 
-
-        replay_id, stream_id = self.dr_cli.define_replay('123')
+        replay_id, stream_id = self.dr_cli.define_replay(dataset_id)
         replay = self.rr_cli.read(replay_id)
 
 
@@ -164,10 +173,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         def consume(message, headers):
             ar.set(message)
 
-        subscriber = StreamSubscriber(node=self.container.node,
-            process=self,
-            name=('science_data','test_queue'),
-            callback=lambda m,h: consume(m,h))
+        stream_subscriber = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        subscriber = stream_subscriber.create_subscriber(exchange_name='test_queue', callback=consume)
         subscriber.start()
 
         query = StreamQuery(stream_ids=[stream_id])
@@ -175,10 +182,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.ps_cli.activate_subscription(subscription_id)
 
         self.dr_cli.start_replay(replay_id)
-        self.assertEqual(ar.get(timeout=10),{'num':0})
+        self.assertEqual(ar.get(timeout=10).post_id,post.post_id)
 
-        self.dr_cli.start_replay(replay_id)
-        self.assertEqual(ar.get(timeout=10),{'num':1})
         subscriber.stop()
 
 
