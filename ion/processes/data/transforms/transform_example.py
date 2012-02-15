@@ -6,6 +6,7 @@
 import commands
 import time
 from gevent.greenlet import Greenlet
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
@@ -17,7 +18,6 @@ from pyon.public import IonObject, RT, log
 from interface.objects import ProcessDefinition, StreamQuery, BlogPost, BlogComment, BlogAuthor
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 import json
 import re
 import urllib2
@@ -305,7 +305,7 @@ class TransformExampleLauncher(BaseService):
 
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         #-------------------------------
         # Process Definition
@@ -316,7 +316,7 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
-        process_definition_id, _ = rr_cli.create(process_definition)
+        process_definition_id = procd_cli.create_process_definition(process_definition)
 
         #-------------------------------
         # First Transform
@@ -377,10 +377,8 @@ class TransformExampleLauncher(BaseService):
     def run_reverse_transform(self):
         ''' Runs a reverse transform example and displays the results of performing the transform
         '''
-        pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
-
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         #-------------------------------
         # Process Definition
@@ -390,7 +388,7 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'ReverseTransform'
         }
-        process_definition_id, _ = rr_cli.create(process_definition)
+        process_definition_id = procd_cli.create_process_definition()
 
         #-------------------------------
         # Execute Transform
@@ -416,8 +414,7 @@ class TransformExampleLauncher(BaseService):
         '''
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
-
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         #-------------------------------
         # Process Definition
@@ -428,7 +425,7 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
-        basic_transform_definition_id, _ = rr_cli.create(process_definition)
+        basic_transform_definition_id = procd_cli.create_process_definition(process_definition=process_definition)
 
         # Create The process definition for the TransformEvenOdd
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
@@ -436,7 +433,7 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformEvenOdd'
         }
-        evenodd_transform_definition_id, _ = rr_cli.create(process_definition)
+        evenodd_transform_definition_id = procd_cli.create_process_definition(process_definition=process_definition)
 
         #-------------------------------
         # Streams
@@ -513,7 +510,7 @@ class TransformExampleLauncher(BaseService):
         '''
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
         
         #-------------------------------
         # Process Definition
@@ -521,7 +518,7 @@ class TransformExampleLauncher(BaseService):
         process_definition = ProcessDefinition(name='external_transform_definition')
         process_definition.executable['module'] = 'ion.processes.data.transforms.transform_example'
         process_definition.executable['class'] = 'ExternalTransform'
-        process_definition_id, _ = rr_cli.create(process_definition)
+        process_definition_id = procd_cli.create_process_definition(process_definition=process_definition)
 
         #-------------------------------
         # Streams

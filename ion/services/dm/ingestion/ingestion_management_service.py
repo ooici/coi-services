@@ -13,7 +13,6 @@ from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
 from interface.objects import ExchangeQuery
-
 from interface.objects import StreamIngestionPolicy, StreamPolicy
 from pyon.event.event import StreamIngestionPolicyEventPublisher
 
@@ -75,7 +74,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
         process_definition.executable = {'module': 'ion.processes.data.ingestion.ingestion_worker', 'class':'IngestionWorker'}
         #        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
-        process_definition_id, _ = self.clients.resource_registry.create(process_definition)
+        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
         ##------------------------------------------------------------------------------------
         ## declare our intent to subscribe to all messages on the exchange point

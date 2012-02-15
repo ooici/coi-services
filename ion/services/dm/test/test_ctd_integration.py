@@ -6,6 +6,7 @@
 """
 import time
 from interface.objects import CouchStorage, ProcessDefinition, StreamQuery, StreamPolicy
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -28,6 +29,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         self.data_retriever_service = DataRetrieverServiceClient(node=self.container.node)
         self.transform_management_service = TransformManagementServiceClient(node=self.container.node)
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
+        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
 
         # We keep track of our own processes
         self.process_list = []
@@ -104,7 +106,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
             'module':'ion.processes.data.transforms.transform_example',
             'class':'TransformCapture'
         }
-        transform_definition_id,_ = self.resource_registry_service.create(transform_definition)
+        transform_definition_id = self.process_dispatcher.create_process_definition(process_definition=transform_definition)
 
         dataset_id = self.datasets.pop() # Just need one for now
         replay_id, stream_id = self.data_retriever_service.define_replay(dataset_id=dataset_id)
