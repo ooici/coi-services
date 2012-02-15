@@ -15,11 +15,13 @@ import ion.services.mi.drivers.uw_bars.bars as bars
 
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverState
+from ion.services.mi.exceptions import InstrumentProtocolException
 
-#from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import InstErrorCode
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
+import re
 
 #import ion.services.mi.mi_logger
 import logging
@@ -62,16 +64,18 @@ class BarsInstrumentDriver(InstrumentDriver):
         if cs != state:
             raise AssertionError("current state=%s, expected=%s" % (cs, state))
 
-    def initialize(self, channels, *args, **kwargs):
+    def initialize(self, channels=None, *args, **kwargs):
         """
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("initialize: channels=%s args=%s kwargs=%s" %
+            log.debug("channels=%s args=%s kwargs=%s" %
                       (str(channels), str(args), str(kwargs)))
 
         self._assert_state([DriverState.UNCONFIGURED,
                             DriverState.DISCONNECTED])
+
+        channels = channels or [BarsChannel.INSTRUMENT]
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -87,7 +91,7 @@ class BarsInstrumentDriver(InstrumentDriver):
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("configure: configs=%s args=%s kwargs=%s" %
+            log.debug("configs=%s args=%s kwargs=%s" %
                       (str(configs), str(args), str(kwargs)))
 
         self._assert_state(DriverState.UNCONFIGURED)
@@ -104,15 +108,17 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def connect(self, channels, *args, **kwargs):
+    def connect(self, channels=None, *args, **kwargs):
         """
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("connect: channels=%s args=%s kwargs=%s" %
+            log.debug("channels=%s args=%s kwargs=%s" %
                       (str(channels), str(args), str(kwargs)))
 
         self._assert_state(DriverState.DISCONNECTED)
+
+        channels = channels or [BarsChannel.INSTRUMENT]
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -138,13 +144,15 @@ class BarsInstrumentDriver(InstrumentDriver):
         self.bars_client = BarsClient(host, port, outfile)
         self.bars_client.connect()
 
-    def disconnect(self, channels, *args, **kwargs):
+    def disconnect(self, channels=None, *args, **kwargs):
         """
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("disconnect: channels=%s args=%s kwargs=%s" %
+            log.debug("channels=%s args=%s kwargs=%s" %
                       (str(channels), str(args), str(kwargs)))
+
+        channels = channels or [BarsChannel.INSTRUMENT]
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -169,89 +177,129 @@ class BarsInstrumentDriver(InstrumentDriver):
 
     def get(self, params, *args, **kwargs):
 
+        # TODO it only handles [(BarsChannel.INSTRUMENT,
+        # BarsParameter.TIME_BETWEEN_BURSTS)]
+
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("get: params=%s args=%s kwargs=%s" %
+            log.debug("params=%s args=%s kwargs=%s" %
                       (str(params), str(args), str(kwargs)))
 
         self._assert_state(DriverState.AUTOSAMPLE)
 
-        log.debug("get: break data streaming to enter main menu")
+        assert isinstance(params, list)
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        assert params == [cp]
+
+        log.debug("breaking data streaming to enter main menu")
         self.bars_client.enter_main_menu()
 
-        log.debug("get: select 2 to get system parameter menu")
-        self.bars_client.send_option('2')
+        log.debug("select 2 to get system parameter menu")
+        self.bars_client.send('2')
         self.bars_client.expect_generic_prompt()
 
         buffer = self.bars_client.get_last_buffer()
-        log.debug("get: BUFFER='%s'" % repr(buffer))
-        value = bars.get_cycle_time(buffer)
-        log.debug("get: VALUE='%s'" % value)
+        log.debug("BUFFER='%s'" % repr(buffer))
+        string = bars.get_cycle_time(buffer)
+        log.debug("VALUE='%s'" % string)
+        seconds = self._get_cycle_time_seconds(string)
 
-        log.debug("get: send 3 to return to main menu")
-        self.bars_client.send_option('3')
+        log.debug("send 3 to return to main menu")
+        self.bars_client.send('3')
         self.bars_client.expect_generic_prompt()
 
         buffer = self.bars_client.get_last_buffer()
-        log.debug("get: BUFFER='%s'" % repr(buffer))
+        log.debug("BUFFER='%s'" % repr(buffer))
 
-        log.debug("get: resume data streaming")
-        self.bars_client.send_option('1')
+        log.debug("resume data streaming")
+        self.bars_client.send('1')
 
-        result = value
+        result = {cp: seconds}
         return result
+
+    def _get_cycle_time_seconds(self, string):
+        seconds = 0
+        mo = re.match(r"(\d+)\s+(Seconds|Minutes)", string)
+        if mo is not None:
+            value = int(mo.group(1))
+            units = mo.group(2)
+            if units == "Seconds":
+                seconds = value
+            else:
+                seconds = 60 * value
+        else:
+            raise InstrumentProtocolException(
+                    msg="Unexpected: string could not be matched: %s" % string)
+
+        log.debug("returning seconds=%d" % seconds)
+        return seconds
 
     def set(self, params, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("set: params=%s args=%s kwargs=%s" %
+            log.debug("params=%s args=%s kwargs=%s" %
                       (str(params), str(args), str(kwargs)))
 
         self._assert_state(DriverState.AUTOSAMPLE)
 
-        log.debug("get: break data streaming to enter main menu")
+        assert isinstance(params, dict)
+        assert len(params) == 1
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        assert cp in params
+        seconds = params.get(cp)
+        assert isinstance(seconds, int)
+        assert seconds >= 15
+
+        log.debug("break data streaming to enter main menu")
         self.bars_client.enter_main_menu()
 
-        log.debug("get: select 2 to get system parameter menu")
-        self.bars_client.send_option('2')
-        self.bars_client.expect_generic_prompt()
-
-        log.debug("get: select 1 to change cycle time")
-        self.bars_client.send_option('1')
+        log.debug("select 2 to get system parameter menu")
+        self.bars_client.send('2')
         self.bars_client.expect_generic_prompt()
 
         buffer = self.bars_client.get_last_buffer()
-        log.debug("get: BUFFER='%s'" % repr(buffer))
-        value = bars.get_cycle_time(buffer)
-        log.debug("get: VALUE='%s'" % value)
+        log.debug("BUFFER='%s'" % repr(buffer))
+        string = bars.get_cycle_time(buffer)
+        log.debug("VALUE='%s'" % string)
 
-        log.debug("get: send 3 to return to main menu")
-        self.bars_client.send_option('3')
+        log.debug("send 1 to change cycle time")
+        self.bars_client.send('1')
+        self.bars_client.expect_generic_prompt()
+
+        if seconds <= 59:
+            log.debug("send 0 to change cycle time in seconds")
+            self.bars_client.send('0')
+            self.bars_client.expect_generic_prompt()
+            log.debug("send seconds=%d" % seconds)
+            self.bars_client.send(str(seconds))
+        else:
+            log.debug("send 1 to change cycle time in minutes")
+            self.bars_client.send('1')
+            self.bars_client.expect_generic_prompt()
+            minutes = seconds / 60
+            log.debug("send minutes=%d" % minutes)
+            self.bars_client.send(str(minutes))
+
+        self.bars_client.expect_generic_prompt()
+
+        log.debug("send 3 to return to main menu")
+        self.bars_client.send('3')
         self.bars_client.expect_generic_prompt()
 
         buffer = self.bars_client.get_last_buffer()
-        log.debug("get: BUFFER='%s'" % repr(buffer))
+        log.debug("BUFFER='%s'" % repr(buffer))
 
-        log.debug("get: resume data streaming")
-        self.bars_client.send_option('1')
+        log.debug("resume data streaming")
+        self.bars_client.send('1')
 
-        result = value
+        result = {cp: InstErrorCode.OK}
         return result
-
-    def execute(self, channels, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("execute: channels=%s args=%s kwargs=%s" %
-                      (str(channels), str(args), str(kwargs)))
-
-        pass
 
     def execute_direct(self, channels, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("execute_direct: channels=%s args=%s kwargs=%s" %
+            log.debug("channels=%s args=%s kwargs=%s" %
                       (str(channels), str(args), str(kwargs)))
 
         pass

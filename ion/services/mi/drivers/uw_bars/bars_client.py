@@ -150,15 +150,14 @@ class BarsClient(object):
         log.debug("### send_enter")
         self._send_control('m')
 
-    def send_option(self, char):
+    def send(self, string):
         """
-        Sleeps for self.delay_before_send and then sends the given char
-        followed by a ^m
+        Sleeps for self.delay_before_send and then sends string + '\r'
         """
         time.sleep(self.delay_before_send)
-        log.debug("### send_option: '%s'" % char)
-        self._send(char)
-        self._send_control('m')
+        s = string + '\r'
+        log.debug("### send: '%s'" % repr(s))
+        self._send(s)
 
     def expect_line(self, pattern, pre_delay=None, timeout=30):
         """
@@ -260,7 +259,7 @@ def main(host, port, outfile=sys.stdout):
     bars_client.enter_main_menu()
 
     print ":: select 6 to get system info"
-    bars_client.send_option('6')
+    bars_client.send('6')
     bars_client.expect_generic_prompt()
 
     print ":: send enter to return to main menu"
@@ -268,7 +267,7 @@ def main(host, port, outfile=sys.stdout):
     bars_client.expect_generic_prompt()
 
     print ":: resume data streaming"
-    bars_client.send_option('1')
+    bars_client.send('1')
 
     print ":: sleeping for 10 secs to receive some data"
     time.sleep(10)

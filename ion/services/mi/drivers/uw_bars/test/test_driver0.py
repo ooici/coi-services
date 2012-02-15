@@ -45,8 +45,7 @@ class DriverTest(BarsTestCase):
         # connect
         result = driver.connect([BarsChannel.INSTRUMENT])
         print "connect result = %s" % str(result)
-        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
-        print "driver state = %s" % str(driver.get_current_state())
+        self._assert_auto_sample()
 
         print "sleeping for a bit to see data streaming"
         time.sleep(4)
@@ -58,25 +57,69 @@ class DriverTest(BarsTestCase):
         self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
         print "driver state = %s" % str(driver.get_current_state())
 
-    def __test_connect_disconnect(self):
+    def test_connect_disconnect(self):
         self._connect()
         self._disconnect()
 
-    def test_get(self):
-
-        self._connect()
+    def _get(self, params):
         driver = self.driver
 
-        # get a parameter
-        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
-        result = driver.get([cp])
+        result = driver.get(params)
         print "get result = %s" % str(result)
+        assert isinstance(result, dict)
 
-        # should be back in AUTOSAMPLE state:
-        self.assertEqual(DriverState.AUTOSAMPLE, driver.get_current_state())
-        print "driver state = %s" % str(driver.get_current_state())
+        self._assert_auto_sample()
 
-        print "sleeping a bit more"
-        time.sleep(4)
+        return result
+
+    def test_get(self):
+        self._connect()
+
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        params = [cp]
+
+        result = self._get(params)
+        seconds = result.get(cp)
+        assert isinstance(seconds, int)
+
+        time.sleep(1)
 
         self._disconnect()
+
+    def test_get_set(self):
+        self._connect()
+
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        params = [cp]
+
+        result = self._get(params)
+        seconds = result.get(cp)
+        assert isinstance(seconds, int)
+
+        driver = self.driver
+
+        new_seconds = seconds + 5
+        if new_seconds > 30 or new_seconds < 15:
+            new_seconds = 15
+
+        # get a parameter
+        result = driver.set({cp: new_seconds})
+        print "set result = %s" % str(result)
+        code = result.get(cp)
+        InstErrorCode.is_ok(code)
+
+        self._assert_auto_sample()
+
+        result = self._get(params)
+        seconds = result.get(cp)
+
+        self.assertEqual(new_seconds, seconds)
+        time.sleep(1)
+
+        self._disconnect()
+
+    def _assert_auto_sample(self):
+        """asserts AUTOSAMPLE state"""
+        curr_state = self.driver.get_current_state()
+        self.assertEqual(DriverState.AUTOSAMPLE, curr_state)
+        print "driver state = %s" % str(curr_state)

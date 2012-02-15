@@ -44,7 +44,7 @@ class BarsClientTest(BarsTestCase):
         bars_client.enter_main_menu()
 
         print ":: select 6 to get system info"
-        bars_client.send_option('6')
+        bars_client.send('6')
         bars_client.expect_generic_prompt()
 
         print ":: send enter to return to main menu"
@@ -52,7 +52,7 @@ class BarsClientTest(BarsTestCase):
         bars_client.expect_generic_prompt()
 
         print ":: resume data streaming"
-        bars_client.send_option('1')
+        bars_client.send('1')
 
         print ":: sleeping for 10 secs to receive some data"
         time.sleep(10)
