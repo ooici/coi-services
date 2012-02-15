@@ -122,6 +122,7 @@ class IngestionWorker(TransformDataProcess):
                     packet.identifiables[key]=''
 
             if policy.archive_metadata is True:
+                log.debug("Persisting data....")
                 self.persist_immutable(packet )
 
             if policy.archive_data is True:
@@ -156,7 +157,7 @@ class IngestionWorker(TransformDataProcess):
         """
 
         try:
-            stream_id = incoming_packet.data_stream_id
+            stream_id = incoming_packet.stream_resource_id
         except AttributeError:
             log.info('Packet does not have a data_stream_id: using default policy')
             return self.default_policy

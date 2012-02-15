@@ -5,7 +5,7 @@
 @description Provides a full fledged integration from ingestion to replay using scidata
 """
 import time
-from interface.objects import CouchStorage, ProcessDefinition, StreamQuery
+from interface.objects import CouchStorage, ProcessDefinition, StreamQuery, StreamPolicy
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -45,6 +45,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         ingestion_configuration_id = self.ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=self.datastore_name,datastore_profile='SCIDATA'),
+            default_policy=StreamPolicy(archive_metadata=False, archive_data=False),
             number_of_workers=8
         )
         #
@@ -56,18 +57,24 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         #---------------------------
         # Launch five simulated CTD producers
         for iteration in xrange(5):
+            # Make a stream to output on
+            stream_id = self.pubsub_management_service.create_stream()
+            stream_policy_id = self.ingestion_management_service.create_stream_policy(
+                stream_id=stream_id,
+                archive_data=False,
+                archive_metadata=True
+            )
+
             pid = self.container.spawn_process(
                 name='CTD_%d' % iteration,
                 module='ion.processes.data.ctd_stream_publisher',
                 cls='SimpleCtdPublisher',
-                config={'process':{'datastore_name':self.datastore_name}}
+                config={'process':{'stream_id':stream_id,'datastore_name':self.datastore_name}}
             )
             # Keep track, we'll kill 'em later.
             #---------------------------
             # Set up the datasets
             #---------------------------
-            handle = self.container.proc_manager.procs[pid]
-            stream_id = handle.stream_id
 
             dataset_id = self.dataset_management_service.create_dataset(
                 stream_id=stream_id,

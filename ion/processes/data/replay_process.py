@@ -41,12 +41,14 @@ class ReplayProcess(BaseReplayProcess):
         self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
         self.view_name = self.CFG.get('process',{}).get('view_name')
         self.key_id = self.CFG.get('process',{}).get('key_id')
-
+        self.stream_id = None
 
         # Attach a publisher to each stream_name attribute
         #@TODO does this belong here? Should it be in the container somewhere?
         self.stream_count = len(streams)
         for name,stream_id in streams.iteritems():
+            if not self.stream_id:
+                self.stream_id = stream_id
             pub = self.stream_publisher_registrar.create_publisher(stream_id=stream_id)
             log.warn('Setup publisher named: %s' % name)
             setattr(self,name,pub)
@@ -83,7 +85,7 @@ class ReplayProcess(BaseReplayProcess):
             if 'doc' in result:
                 log.debug('Result contains document.')
                 blog_msg = result['doc']
-                blog_msg.is_replay = True
+                blog_msg.stream_resource_id = self.stream_id
             else:
                 blog_msg = result['value'] # Document ID, not a document
             self.lock.acquire()
