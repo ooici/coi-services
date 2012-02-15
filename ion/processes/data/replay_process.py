@@ -43,19 +43,11 @@ class ReplayProcess(BaseReplayProcess):
         self.view_name = self.CFG.get('process',{}).get('view_name')
         self.key_id = self.CFG.get('process',{}).get('key_id')
         # Get a stream_id for this process
-        self.stream_id = None
+        self.stream_id = self.CFG.get('process',{}).get('publish_streams',{}).get('output')
 
-        # Attach a publisher to each stream_name attribute
-        #@TODO Patch an appropriate stream to this in data retriever
-        self.stream_count = len(streams)
-        for name,stream_id in streams.iteritems():
-            if not self.stream_id:
-                self.stream_id = stream_id
-            pub = self.stream_publisher_registrar.create_publisher(stream_id=stream_id)
-            log.warn('Setup publisher named: %s' % name)
-            setattr(self,name,pub)
 
-        if not hasattr(self,'output'):
+
+        if not (self.stream_id and hasattr(self,'output')):
             raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
 
 
