@@ -5,9 +5,9 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-from flask import Flask, request, jsonify
+import inspect, collections, ast, simplejson, json
+from flask import Flask, request
 from gevent.wsgi import WSGIServer
-import inspect, json, simplejson, collections, ast
 
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
@@ -154,7 +154,8 @@ def process_gateway_request(service_name, operation):
             else:
                 if jsonParms['serviceRequest']['params'].has_key(arg):
                     if isinstance(jsonParms['serviceRequest']['params'][arg], list):  #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
-                        # For some reason, UNICODE strings are not supported with ION objects
+                        #TODO - Potentially remove these converisons whenever ION objects support unicode
+                        # UNICODE strings are not supported with ION objects
                         ion_object_name = convert_unicode(jsonParms['serviceRequest']['params'][arg][0])
                         object_parms = convert_unicode(jsonParms['serviceRequest']['params'][arg][1])
 
@@ -173,14 +174,17 @@ def process_gateway_request(service_name, operation):
         methodToCall = getattr(client, operation)
         result = methodToCall(**parm_list)
 
-
-        ret = simplejson.dumps(result, default=ion_object_encoder)
-
     except Exception, e:
-        ret =  "Error: %s" % e.message
+        result =  "Error: %s" % e.message
 
+    return json_response(result)
 
-    return jsonify(data=ret)
+#Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
+def json_response(response_data):
+
+    return app.response_class(simplejson.dumps({'data': response_data}, default=ion_object_encoder,
+        indent=None if request.is_xhr else 2), mimetype='application/json')
+
 
 #Use this function internally to recursively set sub object field values
 def set_object_field(obj, field, field_val):
@@ -231,11 +235,11 @@ def list_resource_types():
         for res in sorted(resultSet):
             ret_list.append(res)
 
-        return jsonify(data=ret_list)
+        return json_response(ret_list)
 
     except Exception, e:
         ret =  "Error: %s" % e.message
-        return jsonify(data=ret)
+        return json_response(ret)
 
 
 #Returns a json object for a specified resource type with all default values.
@@ -244,6 +248,7 @@ def get_resource_schema(resource_type):
 
 
     try:
+        #ION Objects are not registered as UNICODE names
         ion_object_name = convert_unicode(resource_type)
         ret_obj = IonObject(ion_object_name, {})
 
@@ -261,13 +266,10 @@ def get_resource_schema(resource_type):
                         value = None
                     setattr(ret_obj, field, value)
 
-        ret = simplejson.dumps(ret_obj, default=ion_object_encoder)
-
-
     except Exception, e:
-        ret =  "Error: %s" % e.message
+        ret_obj =  "Error: %s" % e.message
 
-    return jsonify(data=ret)
+    return json_response(ret_obj)
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -281,16 +283,15 @@ def get_resource(resource_id):
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
+            #Database object IDs are not unicode
             result = client.read(convert_unicode(resource_id))
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
-            ret = simplejson.dumps(result, default=ion_object_encoder)
-
         except Exception, e:
-            ret =  "Error: %s" % e
+            result =  "Error: %s" % e
 
-    return jsonify(data=ret)
+    return json_response(result)
 
 
 #Example operation to return a list of resources of a specific type like
@@ -302,16 +303,16 @@ def list_resources_by_type(resource_type):
 
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
+        #Resource Types are not in unicode
         res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
         result = []
         for res in res_list:
             result.append(res)
 
-        ret = simplejson.dumps(result, default=ion_object_encoder)
     except Exception, e:
-        ret =  "Error: %s" % e
+        result =  "Error: %s" % e
 
-    return jsonify(data=ret)
+    return json_response(result)
 
 #Example restful call to a client function for another service like
 #http://hostname:port/ion-service/run_bank_client
