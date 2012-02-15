@@ -173,10 +173,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         #@todo Should we check to see if the ingestion configuration exists?
 
         #delete the transforms associated with the ingestion_configuration_id
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
 
-        if len(transform_ids) is 0:
-            log.warn('No transforms associated with this ingestion configuration!')
+        if len(transform_ids) < 1:
+            raise NotFound('No transforms associated with this ingestion configuration!')
+
+        log.warn('len(transform_ids): %s' % len(transform_ids))
 
         for transform_id in transform_ids:
             # To Delete - we need to actually remove each of the transforms
@@ -185,6 +187,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # delete the associations too...
         associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
+        log.warn('associations: %s' % associations)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
             #@todo How should we deal with failure?
@@ -207,7 +210,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         #@todo Should we check to see if the ingestion configuration exists?
 
         # read the transforms
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
 
@@ -231,7 +234,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
 
         # use the deactivate method in transformation management service
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
 

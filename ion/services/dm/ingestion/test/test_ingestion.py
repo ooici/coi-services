@@ -20,6 +20,7 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.public import RT, PRED, log, IonObject
 
 from pyon.datastore.datastore import DataStore
 
@@ -50,13 +51,11 @@ class IngestionTest(PyonTestCase):
         self.mock_find_resources = mock_clients.resource_registry.find_resources
         self.mock_find_subjects = mock_clients.resource_registry.find_subjects
         self.mock_find_objects = mock_clients.resource_registry.find_objects
+        self.mock_find_associations = mock_clients.resource_registry.find_associations
+        self.mock_transform_activate = mock_clients.transform_management.activate_transform
+        self.mock_transform_deactivate = mock_clients.transform_management.activate_transform
 
-        # Ingestion Configuration
-#        self.ingestion_configuration_id = "ingestion_configuration_id"
-        self.ingestion_configuration_id = Mock()
-        self.ingestion_configuration = Mock()
-        self.ingestion_configuration._id = self.ingestion_configuration_id
-        self.ingestion_configuration._rev = "Sample_ingestion_configuration_rev"
+        self.mock_transform_delete = mock_clients.transform_management.delete_transform
 
         # Exchange point
         self.exchange_point_id = "exchange_point_id"
@@ -118,49 +117,116 @@ class IngestionTest(PyonTestCase):
         self.assertEqual(ex.message, 'Ingestion configuration notfound does not exist')
         self.mock_read.assert_called_once_with('notfound', '')
 
-    @unittest.skip("Nothing to test")
     def test_delete_ingestion_configuration(self):
 
-        self.mock_create.return_value = [self.ingestion_configuration_id, 1]
+        ingestion_configuration_id = Mock()
+        transform1 = Mock()
 
-        self.mock_find_objects.return_value = ['transform_id']
+        #--------------------------------------------------------------------------------
+        # Fixing return values
+        #--------------------------------------------------------------------------------
 
-        ingestion_configuration_id = self.ingestion_service.create_ingestion_configuration(self.exchange_point_id,\
-            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        self.mock_find_objects.return_value = [transform1]
+        self.mock_find_associations.return_value = ['association']
 
-        log.debug("ingestion_configuration_id: %s" % ingestion_configuration_id)
+        #--------------------------------------------------------------------------------
+        # Calling the delete ingestion configuration method
+        #--------------------------------------------------------------------------------
 
         self.ingestion_service.delete_ingestion_configuration(ingestion_configuration_id)
+
+        #--------------------------------------------------------------------------------
+        # Assertions
+        #--------------------------------------------------------------------------------
+
+        self.mock_find_objects.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, RT.Transform , True)
+        self.mock_transform_delete.assert_called_with(transform1)
+        self.mock_find_associations.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, '', False)
+        self.mock_delete_association.assert_called_once_with('association')
+        self.mock_delete.assert_called_once_with(ingestion_configuration_id)
+
         #@todo add some logic to check for state of the resources and ingestion service!
 
-        # check that everything is alright
-#        self.mock_read.assert_called_once_with(self.ingestion_configuration_id, '')
-#        self.mock_delete.assert_called_once_with(self.ingestion_configuration_id)
-
-    @unittest.skip("Nothing to test")
     def test_delete_ingestion_configuration_not_found(self):
-        self.mock_read.return_value = None
 
-        # TEST: Execute the service operation call
+
+        #--------------------------------------------------------------------------------
+        # Fixing return values
+        #--------------------------------------------------------------------------------
+
+        self.mock_find_objects.return_value = []
+        self.mock_find_associations.return_value = ['association']
+
+        #--------------------------------------------------------------------------------
+        # Calling the delete ingestion configuration method
+        #--------------------------------------------------------------------------------
+
         with self.assertRaises(NotFound) as cm:
             self.ingestion_service.delete_ingestion_configuration('notfound')
 
-        ex = cm.exception
-        self.assertEqual(ex.message, 'Ingestion configuration notfound does not exist')
-        self.mock_read.assert_called_once_with('notfound', '')
-        self.assertEqual(self.mock_delete.call_count, 0)
+        #--------------------------------------------------------------------------------
+        # Assertions
+        #--------------------------------------------------------------------------------
 
-    @unittest.skip("Nothing to test")
-    def test_activate_deactivate_ingestion_configuration(self):
+        ex = cm.exception
+        self.assertEqual(ex.message, 'No transforms associated with this ingestion configuration!')
+        self.mock_find_objects.assert_called_once_with('notfound','hasTransform', 'Transform', True)
+
+    def test_activate_ingestion_configuration(self):
         """
         Test that the ingestion configuration is activated
         """
 
+        ingestion_configuration_id = Mock()
+        transform1 = Mock()
+
+        #--------------------------------------------------------------------------------
+        # Fixing return values
+        #--------------------------------------------------------------------------------
+
+        self.mock_find_objects.return_value = [transform1]
+
+        #--------------------------------------------------------------------------------
+        # Calling the delete ingestion configuration method
+        #--------------------------------------------------------------------------------
+
         #@todo add some logic to check for state of the resources and ingestion service!
-        self.ingestion_service.activate_ingestion_configuration(self.ingestion_configuration_id)
+        self.ingestion_service.activate_ingestion_configuration(ingestion_configuration_id)
 
-        self.ingestion_service.deactivate_ingestion_configuration(self.ingestion_configuration_id)
+        #--------------------------------------------------------------------------------
+        # Assertions
+        #--------------------------------------------------------------------------------
 
+        self.mock_find_objects.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, RT.Transform , True)
+        self.mock_transform_activate.assert_called_once_with(transform1)
+
+    def test_deactivate_ingestion_configuration(self):
+        """
+        Test that the ingestion configuration is deactivated
+        """
+
+        ingestion_configuration_id = Mock()
+        transform1 = Mock()
+
+        #--------------------------------------------------------------------------------
+        # Fixing return values
+        #--------------------------------------------------------------------------------
+
+        self.mock_find_objects.return_value = [transform1]
+
+        #--------------------------------------------------------------------------------
+        # Calling the delete ingestion configuration method
+        #--------------------------------------------------------------------------------
+
+        #@todo add some logic to check for state of the resources and ingestion service!
+        self.ingestion_service.deactivate_ingestion_configuration(ingestion_configuration_id)
+
+        #--------------------------------------------------------------------------------
+        # Assertions
+        #--------------------------------------------------------------------------------
+
+        self.mock_find_objects.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, RT.Transform , True)
+        self.mock_transform_deactivate.assert_called_once_with(transform1)
 
 
     @unittest.skip("Nothing to test")
