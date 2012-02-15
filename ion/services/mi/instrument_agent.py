@@ -16,6 +16,7 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
 from pyon.core import exception as iex
+from pyon.util.containers import get_ion_ts
 
 import time
 

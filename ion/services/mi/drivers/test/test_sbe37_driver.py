@@ -45,7 +45,7 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
 
-@unittest.skip('Do not run hardware test.')
+#@unittest.skip('Do not run hardware test.')
 @attr('UNIT', group='mi')
 class TestSBE37Driver(PyonTestCase):    
     """
@@ -343,13 +343,13 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('get_active_channels')
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], SBE37Command.ACQUIRE_SAMPLE)
+        reply = driver_client.cmd_dvr('execute_acquire_sample', [SBE37Channel.CTD])
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], SBE37Command.ACQUIRE_SAMPLE)
+        reply = driver_client.cmd_dvr('execute_acquire_sample', [SBE37Channel.CTD])
         time.sleep(2)
 
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], SBE37Command.ACQUIRE_SAMPLE)
+        reply = driver_client.cmd_dvr('execute_acquire_sample', [SBE37Channel.CTD])
         time.sleep(2)
 
         print 'EVENTS RECEIVED:'
@@ -386,11 +386,11 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], SBE37Command.START_AUTO_SAMPLING)
+        reply = driver_client.cmd_dvr('execute_start_autosample', [SBE37Channel.CTD])
         time.sleep(30)
         
         while True:
-            reply = driver_client.cmd_dvr('execute', [SBE37Channel.CTD], SBE37Command.STOP_AUTO_SAMPLING)
+            reply = driver_client.cmd_dvr('execute_stop_autosample', [SBE37Channel.CTD])
             if not reply[SBE37Channel.CTD]:
                 break
             time.sleep(2)

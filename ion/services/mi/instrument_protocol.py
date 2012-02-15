@@ -530,6 +530,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         return self._parameters[name].value
 
+    def _get_param_dict_names(self):
+        """
+        """
+        return self._parameters.keys()
+
     def _get_config_param_dict(self):
         """
         """
