@@ -492,9 +492,14 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
     def test_create_stream_policy_stream_not_found(self):
-        pass
         # try to create a stream policy for a stream that does not exist
         # Assert that the operation fails
+
+        # Create the ingestion workers
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+        with self.assertRaises(Exception):
+            stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = 'bad_stream' , archive_data = True, archive_metadata=True)
 
 
     def test_event_subscriber(self):
@@ -503,7 +508,22 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Assert that the subscriber receives messages
         """
 
-        pass
+        # Create the ingestion workers
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+
+        # the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+
+        self.assertEquals(proc_1.stream_policies.get(self.input_stream_id).stream_id, self.input_stream_id)
+        self.assertEquals(proc_2.stream_policies.get(self.input_stream_id).stream_id, self.input_stream_id)
+
 
     def test_update_stream_policy(self):
         """
