@@ -43,6 +43,15 @@ ACTIVE_OBSERVATORY_STATES = [
     InstrumentAgentState.OBSERVATORY,
     InstrumentAgentState.STREAMING
     ]    
+
+INACTIVE_STATES = [
+    InstrumentAgentState.INACTIVE,
+    InstrumentAgentState.IDLE,
+    InstrumentAgentState.STOPPED,
+    InstrumentAgentState.OBSERVATORY,
+    InstrumentAgentState.STREAMING,
+    InstrumentAgentState.DIRECT_ACCESS
+    ]    
     
 class InstrumentAgentEvent(BaseEnum):
     """
@@ -252,24 +261,32 @@ class InstrumentAgent(ResourceAgent):
         return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
     ###############################################################################
-    # Instrument agent resouce interface.
+    # Instrument agent capabilities interface.
     ###############################################################################
 
-    def get_capabilities(self, resource_id="", capability_types=[]):
-        capability_types = capability_types or ["CONV_TYPE", "AGT_CMD", "AGT_PAR", "RES_CMD", "RES_PAR"]
-        cap_list = []
-        if "CONV_TYPE" in capability_types:
-            cap_list.extend([("CONV_TYPE", cap) for cap in self._get_agent_conv_types()])
-        if "AGT_CMD" in capability_types:
-            cap_list.extend([("AGT_CMD", cap) for cap in self._get_agent_commands()])
-        if "AGT_PAR" in capability_types:
-            cap_list.extend([("AGT_PAR", cap) for cap in self._get_agent_params()])
-        if "RES_CMD" in capability_types:
-            cap_list.extend([("RES_CMD", cap) for cap in self._get_resource_commands()])
-        if "RES_PAR" in capability_types:
-            cap_list.extend([("RES_PAR", cap) for cap in self._get_resource_params()])
-        return cap_list
+    def _get_resource_commands(self):
+        """
+        """
+        cmds = []
+        state = self._fsm.get_current_state()
+        if state in INACTIVE_STATES:
+            cmds = self._dvr_client.cmd_dvr('get_resource_commands')
+        
+        return cmds
+    
+    def _get_resource_params(self):
+        """
+        """
+        params = []
+        state = self._fsm.get_current_state()
+        if state in INACTIVE_STATES:
+            params = self._dvr_client.cmd_dvr('get_resource_params')
+        return params
 
+    ###############################################################################
+    # Instrument agent resource interface.
+    ###############################################################################
+    
     def get_param(self, resource_id="", params=None):
         state = self._fsm.get_current_state()
         if state in ACTIVE_OBSERVATORY_STATES:
@@ -287,11 +304,11 @@ class InstrumentAgent(ResourceAgent):
     def execute(self, resource_id="", command=None):
         state = self._fsm.get_current_state()
         if state in ACTIVE_OBSERVATORY_STATES:
-            return self._execute("execute_", command)
+            return self._ia_execute("execute_", command)
         else:
             raise iex.Conflict('Cannot command device in this state.')
 
-    def _execute(self, cprefix, command):
+    def _ia_execute(self, cprefix, command):
         if not command:
             raise iex.BadRequest("execute argument 'command' not present")
         if not command.command:
@@ -300,13 +317,14 @@ class InstrumentAgent(ResourceAgent):
         cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
                             command=command.command)
         cmd_res.ts_execute = get_ion_ts()
+        command.command = 'execute_' + command.command
         res = self._dvr_client.cmd_dvr(command.command, *command.args,
                                            **command.kwargs)
         cmd_res.status = 0
         cmd_res.result = res
 
         return cmd_res
-
+    
     ###############################################################################
     # Instrument agent transaction interface.
     ###############################################################################
