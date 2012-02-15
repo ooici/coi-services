@@ -39,6 +39,9 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         self.datastore_name = 'test_dm_integration'
 
     def test_dm_integration(self):
+        '''
+        Test full DM Services Integration
+        '''
 
         #---------------------------
         # Set up ingestion

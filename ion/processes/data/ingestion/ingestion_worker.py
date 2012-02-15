@@ -118,8 +118,8 @@ class IngestionWorker(TransformDataProcess):
         if isinstance(packet, StreamGranuleContainer):
             for key,value in packet.identifiables.iteritems():
                 if isinstance(value, DataStream):
-                    hdfstring = value
-                    packet.identifiables[key]=''
+                    hdfstring = value.values
+                    value.values=''
 
             if policy.archive_metadata is True:
                 log.debug("Persisting data....")
