@@ -6,11 +6,20 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, sys_name
 from pyon.core.exception import BadRequest, NotFound
 from pyon.event.event import EventError, EventSubscriber, EventRepository
 from pyon.util.async import spawn
 from gevent import Greenlet
+import string, smtplib, time
+from datetime import datetime
+from email.mime.text import MIMEText
+
+#ION_DATA_ALERTS_EMAIL_ADDRESS = 'ION_notifications@oceanobservatories.org'
+ION_DATA_ALERTS_EMAIL_ADDRESS = 'wbollenbacher@ucsd.edu'
+#ION_SMTP_SERVER = 'mail.oceanobservatories.org'
+ION_SMTP_SERVER = 'localhost'
+
 
 class NotificationEventSubscriber(EventSubscriber):
     
@@ -55,6 +64,35 @@ class UserEventProcessor(object):
         log.debug("event type = " + str(args[0]._get_type()))
         log.debug("args[0]=" + str(args[0]))
         log.debug("origin=%s, description=%s, ts=%s" %(args[0].origin, args[0].description, args[0].ts_created))
+        
+        origin = args[0].origin
+        event = str(args[0]._get_type())
+        description = args[0].description
+        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(args[0].ts_created))))
+
+        # build the email from the event content
+        BODY = string.join(("Event: %s" %  event,
+                            "",
+                            "Originator: %s" %  origin,
+                            "",
+                            "Description: %s" %  description,
+                            "",
+                            "Time stamp: %s" %  time_stamp,
+                            "",
+                            "You received this notification from ION because you asked to be notified about this event from this source. ",
+                            "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI."), 
+                           "\r\n")
+        SUBJECT = "(SysName: " + sys_name + ") ION event " + event + " from " + origin
+        FROM = ION_DATA_ALERTS_EMAIL_ADDRESS
+        TO = self.user_email_addr
+        msg = MIMEText(BODY)
+        msg['Subject'] = SUBJECT
+        msg['From'] = FROM
+        msg['To'] = TO
+        smtp_client = smtplib.SMTP(ION_SMTP_SERVER)
+        #smtp_client.sendmail([TO], [FROM], msg.as_string())
+        smtp_client.sendmail(TO, FROM, msg.as_string())
+
     
     def add_notification(self, notification=None, cc_node=None):
         for n in self.notifications:
