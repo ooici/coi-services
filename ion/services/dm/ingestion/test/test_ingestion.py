@@ -241,9 +241,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.db = self.container.datastore_manager.get_datastore('dm_datastore', DataStore.DS_PROFILE.EXAMPLES, CFG)
 
-
-
-
     def tearDown(self):
         """
         Cleanup. Delete Subscription, Stream, Process Definition
@@ -339,6 +336,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
         log.info("PROCESS 2: %s" % str(proc_2))
 
+
         ar_2 = gevent.event.AsyncResult()
         def message_received_2(message):
             ar_2.set(message)
@@ -346,15 +344,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         proc_2.process = message_received_2
 
-
-
-
         #------------------------------------------------------------------------
         # Publish messages and test for round robin handling
         #----------------------------------------------------------------------
-
-
-        # If the ingestion workers do not work round robin, class IngestionExample will raise an AssertionError
 
         num = 1
         msg = dict(num=str(num))
@@ -482,6 +474,10 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
         stream_policy = self.rr_cli.read(stream_policy_id)
 
+        #--------------------------------------------------------------------------------------------------------
+        # Do assertions!
+        #--------------------------------------------------------------------------------------------------------
+
         self.assertEquals(stream_policy.policy.stream_id, self.input_stream_id)
         self.assertEquals(stream_policy.policy.archive_data, True)
 #        self.assertEquals(stream_policy.policy.archive_metadata, False)
@@ -495,11 +491,18 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # try to create a stream policy for a stream that does not exist
         # Assert that the operation fails
 
+        #--------------------------------------------------------------------------------------------------------
         # Create the ingestion workers
+        #--------------------------------------------------------------------------------------------------------
+
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
+        #--------------------------------------------------------------------------------------------------------
+        # Do assertions!
+        #--------------------------------------------------------------------------------------------------------
+
         with self.assertRaises(Exception):
-            stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = 'bad_stream' , archive_data = True, archive_metadata=True)
+            stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = 'non_existent_stream' , archive_data = True, archive_metadata=True)
 
 
     def test_event_subscriber(self):
@@ -508,7 +511,10 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Assert that the subscriber receives messages
         """
 
+        #--------------------------------------------------------------------------------------------------------
         # Create the ingestion workers
+        #--------------------------------------------------------------------------------------------------------
+
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
 
@@ -520,6 +526,10 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
 
         stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Do assertions and checks!
+        #--------------------------------------------------------------------------------------------------------
 
         self.assertEquals(proc_1.stream_policies.get(self.input_stream_id).stream_id, self.input_stream_id)
         self.assertEquals(proc_2.stream_policies.get(self.input_stream_id).stream_id, self.input_stream_id)
@@ -530,9 +540,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Test updating a stream policy
         """
 
+        #--------------------------------------------------------------------------------------------------------
         # Create the ingestion workers
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        #--------------------------------------------------------------------------------------------------------
 
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         # the worker processes
         name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
@@ -541,14 +553,35 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
         proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
 
+        #--------------------------------------------------------------------------------------------------------
+        # Create a stream policy
+        #--------------------------------------------------------------------------------------------------------
+
         stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
         stream_policy = self.rr_cli.read(stream_policy_id)
 
+        old_description = stream_policy.description
+
+        #--------------------------------------------------------------------------------------------------------
+        # Change the stream policy and update it
+        #--------------------------------------------------------------------------------------------------------
+
+        stream_policy.description = 'updated right now'
         # now update the stream polic
-        new_stream_policy_id = self.ingestion_cli.update_stream_policy( stream_policy)
-        new_stream_policy = self.rr_cli.read(new_stream_policy_id)
+        self.ingestion_cli.update_stream_policy( stream_policy)
 
+        #--------------------------------------------------------------------------------------------------------
+        # Read the updated policy
+        #--------------------------------------------------------------------------------------------------------
 
+        new_stream_policy = self.rr_cli.read(stream_policy_id)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Do assertions and checks!
+        #--------------------------------------------------------------------------------------------------------
+
+        self.assertEquals(new_stream_policy.description, 'updated right now')
+        self.assertNotEquals(old_description, new_stream_policy.description)
 
     def test_update_stream_policy_not_found(self):
         """
@@ -556,14 +589,64 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Assert that the operation fails
         """
 
-        pass
+        #--------------------------------------------------------------------------------------------------------
+        # Create the ingestion workers
+        #--------------------------------------------------------------------------------------------------------
+
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+        # the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that a non existent stream policy cannot be updated
+        #--------------------------------------------------------------------------------------------------------
+
+        with self.assertRaises(Exception):
+            stream_policy.description = 'updated right now'
+            self.ingestion_cli.update_stream_policy(stream_policy = 'bad_stream')
 
     def test_read_stream_policy(self):
         """
         Test reading a stream policy
         """
 
-        pass
+        #--------------------------------------------------------------------------------------------------------
+        # Create the ingestion workers
+        #--------------------------------------------------------------------------------------------------------
+
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+        # the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Create a stream policy
+        #--------------------------------------------------------------------------------------------------------
+
+        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Read the stream policy
+        #--------------------------------------------------------------------------------------------------------
+
+        stream_policy = self.rr_cli.read(stream_policy_id)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Do assertions and checks!
+        #--------------------------------------------------------------------------------------------------------
+
+        self.assertEquals(stream_policy.policy.stream_id, self.input_stream_id)
+
 
     def test_read_stream_policy_not_found(self):
         """
@@ -571,14 +654,63 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Assert that the operation fails
         """
 
-        pass
+        #--------------------------------------------------------------------------------------------------------
+        # Create the ingestion workers
+        #--------------------------------------------------------------------------------------------------------
+
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+        # the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that reading not existent stream policy raises an exception
+        #--------------------------------------------------------------------------------------------------------
+
+        with self.assertRaises(Exception):
+            stream_policy = self.rr_cli.read('abracadabra')
+
 
     def test_delete_stream_policy(self):
         """
         Test deleting a strema policy
         """
 
-        pass
+        #--------------------------------------------------------------------------------------------------------
+        # Create the ingestion workers
+        #--------------------------------------------------------------------------------------------------------
+
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+        # the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Create a stream policy
+        #--------------------------------------------------------------------------------------------------------
+
+        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Delete the stream policy
+        #--------------------------------------------------------------------------------------------------------
+
+        self.ingestion_cli.delete_stream_policy(stream_policy_id)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that trying to read the stream policy now raises an exception
+        #--------------------------------------------------------------------------------------------------------
+
+        with self.assertRaises(Exception):
+            stream_policy = self.rr_cli.read(stream_policy_id)
 
     def test_delete_stream_policy_not_found(self):
         """
@@ -586,7 +718,25 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Assert that the operation fails
         """
 
-        pass
+        #--------------------------------------------------------------------------------------------------------
+        # Create the ingestion workers
+        #--------------------------------------------------------------------------------------------------------
+
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+        # the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Delete a stream policy that does not exists
+        #--------------------------------------------------------------------------------------------------------
+
+        with self.assertRaises(Exception):
+            self.ingestion_cli.delete_stream_policy('non_existent_stream_id')
 
     def test_ingestion_workers_writes_to_couch(self):
         """
@@ -660,6 +810,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
         self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
+    @unittest.skip("todo: after stream policy has been implemented")
     def test_default_policy(self):
         """
         Test that the default policy is being used properly
