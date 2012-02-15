@@ -73,7 +73,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         #   for processes.
         #########################################################################################################
         process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
-        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_worker', 'class':'IngestionWorker'}
+        process_definition.executable = {'module': 'ion.processes.data.ingestion.ingestion_worker', 'class':'IngestionWorker'}
         #        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
         process_definition_id, _ = self.clients.resource_registry.create(process_definition)
 

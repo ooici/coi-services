@@ -37,9 +37,14 @@ class IngestionWorker(TransformDataProcess):
 
         self.couch_config = self.CFG.get('couch_storage')
         self.hdf_storage = self.CFG.get('hdf_storage')
-        self.default_policy = self.CFG.get('default_policy')
-        if self.default_policy:
-            self.default_policy = StreamPolicy()
+
+        policy_dict = self.CFG.get('default_policy',{})
+        self.default_policy = StreamPolicy()
+
+        self.default_policy.archive_data = policy_dict.get('archive_data')
+        self.default_policy.archive_metadata = policy_dict.get('archive_metadata')
+
+
 
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
@@ -78,10 +83,7 @@ class IngestionWorker(TransformDataProcess):
         """
 
         # Get the policy for this stream
-        if not (isinstance(packet, BlogPost) or isinstance(packet, BlogComment)):
-            policy = self.extract_policy_packet(packet)
-        else:
-            policy = ''
+        policy = self.extract_policy_packet(packet)
 
         # Process the packet
         self.process_stream(packet, policy)
@@ -112,15 +114,20 @@ class IngestionWorker(TransformDataProcess):
         @param: policy The policy telling this method what to do with the incoming data stream.
         """
 
-        #@todo Evaluate policy for this stream and determine what to do.
-
-        if isinstance(packet, StreamGranuleContainer) and not packet.is_replay:
+        # Ignoring is_replay attribute now that we have a policy implementation
+        if isinstance(packet, StreamGranuleContainer):
             for key,value in packet.identifiables.iteritems():
                 if isinstance(value, DataStream):
                     hdfstring = value
                     packet.identifiables[key]=''
-                    
-            self.persist_immutable(packet )
+
+            if policy.archive_metadata is True:
+                self.persist_immutable(packet )
+
+            if policy.archive_data is True:
+                #@todo - save the hdf string somewhere..
+                pass
+
 
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:
@@ -148,20 +155,21 @@ class IngestionWorker(TransformDataProcess):
         Extracts and returns the policy from the data stream
         """
 
-        stream_id = incoming_packet.data_stream_id
-        log.debug('Getting policy for stream id: %s' % stream_id)
-
-        policy = self.default_policy
-
         try:
-            # Check for stream specific policy object
-            pass
-#            policy = self.resource_reg_client.find_objects(incoming_packet, PRED.hasPolicy, RT.Policy, False)
+            stream_id = incoming_packet.data_stream_id
+        except AttributeError:
+            log.info('Packet does not have a data_stream_id: using default policy')
+            return self.default_policy
 
-            # Later this would be replaced with a notification and caching scheme
-        except :
-            # If there is not policy for this stream use the default policy for this Ingestion Configuration
-            log.debug('No policy found for stream id: %s' % stream_id)
+
+        policy = self.stream_policies(stream_id, None)
+
+        if policy is None:
+            policy = self.default_policy
+            log.info('No policy found for stream id: %s - using default policy: %s' % (stream_id, policy))
+        else:
+            log.info('Got policy: %s for stream id: %s' % (policy, stream_id))
+
 
         # return the extracted instruction
         return policy
