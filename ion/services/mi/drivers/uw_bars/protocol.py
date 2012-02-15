@@ -18,6 +18,7 @@ from ion.services.mi.instrument_protocol import \
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
+import ion.services.mi.drivers.uw_bars.bars as bars
 
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.instrument_fsm_args import InstrumentFSM
@@ -203,14 +204,14 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         """Gets the current state of the protocol."""
         return self._fsm.get_current_state()
 
-    def get(self, *args, **kwargs):
+    def get(self, params, *args, **kwargs):
 
         # TODO only handles (INSTRUMENT, TIME_BETWEEN_BURSTS) for the moment
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("params=%s args=%s kwargs=%s" % (str(args), str(kwargs)))
+            log.debug("params=%s args=%s kwargs=%s" %
+                      (str(params), str(args), str(kwargs)))
 
-        params = kwargs.get('params')
         assert isinstance(params, list)
         assert len(params) == 1
 
@@ -251,35 +252,40 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         #
         # scan menu for requested value
         #
-        success = InstErrorCode.UNKNOWN_ERROR
-        value = "??"
+        seconds = None
         mo = re.search(CYCLE_TIME_PATTERN, menu)
         if mo is not None:
             cycle_time_str = mo.group(1)
             log.debug("scanned cycle_time_str='%s'" % str(cycle_time_str))
-            value = cycle_time_str
-            success = InstErrorCode.OK
-            # we got out result
-        result = {cp: (success, value)}
+            seconds = bars.get_cycle_time_seconds(cycle_time_str)
 
+        if seconds is None:
+            raise InstrumentProtocolException(
+                    msg="Unexpected: string could not be matched: %s" % string)
+
+        result = {cp: seconds}
         return result
 
     ########################################################################
 
-    def connect(self, *args, **kwargs):
+    def connect(self, channels=None, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
+        channels = channels or [BarsChannel.INSTRUMENT]
 
         self._assert_state(BarsProtocolState.PRE_INIT)
-        super(BarsInstrumentProtocol, self).connect(*args, **kwargs)
+        super(BarsInstrumentProtocol, self).connect(channels, *args, **kwargs)
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("connected.")
 
         self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
-        # State handlers
+
+    # State handlers
     ########################################################################
 
     def _handler_pre_init_initialize(self, *args, **kwargs):

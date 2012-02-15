@@ -117,9 +117,6 @@ class BarsDriverTest(PyonBarsTestCase):
     def _disconnect(self):
         driver_client = self._driver_client
 
-        # TODO the reply of the main operation should probably include
-        # an item indicating the current state of the driver so there is no
-        # need to explicitly query for it.
         reply = driver_client.cmd_dvr('disconnect', [BarsChannel.INSTRUMENT])
         print("** disconnect reply=%s" % str(reply))
         reply = driver_client.cmd_dvr('get_current_state')
@@ -135,7 +132,6 @@ class BarsDriverTest(PyonBarsTestCase):
         self._connect()
         self._disconnect()
 
-    @unittest.skip('not yet ready')
     def test_get(self):
         """BARS get"""
 
@@ -149,7 +145,7 @@ class BarsDriverTest(PyonBarsTestCase):
 
         reply = driver_client.cmd_dvr('get', get_params)
         print "get reply = %s" % str(reply)
-#        success = reply[0]
-#        result = reply[1]
+        seconds = reply.get(cp)
+        assert isinstance(seconds, int)
 
         self._disconnect()

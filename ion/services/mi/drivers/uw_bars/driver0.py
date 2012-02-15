@@ -201,7 +201,10 @@ class BarsInstrumentDriver(InstrumentDriver):
         log.debug("BUFFER='%s'" % repr(buffer))
         string = bars.get_cycle_time(buffer)
         log.debug("VALUE='%s'" % string)
-        seconds = self._get_cycle_time_seconds(string)
+        seconds = bars.get_cycle_time_seconds(string)
+        if seconds is None:
+            raise InstrumentProtocolException(
+                    msg="Unexpected: string could not be matched: %s" % string)
 
         log.debug("send 3 to return to main menu")
         self.bars_client.send('3')
@@ -215,23 +218,6 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         result = {cp: seconds}
         return result
-
-    def _get_cycle_time_seconds(self, string):
-        seconds = 0
-        mo = re.match(r"(\d+)\s+(Seconds|Minutes)", string)
-        if mo is not None:
-            value = int(mo.group(1))
-            units = mo.group(2)
-            if units == "Seconds":
-                seconds = value
-            else:
-                seconds = 60 * value
-        else:
-            raise InstrumentProtocolException(
-                    msg="Unexpected: string could not be matched: %s" % string)
-
-        log.debug("returning seconds=%d" % seconds)
-        return seconds
 
     def set(self, params, *args, **kwargs):
         """

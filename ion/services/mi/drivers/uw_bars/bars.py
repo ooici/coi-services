@@ -119,6 +119,26 @@ def get_cycle_time(string):
     return _search_in_pattern(string, CYCLE_TIME_PATTERN, 1)
 
 
+def get_cycle_time_seconds(string):
+    """
+    Parses the string to get the corresponding number of seconds, for example,
+    if string="20 Seconds" then returns 20,
+    if string="2 Minutes" then returns 120.
+    @param string the text presumably obtained by get_cycle_time.
+    @return the number of seconds. None if the string cannot be parsed.
+    """
+    mo = re.match(r"(\d+)\s+(Seconds|Minutes)", string)
+    if mo is not None:
+        value = int(mo.group(1))
+        units = mo.group(2)
+        if units == "Seconds":
+            seconds = value
+        else:
+            seconds = 60 * value
+        return seconds
+    else:
+        return None
+
 def get_verbose_vs_data_only(string):
     """
     Extract the verbose vs. data only mode text from the given string. None
