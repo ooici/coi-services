@@ -7,6 +7,7 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
+from interface.objects import BlogBase
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
@@ -41,10 +42,11 @@ class ReplayProcess(BaseReplayProcess):
         self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
         self.view_name = self.CFG.get('process',{}).get('view_name')
         self.key_id = self.CFG.get('process',{}).get('key_id')
+        # Get a stream_id for this process
         self.stream_id = None
 
         # Attach a publisher to each stream_name attribute
-        #@TODO does this belong here? Should it be in the container somewhere?
+        #@TODO Patch an appropriate stream to this in data retriever
         self.stream_count = len(streams)
         for name,stream_id in streams.iteritems():
             if not self.stream_id:
@@ -84,12 +86,15 @@ class ReplayProcess(BaseReplayProcess):
             log.warn('Result: %s' % result)
             if 'doc' in result:
                 log.debug('Result contains document.')
-                blog_msg = result['doc']
-                blog_msg.stream_resource_id = self.stream_id
+                replay_obj_msg = result['doc']
+                if isinstance(replay_obj_msg, BlogBase):
+                    replay_obj_msg.is_replay = True
+                else:
+                    replay_obj_msg.stream_resource_id = self.stream_id
             else:
-                blog_msg = result['value'] # Document ID, not a document
+                replay_obj_msg = result['value'] # Document ID, not a document
             self.lock.acquire()
-            self.output.publish(blog_msg)
+            self.output.publish(replay_obj_msg)
             self.lock.release()
 
         #@todo: log when there are not results
