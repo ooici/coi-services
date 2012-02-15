@@ -14,7 +14,7 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import NotFound
-from pyon.public import log, StreamPublisherRegistrar
+from pyon.public import log, StreamPublisherRegistrar, CFG
 from interface.objects import HdfStorage, CouchStorage, StreamPolicy
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient

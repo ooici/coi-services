@@ -64,7 +64,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
 
         # Give each ingestion configuration its own queue name to receive data on
-        exchange_name = self.XP + '_ingestion_queue'
+        exchange_name = 'ingestion_queue'
 
 
         #########################################################################################################
