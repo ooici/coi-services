@@ -43,6 +43,15 @@ ACTIVE_OBSERVATORY_STATES = [
     InstrumentAgentState.OBSERVATORY,
     InstrumentAgentState.STREAMING
     ]    
+
+INACTIVE_STATES = [
+    InstrumentAgentState.INACTIVE,
+    InstrumentAgentState.IDLE,
+    InstrumentAgentState.STOPPED,
+    InstrumentAgentState.OBSERVATORY,
+    InstrumentAgentState.STREAMING,
+    InstrumentAgentState.DIRECT_ACCESS
+    ]    
     
 class InstrumentAgentEvent(BaseEnum):
     """
@@ -260,7 +269,7 @@ class InstrumentAgent(ResourceAgent):
         """
         cmds = []
         state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
+        if state in INACTIVE_STATES:
             cmds = self._dvr_client.cmd_dvr('get_resource_commands')
         
         return cmds
@@ -270,14 +279,14 @@ class InstrumentAgent(ResourceAgent):
         """
         params = []
         state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
+        if state in INACTIVE_STATES:
             params = self._dvr_client.cmd_dvr('get_resource_params')
         return params
 
     ###############################################################################
     # Instrument agent resource interface.
     ###############################################################################
-
+    
     def get_param(self, resource_id="", params=None):
         state = self._fsm.get_current_state()
         if state in ACTIVE_OBSERVATORY_STATES:
@@ -295,11 +304,11 @@ class InstrumentAgent(ResourceAgent):
     def execute(self, resource_id="", command=None):
         state = self._fsm.get_current_state()
         if state in ACTIVE_OBSERVATORY_STATES:
-            return self._execute("execute_", command)
+            return self._ia_execute("execute_", command)
         else:
             raise iex.Conflict('Cannot command device in this state.')
 
-    def _execute(self, cprefix, command):
+    def _ia_execute(self, cprefix, command):
         if not command:
             raise iex.BadRequest("execute argument 'command' not present")
         if not command.command:
@@ -315,7 +324,7 @@ class InstrumentAgent(ResourceAgent):
         cmd_res.result = res
 
         return cmd_res
-
+    
     ###############################################################################
     # Instrument agent transaction interface.
     ###############################################################################

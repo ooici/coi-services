@@ -433,8 +433,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def get_resource_commands(self):
         """
         """
-        [cmd for cmd in dir(self) if cmd.startswith(execute_)]    
-        
+        return [cmd for cmd in dir(self) if cmd.startswith('execute_')]    
+    
     def get_resource_params(self):
         """
         """
@@ -1198,16 +1198,20 @@ class SBE37Driver(InstrumentDriver):
 
     def get_resource_commands(self):
         """
-        """        
+        """
+        result = []
         cmds = self._channels[SBE37Channel.CTD].get_resource_commands()
-        result = [(SBE37Channel.CTD, cmd) for cmd in cmds]
+        if cmds:
+            result = [(SBE37Channel.CTD, cmd) for cmd in cmds]
         return result
     
-    def get_resource_parameters(self):
+    def get_resource_params(self):
         """
         """
-        params = self._channels[SBE37Channel.CTD].get_resource_commands()
-        result = [(SBE37Channel.CTD, param) for param in params]
+        result = []
+        params = self._channels[SBE37Channel.CTD].get_resource_params()
+        if params:
+            result = [(SBE37Channel.CTD, param) for param in params]
         return result        
 
     def get_channels(self):
