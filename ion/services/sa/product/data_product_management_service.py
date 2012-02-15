@@ -132,44 +132,61 @@ class DataProductManagementService(BaseDataProductManagementService):
             objects = []
         return objects
 
+
     def activate_data_product_persistence(self, data_product_id=''):
         """Persist data product data into a data set
 
         @param data_product_id    str
         @throws NotFound    object with specified id does not exist
         """
-
-        # Verify that product id are valid
+        # retrieve the data_process object
         data_product_obj = self.clients.resource_registry.read(data_product_id)
-        if not data_product_obj:
-            raise BadRequest("Data Product resource %s does not exist" % data_product_id)
+        if data_product_obj is None:
+            raise NotFound("Data Product %s does not exist" % data_product_id)
 
         # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
         streams, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
         if len(streams) > 1 or len(streams) == 0:
             raise BadRequest('Data Product must have one stream associated%s' % str(data_product_id))
 
-        # create the dataset for this product
-        dataset_id = self.clients.dataset_management.create_dataset(self, streams[0], data_product_obj.name, data_product_obj.description)
-        log.debug("DataProductManagementService:activate_data_product_persistence: dataset_id = %s" % dataset_id)
+        stream = streams[0]
 
         # Call ingestion management to create a ingestion configuration
-        #todo: how to get ingestion configuration?
-        #ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, True, True)
 
         # activate an ingestion configuration
-        #ret = self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+        #todo: Does DPMS call activate?
+        #ret = self.clients.ingestion_management.activate_ingestion_configuration(ingestion_configuration_id)
+
+        # create the dataset for the data
+        self.clients.dataset_management.create_dataset(self, stream, data_product_obj.name, data_product_obj.description)
 
         return
 
-    def suspend_data_product_persistence(self, data_product_id='', type=''):
+    def suspend_data_product_persistence(self, data_product_id=''):
         """Suspend data product data persistnce into a data set, multiple options
 
         @param data_product_id    str
         @param type    str
         @throws NotFound    object with specified id does not exist
         """
-        pass
+
+        # retrieve the data_process object
+        data_product_obj = self.clients.resource_registry.read(data_product_id)
+        if data_product_obj is None:
+            raise NotFound("Data Product %s does not exist" % data_product_id)
+
+        # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
+        streams, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
+        if len(streams) > 1:
+            raise BadRequest('There are  multiple streams linked to this Data Product %s' % str(data_product_id))
+
+        stream = streams[0]
+
+        # Change the stream policy to stop ingestion
+        stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, False, False)
+
+        return
 
     def set_data_product_lifecycle(self, data_product_id="", lifecycle_state=""):
        """
