@@ -54,7 +54,10 @@ class SBE37Event(BaseEnum):
     CONNECT = DriverEvent.CONNECT
     DISCONNECT = DriverEvent.DISCONNECT
     DETACH = DriverEvent.DETACH
-    EXECUTE = DriverEvent.EXECUTE
+    ACQUIRE_SAMPLE = DriverEvent.ACQUIRE_SAMPLE
+    START_AUTOSAMPLE = DriverEvent.START_AUTOSAMPLE
+    STOP_AUTOSAMPLE = DriverEvent.STOP_AUTOSAMPLE
+    TEST = DriverEvent.TEST
     GET = DriverEvent.GET
     SET = DriverEvent.SET
     UPDATE_PARAMS = DriverEvent.UPDATE_PARAMS
@@ -153,13 +156,15 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.ENTER, self._handler_command_enter)
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.EXIT, self._handler_command_exit)
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.DISCONNECT, self._handler_command_disconnect)
-        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.EXECUTE, self._handler_command_execute)
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.GET, self._handler_command_autosample_get)
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.SET, self._handler_command_set)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.ACQUIRE_SAMPLE, self._handler_command_acquire_sample)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.START_AUTOSAMPLE, self._handler_command_start_autosample)
+        self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.TEST, self._handler_command_test)
         self._fsm.add_handler(SBE37State.COMMAND, SBE37Event.UPDATE_PARAMS, self._handler_command_update_params)
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.ENTER, self._handler_autosample_enter)
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.EXIT, self._handler_autosample_exit)
-        self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.EXECUTE, self._handler_autosample_execute)
+        self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.STOP_AUTOSAMPLE, self._handler_autosample_stop_autosample)
         self._fsm.add_handler(SBE37State.AUTOSAMPLE, SBE37Event.GET, self._handler_command_autosample_get)
 
         # Start state machine.
@@ -390,31 +395,51 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         return self._fsm.on_event(SBE37Event.SET, *args, **kwargs)
 
-    def execute(self, *args, **kwargs):
-        """
-        """
-        return self._fsm.on_event(SBE37Event.EXECUTE, *args, **kwargs)
-
     def execute_direct(self, *args, **kwargs):
         """
         """
         return self._fsm.on_event(SBE37Event.EXECUTE, *args, **kwargs)
     
+    def execute_acquire_sample(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(SBE37Event.ACQUIRE_SAMPLE, *args, **kwargs)
+
+    def execute_start_autosample(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(SBE37Event.START_AUTOSAMPLE, *args, **kwargs)
+
+    def execute_stop_autosample(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(SBE37Event.STOP_AUTOSAMPLE, *args, **kwargs)
+
+    def execute_test(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(SBE37Event.TEST, *args, **kwargs)
+
     def update_params(self, *args, **kwargs):
         """
         """
         return self._fsm.on_event(SBE37Event.UPDATE_PARAMS, *args, **kwargs)
-    
+            
     ########################################################################
     # Protocol query interface.
     ########################################################################
     
     
-    def get_capabilities(self, capabilities, *args, **kwargs):
+    def get_resource_commands(self):
         """
         """
-        pass
-
+        return [cmd for cmd in dir(self) if cmd.startswith('execute_')]    
+    
+    def get_resource_params(self):
+        """
+        """
+        return self._get_param_dict_names()
+        
     def get_current_state(self):
         """
         """
@@ -584,38 +609,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
         return (next_state, result)
 
-    def _handler_command_execute(self, cmd, *args, **kwargs):
-        """
-        @throw InstrumentProtocolException on invalid command
-        """
-        next_state = None
-        result = None
-                
-        if cmd == SBE37Command.ACQUIRE_SAMPLE:
-            try:
-                result = self._do_cmd_resp('ts', *args, **kwargs)
-                next_state = None
-            
-            except InstrumentTimeoutException:
-                next_state = None
-                result = InstErrorCode.TIMEOUT
-                    
-        elif cmd == SBE37Command.START_AUTO_SAMPLING:
-            try:
-                self._do_cmd_no_resp('startnow', *args, **kwargs)                
-                next_state = SBE37State.AUTOSAMPLE
-            
-            except InstrumentTimeoutException:
-                next_state = None
-                result = InstErrorCode.TIMEOUT
-
-        else:
-            # Invalid command, fail and stay here.
-            result = InstErrorCode.INVALID_COMMAND
-            next_state = None
-                
-        return (next_state, result)
-
     def _handler_command_set(self, *args, **kwargs):
         """
         """
@@ -634,6 +627,43 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             next_state = None
             result = InstErrorCode.REQUIRED_PARAMETER
         
+        return (next_state, result)
+
+    def _handler_command_acquire_sample(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+
+        try:
+            result = self._do_cmd_resp('ts', *args, **kwargs)
+        
+        except InstrumentTimeoutException:
+            result = InstErrorCode.TIMEOUT
+
+        return (next_state, result)
+
+    def _handler_command_start_autosample(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+
+        try:
+            self._do_cmd_no_resp('startnow', *args, **kwargs)                
+            next_state = SBE37State.AUTOSAMPLE
+        
+        except InstrumentTimeoutException:
+            result = InstErrorCode.TIMEOUT
+
+        return (next_state, result)
+
+    def _handler_command_test(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+
         return (next_state, result)
 
     def _handler_command_update_params(self, *args, **kwargs):
@@ -666,30 +696,26 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         pass
 
-    def _handler_autosample_execute(self, cmd, *args, **kwargs):
+    def _handler_autosample_stop_autosample(self, *args, **kwargs):
         """
         @throw InstrumentProtocolException on invalid command
         """
         next_state = None
         result = None
-        
-        if cmd == SBE37Command.STOP_AUTO_SAMPLING:
-            try:
-                prompt = None
-                timeout = kwargs.get('timeout', 10)
-                while prompt != SBE37Prompt.AUTOSAMPLE:
-                    prompt = self._wakeup(timeout)
-                self._do_cmd_resp('stop', *args, **kwargs)
-                prompt = None
-                while prompt != SBE37Prompt.COMMAND:
-                    prompt = self._wakeup(timeout)
-                next_state = SBE37State.COMMAND
-                
-            except InstrumentTimeoutException:
-                result = InstErrorCode.TIMEOUT
 
-        else:
-            result = InstErrorCode.INVALID_COMMAND
+        try:
+            prompt = None
+            timeout = kwargs.get('timeout', 10)
+            while prompt != SBE37Prompt.AUTOSAMPLE:
+                prompt = self._wakeup(timeout)
+            self._do_cmd_resp('stop', *args, **kwargs)
+            prompt = None
+            while prompt != SBE37Prompt.COMMAND:
+                prompt = self._wakeup(timeout)
+            next_state = SBE37State.COMMAND
+            
+        except InstrumentTimeoutException:
+            result = InstErrorCode.TIMEOUT
 
         return (next_state, result)
 
@@ -1099,8 +1125,13 @@ class SBE37Driver(InstrumentDriver):
         
         # Return overall success and individual results.
         return result
-
-    def execute(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+        
+    def execute_direct(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+        """
+        """
+        pass
+    
+    def execute_acquire_sample(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
         try:
@@ -1108,26 +1139,80 @@ class SBE37Driver(InstrumentDriver):
     
             for channel in valid_channels:
                 result[channel] = self._channels[SBE37Channel.CTD].\
-                    execute(*args, **kwargs)                
+                    execute_acquire_sample(*args, **kwargs)                
+
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+    
+        return result
+    
+    def execute_start_autosample(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+        """
+        """
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
+    
+            for channel in valid_channels:
+                result[channel] = self._channels[SBE37Channel.CTD].\
+                    execute_start_autosample(*args, **kwargs)                
 
         except RequiredParameterException:
             result = InstErrorCode.REQUIRED_PARAMETER
 
         return result
-        
-    def execute_direct(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+
+    def execute_stop_autosample(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
-        pass
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
+    
+            for channel in valid_channels:
+                result[channel] = self._channels[SBE37Channel.CTD].\
+                    execute_stop_autosample(*args, **kwargs)                
+
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+
+        return result
+
+    def execute_test(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+        """
+        """
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
+    
+            for channel in valid_channels:
+                result[channel] = self._channels[SBE37Channel.CTD].\
+                    execute_test(*args, **kwargs)                
+
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+    
+        return result
     
     ########################################################################
     # TBD.
     ########################################################################    
         
-    def get_capabilities(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+
+    def get_resource_commands(self):
         """
         """
-        pass
+        result = []
+        cmds = self._channels[SBE37Channel.CTD].get_resource_commands()
+        if cmds:
+            result = [(SBE37Channel.CTD, cmd) for cmd in cmds]
+        return result
+    
+    def get_resource_params(self):
+        """
+        """
+        result = []
+        params = self._channels[SBE37Channel.CTD].get_resource_params()
+        if params:
+            result = [(SBE37Channel.CTD, param) for param in params]
+        return result        
 
     def get_channels(self):
         """

@@ -26,33 +26,12 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
 
-"""
-now regarding the client
-the client has arguments (see the agents.py and the agents.yml example)
-rac = ResourceAgentClient(resource_id=rid, name=the agent exchange name, process=self)
-the idea is that name= represents the inbox of the agent (or service for many agents)
-in the example it is easy: it is the string of the process_id of the agent process
-so 1. agent_id = container.spawn_process(agent_code, config)
-2. rac = ResourceAgentClient(name=agent_id etc)
-3. rac.execute(agent_cmd)
-if you want to use the client in a different container, you need the process id of the agent process
-you can find this out from 2 places:
-1: resource registry: read agentinstance object
-4:01
-2: directory service: find agent by id (not fully implemented, but existing)
-"""
-
-"""
-conainter.spawn_process(agent_code, config)
-rac=ResourceAgentClient(name=agent_id etc)
-rac.execute()
-"""
 
 class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@unittest.skip('Do not run hardware test.')
+#@unittest.skip('Do not run hardware test.')
 @attr('INT', group='sa')
 class TestInstrumentAgent(IonIntegrationTestCase):
 
@@ -113,6 +92,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)        
         time.sleep(2)
         
+        caps = self._ia_client.get_capabilities()
+        print 'got caps: %s' % str(caps)
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
 
