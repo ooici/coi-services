@@ -12,8 +12,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService, IngestionManagementServiceException
 from nose.plugins.attrib import attr
-
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import log, StreamPublisherRegistrar, CFG
 from interface.objects import HdfStorage, CouchStorage, StreamPolicy, ProcessDefinition
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -24,7 +23,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 
 from pyon.datastore.datastore import DataStore
 
-from interface.objects import BlogPost, BlogComment
+from interface.objects import BlogPost, BlogComment, StreamIngestionPolicy
 
 
 import unittest
@@ -505,7 +504,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Do assertions!
         #--------------------------------------------------------------------------------------------------------
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(NotFound):
             stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = 'non_existent_stream' , archive_data = True, archive_metadata=True)
 
 
@@ -611,7 +610,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Assert that a non existent stream policy cannot be updated
         #--------------------------------------------------------------------------------------------------------
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(BadRequest):
+            stream_policy = StreamIngestionPolicy()
             stream_policy.description = 'updated right now'
             self.ingestion_cli.update_stream_policy(stream_policy = 'bad_stream')
 
@@ -675,7 +675,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Assert that reading not existent stream policy raises an exception
         #--------------------------------------------------------------------------------------------------------
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(NotFound):
             stream_policy = self.rr_cli.read('abracadabra')
 
 
@@ -713,7 +713,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Assert that trying to read the stream policy now raises an exception
         #--------------------------------------------------------------------------------------------------------
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(NotFound):
             stream_policy = self.rr_cli.read(stream_policy_id)
 
     def test_delete_stream_policy_not_found(self):
@@ -739,7 +739,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Delete a stream policy that does not exists
         #--------------------------------------------------------------------------------------------------------
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(NotFound):
             self.ingestion_cli.delete_stream_policy('non_existent_stream_id')
 
     def test_ingestion_workers_writes_to_couch(self):
