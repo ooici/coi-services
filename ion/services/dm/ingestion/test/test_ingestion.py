@@ -530,7 +530,25 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Test updating a stream policy
         """
 
-        pass
+        # Create the ingestion workers
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
+
+        # the worker processes
+        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+        stream_policy = self.rr_cli.read(stream_policy_id)
+
+        # now update the stream polic
+        new_stream_policy_id = self.ingestion_cli.update_stream_policy( stream_policy)
+        new_stream_policy = self.rr_cli.read(new_stream_policy_id)
+
+
 
     def test_update_stream_policy_not_found(self):
         """
