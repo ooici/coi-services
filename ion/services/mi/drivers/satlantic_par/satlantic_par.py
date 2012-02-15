@@ -13,8 +13,10 @@ __license__ = 'Apache 2.0'
 
 import logging
 import time
+import re
 
 from ion.services.mi.common import BaseEnum
+from ion.services.mi.data_decorator import ChecksumDecorator
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_connection import SerialInstrumentConnection
@@ -23,9 +25,18 @@ from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
+from ion.services.mi.exceptions import InstrumentDataException
 
 mi_logger = logging.getLogger('mi_logger')
 
+####################################################################
+# Module-wide values
+####################################################################
+
+# ex SATPAR0229,10.01,2206748544,234
+sample_pattern = r'SATPAR(?P<sernum>\d{4}),(?P<timer>\d{1,7}.\d\d),(?P<counts>\d{10}),(?P<checksum>\d{1,3})'
+sample_regex = re.compile(sample_pattern)
+        
 ####################################################################
 # Static enumerations for this class
 ####################################################################
@@ -38,9 +49,14 @@ class Command(BaseEnum):
     SAVE = 'save'
     EXIT = 'exit'
     EXIT_AND_RESET = 'exit!'
-    GET = 'get'
+    POLL = 'POLL'
+    GET = 'show'
     SET = 'set'
-    GET_SINGLE_VALUE = 'get_single_value'
+    RESET = 0x12
+    BREAK = 0x03
+    STOP = 0x13
+    AUTOSAMPLE = 0x01
+    SAMPLE = 0x0D
 
 class State(BaseEnum):
     COMMAND_MODE = 'COMMAND_MODE'
@@ -49,16 +65,17 @@ class State(BaseEnum):
     UNKNOWN = 'UNKNOWN'
 
 class Event(BaseEnum):
-    RESET = 0x12
-    BREAK = 0x03
-    STOP = 0x13
-    AUTOSAMPLE = 0x01
-    SAMPLE = 0x0D
+    RESET = 'RESET'
+    BREAK = 'BREAK'
+    STOP = 'STOP'
+    AUTOSAMPLE = 'AUTOSAMPLE'
+    SAMPLE = 'SAMPLE'
     COMMAND = 'COMMAND'
     EXIT_STATE = 'EXIT'
     ENTER_STATE = 'ENTER'
     INITIALIZE = 'INITIALIZE'
-    
+    GET = 'GET'
+    SET = 'SET'
 
 class Status(BaseEnum):
     pass
@@ -90,6 +107,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     
     The protocol is a very simple command/response protocol with a few show
     commands and a few set commands.
+    @todo Check for valid state transitions and handle requests appropriately
+    possibly using better exceptions from the fsm.on_event() method
     """
     
     
@@ -101,24 +120,41 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                                   InstErrorCode.UNHANDLED_EVENT)
         self._fsm.add_handler(State.COMMAND_MODE, Event.COMMAND,
                               self._handler_command_command)
+        self._fsm.add_handler(State.COMMAND_MODE, Event.GET,
+                              self._handler_command_get)    
+        self._fsm.add_handler(State.COMMAND_MODE, Event.SET,
+                              self._handler_command_set)
         self._fsm.add_handler(State.AUTOSAMPLE_MODE, Event.BREAK,
                               self._handler_autosample_break)
         self._fsm.add_handler(State.AUTOSAMPLE_MODE, Event.STOP,
                               self._handler_autosample_stop)
         self._fsm.add_handler(State.AUTOSAMPLE_MODE, Event.RESET,
                               self._handler_reset)
-        self._fsm.add_handler(State.POLL_MODE, Event.COMMAND,
-                              self._handler_poll_command)
+        self._fsm.add_handler(State.AUTOSAMPLE_MODE, Event.COMMAND,
+                              self._handler_autosample_command)
         self._fsm.add_handler(State.POLL_MODE, Event.AUTOSAMPLE,
                               self._handler_poll_autosample)
         self._fsm.add_handler(State.POLL_MODE, Event.RESET,
                               self._handler_reset)
+        self._fsm.add_handler(State.POLL_MODE, Event.SAMPLE,
+                              self._handler_poll_sample)
+        self._fsm.add_handler(State.POLL_MODE, Event.COMMAND,
+                              self._handler_poll_command)
         self._fsm.add_handler(State.UNKNOWN, Event.INITIALIZE,
                               self._handler_initialize)
         self._fsm.start(State.UNKNOWN)
 
         self._add_build_handler(Command.SET, self._build_set_command)
         self._add_build_handler(Command.GET, self._build_param_fetch_command)
+        self._add_build_handler(Command.SAVE, self._build_exec_command)
+        self._add_build_handler(Command.EXIT, self._build_exec_command)
+        self._add_build_handler(Command.EXIT_AND_RESET, self._build_exec_command)
+        self._add_build_handler(Command.AUTOSAMPLE, self._build_control_command)
+        self._add_build_handler(Command.RESET, self._build_control_command)
+        self._add_build_handler(Command.BREAK, self._build_control_command)
+        self._add_build_handler(Command.SAMPLE, self._build_control_command)
+        self._add_build_handler(Command.STOP, self._build_control_command)
+
         
         self._add_response_handler(Command.SET, self._parse_set_response)
         # self._add_response_handler(Command.GET, self._parse_get_response)
@@ -132,58 +168,51 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                              r'Maximum Frame Rate:\s+(\d+) Hz',
                              lambda match : int(match.group(1)),
                              self._int_to_string)
-        
+                
     # The normal interface for a protocol. These should drive the FSM
     # transitions as they get things done.
     def get(self, params=[]):
         """ Get the given parameters from the instrument
         
         @param params The parameter values to get
-        @retval None if nothing was done, otherwise result of FSM event handle
-        Should be a dict of parameters and values
+        @retval Result of FSM event handle, hould be a dict of parameters and values
         @throws InstrumentProtocolException On invalid parameter
         """
-        if ((params == None) or (params == [])):
-            return None
-        for param in params:
-            if not Parameter.has(param):
-                raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
- 
-        result = self._fsm.on_event(Event.COMMAND,
-                                    {'command':Command.GET,
-                                     'params':params})
+        # Parameters checked in Handler
+        result = self._fsm.on_event(Event.GET, params)
+        if result == None:
+            raise InstrumentProtocolException(InstErrorCode.INCORRECT_STATE)
         assert (isinstance(result, dict))
         return result
    
     def set(self, params={}):
         """ Set the given parameters on the instrument
         
-        @param params The parameters and values to set
-        @retval None if nothing was done, otherwise result of FSM event handle
+        @param params The dict of parameters and values to set
+        @retval result of FSM event handle
         @throws InstrumentProtocolException On invalid parameter
         """
-        if ((params == None) or (params == {}) or (isinstance(params, list))):
-            return None
-        for param in params.keys():
-            if not Parameter.has(param):
-                raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
-        result = self._fsm.on_event(Event.COMMAND, {'command':Command.SET,
-                                                    'params':params})
+        # Parameters checked in handler
+        result = self._fsm.on_event(Event.SET, params)
+        if result == None:
+            raise InstrumentProtocolException(InstErrorCode.INCORRECT_STATE)
+        assert(isinstance(result, dict))
         return result
     
     def execute(self, command=[]):
-        """ Execute the given commands on the instrument
+        """ Execute the given command on the instrument
         
         @param command The command and args to execute [cmd, arg1, ..., argN]
         @retval None if nothing was done, otherwise result of FSM event handle
-        @throws InstrumentProtocolException On invalid command
+        @throws InstrumentProtocolException On invalid command or missing
         """
-        if ((command == None) or (command == [])):
-            return None
-        assert (isinstance(command, list))
-        command_name = command.pop(0)
-        if (not Command.has(command_name)):
+        if (command == None) or (command == []):
             raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+
+        assert (isinstance(command, list))
+            
+        command_name = command.pop(0)
+        # command checked in handler
         result = self._fsm.on_event(Event.COMMAND, {'command':command_name,
                                                     'params':command})
         return result
@@ -198,16 +227,26 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         result = self.get([Parameter.TELBAUD, Parameter.MAXRATE])
         assert (isinstance(result, dict))
+        assert (result.has_key(Parameter.TELBAUD))
+        assert (result.has_key(Parameter.MAXRATE))
         return result
         
     def restore_config(self, config={}):
-        if ((config == None) or (config == {})):
+        """ Apply a complete configuration.
+        
+        In this instrument, it is simply a compound set that must contain all
+        of the parameters.
+        """
+        if (config == None):
             return None
         
-        assert (isinstance(config, dict))
-        for item in config.keys():
-            self.set(item, config[item])
-        
+        if ((config.has_key(Parameter.TELBAUD))
+            and (config.has_key(Parameter.MAXRATE))):  
+            assert (isinstance(config, dict))
+            assert (len(config) == 2)
+            self.set(config)
+        else:
+            raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
         
     def get_status(self):
         """
@@ -221,41 +260,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     def initialize(self, timeout=10):
         mi_logger.info('Initializing PAR sensor')
         self._fsm.on_event(Event.INITIALIZE)
-            
-    def _break_from_autosample(self, break_char, timeout=30):
-        """Break out of autosample mode.
-        
-        Issue the proper sequence of stuff to get the device out of autosample
-        mode. The character used will result in a different end state. Ctrl-S
-        goes to poll mode, Ctrl-C goes to command mode. Ctrl-R resets. 
-        @param break_char The character to send to get out of autosample.
-        Should be Event.STOP, Event.BREAK, or Event.RESET.
-        @retval return True for success, Error for failure
-        @throw InstrumentTimeoutException
-        @throw InstrumentProtocolException
-        """
-        
-        if not ((break_char == Event.BREAK)
-            or (break_char == Event.STOP)
-            or (break_char == Event.RESET)):
-            return False
-        
-        # do the magic sequence of sending lots of characters really fast
-        starttime = time.time()
-        while True:
-            self._logger_client.send(break_char)
-            (prompt, result) = self._get_response(timeout)
-            mi_logger.debug("Got prompt %s when trying to break from autosample",
-                            prompt)
-            if (prompt):                
-                return True
-            else:
-                if time.time() > starttime + timeout:
-                    raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
-                    
-        # catch all
-        return False
-    
+
     ################
     # State handlers
     ################
@@ -265,13 +270,15 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         This method determines what state the device is in or gets it to a
         known state so that the instrument and protocol are in sync.
         @param params Parameters to pass to the state
-        @retval return (success/fail code, next state, result)
+        @retval return (next state, result)
         """
         next_state = None
         result = None
                 
         # Break to command mode, then set next state to command mode
-        if self._break_from_autosample(Event.BREAK):
+        if self._send_break(Command.BREAK):
+            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
+                                    "Initialized, in command mode")            
             next_state = State.COMMAND_MODE
             
         return (next_state, result)
@@ -281,36 +288,35 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """Handle reset condition for all states.
         
         @param params Parameters to pass to the state
-        @retval return (success/fail code, next state, result)
+        @retval return (next state, result)
         """
         next_state = None
         result = None
-        if (self._break_from_autosample(Event.RESET)):
-            self.announce_to_driver((DriverAnnouncement.STATE_CHANGE, None,
-                                    "Reset while autosampling!"))
-
-        ''' @todo fill this in '''
-        next_state = State.AUTOSAMPLE_MODE
+        if (self._send_break(Command.RESET)):
+            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
+                                    "Reset!")
+            next_state = State.AUTOSAMPLE_MODE
+            
         return (next_state, result)
         
     def _handler_autosample_break(self, params):
         """Handle State.AUTOSAMPLE_MODE Event.BREAK
         
         @param params Parameters to pass to the state
-        @retval return (success/fail code, next state, result)
+        @retval return (next state, result)
         @throw InstrumentProtocolException For hardware error
         """
         next_state = None
         result = None
         
-        if (self._break_from_autosample(Event.BREAK)):
-            self.announce_to_driver((DriverAnnouncement.STATE_CHANGE, None,
-                                    "Leaving auto sample!"))
+        if (self._send_break(Command.BREAK)):
+            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
+                                    "Leaving auto sample!")
             next_state = State.COMMAND_MODE
         else:
-            self.announce_to_driver((DriverAnnouncement.ERROR,
+            self._announce_to_driver(DriverAnnouncement.ERROR,
                                     InstErrorCode.HARDWARE_ERROR,
-                                    "Could not break from autosample!"))
+                                    "Could not break from autosample!")
             raise InstrumentProtocolException(InstErrorCode.HARDWARE_ERROR)
             
         return (next_state, result)
@@ -319,88 +325,165 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """Handle State.AUTOSAMPLE_MODE Event.STOP
         
         @param params Parameters to pass to the state
-        @retval return (success/fail code, next state, result)
+        @retval return (next state, result)
         @throw InstrumentProtocolException For hardware error
         """
         next_state = None
         result = None
         
-        if (self._break_from_autosample(Event.STOP)):
-            self.announce_to_driver((DriverAnnouncement.STATE_CHANGE, None,
-                                    "Leaving auto sample!"))
+        if (self._send_break(Command.STOP)):
+            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
+                                    "Leaving auto sample!")
             next_state = State.POLL_MODE
         else:
-            self.announce_to_driver((DriverAnnouncement.ERROR,
+            self._announce_to_driver(DriverAnnouncement.ERROR,
                                     InstErrorCode.HARDWARE_ERROR,
-                                    "Could not stop autosample!"))
+                                    "Could not stop autosample!")
             raise InstrumentProtocolException(InstErrorCode.HARDWARE_ERROR)
                 
         return (next_state, result)
+
+    def _handler_autosample_command(self, params):
+        """Handle State.AUTOSAMPLE_MODE Event.COMMAND transition
         
+        @param params Dict with "command" enum and "params" of the parameters to
+        pass to the state
+        @retval return (next state, result)
+        @throw InstrumentProtocolException For invalid parameter
+        """
+        next_state = None
+        result = None
+        result_vals = {} 
+        
+        if (params == None) or (params['command'] == None):
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+            
+        cmd = params['command']
+        if (cmd == Command.BREAK):
+            result = self._fsm.on_event(Event.BREAK)
+        elif (cmd == Command.STOP):
+            result = self._fsm.on_event(Event.STOP)
+        elif (cmd == Command.RESET):
+            result = self._fsm.on_event(Event.RESET)
+        else:
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+        
+        mi_logger.debug("next: %s, result: %s", next_state, result) 
+        return (next_state, result)
 
     def _handler_command_command(self, params):
         """Handle State.COMMAND_MODE Event.COMMAND transition
         
         @param params Dict with "command" enum and "params" of the parameters to
         pass to the state
-        @retval return (success/fail code, next state, result)
+        @retval return (next state, result)
         @throw InstrumentProtocolException For invalid parameter
         """
         next_state = None
         result = None
-        result_vals = {}
-                
-        """ @todo Add command logic handling here """
+        result_vals = {}    
+        
+        if not Command.has(params['command']):
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+            
         if params['command'] == Command.EXIT:
-            pass
-        
+            result = self._do_cmd_no_resp(Command.EXIT, None)
+            if result:
+                self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
+                                         "Starting auto sample")
+                next_state = State.AUTOSAMPLE_MODE
+            
         if params['command'] == Command.EXIT_AND_RESET:
-            pass
-           
+            result = self._do_cmd_no_resp(Command.EXIT_AND_RESET, None)
+            if result:
+                self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
+                                         "Starting auto sample")
+                next_state = State.AUTOSAMPLE_MODE
+            
         if params['command'] == Command.SAVE:
-            pass
-
-        if params['command'] == Command.SET:
-            name_values = params['params']
-            for key in name_values.keys():
-                if not Parameter.has(key):
-                    raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
-                    break
-                result_vals[key] = self._do_cmd_resp(Command.SET, key, name_values[key])
-            """@todo raise a parameter error if there was a bad value"""
-            result = result_vals
+            result = self._do_cmd_no_resp(Command.SAVE, None)
         
-        if params['command'] == Command.GET:
-            for param in params['params']:
-                if not Parameter.has(param):
-                    raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
-                    break
-                result_vals[param] = self._do_cmd_resp(Command.GET, param)
-            result = result_vals
-           
+        if params['command'] == Command.POLL:
+            try:
+                result = self._fsm.on_event(Event.COMMAND, {'command':Command.EXIT})
+                result = self._fsm.on_event(Event.STOP)
+                result = self._fsm.on_event(Event.SAMPLE)
+                # result should have data, right?
+                mi_logger.debug("*** Sample: %s", result)
+                result = self._fsm.on_event(Event.AUTOSAMPLE)
+                result = self._fsm.on_event(Event.BREAK)   
+            except (InstrumentTimeoutException, InstrumentProtocolException) as e:
+                if self._fsm.current_state == State.AUTOSAMPLE_MODE:
+                    result = self._fsm.on_event(Event.BREAK)
+                elif (self._fsm.current_state == State.POLL_MODE):
+                    result = self._fsm.on_event(Event.AUTOSAMPLE)
+                    result = self._fsm.on_event(Event.BREAK)
+
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
 
-    def _handler_poll_command(self, params):
-        """Handle State.POLL_MODE Event.COMMAND
+    def _handler_command_get(self, params):
+        """Handle getting data from command mode
+         
+        @param params List of the parameters to pass to the state
+        @retval return (next state, result)
+        @throw InstrumentProtocolException For invalid parameter
+        """
+        next_state = None
+        result = None
+        result_vals = {}    
+        
+        if ((params == None) or (not isinstance(params, list))):
+                raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
+                
+        for param in params:
+            if not Parameter.has(param):
+                raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
+                break
+            result_vals[param] = self._do_cmd_resp(Command.GET, param)
+        result = result_vals
+            
+        mi_logger.debug("next: %s, result: %s", next_state, result) 
+        return (next_state, result)
+
+    def _handler_command_set(self, params):
+        """Handle setting data from command mode
+         
+        @param params Dict of the parameters and values to pass to the state
+        @retval return (next state, result)
+        @throw InstrumentProtocolException For invalid parameter
+        """
+        next_state = None
+        result = None
+        result_vals = {}    
+        
+        if ((params == None) or (not isinstance(params, dict))):
+            raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
+        name_values = params
+        for key in name_values.keys():
+            if not Parameter.has(key):
+                raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
+                break
+            result_vals[key] = self._do_cmd_resp(Command.SET, key, name_values[key])
+        """@todo raise a parameter error if there was a bad value"""
+        result = result_vals
+            
+        mi_logger.debug("next: %s, result: %s", next_state, result) 
+        return (next_state, result)
+
+    def _handler_poll_sample(self, params):
+        """Handle State.POLL_MODE Event.SAMPLE
         
         @param params Parameters to pass to the state
-        @retval return (success/fail code, next state, result)
+        @retval return (next state, result)
         @throw InstrumentProtocolException For invalid command
         """
         next_state = None
         result = None
-                
-        """ @todo Add command logic handling here for CR and space """
-        if param == (Event.SAMPLE):
-            # get the sample
-            pass
-        else:
-            self.announce_to_driver((DriverAnnouncement.ERROR,
-                                    InstErrorCode.INVALID_COMMAND,
-                                    "Could not get sample"))
-            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
-  
+        
+        result = self._do_cmd_resp(Command.SAMPLE, None)
+        # do something with the data?
+        
         return (next_state, result)
 
     def _handler_poll_autosample(self, params):
@@ -412,24 +495,58 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
                 
-        """ @todo issue Ctrl-A"""
-        next_state = State.AUTOSAMPLE_MODE
+        if (self._do_cmd_no_resp(Command.AUTOSAMPLE, None)):
+            self._announce_to_driver(DriverAnnouncement.STATE_CHANGE, None,
+                                     "Starting auto sample")
+            next_state = State.AUTOSAMPLE_MODE
                         
         return (next_state, result)
+        
+    def _handler_poll_command(self, params):
+        """Handle State.POLL_MODE Event.COMMAND transition
+        
+        @param params Dict with "command" enum and "params" of the parameters to
+        pass to the state
+        @retval return (next state, result)
+        @throw InstrumentProtocolException For invalid command
+        """
+        next_state = None
+        result = None
+        result_vals = {} 
+        
+        if (params == None) or (params['command'] == None):
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+            
+        cmd = params['command']
+        if (cmd == Command.AUTOSAMPLE):
+            result = self._fsm.on_event(Event.AUTOSAMPLE)
+        elif (cmd == Command.RESET):
+            result = self._fsm.on_event(Event.RESET)
+        elif (cmd == Command.POLL):
+            result = self._fsm.on_event(Event.SAMPLE)
+        else:
+            raise InstrumentProtocolException(InstErrorCode.INVALID_COMMAND)
+        
+        mi_logger.debug("next: %s, result: %s", next_state, result) 
+        return (next_state, result)
 
-    def _build_set_command(self, command, param, value):
+    ###################################################################
+    # Builders
+    ###################################################################
+    def _build_set_command(self, cmd, param, value):
         """
         Build a command that is ready to send out to the instrument. Checks for
         valid parameter name, only handles one value at a time.
         
+        @param cmd The command...in this case, Command.SET
         @param param The name of the parameter to set. From Parameter enum
         @param value The value to set for that parameter
         @retval Returns string ready for sending to instrument
         """
         # Check to make sure all parameters are valid up front
         assert Parameter.has(param)
-        assert command == Command.SET
-        return "set %s %s%s" % (param, value, self.eoln)
+        assert cmd == Command.SET
+        return "%s %s %s%s" % (Command.SET, param, value, self.eoln)
         
     def _build_param_fetch_command(self, cmd, param):
         """
@@ -440,9 +557,31 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval Returns string ready for sending to instrument
         """
         assert Parameter.has(param)
-        return "show %s%s" % (param, self.eoln)
+        return "%s %s%s" % (Command.GET, param, self.eoln)
     
+    def _build_exec_command(self, cmd, param):
+        """
+        Builder for simple commands
+
+        @param cmd The command being used (Command.GET in this case)
+        @param param The name of the parameter to fetch
+        @retval Returns string ready for sending to instrument        
+        """
+        assert param == None
+        return "%s%s" % (cmd, self.eoln)
     
+    def _build_control_command(self, cmd, param):
+        """ Send a quick control char command
+        
+        @param cmd The control character to send
+        @param param Unused parameters
+        @retval The string wit the complete command (1 char)
+        """
+        return cmd
+    
+    ##################################################################
+    # Response parsers
+    ##################################################################
     def _parse_set_response(self, response, prompt):
         """Determine if a set was successful or not
         
@@ -464,10 +603,81 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         pass
     
+    ###################################################################
+    # Helpers
+    ###################################################################
     def _wakeup(self, timeout):
         """There is no wakeup sequence for this instrument"""
         pass
         
+    def _announce_to_driver(self, type, error_code, msg):
+        """
+        Announce an event to the driver via the callback
+        
+        @param type The DriverAnnouncement enum type of the event
+        @param args Any arguments involved
+        @param msg A message to be included
+        @todo Clean this up, promote to InstrumentProtocol?
+        """
+        event = {'type':type, 'value':msg}
+        self.send_event(event)
+    
+    def _send_break(self, break_char, timeout=30):
+        """Break out of autosample mode.
+        
+        Issue the proper sequence of stuff to get the device out of autosample
+        mode. The character used will result in a different end state. Ctrl-S
+        goes to poll mode, Ctrl-C goes to command mode. Ctrl-R resets. 
+        @param break_char The character to send to get out of autosample.
+        Should be Event.STOP, Event.BREAK, or Event.RESET.
+        @retval return True for success, Error for failure
+        @throw InstrumentTimeoutException
+        @throw InstrumentProtocolException
+        """
+        if not ((break_char == Command.BREAK)
+            or (break_char == Command.STOP)
+            or (break_char == Command.RESET)):
+            return False
+
+        mi_logger.debug("Sending break char %s", break_char)        
+        # do the magic sequence of sending lots of characters really fast
+        starttime = time.time()
+        while True:
+            self._do_cmd_no_resp(break_char, None)
+            (prompt, result) = self._get_response(timeout)
+            mi_logger.debug("Got prompt %s when trying to break",
+                            prompt)
+            if (prompt):                
+                return True
+            else:
+                if time.time() > starttime + timeout:
+                    raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
+                    
+        # catch all
+        return False
+    
+    def _got_data(self, data):
+        """ The comms object fires this when data is received
+        
+        @param data The chunk of data that was received
+        """
+        mi_logger.debug("*** Data received: %s, promptbuf: %s", data, self._promptbuf)
+        CommandResponseInstrumentProtocol._got_data(self, data)
+        
+        # Only keep the latest characters in the prompt buffer.
+        #if len(self._promptbuf)>7:
+        #    self._promptbuf = self._promptbuf[-7:]
+            
+        # If we are streaming, process the line buffer for samples.
+        if self._fsm.get_current_state() == State.AUTOSAMPLE_MODE:
+            if self.eoln in self._linebuf:
+                lines = self._linebuf.split(self.eoln)
+                self._linebuf = lines[-1]
+                for line in lines:
+                    self._announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
+                                             None, line)    
+        
+
 class SatlanticPARInstrumentDriver(InstrumentDriver):
     """The InstrumentDriver class for the Satlantic PAR sensor PARAD"""
 
@@ -481,6 +691,45 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
         self.instrument_errors = Error()
         self.instrument_capabilities = Capability()
         self.instrument_status = Status()
-        self.protocol = SatlanticPARInstrumentProtocol(self.announce_to_driver)
+        self.protocol = SatlanticPARInstrumentProtocol(self.protocol_callback)
 
-# Special data decorators?
+class SatlanticChecksumDecorator(ChecksumDecorator):
+    """Checks the data checksum for the Satlantic PAR sensor"""
+    
+    def handle_incoming_data(self, original_data=None, chained_data=None):    
+        if (self._checksum_ok(original_data)):          
+            if self.next_decorator == None:
+                return (original_data, chained_data)
+            else:
+                self.next_decorator.handle_incoming_data(original_data, chained_data)
+        else:
+            raise InstrumentDataException(InstErrorCode.HARDWARE_ERROR,
+                                          "Checksum failure!")
+            
+    def _checksum_ok(self, data):
+        """Confirm that the checksum is valid for the data line
+        
+        @param data The entire line of data, including the checksum
+        @retval True if the checksum fits, False if the checksum is bad
+        """
+        assert (data != None)
+        assert (data != "")
+        match = sample_regex.match(data)
+        if not match:
+            return False
+        try:
+            received_checksum = int(match.group('checksum'))
+            line_end = match.start('checksum')-1        
+        except IndexError:
+            # Didnt have a checksum!
+            return False
+        
+        line = data[:line_end]        
+        # Calculate checksum on line
+        checksum = 0
+        for char in line:
+            checksum += ord(char)
+        checksum = checksum & 0xFF
+        
+        return (checksum == received_checksum)
+        
