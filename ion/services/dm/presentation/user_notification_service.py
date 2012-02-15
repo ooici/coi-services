@@ -9,17 +9,37 @@ from interface.services.dm.iuser_notification_service import BaseUserNotificatio
 from pyon.public import RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.event.event import EventError, EventSubscriber, EventRepository
+from pyon.util.async import spawn
+from gevent import Greenlet
+
+class NotificationEventSubscriber(EventSubscriber):
+    
+    def __init__(self, origin=None, event_name=None, callback=None):
+        self.listener_greenlet = None
+        self.subscriber = EventSubscriber(origin=origin, event_name=event_name, callback=callback)
+        
+    def start_listening(self):
+        self.listener_greenlet = spawn(self.subscriber.listen)
+        self.subscriber._ready_event.wait(timeout=5)
+        
+    def stop_listening(self):
+        self.listener_greenlet.kill(exception=Greenlet.GreenletExit, block=False)
+        
 
 class Notification(object):
     
-    def  __init__(self, notification=None):
+    def  __init__(self, notification=None, subscriber=None):
         self.notification = notification
+        self.subscriber = subscriber
+        self.notification_id = None
         
     def set_notification_id(self, id=None):
         self.notification_id = id
         
-    def set_subscription_id(self, id=None):
-        self.subscription_id = id
+    def kill_subscriber(self):
+        self.subscriber.stop_listening()
+        del self.subscriber
+        
 
 class UserEventProcessor(object):
     
@@ -29,9 +49,12 @@ class UserEventProcessor(object):
         self.notifications = []
         log.debug("UserEventProcessor.__init__(): email for user %s set to %s" %(self.user_id, self.user_email_addr))
     
-    def subscription_callback(self):
+    def subscription_callback(self, *args, **kwargs):
         # TODO: send event notification to user's email address
-        pass
+        log.debug("UserEventProcessor.subscription_callback(): args=%s, kargs=%s" %(str(args), str(kwargs)))
+        log.debug("event type = " + str(args[0]._get_type()))
+        log.debug("args[0]=" + str(args[0]))
+        log.debug("origin=%s, description=%s, ts=%s" %(args[0].origin, args[0].description, args[0].ts_created))
     
     def add_notification(self, notification=None, cc_node=None):
         for n in self.notifications:
@@ -39,13 +62,14 @@ class UserEventProcessor(object):
                 raise BadRequest("UserEventProcessor.add_notification(): notification " + 
                                  str(notification) + " already exists for " + self.user_id)                
         # setup subscription using subscription_callback()
-        subscription = EventSubscriber(node=cc_node, 
-                                       origin=notification.origin_list[0],
-                                       event_name=notification.events_list[0], 
-                                       callback=self.subscription_callback)
-        n = Notification(notification)
-        n.subscription = subscription
+        subscription = NotificationEventSubscriber(origin=notification.origin_list[0],
+                                                   event_name=notification.events_list[0], 
+                                                   callback=self.subscription_callback)
+        # save notification and subscription info in notifications list
+        n = Notification(notification, subscription)
         self.notifications.append(n)
+        # start the event listener
+        subscription.start_listening()
         log.debug("UserEventProcessor.add_notification(): added notification " + str(notification) + " to user " + self.user_id)
         return n
     
@@ -59,10 +83,10 @@ class UserEventProcessor(object):
         if not found_notification:      
             raise BadRequest("UserEventProcessor.remove_notification(): notification " +
                              str(notification_id) + " does not exist for " + self.user_id)                
-        # remove subscription
-        #subscription = n.subscription
-        # return the number of notifications left for this user
+        # stop subscription
+        n.kill_subscriber()
         log.debug("UserEventProcessor.remove_notification(): removed notification " + str(n.notification) + " from user " + self.user_id)
+        # return the number of notifications left for this user
         return len(self.notifications)
     
     def __str__(self):

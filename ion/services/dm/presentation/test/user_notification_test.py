@@ -13,7 +13,8 @@ from pyon.public import IonObject, RT, PRED
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
-
+from pyon.event.event import ResourceLifecycleEventPublisher
+import gevent
 
 @attr('UNIT',group='DM')
 @unittest.skip('not working')
@@ -66,7 +67,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
         
-    def test_create_two_user_notifications(self):
+    def xtest_create_two_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
@@ -80,7 +81,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                                                  "events_list":['DATA_EVENT']})
         self.unsc.create_notification(notification_object, user_id)
 
-    def test_delete_user_notifications(self):
+    def xtest_delete_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
@@ -96,7 +97,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.delete_notification(notification1_id)
         self.unsc.delete_notification(notification2_id)
 
-    def test_find_user_notifications(self):
+    def xtest_find_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
@@ -113,7 +114,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for n in notifications:
             log.debug("n = " +str(n))
 
-    def test_update_user_notification(self):
+    def xtest_update_user_notification(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
@@ -126,3 +127,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification.origin_list = ['Some_Resource_Agent_ID5']
         self.unsc.update_notification(notification)
 
+    def test_send_notification_email(self):
+        user_identty_object = IonObject(RT.UserIdentity, name="user1")
+        user_id = self.imc.create_user_identity(user_identty_object)
+        user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
+        self.imc.create_user_info(user_id, user_info_object)
+        notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
+                                                                 "origin_list":['Some_Resource_Agent_ID1'],
+                                                                 "events_list":['RESOURCE_LIFECYCLE_EVENT']})
+        self.unsc.create_notification(notification_object, user_id)
+        publisher = ResourceLifecycleEventPublisher()
+        publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="test event")
+        gevent.sleep(3)
