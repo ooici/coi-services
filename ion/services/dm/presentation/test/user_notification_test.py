@@ -66,7 +66,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
         
-    def xtest_create_two_user_notifications(self):
+    def test_create_two_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
@@ -80,7 +80,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                                                  "events_list":['DATA_EVENT']})
         self.unsc.create_notification(notification_object, user_id)
 
-    def xtest_delete_user_notifications(self):
+    def test_delete_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
@@ -96,7 +96,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.delete_notification(notification1_id)
         self.unsc.delete_notification(notification2_id)
 
-    def xtest_find_user_notifications(self):
+    def test_find_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
