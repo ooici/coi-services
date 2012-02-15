@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-__author__ = 'Maurice Manning'
+__author__ = 'Bill Bollenbacher'
 __license__ = 'Apache 2.0'
 
 
@@ -8,6 +8,7 @@ from pyon.util.log import log
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from pyon.public import RT, PRED
 from pyon.core.exception import BadRequest, NotFound
+from pyon.event.event import EventError, EventSubscriber, EventRepository
 
 class Notification(object):
     
@@ -38,8 +39,12 @@ class UserEventProcessor(object):
                 raise BadRequest("UserEventProcessor.add_notification(): notification " + 
                                  str(notification) + " already exists for " + self.user_id)                
         # setup subscription using subscription_callback()
+        subscription = EventSubscriber(node=self.container.node, 
+                                       origin=notification.origin_list[0],
+                                       event_name=notification.events_list[0], 
+                                       callback=self.subscription_callback())
         n = Notification(notification)
-        # new_n.subscription = subscription
+        n.subscription = subscription
         self.notifications.append(n)
         log.debug("UserEventProcessor.add_notification(): added notification " + str(notification) + " to user " + self.user_id)
         return n
