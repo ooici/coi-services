@@ -71,22 +71,28 @@ class BarsDriverTest(PyonBarsTestCase):
         super(BarsDriverTest, self).tearDown()
         self._clean_up()
 
-    def _connect(self, state):
-        """Connects and asserts the given state is the current one"""
+    def _initialize(self):
+        driver_client = self._driver_client
 
+        reply = driver_client.cmd_dvr('initialize', [BarsChannel.INSTRUMENT])
+        print("** initialize reply=%s" % str(reply))
+        reply = driver_client.cmd_dvr('get_current_state')
+        print("** get_current_state reply=%s" % str(reply))
+        self.assertEqual(DriverState.UNCONFIGURED, reply)
+        time.sleep(1)
+
+    def _connect(self):
         driver_client = self._driver_client
 
         reply = driver_client.cmd_dvr('get_current_state')
         print("** get_current_state reply=%s" % str(reply))
         self.assertEqual(DriverState.UNCONFIGURED, reply)
 
-        time.sleep(1)
+        self._initialize()
 
         configs = {BarsChannel.INSTRUMENT: self.config}
         reply = driver_client.cmd_dvr('configure', configs)
         print("** configure reply=%s" % str(reply))
-
-        time.sleep(1)
 
         reply = driver_client.cmd_dvr('get_current_state')
         print("** get_current_state reply=%s" % str(reply))
@@ -121,24 +127,19 @@ class BarsDriverTest(PyonBarsTestCase):
         self.assertEqual(DriverState.DISCONNECTED, reply)
         time.sleep(1)
 
-        reply = driver_client.cmd_dvr('initialize', [BarsChannel.INSTRUMENT])
-        print("** initialize reply=%s" % str(reply))
-        reply = driver_client.cmd_dvr('get_current_state')
-        print("** get_current_state reply=%s" % str(reply))
-        self.assertEqual(DriverState.UNCONFIGURED, reply)
-        time.sleep(1)
+        self._initialize()
 
     def test_connect_disconnect(self):
         """BARS connect and disconnect"""
 
-        self._connect(DriverState.AUTOSAMPLE)
+        self._connect()
         self._disconnect()
 
     @unittest.skip('not yet ready')
     def test_get(self):
         """BARS get"""
 
-        self._connect(DriverState.AUTOSAMPLE)
+        self._connect()
 
         driver_client = self._driver_client
 
@@ -150,6 +151,5 @@ class BarsDriverTest(PyonBarsTestCase):
         print "get reply = %s" % str(reply)
 #        success = reply[0]
 #        result = reply[1]
-        
 
         self._disconnect()

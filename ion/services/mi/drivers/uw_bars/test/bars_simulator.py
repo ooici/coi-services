@@ -122,9 +122,10 @@ class BarsSimulator(object):
         self._log("bound to port %s" % self._port)
         self._bt = None
 
-        # helps to ignore \r coming right after normal commands, which would
-        # have already been dispatched.
-        self._pre_recv = ''
+        self._cycle_time = "20"
+        self._cycle_time_units = "Seconds"
+
+        self._verbose_vs_data_only = "Data Only"
 
     def _log_client(self, m):
         print "%s[%d.%d] BarsSimulator: %s" % (self._log_prefix,
@@ -203,35 +204,23 @@ class BarsSimulator(object):
             try:
                 input = None
 
-                recv = self._conn.recv(1)
+                recv = self._conn.recv(4096)
 
                 if recv is not None:
-                    self._log_client("RECV: '%s'   _pre_recv = '%s'" % (
-                        _escape(recv), _escape(self._pre_recv)))
+                    self._log_client("RECV: '%s'" % _escape(recv))
                     if EOF == recv:
                         self._enabled = False
                         break
                     if '\r' == recv:
-                        if self._pre_recv == '':
-                            input = recv
-                        else:
-                            # ignore \r, self._pre_recv already notified
-                            self._pre_recv = ''
-                            self._log_client("\\r IGNORED.")
-                            continue
+                        input = recv
 
                     elif len(recv.strip()) > 0:
                         input = recv.strip()
-                        if input != CONTROL_S:
-                            self._pre_recv += input
-                            self._log_client("APPENDED _pre_recv = '%s'" % \
-                                _escape(self._pre_recv))
                     else:
                         input = recv
 
                 else:
                     self._log_client("RECV: None")
-                    self._pre_recv = ''
 
                 if input is not None:
                     self._log_client("input: '%s'" % _escape(input))
@@ -267,7 +256,7 @@ class BarsSimulator(object):
                 break
 
             if input == "q":
-                self._log_client("exiting connected upon explicit quit request")
+                self._log_client("exiting connected, explicit quit request")
                 return True  # explicit quit
 
             if input == CONTROL_S:
@@ -333,9 +322,12 @@ class BarsSimulator(object):
         self._bt.set_enabled(True)
 
     def _change_params_menu(self):
-        menu = bars.SYSTEM_PARAMETER_MENU
 
         while self._enabled:
+            menu = bars.SYSTEM_PARAMETER_MENU_FORMAT % (
+                self._cycle_time, self._cycle_time_units,
+                self._verbose_vs_data_only
+            )
             self._clear_screen(menu)
 
             input = self._recv()
@@ -348,8 +340,8 @@ class BarsSimulator(object):
                 pass
 
             elif input == "1":
-                # TODO change cycle time
-                break
+                self._change_cycle_time()
+                continue
 
             elif input == "2":
                 # TODO change verbose setting
@@ -363,6 +355,37 @@ class BarsSimulator(object):
                 continue
 
         self._log_client("exiting _change_params_menu")
+
+    def _change_cycle_time(self):
+        menu = bars.CHANGE_CYCLE_TIME
+
+        while self._enabled:
+            self._clear_screen(menu)
+
+            input = self._recv()
+            if not self._enabled:
+                break
+            if not input:
+                break
+
+            if input in ["0", "1"]:
+                if input == "0":  # enter seconds
+                    self._conn.sendall(bars.CHANGE_CYCLE_TIME_IN_SECONDS)
+                    units = "Seconds"
+                else:  # enter minutes
+                    self._conn.sendall(bars.CHANGE_CYCLE_TIME_IN_MINUTES)
+                    units = "Minutes"
+
+                input = self._recv()
+                value = int(input)
+                self._cycle_time = value
+                self._cycle_time_units = units
+                break
+            else:
+                # just continue
+                continue
+
+        self._log_client("exiting _change_cycle_time")
 
     def _diagnostics(self):
         # TODO diagnostics

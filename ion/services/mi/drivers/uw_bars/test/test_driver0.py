@@ -24,14 +24,15 @@ import os
 @attr('UNIT', group='mi')
 class DriverTest(BarsTestCase):
 
-    def test(self):
+    def _connect(self):
 
-        driver = BarsInstrumentDriver()
+        self.driver = BarsInstrumentDriver()
+        driver = self.driver
 
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
         # initialize
-        result = driver.initialize()
+        result = driver.initialize([BarsChannel.INSTRUMENT])
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
         print "driver state = %s" % str(driver.get_current_state())
 
@@ -50,6 +51,22 @@ class DriverTest(BarsTestCase):
         print "sleeping for a bit to see data streaming"
         time.sleep(4)
 
+    def _disconnect(self):
+        print "disconnecting"
+        driver = self.driver
+        result = driver.disconnect([BarsChannel.INSTRUMENT])
+        self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
+        print "driver state = %s" % str(driver.get_current_state())
+
+    def __test_connect_disconnect(self):
+        self._connect()
+        self._disconnect()
+
+    def test_get(self):
+
+        self._connect()
+        driver = self.driver
+
         # get a parameter
         cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
         result = driver.get([cp])
@@ -62,8 +79,4 @@ class DriverTest(BarsTestCase):
         print "sleeping a bit more"
         time.sleep(4)
 
-        # disconnect
-        print "disconnecting"
-        result = driver.disconnect([BarsChannel.INSTRUMENT])
-        self.assertEqual(DriverState.DISCONNECTED, driver.get_current_state())
-        print "driver state = %s" % str(driver.get_current_state())
+        self._disconnect()

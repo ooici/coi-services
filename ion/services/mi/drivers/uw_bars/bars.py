@@ -69,16 +69,16 @@ MAIN_MENU = """
 
 #----------------------------------------------
 # 2).  Change Data Collection Parameters.
-SYSTEM_PARAMETER_MENU = """
+SYSTEM_PARAMETER_MENU_FORMAT = """
                                System Parameter Menu
 
 *****************************************************************************
 
                        The present value for the Cycle Time is
-                                 20 Seconds.
+                                 %s %s.
 
                   The present setting for Verbose versus Data only is
-                                     Data Only.
+                                     %s.
 
 *****************************************************************************
 
@@ -92,6 +92,8 @@ SYSTEM_PARAMETER_MENU = """
 
                     Enter 0, 1, 2, or 3 here  --> """
 
+SYSTEM_PARAMETER_MENU = SYSTEM_PARAMETER_MENU_FORMAT % (
+        "20", "Seconds", "Data Only")
 
 # to extract cycle time from system parameter menu:
 CYCLE_TIME_PATTERN = re.compile(
@@ -124,6 +126,17 @@ def get_verbose_vs_data_only(string):
     """
     return _search_in_pattern(string, VERBOSE_VS_DATA_ONLY_PATTERN, 1)
 
+
+CHANGE_CYCLE_TIME = """
+                    Do you want to specify a Cycle Time in
+                           in Seconds or Minutes?
+                    Enter 0 for Seconds, 1 for Minutes --> """
+
+# if 0 is entered:
+CHANGE_CYCLE_TIME_IN_SECONDS = "Enter a new value between 15 and 59 here --> "
+
+# TODO determine prompt when 1 is entered
+CHANGE_CYCLE_TIME_IN_MINUTES = "Enter a new value between _ and _ here --> "
 
 #----------------------------------------------
 # 3).  System Diagnostics.

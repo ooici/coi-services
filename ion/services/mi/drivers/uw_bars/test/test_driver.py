@@ -32,7 +32,7 @@ class DriverTest(PyonBarsTestCase):
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
 
         # initialize
-        result = driver.initialize()
+        result = driver.initialize([BarsChannel.INSTRUMENT])
         self.assertEqual(DriverState.UNCONFIGURED, driver.get_current_state())
         print "driver state = %s" % str(driver.get_current_state())
 

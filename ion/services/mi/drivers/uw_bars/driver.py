@@ -65,16 +65,13 @@ class BarsInstrumentDriver(InstrumentDriver):
         if cs != state:
             raise AssertionError("current state=%s, expected=%s" % (cs, state))
 
-    def initialize(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def initialize(self, channels, *args, **kwargs):
         """
-        Return a device channel to an unconnected, unconfigured state.
-        @param channels List of channel names to initialize.
-        @param timeout Number of seconds before this operation times out
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("initialize: channels=%s timeout=%s" %
-                      (channels, timeout))
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
 
         self._assert_state([DriverState.UNCONFIGURED,
                             DriverState.DISCONNECTED])
@@ -88,16 +85,13 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def configure(self, configs, timeout=10):
+    def configure(self, configs, *args, **kwargs):
         """
-        Configure the driver for communications with an instrument channel.
-        @param config A dict containing channel name keys, with
-        dict values containing the comms configuration for the named channel.
-        @param timeout Number of seconds before this operation times out
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("configure: configs=%s timeout=%s" % (configs, timeout))
+            log.debug("configs=%s args=%s kwargs=%s" %
+                      (str(configs), str(args), str(kwargs)))
 
         self._assert_state(DriverState.UNCONFIGURED)
 
@@ -113,15 +107,13 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def connect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def connect(self, channels, *args, **kwargs):
         """
-        Establish communications with a device channel.
-        @param channels List of channel names to connect.
-        @param timeout Number of seconds before this operation times out
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("connect: channels=%s timeout=%s" % (channels, timeout))
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
 
         self._assert_state(DriverState.DISCONNECTED)
 
@@ -148,17 +140,13 @@ class BarsInstrumentDriver(InstrumentDriver):
         self.protocol.configure(self.config)
         self.protocol.connect()
 
-    def disconnect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def disconnect(self, channels, *args, **kwargs):
         """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
-
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("disconnect: channels=%s timeout=%s" %
-                      (channels, timeout))
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -172,11 +160,8 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def detach(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def detach(self, channels, *args, **kwargs):
         """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
         """
         pass
 
@@ -184,42 +169,48 @@ class BarsInstrumentDriver(InstrumentDriver):
     # Channel command interface.
     ########################################################################
 
-    def get(self, params=[(BarsChannel.INSTRUMENT,
-                           BarsParameter.TIME_BETWEEN_BURSTS)],
-            timeout=10):
+    def get(self, params, *args, **kwargs):
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("get: params=%s timeout=%s" % (params, timeout))
+            log.debug("params=%s args=%s kwargs=%s" %
+                      (str(params), str(args), str(kwargs)))
 
-        result = self.protocol.get(params, timeout)
+        result = self.protocol.get(params, *args, **kwargs)
 
         return result
 
-    def set(self, params, timeout=10):
-        """
-        @param timeout Number of seconds before this operation times out
-        """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("set: params=%s timeout=%s" % (params, timeout))
-
-        pass
-
-    def execute(self, channels, command, timeout=10):
+    def set(self, params, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("execute: channels=%s timeout=%s" % (channels, timeout))
+            log.debug("params=%s args=%s kwargs=%s" %
+                      (str(params), str(args), str(kwargs)))
+
 
         pass
 
-    def execute_direct(self, channels, bytes):
+    def execute(self, channels, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("execute_direct: channels=%s bytes=%s" %
-                      (channels, repr(bytes)))
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
 
         pass
+
+    def execute_direct(self, channels, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
+        pass
+
+    def get_channels(self):
+        """
+        """
+        return BarsChannel.list()
 
     ########################################################################
     # TBD.
