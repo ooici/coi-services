@@ -12,11 +12,10 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery, HdfStorage, CouchStorage, StreamIngestionPolicy
+from interface.objects import ExchangeQuery
 
 from interface.objects import StreamIngestionPolicy, StreamPolicy
 from pyon.event.event import StreamIngestionPolicyEventPublisher
-import time
 
 
 class IngestionManagementServiceException(IonException):

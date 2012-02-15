@@ -17,7 +17,7 @@ import gevent
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
+from pyon.public import log, StreamSubscriberRegistrar
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -25,8 +25,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 
-from interface.objects import StreamQuery, ExchangeQuery, ProcessDefinition, CouchStorage
-from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
+from interface.objects import StreamQuery, ExchangeQuery, CouchStorage
 from interface.objects import BlogPost, BlogComment
 import time
 

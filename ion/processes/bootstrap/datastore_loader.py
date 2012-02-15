@@ -22,7 +22,10 @@ import os.path
 from pyon.public import CFG, log, ImmediateProcess, iex
 from pyon.datastore.datastore import DatastoreManager
 
-class DatastoreLoader(ImmediateProcess):
+class DatastoreAdmin(ImmediateProcess):
+    """
+    bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=clear prefix=ion
+    """
     def on_init(self):
         pass
 
@@ -30,14 +33,15 @@ class DatastoreLoader(ImmediateProcess):
         op = self.CFG.get("op", None)
         datastore = self.CFG.get("datastore", None)
         path = self.CFG.get("path", None)
-        log.info("DatastoreLoader: op=%s datastore=%s path=%s" % (op, datastore, path))
+        prefix = self.CFG.get("prefix", None)
+        log.info("DatastoreLoader: {op=%s, datastore=%s, path=%s, prefix=%s}" % (op, datastore, path, prefix))
         if op:
             if op == "load":
                 self.load_datastore(path, datastore, ignore_errors=False)
             elif op == "dump":
                 self.dump_datastore(path, datastore)
             elif op == "clear":
-                self.clear_datastore(datastore)
+                self.clear_datastore(datastore, prefix)
             else:
                 raise iex.BadRequest("Operation unknown")
         else:
@@ -117,7 +121,7 @@ class DatastoreLoader(ImmediateProcess):
             else:
                 log.warn("Datastore does not exist")
         else:
-            ds_list = [ds_name] if ds_name else ['resources','objects','state','events', 'directory']
+            ds_list = ['resources', 'objects', 'state', 'events', 'directory']
             for ds in ds_list:
                 cls._dump_datastore(path, ds, clear_dir)
 
@@ -152,7 +156,39 @@ class DatastoreLoader(ImmediateProcess):
         log.info("Wrote %s objects to %s" % (numwrites, outpath))
 
     @classmethod
-    def clear_datastore(cls, ds_name=None):
-        pass
+    def _get_datastore_names(cls, prefix=None):
+        return []
 
-DatastoreAdmin = DatastoreLoader
+    @classmethod
+    def clear_datastore(cls, ds_name=None, prefix=None):
+        if CFG.system.mockdb:
+            log.warn("Cannot clear MockDB")
+            return
+
+        generic_ds = DatastoreManager.get_datastore_instance("")
+
+        if ds_name:
+            # First interpret ds_name as unqualified name
+            if DatastoreManager.exists(ds_name, scoped=False):
+                generic_ds.delete_datastore(ds_name)
+                return
+            # New interpret as logical name
+            if DatastoreManager.exists(ds_name, scoped=True):
+                generic_ds.delete_datastore(ds_name)
+            else:
+                log.warn("Datastore does not exist: %s" % ds_name)
+        elif prefix:
+            db_list = generic_ds.list_datastores()
+            cleared, ignored = 0, 0
+            for db_name in db_list:
+                if db_name.startswith(prefix):
+                    generic_ds.delete_datastore(db_name)
+                    log.debug("Cleared couch datastore '%s'" % db_name)
+                    cleared += 1
+                else:
+                    ignored += 1
+            log.info("Cleared %d couch datastores, ignored %d" % (cleared, ignored))
+        else:
+            log.warn("Cannot clear datastore without prefix or datastore name")
+
+DatastoreLoader = DatastoreAdmin

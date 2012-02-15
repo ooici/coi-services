@@ -5,9 +5,9 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-from flask import Flask, request, jsonify
+import inspect, collections, ast, simplejson, json
+from flask import Flask, request
 from gevent.wsgi import WSGIServer
-import inspect, json, simplejson, collections, ast
 
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent
@@ -123,64 +123,83 @@ def process_gateway_request(service_name, operation):
         if not target_client:
             raise NotFound("Service operation not correctly specified in the URL")
 
-        jsonParms = None
+        #Retrieve json data from HTTP Post payload
+        json_params = None
         if request.method == "POST":
             payload = request.form['payload']
             #debug only
             #payload = '{"serviceRequest": { "serviceName": "resource_registry", "serviceOp": "find_resources", "params": { "restype": "BankAccount", "lcstate": "", "name": "", "id_only": false } } }'
-            jsonParms = json.loads(payload)
+            json_params = json.loads(payload)
 
-            if jsonParms['serviceRequest']['serviceName'] != target_service.name:
-                 raise Inconsistent("Target service name in the JSON request (%s) does not match service name in URL (%s)" % (str(jsonParms['serviceRequest']['serviceName']), target_service.name ) )
+            if json_params['serviceRequest']['serviceName'] != target_service.name:
+                 raise Inconsistent("Target service name in the JSON request (%s) does not match service name in URL (%s)" % (str(json_params['serviceRequest']['serviceName']), target_service.name ) )
 
-            if jsonParms['serviceRequest']['serviceOp'] != operation:
-                 raise Inconsistent("Target service operation in the JSON request (%s) does not match service name in URL (%s)" % ( str(jsonParms['serviceRequest']['serviceOp']), operation ) )
+            if json_params['serviceRequest']['serviceOp'] != operation:
+                 raise Inconsistent("Target service operation in the JSON request (%s) does not match service name in URL (%s)" % ( str(json_params['serviceRequest']['serviceOp']), operation ) )
 
-
-        #Build parameter list - operation parameters must be in the proper order. Should replace this once unordered method invocation is
-        # allowed in the container, but good enough for demonstration purposes.
-        parm_list = {}
-        method_args = inspect.getargspec(getattr(target_client,operation))
-        for arg in method_args[0]:
-            if arg == 'self' or arg == 'headers': continue # skip self and headers from being set
-
-            if not jsonParms:
-                if request.args.has_key(arg):
-                    parm_type = get_message_class_in_parm_type(service_name, operation, arg)
-                    if parm_type == 'str':
-                        parm_list[arg] = convert_unicode(request.args[arg])
-                    else:
-                        parm_list[arg] = ast.literal_eval(convert_unicode(request.args[arg]))
-            else:
-                if jsonParms['serviceRequest']['params'].has_key(arg):
-                    if isinstance(jsonParms['serviceRequest']['params'][arg], list):  #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
-                        # For some reason, UNICODE strings are not supported with ION objects
-                        ion_object_name = convert_unicode(jsonParms['serviceRequest']['params'][arg][0])
-                        object_parms = convert_unicode(jsonParms['serviceRequest']['params'][arg][1])
-
-                        new_obj = IonObject(ion_object_name)
-                        #Iterate over the parameters to add to object; have to do this instead
-                        #of passing a dict to get around restrictions in object creation on setting _id, _rev params
-                        for parm in object_parms:
-                            set_object_field(new_obj, parm, object_parms.get(parm))
-
-                        new_obj._validate() # verify that all of the object fields were set with proper types
-                        parm_list[arg] = new_obj
-                    else:  # The else branch is for simple types ( non-ION objects )
-                        parm_list[arg] = convert_unicode(jsonParms['serviceRequest']['params'][arg])
+        param_list = create_parameter_list(service_name, target_client,operation, json_params)
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
-        result = methodToCall(**parm_list)
-
-
-        ret = simplejson.dumps(result, default=ion_object_encoder)
+        result = methodToCall(**param_list)
 
     except Exception, e:
-        ret =  "Error: %s" % e.message
+        result =  "Error: %s" % e.message
+
+    return json_response(result)
+
+#Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
+def json_response(response_data):
+
+    return app.response_class(simplejson.dumps({'data': response_data}, default=ion_object_encoder,
+        indent=None if request.is_xhr else 2), mimetype='application/json')
 
 
-    return jsonify(data=ret)
+#Build parameter list dynamically from
+def create_parameter_list(service_name, target_client,operation, json_params):
+    param_list = {}
+    method_args = inspect.getargspec(getattr(target_client,operation))
+    for arg in method_args[0]:
+        if arg == 'self' or arg == 'headers': continue # skip self and headers from being set
+
+        if not json_params:
+            if request.args.has_key(arg):
+                param_type = get_message_class_in_parm_type(service_name, operation, arg)
+                if param_type == 'str':
+                    param_list[arg] = convert_unicode(request.args[arg])
+                else:
+                    param_list[arg] = ast.literal_eval(convert_unicode(request.args[arg]))
+        else:
+            if json_params['serviceRequest']['params'].has_key(arg):
+
+                #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
+                if isinstance(json_params['serviceRequest']['params'][arg], list):
+
+                    #TODO - Potentially remove these conversions whenever ION objects support unicode
+                    # UNICODE strings are not supported with ION objects
+                    ion_object_name = convert_unicode(json_params['serviceRequest']['params'][arg][0])
+                    object_params = convert_unicode(json_params['serviceRequest']['params'][arg][1])
+
+                    param_list[arg] = create_ion_object(ion_object_name, object_params)
+
+                else:  # The else branch is for simple types ( non-ION objects )
+                    param_list[arg] = convert_unicode(json_params['serviceRequest']['params'][arg])
+
+    return param_list
+
+#Helper function for creating and initializing an ION object from a dictionary of parameters.
+def create_ion_object(ion_object_name, object_params):
+
+    new_obj = IonObject(ion_object_name)
+
+    #Iterate over the parameters to add to object; have to do this instead
+    #of passing a dict to get around restrictions in object creation on setting _id, _rev params
+    for param in object_params:
+        set_object_field(new_obj, param, object_params.get(param))
+
+    new_obj._validate() # verify that all of the object fields were set with proper types
+    return new_obj
+
 
 #Use this function internally to recursively set sub object field values
 def set_object_field(obj, field, field_val):
@@ -231,11 +250,11 @@ def list_resource_types():
         for res in sorted(resultSet):
             ret_list.append(res)
 
-        return jsonify(data=ret_list)
+        return json_response(ret_list)
 
     except Exception, e:
         ret =  "Error: %s" % e.message
-        return jsonify(data=ret)
+        return json_response(ret)
 
 
 #Returns a json object for a specified resource type with all default values.
@@ -244,6 +263,7 @@ def get_resource_schema(resource_type):
 
 
     try:
+        #ION Objects are not registered as UNICODE names
         ion_object_name = convert_unicode(resource_type)
         ret_obj = IonObject(ion_object_name, {})
 
@@ -261,13 +281,10 @@ def get_resource_schema(resource_type):
                         value = None
                     setattr(ret_obj, field, value)
 
-        ret = simplejson.dumps(ret_obj, default=ion_object_encoder)
-
-
     except Exception, e:
-        ret =  "Error: %s" % e.message
+        ret_obj =  "Error: %s" % e.message
 
-    return jsonify(data=ret)
+    return json_response(ret_obj)
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -277,20 +294,19 @@ def get_resource_schema(resource_type):
 @app.route('/ion-service/rest/resource/<resource_id>')
 def get_resource(resource_id):
 
-    ret = None
+    result = None
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     if resource_id != '':
         try:
+            #Database object IDs are not unicode
             result = client.read(convert_unicode(resource_id))
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
-            ret = simplejson.dumps(result, default=ion_object_encoder)
-
         except Exception, e:
-            ret =  "Error: %s" % e
+            result =  "Error: %s" % e
 
-    return jsonify(data=ret)
+    return json_response(result)
 
 
 #Example operation to return a list of resources of a specific type like
@@ -298,20 +314,20 @@ def get_resource(resource_id):
 @app.route('/ion-service/rest/find_resources/<resource_type>')
 def list_resources_by_type(resource_type):
 
-    ret = None
+    result = None
 
     client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
+        #Resource Types are not in unicode
         res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
         result = []
         for res in res_list:
             result.append(res)
 
-        ret = simplejson.dumps(result, default=ion_object_encoder)
     except Exception, e:
-        ret =  "Error: %s" % e
+        result =  "Error: %s" % e
 
-    return jsonify(data=ret)
+    return json_response(result)
 
 #Example restful call to a client function for another service like
 #http://hostname:port/ion-service/run_bank_client
@@ -319,7 +335,7 @@ def list_resources_by_type(resource_type):
 def create_accounts():
     from examples.bank.bank_client import run_client
     run_client(Container.instance, process=service_gateway_instance)
-    return list_resources_by_type("BankAccount")
+    return json_response("")
 
 
 

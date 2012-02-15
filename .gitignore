@@ -41,3 +41,4 @@ pyon
 cc-pid*
 .coverage
 coverage_results
+.noseids

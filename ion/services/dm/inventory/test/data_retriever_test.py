@@ -11,7 +11,6 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
-from pyon.datastore.couchdb.couchdb_datastore import CouchDB_DataStore
 from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore
 from pyon.public import  StreamSubscriberRegistrar
