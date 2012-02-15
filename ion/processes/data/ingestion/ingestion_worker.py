@@ -162,7 +162,7 @@ class IngestionWorker(TransformDataProcess):
             return self.default_policy
 
 
-        policy = self.stream_policies(stream_id, None)
+        policy = self.stream_policies.get(stream_id, None)
 
         if policy is None:
             policy = self.default_policy
