@@ -12,10 +12,14 @@ from interface.objects import DataStream, StreamGranuleContainer
 from pyon.datastore.datastore import DataStore
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
+from pyon.util.async import spawn
+
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
-from interface.objects import BlogPost, BlogComment
+from interface.objects import BlogPost, BlogComment, StreamPolicy
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.event.event import StreamIngestionPolicyEventSubscriber
+
 
 
 
@@ -34,6 +38,9 @@ class IngestionWorker(TransformDataProcess):
         self.couch_config = self.CFG.get('couch_storage')
         self.hdf_storage = self.CFG.get('hdf_storage')
         self.default_policy = self.CFG.get('default_policy')
+        if self.default_policy:
+            self.default_policy = StreamPolicy()
+
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
 
@@ -50,8 +57,21 @@ class IngestionWorker(TransformDataProcess):
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
 
-        log.warn(str(self.db))
+        self.stream_policies = {}
+        # update the policy
+        def receive_policy_event(event_msg, headers):
+            log.warn('Got a message!!!!')
+            self.stream_policies[event_msg.stream_id] = event_msg
 
+
+        #Use the Exchang Point name (id?) as the origin for stream policy events
+        XP = self.stream_subscriber_registrar.XP
+        # @todo Find a better way to get the XP that the ingestion worker is subscribed too
+
+        self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, origin=XP, callback=receive_policy_event)
+        self.gl = spawn(self.event_subscriber.listen)
+
+        log.warn(str(self.db))
 
     def process(self, packet):
         """Process incoming data!!!!
