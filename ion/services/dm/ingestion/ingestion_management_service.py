@@ -14,7 +14,7 @@ from pyon.public import CFG
 from pyon.core.exception import IonException
 from interface.objects import ExchangeQuery
 
-from interface.objects import StreamIngestionPolicy
+from interface.objects import StreamIngestionPolicy, StreamPolicy
 from pyon.event.event import StreamIngestionPolicyEventPublisher
 
 
@@ -64,7 +64,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
 
         # Give each ingestion configuration its own queue name to receive data on
-        exchange_name = self.XP + '_ingestion_queue'
+        exchange_name = 'ingestion_queue'
 
 
         #########################################################################################################
@@ -252,20 +252,31 @@ class IngestionManagementService(BaseIngestionManagementService):
             raise IngestionManagementServiceException('Must pass a stream id to create stream policy')
 
         log.debug("Creating stream policy")
+
+        # Read the stream to get the stream definition
+        stream = self.clients.pubsub_management.read_stream(stream_id=stream_id)
+
+
+        policy = StreamPolicy(  archive_data=archive_data,
+                                archive_metadata=archive_metadata,
+                                stream_id=stream_id)
+
         stream_policy = StreamIngestionPolicy(  name='',
                                                 description='policy for %s' % stream_id,
-                                                archive_data=archive_data,
-                                                archive_metadata=archive_metadata,
-                                                stream_id=stream_id)
+                                                policy = policy)
 
-        stream_policy_id = self.clients.resource_registry.create(stream_policy)
+        stream_policy_id, _ = self.clients.resource_registry.create(stream_policy)
 
 
-        self.event_publisher.create_and_publish(
-            origin='ingestion_management',
+        #Use the Exchang Point name (id?) as the origin for stream policy events
+        #@todo Once XP is really a resource get the exchange_point id for the stream
+        XP = self.XP
+
+        self.event_publisher.create_and_publish_event(
+            origin=XP,
             stream_id =stream_id,
-            archive_data=True,
-            archive_metadata=True,
+            archive_data=archive_data,
+            archive_metadata=archive_metadata,
             resource_id = stream_policy_id
             )
 
@@ -281,8 +292,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Updating stream policy")
         stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
 
-        self.event_publisher.create_and_publish(
+        self.event_publisher.create_and_publish_event(
             origin='ingestion_management',
+            description='junk!',
             stream_id =stream_id,
             archive_data=True,
             archive_metadata=True,
@@ -313,7 +325,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Deleting stream policy")
         self.clients.resource_registry.delete(stream_policy_id)
 
-        self.event_publisher.create_and_publish(
+        self.event_publisher.create_and_publish_event(
             origin='ingestion_management',
             stream_id =stream_id,
             archive_data=True,
