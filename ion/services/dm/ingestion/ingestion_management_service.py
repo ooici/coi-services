@@ -12,7 +12,7 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery
+from interface.objects import ExchangeQuery, ProcessDefinition
 from interface.objects import StreamIngestionPolicy, StreamPolicy
 from pyon.event.event import StreamIngestionPolicyEventPublisher
 
@@ -48,6 +48,14 @@ class IngestionManagementService(BaseIngestionManagementService):
     def on_start(self):
         super(IngestionManagementService,self).on_start()
         self.event_publisher = StreamIngestionPolicyEventPublisher(node = self.container.node)
+        self.process_definition = ProcessDefinition()
+        self.process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
+        self.process_definition.executable['class'] = 'IngestionWorker'
+        self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+
+    def on_quit(self):
+        self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
+        super(IngestionManagementService,self).on_quit()
 
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
                                        number_of_workers=0, default_policy=None):
@@ -71,10 +79,6 @@ class IngestionManagementService(BaseIngestionManagementService):
         #   far to preload the process definitions. This will later probably be part of a set of predefinitions
         #   for processes.
         #########################################################################################################
-        process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
-        process_definition.executable = {'module': 'ion.processes.data.ingestion.ingestion_worker', 'class':'IngestionWorker'}
-        #        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
-        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
         ##------------------------------------------------------------------------------------
         ## declare our intent to subscribe to all messages on the exchange point
@@ -107,7 +111,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
-        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id)
+        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, self.process_definition_id)
 
         return ingestion_configuration_id
 
