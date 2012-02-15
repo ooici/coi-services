@@ -11,14 +11,14 @@ in the driver code
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
-# imports go here
+from ion.services.mi.common import InstErrorCode
 
 class InstrumentException(Exception):
     """Base class for an exception related to physical instruments or their
     representation in ION.
     """
     
-    def __init__ (self, error_code=None, msg=""):
+    def __init__ (self, error_code=None, msg=None):
         self.args = (error_code, msg)
         self.error_code = error_code
         self.msg = msg
@@ -39,6 +39,8 @@ class InstrumentStateException(InstrumentException):
     
 class InstrumentTimeoutException(InstrumentException):
     """Exception related to a command, request, or communication timing out"""
+    def __init__(self, error_code=InstErrorCode.TIMEOUT, msg=None):
+        InstrumentException.__init__(error_code, msg)
     
 class InstrumentDataException(InstrumentException):
     """Exception related to the data returned by an instrument or developed

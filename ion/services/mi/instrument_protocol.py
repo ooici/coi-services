@@ -24,7 +24,7 @@ from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
 from ion.services.mi.exceptions import InstrumentConnectionException
 from ion.services.mi.instrument_connection import IInstrumentConnection
-from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import InstErrorCode, EventKey
 from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 mi_logger = logging.getLogger('mi_logger')
@@ -79,7 +79,7 @@ class InstrumentProtocol(object):
         
         self.send_event = evt_callback
         """The driver callback where we an publish events. Should be a link
-        to a function."""
+        to a function. Currently a dict with keys in EventKey enum."""
         
     ########################################################################
     # Protocol connection interface.
@@ -195,8 +195,6 @@ class InstrumentProtocol(object):
     def set(self, *args, **kwargs):
         """Get some parameters
         
-        @param params A dict with the parameters to fetch. Must be in the
-        fetchable list
         @throws InstrumentProtocolException Confusion dealing with the
         physical device
         @throws InstrumentStateException Unable to handle current or future
@@ -241,6 +239,25 @@ class InstrumentProtocol(object):
        Called by the logger whenever there is data available
        """
        pass
+
+    def announce_to_driver(self, type, error_code=None, msg=None):
+        """
+        Announce an event to the driver via the callback
+        
+        @param type The DriverAnnouncement enum type of the event
+        @param args Any arguments involved
+        @param msg A message to be included
+        @todo Clean this up, promote to InstrumentProtocol?
+        """
+        assert type != None
+        event = {EventKey:type}
+        
+        if error_code:
+            event.update({EventKey.ERROR_CODE:error_code})
+        if msg:
+            event.update({EventKey.MESSAGE:msg})
+            
+        self.send_event(event)
 
 class BinaryInstrumentProtocol(InstrumentProtocol):
     """Instrument protocol description for a binary-based instrument
@@ -362,7 +379,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @param cmd The high level key of the command to responsd to.
         """
         self._response_handlers[cmd] = func
-        
+                
     def _got_data(self, data):
         """
         """
@@ -376,6 +393,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     
     def _send_wakeup(self):
         """
+        Use the logger to send what needs to be sent to wake up the device.
+        This is intended to be overridden if there is any wake up needed.
         """
         pass
         
@@ -405,8 +424,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return item
             
             if time.time() > starttime + timeout:
-                raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
-        
+                raise InstrumentTimeoutException()
+
     ########################################################################
     # Command-response helpers.
     ########################################################################    
@@ -440,7 +459,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 else:
                     time.sleep(.1)
             if time.time() > starttime + timeout:
-                raise InstrumentProtocolException(InstErrorCode.TIMEOUT)
+                raise InstrumentTimeoutException()
 
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """
@@ -570,5 +589,32 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @retval The complete command, ready to send to the device.
         """
         return command+self.eoln
-            
+
+    @staticmethod
+    def _int_to_string(v):
+        """
+        Write an int value to string formatted for sbe37 set operations.
+        @param v An int val.
+        @retval an int string formatted for sbe37 set operations, or None if
+            the input is not a valid int value.
+        """
+        
+        if not isinstance(v,int):
+            return None
+        else:
+            return '%i' % v
+
+    @staticmethod
+    def _float_to_string(v):
+        """
+        Write a float value to string formatted for sbe37 set operations.
+        @param v A float val.
+        @retval a float string formatted for sbe37 set operations, or None if
+            the input is not a valid float value.
+        """
+
+        if not isinstance(v,float):
+            return None
+        else:
+            return '%e' % v
 
