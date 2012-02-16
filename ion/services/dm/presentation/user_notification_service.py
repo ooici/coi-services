@@ -15,8 +15,7 @@ import string, smtplib, time
 from datetime import datetime
 from email.mime.text import MIMEText
 
-#ION_DATA_ALERTS_EMAIL_ADDRESS = 'ION_notifications@oceanobservatories.org'
-ION_DATA_ALERTS_EMAIL_ADDRESS = 'wbollenbacher@ucsd.edu'
+ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 #ION_SMTP_SERVER = 'localhost'
 
@@ -60,10 +59,8 @@ class UserEventProcessor(object):
     
     def subscription_callback(self, *args, **kwargs):
         # TODO: send event notification to user's email address
-        log.debug("UserEventProcessor.subscription_callback(): args=%s, kargs=%s" %(str(args), str(kwargs)))
+        log.debug("UserEventProcessor.subscription_callback(): args[0]=" + str(args[0]))
         log.debug("event type = " + str(args[0]._get_type()))
-        log.debug("args[0]=" + str(args[0]))
-        log.debug("origin=%s, description=%s, ts=%s" %(args[0].origin, args[0].description, args[0].ts_created))
         
         origin = args[0].origin
         event = str(args[0]._get_type())
@@ -80,18 +77,27 @@ class UserEventProcessor(object):
                             "Time stamp: %s" %  time_stamp,
                             "",
                             "You received this notification from ION because you asked to be notified about this event from this source. ",
-                            "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI."), 
+                            "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI.",
+                            "Do not reply to this email.  This email address is not monitored and the emails will not be read."), 
                            "\r\n")
         SUBJECT = "(SysName: " + sys_name + ") ION event " + event + " from " + origin
-        FROM = ION_DATA_ALERTS_EMAIL_ADDRESS
+        FROM = ION_NOTIFICATION_EMAIL_ADDRESS
         TO = self.user_email_addr
         msg = MIMEText(BODY)
         msg['Subject'] = SUBJECT
         msg['From'] = FROM
         msg['To'] = TO
-        smtp_client = smtplib.SMTP(ION_SMTP_SERVER)
-        #smtp_client.sendmail([TO], [FROM], msg.as_string())
-        smtp_client.sendmail(TO, FROM, msg.as_string())
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s" %TO)
+        try:
+            smtp_client = smtplib.SMTP(ION_SMTP_SERVER)
+        except Exception as ex:
+            log.warning("UserEventProcessor.subscription_callback(): failed to connect to SMTP server %s <%s>" %(ION_SMTP_SERVER, ex))
+            return
+        try:
+            smtp_client.sendmail(FROM, TO, msg.as_string())
+        except Exception as ex:
+            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(TO, ex))
+            
 
     
     def add_notification(self, notification=None, cc_node=None):
