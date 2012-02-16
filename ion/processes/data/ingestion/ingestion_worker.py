@@ -27,6 +27,14 @@ class IngestionWorker(TransformDataProcess):
     hdf storage according to the policy in the data stream or the default policy of the ingestion configuration
     """
 
+
+    def policy_event_test_hook(self, msg, headers):
+        pass
+
+    def ingest_process_test_hook(self,packet):
+        pass
+
+
     def on_start(self):
         super(IngestionWorker,self).on_start()
         #----------------------------------------------
@@ -66,6 +74,9 @@ class IngestionWorker(TransformDataProcess):
             log.info('Updating stream policy in ingestion worker')
             self.stream_policies[event_msg.stream_id] = event_msg
 
+            # Hook to override just before processing is complete
+            self.policy_event_test_hook(event_msg, headers)
+
 
         #Use the Exchang Point name (id?) as the origin for stream policy events
         XP = self.stream_subscriber_registrar.XP
@@ -80,6 +91,10 @@ class IngestionWorker(TransformDataProcess):
 
         log.warn(str(self.db))
 
+
+
+
+
     def process(self, packet):
         """Process incoming data!!!!
         """
@@ -89,6 +104,10 @@ class IngestionWorker(TransformDataProcess):
 
         # Process the packet
         self.process_stream(packet, policy)
+
+
+        # Hook to override just before processing is complete
+        self.ingest_process_test_hook(packet)
 
 
     def persist_immutable(self, obj):

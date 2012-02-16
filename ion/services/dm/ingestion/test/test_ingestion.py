@@ -13,7 +13,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import log, StreamPublisherRegistrar, CFG
+from pyon.public import StreamPublisherRegistrar, CFG
 from interface.objects import HdfStorage, CouchStorage, StreamPolicy, ProcessDefinition
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -872,11 +872,10 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
 
-    @unittest.skip("todo: after stream policy has been implemented")
     def test_default_policy(self):
         """
         Test that the default policy is being used properly
-      
+
         Test that the ingestion workers are writing messages to couch
         """
 
@@ -887,17 +886,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
-        #------------------------------------------------------------------------
-        # Publish messages
-        #----------------------------------------------------------------------
-
-        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
-
-        self.ctd_stream1_publisher.publish(post)
-
-        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
-
-        self.ctd_stream1_publisher.publish(comment)
 
         #------------------------------------------------------------------------
         # Test that the policy is implemented
@@ -912,12 +900,29 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
         proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
 
+        ar = gevent.event.AsyncResult()
+
+        def policy_hook(msg,headers):
+            log.warn('IT WORKS!!')
+            ar.set(msg)
+
+
+        proc_1.policy_event_test_hook = policy_hook
+
+
+        self.ingestion_cli.create_stream_policy(stream_id=self.input_stream_id,archive_data=True, archive_metadata=True)
+
+
+        self.assertEquals(ar.get(timeout=5).archive_data,True)
+
+
         # get the self.stream_policies of each ingestion worker
         worker1_policy = proc_1.stream_policies
         worker2_policy = proc_2.stream_policies
 
         # for the particular stream that is being published get the policy for that stream, by doing
 
+        """
         stream_id = 'dfdfdf'
 
         stream_policy_1 = worker1_policy[stream_id]
@@ -926,6 +931,27 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # get values for the archive_data and archive_metadata
         archive_data_worker_1 = stream_policy_1.policy.archive_data
         archive_metadata_worker_2 = stream_policy_2.policy.archive_metadata
+
+
+
+
+
+        #------------------------------------------------------------------------
+        # Publish messages
+        #----------------------------------------------------------------------
+
+        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
+
+        self.ctd_stream1_publisher.publish(post)
+
+        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
+
+        self.ctd_stream1_publisher.publish(comment)
+
+
+
+
+
 
         #------------------------------------------------------------------------
         # now do things according to what the values of archive_data and archive_metadata are:
@@ -948,4 +974,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
         # Repeat for the other worker
         #----------------------------------------------------------------------
+
+        """
 
