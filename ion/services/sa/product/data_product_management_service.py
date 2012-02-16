@@ -46,23 +46,20 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Validate - TBD by the work that Karen Stocks is driving with John Graybeal
 
         # Register - create and store a new DataProduct resource using provided metadata
-
-        # Create necessary associations to owner, instrument, etc
-
-        # Call Data Aquisition Mgmt Svc:assign_data_product to coordinate connection of the data product to data producer and to the source resource
-
-        # Return a resource ref
-        
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
-
         data_product_id = self.data_product.create_one(data_product)
+
 
         if source_resource_id:
             log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
             # TODO: currently create stream for the product is ALWAYS on, this should be surfaced
+            # Call Data Aquisition Mgmt Svc:assign_data_product to coordinate connection of the data product to data producer and to the source resource
             self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id, True)  # TODO: what errors can occur here?
-            
 
+            # todo: should this method create the hasOutputProduct association?
+            self.clients.resource_registry.create_association(source_resource_id,  PRED.hasOutputProduct,  data_product_id)
+
+        # Return a resource ref to the new data product
         return data_product_id
 
 
@@ -151,15 +148,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         stream = streams[0]
 
-        # Call ingestion management to create a ingestion configuration
-        stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, True, True)
-
-        # activate an ingestion configuration
-        #todo: Does DPMS call activate?
-        #ret = self.clients.ingestion_management.activate_ingestion_configuration(ingestion_configuration_id)
-
-        # create the dataset for the data
-        self.clients.dataset_management.create_dataset(self, stream, data_product_obj.name, data_product_obj.description)
+#        # Call ingestion management to create a ingestion configuration
+#        stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, True, True)
+#
+#        # activate an ingestion configuration
+#        #todo: Does DPMS call activate?
+#        #ret = self.clients.ingestion_management.activate_ingestion_configuration(ingestion_configuration_id)
+#
+#        # create the dataset for the data
+#        self.clients.dataset_management.create_dataset(self, stream, data_product_obj.name, data_product_obj.description)
 
         return
 
@@ -184,7 +181,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         stream = streams[0]
 
         # Change the stream policy to stop ingestion
-        stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, False, False)
+        #stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, False, False)
 
         return
 

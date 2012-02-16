@@ -12,9 +12,15 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery, ProcessDefinition
+from interface.objects import
+from interface.objects import ExchangeQuery, IngestionConfiguration, ProcessDefinition
+
 from interface.objects import StreamIngestionPolicy, StreamPolicy
 from pyon.event.event import StreamIngestionPolicyEventPublisher
+
+
+from pyon.datastore.datastore import DataStore
+
 
 
 class IngestionManagementServiceException(IonException):
@@ -48,6 +54,13 @@ class IngestionManagementService(BaseIngestionManagementService):
     def on_start(self):
         super(IngestionManagementService,self).on_start()
         self.event_publisher = StreamIngestionPolicyEventPublisher(node = self.container.node)
+
+
+        #########################################################################################################
+        #   The code for process_definition may not really belong here, but we do not have a different way so
+        #   far to preload the process definitions. This will later probably be part of a set of predefinitions
+        #   for processes.
+        #########################################################################################################
         self.process_definition = ProcessDefinition()
         self.process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
         self.process_definition.executable['class'] = 'IngestionWorker'
@@ -72,13 +85,6 @@ class IngestionManagementService(BaseIngestionManagementService):
         # Give each ingestion configuration its own queue name to receive data on
         exchange_name = 'ingestion_queue'
 
-
-        #########################################################################################################
-        #   The code for process_definition may not really belong here, but we do not have a different way so
-        #   far to preload the process definitions. This will later probably be part of a set of predefinitions
-        #   for processes.
-        #########################################################################################################
-
         ##------------------------------------------------------------------------------------
         ## declare our intent to subscribe to all messages on the exchange point
         query = ExchangeQuery()
@@ -90,7 +96,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # create an ingestion_configuration instance and update the registry
         # @todo: right now sending in the exchange_point_id as the name...
-        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = self.XP)
+        ingestion_configuration = IngestionConfiguration( name = self.XP)
         ingestion_configuration.description = '%s exchange point ingestion configuration' % self.XP
         ingestion_configuration.number_of_workers = number_of_workers
 
@@ -252,6 +258,24 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # Read the stream to get the stream definition
         stream = self.clients.pubsub_management.read_stream(stream_id=stream_id)
+
+        #@todo - once we have an exchange point associaiton this might all make sense. For now just add it to the db for all configs
+        resources, _ = self.clients.resource_registry.find_resources(RT.IngestionConfiguration, None, None, False)
+
+        for ing_conf in resources:
+
+            try:
+                couch_storage = ing_conf.couch_storage
+            except AttributeError:
+                continue
+
+            log.warn('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
+            #@todo how do we get them to the right database?!?!
+            db = self.container.datastore_manager.get_datastore(couch_storage.datastore_name, couch_storage.datastore_profile, self.CFG)
+
+            db.create(stream.stream_definition)
+
+            db.close()
 
 
         policy = StreamPolicy(  archive_data=archive_data,

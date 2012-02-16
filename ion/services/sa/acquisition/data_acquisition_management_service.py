@@ -179,10 +179,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if self.primary_producer is None:
             raise NotFound("No primary Data Producer associated with source resource ID " + str(input_resource_id))
 
-        #create data producer resource and associate to this instrument_id
+        #create data producer resource for this data product
         data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
-        log.debug("assign_data_product: data producer resource %s" % data_producer_id)
+
 
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
