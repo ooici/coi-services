@@ -153,12 +153,17 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         try:
             self.client.assign_data_product(instrument_id, dataproduct_id, True)
         except BadRequest as ex:
-            self.fail("failed to create new data producer: %s" %ex)
+            self.fail("failed to assign data product to data producer: %s" %ex)
         except NotFound as ex:
-            self.fail("failed to create new data producer: %s" %ex)
+            self.fail("failed to assign data product to data producer: %s" %ex)
 
-
-        # todo:  call UNassign_data_product
+        # test UNassigning a data product from instrument, deleting the stream for the product
+        try:
+            self.client.unassign_data_product(instrument_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
 
         # test UNregistering a new data producer
         try:
@@ -175,6 +180,10 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         ext_dataset_obj = IonObject(RT.ExternalDataset, name='DataSet1',description='an external data feed')
         ext_dataset_id, rev = self.rrclient.create(ext_dataset_obj)
 
+        dataproduct_obj = IonObject(RT.DataProduct, name='DataProduct1',description='sample data product')
+        dataproduct_id, rev = self.rrclient.create(dataproduct_obj)
+
+
         # test registering a new external data set
         try:
             ds_id = self.client.register_external_data_set(ext_dataset_id)
@@ -182,9 +191,21 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("failed to create new data producer: %s" %ex)
         print 'new data producer id = ', ds_id
 
-        # todo:  call assign_data_product
+        # test assigning a data product to an ext_dataset_id, creating the stream for the product
+        try:
+            self.client.assign_data_product(ext_dataset_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to assign data product to data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to assign data product to data producer: %s" %ex)
 
-        # todo:  call UNassign_data_product
+        # test UNassigning a data product from ext_dataset_id, deleting the stream for the product
+        try:
+            self.client.unassign_data_product(ext_dataset_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
 
         # test UNregistering a external data set
         try:
@@ -222,7 +243,13 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("failed to create new data producer: %s" %ex)
 
 
-        # todo:  call UNassign_data_product
+        # test UNassigning a data product from the data process, deleting the stream for the product
+        try:
+            self.client.unassign_data_product(process_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
 
         # test UNregistering a process
         try:
