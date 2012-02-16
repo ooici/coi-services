@@ -37,7 +37,7 @@ class ReplayProcess(BaseReplayProcess):
         self.query = self.CFG.get('process',{}).get('query',{})
 
         # Get the delivery_format
-        self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
+        self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{}) or {}
 
         self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
         self.view_name = self.CFG.get('process',{}).get('view_name')
