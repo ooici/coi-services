@@ -17,8 +17,8 @@ from email.mime.text import MIMEText
 
 #ION_DATA_ALERTS_EMAIL_ADDRESS = 'ION_notifications@oceanobservatories.org'
 ION_DATA_ALERTS_EMAIL_ADDRESS = 'wbollenbacher@ucsd.edu'
-#ION_SMTP_SERVER = 'mail.oceanobservatories.org'
-ION_SMTP_SERVER = 'localhost'
+ION_SMTP_SERVER = 'mail.oceanobservatories.org'
+#ION_SMTP_SERVER = 'localhost'
 
 
 class NotificationEventSubscriber(EventSubscriber):
