@@ -10,7 +10,7 @@ from pyon.core.exception import NotFound
 from pyon.public import CFG
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from ion.processes.data.transforms.transform_example import TransformExample
@@ -135,6 +135,8 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         call_args, call_kwargs = mock_dashi.call.call_args
         self.assertEqual(set(call_kwargs),
             set(['upid', 'spec', 'subscribers', 'constraints']))
+        self.assertEqual(call_kwargs['constraints'],
+            proc_schedule.target['constraints'])
         self.assertEqual(call_args, ("pd", "dispatch_process"))
 
     def test_bridge_cancel(self):
@@ -250,15 +252,24 @@ class ProcessDispatcherServiceBridgeIntTest(IonIntegrationTestCase):
 
     def test_schedule_cancel(self):
         process_schedule = ProcessSchedule()
+        process_schedule.target = ProcessTarget()
+        process_schedule.target.constraints = {'site' : 'chicago'}
+
+        config = {'some': "value"}
 
         pid = self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, configuration={})
+            process_schedule, configuration=config)
 
         self.assertEqual(self.fake_pd.dispatch_process.call_count, 1)
         args, kwargs = self.fake_pd.dispatch_process.call_args
         self.assertFalse(args)
         self.assertEqual(set(kwargs),
             set(['upid', 'spec', 'subscribers', 'constraints']))
+
+        spec = kwargs['spec']
+        self.assertEqual(spec['run_type'], 'pyon_single')
+        self.assertEqual(spec['parameters']['rel']['apps'][0]['config'],
+            config)
 
         self.pd_cli.cancel_process(pid)
         self.fake_pd.terminate_process.assert_called_once_with(upid=pid)

@@ -234,6 +234,9 @@ class PDBridgeBackend(object):
         module = definition.executable['module']
         cls = definition.executable['class']
 
+        # note: not doing anything with schedule mode yet: the backend PD
+        # service doesn't fully support it.
+
         constraints = None
         if schedule:
             if schedule.target and schedule.target.constraints:
