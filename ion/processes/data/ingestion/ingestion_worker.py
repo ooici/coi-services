@@ -21,8 +21,6 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.event.event import StreamIngestionPolicyEventSubscriber
 
 
-
-
 class IngestionWorker(TransformDataProcess):
     """
     Instances of this class acts as Ingestion Workers. They receive packets and send them to couchdb datastore or
@@ -73,8 +71,12 @@ class IngestionWorker(TransformDataProcess):
         XP = self.stream_subscriber_registrar.XP
         # @todo Find a better way to get the XP that the ingestion worker is subscribed too
 
+        #@todo - check the resource registry for any already existing stream policies... how?
+
+        #Start the event subscriber - really - what a mess!
         self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, origin=XP, callback=receive_policy_event)
         self.gl = spawn(self.event_subscriber.listen)
+        self.event_subscriber._ready_event.wait(timeout=5)
 
         log.warn(str(self.db))
 
@@ -143,10 +145,12 @@ class IngestionWorker(TransformDataProcess):
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
+        self.gl.kill()
         self.db.close()
 
     def on_quit(self):
         TransformDataProcess.on_quit(self)
+        self.gl.kill()
         self.db.close()
 
 
