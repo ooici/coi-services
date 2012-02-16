@@ -81,9 +81,6 @@ class Event(BaseEnum):
     GET = 'GET'
     SET = 'SET'
 
-class MetadataParameter(BaseEnum):
-    pass
-
 class Parameter(BaseEnum):
     TELBAUD = 'telbaud'
     MAXRATE = 'maxrate'
@@ -732,7 +729,6 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
         InstrumentDriver.__init__(self, evt_callback)
         self.instrument_connection = SerialInstrumentConnection()
         self.instrument_commands = Command()
-        self.instrument_metadata_parameters = MetadataParameter()
         self.instrument_parameters = Parameter()
         self.instrument_channels = Channel()
         self.instrument_errors = Error()

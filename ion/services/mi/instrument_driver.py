@@ -147,9 +147,32 @@ class InstrumentDriver(object):
         # We need to change this to protocol or connection name, rather than channel.
         self.channels = {}
         """@todo clean this up as chan_map gets used more"""
+        
         self.chan_map = {}
         """The channel to protocol mapping"""
+        
         self.send_event = evt_callback
+        """The callback method that the protocol uses to alert the driver to
+        events"""
+        
+        self.instrument_commands = None
+        """A BaseEnum-derived class of the acceptable commands"""
+        
+        self.instrument_parameters = None
+        """A BaseEnum-derived class of the acceptable parameters"""
+    
+        self.instrument_channels = None
+        """A BaseEnum-derived class of the acceptable channels"""
+        
+        self.instrument_errors = None
+        """A BaseEnum-derived class of the acceptable errors"""
+        
+        self.instrument_states = None
+        """A BaseEnum-derived class of the acceptable channel states"""
+        
+        self.instrument_active_states = []
+        """A list of the active states found in the BaseEnum-derived state
+        class"""
         
         # Below are old members with comments from EH.
         #
