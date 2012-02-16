@@ -210,7 +210,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         #@todo Should we check to see if the ingestion configuration exists?
 
         # read the transforms
-        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
 
@@ -234,7 +234,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
 
         # use the deactivate method in transformation management service
-        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
         if len(transform_ids) < 1:
             raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
 

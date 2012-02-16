@@ -57,6 +57,9 @@ class IngestionTest(PyonTestCase):
 
         self.mock_transform_delete = mock_clients.transform_management.delete_transform
 
+        self.ingestion_configuration_id = Mock()
+        self.ingestion_configuration = Mock()
+
         # Exchange point
         self.exchange_point_id = "exchange_point_id"
 
@@ -184,7 +187,7 @@ class IngestionTest(PyonTestCase):
         # Fixing return values
         #--------------------------------------------------------------------------------
 
-        self.mock_find_objects.return_value = [transform1]
+        self.mock_find_objects.return_value = [transform1], None
 
         #--------------------------------------------------------------------------------
         # Calling the delete ingestion configuration method
@@ -212,7 +215,7 @@ class IngestionTest(PyonTestCase):
         # Fixing return values
         #--------------------------------------------------------------------------------
 
-        self.mock_find_objects.return_value = [transform1]
+        self.mock_find_objects.return_value = [transform1], None
 
         #--------------------------------------------------------------------------------
         # Calling the delete ingestion configuration method
@@ -228,30 +231,57 @@ class IngestionTest(PyonTestCase):
         self.mock_find_objects.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, RT.Transform , True)
         self.mock_transform_deactivate.assert_called_once_with(transform1)
 
-
-    @unittest.skip("Nothing to test")
     def test_activate_ingestion_configuration_not_found(self):
         """
         Test that non existent ingestion configuration does not cause crash when attempting to activate
         """
-        ingestion_service = IngestionManagementService()
+        #--------------------------------------------------------------------------------
+        # Fixing return values
+        #--------------------------------------------------------------------------------
 
+        self.mock_find_objects.return_value = [], None
+
+        #--------------------------------------------------------------------------------
+        # Calling the delete ingestion configuration method
+        #--------------------------------------------------------------------------------
+
+        #@todo add some logic to check for state of the resources and ingestion service!
         with self.assertRaises(NotFound) as cm:
-            ingestion_service.activate_ingestion_configuration('wrong')
-        ex = cm.exception
-        self.assertEqual(ex.message, 'Ingestion configuration wrong does not exist')
+            self.ingestion_service.activate_ingestion_configuration('wrong_configuration_id')
 
-    @unittest.skip("Nothing to test")
+        #--------------------------------------------------------------------------------
+        # Assertions
+        #--------------------------------------------------------------------------------
+
+        ex = cm.exception
+        self.mock_find_objects.assert_called_once_with('wrong_configuration_id', PRED.hasTransform, RT.Transform , True)
+        self.assertEqual(ex.message, 'The ingestion configuration wrong_configuration_id does not exist')
+
     def test_deactivate_ingestion_configuration_not_found(self):
         """
         Test that non existent ingestion configuration does not cause crash when attempting to activate
         """
-        ingestion_service = IngestionManagementService()
+        #--------------------------------------------------------------------------------
+        # Fixing return values
+        #--------------------------------------------------------------------------------
 
+        self.mock_find_objects.return_value = [], None
+
+        #--------------------------------------------------------------------------------
+        # Calling the delete ingestion configuration method
+        #--------------------------------------------------------------------------------
+
+        #@todo add some logic to check for state of the resources and ingestion service!
         with self.assertRaises(NotFound) as cm:
-            ingestion_service.deactivate_ingestion_configuration('wrong')
+            self.ingestion_service.deactivate_ingestion_configuration('wrong_configuration_id')
+
+        #--------------------------------------------------------------------------------
+        # Assertions
+        #--------------------------------------------------------------------------------
+
         ex = cm.exception
-        self.assertEqual(ex.message, 'Ingestion configuration wrong does not exist')
+        self.mock_find_objects.assert_called_once_with('wrong_configuration_id', PRED.hasTransform, RT.Transform , True)
+        self.assertEqual(ex.message, 'The ingestion configuration wrong_configuration_id does not exist')
 
 
 @attr('INT', group='dm')
@@ -340,12 +370,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(ingestion_configuration.couch_storage.datastore_name, self.couch_storage.datastore_name)
         self.assertEquals(ingestion_configuration.default_policy.archive_metadata, self.default_policy.archive_metadata)
 
-        #------------------------------------------------------------------------
-        # Cleanup
-        #----------------------------------------------------------------------
-
-        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
-
 
     def test_ingestion_workers(self):
         """
@@ -368,12 +392,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.assertTrue(self.container.proc_manager.procs_by_name.has_key(name_1))
         self.assertTrue(self.container.proc_manager.procs_by_name.has_key(name_2))
-
-
-        #------------------------------------------------------------------------
-        # Cleanup
-        #----------------------------------------------------------------------
-        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
 
     def test_ingestion_workers_in_round_robin(self):
@@ -451,14 +469,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.assertEqual(ar_2.get(timeout=10),msg)
 
-
-        #------------------------------------------------------------------------
-        # Cleanup
-        #----------------------------------------------------------------------
-        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
-        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
-
-
+    @unittest.skip("todo")
     def test_activate_ingestion_configuration(self):
         """
         Test the activation of the ingestion configuration
@@ -473,13 +484,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # @TODO when these are proper life cycle state changes, test the state transition of the resources...
 
 
-        #------------------------------------------------------------------------
-        # Cleanup
-        #----------------------------------------------------------------------
-        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
-        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
-
-
+    @unittest.skip("todo")
     def test_deactivate_ingestion_configuration(self):
         """
         Test the deactivation of the ingestion configuration
@@ -498,10 +503,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # pubsub has tested the deactivation of subscriptions
 
-        #------------------------------------------------------------------------
-        # Cleanup
-        #----------------------------------------------------------------------
-        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
     def test_create_stream_policy(self):
         """
@@ -873,12 +874,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 self.assertTrue(ion_obj.ref_id == comment.ref_id), "The comment is not to be found in couch storage"
                 self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
-        #------------------------------------------------------------------------
-        # Cleanup
-        #----------------------------------------------------------------------
-
-        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
-        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
 
     @unittest.skip("todo: after stream policy has been implemented")
     def test_default_policy(self):
@@ -958,9 +953,3 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Repeat for the other worker
         #----------------------------------------------------------------------
 
-        #------------------------------------------------------------------------
-        # Cleanup
-        #----------------------------------------------------------------------
-
-        self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
-        self.ingestion_cli.delete_ingestion_configuration(ingestion_configuration_id)
