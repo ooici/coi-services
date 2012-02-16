@@ -876,8 +876,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
     def test_default_policy(self):
         """
         Test that the default policy is being used properly
-        """
-        """
+      
         Test that the ingestion workers are writing messages to couch
         """
 
