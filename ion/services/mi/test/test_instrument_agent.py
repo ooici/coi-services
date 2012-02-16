@@ -21,10 +21,13 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_execute
 
 
 class FakeProcess(LocalContextMixin):
@@ -94,6 +97,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         caps = self._ia_client.get_capabilities()
         print 'got caps: %s' % str(caps)
+        
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
 
@@ -119,5 +123,144 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
         time.sleep(2)
+
+    def test_get_set(self):
+        """
+        """
+        args = [
+            self.driver_config,
+            self.comms_config
+        ]
+        cmd = AgentCommand(command='initialize', args=args)
+        reply = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+        
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        get_params = [
+            (SBE37Channel.CTD, SBE37Parameter.ALL)            
+        ]
+        reply = self._ia_client.get_param(get_params)
+        time.sleep(2)
+
+        self.assertIsInstance(reply, dict)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (tuple, list))
+
+        # Set up a param dict of the original values.
+        old_ta2 = reply[(SBE37Channel.CTD, SBE37Parameter.TA2)]
+        old_ptca1 = reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)]
+        old_tcaldate = reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)]
+               
+        orig_params = {
+            (SBE37Channel.CTD, SBE37Parameter.TA2): old_ta2,
+            (SBE37Channel.CTD, SBE37Parameter.PTCA1): old_ptca1,
+            (SBE37Channel.CTD, SBE37Parameter.TCALDATE): old_tcaldate            
+        }
+
+        # Set up a param dict of new values.
+        new_ta2 = old_ta2*2
+        new_ptcal1 = old_ptca1*2
+        new_tcaldate = list(old_tcaldate)
+        new_tcaldate[2] = new_tcaldate[2] + 1
+        
+        new_params = {
+            (SBE37Channel.CTD, SBE37Parameter.TA2): new_ta2,
+            (SBE37Channel.CTD, SBE37Parameter.PTCA1): new_ptcal1,
+            (SBE37Channel.CTD, SBE37Parameter.TCALDATE): new_tcaldate
+        }
+
+        # Set the params to their new values.
+        reply = self._ia_client.set_param(new_params)
+        time.sleep(2)
+
+        # Check overall success and success of the individual paramters.
+        self.assertIsInstance(reply, dict)
+        
+        # Get the same paramters back from the driver.
+        get_params = [
+            (SBE37Channel.CTD, SBE37Parameter.TA2),
+            (SBE37Channel.CTD, SBE37Parameter.PTCA1),
+            (SBE37Channel.CTD, SBE37Parameter.TCALDATE)
+        ]
+        reply = self._ia_client.get_param(get_params)
+        time.sleep(2)
+
+        # Check success, and check that the parameters were set to the
+        # new values.
+        self.assertIsInstance(reply, dict)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (tuple, list))
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], new_ta2, delta=abs(0.01*new_ta2))
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], new_ptcal1, delta=abs(0.01*new_ptcal1))
+        self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], new_tcaldate)
+
+        # Set the paramters back to their original values.        
+        reply = self._ia_client.set_param(orig_params)
+        self.assertIsInstance(reply, dict)
+
+        # Get the parameters back from the driver.
+        reply = self._ia_client.get_param(get_params)
+
+        # Check overall and individual sucess, and that paramters were
+        # returned to their original values.
+        self.assertIsInstance(reply, dict)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (tuple, list))
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], old_ta2, delta=abs(0.01*old_ta2))
+        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], old_ptca1, delta=abs(0.01*old_ptca1))
+        self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], old_tcaldate)
+
+        time.sleep(2)
+
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+    def test_execute(self):
+        """
+        """
+        args = [
+            self.driver_config,
+            self.comms_config
+        ]
+        cmd = AgentCommand(command='initialize', args=args)
+        reply = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+        
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+
 
 
