@@ -5,7 +5,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, collections, ast, simplejson, json
+import inspect, collections, ast, simplejson, json, sys
 from flask import Flask, request
 from gevent.wsgi import WSGIServer
 
@@ -24,6 +24,10 @@ service_gateway_instance = None
 
 DEFAULT_WEB_SERVER_HOSTNAME = ""
 DEFAULT_WEB_SERVER_PORT = 5000
+DEFAULT_GATEWAY_REQUEST_ERROR = 'GatewayRequestError'
+DEFAULT_GATEWAY_REQUEST_ERROR = 'GatewayRequestError'
+DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION = 'Exception'
+DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE = 'Message'
 
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
@@ -144,7 +148,12 @@ def process_gateway_request(service_name, operation):
         result = methodToCall(**param_list)
 
     except Exception, e:
-        result =  "Error: %s" % e.message
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        result = { DEFAULT_GATEWAY_REQUEST_ERROR :
+                    { DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION : exc_type.__name__,
+                      DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE : str(e.message)
+                    }
+                 }
 
     return json_response(result)
 
@@ -253,7 +262,12 @@ def list_resource_types():
         return json_response(ret_list)
 
     except Exception, e:
-        ret =  "Error: %s" % e.message
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        ret = { DEFAULT_GATEWAY_REQUEST_ERROR :
+                           { DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION : exc_type.__name__,
+                             DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE : str(e.message)
+                       }
+        }
         return json_response(ret)
 
 
@@ -282,7 +296,12 @@ def get_resource_schema(resource_type):
                     setattr(ret_obj, field, value)
 
     except Exception, e:
-        ret_obj =  "Error: %s" % e.message
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        ret_obj = { DEFAULT_GATEWAY_REQUEST_ERROR :
+                        { DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION : exc_type.__name__,
+                          DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE : str(e.message)
+                    }
+        }
 
     return json_response(ret_obj)
 
@@ -304,7 +323,12 @@ def get_resource(resource_id):
                 raise NotFound("No resource found for id: %s " % resource_id)
 
         except Exception, e:
-            result =  "Error: %s" % e
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            result = { DEFAULT_GATEWAY_REQUEST_ERROR :
+                            { DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION : exc_type.__name__,
+                              DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE : str(e.message)
+                        }
+        }
 
     return json_response(result)
 
@@ -325,7 +349,12 @@ def list_resources_by_type(resource_type):
             result.append(res)
 
     except Exception, e:
-        result =  "Error: %s" % e
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        result = { DEFAULT_GATEWAY_REQUEST_ERROR :
+                        { DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION : exc_type.__name__,
+                          DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE : str(e.message)
+                    }
+    }
 
     return json_response(result)
 
