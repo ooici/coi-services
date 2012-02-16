@@ -7,7 +7,7 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from interface.objects import BlogBase
+from interface.objects import BlogBase, StreamGranuleContainer
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
@@ -82,12 +82,24 @@ class ReplayProcess(BaseReplayProcess):
                 if isinstance(replay_obj_msg, BlogBase):
                     replay_obj_msg.is_replay = True
                 else:
+                    # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
                     replay_obj_msg.stream_resource_id = self.stream_id
             else:
                 replay_obj_msg = result['value'] # Document ID, not a document
-            self.lock.acquire()
-            self.output.publish(replay_obj_msg)
-            self.lock.release()
+
+
+            # Handle delivery options
+            # Case: Chopping granules
+            if isinstance(replay_obj_msg, StreamGranuleContainer) and self.delivery_format.get('chop', False):
+                for identifiable in replay_obj_msg.identifiables:
+                    self.lock.acquire()
+                    self.output.publish(identifiable)
+                    self.lock.release()
+            # Default: Publish
+            else:
+                self.lock.acquire()
+                self.output.publish(replay_obj_msg)
+                self.lock.release()
 
         #@todo: log when there are not results
         if results is None:

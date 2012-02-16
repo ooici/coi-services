@@ -29,7 +29,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
 
-    def define_replay(self, dataset_id='', query={}, delivery_format={}):
+    def define_replay(self, dataset_id='', query=None, delivery_format=None):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         '''
         # Get the datastore name from the dataset object, use dm_datastore by default.
