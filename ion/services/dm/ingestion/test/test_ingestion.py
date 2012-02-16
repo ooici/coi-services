@@ -15,7 +15,7 @@ from nose.plugins.attrib import attr
 
 from pyon.core.exception import NotFound
 from pyon.public import log, StreamPublisherRegistrar, CFG
-from interface.objects import HdfStorage, CouchStorage, StreamPolicy
+from interface.objects import HdfStorage, CouchStorage, StreamPolicy, ProcessDefinition
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -36,6 +36,10 @@ class IngestionTest(PyonTestCase):
         mock_clients = self._create_service_mock('ingestion_management')
         self.ingestion_service = IngestionManagementService()
         self.ingestion_service.clients = mock_clients
+        self.ingestion_service.process_definition = ProcessDefinition()
+        self.ingestion_service.process_definition.executable['module'] = 'ion.processes.data.ingestion.ingestion_worker'
+        self.ingestion_service.process_definition.executable['class']= 'IngestionWorker'
+        self.ingestion_service.process_definition_id = '1914'
 
         # save some typing
         self.mock_create = mock_clients.resource_registry.create

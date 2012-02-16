@@ -5,7 +5,7 @@
 '''
 import gevent
 from mock import Mock
-from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor
+from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor, ProcessDefinition
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -38,6 +38,9 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.data_retriever_service.container = DotDict({'id':'123','spawn_process':Mock(),'proc_manager':DotDict({'terminate_process':Mock(),'procs':[]})})
         self.mock_cc_spawn = self.data_retriever_service.container.spawn_process
         self.mock_cc_terminate = self.data_retriever_service.container.proc_manager.terminate_process
+        self.data_retriever_service.process_definition = ProcessDefinition()
+        self.data_retriever_service.process_definition.executable['module'] = 'ion.processes.data.replay_process'
+        self.data_retriever_service.process_definition.executable['class'] = 'ReplayProcess'
 
     def test_define_replay(self):
         #mocks
