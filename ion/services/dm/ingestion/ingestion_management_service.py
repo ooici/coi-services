@@ -178,7 +178,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         if len(transform_ids) < 1:
             raise NotFound('No transforms associated with this ingestion configuration!')
 
-        log.warn('len(transform_ids): %s' % len(transform_ids))
+        log.debug('len(transform_ids): %s' % len(transform_ids))
 
         for transform_id in transform_ids:
             # To Delete - we need to actually remove each of the transforms
@@ -187,7 +187,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # delete the associations too...
         associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
-        log.warn('associations: %s' % associations)
+        log.info('associations: %s' % associations)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
             #@todo How should we deal with failure?
@@ -270,7 +270,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             except AttributeError:
                 continue
 
-            log.warn('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
+            log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
             #@todo how do we get them to the right database?!?!
             db = self.container.datastore_manager.get_datastore(couch_storage.datastore_name, couch_storage.datastore_profile, self.CFG)
 
@@ -312,13 +312,10 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if policy does not exist
         """
 
-        log.warn('stream policy to update: %s' % stream_policy)
+        log.info('stream policy to update: %s' % stream_policy)
 
         log.debug("Updating stream policy")
         stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
-
-
-        log.warn('stream_policy_id: %s' % stream_policy_id)
 
         self.event_publisher.create_and_publish_event(
             origin='ingestion_management',
