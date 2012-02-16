@@ -4,11 +4,17 @@ __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
 """
+Update 2012-02-16: The behavior described below is not happening anymore; the
+test is now running fine with 'import pyon.util.unit_test' and under the
+various launch styles.
+
+(the description of the original behavior follows)
 If pyon.util.unit_test is imported, then the thread in this test is NOT
-started when this file is run via bin/nosetests or bin/unittest. But it does
+started when this file is run via bin/nosetests or unittest. But it does
 run fine when launched (individually) as a regular program via bin/python.
 Apparently the pyon.util.unit_test import triggers some internal preparations
-in pyon that don't play well with threads.
+in pyon that don't play well with threads (likely related with gevent
+monkey-patching).
 
 Just remove the pyon.util.unit_test import, and the test runs fine with any
 of the launch methods.
@@ -21,7 +27,7 @@ $ bin/nosetests -sv ion/services/mi/drivers/uw_bars/test/test_thread.py
 test_simple (ion.services.mi.drivers.uw_bars.test.test_thread.ThreadTest) ... :: _T created
 ^\
 
-$ bin/unittest ion.services.mi.drivers.uw_bars.test.test_thread
+$ bin/python -m unittest ion.services.mi.drivers.uw_bars.test.test_thread
 test_simple (ion.services.mi.drivers.uw_bars.test.test_bars_client.DriverTest) ...
 DEBUG      bars_client               20742  MainThread      - ### connecting to 10.180.80.172:2001
 DEBUG      bars_client               20742  MainThread      - ### connected to 10.180.80.172:2001
@@ -55,7 +61,6 @@ from nose.plugins.attrib import attr
 import os
 
 
-# Does not work in conjunction with pyon internal preparations
 @unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this.')
 @attr('UNIT', group='mi')
 class _T(Thread):
