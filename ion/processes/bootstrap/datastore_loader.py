@@ -116,7 +116,7 @@ class DatastoreAdmin(ImmediateProcess):
             dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
             path = "res/preload/local/dump_%s" % dtstr
         if ds_name:
-            if Container.instance.datastore_manager.exists(ds_name):
+            if DatastoreManager.exists(ds_name):
                 cls._dump_datastore(ds_name, path, clear_dir)
             else:
                 log.warn("Datastore does not exist")
