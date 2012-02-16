@@ -1146,7 +1146,7 @@ class SBE37Driver(InstrumentDriver):
     
         return result
     
-    def execute_start_autosample(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+    def start_autosample(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
         try:
@@ -1161,7 +1161,7 @@ class SBE37Driver(InstrumentDriver):
 
         return result
 
-    def execute_stop_autosample(self, channels=[SBE37Channel.CTD], *args, **kwargs):
+    def stop_autosample(self, channels=[SBE37Channel.CTD], *args, **kwargs):
         """
         """
         try:
