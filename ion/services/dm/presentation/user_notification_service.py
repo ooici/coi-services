@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from pyon.public import RT, PRED, sys_name
+from pyon.public import RT, PRED, sys_name, Container, CFG
 from pyon.core.exception import BadRequest, NotFound
 from pyon.event.event import EventError, EventSubscriber, EventRepository
 from pyon.util.async import spawn
@@ -15,10 +15,8 @@ import string, smtplib, time
 from datetime import datetime
 from email.mime.text import MIMEText
 
-#ION_DATA_ALERTS_EMAIL_ADDRESS = 'ION_notifications@oceanobservatories.org'
-ION_DATA_ALERTS_EMAIL_ADDRESS = 'wbollenbacher@ucsd.edu'
-#ION_SMTP_SERVER = 'mail.oceanobservatories.org'
-ION_SMTP_SERVER = 'localhost'
+ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 
 
 class NotificationEventSubscriber(EventSubscriber):
@@ -52,18 +50,17 @@ class Notification(object):
 
 class UserEventProcessor(object):
     
-    def __init__(self, user_id=None, email_addr=None):
+    def __init__(self, user_id=None, email_addr=None, smtp_server=None):
         self.user_id = user_id
         self.user_email_addr = email_addr
+        self.smtp_server = smtp_server
         self.notifications = []
         log.debug("UserEventProcessor.__init__(): email for user %s set to %s" %(self.user_id, self.user_email_addr))
     
     def subscription_callback(self, *args, **kwargs):
         # TODO: send event notification to user's email address
-        log.debug("UserEventProcessor.subscription_callback(): args=%s, kargs=%s" %(str(args), str(kwargs)))
+        log.debug("UserEventProcessor.subscription_callback(): args[0]=" + str(args[0]))
         log.debug("event type = " + str(args[0]._get_type()))
-        log.debug("args[0]=" + str(args[0]))
-        log.debug("origin=%s, description=%s, ts=%s" %(args[0].origin, args[0].description, args[0].ts_created))
         
         origin = args[0].origin
         event = str(args[0]._get_type())
@@ -80,18 +77,27 @@ class UserEventProcessor(object):
                             "Time stamp: %s" %  time_stamp,
                             "",
                             "You received this notification from ION because you asked to be notified about this event from this source. ",
-                            "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI."), 
+                            "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI.",
+                            "Do not reply to this email.  This email address is not monitored and the emails will not be read."), 
                            "\r\n")
         SUBJECT = "(SysName: " + sys_name + ") ION event " + event + " from " + origin
-        FROM = ION_DATA_ALERTS_EMAIL_ADDRESS
+        FROM = ION_NOTIFICATION_EMAIL_ADDRESS
         TO = self.user_email_addr
         msg = MIMEText(BODY)
         msg['Subject'] = SUBJECT
         msg['From'] = FROM
         msg['To'] = TO
-        smtp_client = smtplib.SMTP(ION_SMTP_SERVER)
-        #smtp_client.sendmail([TO], [FROM], msg.as_string())
-        smtp_client.sendmail(TO, FROM, msg.as_string())
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s" %(TO, self.smtp_server))
+        try:
+            smtp_client = smtplib.SMTP(self.smtp_server)
+        except Exception as ex:
+            log.warning("UserEventProcessor.subscription_callback(): failed to connect to SMTP server %s <%s>" %(ION_SMTP_SERVER, ex))
+            return
+        try:
+            smtp_client.sendmail(FROM, TO, msg.as_string())
+        except Exception as ex:
+            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(TO, ex))
+            
 
     
     def add_notification(self, notification=None, cc_node=None):
@@ -135,6 +141,13 @@ class UserNotificationService(BaseUserNotificationService):
     
     user_event_processors = {}
     
+    def __init__(self):
+        self.event_repo = Container.instance.event_repository
+        BaseUserNotificationService.__init__(self)
+    
+    def on_start(self):
+        self.smtp_server = self.CFG.get('smtp_server', ION_SMTP_SERVER)        
+        
     def create_notification(self, notification=None, user_id=''):
         """
         Persists the provided NotificationRequest object for the specified Origin id. 
@@ -163,7 +176,7 @@ class UserNotificationService(BaseUserNotificationService):
             if not user_info.contact.email or user_info.contact.email == '':
                 raise NotFound("UserNotificationService.create_notification(): No email address in user_info for user " + user_id)
             # create event processor for user
-            self.user_event_processors[user_id] = UserEventProcessor(user_id, user_info.contact.email)
+            self.user_event_processors[user_id] = UserEventProcessor(user_id, user_info.contact.email, self.smtp_server)
             log.debug("UserNotificationService.create_notification(): added event processor " + str(self.user_event_processors[user_id]))
         
         # add notification to user's event_processor
@@ -286,7 +299,7 @@ class UserNotificationService(BaseUserNotificationService):
         @retval event_list    []
         @throws NotFound    object with specified paramteres does not exist
         """
-        pass
+        return self.event_repo.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime)
 
 
   
