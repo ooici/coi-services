@@ -48,23 +48,12 @@ class PubsubManagementService(BasePubsubManagementService):
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
 
-        self.stream_definition_type_names = CFG.core_stream_types
 
-        self.stream_definition_types= {}
-
-        for cls_name in self.stream_definition_type_names:
-            self.stream_definition_types[cls_name] = getattr(objects,cls_name)
-
-
-    #def __init__(self, *args, **kwargs):
-    #    BasePubsubManagementService.__init__(self, *args, **kwargs)
-    #    self.definition_publisher = StreamPublisher(name=(self.XP, 'dummy_stream'), process=self)
-    
-    def create_stream(self, encoding='', original=True, stream_definition_type='', name='', description='', url=''):
+    def create_stream(self,encoding='', original=True, stream_definition=None, name='', description='', url=''):
         '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
         @param encoding the encoding for data on this stream
         @param original is the data on this stream from a source or a transform
-        @param stream_defintion_type a predefined stream definition type for this stream
+        @param stream_defintion a predefined stream definition type for this stream
         @param name (optional) the name of the stream
         @param description (optional) the description of the stream
         @param url (optional) the url where data from this stream can be found (Not implemented)
@@ -73,18 +62,23 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         log.debug("Creating stream object")
 
-        #definition = self.stream_types.get(stream_definition_type, None)
-
         stream_obj = Stream(name=name, description=description)
         stream_obj.original = original
         stream_obj.encoding = encoding
+
         stream_obj.url = url
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
 
+        if stream_definition is not None:
 
-        ### @TODO - what should we do with the stream definition?
-        #self.definition_publisher.publish(definition, to_name=(self.XP, stream_id+'.data'))
+            #@todo Very awkward right now - need to read the stream object and update a field with its own id...
+            stream_obj = self.clients.resource_registry.read(stream_id)
 
+            stream_definition.stream_resource_id = stream_id
+
+            stream_obj.stream_definition.update(stream_definition)
+
+            id, rev = self.clients.resource_registry.update(stream_obj)
 
         return stream_id
 
