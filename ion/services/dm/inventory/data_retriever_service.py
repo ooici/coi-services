@@ -22,11 +22,11 @@ class DataRetrieverService(BaseDataRetrieverService):
         self.process_definition = ProcessDefinition()
         self.process_definition.executable['module']='ion.processes.data.replay_process'
         self.process_definition.executable['class'] = 'ReplayProcess'
-        self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+        self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
 
 
     def on_quit(self):
-        self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition)
+        self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
 
     def define_replay(self, dataset_id='', query={}, delivery_format={}):

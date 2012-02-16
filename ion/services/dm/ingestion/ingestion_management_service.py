@@ -12,7 +12,6 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery, ProcessDefinition
 from interface.objects import ExchangeQuery, IngestionConfiguration, ProcessDefinition
 from interface.objects import StreamIngestionPolicy, StreamPolicy
 from pyon.event.event import StreamIngestionPolicyEventPublisher
@@ -53,6 +52,13 @@ class IngestionManagementService(BaseIngestionManagementService):
     def on_start(self):
         super(IngestionManagementService,self).on_start()
         self.event_publisher = StreamIngestionPolicyEventPublisher(node = self.container.node)
+
+
+        #########################################################################################################
+        #   The code for process_definition may not really belong here, but we do not have a different way so
+        #   far to preload the process definitions. This will later probably be part of a set of predefinitions
+        #   for processes.
+        #########################################################################################################
         self.process_definition = ProcessDefinition()
         self.process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
         self.process_definition.executable['class'] = 'IngestionWorker'
@@ -76,13 +82,6 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # Give each ingestion configuration its own queue name to receive data on
         exchange_name = 'ingestion_queue'
-
-
-        #########################################################################################################
-        #   The code for process_definition may not really belong here, but we do not have a different way so
-        #   far to preload the process definitions. This will later probably be part of a set of predefinitions
-        #   for processes.
-        #########################################################################################################
 
         ##------------------------------------------------------------------------------------
         ## declare our intent to subscribe to all messages on the exchange point
