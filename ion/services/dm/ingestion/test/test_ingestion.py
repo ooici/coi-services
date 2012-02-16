@@ -36,9 +36,6 @@ class IngestionTest(PyonTestCase):
         mock_clients = self._create_service_mock('ingestion_management')
         self.ingestion_service = IngestionManagementService()
         self.ingestion_service.clients = mock_clients
-        self.ingestion_service.process_definition = ProcessDefinition()
-        self.ingestion_service.process_definition.executable['module'] = 'ion.processes.data.ingestion.ingestion_worker'
-        self.ingestion_service.process_definition.executable['class']= 'IngestionWorker'
         self.ingestion_service.process_definition_id = '1914'
 
         # save some typing
