@@ -63,7 +63,7 @@ class IngestionWorker(TransformDataProcess):
         self.stream_policies = {}
         # update the policy
         def receive_policy_event(event_msg, headers):
-            log.warn('Got a message!!!!')
+            log.info('Updating stream policy in ingestion worker')
             self.stream_policies[event_msg.stream_id] = event_msg
 
 

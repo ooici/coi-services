@@ -65,10 +65,20 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_obj = Stream(name=name, description=description)
         stream_obj.original = original
         stream_obj.encoding = encoding
-        if stream_definition is not None:
-            stream_obj.stream_definition.update(stream_definition)
+
         stream_obj.url = url
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
+
+        if stream_definition is not None:
+
+            #@todo Very awkward right now - need to read the stream object and update a field with its own id...
+            stream_obj = self.clients.resource_registry.read(stream_id)
+
+            stream_definition.stream_resource_id = stream_id
+
+            stream_obj.stream_definition.update(stream_definition)
+
+            id, rev = self.clients.resource_registry.update(stream_obj)
 
         return stream_id
 
