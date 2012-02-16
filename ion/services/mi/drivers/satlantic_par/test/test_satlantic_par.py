@@ -9,6 +9,7 @@ Unit test suite to test Satlantic PAR sensor
 
 import unittest
 import logging
+import time
 from mock import Mock, call, DEFAULT
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -19,10 +20,13 @@ from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticPARInst
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Parameter
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Command
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Event
+from ion.services.mi.drivers.satlantic_par.satlantic_par import Channel
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticChecksumDecorator
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentDataException
+from ion.services.mi.zmq_driver_client import ZmqDriverClient
+from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -206,13 +210,119 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
 class SatlanticParProtocolIntegrationTest(PyonTestCase):
     
     def setUp(self):
-        pass        
+        # Zmq parameters used by driver process and client.
+        self.server_addr = 'localhost'
+        self.cmd_port = 5556
+        self.evt_port = 5557
+        
+        self.driver_module = 'ion.services.mi.drivers.satlantic_par.satlantic_par'
+        self.driver_class = 'SatlanticPARInstrumentDriver'
 
+        self.config_params = {'method':'ethernet',
+                              'device_addr':'10.180.80.173',
+                              'device_port':2001,
+                              'server_addr':'localhost',
+                              'server_port':8888}
+
+        # Launch driver process.
+        self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
+                                                              self.evt_port,
+                                                              self.driver_module,
+                                                              self.driver_class)
+        
+        # Create client
+        self.driver_client = ZmqDriverClient(self.server_addr,
+                                             self.cmd_port,
+                                             self.evt_port)
+
+        self.driver_client.start_messaging()
+        time.sleep(1)
+        
+        # self.events = None
+        
+        # self.par_proto.configure(self.config_params)
+        # self.par_proto.initialize()
+
+    def _clean_up(self):
+        if self.driver_process:
+            try:
+                self.driver_client.done()
+                self.driver_process.wait()
+            finally:
+                self.driver_process = None
+
+    def tearDown(self):
+        super(SatlanticParProtocolIntegrationTest, self).tearDown()
+        self._clean_up()
+
+    def _initialize(self):
+        reply = self.driver_client.cmd_dvr('initialize', [Channel.INSTRUMENT])
+        print("*** initialize reply=%s" % str(reply))
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        print("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual(DriverState.UNCONFIGURED, reply)
+        time.sleep(1)
+
+    def _connect(self):
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        print("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual(DriverState.UNCONFIGURED, reply)
+
+        self._initialize()
+
+        configs = {Channel.INSTRUMENT: self.config}
+        reply = self.driver_client.cmd_dvr('configure', configs)
+        print("*** configure reply=%s" % str(reply))
+
+        reply = self.driver_client.cmd_dvr('get_current_state')
+        print("*** get_current_state reply=%s" % str(reply))
+
+        reply = self.driver_client.cmd_dvr('connect', [Channel.INSTRUMENT])
+        print("** connect reply=%s" % str(reply))
+
+        time.sleep(1)
+
+        reply = self.driver_client.cmd_dvr('get_current_state')
+        print("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual(DriverState.AUTOSAMPLE, reply)
+
+        time.sleep(1)
+
+        reply = self.driver_client.cmd_dvr('get_status', [Channel.INSTRUMENT])
+        print("** get_status reply=%s" % str(reply))
+        self.assertEqual(DriverState.AUTOSAMPLE, reply)
+
+        time.sleep(1)
+
+    def _disconnect(self):
+        reply = self.driver_client.cmd_dvr('disconnect', [Channel.INSTRUMENT])
+        print("*** disconnect reply=%s" % str(reply))
+        reply = self.driver_client.cmd_dvr('get_current_state')
+        print("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual(DriverState.DISCONNECTED, reply)
+        time.sleep(1)
+
+        self._initialize()
+
+    def test_connect_disconnect(self):
+        """Instrument connect and disconnect"""
+        self._connect()
+        self._disconnect()
+        # assert something at some point!
+        self.assert_(False)
+
+####
+    def test_start_autosample(self):
+        pass
+    
     def test_break_from_autosample(self):
         pass
         # test break from autosample at low data rates
         # test break from autosample at high data rates
-        
+    
+    def test_state_changes(self):
+        pass
+    
     def test_get(self):
         # test get from wrong state (auto sample?)
         pass
@@ -238,6 +348,7 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
     def got_data(self):
         pass
     
+@attr('UNIT', group='mi')
 class SatlanticParDecoratorTest(PyonTestCase):
     
     def setUp(self):

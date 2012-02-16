@@ -146,6 +146,9 @@ class InstrumentDriver(object):
         # A dictionary of channel-name keys and channel protocol object values.
         # We need to change this to protocol or connection name, rather than channel.
         self.channels = {}
+        """@todo clean this up as chan_map gets used more"""
+        self.chan_map = {}
+        """The channel to protocol mapping"""
         self.send_event = evt_callback
         
         # Below are old members with comments from EH.
@@ -383,19 +386,92 @@ class InstrumentDriver(object):
     def get_channels(self):
         """
         """
-        pass
+        return self.instrument_channels.list()
     
     def get_active_channels(self):
+        """Get a list of channels that are in some form of an active state
+        
+        @retval a list of channels that are in an active state
         """
-        """
-        pass
+        result = []
+        chan_state_dict = self.get_current_state([DriverChannels.ALL])
+        for chan in chan_state_dict.keys:
+            if chan_state_dict[chan] in self.instrument_active_states:
+                result.append[chan]
+            
+        return result
     
-    def get_current_state(self, channels):
+    def get_current_state(self, channels=None):
+        """Get the current state of the instrument
+        
+        @param channels A list of the channels of interest, values from the
+        specific driver's channel enumeration list. Default is DriverChannel.INSTRUMENT
+        @retval result A dict of {channel_name:state}
+        @throws RequiredParameterException When a parameter is missing
         """
-        """
-        pass
+        if (channels == None):
+            channels = DriverChannel.INSTRUMENT
+            
+        (result, valid_channels) = self._check_channel_args(channels)
 
-    #######################
+        for channel in valid_channels:
+            result[channel] = self.chan_map[channel].get_current_state()
+
+        return result
+    
+    ########################################################################
+    # Private helpers.
+    ######################################################################## 
+    def _check_channel_args(self, channels):
+        """Checks the channel arguments that are supplied
+        
+        They should be:
+        a. In the self.instrument_channel enum
+        b. Have a specific channel or DriverChannel.ALL or DriverChannel.INSTRUMENT
+        @param channels The list of channels that are being checked for validity
+        @retval A tuple of dicts. The first element is a dict of invalid
+        channel IDs mapped to an INVALID_CHANNEL error code. The second
+        element is a list of valid channels. Example:
+        ({Channel.BAD_NAME:InstErrorCode.INVALID_CHANNEL},[Channel.CHAN1])
+        @throws RequiredParameterException If the arguments are missing or invalid
+        """
+        valid_channels = []
+        result = {}
+        
+        if (channels == None) or (not isinstance(channels, (list, tuple))):
+            raise RequiredParameterException()
+            
+        elif len(channels) == 0:
+            raise RequiredParameterException()
+            
+        else:
+            clist = self.instrument_channels.list()
+            
+            if DriverChannel.ALL in clist:
+                clist.remove(DriverChannel.ALL)
+            if DriverChannel.INSTRUMENT in clist:
+                clist.remove(DriverChannel.INSTRUMENT)
+                
+            # Expand "ALL" channel keys.
+            if DriverChannel.ALL in channels:
+                channels = clist
+                #channels += clist
+                #channels = [c for c in channels if c != DriverChannel.ALL]
+
+            # Make unique
+            #channels = list(set(channels))
+
+            # Separate valid and invalid channels.
+            valid_channels = [c for c in channels if c in clist]
+            invalid_channels = [c for c in channels if c not in clist]
+            
+            # Build result dict with invalid entries.
+            for c in invalid_channels:
+                invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
+                
+        return (invalid_chan_dict, valid_channels)
+
+    ######################
     # State change handlers
     #######################
     #def _handle_configure(self):
