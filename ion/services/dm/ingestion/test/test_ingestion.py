@@ -14,7 +14,7 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import StreamPublisherRegistrar, CFG
-from interface.objects import HdfStorage, CouchStorage, StreamPolicy, ProcessDefinition
+from interface.objects import HdfStorage, CouchStorage, StreamPolicy, StreamGranuleContainer
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -23,9 +23,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.public import RT, PRED, log, IonObject
 
 from pyon.datastore.datastore import DataStore
-
+from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
 from interface.objects import BlogPost, BlogComment, StreamIngestionPolicy
-
+import random
+import time
 
 import unittest
 
@@ -331,7 +332,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+        publisher_registrar = StreamPublisherRegistrar(process=self, node=self.cc.node)
         self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.input_stream_id)
 
 
@@ -977,3 +978,113 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         """
 
+def test_policy_implementation_for_science_data(self):
+    """
+    Test that the default policy is being used properly
+
+    Test that the ingestion workers are writing messages to couch
+    """
+
+    #------------------------------------------------------------------------
+    # Create ingestion configuration and activate it
+    #----------------------------------------------------------------------
+    ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
+        self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+    self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+
+    #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
+
+    # get the ingestion workers
+    name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
+    name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+
+    proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+    proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+
+    ar = gevent.event.AsyncResult()
+
+    def policy_hook(msg,headers):
+        log.warn('IT WORKS!!')
+        ar.set(msg)
+
+
+    proc_1.policy_event_test_hook = policy_hook
+
+    #------------------------------------------------------------------------
+    # Create a stream policy
+    #----------------------------------------------------------------------
+
+    stream_policy_id = self.ingestion_cli.create_stream_policy(stream_id=self.input_stream_id,archive_data=True, archive_metadata=True)
+
+    #------------------------------------------------------------------------
+    # Pass in two packets
+    #------------------------------------------------------------------------
+
+    ctd_container = StreamGranuleContainer(stream_resource_id=self.input_stream_id, data_stream_id='ctd_data')
+
+    # launch a ctd_publisher
+    ctd_stream_def = ctd_stream_definition()
+
+    stream_id = self.pubsub_management_service.create_stream(stream_definition=ctd_stream_def)
+    stream_policy_id = self.ingestion_management_service.create_stream_policy(
+        stream_id=stream_id,
+        archive_data=False,
+        archive_metadata=True
+    )
+
+    stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
+    publisher = stream_publisher_registrar.create_publisher(stream_id=stream_id)
+
+
+    ctd_packet = self._creating_packet(stream_id)
+
+    publisher.publish(ctd_packet)
+
+    #------------------------------------------------------------------------
+    # Assert that the packets were handled according to the policy
+    #------------------------------------------------------------------------
+
+
+
+    #------------------------------------------------------------------------
+    # Now change the stream policy for the same stream
+    #------------------------------------------------------------------------
+
+
+
+    #------------------------------------------------------------------------
+    # Pass in two packets again
+    #------------------------------------------------------------------------
+
+
+    #------------------------------------------------------------------------
+    # Assert that the packets were handled according to the new policy
+    #------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+def _creating_packet(self, stream_id ):
+    length = random.randint(1,20)
+
+    c = [random.uniform(0.0,75.0)  for i in xrange(length)]
+
+    t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
+
+    p = [random.lognormvariate(1,2) for i in xrange(length)]
+
+    lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
+
+    lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
+
+    tvar = [ i for i in xrange(1,length+1)]
+
+    # @todo check this... ctd_stream_packet
+    ctd_packet = ctd_stream_packet(stream_id=stream_id,
+        c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+
+    return ctd_packet
