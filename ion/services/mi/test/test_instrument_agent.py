@@ -28,6 +28,7 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_execute
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 
 
 class FakeProcess(LocalContextMixin):
@@ -253,6 +254,14 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         reply = self._ia_client.execute(cmd)
         time.sleep(2)
 
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        time.sleep(2)
+
         cmd = AgentCommand(command='go_inactive')
         reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
@@ -261,6 +270,47 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
 
+
+    def test_autosample(self):
+        """
+        """
+        args = [
+            self.driver_config,
+            self.comms_config
+        ]
+        cmd = AgentCommand(command='initialize', args=args)
+        reply = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+        
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='go_streaming')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(30)
+        
+        cmd = AgentCommand(command='go_observatory')
+        while True:
+            reply = self._ia_client.execute_agent(cmd)
+            result = reply.result
+            if isinstance(result, dict):
+                if all([val == None for val in result.values()]):
+                    break
+            time.sleep(2)
+        time.sleep(2)
+        
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
 
 
 

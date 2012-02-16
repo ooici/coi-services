@@ -386,11 +386,11 @@ class TestSBE37Driver(PyonTestCase):
         reply = driver_client.cmd_dvr('connect', [SBE37Channel.CTD])
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('execute_start_autosample', [SBE37Channel.CTD])
+        reply = driver_client.cmd_dvr('start_autosample', [SBE37Channel.CTD])
         time.sleep(30)
         
         while True:
-            reply = driver_client.cmd_dvr('execute_stop_autosample', [SBE37Channel.CTD])
+            reply = driver_client.cmd_dvr('stop_autosample', [SBE37Channel.CTD])
             if not reply[SBE37Channel.CTD]:
                 break
             time.sleep(2)

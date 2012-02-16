@@ -208,7 +208,7 @@ class InstrumentAgent(ResourceAgent):
         Callback to receive asynchronous driver events.
         @param evt The driver event received.
         """
-        pass
+        log.info('Got driver event: %s', evt)
 
     ###############################################################################
     # Instrument agent state transition interface.
@@ -303,38 +303,14 @@ class InstrumentAgent(ResourceAgent):
         # Need to adjust the ResourceAgent class and client for instrument interface needs.
         params = name
         return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, params) or {}
-        """
-        state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
-            return self._dvr_client.cmd_dvr('get', params)
-        else:
-            raise iex.Conflict('Cannot retrieve device parmeters in this state.')
-        """
         
     def set_param(self, resource_id="", name='', value=''):
         # Need to adjust the ResourceAgent class and client for instrument interface needs.
         params = name
         return self._fsm.on_event(InstrumentAgentEvent.SET_PARAMS, params) or {}
-        
-        """
-        state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
-            return self._dvr_client.cmd_dvr('set', params)
-        else:
-            raise iex.Conflict('Cannot set device parmeters in this state.')
-        """
-        
-    def execute(self, resource_id="", command=None):
-        
+                
+    def execute(self, resource_id="", command=None):        
         return self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE, command)
-        
-        """
-        state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
-            return self._ia_execute("execute_", command)
-        else:
-            raise iex.Conflict('Cannot command device in this state.')
-        """
         
     def _ia_execute(self, cprefix, command):
         if not command:
@@ -709,7 +685,13 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-        
+
+        result = self._dvr_client.cmd_dvr('start_autosample', *args, **kwargs)
+    
+        if isinstance(result, dict):
+            if any([val == None for val in result.values()]):
+                next_state = InstrumentAgentState.STREAMING
+
         return (next_state, result)
 
     def _handler_observatory_go_direct_access(self,  *args, **kwargs):
@@ -802,6 +784,12 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
+        result = self._dvr_client.cmd_dvr('stop_autosample', *args, **kwargs)
+        
+        if isinstance(result, dict):
+            if all([val == None for val in result.values()]):
+                next_state = InstrumentAgentState.OBSERVATORY
+            
         return (next_state, result)
 
     ###############################################################################
