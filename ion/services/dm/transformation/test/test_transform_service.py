@@ -3,6 +3,7 @@
 @file ion/services/dm/transformation/test_transform_service.py
 @description Unit Test for Transform Management Service
 '''
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -54,12 +55,12 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_rr_create_assoc = self.transform_service.clients.resource_registry.create_association
         self.mock_rr_del_assoc = self.transform_service.clients.resource_registry.delete_association
 
-        self.mock_pd_create = self.transform_service.clients.process_dispatcher_service.create_process_definition
-        self.mock_pd_read = self.transform_service.clients.process_dispatcher_service.read_process_definition
-        self.mock_pd_update = self.transform_service.clients.process_dispatcher_service.update_process_definition
-        self.mock_pd_delete = self.transform_service.clients.process_dispatcher_service.delete_process_definition
-        self.mock_pd_schedule = self.transform_service.clients.process_dispatcher_service.schedule_process
-        self.mock_pd_cancel = self.transform_service.clients.process_dispatcher_service.cancel_process
+        self.mock_pd_create = self.transform_service.clients.process_dispatcher.create_process_definition
+        self.mock_pd_read = self.transform_service.clients.process_dispatcher.read_process_definition
+        self.mock_pd_update = self.transform_service.clients.process_dispatcher.update_process_definition
+        self.mock_pd_delete = self.transform_service.clients.process_dispatcher.delete_process_definition
+        self.mock_pd_schedule = self.transform_service.clients.process_dispatcher.schedule_process
+        self.mock_pd_cancel = self.transform_service.clients.process_dispatcher.cancel_process
 
         self.mock_ps_create_stream = self.transform_service.clients.pubsub_management.create_stream
         self.mock_ps_create_sub = self.transform_service.clients.pubsub_management.create_subscription
@@ -77,12 +78,13 @@ class TransformManagementServiceTest(PyonTestCase):
         # mocks
         proc_def = DotDict()
         proc_def['executable'] = {'module':'my_module', 'class':'class'}
-        self.mock_rr_read.return_value = proc_def
+        self.mock_pd_read.return_value = proc_def
         self.mock_rr_find_res.return_value = ([],[])
 
         self.mock_cc_spawn.return_value = '123' #PID
         self.mock_rr_create.return_value = ('transform_id','garbage')
         self.mock_ps_read_sub.return_value = DotDict({'exchange_name':'input_stream_id'})
+
 
 
         # execution
@@ -95,7 +97,7 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_rr_read.assert_called_with('mock_procdef_id','')
+        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -121,7 +123,7 @@ class TransformManagementServiceTest(PyonTestCase):
         # mocks
         proc_def = DotDict()
         proc_def['executable'] = {'module':'my_module', 'class':'class'}
-        self.mock_rr_read.return_value = proc_def
+        self.mock_pd_read.return_value = proc_def
         self.mock_rr_find_res.return_value = ([],[])
 
         self.mock_cc_spawn.return_value = '123' #PID
@@ -139,7 +141,7 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_rr_read.assert_called_with('mock_procdef_id','')
+        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -162,7 +164,7 @@ class TransformManagementServiceTest(PyonTestCase):
         # mocks
         proc_def = DotDict()
         proc_def['executable'] = {'module':'my_module', 'class':'class'}
-        self.mock_rr_read.return_value = proc_def
+        self.mock_pd_read.return_value = proc_def
         self.mock_rr_find_res.return_value = ([],[])
 
         self.mock_cc_spawn.return_value = '123' #PID
@@ -179,7 +181,7 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_rr_read.assert_called_with('mock_procdef_id','')
+        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -311,6 +313,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
+        self.procd_cli = ProcessDispatcherServiceClient(node=self.cc.node)
 
         self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
 
@@ -321,7 +324,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         self.process_definition = ProcessDefinition(name='basic_transform_definition')
         self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',
                                               'class':'TransformExample'}
-        self.process_definition_id, _= self.rr_cli.create(self.process_definition)
+        self.process_definition_id = self.procd_cli.create_process_definition(process_definition=self.process_definition)
 
 
 

@@ -68,7 +68,7 @@ class TransformManagementService(BaseTransformManagementService):
         #@note: In the near future, Process Dispatcher will do all of this
         if not process_definition_id:
             raise NotFound('No process definition was provided')
-        process_definition = self.clients.resource_registry.read(process_definition_id)
+        process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
         module = process_definition.executable.get('module','ion.processes.data.transforms.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
 
@@ -194,7 +194,7 @@ class TransformManagementService(BaseTransformManagementService):
 # ---------------------------------------------------------------------------
 
     def execute_transform(self, process_definition_id='', data={}, configuration={}):
-        process_definition = self.clients.resource_registry.read(process_definition_id)
+        process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
         module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
 
