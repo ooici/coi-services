@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from pyon.public import RT, PRED, sys_name
+from pyon.public import RT, PRED, sys_name, Container
 from pyon.core.exception import BadRequest, NotFound
 from pyon.event.event import EventError, EventSubscriber, EventRepository
 from pyon.util.async import spawn
@@ -134,6 +134,10 @@ class UserEventProcessor(object):
 class UserNotificationService(BaseUserNotificationService):
     
     user_event_processors = {}
+    
+    def __init__(self):
+        self.event_repo = Container.instance.event_repository
+        BaseUserNotificationService.__init__(self)
     
     def create_notification(self, notification=None, user_id=''):
         """
@@ -286,7 +290,7 @@ class UserNotificationService(BaseUserNotificationService):
         @retval event_list    []
         @throws NotFound    object with specified paramteres does not exist
         """
-        pass
+        return self.event_repo.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime)
 
 
   
