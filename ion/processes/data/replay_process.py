@@ -90,7 +90,7 @@ class ReplayProcess(BaseReplayProcess):
 
             # Handle delivery options
             # Case: Chopping granules
-            if isinstance(replay_obj_msg, StreamGranuleContainer) and self.delivery_format.get('chop', False):
+            if False: #isinstance(replay_obj_msg, StreamGranuleContainer) and self.delivery_format.get('chop', False):
                 for identifiable in replay_obj_msg.identifiables:
                     self.lock.acquire()
                     self.output.publish(identifiable)
