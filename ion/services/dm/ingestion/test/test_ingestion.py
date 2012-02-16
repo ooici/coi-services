@@ -10,7 +10,7 @@ import gevent
 from mock import Mock
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService, IngestionManagementServiceException
+from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import log, StreamPublisherRegistrar, CFG
