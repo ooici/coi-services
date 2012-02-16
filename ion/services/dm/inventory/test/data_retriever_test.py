@@ -11,6 +11,7 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
+from prototype.sci_data.ctd_stream import ctd_stream_packet
 from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore
 from pyon.public import  StreamSubscriberRegistrar
@@ -20,6 +21,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest, time
+from pyon.public import log
 
 @attr('UNIT',group='dm')
 class DataRetrieverServiceTest(PyonTestCase):
@@ -125,6 +127,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
         self.dr_cli.cancel_replay(replay_id)
+
     def test_cancel_replay(self):
         dataset_id = self.dsm_cli.create_dataset(
             stream_id='12345',
@@ -188,4 +191,54 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         subscriber.stop()
 
+    def test_chop_chop(self):
+        # Override couch
 
+        self.couch = self.container.datastore_manager.get_datastore(
+            ds_name='chopping_block',
+            profile=DataStore.DS_PROFILE.SCIDATA
+        )
+        self.datastore_name = 'chopping_block'
+        granule = ctd_stream_packet(
+            stream_id='this_is_only_a_test',
+            time='12345', #Same combo on my luggage
+            create_hdf=False
+        )
+
+        self.couch.create(granule)
+        log.debug("Granule: %s", granule)
+
+        dataset_id = self.dsm_cli.create_dataset(
+            stream_id='this_is_only_a_test',
+            datastore_name=self.datastore_name,
+            view_name='datasets/dataset_by_id',
+            name='sci_data_granule_chop'
+        )
+
+        replay_id, stream_id = self.dr_cli.define_replay(
+            dataset_id=dataset_id,
+            delivery_format={'chop':True}
+        )
+
+        replay = self.rr_cli.read(replay_id)
+        self.assertTrue(self.container.proc_manager.procs[replay.process_id])
+
+        async_result = gevent.event.AsyncResult()
+        def consume(message, headers):
+            async_result.set(message)
+
+        stream_subscriber = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        subscriber = stream_subscriber.create_subscriber(exchange_name = 'chopping_block', callback=consume)
+        subscriber.start()
+
+        query = StreamQuery(stream_ids=[stream_id])
+        subscription_id = self.ps_cli.create_subscription(query=query, exchange_name='chopping_block')
+        self.ps_cli.activate_subscription(subscription_id=subscription_id)
+        self.dr_cli.start_replay(replay_id)
+
+        for fields in xrange(4):
+            self.assertTrue(async_result.get(timeout=10))
+
+
+        subscriber.stop()
+        self.dr_cli.cancel_replay(replay_id=replay_id)
