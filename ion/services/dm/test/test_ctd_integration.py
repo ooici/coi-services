@@ -16,6 +16,9 @@ from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 import os
 
+from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
+
+
 @attr('INT',group='dm')
 class CTDIntegrationTest(IonIntegrationTestCase):
     def setUp(self):
@@ -61,7 +64,10 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Launch five simulated CTD producers
         for iteration in xrange(5):
             # Make a stream to output on
-            stream_id = self.pubsub_management_service.create_stream()
+
+            ctd_stream_def = ctd_stream_definition()
+
+            stream_id = self.pubsub_management_service.create_stream(stream_definition=ctd_stream_def)
             stream_policy_id = self.ingestion_management_service.create_stream_policy(
                 stream_id=stream_id,
                 archive_data=False,
