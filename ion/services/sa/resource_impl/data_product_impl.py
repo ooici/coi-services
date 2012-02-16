@@ -9,7 +9,7 @@
 from pyon.public import PRED, RT
 
 
-from ion.services.sa.resource_impl.resource_simple_impl import ResourceImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
 class DataProductImpl(ResourceImpl):
     """
