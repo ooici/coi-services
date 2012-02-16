@@ -32,6 +32,5 @@ setup(  name = 'coi-services',
             'pyon',
             'Flask==0.8',
             'WebTest',
-            'h5py==2.0.1'
         ],
      )
