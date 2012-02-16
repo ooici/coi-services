@@ -50,7 +50,7 @@ class DataRetrieverServiceTest(PyonTestCase):
         r,s = self.data_retriever_service.define_replay('dataset_id')
 
         # assertions
-        self.mock_ps_create_stream.assert_called_with('', True, '', '', '', '')
+        self.mock_ps_create_stream.assert_called_with('', True, None, '', '', '')
         self.assertTrue(self.mock_rr_create.called)
         self.mock_rr_create_assoc.assert_called_with('replay_id',PRED.hasStream,'stream_id',None)
         self.assertTrue(self.mock_cc_spawn.called)

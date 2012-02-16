@@ -12,7 +12,9 @@ from nose.plugins.attrib import attr
 from webtest import TestApp
 
 from pyon.core.registry import get_message_class_in_parm_type, getextends
-from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode
+from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode, \
+            DEFAULT_GATEWAY_REQUEST_ERROR, DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE, DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION
+
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from pyon.util.containers import DictDiffer
@@ -95,7 +97,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         self.check_response_headers(response)
 
-        self.assertIn('Error: MyFakeResource', response.json['data'])
+        self.assertIn(DEFAULT_GATEWAY_REQUEST_ERROR, response.json['data'])
+        self.assertIn('KeyError', response.json['data'][DEFAULT_GATEWAY_REQUEST_ERROR][DEFAULT_GATEWAY_REQUEST_ERROR_EXCEPTION])
+        self.assertIn('MyFakeResource', response.json['data'][DEFAULT_GATEWAY_REQUEST_ERROR][DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE])
 
 
     def create_data_product_resource(self):
@@ -187,7 +191,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.post('/ion-service/resource_registry/read', {'payload': simplejson.dumps(data_product_read_request) })
         self.check_response_headers(response)
-        self.assertNotIn('does not exist', response.json['data'])
+        self.assertNotIn(DEFAULT_GATEWAY_REQUEST_ERROR, response.json['data'])
 
         updated_data_product_obj = convert_unicode(response.json['data'])
         self.assertEqual(updated_data_product_obj['description'], 'An updated description for test data', )
@@ -207,7 +211,8 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.post('/ion-service/resource_registry/read', {'payload': simplejson.dumps(data_product_read_request) })
         self.check_response_headers(response)
-        self.assertIn('does not exist', response.json['data'])
+        self.assertIn(DEFAULT_GATEWAY_REQUEST_ERROR, response.json['data'])
+        self.assertIn('does not exist', response.json['data'][DEFAULT_GATEWAY_REQUEST_ERROR][DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE])
 
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True')
         self.check_response_headers(response)
@@ -216,7 +221,8 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertEqual(len(response_data[0]), 0 )
 
         response = self.delete_data_product_resource(data_product_id)
-        self.assertIn('does not exist', response.json['data'])
+        self.assertIn(DEFAULT_GATEWAY_REQUEST_ERROR, response.json['data'])
+        self.assertIn('does not exist', response.json['data'][DEFAULT_GATEWAY_REQUEST_ERROR][DEFAULT_GATEWAY_REQUEST_ERROR_MESSAGE])
 
     def test_get_resource_schema(self):
 
