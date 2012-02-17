@@ -25,10 +25,10 @@ service_gateway_instance = None
 DEFAULT_WEB_SERVER_HOSTNAME = ""
 DEFAULT_WEB_SERVER_PORT = 5000
 
-DEFAULT_GATEWAY_RESPONSE = 'GatewayResponse'
-DEFAULT_GATEWAY_ERROR = 'GatewayError'
-DEFAULT_GATEWAY_ERROR_EXCEPTION = 'Exception'
-DEFAULT_GATEWAY_ERROR_MESSAGE = 'Message'
+GATEWAY_RESPONSE = 'GatewayResponse'
+GATEWAY_ERROR = 'GatewayError'
+GATEWAY_ERROR_EXCEPTION = 'Exception'
+GATEWAY_ERROR_MESSAGE = 'Message'
 
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
@@ -159,17 +159,17 @@ def process_gateway_request(service_name, operation):
         methodToCall = getattr(client, operation)
         result = methodToCall(**param_list)
 
-        return json_response({DEFAULT_GATEWAY_RESPONSE: result})
+        return json_response({GATEWAY_RESPONSE: result})
 
 
     except Exception, e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         result = {
-            DEFAULT_GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-            DEFAULT_GATEWAY_ERROR_MESSAGE : str(e.message)
+            GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+            GATEWAY_ERROR_MESSAGE : str(e.message)
             }
 
-        return json_response({ DEFAULT_GATEWAY_ERROR :result } )
+        return json_response({ GATEWAY_ERROR :result } )
 
 
 
@@ -277,16 +277,16 @@ def list_resource_types():
             ret_list.append(res)
 
 
-        return json_response({ DEFAULT_GATEWAY_RESPONSE :ret_list } )
+        return json_response({ GATEWAY_RESPONSE :ret_list } )
 
 
     except Exception, e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         ret = {
-                DEFAULT_GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-                DEFAULT_GATEWAY_ERROR_MESSAGE : str(e.message)
+                GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+                GATEWAY_ERROR_MESSAGE : str(e.message)
                }
-        return json_response({ DEFAULT_GATEWAY_ERROR :  ret } )
+        return json_response({ GATEWAY_ERROR :  ret } )
 
 
 #Returns a json object for a specified resource type with all default values.
@@ -314,15 +314,15 @@ def get_resource_schema(resource_type):
                     setattr(ret_obj, field, value)
 
 
-        return json_response({ DEFAULT_GATEWAY_ERROR :ret_list } )
+        return json_response({ GATEWAY_ERROR :ret_list } )
 
     except Exception, e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         ret = {
-            DEFAULT_GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-            DEFAULT_GATEWAY_ERROR_MESSAGE : str(e.message)
+            GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+            GATEWAY_ERROR_MESSAGE : str(e.message)
         }
-        return json_response({ DEFAULT_GATEWAY_ERROR :  ret } )
+        return json_response({ GATEWAY_ERROR :  ret } )
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -341,15 +341,15 @@ def get_resource(resource_id):
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
-            return json_response({ DEFAULT_GATEWAY_RESPONSE :result } )
+            return json_response({ GATEWAY_RESPONSE :result } )
 
         except Exception, e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             ret = {
-                DEFAULT_GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-                DEFAULT_GATEWAY_ERROR_MESSAGE : str(e.message)
+                GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+                GATEWAY_ERROR_MESSAGE : str(e.message)
             }
-            return json_response({ DEFAULT_GATEWAY_ERROR :  ret } )
+            return json_response({ GATEWAY_ERROR :  ret } )
 
 
 
@@ -368,15 +368,15 @@ def list_resources_by_type(resource_type):
         for res in res_list:
             result.append(res)
 
-        return json_response({ DEFAULT_GATEWAY_RESPONSE :result } )
+        return json_response({ GATEWAY_RESPONSE :result } )
 
     except Exception, e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         ret = {
-            DEFAULT_GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-            DEFAULT_GATEWAY_ERROR_MESSAGE : str(e.message)
+            GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+            GATEWAY_ERROR_MESSAGE : str(e.message)
         }
-        return json_response({ DEFAULT_GATEWAY_ERROR :  ret } )
+        return json_response({ GATEWAY_ERROR :  ret } )
 
 
 #Example restful call to a client function for another service like
@@ -386,6 +386,7 @@ def create_accounts():
     from examples.bank.bank_client import run_client
     run_client(Container.instance, process=service_gateway_instance)
     return json_response("")
+
 
 
 

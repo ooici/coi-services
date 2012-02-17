@@ -12,8 +12,8 @@ from nose.plugins.attrib import attr
 from webtest import TestApp
 
 from pyon.core.registry import get_message_class_in_parm_type, getextends
-from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode, DEFAULT_GATEWAY_RESPONSE, \
-            DEFAULT_GATEWAY_ERROR, DEFAULT_GATEWAY_ERROR_MESSAGE, DEFAULT_GATEWAY_ERROR_EXCEPTION
+from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode, GATEWAY_RESPONSE, \
+            GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
 
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
@@ -57,9 +57,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         expected_type_list = getextends('Resource')
 
-        self.assertEqual(len(response.json['data'][DEFAULT_GATEWAY_RESPONSE]), len(expected_type_list))
+        self.assertEqual(len(response.json['data'][GATEWAY_RESPONSE]), len(expected_type_list))
 
-        result_set = set(response.json['data'][DEFAULT_GATEWAY_RESPONSE])
+        result_set = set(response.json['data'][GATEWAY_RESPONSE])
         expected_type_set = set(expected_type_list)
 
         intersect_result = expected_type_set.intersection(result_set)
@@ -71,9 +71,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         expected_type_list = getextends('InformationResource')
 
-        self.assertEqual(len(response.json['data'][DEFAULT_GATEWAY_RESPONSE]), len(expected_type_list))
+        self.assertEqual(len(response.json['data'][GATEWAY_RESPONSE]), len(expected_type_list))
 
-        result_set = set(response.json['data'][DEFAULT_GATEWAY_RESPONSE])
+        result_set = set(response.json['data'][GATEWAY_RESPONSE])
         expected_type_set = set(expected_type_list)
 
         intersect_result = expected_type_set.intersection(result_set)
@@ -85,9 +85,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         expected_type_list = getextends('TaskableResource')
 
-        self.assertEqual(len(response.json['data'][DEFAULT_GATEWAY_RESPONSE]), len(expected_type_list))
+        self.assertEqual(len(response.json['data'][GATEWAY_RESPONSE]), len(expected_type_list))
 
-        result_set = set(response.json['data'][DEFAULT_GATEWAY_RESPONSE])
+        result_set = set(response.json['data'][GATEWAY_RESPONSE])
         expected_type_set = set(expected_type_list)
 
         intersect_result = expected_type_set.intersection(result_set)
@@ -97,9 +97,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         self.check_response_headers(response)
 
-        self.assertIn(DEFAULT_GATEWAY_ERROR, response.json['data'])
-        self.assertIn('KeyError', response.json['data'][DEFAULT_GATEWAY_ERROR][DEFAULT_GATEWAY_ERROR_EXCEPTION])
-        self.assertIn('MyFakeResource', response.json['data'][DEFAULT_GATEWAY_ERROR][DEFAULT_GATEWAY_ERROR_MESSAGE])
+        self.assertIn(GATEWAY_ERROR, response.json['data'])
+        self.assertIn('KeyError', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_EXCEPTION])
+        self.assertIn('MyFakeResource', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
 
 
     def create_data_product_resource(self):
@@ -126,7 +126,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.post('/ion-service/resource_registry/create', {'payload': json.dumps(data_product_create_request) })
         self.check_response_headers(response)
-        response_data = response.json['data'][DEFAULT_GATEWAY_RESPONSE]
+        response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertEqual(len(response_data), 2 )
         data_product_id = convert_unicode(response_data[0])
         return data_product_id
@@ -152,7 +152,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True')
         self.check_response_headers(response)
-        response_data = response.json['data'][DEFAULT_GATEWAY_RESPONSE]
+        response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertEqual(len(response_data),2 )
         self.assertEqual(len(response_data[0]), 0 )
 
@@ -169,9 +169,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.post('/ion-service/resource_registry/read', {'payload': simplejson.dumps(data_product_read_request) })
         self.check_response_headers(response)
-        self.assertIn(DEFAULT_GATEWAY_RESPONSE, response.json['data'])
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
-        data_product_obj = convert_unicode(response.json['data'][DEFAULT_GATEWAY_RESPONSE])
+        data_product_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
 
         #modify some fields in the data for testing update
         data_product_obj['description'] = 'An updated description for test data'
@@ -191,9 +191,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.post('/ion-service/resource_registry/read', {'payload': simplejson.dumps(data_product_read_request) })
         self.check_response_headers(response)
-        self.assertNotIn(DEFAULT_GATEWAY_ERROR, response.json['data'])
+        self.assertNotIn(GATEWAY_ERROR, response.json['data'])
 
-        updated_data_product_obj = convert_unicode(response.json['data'][DEFAULT_GATEWAY_RESPONSE])
+        updated_data_product_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
         self.assertEqual(updated_data_product_obj['description'], 'An updated description for test data', )
         self.assertEqual(updated_data_product_obj['contact']['postalcode'], '12345')
 
@@ -202,27 +202,27 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True')
         self.check_response_headers(response)
-        response_data = response.json['data'][DEFAULT_GATEWAY_RESPONSE]
+        response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertEqual(len(response_data),2 )
         self.assertEqual(len(response_data[0]), 1 )
 
         response = self.delete_data_product_resource(data_product_id)
-        self.assertIsNone(response.json['data'][DEFAULT_GATEWAY_RESPONSE])
+        self.assertIsNone(response.json['data'][GATEWAY_RESPONSE])
 
         response = self.test_app.post('/ion-service/resource_registry/read', {'payload': simplejson.dumps(data_product_read_request) })
         self.check_response_headers(response)
-        self.assertIn(DEFAULT_GATEWAY_ERROR, response.json['data'])
-        self.assertIn('does not exist', response.json['data'][DEFAULT_GATEWAY_ERROR][DEFAULT_GATEWAY_ERROR_MESSAGE])
+        self.assertIn(GATEWAY_ERROR, response.json['data'])
+        self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
 
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True')
         self.check_response_headers(response)
-        response_data = response.json['data'][DEFAULT_GATEWAY_RESPONSE]
+        response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertEqual(len(response_data),2 )
         self.assertEqual(len(response_data[0]), 0 )
 
         response = self.delete_data_product_resource(data_product_id)
-        self.assertIn(DEFAULT_GATEWAY_ERROR, response.json['data'])
-        self.assertIn('does not exist', response.json['data'][DEFAULT_GATEWAY_ERROR][DEFAULT_GATEWAY_ERROR_MESSAGE])
+        self.assertIn(GATEWAY_ERROR, response.json['data'])
+        self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
 
     def test_get_resource_schema(self):
 
@@ -239,7 +239,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.get('/ion-service/rest/resource/' + data_product_id)
         self.check_response_headers(response)
-        response_data = response.json['data'][DEFAULT_GATEWAY_RESPONSE]
+        response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertNotIn('does not exist', response_data)
 
         data_product_obj = convert_unicode(response_data)
@@ -253,7 +253,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         response = self.test_app.get('/ion-service/rest/find_resources/DataProduct')
         self.check_response_headers(response)
-        response_data = response.json['data'][DEFAULT_GATEWAY_RESPONSE]
+        response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertEqual(len(response_data),1 )
 
         data_product_obj = convert_unicode(response_data[0])
