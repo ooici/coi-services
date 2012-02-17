@@ -171,7 +171,13 @@ class DriverGenerator:
         @brief dictionary containing a map of substitutions for the driver code generation
         @retval data mapping for driver generation
         """
-        pass
+        return {
+            'driver_module': self.driver_modulename(),
+            'driver_class': self.metadata.driver_class,
+            'file': self.driver_relative_path(),
+            'author': self.metadata.author,
+            'driver_name': self.metadata.name
+        }
 
 
     def _test_template_data(self):
