@@ -20,6 +20,7 @@ from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.event.event import StreamIngestionPolicyEventSubscriber
 
+import hashlib
 
 class IngestionWorker(TransformDataProcess):
     """
@@ -147,9 +148,12 @@ class IngestionWorker(TransformDataProcess):
                 self.persist_immutable(packet )
 
             if policy.archive_data is True:
-                #@todo - save the hdf string somewhere..
-                pass
+                #@todo - grab the filepath to save the hdf string somewhere..
 
+                filename = '/tmp/' + hashlib.sha1(hdf_string).hexdigest() + '_hdf_string.hdf5'
+                with open(filename, mode='wb') as f:
+                    f.write(hdf_string)
+                    f.close()
 
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:
