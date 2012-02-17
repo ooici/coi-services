@@ -71,6 +71,11 @@ class InstrumentAgentEvent(BaseEnum):
     GO_OBSERVATORY = 'INSTRUMENT_AGENT_EVENT_GO_OBSERVATORY'
     GO_DIRECT_ACCESS = 'INSTRUMENT_AGENT_EVENT_GO_DIRECT_ACCESS'
     GO_STREAMING = 'INSTRUMENT_AGENT_EVENT_GO_STREAMING'
+    GET_RESOURCE_PARAMS = 'INSTRUMENT_AGENT_EVENT_GET_RESOURCE_PARAMS'
+    GET_RESOURCE_COMMANDS = 'INSTRUMENT_AGENT_EVENT_GET_RESOURCE_COMMANDS'
+    GET_PARAMS = 'INSTRUMENT_AGENT_EVENT_GET_PARAMS'
+    SET_PARAMS = 'INSTRUMENT_AGENT_EVENT_SET_PARAMS'
+    EXECUTE_RESOURCE = 'INSTRUMENT_AGENT_EVENT_EXECUTE_RESOURCE'
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -98,12 +103,16 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.INITIALIZE, self._handler_inactive_initialize)
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.RESET, self._handler_inactive_reset)
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
+        self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
+        self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
 
         self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.ENTER, self._handler_idle_enter)
         self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.EXIT, self._handler_idle_exit)
         self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.RESET, self._handler_idle_reset)
         self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.RUN, self._handler_idle_run)
+        self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
+        self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
 
         self._fsm.add_handler(InstrumentAgentState.STOPPED, InstrumentAgentEvent.ENTER, self._handler_stopped_enter)
         self._fsm.add_handler(InstrumentAgentState.STOPPED, InstrumentAgentEvent.EXIT, self._handler_stopped_exit)
@@ -111,6 +120,8 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(InstrumentAgentState.STOPPED, InstrumentAgentEvent.RESET, self._handler_stopped_reset)
         self._fsm.add_handler(InstrumentAgentState.STOPPED, InstrumentAgentEvent.CLEAR, self._handler_stopped_clear)
         self._fsm.add_handler(InstrumentAgentState.STOPPED, InstrumentAgentEvent.RESUME, self._handler_stopped_resume)
+        self._fsm.add_handler(InstrumentAgentState.STOPPED, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
+        self._fsm.add_handler(InstrumentAgentState.STOPPED, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
 
         self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.ENTER, self._handler_observatory_enter)
         self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.EXIT, self._handler_observatory_exit)
@@ -120,16 +131,26 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.PAUSE, self._handler_observatory_pause)
         self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.GO_STREAMING, self._handler_observatory_go_streaming)
         self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.GO_DIRECT_ACCESS, self._handler_observatory_go_direct_access)
+        self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
+        self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
+        self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.GET_PARAMS, self._handler_get_params)
+        self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.SET_PARAMS, self._handler_observatory_set_params)
+        self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.EXECUTE_RESOURCE, self._handler_observatory_execute_resource)
 
         self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.ENTER, self._handler_streaming_enter)
         self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.EXIT, self._handler_streaming_exit)
         self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.GO_INACTIVE, self._handler_streaming_go_inactive)
         self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.RESET, self._handler_streaming_reset)
         self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.GO_OBSERVATORY, self._handler_streaming_go_observatory)
+        self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
+        self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
+        self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.GET_PARAMS, self._handler_get_params)
 
         self._fsm.add_handler(InstrumentAgentState.DIRECT_ACCESS, InstrumentAgentEvent.ENTER, self._handler_direct_access_enter)
         self._fsm.add_handler(InstrumentAgentState.DIRECT_ACCESS, InstrumentAgentEvent.EXIT, self._handler_direct_access_exit)
         self._fsm.add_handler(InstrumentAgentState.DIRECT_ACCESS, InstrumentAgentEvent.GO_OBSERVATORY, self._handler_direct_access_go_observatory)
+        self._fsm.add_handler(InstrumentAgentState.DIRECT_ACCESS, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
+        self._fsm.add_handler(InstrumentAgentState.DIRECT_ACCESS, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
 
         self._fsm.start(initial_state)
 
@@ -187,7 +208,7 @@ class InstrumentAgent(ResourceAgent):
         Callback to receive asynchronous driver events.
         @param evt The driver event received.
         """
-        pass
+        log.info('Got driver event: %s', evt)
 
     ###############################################################################
     # Instrument agent state transition interface.
@@ -228,7 +249,7 @@ class InstrumentAgent(ResourceAgent):
     def acmd_run(self, *args, **kwargs):
         """
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
+        return self._fsm.on_event(InstrumentAgentEvent.RUN, *args, **kwargs)
 
     def acmd_clear(self, *args, **kwargs):
         """
@@ -267,47 +288,30 @@ class InstrumentAgent(ResourceAgent):
     def _get_resource_commands(self):
         """
         """
-        cmds = []
-        state = self._fsm.get_current_state()
-        if state in INACTIVE_STATES:
-            cmds = self._dvr_client.cmd_dvr('get_resource_commands')
-        
-        return cmds
+        return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_COMMANDS) or []
     
     def _get_resource_params(self):
         """
         """
-        params = []
-        state = self._fsm.get_current_state()
-        if state in INACTIVE_STATES:
-            params = self._dvr_client.cmd_dvr('get_resource_params')
-        return params
+        return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_PARAMS) or []
 
     ###############################################################################
     # Instrument agent resource interface.
     ###############################################################################
     
-    def get_param(self, resource_id="", params=None):
-        state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
-            return self._dvr_client.cmd_dvr('get', params)
-        else:
-            raise iex.Conflict('Cannot retrieve device parmeters in this state.')
+    def get_param(self, resource_id="", name=''):
+        # Need to adjust the ResourceAgent class and client for instrument interface needs.
+        params = name
+        return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, params) or {}
         
-    def set_param(self, resource_id="", params=None):
-        state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
-            return self._dvr_client.cmd_dvr('set', params)
-        else:
-            raise iex.Conflict('Cannot set device parmeters in this state.')
+    def set_param(self, resource_id="", name='', value=''):
+        # Need to adjust the ResourceAgent class and client for instrument interface needs.
+        params = name
+        return self._fsm.on_event(InstrumentAgentEvent.SET_PARAMS, params) or {}
+                
+    def execute(self, resource_id="", command=None):        
+        return self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE, command)
         
-    def execute(self, resource_id="", command=None):
-        state = self._fsm.get_current_state()
-        if state in ACTIVE_OBSERVATORY_STATES:
-            return self._ia_execute("execute_", command)
-        else:
-            raise iex.Conflict('Cannot command device in this state.')
-
     def _ia_execute(self, cprefix, command):
         if not command:
             raise iex.BadRequest("execute argument 'command' not present")
@@ -629,6 +633,23 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
+        channels = self._dvr_client.cmd_dvr('get_active_channels')
+        dis_result = self._dvr_client.cmd_dvr('disconnect', channels)
+        
+        [key for (key, val) in dis_result.iteritems() if not
+            InstErrorCode.is_error(val)]
+        
+        init_result = self._dvr_client.cmd_dvr('initialize', channels)
+
+        result = dis_result.copy()
+        for (key, val) in init_result.iteritems():
+            result[key] = val
+            
+        self._active_channels = self._dvr_client.cmd_dvr('get_active_channels')
+            
+        if len(self._active_channels)==0:
+            next_state = InstrumentAgentState.INACTIVE
+            
         return (next_state, result)
 
     def _handler_observatory_reset(self,  *args, **kwargs):
@@ -664,7 +685,13 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-        
+
+        result = self._dvr_client.cmd_dvr('start_autosample', *args, **kwargs)
+    
+        if isinstance(result, dict):
+            if any([val == None for val in result.values()]):
+                next_state = InstrumentAgentState.STREAMING
+
         return (next_state, result)
 
     def _handler_observatory_go_direct_access(self,  *args, **kwargs):
@@ -673,6 +700,49 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
+        
+        return (next_state, result)
+
+    def _handler_get_params(self, params, *args, **kwargs):
+        """
+        @retval None or error.
+        """
+        result = self._dvr_client.cmd_dvr('get', params)
+        next_state = None
+        
+        return (next_state, result)
+
+    def _handler_observatory_set_params(self, params, *args, **kwargs):
+        """
+        @retval None or error.
+        """
+        result = self._dvr_client.cmd_dvr('set', params)
+        next_state = None
+        
+        return (next_state, result)
+
+    def _handler_observatory_execute_resource(self, command, *args, **kwargs):
+        """
+        @retval None or error.
+        """
+        result = None
+        next_state = None
+
+        if not command:
+            raise iex.BadRequest("execute argument 'command' not present")
+        if not command.command:
+            raise iex.BadRequest("command not set")
+
+        cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
+                            command=command.command)
+        cmd_res.ts_execute = get_ion_ts()
+        command.command = 'execute_' + command.command
+        res = self._dvr_client.cmd_dvr(command.command, *command.args,
+                                           **command.kwargs)
+        cmd_res.status = 0
+        cmd_res.result = res
+
+        result = cmd_res
         
         return (next_state, result)
 
@@ -714,6 +784,12 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
+        result = self._dvr_client.cmd_dvr('stop_autosample', *args, **kwargs)
+        
+        if isinstance(result, dict):
+            if all([val == None for val in result.values()]):
+                next_state = InstrumentAgentState.OBSERVATORY
+            
         return (next_state, result)
 
     ###############################################################################
@@ -738,6 +814,27 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
+        return (next_state, result)
+
+    ###############################################################################
+    # Get resource state handlers.
+    # Available for all states with a valid driver process.
+    ###############################################################################
+
+    def _handler_get_resource_params(self,  *args, **kwargs):
+        """
+        """
+        result = self._dvr_client.cmd_dvr('get_resource_params')
+        next_state = None
+        
+        return (next_state, result)
+
+    def _handler_get_resource_commands(self,  *args, **kwargs):
+        """
+        """
+        result = self._dvr_client.cmd_dvr('get_resource_commands')
+        next_state = None
+
         return (next_state, result)
 
     ###############################################################################
