@@ -128,10 +128,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         rrclient = self.rrclient
 
 
+        #Not sure we want to mix in DAMS tests here
         # set up initial data source and its associated data producer
-        instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
-        instrument_id, rev = rrclient.create(instrument_obj)
-        self.damsclient.register_instrument(instrument_id)
+        #instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
+        #instrument_id, rev = rrclient.create(instrument_obj)
+        #self.damsclient.register_instrument(instrument_id)
 
 
         # test creating a new data product w/o a data producer
@@ -140,7 +141,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                            name='DP1',
                            description='some new dp')
         try:
-            dp_id = client.create_data_product(dp_obj, instrument_id)
+            dp_id = client.create_data_product(dp_obj, '')
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', dp_id
@@ -213,9 +214,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.assertTrue(dp_obj.description == 'the very first dp')
 
         # now 'delete' the data product
-        print "deleting data product"
+        print "deleting data product: ", dp_id
         try:
-            delete_result = client.delete_data_product(dp_id)
+            client.delete_data_product(dp_id)
         except NotFound as ex:
             self.fail("existing data product was not found during delete")
 
@@ -230,7 +231,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # now try to delete the already deleted dp object
         print "deleting non-existing data product"
         try:
-            delete_result = client.delete_data_product(dp_id)
+            client.delete_data_product(dp_id)
         except NotFound as ex:
             pass
         else:

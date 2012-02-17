@@ -95,19 +95,16 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
     def delete_data_product(self, data_product_id=''):
-        """
-        @todo document this interface!!!
 
-        @param data_product_id    DataProduct identifier
-        @throws NotFound    object with specified id does not exist
-        """
-
-        log.debug("DataProductManagementService:delete_data_product: %s" % str(data_product_id))
-
-        self.clients.data_acquisition_management.unassign_data_product(data_product_id)
+        #Check if this data product is associated to a producer
+        producer_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
+        if producer_ids:
+            log.debug("DataProductManagementService:delete_data_product: %s" % str(producer_ids))
+            self.clients.data_acquisition_management.unassign_data_product(data_product_id)
         
-        # Attempt to change the life cycle state of data product
-        self.data_product.delete_one(data_product_id)
+        # Delete the data process
+        self.clients.resource_registry.delete(data_product_id)
+        return
 
     def find_data_products(self, filters=None):
         """

@@ -234,7 +234,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("failed to create new data producer: %s" %ex)
         print 'new data producer id = ', ds_id
 
-        # test assigning a data product to a process
+        # test assigning a data product to a process, no stream create
         try:
             self.client.assign_data_product(process_id, dataproduct_id, False)
         except BadRequest as ex:
@@ -245,7 +245,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # test UNassigning a data product from the data process, deleting the stream for the product
         try:
-            self.client.unassign_data_product(process_id, dataproduct_id, True)
+            self.client.unassign_data_product(process_id, dataproduct_id, False)
         except BadRequest as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
         except NotFound as ex:
