@@ -1005,31 +1005,29 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
         #------------------------------------------------------------------------
-        # Set up a ctd_container
-        #----------------------------------------------------------------------
-
-        ctd_container = StreamGranuleContainer(stream_resource_id=self.input_stream_id, data_stream_id='ctd_data')
-
-        # set up the ctd container... part of setting up stream definition
-        ctd_stream_def = ctd_stream_definition()
-
-        test_process = StandaloneProcess()
-
-        #------------------------------------------------------------------------
         # Create a stream and a stream policy
         #----------------------------------------------------------------------
+
+        ctd_stream_def = ctd_stream_definition()
 
         stream_id = self.pubsub_cli.create_stream(stream_definition=ctd_stream_def)
 
         stream_policy_id = self.ingestion_cli.create_stream_policy(
-            stream_id=self.input_stream_id,
+            stream_id=stream_id,
             archive_data=True,
             archive_metadata=True
         )
 
+        stream_policy = self.rr_cli.read(stream_policy_id)
+
+        print('stream_policy: %s' % stream_policy)
+        print('stream_policy.policy: %s' % stream_policy.policy)
+
         #------------------------------------------------------------------------
         # launch a ctd_publisher
         #----------------------------------------------------------------------
+
+        test_process = StandaloneProcess()
 
         stream_publisher_registrar = StreamPublisherRegistrar(process= test_process,node=self.container.node)
         publisher = stream_publisher_registrar.create_publisher(stream_id=stream_id)
@@ -1038,7 +1036,27 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Create a packet and publish it
         #------------------------------------------------------------------------
 
-        ctd_packet = self._creating_packet(stream_id)
+        length = random.randint(1,20)
+
+        c = [random.uniform(0.0,75.0)  for i in xrange(length)]
+
+        t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
+
+        p = [random.lognormvariate(1,2) for i in xrange(length)]
+
+        lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
+
+        lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
+
+        tvar = [ i for i in xrange(1,length+1)]
+
+        ctd_packet = ctd_stream_packet(stream_id=stream_id,
+            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+
+        print('SimpleCtdPublisher sending %d values!' % length)
+
+        print('ctd_packet: %s' % ctd_packet)
+        print('stream_id: %s' % stream_id)
 
         publisher.publish(ctd_packet)
 
@@ -1048,31 +1066,28 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ar1 = gevent.event.AsyncResult()
 
-        def call_to_persist_1(packet, headers):
+        def call_to_persist_1(packet):
             ar1.set(packet)
 
         # when persist_immutable() is called, then call_to_persist() is called instead....
         proc_1.persist_immutable = call_to_persist_1
 
         # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
-#        self.assertEquals(ar1.get(timeout=10), ctd_packet)
+        self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
         #------------------------------------------------------------------------
         # Now change the stream policy for the same stream
         #------------------------------------------------------------------------
 
-        stream_policy = self.rr_cli.read(stream_policy_id)
-        stream_policy.policy.archive_metadata = False
-
-        self.ingestion_cli.update_stream_policy(stream_policy)
-
-        #------------------------------------------------------------------------
-        # Create a new packet and publish it
-        #------------------------------------------------------------------------
-
-        ctd_packet = self._creating_packet(stream_id)
-
-        publisher.publish(ctd_packet)
+#        stream_policy.policy.archive_metadata = False
+#
+#        self.ingestion_cli.update_stream_policy(stream_policy)
+#
+#        #------------------------------------------------------------------------
+#        # Create a new packet and publish it
+#        #------------------------------------------------------------------------
+#
+#        publisher.publish(ctd_packet)
 
         #------------------------------------------------------------------------
         # Assert that the packets were handled according to the new policy
@@ -1089,30 +1104,3 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
 
-
-
-
-
-
-
-
-    def _creating_packet(self, stream_id ):
-        length = random.randint(1,20)
-
-        c = [random.uniform(0.0,75.0)  for i in xrange(length)]
-
-        t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
-
-        p = [random.lognormvariate(1,2) for i in xrange(length)]
-
-        lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
-
-        lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
-
-        tvar = [ i for i in xrange(1,length+1)]
-
-        # @todo check this... ctd_stream_packet
-        ctd_packet = ctd_stream_packet(stream_id=stream_id,
-            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
-
-        return ctd_packet
