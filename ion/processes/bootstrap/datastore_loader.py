@@ -144,9 +144,9 @@ class DatastoreAdmin(ImmediateProcess):
         objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
         numwrites = 0
         for obj_id, obj_key, obj in objs:
-            if obj_id.startswith("_design"):
-                continue
             fn = obj_id
+            if obj_id.startswith("_design"):
+                fn = obj_id.replace("/","_")
             # Some object ids start with slash
             if obj_id.startswith("/"):
                 fn = obj_id.replace("/","_")
