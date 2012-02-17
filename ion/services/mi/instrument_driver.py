@@ -400,6 +400,30 @@ class InstrumentDriver(object):
     # TBD.
     ########################################################################    
         
+    def get_resource_commands(self):
+        """
+        Gets the list of (channel, cmd) pairs gathered from all the
+        channels in this driver.
+        """
+        result = []
+        for channel in self.get_channels():
+            cmds = self.chan_map[channel].get_resource_commands()
+            if cmds:
+                result.append([(channel, cmd) for cmd in cmds])
+        return result
+
+    def get_resource_params(self):
+        """
+        Gets the list of (channel, param) pairs gathered from all the
+        channels in this driver.
+        """
+        result = []
+        for channel in self.get_channels():
+            params = self.chan_map[channel].get_resource_params()
+            if cmds:
+                result.append([(channel, param) for param in params])
+        return result
+
     def get_capabilities(self, channels, *args, **kwargs):
         """
         @param timeout Number of seconds before this operation times out

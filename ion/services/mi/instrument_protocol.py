@@ -224,8 +224,19 @@ class InstrumentProtocol(object):
     ########################################################################
     # TBD.
     ########################################################################
-    
-    
+
+    def get_resource_commands(self):
+        """
+        Gets the list of commands associated with this protocol.
+        """
+        return [cmd for cmd in dir(self) if cmd.startswith('execute_')]
+
+    def get_resource_params(self):
+        """
+        Gets the list of parameters associated with this protocol.
+        """
+        return self._get_param_dict_names()
+
     def get_capabilities(self):
         """
         """
