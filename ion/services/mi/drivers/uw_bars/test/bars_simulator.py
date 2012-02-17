@@ -22,6 +22,7 @@ import ion.services.mi.drivers.uw_bars.bars as bars
 import socket
 import random
 import time
+import sys
 
 from threading import Thread
 
@@ -52,15 +53,17 @@ def _escape(str):
 class _BurstThread(Thread):
     """Thread to generate data bursts"""
 
-    def __init__(self, conn, log_prefix):
+    def __init__(self, conn, log_prefix, outfile=sys.stdout):
         Thread.__init__(self, name="_BurstThread")
+        self._outfile = outfile
         self._conn = conn
         self._running = True
         self._enabled = True
         self._log_prefix = log_prefix
 
     def _log(self, m):
-        print "%s_BurstThread: %s" % (self._log_prefix, m)
+        self._outfile.write("%s_BurstThread: %s\n" % (self._log_prefix, m))
+        self._outfile.flush()
 
     def run(self):
         self._log("burst thread running")
@@ -78,9 +81,11 @@ class _BurstThread(Thread):
         self._log("burst thread exiting")
 
     def set_enabled(self, enabled):
+        self._log("set_enabled: %s" % str(enabled))
         self._enabled = enabled
 
     def end(self):
+        self._log("end")
         self._enabled = False
         self._running = False
 
@@ -92,7 +97,7 @@ class _BurstThread(Thread):
         return values
 
 
-class BarsSimulator(object):
+class BarsSimulator(Thread):
     """
     Dispatches multiple clients but sequentially. The special command
     'q' can be requested by a client to make the whole simulator terminate.
@@ -101,6 +106,7 @@ class BarsSimulator(object):
     _next_simulator_no = 0
 
     def __init__(self, host='', port=0, accept_timeout=None,
+                 outfile=sys.stdout,
                  log_prefix='\t\t\t\t|* '):
         """
         @param host Socket is bound to given (host,port)
@@ -108,6 +114,9 @@ class BarsSimulator(object):
         @param accept_timeout Timeout for accepting a connection
         @param log_prefix a prefix for every log message
         """
+        Thread.__init__(self, name="BarsSimulator")
+
+        self._outfile = outfile
 
         BarsSimulator._next_simulator_no += 1
         self._simulator_no = BarsSimulator._next_simulator_no
@@ -128,21 +137,31 @@ class BarsSimulator(object):
         self._verbose_vs_data_only = "Data Only"
 
     def _log_client(self, m):
-        print "%s[%d.%d] BarsSimulator: %s" % (self._log_prefix,
-                                               self._simulator_no,
-                                               self._client_no,
-                                               m)
+        self._outfile.write("%s[%d.%d] BarsSimulator: %s\n" %
+                            (self._log_prefix,
+                             self._simulator_no,
+                             self._client_no,
+                             m))
+        self._outfile.flush()
 
     def _log(self, m):
-        print "%s[%d]BarsSimulator: %s" % (self._log_prefix,
-                                           self._simulator_no,
-                                           m)
+        self._outfile.write("%s[%d]BarsSimulator: %s\n" %
+                            (self._log_prefix,
+                             self._simulator_no,
+                             m))
+        self._outfile.flush()
 
     @property
     def port(self):
         return self._port
 
     def run(self):
+        try:
+            self._run()
+        finally:
+            self._end_burst_thread()
+
+    def _run(self):
         #
         # internal timeout for the accept. It allows to check regularly if
         # the simulator has been requested to terminate.
@@ -171,12 +190,12 @@ class BarsSimulator(object):
             self._client_no += 1
             self._log_client('Connected by %s' % str(addr))
 
-            self._bt = _BurstThread(self._conn, self._log_prefix)
+            self._bt = _BurstThread(self._conn, self._log_prefix,
+                                    outfile=self._outfile)
             self._bt.start()
 
             explicit_quit = self._connected()
-            self._bt.end()
-            self._bt = None
+            self._end_burst_thread()
 
             self._conn.close()
 
@@ -184,6 +203,13 @@ class BarsSimulator(object):
             time.sleep(1)
 
         self._sock.close()
+
+    def _end_burst_thread(self):
+        self._log_client('end burst thread %s' % str(self._bt))
+        self._bt, bt = None, self._bt
+        if bt is not None:
+            bt.end()
+            bt.join()
 
     def stop(self):
         """Requests that the simulator terminate"""
@@ -242,8 +268,6 @@ class BarsSimulator(object):
         @relval True if an explicit quit command ('q') was received;
         False otherwise.
         """
-
-        #self._conn.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1)
 
         # set an ad hoc timeout to regularly check whether termination has been
         # requested
@@ -461,5 +485,51 @@ class BarsSimulator(object):
 
 
 if __name__ == '__main__':
-    simulator = BarsSimulator()
-    simulator.run()
+    usage = """USAGE: bars_simulator.py [options]
+       --port port             # port to bind to (0 by default)
+       --accept_timeout time   # accept timeout (no timeout by default)
+       --outfile filename      # file to write messages to (stdout by default)
+       --loglevel level        # used to eval mi_logger.setLevel(logging.%s)
+
+    Output will show actual port used.
+    """
+
+    accept_timeout = None
+    port = 0
+    outfile = sys.stdout
+
+    show_usage = False
+    arg = 1
+    while arg < len(sys.argv):
+        if sys.argv[arg] == "--accept_timeout":
+            arg += 1
+            accept_timeout = int(sys.argv[arg])
+        elif sys.argv[arg] == "--port":
+            arg += 1
+            port = int(sys.argv[arg])
+        elif sys.argv[arg] == "--outfile":
+            arg += 1
+            outfile = file(sys.argv[arg], 'w')
+        elif sys.argv[arg] == "--loglevel":
+            arg += 1
+            loglevel = sys.argv[arg].upper()
+            import logging
+            mi_logger = logging.getLogger('mi_logger')
+            eval("mi_logger.setLevel(logging.%s)" % loglevel)
+        elif sys.argv[arg] == "--help":
+            show_usage = True
+            break
+        else:
+            sys.stderr.write("error: unrecognized option %s\n" % sys.argv[arg])
+            sys.stderr.flush()
+            show_usage = True
+            break
+        arg += 1
+
+    if show_usage:
+        print usage
+    else:
+        simulator = BarsSimulator(port=port,
+                                  accept_timeout=accept_timeout,
+                                  outfile=outfile)
+        simulator.run()

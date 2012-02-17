@@ -4,7 +4,6 @@ __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.drivers.uw_bars.driver0 import BarsInstrumentDriver
-from ion.services.mi.drivers.uw_bars.bars_client import BarsClient
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
@@ -19,8 +18,8 @@ import unittest
 import os
 
 
-# Does not work in conjunction with pyon internal preparations
-@unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this. ')
+# explicit run_it because of threading + gevent-monkey-patching issues
+@unittest.skipIf(os.getenv('run_it') is None, 'define run_it to run this.')
 @attr('UNIT', group='mi')
 class DriverTest(BarsTestCase):
 

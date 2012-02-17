@@ -13,8 +13,8 @@ import unittest
 import os
 
 
-# Does not work in conjunction with pyon internal preparations
-@unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this.')
+# explicit run_it because of threading + gevent-monkey-patching issues
+@unittest.skipIf(os.getenv('run_it') is None, 'define run_it to run this.')
 @attr('UNIT', group='mi')
 class BarsClientTest(BarsTestCase):
 
@@ -54,5 +54,5 @@ class BarsClientTest(BarsTestCase):
         print ":: resume data streaming"
         bars_client.send('1')
 
-        print ":: sleeping for 10 secs to receive some data"
-        time.sleep(10)
+        print ":: sleeping for 3 secs to receive some data"
+        time.sleep(3)
