@@ -919,67 +919,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(ar.get(timeout=5).archive_data,True)
 
 
-        # get the self.stream_policies of each ingestion worker
-        worker1_policy = proc_1.stream_policies
-        worker2_policy = proc_2.stream_policies
-
-        # for the particular stream that is being published get the policy for that stream, by doing
-
-        """
-        stream_id = 'dfdfdf'
-
-        stream_policy_1 = worker1_policy[stream_id]
-        stream_policy_2 = worker2_policy[stream_id]
-
-        # get values for the archive_data and archive_metadata
-        archive_data_worker_1 = stream_policy_1.policy.archive_data
-        archive_metadata_worker_2 = stream_policy_2.policy.archive_metadata
-
-
-
-
-
-        #------------------------------------------------------------------------
-        # Publish messages
-        #----------------------------------------------------------------------
-
-        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
-
-        self.ctd_stream1_publisher.publish(post)
-
-        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
-
-        self.ctd_stream1_publisher.publish(comment)
-
-
-
-
-
-
-        #------------------------------------------------------------------------
-        # now do things according to what the values of archive_data and archive_metadata are:
-        #------------------------------------------------------------------------
-
-        if archive_data_worker_1:
-            # do something
-            pass
-        else:
-            # do something else
-            pass
-
-        if archive_metadata_worker_1:
-            # do something
-            pass
-        else:
-            # do something else
-            pass
-
-        #------------------------------------------------------------------------
-        # Repeat for the other worker
-        #----------------------------------------------------------------------
-
-        """
-
     def test_policy_implementation_for_science_data(self):
         """
         Test that the default policy is being used properly
