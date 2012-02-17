@@ -9,15 +9,6 @@ from pyon.core.exception import BadRequest #, NotFound
 import requests, json
 #from functools import wraps
 
-SERVICE_REQUEST_TEMPLATE = {
-    'serviceRequest': {
-        'serviceName': '', 
-        'serviceOp': '',
-        'params': {
-            #'object': [] # Ex. [BankObject, {'name': '...'}] 
-            }
-        }
-    }
 
 class PreloadCSV(object):
     
@@ -33,48 +24,56 @@ class PreloadCSV(object):
         self.lookup_pyname = self._get_python_by_yaml()
 
 
+
     # actual action function to call
     def preload(self, csv_files):
-        associations_reader = None
+        associations_file = None
         resource_ids = {}
         for c in csv_files:
             b = os.path.basename(c).split(".")[0]
+            #sys.stderr.write("%s\n" % b)
 
-            #determine type of csv
-            csvfile = open(c, "rb")
-            dialect = csv.Sniffer().sniff(csvfile.read(1024))
-            csvfile.seek(0)
-            reader = csv.DictReader(csvfile, dialect=dialect)
+            with open(c, "rb") as csvfile:
+                reader = self._get_csv_reader(csvfile)
 
 
-            #determine type of resource
-            if "associations" == b.lower():
-                #save for later
-                associations_reader = reader
-            else:
-                #enter now and save ids
-                resource_ids[b] = self._preload_resources(b, reader)
+                #determine type of resource
+                if "associations" == b.lower():
+                    #save for later
+                    associations_file = c
+                else:
+                    #enter now and save ids
+                    resource_ids[b] = self._preload_resources(b, reader)
 
         #now that all resources are in, do the associations
-        if associations_reader:
-            self._preload_associations(resource_ids, associations_reader)
+        if associations_file:
+            with open(associations_file, "rb") as csvfile:
+                associations_reader = self._get_csv_reader(csvfile)
+                self._preload_associations(resource_ids, associations_reader)
+
                 
+
+    def _get_csv_reader(self, csvfile):
+            #determine type of csv
+            dialect = csv.Sniffer().sniff(csvfile.read(1024))
+            csvfile.seek(0)
+            return csv.DictReader(csvfile, dialect=dialect)
 
 
 
     # get the service responsible for a given resource
     def _get_svc_by_resource(self):
         return {
-            RT.InstrumentAgent:          "instrument_management_service",
-            RT.InstrumentAgentInstance:  "instrument_management_service",
-            RT.InstrumentModel:          "instrument_management_service",
-            RT.InstrumentDevice:         "instrument_management_service",
-            RT.PlatformAgent:            "instrument_management_service",
-            RT.PlatformAgentInstance:    "instrument_management_service",
-            RT.PlatformModel:            "instrument_management_service",
-            RT.PlatformDevice:           "instrument_management_service",
-            RT.SensorModel:              "instrument_management_service",
-            RT.SensorDevice:             "instrument_management_service",
+            RT.InstrumentAgent:          "instrument_management",
+            RT.InstrumentAgentInstance:  "instrument_management",
+            RT.InstrumentModel:          "instrument_management",
+            RT.InstrumentDevice:         "instrument_management",
+            RT.PlatformAgent:            "instrument_management",
+            RT.PlatformAgentInstance:    "instrument_management",
+            RT.PlatformModel:            "instrument_management",
+            RT.PlatformDevice:           "instrument_management",
+            RT.SensorModel:              "instrument_management",
+            RT.SensorDevice:             "instrument_management",
             
             RT.MarineFacility:           "marine_facility_management",
             RT.Site:                     "marine_facility_management",
@@ -118,7 +117,7 @@ class PreloadCSV(object):
         #if ("Site", "hasChildSite", "Site") == (subj_type, pred, obj_type):
         #    return "assign.... etc
 
-        return "assign_%s_to_%s" % (self.lookup_pyname[subj_type], self.lookup_pyname[obj_type])
+        return "assign_%s_to_%s" % (self.lookup_pyname[obj_type], self.lookup_pyname[subj_type])
         
 
     # actually execute a service call with the given params
@@ -132,38 +131,58 @@ class PreloadCSV(object):
         if service_gateway_call.status_code != 200:
             raise BadRequest("The service gateway returned the following error: %d" % service_gateway_call.status_code)
 
-        # TODO: these are for debug. take them out.
-        sys.stderr.write(str(url) + "\n")
-        sys.stderr.write(str(post_data['serviceRequest']) + "\n")
+        # debug lines
+        #sys.stderr.write(str(url) + "\n")
+        #sys.stderr.write(str(post_data['serviceRequest']) + "\n")
 
-        return json.loads(service_gateway_call.content)
+        resp = json.loads(service_gateway_call.content)
+
+        #sys.stderr.write(str(resp) + "\n")
+
+        return resp
+
+    def _service_request_template(self):
+        return {
+            'serviceRequest': {
+                'serviceName': '', 
+                'serviceOp': '',
+                'params': {
+                    #'object': [] # Ex. [BankObject, {'name': '...'}] 
+                    }
+                }
+            }
+
 
     
-    # process a csv full of associations.
-    # TODO: NOT TESTED YET
+    # process a csv full of associations.    # TODO: NOT TESTED YET
     def _preload_associations(self, resource_ids, associations_reader):
         for row in associations_reader:
-            row = [x[1] for x in row.iteritems()]
+            valuesonly = []
+            for f in associations_reader.fieldnames:
+                valuesonly.append(row[f])
+
+            row = valuesonly
             if not 5 <= len(row) < 7: 
                 #5 fields are necessary, if there are 6 we'll ignore it.  7 we assume error
                 raise BadRequest("Wrong number of fields in associations CSV!")
             
             # 5 fields expected: InstrumentDevice,#1,hasModel,InstrumentModel,#32
-            subj_type = x[0]
-            subj_id   = x[1]
-            pred      = x[2]
-            obj_type  = x[3]
-            obj_id    = x[4]
+            #sys.stderr.write("\n\n%s\n\n" % str(row))
+            subj_type = row[0]
+            subj_id   = row[1]
+            pred      = row[2]
+            obj_type  = row[3]
+            obj_id    = row[4]
 
             #make sure types exist
             if not subj_type in resource_ids:
                 raise BadRequest("Can't associate a '%s' because none were loaded" % subj_type)
             if not subj_id in resource_ids[subj_type]:
-                raise BadRequest("Can't associate a '%s' with ID '%s' because it was never defined" % subj_type, subj_id)
+                raise BadRequest("Can't associate a '%s' with ID '%s' because it was never defined" % (subj_type, subj_id))
             if not obj_type in resource_ids:
                 raise BadRequest("Can't associate a '%s' because none were loaded" % obj_type)
             if not obj_id in resource_ids[obj_type]:
-                raise BadRequest("Can't associate a '%s' with ID '%s' because it was never defined" % obj_type, obj_id)
+                raise BadRequest("Can't associate a '%s' with ID '%s' because it was never defined" % (obj_type, obj_id))
             if not pred in PRED:
                 raise BadRequest("Unknown association type '%s'" % pred)
 
@@ -172,17 +191,13 @@ class PreloadCSV(object):
             
             py = self.lookup_pyname
 
-            #build dict
-            resource_type_params = {}
-            for key, value in row.iteritems():
-                resource_type_params[key] = value
 
             #build payload
-            post_data = SERVICE_REQUEST_TEMPLATE
+            post_data = self._service_request_template()
             post_data['serviceRequest']['serviceName'] = self.lookup_svc[subj_type]
             post_data['serviceRequest']['serviceOp'] = associate_op
-            post_data['serviceRequest']['params'][py[subj_type]] = subj_id
-            post_data['serviceRequest']['params'][py[obj_type]] = obj_id
+            post_data['serviceRequest']['params']["%s_id" % py[subj_type]] = resource_ids[subj_type][subj_id]
+            post_data['serviceRequest']['params']["%s_id" % py[obj_type]] = resource_ids[obj_type][obj_id]
 
             response = self._do_service_call(self.lookup_svc[subj_type], 
                                              associate_op,
@@ -215,20 +230,18 @@ class PreloadCSV(object):
             create_op = "create_%s" % resource_py
 
             #special syntax for ionobjects: [resource_type, dict]
-            post_data = SERVICE_REQUEST_TEMPLATE
+            post_data = self._service_request_template()
             post_data['serviceRequest']['serviceName'] = self.lookup_svc[resource_type]
             post_data['serviceRequest']['serviceOp'] = create_op
             post_data['serviceRequest']['params'][resource_py] = [resource_type, resource_type_params]
+
 
             # make the call 
             response = self._do_service_call(self.lookup_svc[resource_type], 
                                              create_op,
                                              post_data)
 
-            sys.stderr.write(str(response) + "\n")
-
-            # TODO: properly parse this!!
-            ids[friendly_id] = response
+            ids[friendly_id] = response['data']['GatewayResponse']
 
         return ids
 
