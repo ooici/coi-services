@@ -1020,9 +1020,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         stream_policy = self.rr_cli.read(stream_policy_id)
 
-        print('stream_policy: %s' % stream_policy)
-        print('stream_policy.policy: %s' % stream_policy.policy)
-
         #------------------------------------------------------------------------
         # launch a ctd_publisher and set up AsyncResult()
         #----------------------------------------------------------------------
@@ -1047,9 +1044,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ctd_packet = self._create_packet(stream_id)
 
-        print('ctd_packet: %s' % ctd_packet)
-        print('stream_id: %s' % stream_id)
-
         publisher.publish(ctd_packet)
 
         #------------------------------------------------------------------------
@@ -1066,17 +1060,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         stream_policy = self.rr_cli.read(stream_policy_id)
         stream_policy.policy.archive_metadata = False
 
-        print ("after update... stream_policy.policy: %s" % stream_policy.policy)
-
         self.ingestion_cli.update_stream_policy(stream_policy)
-
-        #----------
-        # for test
-
-        stream_policy = self.rr_cli.read(stream_policy_id)
-
-        print('policy being sent: %s' % stream_policy.policy)
-        #-------------------
 
         ar2 = gevent.event.AsyncResult()
 
@@ -1095,9 +1079,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
 
         ctd_packet = self._create_packet(stream_id)
-
-        print('2nd: ctd_packet: %s' % ctd_packet)
-        print('stream_id: %s' % stream_id)
 
         publisher.publish(ctd_packet)
 
@@ -1130,9 +1111,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
 
         ctd_packet = self._create_packet(stream_id)
-
-        print('3rd: ctd_packet: %s' % ctd_packet)
-        print('stream_id: %s' % stream_id)
 
         publisher.publish(ctd_packet)
 
