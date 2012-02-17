@@ -10,8 +10,6 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-import time
-import unittest
 
 from pyon.public import log
 from nose.plugins.attrib import attr
@@ -23,6 +21,8 @@ from pyon.util.context import LocalContextMixin
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 
+import time
+import unittest
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
@@ -159,7 +159,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         old_ta2 = reply[(SBE37Channel.CTD, SBE37Parameter.TA2)]
         old_ptca1 = reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)]
         old_tcaldate = reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)]
-               
+
         orig_params = {
             (SBE37Channel.CTD, SBE37Parameter.TA2): old_ta2,
             (SBE37Channel.CTD, SBE37Parameter.PTCA1): old_ptca1,

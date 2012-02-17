@@ -818,7 +818,7 @@ class InstrumentAgent(ResourceAgent):
 
     ###############################################################################
     # Get resource state handlers.
-    # Available for all states with a valid driver process.
+    # Available for all states with a valid driver process. 
     ###############################################################################
 
     def _handler_get_resource_params(self,  *args, **kwargs):

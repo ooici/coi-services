@@ -44,7 +44,6 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
-
 #@unittest.skip('Do not run hardware test.')
 @attr('UNIT', group='mi')
 class TestSBE37Driver(PyonTestCase):    
@@ -238,7 +237,7 @@ class TestSBE37Driver(PyonTestCase):
         self.assertIsInstance(reply, dict)
         self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
         self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (list, tuple))
         
         # Set up a param dict of the original values.
         old_ta2 = reply[(SBE37Channel.CTD, SBE37Parameter.TA2)]
@@ -254,7 +253,9 @@ class TestSBE37Driver(PyonTestCase):
         # Set up a param dict of new values.
         new_ta2 = old_ta2*2
         new_ptcal1 = old_ptca1*2
-        new_tcaldate = (1, 1, 2011)
+        new_tcaldate = list(old_tcaldate)
+        new_tcaldate[2] = new_tcaldate[2] + 1
+        new_tcaldate = tuple(new_tcaldate)
         
         new_params = {
             (SBE37Channel.CTD, SBE37Parameter.TA2): new_ta2,
@@ -284,10 +285,11 @@ class TestSBE37Driver(PyonTestCase):
         self.assertIsInstance(reply, dict)
         self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
         self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (list, tuple))
         self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], new_ta2, delta=abs(0.01*new_ta2))
         self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], new_ptcal1, delta=abs(0.01*new_ptcal1))
         self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], new_tcaldate)
+
 
         # Set the paramters back to their original values.        
         reply = driver_client.cmd_dvr('set', orig_params)
@@ -302,7 +304,7 @@ class TestSBE37Driver(PyonTestCase):
         self.assertIsInstance(reply, dict)
         self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
         self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], tuple)
+        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (list, tuple))
         self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], old_ta2, delta=abs(0.01*old_ta2))
         self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], old_ptca1, delta=abs(0.01*old_ptca1))
         self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], old_tcaldate)
