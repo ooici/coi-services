@@ -420,7 +420,7 @@ class InstrumentDriver(object):
         result = []
         for channel in self.get_channels():
             params = self.chan_map[channel].get_resource_params()
-            if cmds:
+            if params:
                 result.append([(channel, param) for param in params])
         return result
 
