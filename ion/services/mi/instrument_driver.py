@@ -409,7 +409,7 @@ class InstrumentDriver(object):
         for channel in self.get_channels():
             cmds = self.chan_map[channel].get_resource_commands()
             if cmds:
-                result.append([(channel, cmd) for cmd in cmds])
+                result.extend([(channel, cmd) for cmd in cmds])
         return result
 
     def get_resource_params(self):
@@ -421,7 +421,7 @@ class InstrumentDriver(object):
         for channel in self.get_channels():
             params = self.chan_map[channel].get_resource_params()
             if params:
-                result.append([(channel, param) for param in params])
+                result.extend([(channel, param) for param in params])
         return result
 
     def get_capabilities(self, channels, *args, **kwargs):
