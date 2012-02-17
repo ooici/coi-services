@@ -12,6 +12,8 @@ from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
 from interface.services.dm.ireplay_process import BaseReplayProcess
+from pyon.util.containers import DotDict
+
 class ReplayProcess(BaseReplayProcess):
     process_type="standalone"
     def __init__(self, *args, **kwargs):
@@ -30,20 +32,18 @@ class ReplayProcess(BaseReplayProcess):
         '''
         self.stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
 
-        # Get the stream(s)
-        streams = self.CFG.get('process',{}).get('publish_streams',{})
 
         # Get the query
-        self.query = self.CFG.get('process',{}).get('query',{})
+        self.query = self.CFG.get_safe('process.query',{})
 
         # Get the delivery_format
-        self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{}) or {}
+        self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
+        self.datastore_name = self.CFG.get_safe('process.datastore_name','dm_datastore')
 
-        self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
-        self.view_name = self.CFG.get('process',{}).get('view_name')
-        self.key_id = self.CFG.get('process',{}).get('key_id')
+        self.view_name = self.CFG.get_safe('process.view_name','datasets/dataset_by_id')
+        self.key_id = self.CFG.get_safe('process.key_id')
         # Get a stream_id for this process
-        self.stream_id = self.CFG.get('process',{}).get('publish_streams',{}).get('output')
+        self.stream_id = self.CFG.get_safe('process.publish_streams.output',{})
 
 
 
