@@ -1024,7 +1024,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         print('stream_policy.policy: %s' % stream_policy.policy)
 
         #------------------------------------------------------------------------
-        # launch a ctd_publisher
+        # launch a ctd_publisher and set up AsyncResult()
         #----------------------------------------------------------------------
 
         test_process = StandaloneProcess()
@@ -1032,9 +1032,118 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         stream_publisher_registrar = StreamPublisherRegistrar(process= test_process,node=self.container.node)
         publisher = stream_publisher_registrar.create_publisher(stream_id=stream_id)
 
+
+        ar1 = gevent.event.AsyncResult()
+
+        def call_to_persist_1(packet):
+            ar1.set(packet)
+
+        # when persist_immutable() is called, then call_to_persist() is called instead....
+        proc_1.persist_immutable = call_to_persist_1
+
         #------------------------------------------------------------------------
         # Create a packet and publish it
         #------------------------------------------------------------------------
+
+        ctd_packet = self._create_packet(stream_id)
+
+        print('ctd_packet: %s' % ctd_packet)
+        print('stream_id: %s' % stream_id)
+
+        publisher.publish(ctd_packet)
+
+        #------------------------------------------------------------------------
+        # Assert that the packets were handled according to the policy
+        #------------------------------------------------------------------------
+
+        # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
+        self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+
+        #------------------------------------------------------------------------
+        # Now change the stream policy for the same stream
+        #------------------------------------------------------------------------
+
+        stream_policy = self.rr_cli.read(stream_policy_id)
+        stream_policy.policy.archive_metadata = False
+
+        print ("after update... stream_policy.policy: %s" % stream_policy.policy)
+
+        self.ingestion_cli.update_stream_policy(stream_policy)
+
+        #----------
+        # for test
+
+        stream_policy = self.rr_cli.read(stream_policy_id)
+
+        print('policy being sent: %s' % stream_policy.policy)
+        #-------------------
+
+        ar2 = gevent.event.AsyncResult()
+
+        #------------------------------------------------------------------------
+        # Reset the AsyncResult()
+        #------------------------------------------------------------------------
+
+        def call_to_not_persist(packet,headers):
+            ar2.set(packet)
+
+        # when persist_immutable() is called, then call_to_persist() is called instead....
+        proc_1.policy_implementation_test_hook = call_to_not_persist
+
+        #------------------------------------------------------------------------
+        # Create a new packet and publish it
+        #------------------------------------------------------------------------
+
+        ctd_packet = self._create_packet(stream_id)
+
+        print('2nd: ctd_packet: %s' % ctd_packet)
+        print('stream_id: %s' % stream_id)
+
+        publisher.publish(ctd_packet)
+
+        #------------------------------------------------------------------------
+        # Assert that the packets were handled according to the new policy
+        #------------------------------------------------------------------------
+
+#        self.assertEquals(ar2.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+
+
+        #----------------------------------------------------------------------
+
+        # Now just do this thing one more time, with an updated policy
+
+
+        #------------------------------------------------------------------------
+        # Now change the stream policy for the same stream for the third time
+        #------------------------------------------------------------------------
+
+
+        stream_policy = self.rr_cli.read(stream_policy_id)
+        stream_policy.policy.archive_metadata = True
+
+        self.ingestion_cli.update_stream_policy(stream_policy)
+
+        ar1 = gevent.event.AsyncResult()
+
+        #------------------------------------------------------------------------
+        # Create a new packet and publish it
+        #------------------------------------------------------------------------
+
+        ctd_packet = self._create_packet(stream_id)
+
+        print('3rd: ctd_packet: %s' % ctd_packet)
+        print('stream_id: %s' % stream_id)
+
+        publisher.publish(ctd_packet)
+
+        #------------------------------------------------------------------------
+        # Assert that the packets were handled according to the new policy
+        #------------------------------------------------------------------------
+
+        self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+
+
+    def _create_packet(self, stream_id):
 
         length = random.randint(1,20)
 
@@ -1053,54 +1162,5 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ctd_packet = ctd_stream_packet(stream_id=stream_id,
             c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
 
-        print('SimpleCtdPublisher sending %d values!' % length)
-
-        print('ctd_packet: %s' % ctd_packet)
-        print('stream_id: %s' % stream_id)
-
-        publisher.publish(ctd_packet)
-
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the policy
-        #------------------------------------------------------------------------
-
-        ar1 = gevent.event.AsyncResult()
-
-        def call_to_persist_1(packet):
-            ar1.set(packet)
-
-        # when persist_immutable() is called, then call_to_persist() is called instead....
-        proc_1.persist_immutable = call_to_persist_1
-
-        # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
-        self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
-
-        #------------------------------------------------------------------------
-        # Now change the stream policy for the same stream
-        #------------------------------------------------------------------------
-
-#        stream_policy.policy.archive_metadata = False
-#
-#        self.ingestion_cli.update_stream_policy(stream_policy)
-#
-#        #------------------------------------------------------------------------
-#        # Create a new packet and publish it
-#        #------------------------------------------------------------------------
-#
-#        publisher.publish(ctd_packet)
-
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the new policy
-        #------------------------------------------------------------------------
-
-#        ar1 = gevent.event.AsyncResult()
-
-        # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
-#        self.assertEquals(ar.get(timeout=5), ctd_packet)
-
-        #----------------------------------------------------------------------
-
-        # Now just do this thing one more time, with an updated policy
-
-
+        return ctd_packet
 

@@ -35,6 +35,9 @@ class IngestionWorker(TransformDataProcess):
     def ingest_process_test_hook(self,packet):
         pass
 
+    def policy_implementation_test_hook(self, packet):
+        pass
+
 
     def on_start(self):
         super(IngestionWorker,self).on_start()
@@ -72,8 +75,11 @@ class IngestionWorker(TransformDataProcess):
         self.stream_policies = {}
         # update the policy
         def receive_policy_event(event_msg, headers):
-            log.info('Updating stream policy in ingestion worker')
+            log.info('Updating stream policy in ingestion worker: stream_id= %s' % event_msg.stream_id)
+
             self.stream_policies[event_msg.stream_id] = event_msg
+
+            log.warn('stream_policies: %s' % self.stream_policies)
 
             # Hook to override just before processing is complete
             self.policy_event_test_hook(event_msg, headers)
@@ -100,8 +106,12 @@ class IngestionWorker(TransformDataProcess):
         """Process incoming data!!!!
         """
 
+        log.warn('packet received: %s' % packet)
+
         # Get the policy for this stream
         policy = self.extract_policy_packet(packet)
+
+        log.warn('ingestion_worker: policy extracted to be: %s' % policy)
 
         # Process the packet
         self.process_stream(packet, policy)
@@ -143,9 +153,16 @@ class IngestionWorker(TransformDataProcess):
                     hdfstring = value.values
                     value.values=''
 
+            log.warn('ingestion_worker: policy: %s' % policy)
+
+
             if policy.archive_metadata is True:
                 log.debug("Persisting data....")
                 self.persist_immutable(packet )
+
+            else:
+                log.warn('inside here!')
+                self.policy_implementation_test_hook(packet)
 
             if policy.archive_data is True:
                 #@todo - grab the filepath to save the hdf string somewhere..
@@ -204,6 +221,8 @@ class IngestionWorker(TransformDataProcess):
             log.info('No policy found for stream id: %s - using default policy: %s' % (stream_id, policy))
         else:
             log.info('Got policy: %s for stream id: %s' % (policy, stream_id))
+
+        log.warn('ingestion_worker: in extract_policy_packet: %s' % policy)
 
 
         # return the extracted instruction
