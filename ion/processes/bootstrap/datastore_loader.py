@@ -121,7 +121,8 @@ class DatastoreAdmin(ImmediateProcess):
             else:
                 log.warn("Datastore does not exist")
         else:
-            ds_list = ['resources', 'objects', 'state', 'events', 'directory']
+            ds_list = ['resources', 'objects', 'state', 'events',
+                    'directory', 'scidata']
             for ds in ds_list:
                 cls._dump_datastore(path, ds, clear_dir)
 
