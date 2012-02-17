@@ -150,10 +150,17 @@ class IngestionWorker(TransformDataProcess):
             if policy.archive_data is True:
                 #@todo - grab the filepath to save the hdf string somewhere..
 
-                filename = '/tmp/' + hashlib.sha1(hdf_string).hexdigest() + '_hdf_string.hdf5'
-                with open(filename, mode='wb') as f:
-                    f.write(hdf_string)
-                    f.close()
+                value_hdf = packet.identifiables['ctd_data'].values
+
+                if value_hdf:
+
+                    log.warn('value_hdf: %s' % value_hdf)
+
+                    filename = '/tmp/' + hashlib.sha1(value_hdf).hexdigest() + '_hdf_string.hdf5'
+
+                    with open(filename, mode='wb') as f:
+                        f.write(packet)
+                        f.close()
 
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:
