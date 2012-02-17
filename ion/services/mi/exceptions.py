@@ -51,5 +51,6 @@ class CommsException(InstrumentException):
     
 class RequiredParameterException(InstrumentException):
     """A required parameter is not supplied"""
-    
+    def __init__(self, error_code=InstErrorCode.REQUIRED_PARAMETER, msg=None):
+        InstrumentException.__init__(error_code, msg)
     

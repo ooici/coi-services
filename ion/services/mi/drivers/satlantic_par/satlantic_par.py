@@ -19,6 +19,7 @@ from ion.services.mi.common import BaseEnum
 from ion.services.mi.data_decorator import ChecksumDecorator
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.instrument_driver import DriverChannel
 from ion.services.mi.instrument_connection import SerialInstrumentConnection
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
@@ -42,8 +43,11 @@ sample_regex = re.compile(sample_pattern)
 ####################################################################
 
 class Channel(BaseEnum):
-    """Just default instrument driver channels, add no more"""
-    pass
+    # defaults
+    INSTRUMENT = DriverChannel.INSTRUMENT
+    ALL = DriverChannel.ALL
+    # Name the one specific channel we respond as
+    PAR = 'PAR'
 
 class Command(BaseEnum):
     SAVE = 'save'
@@ -77,12 +81,6 @@ class Event(BaseEnum):
     GET = 'GET'
     SET = 'SET'
 
-class Status(BaseEnum):
-    pass
-
-class MetadataParameter(BaseEnum):
-    pass
-
 class Parameter(BaseEnum):
     TELBAUD = 'telbaud'
     MAXRATE = 'maxrate'
@@ -98,9 +96,6 @@ class Error(BaseEnum):
     
 class KwargsKey(BaseEnum):
     COMMAND = 'command'
-
-class Capability(BaseEnum):
-    pass
 
 ####################################################################
 # Protocol
@@ -657,6 +652,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @param response The response string from the instrument
         @param prompt The prompt received from the instrument
         @retval return The numerical value of the parameter in the known units
+        @todo Fill this in
         """
         pass
     
@@ -726,17 +722,22 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
 class SatlanticPARInstrumentDriver(InstrumentDriver):
     """The InstrumentDriver class for the Satlantic PAR sensor PARAD"""
 
-    def __init__(self):
-        """Instrument-specific enums"""
+    def __init__(self, evt_callback):
+        """Instrument-specific enums
+        @param evt_callback The callback function to use for events
+        """
+        InstrumentDriver.__init__(self, evt_callback)
         self.instrument_connection = SerialInstrumentConnection()
         self.instrument_commands = Command()
-        self.instrument_metadata_parameters = MetadataParameter()
         self.instrument_parameters = Parameter()
         self.instrument_channels = Channel()
         self.instrument_errors = Error()
-        self.instrument_capabilities = Capability()
-        self.instrument_status = Status()
+        self.instrument_states = State()
+        self.instrument_active_states = [State.COMMAND_MODE,
+                                         State.AUTOSAMPLE_MODE,
+                                         State.POLL_MODE]
         self.protocol = SatlanticPARInstrumentProtocol(self.protocol_callback)
+        self.chan_map = {Channel.PAR:protocol}
 
 class SatlanticChecksumDecorator(ChecksumDecorator):
     """Checks the data checksum for the Satlantic PAR sensor"""
