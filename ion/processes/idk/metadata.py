@@ -58,16 +58,17 @@ class Metadata():
     ###
     #   Private Methods
     ###
-    def __init__(self, name=None, author=None, email=None, notes=None):
+    def __init__(self, name=None, author=None, email=None, driver_class=None, notes=None):
         """
         @brief Constructor
         """
-        if( name or author or email or notes ):
-            self.author = author
-            self.email = email
-            self.name = name
-            self.notes = notes
-        else:
+        self.author = author
+        self.email = email
+        self.name = name
+        self.driver_class = driver_class
+        self.notes = notes
+
+        if( not(name or author or email or notes) ):
             self.read_from_file()
 
     def _init_from_yaml(self, yamlInput):
@@ -78,6 +79,7 @@ class Metadata():
         self.author = yamlInput['driver_metadata']['author']
         self.email = yamlInput['driver_metadata']['email']
         self.name = yamlInput['driver_metadata']['name']
+        self.driver_class = yamlInput['driver_metadata']['driver_class']
         self.notes = yamlInput['driver_metadata']['release_notes']
 
 
@@ -89,6 +91,7 @@ class Metadata():
         @brief Pretty print the current metadata object to STDOUT
         """
         print( "Driver Name: " + self.name )
+        print( "Driver Class: " + self.driver_class )
         print( "Author: " + self.author )
         print( "Email: " + self.email )
         print( "Release Notes: \n" + self.notes )
@@ -113,6 +116,7 @@ class Metadata():
                                 'author': self.author,
                                 'email': self.email,
                                 'name': self.name,
+                                'driver_class': self.driver_class,
                                 'release_notes': self.notes
                           }
         }, default_flow_style=False)
@@ -166,6 +170,7 @@ class Metadata():
         @brief Read metadata from the console and initialize the object.  Continue to do this until we get valid input.
         """
         self.name = prompt.text( 'Driver Name', self.name )
+        self.driver_class = prompt.text( 'Driver Class', self.driver_class )
         self.author = prompt.text( 'Author', self.author )
         self.email = prompt.text( 'Email', self.email )
         self.notes = prompt.multiline( 'Release Notes', self.notes )
@@ -179,5 +184,4 @@ class Metadata():
 
 if __name__ == '__main__':
     metadata = Metadata()
-    metadata.read_from_file(metadata.current_metadata_path())
     metadata.get_from_console()
