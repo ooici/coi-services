@@ -32,5 +32,6 @@ setup(  name = 'coi-services',
             'pyon',
             'Flask==0.8',
             'WebTest',
+            'requests',
         ],
      )

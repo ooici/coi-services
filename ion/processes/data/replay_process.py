@@ -7,11 +7,13 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from interface.objects import BlogBase
+from interface.objects import BlogBase, StreamGranuleContainer
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
 from interface.services.dm.ireplay_process import BaseReplayProcess
+from pyon.util.containers import DotDict
+
 class ReplayProcess(BaseReplayProcess):
     process_type="standalone"
     def __init__(self, *args, **kwargs):
@@ -30,20 +32,18 @@ class ReplayProcess(BaseReplayProcess):
         '''
         self.stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
 
-        # Get the stream(s)
-        streams = self.CFG.get('process',{}).get('publish_streams',{})
 
         # Get the query
-        self.query = self.CFG.get('process',{}).get('query',{})
+        self.query = self.CFG.get_safe('process.query',{})
 
         # Get the delivery_format
-        self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
+        self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
+        self.datastore_name = self.CFG.get_safe('process.datastore_name','dm_datastore')
 
-        self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
-        self.view_name = self.CFG.get('process',{}).get('view_name')
-        self.key_id = self.CFG.get('process',{}).get('key_id')
+        self.view_name = self.CFG.get_safe('process.view_name','datasets/dataset_by_id')
+        self.key_id = self.CFG.get_safe('process.key_id')
         # Get a stream_id for this process
-        self.stream_id = self.CFG.get('process',{}).get('publish_streams',{}).get('output')
+        self.stream_id = self.CFG.get_safe('process.publish_streams.output',{})
 
 
 
@@ -82,12 +82,24 @@ class ReplayProcess(BaseReplayProcess):
                 if isinstance(replay_obj_msg, BlogBase):
                     replay_obj_msg.is_replay = True
                 else:
+                    # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
                     replay_obj_msg.stream_resource_id = self.stream_id
             else:
                 replay_obj_msg = result['value'] # Document ID, not a document
-            self.lock.acquire()
-            self.output.publish(replay_obj_msg)
-            self.lock.release()
+
+
+            # Handle delivery options
+            # Case: Chopping granules
+            if False: #isinstance(replay_obj_msg, StreamGranuleContainer) and self.delivery_format.get('chop', False):
+                for identifiable in replay_obj_msg.identifiables:
+                    self.lock.acquire()
+                    self.output.publish(identifiable)
+                    self.lock.release()
+            # Default: Publish
+            else:
+                self.lock.acquire()
+                self.output.publish(replay_obj_msg)
+                self.lock.release()
 
         #@todo: log when there are not results
         if results is None:

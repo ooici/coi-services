@@ -10,16 +10,12 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceClient
 
-from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, LCS # , PRED
 from nose.plugins.attrib import attr
 import unittest
 
 from ion.services.sa.test.helpers import any_old
-
-class FakeProcess(LocalContextMixin):
-    name = ''
 
 
 # some stuff for logging info to the console
@@ -37,10 +33,7 @@ log.warn = lambda x: printout("WARNING: %s\n" % x)
 @attr('INT', group='sa')
 class TestLCASA(IonIntegrationTestCase):
     """
-    LCA integration tests
-
-    tests that start with test_jg_slide reference slides found here:
-    https://confluence.oceanobservatories.org/download/attachments/33753448/LCA_Demo_Swimlanes_CI_2012-01-20_ver_0-06.pdf
+    LCA integration tests at the service level
     """
 
     def setUp(self):
@@ -54,9 +47,6 @@ class TestLCASA(IonIntegrationTestCase):
         self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
         self.client.MFMS = MarineFacilityManagementServiceClient(node=self.container.node)
-
-        # number of ion objects per type
-        self.ionobj_count = {}
 
 
     def test_just_the_setup(self):
@@ -297,7 +287,7 @@ class TestLCASA(IonIntegrationTestCase):
         #get the data product of the new instrument
         inst_data_product_id2 = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id2)[0]
 
-        #now GO!  2nd and 5th arguments are blank, because there is no prior instrument 
+        #now GO!  2nd and 5th arguments are filled in with the old instrument
         c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
                                                                instrument_device_id,
                                                                instrument_device_id2,

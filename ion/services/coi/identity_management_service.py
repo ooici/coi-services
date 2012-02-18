@@ -72,7 +72,6 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise Conflict("UserInfo already exists for user id %s" % (user_id))
         # Create UserInfo object
         user_info_id, version = self.clients.resource_registry.create(user_info)
-        log.warn("user_info_id: %s" % user_info_id)
         # Create association with user identity object
         self.clients.resource_registry.create_association(user_id, PRED.hasInfo, user_info_id)
         return user_info_id
@@ -167,15 +166,11 @@ class IdentityManagementService(BaseIdentityManagementService):
         if len(objects) == 1:
             # Known user, get UserIdentity object
             user_credentials_id = objects[0]
-            log.warn("objects: %s" % str(objects))
-            log.warn("user_credentials_id: %s" % user_credentials_id)
             subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasCredentials, user_credentials_id)
 
             if len(subjects) == 0:
                 raise Conflict("UserIdentity object with subject %s was previously created but is not associated with a UserIdentity object" % subject)
             user_id = subjects[0]._id
-            log.warn("subjects: %s" % str(subjects))
-            log.warn("user_id: %s" % user_id)
             # Find associated UserInfo
             registered = True
             try:
