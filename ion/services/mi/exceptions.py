@@ -40,7 +40,7 @@ class InstrumentStateException(InstrumentException):
 class InstrumentTimeoutException(InstrumentException):
     """Exception related to a command, request, or communication timing out"""
     def __init__(self, error_code=InstErrorCode.TIMEOUT, msg=None):
-        InstrumentException.__init__(error_code, msg)
+        InstrumentException.__init__(self, error_code, msg)
     
 class InstrumentDataException(InstrumentException):
     """Exception related to the data returned by an instrument or developed
@@ -52,5 +52,5 @@ class CommsException(InstrumentException):
 class RequiredParameterException(InstrumentException):
     """A required parameter is not supplied"""
     def __init__(self, error_code=InstErrorCode.REQUIRED_PARAMETER, msg=None):
-        InstrumentException.__init__(error_code, msg)
+        InstrumentException.__init__(self, error_code, msg)
     
