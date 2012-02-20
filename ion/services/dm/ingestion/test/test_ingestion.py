@@ -381,17 +381,22 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         #------------------------------------------------------------------------
         # Create ingestion configuration
-        #----------------------------------------------------------------------
+        #------------------------------------------------------------------------
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #------------------------------------------------------------------------
         # Check that the two ingestion workers are running
-        #----------------------------------------------------------------------
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        #------------------------------------------------------------------------
 
-        self.assertTrue(self.container.proc_manager.procs_by_name.has_key(name_1))
-        self.assertTrue(self.container.proc_manager.procs_by_name.has_key(name_2))
+        print ("self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform) : %s" % self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform))
+        print ("type : %s" % type(self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)))
+
+
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        for transform in transforms:
+            self.assertTrue(self.container.proc_manager.procs[transform.process_id])
 
 
     def test_ingestion_workers_working_round_robin(self):
@@ -406,23 +411,28 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
+        #------------------------------------------------------------------------
+        # Get the ingestion process instances:
+        #------------------------------------------------------------------------
 
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
-        #Get the ingestion process instances:
-        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
+
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
+        log.info("PROCESS 2: %s" % str(proc_2))
+
+        #------------------------------------------------------------------------
+        # Set up the gevent events
+        #------------------------------------------------------------------------
 
         ar_1 = gevent.event.AsyncResult()
         def message_received_1(message):
             ar_1.set(message)
 
         proc_1.process = message_received_1
-
-
-        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
-        log.info("PROCESS 2: %s" % str(proc_2))
-
 
         ar_2 = gevent.event.AsyncResult()
         def message_received_2(message):
@@ -433,7 +443,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         #------------------------------------------------------------------------
         # Publish messages and test for round robin handling
-        #----------------------------------------------------------------------
+        #------------------------------------------------------------------------
 
         num = 1
         msg = dict(num=str(num))
@@ -514,12 +524,22 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
 
-        # get the worker processes
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
-        #Get the ingestion process instances:
-        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
+        #------------------------------------------------------------------------
+        # Get the ingestion process instances:
+        #------------------------------------------------------------------------
+
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
+
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
+        log.info("PROCESS 2: %s" % str(proc_2))
+
+        #------------------------------------------------------------------------
+        # Set up the gevent events
+        #------------------------------------------------------------------------
 
         # Over ride the call back for the event subscriber
         ar_1 = gevent.event.AsyncResult()
@@ -529,7 +549,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_1.event_subscriber._callback = message_received_1
 
         # Over ride the call back for the event subscriber
-        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
         log.info("PROCESS 2: %s" % str(proc_2))
 
         ar_2 = gevent.event.AsyncResult()
@@ -589,13 +609,22 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
+        #------------------------------------------------------------------------
+        # Get the ingestion process instances:
+        #------------------------------------------------------------------------
 
-        # the worker processes
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
 
-        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
-        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
+        log.info("PROCESS 1: %s" % str(proc_1))
+
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
+        log.info("PROCESS 2: %s" % str(proc_2))
+
+        #------------------------------------------------------------------------
+        # Create the stream policy
+        #------------------------------------------------------------------------
 
         stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
 
@@ -618,12 +647,18 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
-        # the worker processes
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        #------------------------------------------------------------------------
+        # Get the ingestion process instances:
+        #------------------------------------------------------------------------
 
-        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
-        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
+        log.info("PROCESS 1: %s" % str(proc_1))
+
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
+        log.info("PROCESS 2: %s" % str(proc_2))
 
         #--------------------------------------------------------------------------------------------------------
         # Create a stream policy
@@ -692,12 +727,18 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
-        # the worker processes
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        #------------------------------------------------------------------------
+        # Get the ingestion process instances:
+        #------------------------------------------------------------------------
 
-        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
-        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
+        log.info("PROCESS 1: %s" % str(proc_1))
+
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
+        log.info("PROCESS 2: %s" % str(proc_2))
 
         #--------------------------------------------------------------------------------------------------------
         # Create a stream policy
@@ -874,12 +915,22 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
 
-        # get the ingestion workers
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        #------------------------------------------------------------------------
+        # Get the ingestion process instances:
+        #------------------------------------------------------------------------
 
-        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
-        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
+        log.info("PROCESS 1: %s" % str(proc_1))
+
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
+        log.info("PROCESS 2: %s" % str(proc_2))
+
+        #------------------------------------------------------------------------
+        # Set up the gevent events
+        #------------------------------------------------------------------------
 
         ar = gevent.event.AsyncResult()
 
@@ -912,13 +963,18 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
 
-        # get the ingestion workers
-        name_1 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 1)
-        name_2 = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, 2)
+        #------------------------------------------------------------------------
+        # Get the ingestion process instances:
+        #------------------------------------------------------------------------
 
-        proc_1 = self.container.proc_manager.procs_by_name.get(name_1)
-        proc_2 = self.container.proc_manager.procs_by_name.get(name_2)
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
 
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
+        log.info("PROCESS 1: %s" % str(proc_1))
+
+        proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
+        log.info("PROCESS 2: %s" % str(proc_2))
 
         #------------------------------------------------------------------------
         # Create a stream and a stream policy
