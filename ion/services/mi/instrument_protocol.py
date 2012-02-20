@@ -178,12 +178,15 @@ class InstrumentProtocol(object):
     # Protocol command interface.
     ########################################################################
         
-    def get(self, *args, **kwargs):
+    def get(self, params, *args, **kwargs):
         """Get some parameters
         
         @param params A list of parameters to fetch. These must be in the
-        fetchable parameter list
-        @retval results A dict of the parameters that were queried
+        fetchable parameter list, for example
+          [MyParam.PARAM1, MyParam.PARAM5]
+        @retval results A dict of the parameters that were queried, for
+        example:
+          {MyParam.PARAM1: param1Val, MyParam.PARAM5: param5Val}
         @throws InstrumentProtocolException Confusion dealing with the
         physical device
         @throws InstrumentStateException Unable to handle current or future
