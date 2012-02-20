@@ -318,11 +318,10 @@ class IngestionManagementService(BaseIngestionManagementService):
         stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
 
         self.event_publisher.create_and_publish_event(
-            origin='ingestion_management',
-            description='junk!',
+            origin=self.XP,
             stream_id =stream_policy.policy.stream_id,
-            archive_data=True,
-            archive_metadata=True,
+            archive_data=stream_policy.policy.archive_data,
+            archive_metadata=stream_policy.policy.archive_metadata,
             resource_id = stream_policy_id
         )
 
@@ -352,11 +351,13 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Deleting stream policy")
         self.clients.resource_registry.delete(stream_policy_id)
 
-        self.event_publisher.create_and_publish_event(
-            origin='ingestion_management',
-            stream_id =stream_policy.policy.stream_id,
-            archive_data=True,
-            archive_metadata=True,
-            resource_id = stream_policy_id,
-            deleted = True
-        )
+        #@todo publish an event for deleting policy
+
+#        self.event_publisher.create_and_publish_event(
+#            origin=self.XP,
+#            stream_id =stream_policy.policy.stream_id,
+#            archive_data=stream_policy.policy.archive_data,
+#            archive_metadata=stream_policy.policy.archive_metadata,
+#            resource_id = stream_policy_id,
+#            deleted = True
+#        )
