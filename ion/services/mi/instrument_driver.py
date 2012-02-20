@@ -590,9 +590,9 @@ class InstrumentDriver(object):
         chan_params_map = {}
         for (c, p) in params:
             if c in clist and p in plist:
-                list = chan_params_map.get(c, [])
-                list.append(p)
-                chan_params_map[c] = list
+                pp = chan_params_map.get(c, [])
+                pp.append(p)
+                chan_params_map[c] = pp
         valid_params = chan_params_map.items()
 
         # Build result
