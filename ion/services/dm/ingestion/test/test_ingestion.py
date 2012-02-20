@@ -952,11 +952,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ar1 = gevent.event.AsyncResult()
 
-        def call_to_persist_1(packet):
+        def call_to_persist(packet):
             ar1.set(packet)
 
         # when persist_immutable() is called, then call_to_persist() is called instead....
-        proc_1.persist_immutable = call_to_persist_1
+        proc_1.persist_immutable = call_to_persist
 
         #------------------------------------------------------------------------
         # Create a packet and publish it
@@ -982,6 +982,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.ingestion_cli.update_stream_policy(stream_policy)
 
+        ar1 = gevent.event.AsyncResult()
         ar2 = gevent.event.AsyncResult()
 
         #------------------------------------------------------------------------
@@ -1006,7 +1007,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Assert that the packets were handled according to the new policy
         #------------------------------------------------------------------------
 
-#        self.assertEquals(ar2.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+        with self.assertRaiser(gevent.Timeout):
+            self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
 
         #----------------------------------------------------------------------
