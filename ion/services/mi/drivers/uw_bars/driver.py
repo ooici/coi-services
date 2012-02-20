@@ -17,7 +17,9 @@ from ion.services.mi.instrument_driver import DriverState
 
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsCommand
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
+from ion.services.mi.drivers.uw_bars.common import BarsError
 from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 
@@ -40,8 +42,19 @@ class BarsInstrumentDriver(InstrumentDriver):
     def __init__(self, evt_callback=None):
         InstrumentDriver.__init__(self, evt_callback)
 
-        self.connection = None
-        self.protocol = None
+#        self.instrument_connection = SerialInstrumentConnection()
+        self.instrument_commands = BarsCommand
+        self.instrument_parameters = BarsParameter
+        self.instrument_channels = BarsChannel
+        self.instrument_errors = BarsError
+#        self.instrument_states = State
+#        self.instrument_active_states = [State.COMMAND_MODE,
+#                                         State.AUTOSAMPLE_MODE,
+#                                         State.POLL_MODE]
+        protocol = BarsInstrumentProtocol(self.protocol_callback)
+        self.protocol = protocol
+        self.chan_map = {BarsChannel.INSTRUMENT: protocol}
+
         self.config = None
 
         self._state = DriverState.UNCONFIGURED
@@ -136,7 +149,7 @@ class BarsInstrumentDriver(InstrumentDriver):
         return result
 
     def _setup_protocol(self, config):
-        self.protocol = BarsInstrumentProtocol()
+#        self.protocol = BarsInstrumentProtocol()
         self.protocol.configure(self.config)
         self.protocol.connect()
 
