@@ -24,6 +24,14 @@ class TransformManagementService(BaseTransformManagementService):
 
         self.serializer = IonObjectSerializer()
 
+    def _strip_types(self, obj):
+        if not isinstance(obj, dict):
+            return
+        for k,v in obj.iteritems():
+            if isinstance(v,dict):
+                self._strip_types(v)
+        if "type_" in obj:
+            del obj['type_']
 
 
     def create_transform(self,
@@ -51,6 +59,8 @@ class TransformManagementService(BaseTransformManagementService):
         if isinstance(configuration, IonObjectBase):
             #@todo Is this the right way to handle configs that come as IonObjects?
             configuration = self.serializer.serialize(configuration)
+            # strip the type
+            self._strip_types(configuration)
 
         elif not configuration:
             configuration = {}
@@ -97,8 +107,6 @@ class TransformManagementService(BaseTransformManagementService):
         # ------------------------------------------------------------------------------------
         # Process Spawning
         # ------------------------------------------------------------------------------------
-
-
         # Spawn the process
         pid = self.clients.process_dispatcher.schedule_process(
             process_definition_id=process_definition_id,
