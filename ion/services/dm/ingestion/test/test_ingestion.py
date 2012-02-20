@@ -977,18 +977,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.ingestion_cli.update_stream_policy(stream_policy)
 
-        ar1 = gevent.event.AsyncResult()
-        ar2 = gevent.event.AsyncResult()
-
         #------------------------------------------------------------------------
         # Reset the AsyncResult()
         #------------------------------------------------------------------------
 
-        def call_to_not_persist(packet,headers):
-            ar2.set(packet)
-
-        # when persist_immutable() is called, then call_to_persist() is called instead....
-        proc_1.policy_implementation_test_hook = call_to_not_persist
+        ar1 = gevent.event.AsyncResult()
 
         #------------------------------------------------------------------------
         # Create a new packet and publish it
@@ -999,13 +992,12 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         publisher.publish(ctd_packet)
 
         #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the new policy
+        # Assert that the packets were handled according to the new policy...
+        # This time, the packet should not be persisted since archive_metadata is False
         #------------------------------------------------------------------------
 
         with self.assertRaises(gevent.Timeout):
             p = ar1.get(timeout=2)
-#            self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
-
 
         #----------------------------------------------------------------------
 

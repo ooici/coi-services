@@ -35,10 +35,6 @@ class IngestionWorker(TransformDataProcess):
     def ingest_process_test_hook(self,packet):
         pass
 
-    def policy_implementation_test_hook(self, packet):
-        pass
-
-
     def on_start(self):
         super(IngestionWorker,self).on_start()
         #----------------------------------------------
@@ -153,9 +149,6 @@ class IngestionWorker(TransformDataProcess):
             if policy.archive_metadata is True:
                 log.debug("Persisting data....")
                 self.persist_immutable(packet )
-
-            else:
-                self.policy_implementation_test_hook(packet)
 
             if policy.archive_data is True:
                 #@todo - grab the filepath to save the hdf string somewhere..
