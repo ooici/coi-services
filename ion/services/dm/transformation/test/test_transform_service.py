@@ -245,7 +245,7 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         self.transform_service.read_transform.assert_called_with(transform_id='mock_transform_id')
-        self.mock_cc_terminate.assert_called_with('pid')
+        self.mock_pd_cancel.assert_called_with('pid')
         self.assertEquals(self.mock_rr_find.call_count,3)
         self.assertEquals(self.mock_rr_del_assoc.call_count,3)
         self.assertEquals(self.mock_rr_delete.call_count,1)
@@ -425,7 +425,8 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         actual = self.rr_cli.read(trans_id)
 
         self.assertEquals(res._id,actual._id)
-        self.tms_cli.delete_transform(trans_id)
+
+
     def test_read_transform_nonexist(self):
         with self.assertRaises(NotFound) as e:
             res = self.tms_cli.read_transform('123')

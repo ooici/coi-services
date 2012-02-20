@@ -167,7 +167,9 @@ class TransformManagementService(BaseTransformManagementService):
         # stop the transform process
 
         #@note: terminate_process does not raise or confirm if there termination was successful or not
-        self.container.proc_manager.terminate_process(pid)
+
+        self.clients.process_dispatcher.cancel_process(pid)
+
         log.debug('(%s): Terminated Process (%s)' % (self.name,pid))
 
 
@@ -195,6 +197,8 @@ class TransformManagementService(BaseTransformManagementService):
         process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
         module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
+
+        #@todo: Address how we want to integrate cei here
 
         m = hashlib.sha1('transform' + time.ctime())
         name = m.hexdigest()
