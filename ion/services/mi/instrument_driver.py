@@ -13,7 +13,8 @@ __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.exceptions import InstrumentConnectionException 
+from ion.services.mi.common import InstErrorCode
+from ion.services.mi.exceptions import RequiredParameterException
 from ion.services.mi.common import DEFAULT_TIMEOUT
 
 class DriverChannel(BaseEnum):
@@ -348,10 +349,21 @@ class InstrumentDriver(object):
 
     def get(self, params, *args, **kwargs):
         """
-        @param timeout Number of seconds before this operation times out
         """
-        pass
-    
+        # TODO needs revision -- just quickly adapted from sbe37_driver
+        try:
+            (result, valid_params) = self._check_get_args(params)
+
+            for (channel, parameter) in valid_params:
+                proto = self.chan_map[channel]
+                result[(channel, parameter)] = proto.get(parameter,
+                                                         *args, **kwargs)
+
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
+
+        return result
+
     def set(self, params, *args, **kwargs):
         """
         @param timeout Number of seconds before this operation times out
@@ -441,7 +453,7 @@ class InstrumentDriver(object):
         @retval a list of channels that are in an active state
         """
         result = []
-        chan_state_dict = self.get_current_state([DriverChannels.ALL])
+        chan_state_dict = self.get_current_state([DriverChannel.ALL])
         for chan in chan_state_dict.keys:
             if chan_state_dict[chan] in self.instrument_active_states:
                 result.append[chan]
@@ -483,7 +495,7 @@ class InstrumentDriver(object):
         @throws RequiredParameterException If the arguments are missing or invalid
         """
         valid_channels = []
-        result = {}
+        invalid_chan_dict = {}
         
         if (channels == None) or (not isinstance(channels, (list, tuple))):
             raise RequiredParameterException()
@@ -512,11 +524,61 @@ class InstrumentDriver(object):
             valid_channels = [c for c in channels if c in clist]
             invalid_channels = [c for c in channels if c not in clist]
             
-            # Build result dict with invalid entries.
+            # Build invalid_chan_dict with invalid entries.
             for c in invalid_channels:
                 invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
                 
         return (invalid_chan_dict, valid_channels)
+
+    def _check_get_args(self, params):
+        """
+        TODO
+        """
+        # TODO needs revision! (just quickly adapted from sbe37_driver)
+
+        valid_params = []
+        result = {}
+
+        if params == None or not isinstance(params, (list, tuple)):
+            raise RequiredParameterException()
+
+        elif len(params) == 0:
+            raise RequiredParameterException()
+
+        else:
+            plist = self.instrument_parameters.list()
+            if DriverParameter.ALL in plist:
+                plist.remove(DriverParameter.ALL)
+
+            clist = self.instrument_channels.list()
+            if DriverChannel.ALL in clist:
+                clist.remove(DriverChannel.ALL)
+
+            # Expand and remove "ALL" channel specifiers.
+            params += [(c, parameter) for (channel, parameter) in params
+                if channel == DriverChannel.ALL for c in clist]
+            params = [(c, p) for (c, p) in params if c != DriverChannel.ALL]
+
+            # Expand and remove "ALL" parameter specifiers.
+            params += [(channel, p) for (channel, parameter) in params
+                if parameter == DriverParameter.ALL for p in plist]
+            params = [(c, p) for (c, p) in params if p != DriverParameter.ALL]
+
+            # Make list unique.
+            params = list(set(params))
+
+            # Separate valid and invalid params.
+            invalid_params = [(c, p) for (c, p) in params if c in clist and p not in plist]
+            invalid_channels = [(c, p) for (c, p) in params if c not in clist]
+            valid_params = [(c, p) for (c, p) in params if c in clist and p in plist]
+
+            # Build result
+            for (c, p) in invalid_params:
+                result[(c, p)] = InstErrorCode.INVALID_PARAMETER
+            for (c, p) in invalid_channels:
+                result[(c, p)] = InstErrorCode.INVALID_CHANNEL
+
+        return (result, valid_params)
 
     ######################
     # State change handlers
