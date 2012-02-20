@@ -296,6 +296,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.event_publisher.create_and_publish_event(
             origin=XP,
+            description = stream_policy.description,
             stream_id =stream_id,
             archive_data=archive_data,
             archive_metadata=archive_metadata,
@@ -319,6 +320,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.event_publisher.create_and_publish_event(
             origin=self.XP,
+            description = stream_policy.description,
             stream_id =stream_policy.policy.stream_id,
             archive_data=stream_policy.policy.archive_data,
             archive_metadata=stream_policy.policy.archive_metadata,
@@ -353,11 +355,12 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         #@todo publish an event for deleting policy
 
-#        self.event_publisher.create_and_publish_event(
-#            origin=self.XP,
-#            stream_id =stream_policy.policy.stream_id,
-#            archive_data=stream_policy.policy.archive_data,
-#            archive_metadata=stream_policy.policy.archive_metadata,
-#            resource_id = stream_policy_id,
-#            deleted = True
-#        )
+        self.event_publisher.create_and_publish_event(
+            origin=self.XP,
+            description = 'delete stream_policy',
+            stream_id =stream_policy.policy.stream_id,
+            archive_data=stream_policy.policy.archive_data,
+            archive_metadata=stream_policy.policy.archive_metadata,
+            resource_id = stream_policy_id,
+            deleted = True
+        )

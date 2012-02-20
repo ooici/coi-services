@@ -77,7 +77,10 @@ class IngestionWorker(TransformDataProcess):
         def receive_policy_event(event_msg, headers):
             log.info('Updating stream policy in ingestion worker: stream_id= %s' % event_msg.stream_id)
 
-            self.stream_policies[event_msg.stream_id] = event_msg
+            if event_msg.description == 'delete stream_policy':
+                del self.stream_policies[event_msg.stream_id]
+            else:
+                self.stream_policies[event_msg.stream_id] = event_msg
 
             # Hook to override just before processing is complete
             self.policy_event_test_hook(event_msg, headers)

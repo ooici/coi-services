@@ -334,8 +334,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
-        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.input_stream_id)
+        self.publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+        self.ctd_stream1_publisher = self.publisher_registrar.create_publisher(stream_id=self.input_stream_id)
 
 
         self.db = self.container.datastore_manager.get_datastore('dm_datastore', DataStore.DS_PROFILE.EXAMPLES, CFG)
@@ -639,8 +639,18 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------------------------
 
         stream_policy.description = 'updated right now'
-        # now update the stream polic
+        # now update the stream_policy
         self.ingestion_cli.update_stream_policy( stream_policy)
+
+        # check that the stream_policy dict in the ingestion workers have been updated
+
+        print ("proc_1.stream_policies[self.input_stream_id]: %s" % proc_1.stream_policies[self.input_stream_id] )
+        print ("proc_1.stream_policies[self.input_stream_id].policy.description: %s" % proc_1.stream_policies[self.input_stream_id].description)
+
+
+
+        self.assertEquals(proc_1.stream_policies[self.input_stream_id].description, 'updated right now')
+        self.assertEquals(proc_2.stream_policies[self.input_stream_id].description, 'updated right now')
 
         #--------------------------------------------------------------------------------------------------------
         # Read the updated policy using resource registry to check that it has indeed been updated
@@ -937,8 +947,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         test_process = StandaloneProcess()
 
-        stream_publisher_registrar = StreamPublisherRegistrar(process= test_process,node=self.container.node)
-        publisher = stream_publisher_registrar.create_publisher(stream_id=stream_id)
+        publisher = self.publisher_registrar.create_publisher(stream_id=stream_id)
 
 
         ar1 = gevent.event.AsyncResult()
