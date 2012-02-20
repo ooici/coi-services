@@ -24,7 +24,7 @@ from pyon.public import RT, PRED, log, IonObject
 
 from pyon.datastore.datastore import DataStore
 from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
-from interface.objects import BlogPost, BlogComment, StreamIngestionPolicy
+from interface.objects import BlogPost, BlogComment, StreamIngestionPolicy, ExchangeQuery
 from pyon.ion.process import StandaloneProcess
 
 import random
@@ -54,14 +54,16 @@ class IngestionTest(PyonTestCase):
         self.mock_find_associations = mock_clients.resource_registry.find_associations
         self.mock_transform_activate = mock_clients.transform_management.activate_transform
         self.mock_transform_deactivate = mock_clients.transform_management.deactivate_transform
-
         self.mock_transform_delete = mock_clients.transform_management.delete_transform
+        self.mock_pubsub_create_subscription = mock_clients.pubsub_management.create_subscription
+        self.mock_launch_transforms = self.ingestion_service._launch_transforms
 
         self.ingestion_configuration_id = Mock()
         self.ingestion_configuration = Mock()
 
         # Exchange point
         self.exchange_point_id = "exchange_point_id"
+        self.exchange_name = 'ingestion_queue'
 
         # Couch storage
         self.couch_storage = CouchStorage()
@@ -79,13 +81,54 @@ class IngestionTest(PyonTestCase):
 
     def test_create_ingestion_configuration(self):
 
-        self.mock_create.return_value = [self.ingestion_configuration_id, 1]
+        subscription_id = Mock()
+        ingestion_configuration_id = Mock()
+        process_definition_id = Mock()
+        ingestion_configuration = Mock()
+        ingestion_configuration_id = Mock()
+        query = ExchangeQuery()
+
+        #--------------------------------------------------------------------------------
+        # Fixing return values
+        #--------------------------------------------------------------------------------
+
+        self.mock_find_associations.return_value = ['association']
+
+        self.mock_pubsub_create_subscription.return_value = subscription_id
+        self.mock_create.return_value = ingestion_configuration_id, None
+
+        #--------------------------------------------------------------------------------
+        # Calling the delete ingestion configuration method
+        #--------------------------------------------------------------------------------
+
+        ingestion_configuration_id_out = self.ingestion_service.create_ingestion_configuration(self.exchange_point_id,\
+            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
 
-        ingestion_configuration_id = self.ingestion_service.create_ingestion_configuration(self.exchange_point_id, \
-                                self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        #--------------------------------------------------------------------------------
+        # Assertions
+        #--------------------------------------------------------------------------------
 
-        self.assertEqual(ingestion_configuration_id, self.ingestion_configuration_id)
+        # assert that the function for creating subscription was called...
+        # note: A query is created inside the create_ingestion_configuration method and since we cannot know the memory location for that object
+        # we cannot check if that query is used as argument during the create_subscription call.
+        # In mock, one either checks all the arguments that are passed in, or one doesnt check the arguments at all.
+        # Therefore, here we are only checking if the method, create_subscription, was called.
+
+        self.assertTrue(self.mock_pubsub_create_subscription.called )
+
+        # check that the resource registry create function was called...
+        self.assertTrue(self.mock_create.called)
+
+        # check that the _launch_transform method was called with the correct arguments
+        self.mock_launch_transforms.assert_called_once_with(self.number_of_workers,
+            subscription_id,
+            ingestion_configuration_id,
+            ingestion_configuration,
+            process_definition_id
+        )
+
+        self.assertNotNone(ingestion_configuration_id_out)
 
     def test_read_and_update_ingestion_configuration(self):
         # reading
