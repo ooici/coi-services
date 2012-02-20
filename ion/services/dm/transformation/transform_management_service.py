@@ -11,8 +11,6 @@ import hashlib
 from pyon.public import log, IonObject, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectSerializer, IonObjectBase
-
-
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
 
 class TransformManagementService(BaseTransformManagementService):
@@ -102,10 +100,10 @@ class TransformManagementService(BaseTransformManagementService):
 
 
         # Spawn the process
-        pid = self.container.spawn_process(name=transform_name,
-                        module=module,
-                        cls=cls,
-                        config=configuration)
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=process_definition_id,
+            configuration=configuration
+        )
 
         transform_res.process_id =  pid
         
