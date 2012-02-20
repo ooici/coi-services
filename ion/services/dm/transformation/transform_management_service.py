@@ -11,8 +11,6 @@ import hashlib
 from pyon.public import log, IonObject, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectSerializer, IonObjectBase
-
-
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
 
 class TransformManagementService(BaseTransformManagementService):
@@ -26,6 +24,14 @@ class TransformManagementService(BaseTransformManagementService):
 
         self.serializer = IonObjectSerializer()
 
+    def _strip_types(self, obj):
+        if not isinstance(obj, dict):
+            return
+        for k,v in obj.iteritems():
+            if isinstance(v,dict):
+                self._strip_types(v)
+        if "type_" in obj:
+            del obj['type_']
 
 
     def create_transform(self,
@@ -53,6 +59,8 @@ class TransformManagementService(BaseTransformManagementService):
         if isinstance(configuration, IonObjectBase):
             #@todo Is this the right way to handle configs that come as IonObjects?
             configuration = self.serializer.serialize(configuration)
+            # strip the type
+            self._strip_types(configuration)
 
         elif not configuration:
             configuration = {}
@@ -99,13 +107,11 @@ class TransformManagementService(BaseTransformManagementService):
         # ------------------------------------------------------------------------------------
         # Process Spawning
         # ------------------------------------------------------------------------------------
-
-
         # Spawn the process
-        pid = self.container.spawn_process(name=transform_name,
-                        module=module,
-                        cls=cls,
-                        config=configuration)
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=process_definition_id,
+            configuration=configuration
+        )
 
         transform_res.process_id =  pid
         
@@ -169,7 +175,9 @@ class TransformManagementService(BaseTransformManagementService):
         # stop the transform process
 
         #@note: terminate_process does not raise or confirm if there termination was successful or not
-        self.container.proc_manager.terminate_process(pid)
+
+        self.clients.process_dispatcher.cancel_process(pid)
+
         log.debug('(%s): Terminated Process (%s)' % (self.name,pid))
 
 
@@ -197,6 +205,8 @@ class TransformManagementService(BaseTransformManagementService):
         process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
         module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
+
+        #@todo: Address how we want to integrate cei here
 
         m = hashlib.sha1('transform' + time.ctime())
         name = m.hexdigest()

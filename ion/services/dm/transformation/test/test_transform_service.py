@@ -80,8 +80,7 @@ class TransformManagementServiceTest(PyonTestCase):
         proc_def['executable'] = {'module':'my_module', 'class':'class'}
         self.mock_pd_read.return_value = proc_def
         self.mock_rr_find_res.return_value = ([],[])
-
-        self.mock_cc_spawn.return_value = '123' #PID
+        self.mock_pd_schedule.return_value = '123' # PID
         self.mock_rr_create.return_value = ('transform_id','garbage')
         self.mock_ps_read_sub.return_value = DotDict({'exchange_name':'input_stream_id'})
 
@@ -113,10 +112,11 @@ class TransformManagementServiceTest(PyonTestCase):
             }
         }
         self.assertEquals(self.mock_rr_create_assoc.call_count,3)
-        self.mock_cc_spawn.assert_called_with(name='test_transform',
-            module='my_module',
-            cls='class',
-            config=out_config)
+        self.mock_pd_schedule.assert_called_with(
+            'mock_procdef_id',
+            None,
+            out_config
+        )
         self.assertTrue(self.mock_rr_create.called)
 
     def test_create_transform_no_config(self):
@@ -127,6 +127,7 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_rr_find_res.return_value = ([],[])
 
         self.mock_cc_spawn.return_value = '123' #PID
+        self.mock_pd_schedule.return_value = '123' # PID
         self.mock_rr_create.return_value = ('transform_id','garbage')
         self.mock_ps_read_sub.return_value = DotDict({'exchange_name':'input_stream_id'})
 
@@ -154,10 +155,12 @@ class TransformManagementServiceTest(PyonTestCase):
             }
         }
         self.assertEquals(self.mock_rr_create_assoc.call_count,3)
-        self.mock_cc_spawn.assert_called_with(name='test_transform',
-            module='my_module',
-            cls='class',
-            config=out_config)
+        self.mock_pd_schedule.assert_called_with(
+            'mock_procdef_id',
+            None,
+            out_config
+        )
+
         self.assertTrue(self.mock_rr_create.called)
 
     def test_create_transform_no_stream(self):
@@ -166,8 +169,7 @@ class TransformManagementServiceTest(PyonTestCase):
         proc_def['executable'] = {'module':'my_module', 'class':'class'}
         self.mock_pd_read.return_value = proc_def
         self.mock_rr_find_res.return_value = ([],[])
-
-        self.mock_cc_spawn.return_value = '123' #PID
+        self.mock_pd_schedule.return_value = '123' # PID
         self.mock_rr_create.return_value = ('transform_id','garbage')
         self.mock_ps_read_sub.return_value = DotDict({'exchange_name':'input_stream_id'})
 
@@ -196,10 +198,12 @@ class TransformManagementServiceTest(PyonTestCase):
             }
         }
         self.assertEquals(self.mock_rr_create_assoc.call_count,2)
-        self.mock_cc_spawn.assert_called_with(name='test_transform',
-            module='my_module',
-            cls='class',
-            config=out_config)
+        self.mock_pd_schedule.assert_called_with(
+            'mock_procdef_id',
+            None,
+            out_config
+        )
+
         self.assertTrue(self.mock_rr_create.called)
 
 
@@ -241,7 +245,7 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         self.transform_service.read_transform.assert_called_with(transform_id='mock_transform_id')
-        self.mock_cc_terminate.assert_called_with('pid')
+        self.mock_pd_cancel.assert_called_with('pid')
         self.assertEquals(self.mock_rr_find.call_count,3)
         self.assertEquals(self.mock_rr_del_assoc.call_count,3)
         self.assertEquals(self.mock_rr_delete.call_count,1)
@@ -421,7 +425,8 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         actual = self.rr_cli.read(trans_id)
 
         self.assertEquals(res._id,actual._id)
-        self.tms_cli.delete_transform(trans_id)
+
+
     def test_read_transform_nonexist(self):
         with self.assertRaises(NotFound) as e:
             res = self.tms_cli.read_transform('123')
