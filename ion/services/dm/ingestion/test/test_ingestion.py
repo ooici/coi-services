@@ -644,11 +644,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # check that the stream_policy dict in the ingestion workers have been updated
 
-        print ("proc_1.stream_policies[self.input_stream_id]: %s" % proc_1.stream_policies[self.input_stream_id] )
-        print ("proc_1.stream_policies[self.input_stream_id].policy.description: %s" % proc_1.stream_policies[self.input_stream_id].description)
-
-
-
         self.assertEquals(proc_1.stream_policies[self.input_stream_id].description, 'updated right now')
         self.assertEquals(proc_2.stream_policies[self.input_stream_id].description, 'updated right now')
 
@@ -1007,8 +1002,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Assert that the packets were handled according to the new policy
         #------------------------------------------------------------------------
 
-        with self.assertRaiser(gevent.Timeout):
-            self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+        with self.assertRaises(gevent.Timeout):
+            p = ar1.get(timeout=2)
+#            self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
 
         #----------------------------------------------------------------------
