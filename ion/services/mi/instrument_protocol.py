@@ -242,6 +242,16 @@ class InstrumentProtocol(object):
         """
         pass
 
+    def get_current_state(self):
+        """
+        Gets the current state of this protocol.
+        """
+        #
+        # TODO harmonize the concepts "driver state" and "protocol state"
+        # -- these are not clearly separated, if that's what we should do.
+        #
+        pass
+
     ########################################################################
     # Helper methods
     ########################################################################
