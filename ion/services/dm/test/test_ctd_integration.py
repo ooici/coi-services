@@ -13,6 +13,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 import os
@@ -157,10 +158,10 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Make sure the transform capture worked
         #--------------------------------------------
 
-        stats = os.stat('/tmp/transform_output')
+        stats = os.stat(FileSystem.get_url(FS.TEMP,'transform_output'))
         self.assertTrue(stats.st_blksize > 0)
 
         # BEAUTIFUL!
 
-        os.unlink('/tmp/transform_output')
+        FileSystem.unlink(FileSystem.get_url(FS.TEMP,'transform_output'))
 

@@ -173,10 +173,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         #@todo Should we check to see if the ingestion configuration exists?
 
         #delete the transforms associated with the ingestion_configuration_id
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
 
-        if len(transform_ids) is 0:
-            log.warn('No transforms associated with this ingestion configuration!')
+        if len(transform_ids) < 1:
+            raise NotFound('No transforms associated with this ingestion configuration!')
+
+        log.debug('len(transform_ids): %s' % len(transform_ids))
 
         for transform_id in transform_ids:
             # To Delete - we need to actually remove each of the transforms
@@ -185,6 +187,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # delete the associations too...
         associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
+        log.info('associations: %s' % associations)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
             #@todo How should we deal with failure?
@@ -267,7 +270,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             except AttributeError:
                 continue
 
-            log.warn('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
+            log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
             #@todo how do we get them to the right database?!?!
             db = self.container.datastore_manager.get_datastore(couch_storage.datastore_name, couch_storage.datastore_profile, self.CFG)
 
@@ -293,6 +296,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.event_publisher.create_and_publish_event(
             origin=XP,
+            description = stream_policy.description,
             stream_id =stream_id,
             archive_data=archive_data,
             archive_metadata=archive_metadata,
@@ -309,20 +313,17 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if policy does not exist
         """
 
-        log.warn('stream policy to update: %s' % stream_policy)
+        log.info('stream policy to update: %s' % stream_policy)
 
         log.debug("Updating stream policy")
         stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
 
-
-        log.warn('stream_policy_id: %s' % stream_policy_id)
-
         self.event_publisher.create_and_publish_event(
-            origin='ingestion_management',
-            description='junk!',
+            origin=self.XP,
+            description = stream_policy.description,
             stream_id =stream_policy.policy.stream_id,
-            archive_data=True,
-            archive_metadata=True,
+            archive_data=stream_policy.policy.archive_data,
+            archive_metadata=stream_policy.policy.archive_metadata,
             resource_id = stream_policy_id
         )
 
@@ -352,11 +353,14 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Deleting stream policy")
         self.clients.resource_registry.delete(stream_policy_id)
 
+        #@todo publish an event for deleting policy
+
         self.event_publisher.create_and_publish_event(
-            origin='ingestion_management',
+            origin=self.XP,
+            description = 'delete stream_policy',
             stream_id =stream_policy.policy.stream_id,
-            archive_data=True,
-            archive_metadata=True,
+            archive_data=stream_policy.policy.archive_data,
+            archive_metadata=stream_policy.policy.archive_metadata,
             resource_id = stream_policy_id,
             deleted = True
         )
