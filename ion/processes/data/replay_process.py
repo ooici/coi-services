@@ -137,9 +137,6 @@ class ReplayProcess(BaseReplayProcess):
                     # set the datastream.value field!
                     datastream.values = hdf_string
 
-                    # repacking the replay_obj_mg with the datastream that now containes the hdf_string
-                    replay_obj_msg.identifiables['ctd_data'] = datastream
-
                     replay_obj_msg.is_replay = True
 
                 else:

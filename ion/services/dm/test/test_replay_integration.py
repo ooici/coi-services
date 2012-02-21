@@ -12,7 +12,7 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import StreamPublisherRegistrar
+from pyon.public import StreamPublisherRegistrar, StreamSubscriberRegistrar
 from nose.plugins.attrib import attr
 from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
 import random
@@ -31,10 +31,6 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
 
-        # We keep track of our own processes
-        self.process_list = []
-        self.datasets = []
-
         # store name
         self.datastore_name = 'test_replay_integration'
 
@@ -42,11 +38,14 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
             module='pyon.ion.process',
             cls='SimpleProcess',
             config={})
+
         dummy_process = self.container.proc_manager.procs[pid]
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
         self.publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
+        self.subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+
 
     def test_replay_integration(self):
         '''
@@ -97,16 +96,22 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         publisher.publish(ctd_packet)
 
-
         #------------------------------------------------------------------------------------------------------
-        # Set up the datasets
+        # Create subscriber to listen to the replays
         #------------------------------------------------------------------------------------------------------
 
-        dataset_id = self.dataset_management_service.create_dataset(
-            stream_id=stream_id,
-            datastore_name=self.datastore_name,
-            view_name='datasets/stream_join_granule'
-        )
+
+        # Create the stateful listener to hold the captured data for comparison with replay
+
+        replay_id, replay_stream_id = self._create_replay(stream_id)
+
+        query = StreamQuery(stream_ids=[replay_stream_id])
+
+        self._create_subscriber(subscription_name='replay_capture_point', subscription_query=query)
+
+        self.data_retriever_service.start_replay(replay_id)
+
+#        captured_replays[post_id] = captured_replay
 
 
     def _create_packet(self, stream_id):
@@ -129,3 +134,42 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
             c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
 
         return ctd_packet
+
+    def _create_replay(self, stream_id):
+        """
+        Define the replay
+        """
+        dataset_id = self.dataset_management_service.create_dataset(
+            stream_id=stream_id,
+            datastore_name=self.datastore_name,
+            view_name='datasets/stream_join_granule'
+        )
+
+        return self.data_retriever_service.define_replay(dataset_id)
+
+    def _check_replay(self, message, headers):
+        """
+        Checks that what replay was sending out was of correct format
+        """
+        print ('Working! Message in callback: %s' % message)
+        print ('headers: %s' % headers)
+
+        pass
+
+
+    def _create_subscriber(self, subscription_name, subscription_query):
+        #------------------------------------------------------------------------------------------------------
+        # Create subscriber to listen to the messages published to the ingestion
+        #------------------------------------------------------------------------------------------------------
+
+        # Make a subscription to the input stream to ingestion
+        subscription_id = self.pubsub_management_service.create_subscription(query = subscription_query, exchange_name=subscription_name ,name = subscription_name)
+
+        # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
+        # Normally the container creates and starts subscribers for you when a transform process is spawned
+        subscriber = self.subscriber_registrar.create_subscriber(exchange_name=subscription_name, callback=self._check_replay)
+        subscriber.start()
+
+        self.pubsub_management_service.activate_subscription(subscription_id)
+
+        return subscription_id
