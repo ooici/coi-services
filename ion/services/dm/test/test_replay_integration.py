@@ -17,6 +17,8 @@ from nose.plugins.attrib import attr
 from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
 import random
 
+import gevent
+
 @attr('INT',group='dm')
 class ReplayIntegrationTest(IonIntegrationTestCase):
     def setUp(self):
@@ -46,6 +48,9 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
         self.subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
 
+        # Create an async result
+        self.ar = gevent.event.AsyncResult()
+
 
     def test_replay_integration(self):
         '''
@@ -61,11 +66,18 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=self.datastore_name, datastore_profile='SCIDATA'),
             default_policy=StreamPolicy(archive_metadata=False, archive_data=False),
-            number_of_workers=8
+            number_of_workers=1
         )
 
         self.ingestion_management_service.activate_ingestion_configuration(
             ingestion_configuration_id=ingestion_configuration_id)
+
+        transforms = [self.rr_cli.read(assoc.o)
+                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
+        log.info("PROCESS 1: %s" % str(proc_1))
+
 
         #------------------------------------------------------------------------------------------------------
         # Set up the producers (CTD Simulators)
@@ -102,8 +114,13 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
 
         # Create the stateful listener to hold the captured data for comparison with replay
+        dataset_id = self.dataset_management_service.create_dataset(
+            stream_id=stream_id,
+            datastore_name=self.datastore_name,
+            view_name='datasets/stream_join_granule'
+        )
 
-        replay_id, replay_stream_id = self._create_replay(stream_id)
+        replay_id, replay_stream_id = self.data_retriever_service.define_replay(dataset_id)
 
         query = StreamQuery(stream_ids=[replay_stream_id])
 
@@ -112,6 +129,10 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.data_retriever_service.start_replay(replay_id)
 
 #        captured_replays[post_id] = captured_replay
+
+        sha1 = self.ar.get(Timeout=2)
+
+        print 'GOT BACK THE SHA1!: %s' % sha1
 
 
     def _create_packet(self, stream_id):
@@ -131,7 +152,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         tvar = [ i for i in xrange(1,length+1)]
 
         ctd_packet = ctd_stream_packet(stream_id=stream_id,
-            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar, create_hdf=True)
 
         return ctd_packet
 
@@ -139,22 +160,21 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         """
         Define the replay
         """
-        dataset_id = self.dataset_management_service.create_dataset(
-            stream_id=stream_id,
-            datastore_name=self.datastore_name,
-            view_name='datasets/stream_join_granule'
-        )
 
-        return self.data_retriever_service.define_replay(dataset_id)
 
     def _check_replay(self, message, headers):
         """
         Checks that what replay was sending out was of correct format
         """
         print ('Working! Message in callback: %s' % message)
-        print ('headers: %s' % headers)
 
-        pass
+        print ('message.identifiables.stream_encoding.encoding_type: %s' % message.identifiables['stream_encoding'].encoding_type)
+        print ('message.identifiables.stream_encoding.sha1: %s' % message.identifiables['stream_encoding'].sha1)
+
+        sha1 = message.identifiables['stream_encoding'].sha1
+
+        self.ar.set(sha1)
+
 
 
     def _create_subscriber(self, subscription_name, subscription_query):

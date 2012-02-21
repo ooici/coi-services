@@ -7,7 +7,7 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding
+from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
@@ -88,7 +88,7 @@ class ReplayProcess(BaseReplayProcess):
         log.warn('results: %s', results)
 
         for result in results:
-            log.warn('Result: %s' % result)
+            log.warn('REPLAY Result: %s' % result)
 
             assert('doc' in result)
 
@@ -97,11 +97,14 @@ class ReplayProcess(BaseReplayProcess):
             if isinstance(replay_obj_msg, BlogBase):
                 replay_obj_msg.is_replay = True
 
+            elif isinstance(replay_obj_msg, StreamDefinitionContainer):
+
+                replay_obj_msg.stream_resource_id = self.stream_id
+
             elif isinstance(replay_obj_msg, StreamGranuleContainer):
 
                 # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
                 replay_obj_msg.stream_resource_id = self.stream_id
-
 
                 datastream = None
                 sha1 = None
@@ -113,7 +116,6 @@ class ReplayProcess(BaseReplayProcess):
 
                 log.warn("replay_obj_msg : %s" % replay_obj_msg)
                 log.warn("replay_obj_msg.identifiables: %s" % replay_obj_msg.identifiables)
-
 
 
                 if sha1: # if there is an encoding
