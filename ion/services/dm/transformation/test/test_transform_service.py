@@ -3,6 +3,9 @@
 @file ion/services/dm/transformation/test_transform_service.py
 @description Unit Test for Transform Management Service
 '''
+from Queue import Empty
+import time
+import gevent
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -20,7 +23,7 @@ from ion.services.dm.transformation.transform_management_service import Transfor
 from ion.processes.data.transforms.transform_example import TransformExample
 from interface.objects import ProcessDefinition, StreamQuery
 from pyon.public import   StreamSubscriberRegistrar, StreamPublisherRegistrar
-import gevent
+
 
 @attr('UNIT',group='dm')
 class TransformManagementServiceTest(PyonTestCase):
@@ -519,10 +522,10 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         query = StreamQuery(stream_ids=[streams[0]])
         input_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='input_queue')
 
-        query = StreamQuery(stream_ids = [streams[1]])
+        query = StreamQuery(stream_ids = [streams[1]]) # even output
         even_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='even_queue')
 
-        query = StreamQuery(stream_ids = [streams[2]])
+        query = StreamQuery(stream_ids = [streams[2]]) # odd output
         odd_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='odd_queue')
 
 
@@ -628,5 +631,11 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         for i in xrange(total_msg_count):
             stream_publisher.publish({'num':str(i)})
 
-        for i in xrange(total_msg_count):
-            msgs.get(timeout=0.5)
+        time.sleep(0.5)
+
+        for i in xrange(total_msg_count * 2):
+            try:
+                msgs.get()
+            except Empty:
+                self.assertTrue(False, "Failed to process all messages correctly.")
+
