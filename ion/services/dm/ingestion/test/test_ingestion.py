@@ -29,7 +29,6 @@ from interface.objects import BlogPost, BlogComment, StreamIngestionPolicy, Exch
 from pyon.ion.process import StandaloneProcess
 
 import random
-import time
 
 import unittest
 
