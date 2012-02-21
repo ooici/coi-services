@@ -53,4 +53,11 @@ class RequiredParameterException(InstrumentException):
     """A required parameter is not supplied"""
     def __init__(self, error_code=InstErrorCode.REQUIRED_PARAMETER, msg=None):
         InstrumentException.__init__(self, error_code, msg)
-    
+
+
+class InvalidChannelException(InstrumentException):
+    """Invalid channel(s) indicated. This could be caused by a an unrecognized
+    channel or a combination of channels that cannot be handled in a single
+    operation."""
+    def __init__(self, error_code=InstErrorCode.INVALID_CHANNEL, msg=None):
+        InstrumentException.__init__(self, error_code, msg)

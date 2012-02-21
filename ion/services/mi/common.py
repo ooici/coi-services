@@ -325,6 +325,7 @@ class InstErrorCode(BaseEnum):
     SET_OBSERVATORY_ERR = ['ERROR_SET_OBSERVATORY','Could not set all parameters.']
     PARAMETER_READ_ONLY = ['ERROR_PARAMETER_READ_ONLY','Parameter is read only.']
     INVALID_PARAMETER = ['ERROR_INVALID_PARAMETER','The parameter is not available.']
+    DUPLICATE_PARAMETER = ['ERROR_DUPLICATE_PARAMETER', 'Duplicate parameter.']
     REQUIRED_PARAMETER = ['ERROR_REQUIRED_PARAMETER','A required parameter was not specified.']
     INVALID_PARAM_VALUE = ['ERROR_INVALID_PARAM_VALUE','The parameter value is out of range.']
     INVALID_METADATA = ['ERROR_INVALID_METADATA','The metadata parameter is not available.']

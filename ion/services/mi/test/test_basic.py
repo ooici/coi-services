@@ -6,7 +6,7 @@
 @author Carlos Rueda
 @brief Some unit tests for R2 instrument driver base classes.
 This file defines subclasses of core classes mainly to suply required
-definitions and the tests functionality in the base classes.
+definitions and then tests functionality in the base classes.
 """
 
 __author__ = 'Carlos Rueda'
@@ -15,6 +15,7 @@ __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
@@ -28,8 +29,8 @@ class Command(BaseEnum):
 
 
 class Channel(BaseEnum):
-    CHAN1 = "channel_1"
-    CHAN2 = "channel_2"
+    CHAN1 = "CHAN1"
+    CHAN2 = "CHAN2"
 
     ALL = DriverChannel.ALL
     INSTRUMENT = DriverChannel.INSTRUMENT
@@ -54,19 +55,65 @@ class Parameter(BaseEnum):
 
 
 class MyProtocol(InstrumentProtocol):
-    def __init__(self, channel, evt_callback=None):
+    """
+    A MyProtocol instance will be created for each driver channel.
+    """
+
+    # a base for values that can be easily associated to each protocol
+    # (facilitates inspection)
+    next_base_value = 0
+
+    def __init__(self, channel, params, evt_callback=None):
         """
         @param channel identifies the particular protocol instance.
+        @param params the particular parameters for this channel.
         """
         InstrumentProtocol.__init__(self, evt_callback)
         self._channel = channel
 
+        # initialize values for the params:
+        MyProtocol.next_base_value += 1000
+        next_value = MyProtocol.next_base_value
+        self._values = {}
+        for param in params:
+            next_value += 1
+            self._values[param] = next_value
+
     def get(self, params, *args, **kwargs):
         print "MyProtocol(%s).get: params=%s" % (self._channel, str(params))
+        assert isinstance(params, (list, tuple))
         result = {}
         for param in params:
-            value = "%s_value_in_%s" % (str(param), self._channel)
+            if param in self._values:
+                value = self._values[param]
+            else:
+                value = InstErrorCode.INVALID_PARAMETER
             result[param] = value
+
+        return result
+
+    def set(self, params, *args, **kwargs):
+        print "MyProtocol(%s).set: params=%s" % (self._channel, str(params))
+
+        assert isinstance(params, dict)
+
+        updated_params = 0
+        result = {}
+        for (param, value) in params.items():
+            if param in self._values:
+                if isinstance(value, int):
+                    self._values[param] = value
+                    result[param] = InstErrorCode.OK
+                    updated_params += 1
+                else:
+                    result[param] = InstErrorCode.INVALID_PARAM_VALUE
+            else:
+                result[param] = InstErrorCode.INVALID_PARAMETER
+
+        self.announce_to_driver(DriverAnnouncement.CONFIG_CHANGE,
+                                msg="%s parameter(s) successfully set." %
+                                    updated_params)
+
         return result
 
 
@@ -81,7 +128,14 @@ class MyDriver(InstrumentDriver):
         self.instrument_errors = Error
 
         for channel in self.instrument_channels.list():
-            protocol = MyProtocol(channel, self.protocol_callback)
+            #
+            # TODO associate some specific params per channel. Note that
+            # there is no framework mechanism to specify this. For the
+            # moment, just associate *all* parameters to each channel:
+            #
+            params_per_channel = self.instrument_parameters.list()
+            protocol = MyProtocol(channel, params_per_channel,
+                                  self.protocol_callback)
             self.chan_map[channel] = protocol
 
 
@@ -93,30 +147,98 @@ class Some(object):
             (Channel.CHAN2, Parameter.PARAM2),
             (Channel.CHAN2, Parameter.PARAM3)]
 
+    INVALID_PARAMS = [
+            ("invalid_chan", Parameter.PARAM1),
+            (Channel.CHAN1, "invalid_param")]
+
+
+def _print_dict(title, d):
+    print "%s:" % title
+    for item in d.items():
+        print "\t%s" % str(item)
+
 
 @attr('UNIT', group='mi')
 class DriverTest(unittest.TestCase):
 
-    def test_params(self):
-        driver = MyDriver()
+    def setUp(self):
+        MyProtocol.next_base_value = 0
+        self.driver = MyDriver()
 
-        params = Some.VALID_PARAMS
-        # plus some invalid channels:
-        params += [("invalid_chan", Parameter.PARAM1)]
-        # plus some invalid parameters:
-        params += [(Channel.CHAN1, "invalid_param")]
+    def test_get_params(self):
+        params = Some.VALID_PARAMS + Some.INVALID_PARAMS
 
-        result = driver.get(params)
+        print "\nGET: %s" % str(params)
 
-        print "\nresult = "
-        for item in result.items():
-            print "\t%s" % str(item)
+        get_result = self.driver.get(params)
 
-        self.assertEqual(result[("invalid_chan", Parameter.PARAM1)],
+        _print_dict("\nGET get_result", get_result)
+
+        self.assertEqual(get_result[("invalid_chan", Parameter.PARAM1)],
                          InstErrorCode.INVALID_CHANNEL)
 
-        self.assertEqual(result[(Channel.CHAN1, "invalid_param")],
+        self.assertEqual(get_result[(Channel.CHAN1, "invalid_param")],
                          InstErrorCode.INVALID_PARAMETER)
 
-        for param in Some.VALID_PARAMS:
-            self.assertIsNotNone(result[param])
+        for cp in Some.VALID_PARAMS:
+            self.assertTrue(cp in get_result)
+
+    def test_get_params_channel_all(self):
+        params = [(Channel.ALL, Parameter.PARAM1),
+                  (Channel.ALL, Parameter.PARAM2)]
+
+        print "\nGET: %s" % str(params)
+
+        get_result = self.driver.get(params)
+
+        _print_dict("\nGET get_result", get_result)
+
+        for c in Channel.list():
+            if c != Channel.ALL:
+                self.assertTrue((c, Parameter.PARAM1) in get_result)
+                self.assertTrue((c, Parameter.PARAM2) in get_result)
+
+    def _prepate_set_params(self, params):
+        """Gets a dict for the set operation"""
+        value = 99000
+        set_params = {}
+        for cp in params:
+            set_params[cp] = value
+            value += 1
+        _print_dict("\nset_params", set_params)
+        return set_params
+
+    def test_set_params(self):
+        params = Some.VALID_PARAMS + Some.INVALID_PARAMS
+
+        set_params = self._prepate_set_params(params)
+
+        set_result = self.driver.set(set_params)
+
+        _print_dict("\nSET set_result", set_result)
+
+        # now, get the values for the valid parameters and check
+        get_result = self.driver.get(Some.VALID_PARAMS)
+
+        _print_dict("\nGET get_result", get_result)
+
+        # verify the new values are the ones we wanted
+        for cp in Some.VALID_PARAMS:
+            self.assertEqual(set_params[cp], get_result[cp])
+
+    def test_set_duplicate_param(self):
+        #
+        # Note that via the ALL specifier, along with a specific channel,
+        # one could indicate a duplicate parameter for the same channel.
+        #
+        params = [(Channel.ALL, Parameter.PARAM1),
+                  (Channel.CHAN1, Parameter.PARAM1)]
+
+        set_params = self._prepate_set_params(params)
+
+        set_result = self.driver.set(set_params)
+
+        _print_dict("\nSET set_result", set_result)
+
+        self.assertEqual(set_result[(Channel.CHAN1, Parameter.PARAM1)],
+                         InstErrorCode.DUPLICATE_PARAMETER)

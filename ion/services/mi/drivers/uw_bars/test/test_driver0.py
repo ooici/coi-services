@@ -105,7 +105,7 @@ class DriverTest(BarsTestCase):
         result = driver.set({cp: new_seconds})
         print "set result = %s" % str(result)
         code = result.get(cp)
-        InstErrorCode.is_ok(code)
+        self.assertTrue(InstErrorCode.is_ok(code))
 
         self._assert_auto_sample()
 

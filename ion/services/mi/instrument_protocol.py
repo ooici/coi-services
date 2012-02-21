@@ -195,8 +195,11 @@ class InstrumentProtocol(object):
         """
         pass
     
-    def set(self, *args, **kwargs):
-        """Get some parameters
+    def set(self, params, *args, **kwargs):
+        """Sets parameters for this protocol.
+
+        @param params a dict of p:v entries indicating the value v for each
+        desired parameter p.
         
         @throws InstrumentProtocolException Confusion dealing with the
         physical device
