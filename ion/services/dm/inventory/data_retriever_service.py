@@ -65,17 +65,15 @@ class DataRetrieverService(BaseDataRetrieverService):
             }
         }
 
-        pid = self.container.spawn_process(name=replay_id+'agent',
-            module=self.process_definition.executable['module'],
-            cls=self.process_definition.executable['class'],
-            config=config)
+
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=self.process_definition_id,
+            configuration=config
+        )
 
         replay.process_id = pid
 
         self.clients.resource_registry.update(replay)
-
-
-
         self.clients.resource_registry.create_association(replay_id, PRED.hasStream, replay_stream_id)
         return (replay_id, replay_stream_id)
 
@@ -95,7 +93,7 @@ class DataRetrieverService(BaseDataRetrieverService):
     def cancel_replay(self, replay_id=''):
         replay = self.clients.resource_registry.read(replay_id)
         pid = replay.process_id
-        self.container.proc_manager.terminate_process(pid)
+        self.clients.process_dispatcher.cancel_process(pid)
 
         for pred in [PRED.hasStream]:
             assocs = self.clients.resource_registry.find_associations(replay_id, pred, id_only=True)

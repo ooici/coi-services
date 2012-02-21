@@ -40,28 +40,47 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.data_retriever_service.container = DotDict({'id':'123','spawn_process':Mock(),'proc_manager':DotDict({'terminate_process':Mock(),'procs':[]})})
         self.mock_cc_spawn = self.data_retriever_service.container.spawn_process
         self.mock_cc_terminate = self.data_retriever_service.container.proc_manager.terminate_process
+        self.mock_pd_schedule = self.data_retriever_service.clients.process_dispatcher.schedule_process
+        self.mock_pd_cancel = self.data_retriever_service.clients.process_dispatcher.cancel_process
+        self.mock_ds_read = self.data_retriever_service.clients.dataset_management.read_dataset
         self.data_retriever_service.process_definition = ProcessDefinition()
         self.data_retriever_service.process_definition.executable['module'] = 'ion.processes.data.replay_process'
         self.data_retriever_service.process_definition.executable['class'] = 'ReplayProcess'
 
+        self.data_retriever_service.process_definition_id = 'mock_procdef_id'
+
     def test_define_replay(self):
         #mocks
-        self.mock_ps_create_stream.return_value = 'stream_id'
+        self.mock_ps_create_stream.return_value = '12345'
         self.mock_rr_create.return_value = ('replay_id','garbage')
-        self.mock_cc_spawn.return_value = 'agent_id'
+        self.mock_ds_read.return_value = DotDict({
+            'datastore_name':'unittest',
+            'view_name':'garbage',
+            'primary_view_key':'primary key'})
+
+        self.mock_pd_schedule.return_value = 'process_id'
+
+        config = {'process':{
+            'query':'myquery',
+            'datastore_name':'unittest',
+            'view_name':'garbage',
+            'key_id':'primary key',
+            'delivery_format':None,
+            'publish_streams':{'output':'12345'}
+        }}
 
 
         # execution
-        r,s = self.data_retriever_service.define_replay('dataset_id')
+        r,s = self.data_retriever_service.define_replay(dataset_id='dataset_id', query='myquery')
 
         # assertions
         self.mock_ps_create_stream.assert_called_with('', True, None, '', '', '')
         self.assertTrue(self.mock_rr_create.called)
-        self.mock_rr_create_assoc.assert_called_with('replay_id',PRED.hasStream,'stream_id',None)
-        self.assertTrue(self.mock_cc_spawn.called)
+        self.mock_rr_create_assoc.assert_called_with('replay_id',PRED.hasStream,'12345',None)
+        self.mock_pd_schedule.assert_called_with('mock_procdef_id',None,config )
         self.assertTrue(self.mock_rr_update.called)
         self.assertEquals(r,'replay_id')
-        self.assertEquals(s,'stream_id')
+        self.assertEquals(s,'12345')
 
 
 
@@ -85,7 +104,7 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.assertEquals(self.mock_rr_delete_assoc.call_count,3)
         self.mock_rr_delete.assert_called_with('replay_id')
 
-        self.mock_cc_terminate.assert_called_with('1')
+        self.mock_pd_cancel.assert_called_with('1')
 
 
 
