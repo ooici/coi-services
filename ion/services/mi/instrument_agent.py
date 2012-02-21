@@ -17,6 +17,7 @@ from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
 from pyon.core import exception as iex
 from pyon.util.containers import get_ion_ts
+from pyon.ion.endpoint import StreamPublisherRegistrar
 
 import time
 
@@ -84,7 +85,7 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         ResourceAgent.__init__(self)
-        
+                
         self._fsm = InstrumentFSM(InstrumentAgentState, InstrumentAgentEvent, InstrumentAgentEvent.ENTER,
                             InstrumentAgentEvent.EXIT, InstErrorCode.UNHANDLED_EVENT)
         
@@ -189,16 +190,32 @@ class InstrumentAgent(ResourceAgent):
         
         # List of pending transactions.
         self._pending_transactions = []
-                
-        # Origin for agent publications.
-        self._publisher_origin = None
+                                        
+        # Dictionary of data stream IDs.
+        self._data_streams = {}
         
+        # Dictionary of data stream publishers.
+        self._data_publishers = {}
+
+        # Factories for stream packets.
+        self._packet_factories = {}
+        
+        # Stream registrar to create publishers.
+        self._stream_registrar = None
+
         ###############################################################################
         # Instrument agent parameter capabilities.
         ###############################################################################
         
         self.aparam_ia_param = None
 
+    def on_init(self):
+        """
+        """
+        # The registrar to create publishers.
+        self._stream_registrar = StreamPublisherRegistrar(process=self,
+                                                    node=self.container.node)
+        
     ###############################################################################
     # Event callback and handling.
     ###############################################################################
@@ -209,6 +226,28 @@ class InstrumentAgent(ResourceAgent):
         @param evt The driver event received.
         """
         log.info('Got driver event: %s', evt)
+        
+        try:
+            if evt['type'] == 'sample':
+                name = evt['name']
+                value = evt['value']
+                value['lat'] = 0
+                value['lon'] = 0
+                value['stream_id'] = self._data_streams[name]
+                log.info('name %s',str(name))
+                log.info('value %s',str(value))
+                if isinstance(value, dict):
+                    log.info('creating packet')
+                    packet = self._packet_factories[name](**value)
+                    log.info('created packet %s', str(packet))
+                    self._data_publishers[name].publish(packet)        
+                    log.info('packet published')
+                    
+        except KeyError, TypeError:
+            log.info('Got key/type exception')
+        
+        except Exception as e:
+            log.info('Got evt exception %s',str(e))
 
     ###############################################################################
     # Instrument agent state transition interface.
@@ -328,7 +367,65 @@ class InstrumentAgent(ResourceAgent):
         cmd_res.result = res
 
         return cmd_res
+
+    ###############################################################################
+    # Publication interface.
+    ###############################################################################
+
+    def acmd_add_data_stream(self, name, stream_id, pack_mod, pack_cls):
+        """
+        """        
+        log.info('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+        import_str = 'from %s import %s' % (pack_mod, pack_cls)
+        ctor_str = 'constructor = %s' % pack_cls
+
+        try:
+            log.info('importing %s', import_str)
+            exec import_str
+            log.info('agent imported packet module %s', pack_mod)
+            log.info('constructing %s',ctor_str)
+            exec ctor_str
+            log.info('agent created factory for %s', pack_cls)
+            
+            publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
+            log.info('agent created publilsher for %s', name)
+            
+        except (ImportError, NameError, AttributeError) as e:
+            log.info('Error importing / constructing publisher / factory')
+        
+        else:
+            self._data_streams[name] = stream_id
+            self._data_publishers[name] = publisher
+            self._packet_factories[name] = constructor              
+        
+    def acmd_remove_data_stream(self, name):
+        """
+        """
+        try:
+            self._data_streams.pop(name)
+            
+        except KeyError:
+            pass
+        
+        try:
+            self._data_publishers.pop(name)
+            
+        except KeyError:
+            pass
+
+        try:
+            self._packet_factories.pop(name)
+            
+        except KeyError:
+            pass
     
+    def acmd_clear_data_streams(self):
+        """
+        """
+        self._data_streams.clear()
+        self._data_publishers.clear()
+        self._packet_factories.clear()
+        
     ###############################################################################
     # Instrument agent transaction interface.
     ###############################################################################
@@ -898,7 +995,7 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc = None
             self._dvr_client = None
         time.sleep(1)
-        
+            
     ###############################################################################
     # Misc and test.
     ###############################################################################
