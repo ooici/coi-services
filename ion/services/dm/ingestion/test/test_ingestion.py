@@ -7,6 +7,7 @@
 '''
 
 import gevent
+from gevent.timeout import Timeout
 from mock import Mock
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
@@ -441,8 +442,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
     def test_ingestion_workers_working_round_robin(self):
         """
+        test_ingestion_workers_working_round_robin
         Test that the ingestion workers are handling messages in round robin
         """
+
+
 
         #------------------------------------------------------------------------
         # Create ingestion configuration and activate it
@@ -450,7 +454,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, \
             self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
-
         #------------------------------------------------------------------------
         # Get the ingestion process instances:
         #------------------------------------------------------------------------
@@ -468,15 +471,16 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Set up the gevent events
         #------------------------------------------------------------------------
 
-        ar_1 = gevent.event.AsyncResult()
+        results = gevent.queue.Queue()
         def message_received_1(message):
-            ar_1.set(message)
+            # Heads
+            results.put(1)
 
         proc_1.process = message_received_1
 
-        ar_2 = gevent.event.AsyncResult()
         def message_received_2(message):
-            ar_2.set(message)
+            # Tails
+            results.put(2)
 
 
         proc_2.process = message_received_2
@@ -485,39 +489,37 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Publish messages and test for round robin handling
         #------------------------------------------------------------------------
 
-        num = 1
-        msg = dict(num=str(num))
-
+        # Flip the coin
+        msg = {'num':'1'}
         self.ctd_stream1_publisher.publish(msg)
 
-        self.assertEqual(ar_1.get(timeout=10),msg)
 
-        num += 1
-        msg = dict(num=str(num))
-
+        # Flip the coin
         self.ctd_stream1_publisher.publish(msg)
 
-        self.assertEqual(ar_2.get(timeout=10),msg)
+
+        self.assertTrue((results.get(timeout=1) + results.get(timeout=1))==3,
+            "The ingestion workers are not properly consuming from the broker")
 
 
-        # Reset the async results and try again...
-        ar_1 = gevent.event.AsyncResult()
-        ar_2 = gevent.event.AsyncResult()
+        #------------------------------------------------------------------------
+        # Flip the coin two more times
+        #------------------------------------------------------------------------
 
-
-        num += 1
-        msg = dict(num=str(num))
-
+        # Flip the coin
         self.ctd_stream1_publisher.publish(msg)
 
-        self.assertEqual(ar_1.get(timeout=10),msg)
 
 
-        num += 1
-        msg = dict(num=str(num))
+        # Flip the coin
         self.ctd_stream1_publisher.publish(msg)
 
-        self.assertEqual(ar_2.get(timeout=10),msg)
+
+        # Check heads and tails
+        self.assertTrue((results.get(timeout=1) + results.get(timeout=1)) == 3,
+            "The ingestion workers are not properly consuming from the broker")
+
+
 
     @unittest.skip("todo")
     def test_activate_ingestion_configuration(self):
