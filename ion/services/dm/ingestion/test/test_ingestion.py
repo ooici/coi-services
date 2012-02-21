@@ -940,13 +940,14 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
     def test_receive_policy_event(self):
         """
+        test_receive_policy_event
         Test that the default policy is being used properly
         """
 
         #------------------------------------------------------------------------
         # Create ingestion configuration and activate it
         #----------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,
             self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
@@ -974,11 +975,10 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Set up the gevent events
         #------------------------------------------------------------------------
 
-        ar = gevent.event.AsyncResult()
+        queue = gevent.queue.Queue()
 
         def policy_hook(msg,headers):
-            log.warn('IT WORKS!!')
-            ar.set(msg)
+            queue.put(True)
 
 
         proc_1.policy_event_test_hook = policy_hook
@@ -987,7 +987,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ingestion_cli.create_stream_policy(stream_id=self.input_stream_id,archive_data=True, archive_metadata=True)
 
 
-        self.assertEquals(ar.get(timeout=5).archive_data,True)
+        self.assertTrue(queue.get(timeout=1))
 
 
     def test_policy_implementation_for_science_data(self):
@@ -999,7 +999,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
         # Create ingestion configuration and activate it
         #----------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,
             self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
@@ -1032,24 +1032,21 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             archive_metadata=True
         )
 
-        stream_policy = self.rr_cli.read(stream_policy_id)
-
         #------------------------------------------------------------------------
         # launch a ctd_publisher and set up AsyncResult()
         #----------------------------------------------------------------------
 
-        test_process = StandaloneProcess()
-
         publisher = self.publisher_registrar.create_publisher(stream_id=stream_id)
+        queue=gevent.queue.Queue()
 
-
-        ar1 = gevent.event.AsyncResult()
-
-        def call_to_persist(packet):
-            ar1.set(packet)
+        def call_to_persist1(packet):
+            queue.put(packet)
+        def call_to_persist2(packet):
+            queue.put(packet)
 
         # when persist_immutable() is called, then call_to_persist() is called instead....
-        proc_1.persist_immutable = call_to_persist
+        proc_1.persist_immutable = call_to_persist1
+        proc_2.persist_immutable = call_to_persist2
 
         #------------------------------------------------------------------------
         # Create a packet and publish it
@@ -1064,7 +1061,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
 
         # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
-        self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+        self.assertEquals(queue.get(timeout=1).stream_resource_id, ctd_packet.stream_resource_id)
 
         #------------------------------------------------------------------------
         # Now change the stream policy for the same stream
@@ -1074,12 +1071,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         stream_policy.policy.archive_metadata = False
 
         self.ingestion_cli.update_stream_policy(stream_policy)
-
-        #------------------------------------------------------------------------
-        # Reset the AsyncResult()
-        #------------------------------------------------------------------------
-
-        ar1 = gevent.event.AsyncResult()
 
         #------------------------------------------------------------------------
         # Create a new packet and publish it
@@ -1094,8 +1085,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # This time, the packet should not be persisted since archive_metadata is False
         #------------------------------------------------------------------------
 
-        with self.assertRaises(gevent.Timeout):
-            p = ar1.get(timeout=2)
+        with self.assertRaises(gevent.queue.Empty):
+            queue.get(timeout=0.25)
 
         #----------------------------------------------------------------------
 
@@ -1112,7 +1103,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.ingestion_cli.update_stream_policy(stream_policy)
 
-        ar1 = gevent.event.AsyncResult()
 
         #------------------------------------------------------------------------
         # Create a new packet and publish it
@@ -1126,11 +1116,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Assert that the packets were handled according to the new policy
         #------------------------------------------------------------------------
 
-        self.assertEquals(ar1.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+        self.assertEquals(queue.get(timeout=1).stream_resource_id, ctd_packet.stream_resource_id)
 
 
     def _create_packet(self, stream_id):
-
+        
         length = random.randint(1,20)
 
         c = [random.uniform(0.0,75.0)  for i in xrange(length)]
