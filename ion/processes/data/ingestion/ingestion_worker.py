@@ -141,10 +141,18 @@ class IngestionWorker(TransformDataProcess):
 
         # Ignoring is_replay attribute now that we have a policy implementation
         if isinstance(packet, StreamGranuleContainer):
+
+            hdfstring = ''
+
             for key,value in packet.identifiables.iteritems():
                 if isinstance(value, DataStream):
                     hdfstring = value.values
                     value.values=''
+
+                elif isinstance(value, Encoding):
+                    sha1 = value.sha1
+
+
 
             if policy.archive_metadata is True:
                 log.debug("Persisting data....")
@@ -153,17 +161,20 @@ class IngestionWorker(TransformDataProcess):
             if policy.archive_data is True:
                 #@todo - grab the filepath to save the hdf string somewhere..
 
-                value_hdf = packet.identifiables['ctd_data'].values
+#                value_hdf = packet.identifiables['ctd_data'].values
 
-                if value_hdf:
+                if hdfstring:
 
-                    log.warn('value_hdf: %s' % value_hdf)
+                    log.warn('hdf_string: %s' % hdfstring)
 
-                    filename = '/tmp/' + hashlib.sha1(value_hdf).hexdigest() + '_hdf_string.hdf5'
+                    filename = FileSystem.get_url(FS.TEMP,hashlib.sha1(hdfstring).hexdigest(), ".hdf5")
+#                    filename = '/tmp/' + hashlib.sha1(value_hdf).hexdigest() + '_hdf_string.hdf5'
 
                     with open(filename, mode='wb') as f:
-                        f.write(packet)
+                        f.write(hdfstring)
                         f.close()
+                else:
+                    log.warn("Nothing to write!")
 
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:
