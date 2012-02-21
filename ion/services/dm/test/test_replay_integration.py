@@ -3,7 +3,7 @@
 @file ion/services/dm/test/test_replay_integration.py
 @description Provides a full fledged integration from ingestion to replay using scidata
 """
-from interface.objects import CouchStorage, ProcessDefinition, StreamQuery, StreamPolicy
+from interface.objects import CouchStorage, StreamQuery, StreamPolicy, HdfStorage
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
@@ -65,8 +65,9 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         ingestion_configuration_id = self.ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=self.datastore_name, datastore_profile='SCIDATA'),
-            default_policy=StreamPolicy(archive_metadata=False, archive_data=False),
-            number_of_workers=1
+            hdf_storage=HdfStorage(),
+            number_of_workers=1,
+            default_policy=StreamPolicy(archive_metadata=False, archive_data=False)
         )
 
         self.ingestion_management_service.activate_ingestion_configuration(
@@ -78,6 +79,10 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
 
+        def ingestion_worker_received(message, headers):
+            self.ar.set(message)
+
+        proc_1.ingest_process_test_hook = ingestion_worker_received
 
         #------------------------------------------------------------------------------------------------------
         # Set up the producers (CTD Simulators)
@@ -109,9 +114,19 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         publisher.publish(ctd_packet)
 
         #------------------------------------------------------------------------------------------------------
-        # Create subscriber to listen to the replays
+        # Catch what the ingestion worker gets! Assert it is the same packet that was published!
         #------------------------------------------------------------------------------------------------------
 
+        packet = self.ar.get(Timeout=2)
+
+        self.assertEquals(packet, ctd_packet)
+
+        # reset the gevent event AsyncResult
+        self.ar = gevent.event.AsyncResult()
+
+        #------------------------------------------------------------------------------------------------------
+        # Create subscriber to listen to the replays
+        #------------------------------------------------------------------------------------------------------
 
         # Create the stateful listener to hold the captured data for comparison with replay
         dataset_id = self.dataset_management_service.create_dataset(
