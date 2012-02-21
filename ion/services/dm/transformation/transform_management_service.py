@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import gevent
+
 __license__ = 'Apache 2.0'
 '''
 @author Maurice Manning
@@ -203,32 +205,24 @@ class TransformManagementService(BaseTransformManagementService):
 
     def execute_transform(self, process_definition_id='', data={}, configuration={}):
         process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
-        module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
-        cls = process_definition.executable.get('class','TransformExample')
-
-        #@todo: Address how we want to integrate cei here
-
-        m = hashlib.sha1('transform' + time.ctime())
-        name = m.hexdigest()
-
-        configuration = {
-            'process':{
-                'type':'stream_process',
-                #@todo: fix this
-                'listen_name':'noqueue',
-            }
-        }
-
-        pid = self.container.spawn_process(name=name,
-                        module=module,
-                        cls=cls,
-                        config=configuration)
+        module = process_definition.executable.get('module')
+        cls = process_definition.executable.get('class')
 
 
-        process_instance = self.container.proc_manager.procs[pid]
-        retval = process_instance.execute(data)
 
-        self.container.proc_manager.terminate_process(pid)
+        module = __import__(module, fromlist=[cls])
+        cls = getattr(module,cls)
+        instance = cls()
+
+        result = gevent.event.AsyncResult()
+        def execute(data):
+            result.set(instance.execute(data))
+
+        g = gevent.greenlet.Greenlet(execute, data)
+        g.start()
+
+        retval = result.get(timeout=10)
+
 
         return retval
 
