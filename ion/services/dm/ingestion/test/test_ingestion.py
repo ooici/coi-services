@@ -29,7 +29,6 @@ from interface.objects import BlogPost, BlogComment, StreamIngestionPolicy, Exch
 from pyon.ion.process import StandaloneProcess
 
 import random
-import time
 
 import unittest
 
@@ -438,7 +437,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         for transform in transforms:
             self.assertTrue(self.container.proc_manager.procs[transform.process_id])
-
 
     def test_ingestion_workers_working_round_robin(self):
         """
