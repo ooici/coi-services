@@ -284,28 +284,18 @@ class TransformManagementServiceTest(PyonTestCase):
         with self.assertRaises(NotImplementedError):
             self.transform_service.schedule_transform()
 
-    @unittest.skip("Fix me!")
     def test_execute_transform(self):
         # Mocks
-        self.mock_rr_read.return_value = DotDict({'executable':{
-            'module':'mock_module',
-            'class':'mock_class'
-        }})
-        self.mock_cc_spawn.return_value = '1'
-        self.transform_service.container.id = '1'
+        procdef = ProcessDefinition(
+            executable={
+                'module':'ion.processes.data.transforms.transform_example',
+                'class':'ReverseTransform'}
+        )
+        self.mock_pd_read.return_value = procdef
 
-        def mock_execution(input):
-            return '2'
+        retval = self.transform_service.execute_transform('1234',[1,2,3,4])
 
-        self.transform_service.container.proc_manager.procs['1']= DotDict(execute=mock_execution)
-
-        # Execution
-        ret = self.transform_service.execute_transform(process_definition_id='123',data='123')
-
-        # Assertions
-        self.assertEquals(ret,'2')
-        self.assertTrue(self.mock_cc_spawn.called)
-        self.mock_cc_terminate.assert_called_with('1')
+        self.assertEquals(retval,[4,3,2,1])
 
 
 @attr('INT', group='dm')
