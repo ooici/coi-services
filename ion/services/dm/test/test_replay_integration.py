@@ -55,7 +55,6 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.ar = gevent.event.AsyncResult()
         self.ar2 = gevent.event.AsyncResult()
 
-
     def test_replay_integration(self):
         '''
         Test full DM Services Integration

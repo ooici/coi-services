@@ -138,7 +138,6 @@ class ReplayProcess(BaseReplayProcess):
 
                     retreived_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
 
-
                     if sha1 != retreived_hdfstring_sha1:
                         raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
 
