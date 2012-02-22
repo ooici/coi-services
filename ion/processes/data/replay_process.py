@@ -117,21 +117,16 @@ class ReplayProcess(BaseReplayProcess):
                     elif isinstance(identifiable, Encoding):
                         sha1 = identifiable.sha1
 
-                log.warn("replay_obj_msg : %s" % replay_obj_msg)
-                log.warn("replay_obj_msg.identifiables: %s" % replay_obj_msg.identifiables)
-
-
                 if sha1: # if there is an encoding
 
                     # Get the file from disk
                     filename = FileSystem.get_url(FS.TEMP, sha1, ".hdf5")
 
-                    log.warn('replay reading from filename: %s' % filename)
+                    log.warn('Replay reading from filename: %s' % filename)
 
                     hdf_string = ''
                     with open(filename, mode='rb') as f:
                         hdf_string = f.read()
-                        log.warn('extracted hdf_string: %s' % hdf_string)
                         f.close()
 
                     # Check the Sha1
@@ -142,9 +137,6 @@ class ReplayProcess(BaseReplayProcess):
                     if sha1 != retreived_hdfstring_sha1:
                         raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
 
-                    log.warn('in replay: retreived_hdf_string: %s' % hdf_string)
-                    log.warn('datastream: %s' % datastream)
-
                     # set the datastream.value field!
                     datastream.values = hdf_string
 
@@ -153,8 +145,6 @@ class ReplayProcess(BaseReplayProcess):
                 else:
                     log.warn('No encoding in the StreamGranuleContainer!')
 
-                log.warn('datastream: %s' % datastream)
-                log.warn('sha1: %s' % sha1)
                 self.lock.acquire()
                 self.output.publish(replay_obj_msg)
                 self.lock.release()

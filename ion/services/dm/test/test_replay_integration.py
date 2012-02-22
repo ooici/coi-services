@@ -36,7 +36,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
 
-        # store name
+        # datastore name
         self.datastore_name = 'test_replay_integration'
 
         pid = self.container.spawn_process(name='dummy_process_for_test',
@@ -103,11 +103,10 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         )
 
         #------------------------------------------------------------------------------------------------------
-        # launch a ctd_publisher and set up AsyncResult()
+        # Launch a ctd_publisher
         #------------------------------------------------------------------------------------------------------
 
         publisher = self.publisher_registrar.create_publisher(stream_id=stream_id)
-
 
         #------------------------------------------------------------------------
         # Create a packet and publish it
@@ -126,25 +125,21 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         self.assertEquals(packet.identifiables['stream_encoding'].sha1, ctd_packet.identifiables['stream_encoding'].sha1)
 
-        # reset the gevent event AsyncResult
-        self.ar = gevent.event.AsyncResult()
-
         #------------------------------------------------------------------------------------------------------
         # Create subscriber to listen to the replays
         #------------------------------------------------------------------------------------------------------
 
         self._set_up_replay(stream_id)
 
-#        captured_replays[post_id] = captured_replay
+        retrieved_hdf_string  = self.ar2.get(timeout=2)
 
-        retreived_hdf_string  = self.ar2.get(timeout=2)
-
-        print 'GOT BACK hdf_string!: %s' % retreived_hdf_string
-
-        self.assertEquals(retreived_hdf_string, published_hdfstring)
+        self.assertEquals(retrieved_hdf_string, published_hdfstring)
 
 
     def _create_packet(self, stream_id):
+        """
+        Create a ctd_packet for scientific data
+        """
 
         length = random.randint(1,20)
 
@@ -167,9 +162,8 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
     def _set_up_replay(self, stream_id):
         """
-        Set up replay
+        Set up replay and start it
         """
-        # Create the stateful listener to hold the captured data for comparison with replay
         dataset_id = self.dataset_management_service.create_dataset(
             stream_id=stream_id,
             datastore_name=self.datastore_name,
@@ -185,35 +179,24 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.data_retriever_service.start_replay(replay_id)
 
 
-    def _check_replay(self, message, headers):
+    def _subscriber_call_back(self, message, headers):
         """
         Checks that what replay was sending out was of correct format
         """
-        print ('Working! Message in callback: %s' % message)
+        retrieved_hdf_string = message.identifiables['ctd_data'].values
 
-        print ('message.identifiables.stream_encoding.encoding_type: %s' % message.identifiables['stream_encoding'].encoding_type)
-        print ('message.identifiables.stream_encoding.sha1: %s' % message.identifiables['stream_encoding'].sha1)
-
-        sha1 = message.identifiables['stream_encoding'].sha1
-        retreived_hdf_string = message.identifiables['ctd_data'].values
-
-        print ("retreived hdf string: %s" % retreived_hdf_string)
-
-        self.ar2.set(retreived_hdf_string)
-
+        self.ar2.set(retrieved_hdf_string)
 
 
     def _create_subscriber(self, subscription_name, subscription_query):
-        #------------------------------------------------------------------------------------------------------
-        # Create subscriber to listen to the messages published to the ingestion
-        #------------------------------------------------------------------------------------------------------
-
-        # Make a subscription to the input stream to ingestion
+        """
+        Create subscriber to listen to the replay
+        """
         subscription_id = self.pubsub_management_service.create_subscription(query = subscription_query, exchange_name=subscription_name ,name = subscription_name)
 
         # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
         # Normally the container creates and starts subscribers for you when a transform process is spawned
-        subscriber = self.subscriber_registrar.create_subscriber(exchange_name=subscription_name, callback=self._check_replay)
+        subscriber = self.subscriber_registrar.create_subscriber(exchange_name=subscription_name, callback=self._subscriber_call_back)
         subscriber.start()
 
         self.pubsub_management_service.activate_subscription(subscription_id)

@@ -106,10 +106,6 @@ class IngestionWorker(TransformDataProcess):
 
         log.warn(str(self.db))
 
-
-
-
-
     def process(self, packet):
         """Process incoming data!!!!
         """
