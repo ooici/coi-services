@@ -20,7 +20,8 @@ import time
 
 import random
 
-from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
+from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
@@ -78,9 +79,12 @@ class SimpleCtdPublisher(StandaloneProcess):
 
     def _trigger_func(self, stream_id):
 
+        point_def = ctd_stream_definition(stream_id=stream_id)
+        point_constructor = PointSupplementConstructor(point_definition=point_def)
+
         while True:
 
-            length = random.randint(1,20)
+            length = 1 #random.randint(1,20)
 
             c = [random.uniform(0.0,75.0)  for i in xrange(length)]
 
@@ -96,8 +100,14 @@ class SimpleCtdPublisher(StandaloneProcess):
 
             self.last_time = max(tvar)
 
-            ctd_packet = ctd_stream_packet(stream_id=stream_id,
-                c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+            point_id = point_constructor.add_point(time=tvar,location=(lon[0],lat[0]))
+            point_constructor.add_point_coverage(point_id=point_id, coverage_id='temperature', values=t)
+            point_constructor.add_point_coverage(point_id=point_id, coverage_id='pressure', values=p)
+            point_constructor.add_point_coverage(point_id=point_id, coverage_id='conductivity', values=c)
+
+            ctd_packet = point_constructor.get_stream_granule()
+            #ctd_packet = ctd_stream_packet(stream_id=stream_id,
+            #    c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
 
             log.warn('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
