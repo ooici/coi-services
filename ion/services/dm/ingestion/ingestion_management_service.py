@@ -78,6 +78,13 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param number_of_workers is the number of ingestion workers to create
         @param default_policy is the default policy for streams ingested on this exchange point
         """
+        #@todo: Remove excessive debugging below
+        log.debug('LUKE_DEBUG: create_ingestion_configuration called.')
+        log.debug('exchange_point_id: %s',exchange_point_id)
+        log.debug('couch_storage: %s', couch_storage)
+        log.debug('hdf_storage: %s', hdf_storage)
+        log.debug('number_of_workers: %s', number_of_workers)
+        log.debug('default_policy: %s', default_policy)
 
 
         # Give each ingestion configuration its own queue name to receive data on
@@ -107,23 +114,48 @@ class IngestionManagementService(BaseIngestionManagementService):
         if default_policy is not None:
             ingestion_configuration.default_policy.update(default_policy)
 
-
+        log.debug('LUKE_DEBUG: Creating resource for ingestion configuration.')
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
-
-        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, self.process_definition_id)
-
+        log.debug('LUKE_DEBUG: calling _launch_transforms(\n\t%s,\n\t%s,\n\t%s,\n\t%s,\n\t%s',
+            ingestion_configuration.number_of_workers,
+            subscription_id,
+            ingestion_configuration_id,
+            ingestion_configuration,
+            self.process_definition_id
+        )
+        self._launch_transforms(
+            ingestion_configuration.number_of_workers,
+            subscription_id,
+            ingestion_configuration_id,
+            ingestion_configuration,
+            self.process_definition_id
+        )
         return ingestion_configuration_id
 
     def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id):
         """
         This method spawns the two transform processes without activating them...Note: activating the transforms does the binding
         """
+        log.debug('LUKE_DEBUG: _launch_transforms')
+        log.debug('number_of_workers: %s', number_of_workers)
+        log.debug('subscription_id: %s', subscription_id)
+        log.debug('ingestion_configuration_id: %s', ingestion_configuration_id)
+        log.debug('ingestion_configuration: %s', ingestion_configuration)
+        log.debug('process_definition_id: %s', process_definition_id)
 
         description = 'Ingestion worker'
 
         # launch the transforms
-        for i in range(number_of_workers):
+        for i in xrange(number_of_workers):
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
+            log.debug('LUKE_DEBUG: In interation %d', i)
+            log.debug('calling create_transform')
+            log.debug('name: %s', name)
+            log.debug('description: %s', description)
+            log.debug('in_subscription_id: %s',subscription_id)
+            log.debug('out_streams: %s', {})
+            log.debug('process_definition_id: %s', process_definition_id)
+            log.debug('configuration: %s', ingestion_configuration)
             transform_id = self.clients.transform_management.create_transform(
                 name = name,
                 description = description,
@@ -135,7 +167,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
-
+            log.debug('LUKE_DEBUG: Creating association between transform id and configuration_id')
             self.clients.resource_registry.create_association(ingestion_configuration_id, PRED.hasTransform, transform_id)
             #@todo How should we deal with failure?
 
