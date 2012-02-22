@@ -79,6 +79,8 @@ class TestExchangeManagementService(PyonTestCase):
 
     def test_delete_exchange_space(self):
         self.mock_read.return_value = self.exchange_space
+        self.mock_find_subjects.return_value = (None, [])
+        self.mock_find_objects.return_value = (None, [])
 
         self.exchange_management_service.delete_exchange_space('111')
 
