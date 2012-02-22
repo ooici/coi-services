@@ -99,7 +99,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         stream_policy_id = self.ingestion_management_service.create_stream_policy(
             stream_id=stream_id,
             archive_data=True,
-            archive_metadata=False
+            archive_metadata=True
         )
 
         #------------------------------------------------------------------------------------------------------
@@ -114,6 +114,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
 
         ctd_packet = self._create_packet(stream_id)
+        published_hdfstring = ctd_packet.identifiables['ctd_data'].values
 
         publisher.publish(ctd_packet)
 
@@ -122,14 +123,6 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
         packet = self.ar.get(timeout=2)
-
-#        #------------------
-#        hdfstring = packet.identifiables['ctd_data'].values
-#        sha1 = packet.identifiables['stream_encoding'].sha1
-#
-#        print ("packet: %s" % packet)
-#        print("In test_replay: hdfstring: %s" % hdfstring)
-#        print("In test_replay: sha1: %s" % sha1)
 
         self.assertEquals(packet.identifiables['stream_encoding'].sha1, ctd_packet.identifiables['stream_encoding'].sha1)
 
@@ -144,9 +137,11 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
 #        captured_replays[post_id] = captured_replay
 
-        sha1 = self.ar2.get(timeout=2)
+        retreived_hdf_string  = self.ar2.get(timeout=2)
 
-        print 'GOT BACK THE SHA1!: %s' % sha1
+        print 'GOT BACK hdf_string!: %s' % retreived_hdf_string
+
+        self.assertEquals(retreived_hdf_string, published_hdfstring)
 
 
     def _create_packet(self, stream_id):
@@ -200,8 +195,11 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         print ('message.identifiables.stream_encoding.sha1: %s' % message.identifiables['stream_encoding'].sha1)
 
         sha1 = message.identifiables['stream_encoding'].sha1
+        retreived_hdf_string = message.identifiables['ctd_data'].values
 
-        self.ar2.set(sha1)
+        print ("retreived hdf string: %s" % retreived_hdf_string)
+
+        self.ar2.set(retreived_hdf_string)
 
 
 

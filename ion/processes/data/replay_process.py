@@ -90,6 +90,8 @@ class ReplayProcess(BaseReplayProcess):
         for result in results:
             log.warn('REPLAY Result: %s' % result)
 
+
+
             assert('doc' in result)
 
             replay_obj_msg = result['doc']
@@ -108,6 +110,7 @@ class ReplayProcess(BaseReplayProcess):
 
                 datastream = None
                 sha1 = None
+
                 for key, identifiable in replay_obj_msg.identifiables.iteritems():
                     if isinstance(identifiable, DataStream):
                         datastream = identifiable
@@ -125,16 +128,22 @@ class ReplayProcess(BaseReplayProcess):
 
                     log.warn('replay reading from filename: %s' % filename)
 
+                    hdf_string = ''
                     with open(filename, mode='rb') as f:
                         hdf_string = f.read()
+                        log.warn('extracted hdf_string: %s' % hdf_string)
                         f.close()
 
                     # Check the Sha1
 
-                    retreived_hdfstring_sha1 = hashlib.sha1(hdfstring).hexdigest().upper()
+                    retreived_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
 
                     if sha1 != retreived_hdfstring_sha1:
                         raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
+
+                    log.warn('in replay: retreived_hdf_string: %s' % hdf_string)
+                    log.warn('datastream: %s' % datastream)
 
                     # set the datastream.value field!
                     datastream.values = hdf_string
@@ -144,14 +153,17 @@ class ReplayProcess(BaseReplayProcess):
                 else:
                     log.warn('No encoding in the StreamGranuleContainer!')
 
+                log.warn('datastream: %s' % datastream)
+                log.warn('sha1: %s' % sha1)
+                self.lock.acquire()
+                self.output.publish(replay_obj_msg)
+                self.lock.release()
+
 
             else:
                  log.warn('Unknown type retrieved in DOC!')
 
 
-            self.lock.acquire()
-            self.output.publish(replay_obj_msg)
-            self.lock.release()
 
         #@todo: log when there are not results
         if results is None:
