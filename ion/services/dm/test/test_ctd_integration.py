@@ -45,7 +45,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         '''
         Test full DM Services Integration
         '''
-        log.debug('LUKE_DEBUG: test_dm_integration')
+
         #---------------------------
         # Set up ingestion
         #---------------------------

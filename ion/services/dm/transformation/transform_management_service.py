@@ -52,13 +52,6 @@ class TransformManagementService(BaseTransformManagementService):
 
         @return The transform_id to the transform
         """
-        log.debug('LUKE_DEBUG: create_transform')
-        log.debug('name: %s', name)
-        log.debug('description: %s', description)
-        log.debug('in_subscription_id: %s', in_subscription_id)
-        log.debug('out_streams: %s', out_streams)
-        log.debug('process_definition_id: %s', process_definition_id)
-        log.debug('configuration: %s', configuration)
 
         # ------------------------------------------------------------------------------------
         # Resources and Initial Configs
@@ -69,15 +62,13 @@ class TransformManagementService(BaseTransformManagementService):
             #@todo Is this the right way to handle configs that come as IonObjects?
             configuration = self.serializer.serialize(configuration)
             # strip the type
-            log.debug('LUKE_DEBUG: found ion_object for configuration, stripping _type')
             self._strip_types(configuration)
-            log.debug('LUKE_DEBUG: aftermath: %s', configuration)
+
 
         elif not configuration:
             configuration = {}
 
         # Handle the name uniqueness factor
-        log.debug('LUKE_DEBUG ensuring uniqueness')
         res, _ = self.clients.resource_registry.find_resources(name=name, id_only=True)
         if len(res)>0:
             raise BadRequest('The transform resource with name: %s, already exists.' % name)
@@ -86,7 +77,7 @@ class TransformManagementService(BaseTransformManagementService):
 
         #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
         #@note: In the near future, Process Dispatcher will do all of this
-        log.debug('LUKE_DEBUG: Checking process_definition_id')
+
         if not process_definition_id:
             raise NotFound('No process definition was provided')
 
@@ -100,8 +91,7 @@ class TransformManagementService(BaseTransformManagementService):
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
-       
-        log.debug('LUKE_DEBUG: Creating subscription')
+
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
         listen_name = subscription.exchange_name
 
@@ -122,18 +112,15 @@ class TransformManagementService(BaseTransformManagementService):
         # Process Spawning
         # ------------------------------------------------------------------------------------
         # Spawn the process
-        log.debug('LUKE_DEBUG: schedule_process')
         pid = self.clients.process_dispatcher.schedule_process(
             process_definition_id=process_definition_id,
             configuration=configuration
         )
-        log.debug('LUKE_DEBUG: pid for transform: %s', pid)
         transform_res.process_id =  pid
         
         # ------------------------------------------------------------------------------------
         # Handle Resources
         # ------------------------------------------------------------------------------------
-        log.debug('LUKE_DEBUG: Handling resources')
         transform_id, _ = self.clients.resource_registry.create(transform_res)
 
 
