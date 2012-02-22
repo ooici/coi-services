@@ -30,6 +30,8 @@ from pyon.ion.process import StandaloneProcess
 
 import random
 import time
+import unittest
+import os
 
 import unittest
 
@@ -439,7 +441,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         for transform in transforms:
             self.assertTrue(self.container.proc_manager.procs[transform.process_id])
 
-
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ingestion_workers_working_round_robin(self):
         """
         test_ingestion_workers_working_round_robin
