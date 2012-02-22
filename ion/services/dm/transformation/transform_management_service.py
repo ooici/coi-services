@@ -64,6 +64,7 @@ class TransformManagementService(BaseTransformManagementService):
             # strip the type
             self._strip_types(configuration)
 
+
         elif not configuration:
             configuration = {}
 
@@ -76,8 +77,10 @@ class TransformManagementService(BaseTransformManagementService):
 
         #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
         #@note: In the near future, Process Dispatcher will do all of this
+
         if not process_definition_id:
             raise NotFound('No process definition was provided')
+
         process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
         module = process_definition.executable.get('module','ion.processes.data.transforms.transform_example')
         cls = process_definition.executable.get('class','TransformExample')
@@ -88,7 +91,6 @@ class TransformManagementService(BaseTransformManagementService):
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
-       
 
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
         listen_name = subscription.exchange_name
@@ -114,7 +116,6 @@ class TransformManagementService(BaseTransformManagementService):
             process_definition_id=process_definition_id,
             configuration=configuration
         )
-
         transform_res.process_id =  pid
         
         # ------------------------------------------------------------------------------------
