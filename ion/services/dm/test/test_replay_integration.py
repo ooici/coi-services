@@ -15,6 +15,9 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import StreamPublisherRegistrar, StreamSubscriberRegistrar
 from nose.plugins.attrib import attr
 from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
+from pyon.public import RT, PRED, log, IonObject
+
+
 import random
 
 import gevent
@@ -50,6 +53,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         # Create an async result
         self.ar = gevent.event.AsyncResult()
+        self.ar2 = gevent.event.AsyncResult()
 
 
     def test_replay_integration(self):
@@ -73,8 +77,8 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.ingestion_management_service.activate_ingestion_configuration(
             ingestion_configuration_id=ingestion_configuration_id)
 
-        transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+        transforms = [self.resource_registry_service.read(assoc.o)
+                      for assoc in self.resource_registry_service.find_associations(ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -117,9 +121,17 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         # Catch what the ingestion worker gets! Assert it is the same packet that was published!
         #------------------------------------------------------------------------------------------------------
 
-        packet = self.ar.get(Timeout=2)
+        packet = self.ar.get(timeout=2)
 
-        self.assertEquals(packet, ctd_packet)
+#        #------------------
+#        hdfstring = packet.identifiables['ctd_data'].values
+#        sha1 = packet.identifiables['stream_encoding'].sha1
+#
+#        print ("packet: %s" % packet)
+#        print("In test_replay: hdfstring: %s" % hdfstring)
+#        print("In test_replay: sha1: %s" % sha1)
+
+        self.assertEquals(packet.identifiables['stream_encoding'].sha1, ctd_packet.identifiables['stream_encoding'].sha1)
 
         # reset the gevent event AsyncResult
         self.ar = gevent.event.AsyncResult()
@@ -128,24 +140,11 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         # Create subscriber to listen to the replays
         #------------------------------------------------------------------------------------------------------
 
-        # Create the stateful listener to hold the captured data for comparison with replay
-        dataset_id = self.dataset_management_service.create_dataset(
-            stream_id=stream_id,
-            datastore_name=self.datastore_name,
-            view_name='datasets/stream_join_granule'
-        )
-
-        replay_id, replay_stream_id = self.data_retriever_service.define_replay(dataset_id)
-
-        query = StreamQuery(stream_ids=[replay_stream_id])
-
-        self._create_subscriber(subscription_name='replay_capture_point', subscription_query=query)
-
-        self.data_retriever_service.start_replay(replay_id)
+        self._set_up_replay(stream_id)
 
 #        captured_replays[post_id] = captured_replay
 
-        sha1 = self.ar.get(Timeout=2)
+        sha1 = self.ar2.get(timeout=2)
 
         print 'GOT BACK THE SHA1!: %s' % sha1
 
@@ -171,10 +170,24 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         return ctd_packet
 
-    def _create_replay(self, stream_id):
+    def _set_up_replay(self, stream_id):
         """
-        Define the replay
+        Set up replay
         """
+        # Create the stateful listener to hold the captured data for comparison with replay
+        dataset_id = self.dataset_management_service.create_dataset(
+            stream_id=stream_id,
+            datastore_name=self.datastore_name,
+            view_name='datasets/stream_join_granule'
+        )
+
+        replay_id, replay_stream_id = self.data_retriever_service.define_replay(dataset_id)
+
+        query = StreamQuery(stream_ids=[replay_stream_id])
+
+        self._create_subscriber(subscription_name='replay_capture_point', subscription_query=query)
+
+        self.data_retriever_service.start_replay(replay_id)
 
 
     def _check_replay(self, message, headers):
@@ -188,7 +201,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         sha1 = message.identifiables['stream_encoding'].sha1
 
-        self.ar.set(sha1)
+        self.ar2.set(sha1)
 
 
 

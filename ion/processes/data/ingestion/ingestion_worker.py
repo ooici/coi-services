@@ -43,7 +43,7 @@ class IngestionWorker(TransformDataProcess):
     def policy_event_test_hook(self, msg, headers):
         pass
 
-    def ingest_process_test_hook(self,packet):
+    def ingest_process_test_hook(self,msg, headers):
         pass
 
     def on_start(self):
@@ -120,9 +120,9 @@ class IngestionWorker(TransformDataProcess):
         # Process the packet
         self.process_stream(packet, policy)
 
-
+        headers = ''
         # Hook to override just before processing is complete
-        self.ingest_process_test_hook(packet)
+        self.ingest_process_test_hook(packet, headers)
 
 
     def persist_immutable(self, obj):
