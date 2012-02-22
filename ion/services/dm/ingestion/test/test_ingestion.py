@@ -498,7 +498,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ctd_stream1_publisher.publish(msg)
 
 
-        self.assertTrue((results.get(timeout=1) + results.get(timeout=1))==3,
+        self.assertTrue((results.get(timeout=4) + results.get(timeout=4))==3,
             "The ingestion workers are not properly consuming from the broker")
 
 
@@ -516,7 +516,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
         # Check heads and tails
-        self.assertTrue((results.get(timeout=1) + results.get(timeout=1)) == 3,
+        self.assertTrue((results.get(timeout=4) + results.get(timeout=4)) == 3,
             "The ingestion workers are not properly consuming from the broker")
 
 
@@ -987,11 +987,12 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.ingestion_cli.create_stream_policy(stream_id=self.input_stream_id,archive_data=True, archive_metadata=True)
 
 
-        self.assertTrue(queue.get(timeout=1))
+        self.assertTrue(queue.get(timeout=10))
 
 
     def test_policy_implementation_for_science_data(self):
         """
+        test_policy_implementation_for_science_data
         Test that the default policy is being used properly. Test that create and update stream policy functions
         properly and their implementation is correct
         """
@@ -1061,7 +1062,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
 
         # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
-        self.assertEquals(queue.get(timeout=1).stream_resource_id, ctd_packet.stream_resource_id)
+        self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
         #------------------------------------------------------------------------
         # Now change the stream policy for the same stream
@@ -1116,7 +1117,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Assert that the packets were handled according to the new policy
         #------------------------------------------------------------------------
 
-        self.assertEquals(queue.get(timeout=1).stream_resource_id, ctd_packet.stream_resource_id)
+        self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
 
     def _create_packet(self, stream_id):
