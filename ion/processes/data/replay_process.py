@@ -99,9 +99,14 @@ class ReplayProcess(BaseReplayProcess):
             if isinstance(replay_obj_msg, BlogBase):
                 replay_obj_msg.is_replay = True
 
+                self.lock.acquire()
+                self.output.publish(replay_obj_msg)
+                self.lock.release()
+
             elif isinstance(replay_obj_msg, StreamDefinitionContainer):
 
                 replay_obj_msg.stream_resource_id = self.stream_id
+
 
             elif isinstance(replay_obj_msg, StreamGranuleContainer):
 
