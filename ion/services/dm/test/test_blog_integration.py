@@ -17,7 +17,7 @@ import gevent
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-from pyon.public import CFG, IonObject, log, RT, PRED, LCS, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
+from pyon.public import log, StreamSubscriberRegistrar
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -25,9 +25,8 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 
-from interface.objects import StreamQuery, ExchangeQuery, ProcessDefinition, CouchStorage
-from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
-from interface.objects import BlogPost, BlogComment
+from interface.objects import StreamQuery, ExchangeQuery, CouchStorage
+from interface.objects import BlogPost, BlogComment, StreamPolicy, HdfStorage
 import time
 
 class BlogListener(object):
@@ -115,9 +114,9 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         ingestion_configuration_id = self.ingestion_cli.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name='dm_datastore',datastore_profile='EXAMPLES'),
-            hdf_storage={},
+            hdf_storage=HdfStorage(),
             number_of_workers=6,
-            default_policy={}
+            default_policy= StreamPolicy()
         )
         # activates the transforms... so bindings will be created in this step
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)

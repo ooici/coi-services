@@ -52,8 +52,8 @@ rim = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService
 
 rim.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rim.add_resource_impl_unittests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
-rim.add_resource_impl_unittests(InstrumentDeviceImpl, {"serialnumber": "123", "firmwareversion": "x"})
-rim.add_resource_impl_unittests(InstrumentModelImpl, {"model": "redundant?", "weight": 20000})
+rim.add_resource_impl_unittests(InstrumentDeviceImpl, {"serial_number": "123", "firmware_version": "x"})
+rim.add_resource_impl_unittests(InstrumentModelImpl, {"model_label": "redundant?"})
 rim.add_resource_impl_unittests(PlatformAgentInstanceImpl, {"exchange_name": "sausage"})
 rim.add_resource_impl_unittests(PlatformAgentImpl, {"description": "the big donut"})
 rim.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})

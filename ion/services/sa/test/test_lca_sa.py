@@ -10,16 +10,12 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceClient
 
-from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, LCS # , PRED
 from nose.plugins.attrib import attr
 import unittest
 
 from ion.services.sa.test.helpers import any_old
-
-class FakeProcess(LocalContextMixin):
-    name = ''
 
 
 # some stuff for logging info to the console
@@ -37,10 +33,7 @@ log.warn = lambda x: printout("WARNING: %s\n" % x)
 @attr('INT', group='sa')
 class TestLCASA(IonIntegrationTestCase):
     """
-    LCA integration tests
-
-    tests that start with test_jg_slide reference slides found here:
-    https://confluence.oceanobservatories.org/download/attachments/33753448/LCA_Demo_Swimlanes_CI_2012-01-20_ver_0-06.pdf
+    LCA integration tests at the service level
     """
 
     def setUp(self):
@@ -54,9 +47,6 @@ class TestLCASA(IonIntegrationTestCase):
         self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
         self.client.MFMS = MarineFacilityManagementServiceClient(node=self.container.node)
-
-        # number of ion objects per type
-        self.ionobj_count = {}
 
 
     def test_just_the_setup(self):
@@ -142,6 +132,25 @@ class TestLCASA(IonIntegrationTestCase):
                                                     self.client.MFMS, 
                                                     True)
 
+
+        log.info("Create a data product for the logical instrument")
+        #TODO: do this automatically as part of logical instrument association with model?
+        log_data_product_id = self.generic_fcruf_script(RT.DataProduct,
+                                                        "data_product",
+                                                        self.client.DPMS,
+                                                        False)
+
+        #### this is probably not how we'll end up establishing logical instruments
+        # log.info("add data product to a logical instrument")
+        # log.info("LCA <possible step>: find data products by logical instrument")
+        # self.generic_association_script(c.MFMS.assign_data_product_to_logical_instrument,
+        #                                 c.MFMS.find_logical_instrument_by_data_product,
+        #                                 c.MFMS.find_data_product_by_logical_instrument,
+        #                                 logical_instrument_id,
+        #                                 log_data_product_id)
+
+
+
         log.info("Assigning logical instrument to logical platform")
         log.info("LCA step 5.4: list logical instrument by platform")
         self.generic_association_script(c.MFMS.assign_logical_instrument_to_logical_platform,
@@ -164,13 +173,6 @@ class TestLCASA(IonIntegrationTestCase):
                                                     self.client.IMS, 
                                                     False)
 
-        log.info("LCA <missing step>: assign logical instrument to instrument device")
-        self.generic_association_script(c.IMS.assign_logical_instrument_to_instrument_device,
-                                        c.IMS.find_instrument_device_by_logical_instrument,
-                                        c.IMS.find_logical_instrument_by_instrument_device,
-                                        instrument_device_id,
-                                        logical_instrument_id)
-
         log.info("LCA <missing step>: assign instrument device to platform device")
         self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
                                         c.IMS.find_platform_device_by_instrument_device,
@@ -178,8 +180,40 @@ class TestLCASA(IonIntegrationTestCase):
                                         platform_device_id,
                                         instrument_device_id)
 
+        #STEP 6.6 should really go here, otherwise there is no way to find instruments
+        #         by a marine facility; only logical platforms are linked to sites
+        log.info("LCA <6.6>: assign logical instrument to instrument device")
 
-        #THIS IS WHERE THE STEP SHOULD BE
+        # NOTE TO REVIEWERS
+        #
+        # We are not using the low-level association script right now.  
+        #
+        #self.generic_association_script(c.IMS.assign_logical_instrument_to_instrument_device,
+        #                                c.IMS.find_instrument_device_by_logical_instrument,
+        #                                c.IMS.find_logical_instrument_by_instrument_device,
+        #                                instrument_device_id,
+        #                                logical_instrument_id)
+        #
+        # Instead, we are using a more complete call that handles the data products
+        # in addition to the instrument assignment.  Deciding what instrument data products
+        # map to what logical instrument data products is currently a manual step.  If 
+        # it ever becomes automatic, the following reassign_... function will become the
+        # low-level portion of this concept.
+
+        #first, we need the data product of the instrument
+        inst_data_product_id = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)[0]
+
+        #now GO!  2nd and 5th arguments are blank, because there is no prior instrument 
+        c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
+                                                               "",
+                                                               instrument_device_id,
+                                                               [log_data_product_id],
+                                                               [],
+                                                               [inst_data_product_id])
+                                                               
+
+
+        #THIS IS WHERE STEP 5.5 SHOULD BE
         log.info("LCA step 5.5: list instruments by observatory")
         insts = c.MFMS.find_instrument_device_by_marine_facility(marine_facility_id)
         self.assertIn(instrument_device_id, insts)
@@ -230,6 +264,40 @@ class TestLCASA(IonIntegrationTestCase):
 
 
 
+        #  .-.  .               .    .  
+        # (   )_|_            .'|  .'|  
+        #  `-.  |  .-. .,-.     |    |  
+        # (   ) | (.-' |   )    |    |  
+        #  `-'  `-'`--'|`-'   '---''---'
+        #              |                
+        #  step 11
+
+        #first, create an entire new instrument on this platform
+
+        instrument_device_id2 = self.generic_fcruf_script(RT.InstrumentDevice, 
+                                                          "instrument_device", 
+                                                          self.client.IMS, 
+                                                          False)
+        self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
+                                        c.IMS.find_platform_device_by_instrument_device,
+                                        c.IMS.find_instrument_device_by_platform_device,
+                                        platform_device_id,
+                                        instrument_device_id2)
+        
+        #get the data product of the new instrument
+        inst_data_product_id2 = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id2)[0]
+
+        #now GO!  2nd and 5th arguments are filled in with the old instrument
+        c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
+                                                               instrument_device_id,
+                                                               instrument_device_id2,
+                                                               [log_data_product_id],
+                                                               [inst_data_product_id],
+                                                               [inst_data_product_id2])
+
+
+
+
 
 
 
@@ -248,17 +316,20 @@ class TestLCASA(IonIntegrationTestCase):
         @param subj_id the subject id to associate
         @param obj_id the object id to associate
         """
+        initial_subj_count = len(find_subj_fn(obj_id))
+        initial_obj_count  = len(find_obj_fn(subj_id))
+        
         log.debug("Creating association")
         assign_obj_to_subj_fn(obj_id, subj_id)
 
         log.debug("Verifying find-subj-by-obj")
         subjects = find_subj_fn(obj_id)
-        self.assertEqual(1, len(subjects))
+        self.assertEqual(initial_subj_count + 1, len(subjects))
         self.assertIn(subj_id, subjects)
 
         log.debug("Verifying find-obj-by-subj")
         objects = find_obj_fn(subj_id)
-        self.assertEqual(1, len(objects))
+        self.assertEqual(initial_obj_count + 1, len(objects))
         self.assertIn(obj_id, objects)
 
 
