@@ -42,6 +42,8 @@ For Mac, use homebrew
     Be sure to read the pyon README for platform specific guidance to installing
     dependent libraries and packages.
     Linux: Note that many installs have much older versions installed by default.
+    (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update' 
+    and try the install again)
 
 
 * python packages and environment management:
