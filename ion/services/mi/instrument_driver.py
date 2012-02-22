@@ -12,9 +12,14 @@ with individual instruments in the system.
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
+import logging
 from ion.services.mi.common import BaseEnum
+from ion.services.mi.common import InstErrorCode
 from ion.services.mi.exceptions import InstrumentConnectionException 
+from ion.services.mi.exceptions import RequiredParameterException 
 from ion.services.mi.common import DEFAULT_TIMEOUT
+
+mi_logger = logging.getLogger('mi_logger')
 
 class DriverChannel(BaseEnum):
     """Common channels for all sensors. Driver subclasses contain a subset."""
@@ -459,8 +464,9 @@ class InstrumentDriver(object):
         @throws RequiredParameterException If the arguments are missing or invalid
         """
         valid_channels = []
-        result = {}
+        invalid_chan_dict = {}
         
+        mi_logger.debug("*** channels: %s", channels)
         if (channels == None) or (not isinstance(channels, (list, tuple))):
             raise RequiredParameterException()
             
@@ -472,26 +478,32 @@ class InstrumentDriver(object):
             
             if DriverChannel.ALL in clist:
                 clist.remove(DriverChannel.ALL)
-            if DriverChannel.INSTRUMENT in clist:
-                clist.remove(DriverChannel.INSTRUMENT)
                 
             # Expand "ALL" channel keys.
             if DriverChannel.ALL in channels:
                 channels = clist
+                channels.remove(DriverChannel.INSTRUMENT)
                 #channels += clist
                 #channels = [c for c in channels if c != DriverChannel.ALL]
 
             # Make unique
-            #channels = list(set(channels))
+            channels = list(set(channels))
 
             # Separate valid and invalid channels.
-            valid_channels = [c for c in channels if c in clist]
-            invalid_channels = [c for c in channels if c not in clist]
+            for c in channels:
+                if c in clist:
+                    valid_channels.append(c)
+                else:
+                    invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
+                        
+            #valid_channels = [c for c in channels if c in clist]
+            #invalid_channels = [c for c in channels if c not in clist]
             
             # Build result dict with invalid entries.
-            for c in invalid_channels:
-                invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
+            #for c in invalid_channels:
+            #    invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
                 
+            mi_logger.debug("*** bad: %s, good: %s", invalid_chan_dict, valid_channels)
         return (invalid_chan_dict, valid_channels)
 
     ######################

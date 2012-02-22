@@ -16,6 +16,7 @@ from nose.plugins.attrib import attr
 from ion.services.mi.common import InstErrorCode
 #import ion.services.mi.drivers.satlantic_par.satlantic_par
 from ion.services.mi.data_decorator import ChecksumDecorator
+from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticPARInstrumentProtocol
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Parameter
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Command
@@ -274,7 +275,7 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         reply = self.driver_client.cmd_dvr('configure', configs)
         print("*** configure reply=%s" % str(reply))
 
-        reply = self.driver_client.cmd_dvr('get_current_state')
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
         print("*** get_current_state reply=%s" % str(reply))
 
         reply = self.driver_client.cmd_dvr('connect', [Channel.INSTRUMENT])

@@ -20,7 +20,6 @@ from ion.services.mi.data_decorator import ChecksumDecorator
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
-from ion.services.mi.instrument_connection import SerialInstrumentConnection
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.instrument_fsm_args import InstrumentFSM
@@ -47,7 +46,7 @@ class Channel(BaseEnum):
     INSTRUMENT = DriverChannel.INSTRUMENT
     ALL = DriverChannel.ALL
     # Name the one specific channel we respond as
-    PAR = 'PAR'
+    PAR = 'CHANNEL_PAR'
 
 class Command(BaseEnum):
     SAVE = 'save'
@@ -727,17 +726,16 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
         @param evt_callback The callback function to use for events
         """
         InstrumentDriver.__init__(self, evt_callback)
-        self.instrument_connection = SerialInstrumentConnection()
-        self.instrument_commands = Command()
-        self.instrument_parameters = Parameter()
-        self.instrument_channels = Channel()
-        self.instrument_errors = Error()
-        self.instrument_states = State()
+        self.instrument_commands = Command
+        self.instrument_parameters = Parameter
+        self.instrument_channels = Channel
+        self.instrument_errors = Error
+        self.instrument_states = State
         self.instrument_active_states = [State.COMMAND_MODE,
                                          State.AUTOSAMPLE_MODE,
                                          State.POLL_MODE]
         self.protocol = SatlanticPARInstrumentProtocol(self.protocol_callback)
-        self.chan_map = {Channel.PAR:protocol}
+        self.chan_map = {Channel.PAR:self.protocol}
 
 class SatlanticChecksumDecorator(ChecksumDecorator):
     """Checks the data checksum for the Satlantic PAR sensor"""
