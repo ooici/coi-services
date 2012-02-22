@@ -8,11 +8,12 @@
 to couchdb datastore and hdf datastore.
 '''
 
-from interface.objects import DataStream, StreamGranuleContainer
+from interface.objects import DataStream, StreamGranuleContainer, Encoding
 from pyon.datastore.datastore import DataStore
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
+from pyon.core.exception import IonException
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import BlogPost, BlogComment, StreamPolicy
@@ -20,7 +21,17 @@ from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.event.event import StreamIngestionPolicyEventSubscriber
 
+from pyon.util.file_sys import FS, FileSystem
 import hashlib
+
+class IngestionWorkerException(IonException):
+    """
+    Exception class for IngestionManagementService exceptions. This class inherits from IonException
+    and implements the __str__() method.
+    """
+    def __str__(self):
+        return str(self.get_status_code()) + str(self.get_error_message())
+
 
 class IngestionWorker(TransformDataProcess):
     """
@@ -141,10 +152,19 @@ class IngestionWorker(TransformDataProcess):
 
         # Ignoring is_replay attribute now that we have a policy implementation
         if isinstance(packet, StreamGranuleContainer):
+
+            hdfstring = ''
+            sha1 = ''
+
             for key,value in packet.identifiables.iteritems():
                 if isinstance(value, DataStream):
                     hdfstring = value.values
                     value.values=''
+
+                elif isinstance(value, Encoding):
+                    sha1 = value.sha1
+
+
 
             if policy.archive_metadata is True:
                 log.debug("Persisting data....")
@@ -153,17 +173,22 @@ class IngestionWorker(TransformDataProcess):
             if policy.archive_data is True:
                 #@todo - grab the filepath to save the hdf string somewhere..
 
-                value_hdf = packet.identifiables['ctd_data'].values
+                if hdfstring:
 
-                if value_hdf:
+                    calculated_sha1 = hashlib.sha1(hdfstring).hexdigest().upper()
 
-                    log.warn('value_hdf: %s' % value_hdf)
+                    filename = FileSystem.get_url(FS.TEMP, calculated_sha1, ".hdf5")
 
-                    filename = '/tmp/' + hashlib.sha1(value_hdf).hexdigest() + '_hdf_string.hdf5'
+                    if sha1 != calculated_sha1:
+                        raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
+
+                    log.warn('writing to filename: %s' % filename)
 
                     with open(filename, mode='wb') as f:
-                        f.write(packet)
+                        f.write(hdfstring)
                         f.close()
+                else:
+                    log.warn("Nothing to write!")
 
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:

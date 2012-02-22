@@ -7,12 +7,25 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from interface.objects import BlogBase, StreamGranuleContainer
+from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from pyon.util.containers import DotDict
+from pyon.core.exception import IonException
+from pyon.util.file_sys import FS, FileSystem
+
+import hashlib
+
+class ReplayProcessException(IonException):
+    """
+    Exception class for IngestionManagementService exceptions. This class inherits from IonException
+    and implements the __str__() method.
+    """
+    def __str__(self):
+        return str(self.get_status_code()) + str(self.get_error_message())
+
 
 class ReplayProcess(BaseReplayProcess):
     process_type="standalone"
@@ -75,31 +88,70 @@ class ReplayProcess(BaseReplayProcess):
         log.warn('results: %s', results)
 
         for result in results:
-            log.warn('Result: %s' % result)
-            if 'doc' in result:
-                log.debug('Result contains document.')
-                replay_obj_msg = result['doc']
-                if isinstance(replay_obj_msg, BlogBase):
+            log.warn('REPLAY Result: %s' % result)
+
+            assert('doc' in result)
+
+            replay_obj_msg = result['doc']
+
+            if isinstance(replay_obj_msg, BlogBase):
+                replay_obj_msg.is_replay = True
+
+            elif isinstance(replay_obj_msg, StreamDefinitionContainer):
+
+                replay_obj_msg.stream_resource_id = self.stream_id
+
+            elif isinstance(replay_obj_msg, StreamGranuleContainer):
+
+                # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
+                replay_obj_msg.stream_resource_id = self.stream_id
+
+                datastream = None
+                sha1 = None
+                for key, identifiable in replay_obj_msg.identifiables.iteritems():
+                    if isinstance(identifiable, DataStream):
+                        datastream = identifiable
+                    elif isinstance(identifiable, Encoding):
+                        sha1 = identifiable.sha1
+
+                log.warn("replay_obj_msg : %s" % replay_obj_msg)
+                log.warn("replay_obj_msg.identifiables: %s" % replay_obj_msg.identifiables)
+
+
+                if sha1: # if there is an encoding
+
+                    # Get the file from disk
+                    filename = FileSystem.get_url(FS.TEMP, sha1, ".hdf5")
+
+                    log.warn('replay reading from filename: %s' % filename)
+
+                    with open(filename, mode='rb') as f:
+                        hdf_string = f.read()
+                        f.close()
+
+                    # Check the Sha1
+
+                    retreived_hdfstring_sha1 = hashlib.sha1(hdfstring).hexdigest().upper()
+
+                    if sha1 != retreived_hdfstring_sha1:
+                        raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
+
+                    # set the datastream.value field!
+                    datastream.values = hdf_string
+
                     replay_obj_msg.is_replay = True
+
                 else:
-                    # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
-                    replay_obj_msg.stream_resource_id = self.stream_id
-            else:
-                replay_obj_msg = result['value'] # Document ID, not a document
+                    log.warn('No encoding in the StreamGranuleContainer!')
 
 
-            # Handle delivery options
-            # Case: Chopping granules
-            if False: #isinstance(replay_obj_msg, StreamGranuleContainer) and self.delivery_format.get('chop', False):
-                for identifiable in replay_obj_msg.identifiables:
-                    self.lock.acquire()
-                    self.output.publish(identifiable)
-                    self.lock.release()
-            # Default: Publish
             else:
-                self.lock.acquire()
-                self.output.publish(replay_obj_msg)
-                self.lock.release()
+                 log.warn('Unknown type retrieved in DOC!')
+
+
+            self.lock.acquire()
+            self.output.publish(replay_obj_msg)
+            self.lock.release()
 
         #@todo: log when there are not results
         if results is None:
