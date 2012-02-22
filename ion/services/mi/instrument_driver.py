@@ -353,15 +353,55 @@ class InstrumentDriver(object):
 
     def get(self, params, *args, **kwargs):
         """
-        @param timeout Number of seconds before this operation times out
+        Gets the value of the requested parameters. The general form of
+        params should be a list of tuples (c,p) where c and p are channels
+        and parameters in the self.instrument_channels and
+        self.instrument_parameters lists respectively.
         """
-        pass
-    
+        (result, valid_params) = self._check_get_args(params)
+
+        if mi_logger.isEnabledFor(logging.DEBUG):
+            mi_logger.debug("result=%s  valid_params=%s" %
+                            (str(result), str(valid_params)))
+
+        for (channel, parameters) in valid_params:
+            proto = self.chan_map[channel]
+            # ask channel's protocol to get the values for these parameters:
+            proto_result = proto.get(parameters, *args, **kwargs)
+            for parameter in parameters:
+                result[(channel, parameter)] = proto_result[parameter]
+
+        return result
+
     def set(self, params, *args, **kwargs):
         """
-        @param timeout Number of seconds before this operation times out
+        Sets parameters in this driver.
+
+        @param params A dict of (c,p):v entries where c and p are channels and
+        parameters in the self.instrument_channels and
+        self.instrument_parameters lists respectively,
+        and v is the desired value for such (c,p) pair. For example:
+          {
+            ("MyChannel.CHAN1", MyParam.PARAM1): 123,
+            ("MyChannel.CHAN1", MyParam.PARAM4): 456,
+            ("MyChannel.CHAN3", MyParam.PARAM5): 789,
+          }
         """
-        pass
+        (result, valid_params) = self._check_set_args(params)
+
+        if mi_logger.isEnabledFor(logging.DEBUG):
+            mi_logger.debug("result=%s  valid_params=%s" %
+                            (str(result), str(valid_params)))
+
+        for channel in valid_params:
+            parameters = valid_params[channel]
+            proto = self.chan_map[channel]
+            # ask channel's protocol to set the values for these parameters:
+            proto_result = proto.set(parameters, *args, **kwargs)
+            for parameter in parameters.keys():
+                result[(channel, parameter)] = proto_result[parameter]
+
+        return result
 
     def execute_acquire_sample(self, channels, *args, **kwargs):
         """
@@ -405,6 +445,30 @@ class InstrumentDriver(object):
     # TBD.
     ########################################################################    
         
+    def get_resource_commands(self):
+        """
+        Gets the list of (channel, cmd) pairs gathered from all the
+        channels in this driver.
+        """
+        result = []
+        for channel in self.get_channels():
+            cmds = self.chan_map[channel].get_resource_commands()
+            if cmds:
+                result.extend([(channel, cmd) for cmd in cmds])
+        return result
+
+    def get_resource_params(self):
+        """
+        Gets the list of (channel, param) pairs gathered from all the
+        channels in this driver.
+        """
+        result = []
+        for channel in self.get_channels():
+            params = self.chan_map[channel].get_resource_params()
+            if params:
+                result.extend([(channel, param) for param in params])
+        return result
+
     def get_capabilities(self, channels, *args, **kwargs):
         """
         @param timeout Number of seconds before this operation times out
@@ -422,7 +486,7 @@ class InstrumentDriver(object):
         @retval a list of channels that are in an active state
         """
         result = []
-        chan_state_dict = self.get_current_state([DriverChannels.ALL])
+        chan_state_dict = self.get_current_state([DriverChannel.ALL])
         for chan in chan_state_dict.keys:
             if chan_state_dict[chan] in self.instrument_active_states:
                 result.append[chan]
@@ -466,7 +530,6 @@ class InstrumentDriver(object):
         valid_channels = []
         invalid_chan_dict = {}
         
-        mi_logger.debug("*** channels: %s", channels)
         if (channels == None) or (not isinstance(channels, (list, tuple))):
             raise RequiredParameterException()
             
@@ -495,16 +558,185 @@ class InstrumentDriver(object):
                     valid_channels.append(c)
                 else:
                     invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
-                        
-            #valid_channels = [c for c in channels if c in clist]
-            #invalid_channels = [c for c in channels if c not in clist]
-            
-            # Build result dict with invalid entries.
-            #for c in invalid_channels:
-            #    invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
                 
-            mi_logger.debug("*** bad: %s, good: %s", invalid_chan_dict, valid_channels)
         return (invalid_chan_dict, valid_channels)
+
+    def _check_get_args(self, params):
+        """
+        Checks the params arguments that are supplied.
+
+        @param params A list of tuples (c,p) where c and p are channels and
+        parameters in the self.instrument_channels and
+        self.instrument_parameters lists respectively.
+
+        @retval A tuple (result, valid_params) where:
+
+        result: an empty dict if the given params arguments is valid;
+        otherwise something like:
+          { ("bad_channel", "whatever") : InstErrorCode.INVALID_CHANNEL }
+
+        valid_params: a list of tuples (c,pp) where pp is the list of
+        parameters associated to channel c in the given params argument,
+        for example:
+          [ ("MyChannel.CHAN1", [MyParam.PARAM1, MyParam.PARAM4]),
+            ("MyChannel.CHAN3", [MyParam.PARAM5]),
+          ]
+        The list-per-channel allows the caller to pass such list of params in
+        one single invocation to the corresponding protocol operation.
+        """
+
+        if params == None or not isinstance(params, (list, tuple)):
+            raise RequiredParameterException()
+
+        if len(params) == 0:
+            raise RequiredParameterException()
+
+        # my list of params excluding ALL
+        plist = [p for p in self.instrument_parameters.list() if p !=
+                DriverParameter.ALL]
+
+        # my list of channels excluding ALL
+        clist = [c for c in self.instrument_channels.list() if c !=
+                DriverChannel.ALL]
+
+        # Expand and remove "ALL" channel specifiers.
+        params += [(c, parameter) for (channel, parameter) in params
+            if channel == DriverChannel.ALL for c in clist]
+        params = [(c, p) for (c, p) in params if c != DriverChannel.ALL]
+
+        # Expand and remove "ALL" parameter specifiers.
+        params += [(channel, p) for (channel, parameter) in params
+            if parameter == DriverParameter.ALL for p in plist]
+        params = [(c, p) for (c, p) in params if p != DriverParameter.ALL]
+
+        # Make list unique.
+        params = list(set(params))
+
+        # Separate invalid params.
+        invalid_params = [(c, p) for (c, p) in params if c in clist and p not in plist]
+        invalid_channels = [(c, p) for (c, p) in params if c not in clist]
+
+        # get valid params:
+        chan_params_map = {}
+        for (c, p) in params:
+            if c in clist and p in plist:
+                pp = chan_params_map.get(c, [])
+                pp.append(p)
+                chan_params_map[c] = pp
+        valid_params = chan_params_map.items()
+
+        # Build result
+        result = {}
+        for (c, p) in invalid_params:
+            result[(c, p)] = InstErrorCode.INVALID_PARAMETER
+        for (c, p) in invalid_channels:
+            result[(c, p)] = InstErrorCode.INVALID_CHANNEL
+
+        return (result, valid_params)
+
+    def _check_set_args(self, params):
+        """
+        Checks the params arguments that are supplied.
+
+        @param params A dict of (c,p):v entries where c and p are channels and
+        parameters in the self.instrument_channels and
+        self.instrument_parameters lists respectively,
+        and v is the desired value for such (c,p) pair. For example:
+          {
+            ("MyChannel.CHAN1", MyParam.PARAM1): 123,
+            ("MyChannel.CHAN1", MyParam.PARAM4): 456,
+            ("MyChannel.CHAN3", MyParam.PARAM5): 789,
+          }
+
+        @retval A tuple (result, valid_params) where:
+
+        result: an empty dict if the given params arguments is valid;
+        otherwise something like:
+          { ("bad_channel", "whatever") : InstErrorCode.INVALID_CHANNEL }
+
+        valid_params: a dict of c:pp entries where pp is the dict of p:v
+        entries for each parameter p and desired value v associated to channel
+        c in the given params argument,
+        for example:
+          { "MyChannel.CHAN1": {MyParam.PARAM1: 123, MyParam.PARAM4: 456},
+            "MyChannel.CHAN3": {MyParam.PARAM5: 789},
+          }
+        The dict-per-channel allows the caller to pass such dict in
+        one single invocation to the corresponding protocol operation.
+        """
+        #
+        # NOTE: validation of values NOT done here; that can be a protocol's
+        # responsibility.
+        #
+
+        if params == None or not isinstance(params, dict):
+            raise RequiredParameterException()
+
+        if len(params) == 0:
+            raise RequiredParameterException()
+
+        # my list of params excluding ALL
+        plist = [p for p in self.instrument_parameters.list() if p !=
+                DriverParameter.ALL]
+
+        # my list of channels excluding ALL
+        clist = [c for c in self.instrument_channels.list() if c !=
+                DriverChannel.ALL]
+
+        result = {}
+
+        # c_map = { c: [(p1,v1), (p2,v2)...], ... }, will help check for
+        # duplicate parameters per channel
+        c_map = {}
+        for (channel, param) in params.keys():
+            value = params[(channel, param)]
+
+            if param == DriverParameter.ALL:
+                params_for_channels = plist
+            elif not param in plist:
+                result[(channel, param)] = InstErrorCode.INVALID_PARAMETER
+                continue
+            else:
+                params_for_channels = [param]
+
+            if channel == DriverChannel.ALL:
+                channels = clist
+            elif not channel in clist:
+                result[(channel, param)] = InstErrorCode.INVALID_CHANNEL
+                continue
+            else:
+                channels = [channel]
+
+            for c in channels:
+                # update the list for each channel in this pass:
+                pp = c_map.get(c, [])
+                for p in params_for_channels:
+                    pp.append((p, value))
+                c_map[c] = pp
+
+        # finally, while checking for duplicate parameters-per-channel,
+        # construct valid_params based on c_map, but this time with a
+        # dict for each channel:
+        # valid_params = { c: {p1:v1, p2:v2, ...}, ... }
+        valid_params = {}
+        for c in c_map.keys():
+            # check for any duplicate parameters per channel:
+            pp = c_map[c]
+            ps, vs = zip(*pp)
+            if len(ps) > len(set(ps)):
+                # pick any of the duplicate parameters to report error:
+                dups = list(ps)
+                for p in list(set(ps)):
+                    dups.remove(p)
+                bad_param = dups[0]
+                result[(c, bad_param)] = InstErrorCode.DUPLICATE_PARAMETER
+            else:
+                pv_dict = {}
+                for (p, v) in pp:
+                    pv_dict[p] = v
+                valid_params[c] = pv_dict
+
+        return (result, valid_params)
 
     ######################
     # State change handlers

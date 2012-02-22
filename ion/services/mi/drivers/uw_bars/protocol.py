@@ -39,7 +39,6 @@ log = logging.getLogger('mi_logger')
 CONTROL_S = '\x13'
 CONTROL_M = '\x0d'
 
-# TODO synchronize with actual instrument and simulator
 NEWLINE = '\r\n'
 
 GENERIC_PROMPT_PATTERN = re.compile(r'--> $')
@@ -87,16 +86,14 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
     """
 
-    def __init__(self):
+    def __init__(self, callback=None):
         """
         Creates an instance of this protocol. This basically sets up the
         state machine, which is initialized in the INIT state.
         """
 
-#        InstrumentProtocol.__init__(self)
-        callback, prompts, newline = None, BarsPrompt, NEWLINE
-        CommandResponseInstrumentProtocol.__init__(self, callback, prompts,
-                                                   newline)
+        CommandResponseInstrumentProtocol.__init__(self, callback, BarsPrompt,
+                                                   NEWLINE)
 
         self._outfile = sys.stdout
         self._outfile = file("protoc_output.txt", "w")
@@ -261,7 +258,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         if seconds is None:
             raise InstrumentProtocolException(
-                    msg="Unexpected: string could not be matched: %s" % string)
+                    msg="Unexpected: string could not be matched: %s" % menu)
 
         result = {cp: seconds}
         return result

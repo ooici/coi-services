@@ -178,12 +178,15 @@ class InstrumentProtocol(object):
     # Protocol command interface.
     ########################################################################
         
-    def get(self, *args, **kwargs):
+    def get(self, params, *args, **kwargs):
         """Get some parameters
         
         @param params A list of parameters to fetch. These must be in the
-        fetchable parameter list
-        @retval results A dict of the parameters that were queried
+        fetchable parameter list, for example
+          [MyParam.PARAM1, MyParam.PARAM5]
+        @retval results A dict of the parameters that were queried, for
+        example:
+          {MyParam.PARAM1: param1Val, MyParam.PARAM5: param5Val}
         @throws InstrumentProtocolException Confusion dealing with the
         physical device
         @throws InstrumentStateException Unable to handle current or future
@@ -192,8 +195,11 @@ class InstrumentProtocol(object):
         """
         pass
     
-    def set(self, *args, **kwargs):
-        """Get some parameters
+    def set(self, params, *args, **kwargs):
+        """Sets parameters for this protocol.
+
+        @param params a dict of p:v entries indicating the value v for each
+        desired parameter p.
         
         @throws InstrumentProtocolException Confusion dealing with the
         physical device
@@ -224,11 +230,32 @@ class InstrumentProtocol(object):
     ########################################################################
     # TBD.
     ########################################################################
-    
-    
+
+    def get_resource_commands(self):
+        """
+        Gets the list of commands associated with this protocol.
+        """
+        return [cmd for cmd in dir(self) if cmd.startswith('execute_')]
+
+    def get_resource_params(self):
+        """
+        Gets the list of parameters associated with this protocol.
+        """
+        return self._get_param_dict_names()
+
     def get_capabilities(self):
         """
         """
+        pass
+
+    def get_current_state(self):
+        """
+        Gets the current state of this protocol.
+        """
+        #
+        # TODO harmonize the concepts "driver state" and "protocol state"
+        # -- these are not clearly separated, if that's what we should do.
+        #
         pass
 
     ########################################################################

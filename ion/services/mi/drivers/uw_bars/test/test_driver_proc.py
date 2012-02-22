@@ -126,12 +126,6 @@ class BarsDriverTest(PyonBarsTestCase):
 
         self._initialize()
 
-    def test_connect_disconnect(self):
-        """BARS connect and disconnect"""
-
-        self._connect()
-        self._disconnect()
-
     def test_get(self):
         """BARS get"""
 
