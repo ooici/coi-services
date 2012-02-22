@@ -14,9 +14,9 @@ Usage:
 comm_config = get_config_from_type(metadata, 'ethernet'):
 
 #
-# Get config from the console
+# Get config from the console (prompts for type)
 #
-comm_config.get_from_console()
+comm_config = comm_config.get_from_console(metadata)
 
 #
 # List all know CommConfig types
@@ -79,6 +79,9 @@ class CommConfig(object):
         self.metadata = metadata
         if( self.metadata.name ):
             self.read_from_file()
+
+    def __str__(self):
+        return str(self.__dict())
 
     def _init_from_yaml(self, yamlInput):
         """

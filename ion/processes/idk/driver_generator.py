@@ -16,6 +16,7 @@ from string import Template
 
 import yaml
 
+from pyon.util.config import CFG
 from ion.processes.idk.metadata import Metadata
 
 
@@ -32,35 +33,36 @@ class DriverGenerator:
         @brief base directory for the new driver
         @retval dir name
         """
-        return os.environ['HOME'] + "/Workspace/code/wfrench"
+        #return os.environ['HOME'] + "/Workspace/code/wfrench"
+        return "/".join([os.environ['HOME'], CFG.idk.driver_path])
 
     def template_dir(self):
         """
         @brief directory where code templates are stored
         @retval template dir name
         """
-        return self.base_dir() + "/coi-services/ion/processes/idk/templates"
+        return "/".join([self.base_dir(), CFG.idk.repo, CFG.idk.template_dir])
 
     def driver_dir(self):
         """
         @brief directory to store the new driver code
         @retval driver dir name
         """
-        return self.base_dir() + "/coi-services/ion/services/mi/drivers/" + self.metadata.name
+        return "/".join([self.base_dir(), CFG.idk.repo, CFG.idk.driver_dir, self.metadata.name])
 
     def test_dir(self):
         """
         @brief directory to store the new driver test code
         @retval driver test dir name
         """
-        return self.driver_dir() + "/test"
+        return "/".join([self.driver_dir(), "test"])
 
     def resource_dir(self):
         """
         @brief directory to store the driver resources
         @retval driver resource dir name
         """
-        return self.driver_dir() + "/resource"
+        return "/".join([self.driver_dir(), "resource"])
 
     def driver_filename(self):
         """
@@ -75,15 +77,16 @@ class DriverGenerator:
         @brief full path to the driver code
         @retval driver path
         """
-        return self.driver_dir() + "/" + self.driver_filename()
+        return "/".join([self.driver_dir(), self.driver_filename()])
 
     def driver_relative_path(self):
         """
         @brief relative path in the code base.
         @retval relative driver path
         """
-        path = self.driver_path() + "/" + self.driver_filename()
-        return path.replace(self.base_dir() + '/coi-services/', '')
+        replace = "/".join([self.base_dir(), CFG.idk.repo]) + '/'
+        path = self.driver_path()
+        return path.replace(replace, '')
 
     def test_filename(self):
         """
@@ -113,7 +116,7 @@ class DriverGenerator:
         @retval driver test module name
         """
         test_file = self.test_dir() + "/" + self.test_filename()
-        module_name = test_file.replace(self.base_dir() + '/coi-services/', '')
+        module_name = test_file.replace(self.base_dir() + '/' + CFG.idk.repo + '/', '')
         module_name = module_name.replace('/', '.')
         module_name = module_name.replace('.py', '')
 

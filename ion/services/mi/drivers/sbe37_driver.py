@@ -2,7 +2,7 @@
 
 """
 @package ion.services.mi.sbe37_driver
-@file ion/services/mi/sbe37_driver.py
+@file ion
 @author Edward Hunter
 @brief Driver class for sbe37 CTD instrument.
 """
@@ -373,7 +373,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         return self._fsm.on_event(SBE37Event.DISCONNECT, fsm_params)
     
     def detach(self, timeout=10):
-        """
+
         """
 
         # Construct state machine params and fire event.
