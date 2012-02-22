@@ -128,10 +128,35 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         # Create subscriber to listen to the replays
         #------------------------------------------------------------------------------------------------------
 
-        self._set_up_replay(stream_id)
+        dataset_id = self.dataset_management_service.create_dataset(
+            stream_id=stream_id,
+            datastore_name=self.datastore_name,
+            view_name='datasets/stream_join_granule'
+        )
 
+        replay_id, replay_stream_id = self.data_retriever_service.define_replay(dataset_id)
+
+        # Create a subscriber for the replay stream
+        query = StreamQuery(stream_ids=[replay_stream_id])
+
+        subscription_id = self.pubsub_management_service.create_subscription(query = query, exchange_name='replay_capture_point' ,name = 'replay_capture_point')
+
+        # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
+        # Normally the container creates and starts subscribers for you when a transform process is spawned
+        subscriber = self.subscriber_registrar.create_subscriber(exchange_name='replay_capture_point', callback=self._subscriber_call_back)
+        subscriber.start()
+
+        self.pubsub_management_service.activate_subscription(subscription_id)
+
+
+        # Start the replay
+        self.data_retriever_service.start_replay(replay_id)
+
+
+        # Get the hdf string from the captured stream in the replay
         retrieved_hdf_string  = self.ar2.get(timeout=2)
 
+        # Assert that it matches the message we sent
         self.assertEquals(retrieved_hdf_string, published_hdfstring)
 
 
@@ -159,45 +184,14 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         return ctd_packet
 
-    def _set_up_replay(self, stream_id):
-        """
-        Set up replay and start it
-        """
-        dataset_id = self.dataset_management_service.create_dataset(
-            stream_id=stream_id,
-            datastore_name=self.datastore_name,
-            view_name='datasets/stream_join_granule'
-        )
-
-        replay_id, replay_stream_id = self.data_retriever_service.define_replay(dataset_id)
-
-        query = StreamQuery(stream_ids=[replay_stream_id])
-
-        self._create_subscriber(subscription_name='replay_capture_point', subscription_query=query)
-
-        self.data_retriever_service.start_replay(replay_id)
 
 
     def _subscriber_call_back(self, message, headers):
         """
         Checks that what replay was sending out was of correct format
         """
+        #@todo - this would fail if the stream defintion arrived before the stream granule - why does it work?
         retrieved_hdf_string = message.identifiables['ctd_data'].values
 
         self.ar2.set(retrieved_hdf_string)
 
-
-    def _create_subscriber(self, subscription_name, subscription_query):
-        """
-        Create subscriber to listen to the replay
-        """
-        subscription_id = self.pubsub_management_service.create_subscription(query = subscription_query, exchange_name=subscription_name ,name = subscription_name)
-
-        # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
-        # Normally the container creates and starts subscribers for you when a transform process is spawned
-        subscriber = self.subscriber_registrar.create_subscriber(exchange_name=subscription_name, callback=self._subscriber_call_back)
-        subscriber.start()
-
-        self.pubsub_management_service.activate_subscription(subscription_id)
-
-        return subscription_id

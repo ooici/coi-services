@@ -130,21 +130,24 @@ class ReplayProcess(BaseReplayProcess):
                     log.warn('Replay reading from filename: %s' % filename)
 
                     hdf_string = ''
-                    with open(filename, mode='rb') as f:
-                        hdf_string = f.read()
-                        f.close()
+                    try:
+                        with open(filename, mode='rb') as f:
+                            hdf_string = f.read()
+                            f.close()
 
-                    # Check the Sha1
+                            # Check the Sha1
+                            retreived_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
 
-                    retreived_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+                            if sha1 != retreived_hdfstring_sha1:
+                                raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
 
-                    if sha1 != retreived_hdfstring_sha1:
-                        raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
+                    except IOError:
+                        log.warn('No HDF file found!')
+                        #@todo deal with this situation? How?
+                        hdf_string = 'HDF File %s not found!' % filename
 
                     # set the datastream.value field!
                     datastream.values = hdf_string
-
-                    replay_obj_msg.is_replay = True
 
                 else:
                     log.warn('No encoding in the StreamGranuleContainer!')
