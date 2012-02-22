@@ -20,7 +20,11 @@ from interface.services.coi.iservice_gateway_service import ServiceGatewayServic
 from pyon.util.containers import DictDiffer
 from pyon.util.log import log
 
+import unittest
+import os
+
 @attr('INT', group='coi')
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
     def setUp(self):
