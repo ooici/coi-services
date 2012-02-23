@@ -26,7 +26,7 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from interface.objects import StreamQuery, ExchangeQuery, CouchStorage
-from interface.objects import BlogPost, BlogComment, StreamPolicy, HdfStorage
+from interface.objects import BlogPost, BlogComment, HdfStorage
 import time
 
 class BlogListener(object):
@@ -116,7 +116,6 @@ class BlogIntegrationTest(IonIntegrationTestCase):
             couch_storage=CouchStorage(datastore_name='dm_datastore',datastore_profile='EXAMPLES'),
             hdf_storage=HdfStorage(),
             number_of_workers=6,
-            default_policy= StreamPolicy()
         )
         # activates the transforms... so bindings will be created in this step
         self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
