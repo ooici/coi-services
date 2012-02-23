@@ -15,8 +15,8 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.public import RT, PRED, log
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
-from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
-from interface.objects import Subscription, SubscriptionTypeEnum, StreamDefinition
+from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, StreamDefinition
+from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
 
@@ -48,7 +48,8 @@ class PubsubManagementService(BasePubsubManagementService):
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
     def create_stream_definition(self, container=None, name='', description=''):
-        """@brief Create a new stream definition which may be used to publish on one or more streams
+        """
+        @brief Create a new stream definition which may be used to publish on one or more streams
         @param container is a stream definition container object
 
         @param container    StreamDefinitionContainer
