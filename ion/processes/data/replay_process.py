@@ -125,7 +125,7 @@ class ReplayProcess(BaseReplayProcess):
                 if sha1: # if there is an encoding
 
                     # Get the file from disk
-                    filename = FileSystem.get_url(FS.TEMP, sha1, ".hdf5")
+                    filename = FileSystem.get_url(FS.CACHE, sha1, ".hdf5")
 
                     log.warn('Replay reading from filename: %s' % filename)
 

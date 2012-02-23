@@ -3,7 +3,7 @@
 @file ion/services/dm/test/test_replay_integration.py
 @description Provides a full fledged integration from ingestion to replay using scidata
 """
-from interface.objects import CouchStorage, StreamQuery, StreamPolicy, HdfStorage
+from interface.objects import CouchStorage, StreamQuery, HdfStorage
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
@@ -70,7 +70,6 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
             couch_storage=CouchStorage(datastore_name=self.datastore_name, datastore_profile='SCIDATA'),
             hdf_storage=HdfStorage(),
             number_of_workers=1,
-            default_policy=StreamPolicy(archive_metadata=False, archive_data=False)
         )
 
         self.ingestion_management_service.activate_ingestion_configuration(
@@ -93,13 +92,25 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         ctd_stream_def = ctd_stream_definition()
 
-        stream_id = self.pubsub_management_service.create_stream(stream_definition=ctd_stream_def)
+        stream_def_id = self.pubsub_management_service.create_stream_defintion(container=ctd_stream_def, name='Junk definition')
 
-        stream_policy_id = self.ingestion_management_service.create_stream_policy(
+
+        stream_id = self.pubsub_management_service.create_stream(stream_definition_id=stream_def_id)
+
+
+        dataset_id = self.dataset_management_service.create_dataset(
             stream_id=stream_id,
-            archive_data=True,
-            archive_metadata=True
+            datastore_name=self.datastore_name,
+            view_name='datasets/stream_join_granule'
         )
+
+        stream_policy_id = self.ingestion_management_service.create_dataset_configuration(
+            dataset_id = dataset_id,
+            archive_data = True,
+            archive_metadata = True,
+            ingestion_configuration_id = ingestion_configuration_id
+        )
+
 
         #------------------------------------------------------------------------------------------------------
         # Launch a ctd_publisher
@@ -127,12 +138,6 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
         # Create subscriber to listen to the replays
         #------------------------------------------------------------------------------------------------------
-
-        dataset_id = self.dataset_management_service.create_dataset(
-            stream_id=stream_id,
-            datastore_name=self.datastore_name,
-            view_name='datasets/stream_join_granule'
-        )
 
         replay_id, replay_stream_id = self.data_retriever_service.define_replay(dataset_id)
 
