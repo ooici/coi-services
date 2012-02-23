@@ -47,9 +47,52 @@ class PubsubManagementService(BasePubsubManagementService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
+    def create_stream_defintion(self, container=None):
+        """@brief Create a new stream defintion which may be used to publish on one or more streams
+        @param container is a stream definition container object
 
+        @param container    StreamDefinitionContainer
+        @retval stream_definition_id    str
+        """
+        stream_definition = StreamDefinition(container=container)
+        stream_def_id, rev = self.clients.resource_registry.create(stream_definition)
 
-    def create_stream(self,encoding='', original=True, stream_definition=None, name='', description='', url=''):
+        return stream_def_id
+
+    def update_stream_definition(self, stream_definition=None):
+        """Update an existing stream definition
+
+        @param stream_definition    StreamDefinition
+        @retval success    bool
+        """
+        id, rev = self.clients.resource_registry.update(stream_definition)
+        return True
+
+    def read_stream_definition(self, stream_definition_id=''):
+        """Get an existing stream definition.
+
+        @param stream_definition_id    str
+        @retval stream_definition    StreamDefinition
+        @throws NotFound    if stream_definition_id doesn't exist
+        """
+        stream_definition = self.clients.resource_registry.read(stream_definition_id)
+        if stream_definition is None:
+            raise NotFound("StreamDefinition %s does not exist" % stream_definition_id)
+        return stream_definition
+
+    def delete_stream_definition(self, stream_definition_id=''):
+        """Delete an existing stream definition.
+
+        @param stream_definition_id    str
+        @throws NotFound    if stream_definition_id doesn't exist
+        """
+        stream_definition = self.clients.resource_registry.read(stream_definition_id)
+        if stream_definition is None:
+            raise NotFound("StreamDefinition %s does not exist" % stream_definition_id)
+
+        self.clients.resource_registry.delete(stream_definition_id)
+
+    def create_stream(self,encoding='', original=True, stream_definition_id='', name='', description='', url=''):
         '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
         @param encoding the encoding for data on this stream
         @param original is the data on this stream from a source or a transform
@@ -69,16 +112,17 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_obj.url = url
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
 
-        if stream_definition is not None:
-
-            #@todo Very awkward right now - need to read the stream object and update a field with its own id...
-            stream_obj = self.clients.resource_registry.read(stream_id)
-
-            stream_definition.stream_resource_id = stream_id
-
-            stream_obj.stream_definition.update(stream_definition)
-
-            id, rev = self.clients.resource_registry.update(stream_obj)
+        if stream_definition != '':
+            self.clients.resource_registry.create_association(stream_id, PRED.hasStreamDefinition, stream_definition_id)
+        #
+        #    #@todo Very awkward right now - need to read the stream object and update a field with its own id...
+        #    stream_obj = self.clients.resource_registry.read(stream_id)
+        #
+        #    stream_definition.stream_resource_id = stream_id
+        #
+        #    stream_obj.stream_definition.update(stream_definition)
+        #
+        #    id, rev = self.clients.resource_registry.update(stream_obj)
 
         return stream_id
 
@@ -124,7 +168,6 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Stream %s does not exist" % stream_id)
 
         self.clients.resource_registry.delete(stream_id)
-        return True
 
     def find_streams(self, filter=None):
         '''
