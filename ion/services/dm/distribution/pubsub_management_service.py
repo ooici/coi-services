@@ -48,7 +48,7 @@ class PubsubManagementService(BasePubsubManagementService):
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
     def create_stream_definition(self, container=None, name='', description=''):
-        """@brief Create a new stream defintion which may be used to publish on one or more streams
+        """@brief Create a new stream definition which may be used to publish on one or more streams
         @param container is a stream definition container object
 
         @param container    StreamDefinitionContainer
@@ -97,7 +97,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
         @param encoding the encoding for data on this stream
         @param original is the data on this stream from a source or a transform
-        @param stream_defintion a predefined stream definition type for this stream
+        @param stream_definition a predefined stream definition type for this stream
         @param name (optional) the name of the stream
         @param description (optional) the description of the stream
         @param url (optional) the url where data from this stream can be found (Not implemented)
