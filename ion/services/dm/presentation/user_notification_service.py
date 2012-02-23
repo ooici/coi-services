@@ -163,6 +163,26 @@ class UserNotificationService(BaseUserNotificationService):
         # get the smtp server address if configured
         self.smtp_server = self.CFG.get('smtp_server', ION_SMTP_SERVER)        
         
+        # load event originators, types, and table
+        self.event_originators = CFG.event.originators        
+        self.event_types = CFG.event.types
+        self.event_table = {}
+        for originator in self.event_originators:
+            try:
+                self.event_table[originator] = CFG.event[originator]
+            except:
+                log.warning("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
+        log.debug("UserNotificationService.on_start(): event_originators=%s" %str(self.event_originators))        
+        log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types)) 
+        log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table)) 
+        
+        """
+        # code to dump resource types, delete this from file for release
+        rt = sorted(RT)
+        for r in rt:
+            print("RT.%s=%s" %(r, str(RT[r])))        
+        """
+        
     def create_notification(self, notification=None, user_id=''):
         """
         Persists the provided NotificationRequest object for the specified Origin id. 

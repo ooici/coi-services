@@ -108,21 +108,3 @@ class TestDatastore(IonIntegrationTestCase):
         # Delete raw doc
         self.datastore_service.delete_doc(user_info_doc_id)
 
-    def test_find(self):
-        # Persist IonObject
-        sample_obj1 = IonObject("SampleObject", name="John Smith", an_int=123)
-        sampe_obj_id1, sample_obj_rev1 = self.datastore_service.create(sample_obj1)
-
-        sample_obj2 = IonObject("SampleObject", name="Jane Smith", an_int=123)
-        sampe_obj_id2, sample_obj_rev2 = self.datastore_service.create(sample_obj2)
-        
-        with self.assertRaises(BadRequest) as cm:
-            self.datastore_service.find([["an_int", DataStore.EQUAL]])
-        self.assertTrue(cm.exception.message == "Insufficient criterion values specified.  Much match [<field>, <logical constant>, <value>]")
-        
-        res = self.datastore_service.find([["an_int", DataStore.EQUAL, 123]])
-        self.assertTrue(len(res) == 2)
-
-        res = self.datastore_service.find([["an_int", DataStore.EQUAL, 123], DataStore.AND, ["name", DataStore.EQUAL, "John Smith"]])
-        self.assertTrue(len(res) == 1)
-
