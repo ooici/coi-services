@@ -20,14 +20,20 @@ from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.event.event import StreamIngestionPolicyEventSubscriber
 
-
-
+import hashlib
 
 class IngestionWorker(TransformDataProcess):
     """
     Instances of this class acts as Ingestion Workers. They receive packets and send them to couchdb datastore or
     hdf storage according to the policy in the data stream or the default policy of the ingestion configuration
     """
+
+
+    def policy_event_test_hook(self, msg, headers):
+        pass
+
+    def ingest_process_test_hook(self,packet):
+        pass
 
     def on_start(self):
         super(IngestionWorker,self).on_start()
@@ -65,18 +71,33 @@ class IngestionWorker(TransformDataProcess):
         self.stream_policies = {}
         # update the policy
         def receive_policy_event(event_msg, headers):
-            log.warn('Got a message!!!!')
-            self.stream_policies[event_msg.stream_id] = event_msg
+            log.info('Updating stream policy in ingestion worker: stream_id= %s' % event_msg.stream_id)
+
+            if event_msg.description == 'delete stream_policy':
+                del self.stream_policies[event_msg.stream_id]
+            else:
+                self.stream_policies[event_msg.stream_id] = event_msg
+
+            # Hook to override just before processing is complete
+            self.policy_event_test_hook(event_msg, headers)
 
 
         #Use the Exchang Point name (id?) as the origin for stream policy events
         XP = self.stream_subscriber_registrar.XP
         # @todo Find a better way to get the XP that the ingestion worker is subscribed too
 
+        #@todo - check the resource registry for any already existing stream policies... how?
+
+        #Start the event subscriber - really - what a mess!
         self.event_subscriber = StreamIngestionPolicyEventSubscriber(node = self.container.node, origin=XP, callback=receive_policy_event)
         self.gl = spawn(self.event_subscriber.listen)
+        self.event_subscriber._ready_event.wait(timeout=5)
 
         log.warn(str(self.db))
+
+
+
+
 
     def process(self, packet):
         """Process incoming data!!!!
@@ -87,6 +108,10 @@ class IngestionWorker(TransformDataProcess):
 
         # Process the packet
         self.process_stream(packet, policy)
+
+
+        # Hook to override just before processing is complete
+        self.ingest_process_test_hook(packet)
 
 
     def persist_immutable(self, obj):
@@ -126,9 +151,19 @@ class IngestionWorker(TransformDataProcess):
                 self.persist_immutable(packet )
 
             if policy.archive_data is True:
-                #@todo - save the hdf string somewhere..
-                pass
+                #@todo - grab the filepath to save the hdf string somewhere..
 
+                value_hdf = packet.identifiables['ctd_data'].values
+
+                if value_hdf:
+
+                    log.warn('value_hdf: %s' % value_hdf)
+
+                    filename = '/tmp/' + hashlib.sha1(value_hdf).hexdigest() + '_hdf_string.hdf5'
+
+                    with open(filename, mode='wb') as f:
+                        f.write(packet)
+                        f.close()
 
 
         elif isinstance(packet, BlogPost) and not packet.is_replay:
@@ -143,10 +178,12 @@ class IngestionWorker(TransformDataProcess):
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
+        self.gl.kill()
         self.db.close()
 
     def on_quit(self):
         TransformDataProcess.on_quit(self)
+        self.gl.kill()
         self.db.close()
 
 
@@ -170,7 +207,6 @@ class IngestionWorker(TransformDataProcess):
             log.info('No policy found for stream id: %s - using default policy: %s' % (stream_id, policy))
         else:
             log.info('Got policy: %s for stream id: %s' % (policy, stream_id))
-
 
         # return the extracted instruction
         return policy

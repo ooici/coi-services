@@ -12,10 +12,13 @@ from pyon.core.exception import NotFound
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery
-
+from interface.objects import ExchangeQuery, IngestionConfiguration, ProcessDefinition
 from interface.objects import StreamIngestionPolicy, StreamPolicy
 from pyon.event.event import StreamIngestionPolicyEventPublisher
+
+
+from pyon.datastore.datastore import DataStore
+
 
 
 class IngestionManagementServiceException(IonException):
@@ -50,6 +53,21 @@ class IngestionManagementService(BaseIngestionManagementService):
         super(IngestionManagementService,self).on_start()
         self.event_publisher = StreamIngestionPolicyEventPublisher(node = self.container.node)
 
+
+        #########################################################################################################
+        #   The code for process_definition may not really belong here, but we do not have a different way so
+        #   far to preload the process definitions. This will later probably be part of a set of predefinitions
+        #   for processes.
+        #########################################################################################################
+        self.process_definition = ProcessDefinition()
+        self.process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
+        self.process_definition.executable['class'] = 'IngestionWorker'
+        self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+
+    def on_quit(self):
+        self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
+        super(IngestionManagementService,self).on_quit()
+
     def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
                                        number_of_workers=0, default_policy=None):
         """
@@ -65,17 +83,6 @@ class IngestionManagementService(BaseIngestionManagementService):
         # Give each ingestion configuration its own queue name to receive data on
         exchange_name = 'ingestion_queue'
 
-
-        #########################################################################################################
-        #   The code for process_definition may not really belong here, but we do not have a different way so
-        #   far to preload the process definitions. This will later probably be part of a set of predefinitions
-        #   for processes.
-        #########################################################################################################
-        process_definition = IonObject(RT.ProcessDefinition, name='ingestion_example')
-        process_definition.executable = {'module': 'ion.processes.data.ingestion.ingestion_worker', 'class':'IngestionWorker'}
-        #        process_definition.executable = {'module': 'ion.services.dm.ingestion.ingestion_example', 'class':'IngestionExample'}
-        process_definition_id, _ = self.clients.resource_registry.create(process_definition)
-
         ##------------------------------------------------------------------------------------
         ## declare our intent to subscribe to all messages on the exchange point
         query = ExchangeQuery()
@@ -87,7 +94,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # create an ingestion_configuration instance and update the registry
         # @todo: right now sending in the exchange_point_id as the name...
-        ingestion_configuration = IonObject(RT.IngestionConfiguration, name = self.XP)
+        ingestion_configuration = IngestionConfiguration( name = self.XP)
         ingestion_configuration.description = '%s exchange point ingestion configuration' % self.XP
         ingestion_configuration.number_of_workers = number_of_workers
 
@@ -103,8 +110,13 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
-        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id)
-
+        self._launch_transforms(
+            ingestion_configuration.number_of_workers,
+            subscription_id,
+            ingestion_configuration_id,
+            ingestion_configuration,
+            self.process_definition_id
+        )
         return ingestion_configuration_id
 
     def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id):
@@ -115,7 +127,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         description = 'Ingestion worker'
 
         # launch the transforms
-        for i in range(number_of_workers):
+        for i in xrange(number_of_workers):
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
             transform_id = self.clients.transform_management.create_transform(
                 name = name,
@@ -128,9 +140,8 @@ class IngestionManagementService(BaseIngestionManagementService):
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
-
             self.clients.resource_registry.create_association(ingestion_configuration_id, PRED.hasTransform, transform_id)
-            #@todo How should we deal with failure?
+
 
     def update_ingestion_configuration(self, ingestion_configuration=None):
         """Change the number of workers or the default policy for ingesting data on each stream
@@ -166,10 +177,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         #@todo Should we check to see if the ingestion configuration exists?
 
         #delete the transforms associated with the ingestion_configuration_id
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
 
-        if len(transform_ids) is 0:
-            log.warn('No transforms associated with this ingestion configuration!')
+        if len(transform_ids) < 1:
+            raise NotFound('No transforms associated with this ingestion configuration!')
+
+        log.debug('len(transform_ids): %s' % len(transform_ids))
 
         for transform_id in transform_ids:
             # To Delete - we need to actually remove each of the transforms
@@ -178,6 +191,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # delete the associations too...
         associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
+        log.info('associations: %s' % associations)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
             #@todo How should we deal with failure?
@@ -250,6 +264,24 @@ class IngestionManagementService(BaseIngestionManagementService):
         # Read the stream to get the stream definition
         stream = self.clients.pubsub_management.read_stream(stream_id=stream_id)
 
+        #@todo - once we have an exchange point associaiton this might all make sense. For now just add it to the db for all configs
+        resources, _ = self.clients.resource_registry.find_resources(RT.IngestionConfiguration, None, None, False)
+
+        for ing_conf in resources:
+
+            try:
+                couch_storage = ing_conf.couch_storage
+            except AttributeError:
+                continue
+
+            log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
+            #@todo how do we get them to the right database?!?!
+            db = self.container.datastore_manager.get_datastore(couch_storage.datastore_name, couch_storage.datastore_profile, self.CFG)
+
+            db.create(stream.stream_definition)
+
+            db.close()
+
 
         policy = StreamPolicy(  archive_data=archive_data,
                                 archive_metadata=archive_metadata,
@@ -268,6 +300,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.event_publisher.create_and_publish_event(
             origin=XP,
+            description = stream_policy.description,
             stream_id =stream_id,
             archive_data=archive_data,
             archive_metadata=archive_metadata,
@@ -284,20 +317,17 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if policy does not exist
         """
 
-        log.warn('stream policy to update: %s' % stream_policy)
+        log.info('stream policy to update: %s' % stream_policy)
 
         log.debug("Updating stream policy")
         stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
 
-
-        log.warn('stream_policy_id: %s' % stream_policy_id)
-
         self.event_publisher.create_and_publish_event(
-            origin='ingestion_management',
-            description='junk!',
+            origin=self.XP,
+            description = stream_policy.description,
             stream_id =stream_policy.policy.stream_id,
-            archive_data=True,
-            archive_metadata=True,
+            archive_data=stream_policy.policy.archive_data,
+            archive_metadata=stream_policy.policy.archive_metadata,
             resource_id = stream_policy_id
         )
 
@@ -327,11 +357,14 @@ class IngestionManagementService(BaseIngestionManagementService):
         log.debug("Deleting stream policy")
         self.clients.resource_registry.delete(stream_policy_id)
 
+        #@todo publish an event for deleting policy
+
         self.event_publisher.create_and_publish_event(
-            origin='ingestion_management',
+            origin=self.XP,
+            description = 'delete stream_policy',
             stream_id =stream_policy.policy.stream_id,
-            archive_data=True,
-            archive_metadata=True,
+            archive_data=stream_policy.policy.archive_data,
+            archive_metadata=stream_policy.policy.archive_metadata,
             resource_id = stream_policy_id,
             deleted = True
         )

@@ -1,0 +1,2 @@
+subject type,subject ID,predicate,object type,object ID
+InstrumentDevice,I1,hasAssignment,LogicalInstrument,L1

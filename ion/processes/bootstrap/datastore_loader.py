@@ -116,12 +116,13 @@ class DatastoreAdmin(ImmediateProcess):
             dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
             path = "res/preload/local/dump_%s" % dtstr
         if ds_name:
-            if Container.instance.datastore_manager.exists(ds_name):
+            if DatastoreManager.exists(ds_name):
                 cls._dump_datastore(ds_name, path, clear_dir)
             else:
                 log.warn("Datastore does not exist")
         else:
-            ds_list = ['resources', 'objects', 'state', 'events', 'directory']
+            ds_list = ['resources', 'objects', 'state', 'events',
+                    'directory', 'scidata']
             for ds in ds_list:
                 cls._dump_datastore(path, ds, clear_dir)
 
@@ -144,9 +145,9 @@ class DatastoreAdmin(ImmediateProcess):
         objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
         numwrites = 0
         for obj_id, obj_key, obj in objs:
-            if obj_id.startswith("_design"):
-                continue
             fn = obj_id
+            if obj_id.startswith("_design"):
+                fn = obj_id.replace("/","_")
             # Some object ids start with slash
             if obj_id.startswith("/"):
                 fn = obj_id.replace("/","_")

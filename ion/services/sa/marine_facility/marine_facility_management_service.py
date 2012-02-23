@@ -316,11 +316,11 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     def unassign_logical_platform_from_site(self, logical_platform_id='', site_id=''):
         self.site.unlink_platform(site_id, logical_platform_id)
 
-    def assign_data_product_to_logical_instrument(self, data_product_id='', logical_instrument_id=''):
-        self.logical_instrument.link_data_product(logical_instrument_id, data_product_id)
+    # def assign_data_product_to_logical_instrument(self, data_product_id='', logical_instrument_id=''):
+    #     self.logical_instrument.link_data_product(logical_instrument_id, data_product_id)
 
-    def unassign_data_product_from_logical_instrument(self, data_product_id='', logical_instrument_id=''):
-        self.logical_instrument.unlink_data_product(logical_instrument_id, data_product_id)
+    # def unassign_data_product_from_logical_instrument(self, data_product_id='', logical_instrument_id=''):
+    #     self.logical_instrument.unlink_data_product(logical_instrument_id, data_product_id)
 
 
 
@@ -371,11 +371,11 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     def find_marine_facility_by_site(self, site_id=''):
         return self.marine_facility.find_having_site(site_id)
 
-    def find_data_product_by_logical_instrument(self, logical_instrument_id=''):
-        return self.logical_instrument.find_stemming_data_product(logical_instrument_id)
+    # def find_data_product_by_logical_instrument(self, logical_instrument_id=''):
+    #     return self.logical_instrument.find_stemming_data_product(logical_instrument_id)
 
-    def find_logical_instrument_by_data_product(self, data_product_id=''):
-        return self.logical_instrument.find_having_data_product(data_product_id)
+    # def find_logical_instrument_by_data_product(self, data_product_id=''):
+    #     return self.logical_instrument.find_having_data_product(data_product_id)
 
 
     ############################

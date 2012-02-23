@@ -5,7 +5,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, collections, ast, simplejson, json
+import inspect, collections, ast, simplejson, json, sys
 from flask import Flask, request
 from gevent.wsgi import WSGIServer
 
@@ -24,6 +24,11 @@ service_gateway_instance = None
 
 DEFAULT_WEB_SERVER_HOSTNAME = ""
 DEFAULT_WEB_SERVER_PORT = 5000
+
+GATEWAY_RESPONSE = 'GatewayResponse'
+GATEWAY_ERROR = 'GatewayError'
+GATEWAY_ERROR_EXCEPTION = 'Exception'
+GATEWAY_ERROR_MESSAGE = 'Message'
 
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
@@ -104,7 +109,7 @@ def process_gateway_request(service_name, operation):
         #Retrieve service definition
         from pyon.core.bootstrap import service_registry
         # MM: Note: service_registry can do more now
-        target_service = service_registry.get_service_base(service_name)
+        target_service = service_registry.get_service_by_name(service_name)
 
         if not target_service:
             raise NotFound("Target service name not found in the URL")
@@ -114,14 +119,10 @@ def process_gateway_request(service_name, operation):
 
 
         #Find the concrete client class for making the RPC calls.
-        target_client = None
-        for name, cls in inspect.getmembers(inspect.getmodule(target_service),inspect.isclass):
-            if issubclass(cls, ProcessRPCClient) and not name.endswith('ProcessRPCClient'):
-                target_client = cls
-                break
+        if not target_service.client:
+            raise NotFound("Cannot find a client class for the specified service: %s", service_name )
 
-        if not target_client:
-            raise NotFound("Service operation not correctly specified in the URL")
+        target_client = target_service.client
 
         #Retrieve json data from HTTP Post payload
         json_params = None
@@ -131,28 +132,55 @@ def process_gateway_request(service_name, operation):
             #payload = '{"serviceRequest": { "serviceName": "resource_registry", "serviceOp": "find_resources", "params": { "restype": "BankAccount", "lcstate": "", "name": "", "id_only": false } } }'
             json_params = json.loads(payload)
 
+            if not json_params.has_key('serviceRequest'):
+                raise Inconsistent("The JSON request is missing the 'serviceRequest' key in the request")
+
+            if not json_params['serviceRequest'].has_key('serviceName'):
+                raise Inconsistent("The JSON request is missing the 'serviceName' key in the request")
+
+            if not json_params['serviceRequest'].has_key('serviceOp'):
+                raise Inconsistent("The JSON request is missing the 'serviceOp' key in the request")
+
             if json_params['serviceRequest']['serviceName'] != target_service.name:
-                 raise Inconsistent("Target service name in the JSON request (%s) does not match service name in URL (%s)" % (str(json_params['serviceRequest']['serviceName']), target_service.name ) )
+                raise Inconsistent("Target service name in the JSON request (%s) does not match service name in URL (%s)" % (str(json_params['serviceRequest']['serviceName']), target_service.name ) )
 
             if json_params['serviceRequest']['serviceOp'] != operation:
-                 raise Inconsistent("Target service operation in the JSON request (%s) does not match service name in URL (%s)" % ( str(json_params['serviceRequest']['serviceOp']), operation ) )
+                raise Inconsistent("Target service operation in the JSON request (%s) does not match service name in URL (%s)" % ( str(json_params['serviceRequest']['serviceOp']), operation ) )
 
         param_list = create_parameter_list(service_name, target_client,operation, json_params)
+
+        #Add governance headers - these are the default values.
+        ion_actor_id = 'anonymous'
+        expiry = '0'
+        param_list['headers'] = {'ion-actor-id': ion_actor_id, 'expiry': expiry}
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
         result = methodToCall(**param_list)
 
-    except Exception, e:
-        result =  "Error: %s" % e.message
+        return json_response({GATEWAY_RESPONSE: result})
 
-    return json_response(result)
+
+    except Exception, e:
+        return build_error_response(e)
+
+
 
 #Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
 def json_response(response_data):
 
     return app.response_class(simplejson.dumps({'data': response_data}, default=ion_object_encoder,
         indent=None if request.is_xhr else 2), mimetype='application/json')
+
+def build_error_response(e):
+
+    exc_type, exc_obj, exc_tb = sys.exc_info()
+    result = {
+        GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+        GATEWAY_ERROR_MESSAGE : str(e.message)
+    }
+
+    return json_response({ GATEWAY_ERROR :result } )
 
 
 #Build parameter list dynamically from
@@ -250,11 +278,13 @@ def list_resource_types():
         for res in sorted(resultSet):
             ret_list.append(res)
 
-        return json_response(ret_list)
+
+        return json_response({ GATEWAY_RESPONSE :ret_list } )
+
 
     except Exception, e:
-        ret =  "Error: %s" % e.message
-        return json_response(ret)
+        return build_error_response(e)
+
 
 
 #Returns a json object for a specified resource type with all default values.
@@ -281,10 +311,12 @@ def get_resource_schema(resource_type):
                         value = None
                     setattr(ret_obj, field, value)
 
-    except Exception, e:
-        ret_obj =  "Error: %s" % e.message
 
-    return json_response(ret_obj)
+        return json_response({ GATEWAY_RESPONSE :ret_obj } )
+
+    except Exception, e:
+        return build_error_response(e)
+
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -303,10 +335,12 @@ def get_resource(resource_id):
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
-        except Exception, e:
-            result =  "Error: %s" % e
+            return json_response({ GATEWAY_RESPONSE :result } )
 
-    return json_response(result)
+        except Exception, e:
+            return build_error_response(e)
+
+
 
 
 #Example operation to return a list of resources of a specific type like
@@ -324,10 +358,12 @@ def list_resources_by_type(resource_type):
         for res in res_list:
             result.append(res)
 
-    except Exception, e:
-        result =  "Error: %s" % e
+        return json_response({ GATEWAY_RESPONSE :result } )
 
-    return json_response(result)
+    except Exception, e:
+        return build_error_response(e)
+
+
 
 #Example restful call to a client function for another service like
 #http://hostname:port/ion-service/run_bank_client
@@ -336,6 +372,7 @@ def create_accounts():
     from examples.bank.bank_client import run_client
     run_client(Container.instance, process=service_gateway_instance)
     return json_response("")
+
 
 
 

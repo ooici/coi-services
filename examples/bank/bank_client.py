@@ -5,6 +5,7 @@ from pyon.util.context import LocalContextMixin
 
 class FakeProcess(LocalContextMixin):
     name = ''
+    id = ''
 
 def run_client(container, process=FakeProcess()):
     """

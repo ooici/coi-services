@@ -6,15 +6,19 @@
 """
 import time
 from interface.objects import CouchStorage, ProcessDefinition, StreamQuery, StreamPolicy
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 import os
+from prototype.sci_data.ctd_stream import ctd_stream_definition
+from pyon.public import log
 
 @attr('INT',group='dm')
 class CTDIntegrationTest(IonIntegrationTestCase):
@@ -28,6 +32,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         self.data_retriever_service = DataRetrieverServiceClient(node=self.container.node)
         self.transform_management_service = TransformManagementServiceClient(node=self.container.node)
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
+        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
 
         # We keep track of our own processes
         self.process_list = []
@@ -45,6 +50,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Set up ingestion
         #---------------------------
         # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
+        log.debug('Calling create_ingestion_configuration')
         ingestion_configuration_id = self.ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=self.datastore_name,datastore_profile='SCIDATA'),
@@ -61,7 +67,10 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Launch five simulated CTD producers
         for iteration in xrange(5):
             # Make a stream to output on
-            stream_id = self.pubsub_management_service.create_stream()
+
+            ctd_stream_def = ctd_stream_definition()
+
+            stream_id = self.pubsub_management_service.create_stream(stream_definition=ctd_stream_def)
             stream_policy_id = self.ingestion_management_service.create_stream_policy(
                 stream_id=stream_id,
                 archive_data=False,
@@ -107,7 +116,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
             'module':'ion.processes.data.transforms.transform_example',
             'class':'TransformCapture'
         }
-        transform_definition_id,_ = self.resource_registry_service.create(transform_definition)
+        transform_definition_id = self.process_dispatcher.create_process_definition(process_definition=transform_definition)
 
         dataset_id = self.datasets.pop() # Just need one for now
         replay_id, stream_id = self.data_retriever_service.define_replay(dataset_id=dataset_id)
@@ -149,10 +158,10 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Make sure the transform capture worked
         #--------------------------------------------
 
-        stats = os.stat('/tmp/transform_output')
+        stats = os.stat(FileSystem.get_url(FS.TEMP,'transform_output'))
         self.assertTrue(stats.st_blksize > 0)
 
         # BEAUTIFUL!
 
-        os.unlink('/tmp/transform_output')
+        FileSystem.unlink(FileSystem.get_url(FS.TEMP,'transform_output'))
 

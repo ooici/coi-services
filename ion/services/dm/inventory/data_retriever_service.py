@@ -6,7 +6,7 @@
 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.services.dm.ireplay_process import ReplayProcessClient
-from interface.objects import Replay
+from interface.objects import Replay, ProcessDefinition
 from pyon.core.exception import BadRequest
 from pyon.public import PRED
 
@@ -19,8 +19,17 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def on_start(self):
         super(DataRetrieverService,self).on_start()
+        self.process_definition = ProcessDefinition()
+        self.process_definition.executable['module']='ion.processes.data.replay_process'
+        self.process_definition.executable['class'] = 'ReplayProcess'
+        self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
 
-    def define_replay(self, dataset_id='', query={}, delivery_format={}):
+
+    def on_quit(self):
+        self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
+        super(DataRetrieverService,self).on_quit()
+
+    def define_replay(self, dataset_id='', query=None, delivery_format=None):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         '''
         # Get the datastore name from the dataset object, use dm_datastore by default.
@@ -55,17 +64,16 @@ class DataRetrieverService(BaseDataRetrieverService):
             'publish_streams':{'output':replay_stream_id}
             }
         }
-        pid = self.container.spawn_process(name=replay_id+'agent',
-            module='ion.processes.data.replay_process',
-            cls='ReplayProcess',
-            config=config)
+
+
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=self.process_definition_id,
+            configuration=config
+        )
 
         replay.process_id = pid
 
         self.clients.resource_registry.update(replay)
-
-
-
         self.clients.resource_registry.create_association(replay_id, PRED.hasStream, replay_stream_id)
         return (replay_id, replay_stream_id)
 
@@ -85,7 +93,7 @@ class DataRetrieverService(BaseDataRetrieverService):
     def cancel_replay(self, replay_id=''):
         replay = self.clients.resource_registry.read(replay_id)
         pid = replay.process_id
-        self.container.proc_manager.terminate_process(pid)
+        self.clients.process_dispatcher.cancel_process(pid)
 
         for pred in [PRED.hasStream]:
             assocs = self.clients.resource_registry.find_associations(replay_id, pred, id_only=True)
