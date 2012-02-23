@@ -16,6 +16,7 @@ from pyon.core.exception import IonException
 from interface.objects import ExchangeQuery, IngestionConfiguration, ProcessDefinition
 from interface.objects import DatasetIngestionConfiguration, DatasetIngestionByStream, DatasetIngestionTypeEnum
 from pyon.event.event import DatasetIngestionConfigurationEventPublisher
+from pyon.core.object import IonObjectSerializer, IonObjectBase
 
 
 from pyon.datastore.datastore import DataStore
@@ -48,6 +49,8 @@ class IngestionManagementService(BaseIngestionManagementService):
             self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
+        self.serializer = IonObjectSerializer()
 
 
     def on_start(self):
@@ -122,6 +125,11 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         description = 'Ingestion worker'
 
+        configuration = self.serializer.serialize(ingestion_configuration)
+        configuration.pop('type_')
+        configuration['configuration_id'] = ingestion_configuration_id
+
+
         # launch the transforms
         for i in xrange(number_of_workers):
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
@@ -131,7 +139,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 in_subscription_id= subscription_id,
                 out_streams = {},
                 process_definition_id=process_definition_id,
-                configuration=ingestion_configuration) # The config is the ingestion configuration object!
+                configuration=ingestion_configuration)
 
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
@@ -310,14 +318,13 @@ class IngestionManagementService(BaseIngestionManagementService):
         self.event_publisher.create_and_publish_event(
             origin=ingestion_configuration_id, # Use the ingestion configuration ID as the origin!
             description = dset_ingest_config.description,
-            stream_id =stream_id,
-            archive_data=archive_data,
-            archive_metadata=archive_metadata,
+            configuration = config,
+            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
             resource_id = dset_ingest_config_id
             )
 
 
-        return stream_policy_id
+        return dset_ingest_config_id
 
     def update_dataset_config(self, dataset_ingestion_configuration=None):
         """Update the ingestion configuration for a dataset
@@ -341,9 +348,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         self.event_publisher.create_and_publish_event(
             origin=ingest_config_id,
             description = dataset_ingestion_configuration.description,
-            stream_id = dataset_ingestion_configuration.configuration.stream_id,
-            archive_data = dataset_ingestion_configuration.configuration.archive_data,
-            archive_metadata = dataset_ingestion_configuration.configuration.archive_metadata,
+            configuration = dataset_ingestion_configuration.configuration,
+            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
             resource_id = dset_ingest_config_id
         )
 
@@ -384,7 +390,8 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.event_publisher.create_and_publish_event(
             origin=ingest_config_id,
-            stream_id = dataset_ingestion_configuration.configuration.stream_id,
+            configuration = dataset_ingestion_configuration.configuration,
+            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
             resource_id = dataset_ingestion_configuration_id,
             deleted = True
         )

@@ -52,13 +52,15 @@ class IngestionWorker(TransformDataProcess):
         # Start up couch
         #----------------------------------------------
 
+        log.warn('Starting Ingestion Worker with Config:\n%s' % str(self.CFG))
+
         self.couch_config = self.CFG.get('couch_storage')
         self.hdf_storage = self.CFG.get('hdf_storage')
 
         self.number_of_workers = self.CFG.get('number_of_workers')
         self.description = self.CFG.get('description')
 
-        self.ingest_config_id = self.CFG.get('id')
+        self.ingest_config_id = self.CFG.get('configuration_id')
 
         self.datastore_name = self.couch_config.get('datastore_name',None) or 'dm_datastore'
         try:
@@ -95,14 +97,8 @@ class IngestionWorker(TransformDataProcess):
             self.dataset_configs_event_test_hook(event_msg, headers)
 
 
-        #Use the Exchang Point name (id?) as the origin for stream policy events
-        XP = self.stream_subscriber_registrar.XP
-        # @todo Find a better way to get the XP that the ingestion worker is subscribed too
-
-        #@todo - check the resource registry for any already existing stream policies... how?
-
         #Start the event subscriber - really - what a mess!
-        self.event_subscriber = DatasetIngestionConfigurationEventSubscriber(node = self.container.node, origin=XP, callback=receive_dataset_config_event)
+        self.event_subscriber = DatasetIngestionConfigurationEventSubscriber(node = self.container.node, origin=self.ingest_config_id, callback=receive_dataset_config_event)
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
 
@@ -150,6 +146,12 @@ class IngestionWorker(TransformDataProcess):
 
         # Ignoring is_replay attribute now that we have a policy implementation
         if isinstance(packet, StreamGranuleContainer):
+
+            if dset_config is None:
+                log.warn('No dataset config for this stream!')
+                return
+
+
 
             hdfstring = ''
             sha1 = ''
@@ -226,10 +228,9 @@ class IngestionWorker(TransformDataProcess):
         dset_config = self.dataset_configs.get(stream_id, None)
 
         if dset_config is None:
-            policy = None
             log.info('No policy found for stream id: %s ' % stream_id)
         else:
             log.info('Got policy: %s for stream id: %s' % (dset_config, stream_id))
 
         # return the extracted instruction
-        return policy
+        return dset_config

@@ -5,7 +5,7 @@
 @description Provides a full fledged integration from ingestion to replay using scidata
 """
 import time
-from interface.objects import CouchStorage, ProcessDefinition, StreamQuery, StreamPolicy
+from interface.objects import CouchStorage, ProcessDefinition, StreamQuery
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
@@ -54,12 +54,16 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         ingestion_configuration_id = self.ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=self.datastore_name,datastore_profile='SCIDATA'),
-            default_policy=StreamPolicy(archive_metadata=False, archive_data=False),
             number_of_workers=8
         )
         #
         self.ingestion_management_service.activate_ingestion_configuration(
             ingestion_configuration_id=ingestion_configuration_id)
+
+        ctd_stream_def = ctd_stream_definition()
+
+        stream_def_id = self.pubsub_management_service.create_stream_defintion(container=ctd_stream_def, name='Junk definition')
+
 
         #---------------------------
         # Set up the producers (CTD Simulators)
@@ -68,13 +72,24 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         for iteration in xrange(5):
             # Make a stream to output on
 
-            ctd_stream_def = ctd_stream_definition()
+            stream_id = self.pubsub_management_service.create_stream(stream_definition_id=stream_def_id)
 
-            stream_id = self.pubsub_management_service.create_stream(stream_definition=ctd_stream_def)
-            stream_policy_id = self.ingestion_management_service.create_stream_policy(
+            #---------------------------
+            # Set up the datasets
+            #---------------------------
+            dataset_id = self.dataset_management_service.create_dataset(
                 stream_id=stream_id,
-                archive_data=False,
-                archive_metadata=True
+                datastore_name=self.datastore_name,
+                view_name='datasets/stream_join_granule'
+            )
+            # Keep track of the datasets
+            self.datasets.append(dataset_id)
+
+            stream_policy_id = self.ingestion_management_service.create_dataset_configuration(
+                dataset_id = dataset_id,
+                archive_data = True,
+                archive_metadata = True,
+                ingestion_configuration_id = ingestion_configuration_id
             )
 
             pid = self.container.spawn_process(
@@ -84,17 +99,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
                 config={'process':{'stream_id':stream_id,'datastore_name':self.datastore_name}}
             )
             # Keep track, we'll kill 'em later.
-            #---------------------------
-            # Set up the datasets
-            #---------------------------
 
-            dataset_id = self.dataset_management_service.create_dataset(
-                stream_id=stream_id,
-                datastore_name=self.datastore_name,
-                view_name='datasets/stream_join_granule'
-            )
-            # Keep track of the datasets
-            self.datasets.append(dataset_id)
             self.process_list.append(pid)
         # Get about 4 seconds of data
         time.sleep(4)
