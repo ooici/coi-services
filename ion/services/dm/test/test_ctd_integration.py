@@ -17,9 +17,8 @@ from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 import os
-
-from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
-
+from prototype.sci_data.ctd_stream import ctd_stream_definition
+from pyon.public import log
 
 @attr('INT',group='dm')
 class CTDIntegrationTest(IonIntegrationTestCase):
@@ -51,6 +50,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Set up ingestion
         #---------------------------
         # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
+        log.debug('Calling create_ingestion_configuration')
         ingestion_configuration_id = self.ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=self.datastore_name,datastore_profile='SCIDATA'),
