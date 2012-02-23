@@ -718,7 +718,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         old_description = dataset_config.description
 
 
-        # check that the stream_policy dict in the ingestion workers have been updated
+        # check that the dataset_configs dict in the ingestion workers have been updated
         ar_1 = gevent.event.AsyncResult()
         def got_event_1(msg, headers):
             ar_1.set(msg)
@@ -737,7 +737,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------------------------
 
         dataset_config.configuration.archive_metadata = True
-        # now update the stream_policy
+        # now update the dataset_config
         self.ingestion_cli.update_dataset_config( dataset_config)
 
         ar_1.get(timeout=5)
@@ -833,7 +833,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
     def test_delete_dataset_config(self):
         """
-        Test deleting a strema policy
+        Test deleting a dataset config
         """
 
 
@@ -934,19 +934,18 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
 
-    def test_receive_policy_event(self):
+    def test_receive_dataset_config_event(self):
         """
-        test_receive_policy_event
-        Test that the default policy is being used properly
+        Test that the dataset config is being used properly
         """
 
 
 
         #------------------------------------------------------------------------
-        # Test that the policy is implemented
+        # Test that the dataset config is implemented
         #----------------------------------------------------------------------
 
-        #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
+        #@todo after we have implemented how we handle stream depending on how dataset config gets evaluated, test the implementation
 
         #------------------------------------------------------------------------
         # Get the ingestion process instances:
@@ -987,17 +986,16 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertTrue(queue.get(timeout=10))
 
 
-    def test_policy_implementation_for_science_data(self):
+    def test_dataset_config_implementation_for_science_data(self):
         """
-        test_policy_implementation_for_science_data
-        Test that the default policy is being used properly. Test that create and update dataset config functions
-        properly and their implementation is correct
+        Test that the dataset config is being used properly for science data.
+        Test that create and update dataset config functions properly and their implementation is correct
         """
 
 
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Get the ingestion process instances:
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
                       for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
@@ -1008,100 +1006,95 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
         log.info("PROCESS 2: %s" % str(proc_2))
 
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Create a dataset config
-        #----------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
         dataset_config_id = self.ingestion_cli.create_dataset_configuration(
             dataset_id = self.input_dataset_id,
             archive_data = True,
-            archive_metadata = False,
+            archive_metadata = True,
             ingestion_configuration_id = self.ingestion_configuration_id
         )
 
-        #------------------------------------------------------------------------
-        # launch a ctd_publisher and set up AsyncResult()
-        #----------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Set up the gevent event AsyncResult queue
+        #--------------------------------------------------------------------------------------------------------
 
-        publisher = self.publisher_registrar.create_publisher(stream_id=stream_id)
         queue=gevent.queue.Queue()
 
-        def call_to_persist1(packet):
+        def call_to_persist(packet):
             queue.put(packet)
-        def call_to_persist2(packet):
-            queue.put(packet)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Grab the ingestion worker processes
+        #--------------------------------------------------------------------------------------------------------
 
         # when persist_immutable() is called, then call_to_persist() is called instead....
-        proc_1.persist_immutable = call_to_persist1
-        proc_2.persist_immutable = call_to_persist2
+        proc_1.persist_immutable = call_to_persist
+        proc_2.persist_immutable = call_to_persist
 
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Create a packet and publish it
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
-        ctd_packet = self._create_packet(stream_id)
+        ctd_packet = self._create_packet(self.input_stream_id)
 
-        publisher.publish(ctd_packet)
+        self.ctd_stream1_publisher.publish(ctd_packet)
 
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the policy
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the packets were handled according to the dataset config
+        #--------------------------------------------------------------------------------------------------------
 
-        # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
+        # test that the ingestion worker tries to persist the ctd_packet in accordance to the dataset config
         self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Now change the dataset config for the same stream
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
-        stream_policy = self.rr_cli.read(stream_policy_id)
-        stream_policy.policy.archive_metadata = False
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
 
-        self.ingestion_cli.update_stream_policy(stream_policy)
+        dataset_config.configuration.archive_metadata = False
 
-        #------------------------------------------------------------------------
+        self.ingestion_cli.update_dataset_config(dataset_config)
+
+        #--------------------------------------------------------------------------------------------------------
         # Create a new packet and publish it
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
-        ctd_packet = self._create_packet(stream_id)
+        ctd_packet = self._create_packet(self.input_stream_id)
 
-        publisher.publish(ctd_packet)
+        self.ctd_stream1_publisher.publish(ctd_packet)
 
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the new policy...
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the packets were handled according to the new dataset config...
         # This time, the packet should not be persisted since archive_metadata is False
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(gevent.queue.Empty):
             queue.get(timeout=0.25)
 
-        #----------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Now just do this thing one more time, with an updated dataset config...
+        #
+        # Change the dataset config for the same stream for the third time, updating archive_metadata back to True
+        #--------------------------------------------------------------------------------------------------------
 
-        # Now just do this thing one more time, with an updated policy
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
+        dataset_config.configuration.archive_metadata = True
+        self.ingestion_cli.update_dataset_config(dataset_config)
 
-
-        #------------------------------------------------------------------------
-        # Now change the dataset config for the same stream for the third time
-        #------------------------------------------------------------------------
-
-
-        stream_policy = self.rr_cli.read(stream_policy_id)
-        stream_policy.policy.archive_metadata = True
-
-        self.ingestion_cli.update_stream_policy(stream_policy)
-
-
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Create a new packet and publish it
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
-        ctd_packet = self._create_packet(stream_id)
+        ctd_packet = self._create_packet(self.input_stream_id)
+        self.ctd_stream1_publisher.publish(ctd_packet)
 
-        publisher.publish(ctd_packet)
-
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the new policy
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the packets were handled according to the new dataset config
+        #--------------------------------------------------------------------------------------------------------
 
         self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
@@ -1123,7 +1116,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         tvar = [ i for i in xrange(1,length+1)]
 
         ctd_packet = ctd_stream_packet(stream_id=stream_id,
-            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar, create_hdf=True)
 
         return ctd_packet
 
