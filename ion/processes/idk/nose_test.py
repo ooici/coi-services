@@ -44,6 +44,13 @@ class NoseTest():
 
         self.test_runner = nose.core.TextTestRunner(stream=self.log_fh)
 
+    def __del__(self):
+        """
+        @brief Destructor.  If stdout has been reassigned then we need to reset it back.  It appears the nose.core.TextTestRunner
+        takes STDOUT from us which seems weird (a bug?)
+        """
+        sys.stdout = sys.__stdout__
+
     def _log(self, message):
         """
         @brief Log a test message either to stdout or a log file.

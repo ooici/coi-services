@@ -12,7 +12,7 @@ __license__ = 'Apache 2.0'
 import sys
 
 
-def text(label, default):
+def text(label, default=None):
     """
     @brief prompt and read a single line of input from a user
     @retval string input from user
