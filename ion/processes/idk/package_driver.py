@@ -6,7 +6,7 @@
 
 import sys
 import os.path
-from zipfile import ZipFile
+import zipfile
 
 import yaml
 
@@ -105,7 +105,11 @@ class PackageDriver():
         self.metadata = Metadata()
         self._zipfile = None
         self._manifest = None
+        self._compression = None
         self.generator = DriverGenerator(self.metadata)
+
+        # Set compression level
+        self.zipfile_compression()
 
     def run_qualification_tests(self):
         """
@@ -147,10 +151,25 @@ class PackageDriver():
         @retval ZipFile object
         """
         if(not self._zipfile):
-            self._zipfile = ZipFile(self.archive_path(), mode="w")
+            self._zipfile = zipfile.ZipFile(self.archive_path(), mode="w")
 
         return self._zipfile
 
+    def zipfile_compression(self):
+        """
+        @brief What type of compression should we use for the package file.  If we have access to zlib, we will compress
+        @retval Compression type
+        """
+
+        if(self._compression): return self._compression
+
+        try:
+            import zlib
+            self._compression = zipfile.ZIP_DEFLATED
+            log.info("Setting compression level to deflated")
+        except:
+            log.info("Setting compression level to store only")
+            self._compression = zipfile.ZIP_STORED
 
     def manifest(self):
         """
@@ -212,7 +231,7 @@ class PackageDriver():
         log.debug( "archive %s to %s" % (filename, dest) )
 
         self.manifest().add_file(dest, description);
-        self.zipfile().write(source, dest)
+        self.zipfile().write(source, dest, self.zipfile_compression())
 
 
 if __name__ == '__main__':
