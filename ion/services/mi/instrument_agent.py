@@ -11,7 +11,6 @@ This resource fronts instruments and instrument drivers one-to-one in ION.
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
@@ -27,9 +26,9 @@ from ion.services.mi.common import InstErrorCode
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 
-
 class InstrumentAgentState(BaseEnum):
     """
+    Instrument agent state enum.
     """
     POWERED_DOWN = 'INSTRUMENT_AGENT_STATE_POWERED_DOWN'
     UNINITIALIZED = 'INSTRUMENT_AGENT_STATE_UNINITIALIZED'
@@ -39,23 +38,10 @@ class InstrumentAgentState(BaseEnum):
     OBSERVATORY = 'INSTRUMENT_AGENT_STATE_OBSERVATORY'
     STREAMING = 'INSTRUMENT_AGENT_STATE_STREAMING'
     DIRECT_ACCESS = 'INSTRUMENT_AGENT_STATE_DIRECT_ACCESS'
-    
-ACTIVE_OBSERVATORY_STATES = [
-    InstrumentAgentState.OBSERVATORY,
-    InstrumentAgentState.STREAMING
-    ]    
-
-INACTIVE_STATES = [
-    InstrumentAgentState.INACTIVE,
-    InstrumentAgentState.IDLE,
-    InstrumentAgentState.STOPPED,
-    InstrumentAgentState.OBSERVATORY,
-    InstrumentAgentState.STREAMING,
-    InstrumentAgentState.DIRECT_ACCESS
-    ]    
-    
+        
 class InstrumentAgentEvent(BaseEnum):
     """
+    Instrument agent event enum.
     """
     ENTER = 'INSTRUMENT_AGENT_EVENT_ENTER'
     EXIT = 'INSTRUMENT_AGENT_EVENT_EXIT'
@@ -80,16 +66,24 @@ class InstrumentAgentEvent(BaseEnum):
 
 class InstrumentAgent(ResourceAgent):
     """
+    ResourceAgent derived class for the instrument agent. This class
+    logically abstracts instruments as taskable resources in the ION
+    system. It directly provides common functionality (common state model,
+    common resource interface, point of publication) and creates
+    a driver process to specialize for particular hardware.
     """
     def __init__(self, initial_state=InstrumentAgentState.UNINITIALIZED):
         """
+        Initialize instrument agent prior to pyon process initialization.
+        Define state machine, initialize member variables.
         """
         ResourceAgent.__init__(self)
                 
+        # Instrument agent state machine.
         self._fsm = InstrumentFSM(InstrumentAgentState, InstrumentAgentEvent, InstrumentAgentEvent.ENTER,
                             InstrumentAgentEvent.EXIT, InstErrorCode.UNHANDLED_EVENT)
         
-        # Add handlers for all events.
+        # Populate state machine for all state-events.
         self._fsm.add_handler(InstrumentAgentState.POWERED_DOWN, InstrumentAgentEvent.ENTER, self._handler_powered_down_enter)
         self._fsm.add_handler(InstrumentAgentState.POWERED_DOWN, InstrumentAgentEvent.EXIT, self._handler_powered_down_exit)
         
@@ -153,24 +147,22 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(InstrumentAgentState.DIRECT_ACCESS, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
         self._fsm.add_handler(InstrumentAgentState.DIRECT_ACCESS, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
 
-        self._fsm.start(initial_state)
-
         ###############################################################################
         # Instrument agent internal parameters.
         ###############################################################################
 
-        # Driver configuration. Passed with initialize command.
-        # Configures driver process with driver module and class.
+        # State machine start state, defaults to unconfigured.
+        self._initial_state = initial_state
+
+        # Driver configuration. Passed as part of the spawn configuration
+        # or with an initialize command. Sets driver specific
+        # context.
         self._dvr_config = None
-        
+                
         # Process ID of the driver process. Useful to identify and signal
         # the process if necessary. Set by transition to inactive.
         self._dvr_pid = None
-        
-        # Process ID of the device broker daemon. Useful to identify and signal
-        # the broker if necessary. Set by transition to active.
-        self._conn_pid = None
-        
+                
         # The driver process popen object. To terminate, signal, wait on,
         # or otherwise interact with the driver process via subprocess.
         # Set by transition to inactive.
@@ -180,27 +172,27 @@ class InstrumentAgent(ResourceAgent):
         # request-response or event publication. Set by transition to
         # inactive.
         self._dvr_client = None
-        
-        # The comms configuration. Passed with initialize or go_active
-        # commands and forwarded to driver during connect.
-        self._comms_config = None
-        
+                
         # UUID of the current transaction.
         self.transaction_id = None
         
         # List of pending transactions.
         self._pending_transactions = []
                                         
-        # Dictionary of data stream IDs.
+        # Dictionary of data stream IDs for data publishing. Constructed
+        # by stream_config agent config member during process on_init.
         self._data_streams = {}
         
-        # Dictionary of data stream publishers.
+        # Dictionary of data stream publishers. Constructed by
+        # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
-        # Factories for stream packets.
+        # Factories for stream packets. Constructed by driver
+        # configuration information on transition to inactive.
         self._packet_factories = {}
         
-        # Stream registrar to create publishers.
+        # Stream registrar to create publishers. Used to create
+        # stream publishers, set during process on_init.
         self._stream_registrar = None
 
         ###############################################################################
@@ -211,11 +203,24 @@ class InstrumentAgent(ResourceAgent):
 
     def on_init(self):
         """
+        Instrument agent pyon process initialization.
+        Init objects that depend on the container services and start state
+        machine.
         """
         # The registrar to create publishers.
         self._stream_registrar = StreamPublisherRegistrar(process=self,
                                                     node=self.container.node)
         
+        # Set the driver config from the agent config if present.
+        self._dvr_config = self.CFG.get('driver_config', None)
+        
+        # Construct stream publishers.
+        self._construct_data_publishers()
+
+        # Start state machine.
+        self._fsm.start(self._initial_state)
+
+
     ###############################################################################
     # Event callback and handling.
     ###############################################################################
@@ -225,7 +230,8 @@ class InstrumentAgent(ResourceAgent):
         Callback to receive asynchronous driver events.
         @param evt The driver event received.
         """
-        log.info('Got driver event: %s', evt)
+        log.info('Instrument agent %s received driver event %s', self._proc_name,
+                 str(evt))
         
         try:
             if evt['type'] == 'sample':
@@ -234,20 +240,17 @@ class InstrumentAgent(ResourceAgent):
                 value['lat'] = 0
                 value['lon'] = 0
                 value['stream_id'] = self._data_streams[name]
-                log.info('name %s',str(name))
-                log.info('value %s',str(value))
                 if isinstance(value, dict):
-                    log.info('creating packet')
                     packet = self._packet_factories[name](**value)
-                    log.info('created packet %s', str(packet))
                     self._data_publishers[name].publish(packet)        
-                    log.info('packet published')
+                    log.info('Instrument agent %s published data packet.',
+                             self._proc_name)
                     
-        except KeyError, TypeError:
-            log.info('Got key/type exception')
+        except (KeyError, TypeError) as e:
+            pass
         
         except Exception as e:
-            log.info('Got evt exception %s',str(e))
+            log.info('Instrument agent %s error %s', self._proc_name, str(e))
 
     ###############################################################################
     # Instrument agent state transition interface.
@@ -257,175 +260,145 @@ class InstrumentAgent(ResourceAgent):
 
     def acmd_power_up(self, *args, **kwargs):
         """
+        Agent power_up command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.POWER_UP, *args, **kwargs)
     
     def acmd_power_down(self, *args, **kwargs):
         """
+        Agent power_down command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.POWER_DOWN, *args, **kwargs)
     
     def acmd_initialize(self, *args, **kwargs):
         """
+        Agent initialize command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
 
     def acmd_reset(self, *args, **kwargs):
         """
+        Agent reset command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.RESET, *args, **kwargs)
     
     def acmd_go_active(self, *args, **kwargs):
         """
+        Agent go_active command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.GO_ACTIVE, *args, **kwargs)
 
     def acmd_go_inactive(self, *args, **kwargs):
         """
+        Agent go_inactive command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
 
     def acmd_run(self, *args, **kwargs):
         """
+        Agent run command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.RUN, *args, **kwargs)
 
     def acmd_clear(self, *args, **kwargs):
         """
+        Agent clear command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.CLEAR, *args, **kwargs)
 
     def acmd_pause(self, *args, **kwargs):
         """
+        Agent pause command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.PAUSE, *args, **kwargs)
 
     def acmd_resume(self, *args, **kwargs):
         """
+        Agent resume command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.RESUME, *args, **kwargs)
 
     def acmd_go_streaming(self, *args, **kwargs):
         """
+        Agent go_streaming command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.GO_STREAMING, *args, **kwargs)
 
     def acmd_go_direct_access(self, *args, **kwargs):
         """
+        Agent go_direct_access command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.GO_DIRECT_ACCESS, *args, **kwargs)
 
     def acmd_go_observatory(self, *args, **kwargs):
         """
+        Agent go_observatory command. Forward with args to state machine.
         """
         return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
     ###############################################################################
-    # Instrument agent capabilities interface.
+    # Instrument agent capabilities interface. These functions override base
+    # class functinos for specialized instrument agent behavior.
     ###############################################################################
 
     def _get_resource_commands(self):
         """
+        Get driver resource commands. Send event to state machine and return
+        response or empty list if none.
         """
         return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_COMMANDS) or []
     
     def _get_resource_params(self):
         """
+        Get driver resource parameters. Send event to state machine and return
+        response or empty list if none.
         """
         return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_PARAMS) or []
 
     ###############################################################################
-    # Instrument agent resource interface.
+    # Instrument agent resource interface. These functions override ResourceAgent
+    # base class functions to specialize behavior for instrument driver resources.
     ###############################################################################
     
     def get_param(self, resource_id="", name=''):
-        # Need to adjust the ResourceAgent class and client for instrument interface needs.
+        """
+        Get driver resource parameters. Send get_params event and args to agent
+        state machine to handle request.
+        NOTE: Need to adjust the ResourceAgent class and client for instrument
+        interface needs.
+        @param resource_id
+        @param name A list of (channel, name) tuples of driver parameter
+        to retrieve
+        @retval Dict of (channel, name) : value parameter values if handled.
+        """
         params = name
         return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, params) or {}
         
     def set_param(self, resource_id="", name='', value=''):
-        # Need to adjust the ResourceAgent class and client for instrument interface needs.
+        """
+        Set driver resource parameters. Send set_params event and args to agent
+        state machine to handle set driver resource parameters request.
+        NOTE: Need to adjust the ResourceAgent class and client for instrument
+        interface needs.
+        @param resource_id
+        @param name a Dict of (channel, name) : value for driver parameters
+        to be set.
+        @retval Dict of (channel, name) : None or Error if handled.
+        """
         params = name
         return self._fsm.on_event(InstrumentAgentEvent.SET_PARAMS, params) or {}
                 
-    def execute(self, resource_id="", command=None):        
+    def execute(self, resource_id="", command=None):
+        """
+        Execute driver resource command. Send execute_resource event and args
+        to agent state machine to handle resource execute request.
+        @param resource_id
+        @param command agent command object containing the driver command
+        to execute
+        @retval Resrouce agent command response object if handled.
+        """
         return self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE, command)
-        
-    def _ia_execute(self, cprefix, command):
-        if not command:
-            raise iex.BadRequest("execute argument 'command' not present")
-        if not command.command:
-            raise iex.BadRequest("command not set")
-
-        cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
-                            command=command.command)
-        cmd_res.ts_execute = get_ion_ts()
-        command.command = 'execute_' + command.command
-        res = self._dvr_client.cmd_dvr(command.command, *command.args,
-                                           **command.kwargs)
-        cmd_res.status = 0
-        cmd_res.result = res
-
-        return cmd_res
-
-    ###############################################################################
-    # Publication interface.
-    ###############################################################################
-
-    def acmd_add_data_stream(self, name, stream_id, pack_mod, pack_cls):
-        """
-        """        
-        log.info('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-        import_str = 'from %s import %s' % (pack_mod, pack_cls)
-        ctor_str = 'constructor = %s' % pack_cls
-
-        try:
-            log.info('importing %s', import_str)
-            exec import_str
-            log.info('agent imported packet module %s', pack_mod)
-            log.info('constructing %s',ctor_str)
-            exec ctor_str
-            log.info('agent created factory for %s', pack_cls)
-            
-            publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
-            log.info('agent created publilsher for %s', name)
-            
-        except (ImportError, NameError, AttributeError) as e:
-            log.info('Error importing / constructing publisher / factory')
-        
-        else:
-            self._data_streams[name] = stream_id
-            self._data_publishers[name] = publisher
-            self._packet_factories[name] = constructor              
-        
-    def acmd_remove_data_stream(self, name):
-        """
-        """
-        try:
-            self._data_streams.pop(name)
-            
-        except KeyError:
-            pass
-        
-        try:
-            self._data_publishers.pop(name)
-            
-        except KeyError:
-            pass
-
-        try:
-            self._packet_factories.pop(name)
-            
-        except KeyError:
-            pass
-    
-    def acmd_clear_data_streams(self):
-        """
-        """
-        self._data_streams.clear()
-        self._data_publishers.clear()
-        self._packet_factories.clear()
-        
+                
     ###############################################################################
     # Instrument agent transaction interface.
     ###############################################################################
@@ -447,12 +420,14 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_powered_down_enter(self, *args, **kwargs):
         """
+        Handler upon entry to powered_down state.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
     
     def _handler_powered_down_exit(self, *args, **kwargs):
         """
+        Handler upon exit from powered_down state.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
@@ -464,37 +439,39 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_uninitialized_enter(self, *args, **kwargs):
         """
+        Handler upon entry to uninitialized state.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
     
     def _handler_uninitialized_exit(self,  *args, **kwargs):
         """
+        Handler upon exit from uninitialized state.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
 
     def _handler_uninitialized_power_down(self,  *args, **kwargs):
         """
-        Switch to power down state.
-        @retval Not implemented.
+        Handler for power_down agent command in uninitialized state.
         """
         result = InstErrorCode.NOT_IMPLEMENTED
         next_state = None
         
         return (next_state, result)
 
-    def _handler_uninitialized_initialize(self,  dvr_config, comms_config,
-                                          *args, **kwargs):
+    def _handler_uninitialized_initialize(self,  dvr_config=None, *args, **kwargs):
         """
-        Configure and start the driver. Switch to inactive on success.
-        @param dvr_config The driver configuration.
-        @param comms_config The communications configuration.
-        @retval None or error.
+        Handler for initialize agent command in uninitialized state.
+        Attempt to start driver process with driver config supplied as
+        argument or in agent configuration. Switch to inactive state if
+        successful.
         """
         result = None
         next_state = None
-        result = self._start_driver(dvr_config, comms_config)
+
+        self._dvr_config = dvr_config or self._dvr_config
+        result = self._start_driver(self._dvr_config)
         if not result:
             next_state = InstrumentAgentState.INACTIVE
 
@@ -502,8 +479,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_uninitialized_reset(self,  *args, **kwargs):
         """
-        Reenter the uninitialized state.
-        @retval None or error.
+        Handler for reset agent command in uninitialized state.
+        Exit and reenter uninitializeds state.
         """
         result = None
         next_state = InstrumentAgentState.UNINITIALIZED
@@ -517,31 +494,34 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_inactive_enter(self,  *args, **kwargs):
         """
+        Handler upon entry to inactive state.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
+
     
     def _handler_inactive_exit(self,  *args, **kwargs):
         """
+        Handler upon exit from inactive state.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
 
-    def _handler_inactive_initialize(self,  dvr_config, comms_config,
-                                     *args, **kwargs):
+
+    def _handler_inactive_initialize(self,  dvr_config=None, *args, **kwargs):
         """
-        Stop and restart the driver. Reenter inactive if successful.
-        @param dvr_config The driver configuration.
-        @param comms_config The communications configuration.
-        @retval None or error.
+        Handler for initialize command in inactive state. Stop and restart
+        driver process using new driver config if supplied.
         """
         result = None
         next_state = None
+        
         result = self._stop_driver()
         if result:
             return (next_state, result)
-            
-        result = self._start_driver(dvr_config, comms_config)
+        
+        self._dvr_config = dvr_config or self._dvr_config
+        result = self._start_driver(self._dvr_config)
         if not result:
             next_state = InstrumentAgentState.INACTIVE
                 
@@ -549,8 +529,9 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_inactive_reset(self,  *args, **kwargs):
         """
-        Stop the driver and switch to uninitialized if successful.
-        @retval None or error.
+        Handler for reset agent command in inactive state.
+        Stop the driver process and switch to unitinitalized state if
+        successful.
         """
         result = None
         next_state = None
@@ -560,18 +541,19 @@ class InstrumentAgent(ResourceAgent):
         
         return (next_state, result)
 
-    def _handler_inactive_go_active(self, *args, **kwargs):
+    def _handler_inactive_go_active(self, dvr_comms=None, *args, **kwargs):
         """
-        Establish communications with the device and switch to active if
-        successful.
-        @param comms_config The communications config.
-        @retval Channel:result dictionary giving results of configure
-        and connect.
+        Handler for go_active agent command in inactive state.
+        Attempt to establsih communications with all device channels.
+        Switch to active state if any channels activated.
         """
         result = None
         next_state = None
         
-        cfg_result = self._dvr_client.cmd_dvr('configure', self._comms_config)
+        if not dvr_comms:
+            dvr_comms = self._dvr_config.get('comms_config', None)
+            
+        cfg_result = self._dvr_client.cmd_dvr('configure', dvr_comms)
         
         channels = [key for (key, val) in cfg_result.iteritems() if not
             InstErrorCode.is_error(val)]
@@ -595,24 +577,23 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_idle_enter(self,  *args, **kwargs):
         """
+        Handler upon entry to idle state.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-    
+                
     def _handler_idle_exit(self,  *args, **kwargs):
         """
+        Handler upon exit from idle state.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
 
-    def _handler_idle_go_inactive(self,  *args, **kwargs):
+    def _handler_idle_go_inactive(self, *args, **kwargs):
         """
-        Disconnect and initialize. Switch to inactive if no active channels
-        remain.
-        @param channnels (optional) list of channels to deactivate. Defaults
-        to all active channels.
-        @retval Channel:result dictionary giving success of disconnect
-        and initialize.
+        Handler for go_inactive agent command in idle state.
+        Attempt to disconnect and initialize all active driver channels.
+        Swtich to inactive state if successful.
         """
         result = None
         next_state = None
@@ -638,7 +619,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_idle_reset(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for reset agent command in idle state.
         """
         result = None
         next_state = None
@@ -647,8 +628,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_idle_run(self,  *args, **kwargs):
         """
-        Switch into observatory mode.
-        @retval None or error.
+        Handler for run agent command in idle state.
+        Switch to observatory state.
         """
         result = None
         next_state = InstrumentAgentState.OBSERVATORY
@@ -661,19 +642,21 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_stopped_enter(self,  *args, **kwargs):
         """
+        Handler for entry into stopped state.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
     
     def _handler_stopped_exit(self,  *args, **kwargs):
         """
+        Handler for exit from stopped state.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
 
     def _handler_stopped_go_inactive(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for go_inactive agent command in stopped state.
         """
         result = None
         next_state = None
@@ -682,7 +665,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_stopped_reset(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for reset agent command in stopped state.
         """
         result = None
         next_state = None
@@ -691,7 +674,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_stopped_clear(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for clear agent command in stopped state.
         """
         result = None
         next_state = None
@@ -700,7 +683,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_stopped_resume(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for resume agent command in stopped state.
         """
         result = None
         next_state = None
@@ -713,19 +696,23 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_enter(self,  *args, **kwargs):
         """
+        Handler upon entry to observatory state.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
     
     def _handler_observatory_exit(self,  *args, **kwargs):
         """
+        Handler upon exit from observatory state.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
 
     def _handler_observatory_go_inactive(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for go_inactive agent command in observatory state.
+        Attempt to disconnect and initialize all active driver channels.
+        Switch to inactive state if successful.
         """
         result = None
         next_state = None
@@ -751,7 +738,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_reset(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for reset agent command in observatory state.
         """
         result = None
         next_state = None
@@ -760,7 +747,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_clear(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for clear agent command in observatory state.
         """
         result = None
         next_state = None
@@ -769,7 +756,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_pause(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for pause agent command in observatory state.
         """
         result = None
         next_state = None
@@ -778,7 +765,9 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_go_streaming(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for go_streaming agent command in observatory state.
+        Send start autosample command to driver and switch to streaming
+        state if successful.
         """
         result = None
         next_state = None
@@ -793,7 +782,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_go_direct_access(self,  *args, **kwargs):
         """
-        @retval None or error.
+        Handler for go_direct_access agent ommand in observatory state.
         """
         result = None
         next_state = None
@@ -802,7 +791,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_get_params(self, params, *args, **kwargs):
         """
-        @retval None or error.
+        Handler for get_params resource command in observatory state.
+        Send get command to driver and return result.
         """
         result = self._dvr_client.cmd_dvr('get', params)
         next_state = None
@@ -811,7 +801,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_set_params(self, params, *args, **kwargs):
         """
-        @retval None or error.
+        Handler for set_params resource command in observatory state.
+        Send the set command to the driver and return result.
         """
         result = self._dvr_client.cmd_dvr('set', params)
         next_state = None
@@ -820,7 +811,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_execute_resource(self, command, *args, **kwargs):
         """
-        @retval None or error.
+        Handler for execute_resource command in observatory state.
+        Issue driver command and return the result.
         """
         result = None
         next_state = None
@@ -838,7 +830,6 @@ class InstrumentAgent(ResourceAgent):
                                            **command.kwargs)
         cmd_res.status = 0
         cmd_res.result = res
-
         result = cmd_res
         
         return (next_state, result)
@@ -849,18 +840,21 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_streaming_enter(self,  *args, **kwargs):
         """
+        Handler for entry to streaming state.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
     
     def _handler_streaming_exit(self,  *args, **kwargs):
         """
+        Handler upon exit from streaming state.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
 
     def _handler_streaming_go_inactive(self,  *args, **kwargs):
         """
+        Handler for go_inactive agent command within streaming state.
         """
         result = None
         next_state = None
@@ -869,6 +863,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_streaming_reset(self,  *args, **kwargs):
         """
+        Handler for reset agent command within streaming state.
         """
         result = None
         next_state = None
@@ -877,6 +872,9 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_streaming_go_observatory(self,  *args, **kwargs):
         """
+        Handler for go_observatory agent command within streaming state. Command
+        driver to stop autosampling, and switch to observatory mode if
+        successful.
         """
         result = None
         next_state = None
@@ -895,18 +893,21 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_direct_access_enter(self,  *args, **kwargs):
         """
+        Handler upon direct access entry.
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
     
     def _handler_direct_access_exit(self,  *args, **kwargs):
         """
+        Handler upon direct access exit.
         """
         log.info('Instrument agent left state %s',
                  self._fsm.get_current_state())
 
     def _handler_direct_access_go_observatory(self,  *args, **kwargs):
         """
+        Handler for go_observatory agent command within direct access state.
         """
         result = None
         next_state = None
@@ -920,6 +921,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_get_resource_params(self,  *args, **kwargs):
         """
+        Handler for get_resource_params resource command. Send
+        get_resource_params and args to driver and return result.
         """
         result = self._dvr_client.cmd_dvr('get_resource_params')
         next_state = None
@@ -928,6 +931,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_get_resource_commands(self,  *args, **kwargs):
         """
+        Handler for get_resource_commands resource command. Send
+        get_resource_commands and args to driver and return result.
         """
         result = self._dvr_client.cmd_dvr('get_resource_commands')
         next_state = None
@@ -938,7 +943,7 @@ class InstrumentAgent(ResourceAgent):
     # Private helpers.
     ###############################################################################
 
-    def _start_driver(self, dvr_config, comms_config):
+    def _start_driver(self, dvr_config):
         """
         Start the driver process and driver client.
         @param dvr_config The driver configuration.
@@ -954,6 +959,8 @@ class InstrumentAgent(ResourceAgent):
             
         except (TypeError, KeyError):
             # Not a dict. or missing required parameter.
+            log.error('Insturment agent %s missing required parameter in start_driver.',
+                      self._proc_name)            
             return InstErrorCode.REQUIRED_PARAMETER
                 
         # Launch driver process.
@@ -963,26 +970,36 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_proc.poll()
         if self._dvr_proc.returncode:
             # Error proc didn't start.
+            log.error('Insturment agent %s driver process did not launch.',
+                      self._proc_name)
             return InstErrorCode.AGENT_INIT_FAILED
+
+        log.info('Insturment agent %s launched driver process.', self._proc_name)
         
         # Create client and start messaging.
         self._dvr_client = ZmqDriverClient(svr_addr, cmd_port, evt_port)
         self._dvr_client.start_messaging(self.evt_recv)
+        log.info('Insturment agent %s driver process client started.',
+                 self._proc_name)
         time.sleep(1)
 
         try:        
             retval = self._dvr_client.cmd_dvr('process_echo', 'Test.')
-            log.info('Driver client started, echo test: %s', str(retval))
+            log.info('Insturment agent %s driver process echo test: %s.',
+                     self._proc_name, str(retval))
             
         except Exception:
             self._dvr_proc.terminate()
             self._dvr_proc.wait()
             self._dvr_proc = None
             self._dvr_client = None
+            log.error('Insturment agent %s error commanding driver process.',
+                      self._proc_name)            
             return InstErrorCode.AGENT_INIT_FAILED
 
-        self._dvr_config = dvr_config
-        self._comms_config = comms_config        
+        else:
+            log.info('Insturment agent %s started its driver.', self._proc_name)
+            self._construct_packet_factories()
 
     def _stop_driver(self):
         """
@@ -994,7 +1011,60 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc.wait()
             self._dvr_proc = None
             self._dvr_client = None
+            self._clear_packet_factories()
+            log.info('Insturment agent %s stopped its driver.', self._proc_name)
+            
         time.sleep(1)
+
+    def _construct_data_publishers(self):
+        """
+        Construct the stream publishers from the stream_config agent
+        config variable.
+        @retval None
+        """
+        stream_config = self.CFG.stream_config
+
+        for (name, stream_id) in stream_config.iteritems():
+            self._data_streams[name] = stream_id
+            publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
+            self._data_publishers[name] = publisher
+            log.info('Instrumen agent %s created publisher for stream %s',
+                     self._proc_name, name)        
+        
+    def _construct_packet_factories(self):
+        """
+        Construct packet factories from packet_config member of the
+        driver_config.
+        @retval None
+        """
+        packet_config = self._dvr_config['packet_config']
+        for (name, val) in packet_config.iteritems():
+            if val:
+                mod = val[0]
+                cls = val[1]
+                import_str = 'from %s import %s' % (mod, cls)
+                ctor_str = 'ctor = %s' % cls
+                
+                try:
+                    exec import_str
+                    exec ctor_str
+                    
+                except Exception:
+                    log.error('Instrument agent %s had error creating packet factories from %s.%s',
+                              self._proc_name, mod, cls)
+                
+                else:
+                    self._packet_factories[name] = ctor
+                    log.info('Instrument agent %s created packet factory for stream %s',
+                             self._proc_name, name)
+                    
+    def _clear_packet_factories(self):
+        """
+        Delete packet factories.
+        @retval None
+        """
+        self._packet_factories.clear()
+        log.info('Instrument agent %s deleted packet factories.', self._proc_name)
             
     ###############################################################################
     # Misc and test.

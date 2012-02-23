@@ -341,7 +341,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                              lambda match : float(match.group(1)),
                              self._float_to_string)
 
-
     ########################################################################
     # Protocol connection interface.
     ########################################################################
@@ -595,7 +594,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         result = None
         
         try:
+            mi_logger.info('DISCONNECTING')
             InstrumentProtocol.disconnect(self, *args, **kwargs)
+            mi_logger.info('DONE DISCONNECTING')
             next_state = SBE37State.DISCONNECTED
 
         except InstrumentConnectionException:
@@ -995,6 +996,7 @@ class SBE37Driver(InstrumentDriver):
     """
     class docstring
     """
+    
     def __init__(self, evt_callback):
         """
         method docstring

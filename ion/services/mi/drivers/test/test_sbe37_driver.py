@@ -65,11 +65,13 @@ class TestSBE37Driver(PyonTestCase):
 
         # Comms config.
         self.comms_config = {
-            'method':'ethernet',
-            'device_addr': '137.110.112.119',
-            'device_port': 4001,
-            'server_addr': 'localhost',
-            'server_port': 8888            
+            SBE37Channel.CTD:{
+                'method':'ethernet',
+                'device_addr': '137.110.112.119',
+                'device_port': 4001,
+                'server_addr': 'localhost',
+                'server_port': 8888
+            }
         }
 
         # Add cleanup handler functions.
@@ -156,8 +158,7 @@ class TestSBE37Driver(PyonTestCase):
         driver_client.start_messaging()
         time.sleep(2)
 
-        configs = {SBE37Channel.CTD:self.comms_config}
-        reply = driver_client.cmd_dvr('configure', configs)
+        reply = driver_client.cmd_dvr('configure', self.comms_config)
         time.sleep(2)
 
         reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])

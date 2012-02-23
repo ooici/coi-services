@@ -10,7 +10,6 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-
 from pyon.public import log
 from nose.plugins.attrib import attr
 
@@ -34,136 +33,176 @@ import unittest
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_execute
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 
-
 class FakeProcess(LocalContextMixin):
+    """
+    A fake process used because the test case is not an ion process.
+    """
     name = ''
-
-@unittest.skip('Do not run hardware test.')
-@attr('INT', group='sa')
+    id=''
+    
+#@unittest.skip('Do not run hardware test.')
+@attr('INT', group='mi')
 class TestInstrumentAgent(IonIntegrationTestCase):
+    """
+    Test cases for instrument agent class. Functions in this class provide
+    instrument agent integration tests and provide a tutorial on use of
+    the agent setup and interface.
+    """
 
     def setUp(self):
+        """
+        Setup the test environment to exersice use of instrumet agent, including:
+        * define driver_config parameters.
+        * create container with required services and container client.
+        * create publication stream ids for each driver data stream.
+        * create stream_config parameters.
+        * create and activate subscriptions for agent data streams.
+        * spawn instrument agent process and create agent client.
+        * add cleanup functions to cause subscribers to get stopped.
+        """
         
-        
-        # Driver module parameters.
+        # Names of agent data streams to be configured.
+        parsed_stream_name = 'ctd_parsed'        
+        raw_stream_name = 'ctd_raw'        
+
+        # Driver configuration.
         self.driver_config = {
             'svr_addr': 'localhost',
             'cmd_port': 5556,
             'evt_port': 5557,
             'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
-            'dvr_cls': 'SBE37Driver'
-        }
-
-        # Comms config.
-        self.comms_config = {
-            SBE37Channel.CTD: {
-                'method':'ethernet',
-                'device_addr': '137.110.112.119',
-                'device_port': 4001,
-                'server_addr': 'localhost',
-                'server_port': 8888
+            'dvr_cls': 'SBE37Driver',
+            'comms_config': {
+                SBE37Channel.CTD: {
+                    'method':'ethernet',
+                    'device_addr': '137.110.112.119',
+                    'device_port': 4001,
+                    'server_addr': 'localhost',
+                    'server_port': 8888
+                }                
+            },
+            'packet_config' : {
+                parsed_stream_name : ('prototype.sci_data.ctd_stream',
+                                'ctd_stream_packet'),
+                raw_stream_name : None
             }
         }
-        
-        # Start container
+
+        # Start container.
         self._start_container()
 
-        # Establish endpoint with container
+        # Establish endpoint with container.
         self._container_client = ContainerAgentClient(node=self.container.node,
                                                       name=self.container.name)
         
         # Bring up services in a deploy file.        
         self._container_client.start_rel_from_url('res/deploy/r2dm.yml')
 
+        # Create a pubsub client to create streams.
+        self._pubsub_client = PubsubManagementServiceClient(
+                                                    node=self.container.node)
+
+        # Create parsed stream. The stream name must match one
+        # used by the driver to label packet data.
+        parsed_stream_def = ctd_stream_definition(stream_id=None)
+        parsed_stream_id = self._pubsub_client.create_stream(
+                        name=parsed_stream_name,
+                        stream_definition=parsed_stream_def,
+                        original=True,
+                        encoding='ION R2')
+
+        # Create raw stream. The stream name must match one used by the
+        # driver to label packet data. This stream does not yet have a
+        # packet definition so will not be published.
+        raw_stream_def = ctd_stream_definition(stream_id=None)
+        raw_stream_id = self._pubsub_client.create_stream(name=raw_stream_name,
+                        stream_definition=raw_stream_def,
+                        original=True,
+                        encoding='ION R2')
+        
+        # Define stream configuration.
+        self.stream_config = {
+            parsed_stream_name : parsed_stream_id,
+            raw_stream_name : raw_stream_id
+        }
+
+        # A callback for processing subscribed-to data.
+        def consume(message, headers):
+            log.info('Subscriber received message: %s', str(message))
+
+        # Create a stream subscriber registrar to create subscribers.
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
+                                                node=self.container.node)
+
+        # Create and activate parsed data subscription.
+        parsed_sub = subscriber_registrar.create_subscriber(exchange_name=\
+                                            'parsed_queue', callback=consume)
+        parsed_sub.start()
+        parsed_query = StreamQuery(stream_ids=[parsed_stream_id])
+        parsed_sub_id = self._pubsub_client.create_subscription(\
+                            query=parsed_query, exchange_name='parsed_queue')
+        self._pubsub_client.activate_subscription(parsed_sub_id)
+
+        # Create and activate raw data subscription.
+        raw_sub = subscriber_registrar.create_subscriber(exchange_name=\
+                                                'raw_queue', callback=consume)
+        raw_sub.start()
+        raw_query = StreamQuery(stream_ids=[raw_stream_id])
+        raw_sub_id = self._pubsub_client.create_subscription(\
+                            query=raw_query, exchange_name='raw_queue')
+        self._pubsub_client.activate_subscription(raw_sub_id)
+
+        # Create agent config.
+        self.agent_config = {
+            'driver_config' : self.driver_config,
+            'stream_config' : self.stream_config
+        }
+
         # Launch an instrument agent process.
         self._ia_name = 'agent007'
         self._ia_mod = 'ion.services.mi.instrument_agent'
         self._ia_class = 'InstrumentAgent'
         self._ia_pid = self._container_client.spawn_process(name=self._ia_name,
-                                       module=self._ia_mod, cls=self._ia_class)      
+                                       module=self._ia_mod, cls=self._ia_class,
+                                       config=self.agent_config)      
         log.info('got pid=%s', str(self._ia_pid))
         
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('a resource id', name=self._ia_pid,
+        self._ia_client = ResourceAgentClient('123xyz', name=self._ia_pid,
                                               process=FakeProcess())
-        log.info('got ia client %s', str(self._ia_client))
-
-        # Create test data streams for agent.
-        self._parsed_stream_name = 'ctd_parsed'
-        self._raw_stream_name = 'ctd_raw'
-        self._parsed_ctd_def = ctd_stream_definition(stream_id=None)
-        self._raw_ctd_def = None
-        self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-        self._parsed_stream_id = self._pubsub_client.create_stream(name=self._parsed_stream_name,
-                        stream_definition_type=self._parsed_ctd_def,
-                        original=True,
-                        encoding='ION R2')
-        self._raw_stream_id = None
-
-        self._pack_mod = 'prototype.sci_data.ctd_stream'
-        self._pack_cls = 'ctd_stream_packet'        
+        log.info('got ia client %s', str(self._ia_client))        
         
-        def consume(message, headers):
-            log.info('Subscriber received message: %s', str(message))
-
-        # https://github.com/ooici/coi-services/blob/master/ion/services/dm/inventory/test/data_retriever_test.py#L177
-        self._subscriber = None
-        
-        self._stream_subscriber = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
-        self._subscriber = self._stream_subscriber.create_subscriber(exchange_name='test_queue', callback=consume)
-        self._subscriber.start()
-
-        query = StreamQuery(stream_ids=[self._parsed_stream_id])
-        self._subscription_id = self._pubsub_client.create_subscription(query=query,
-                                                                        exchange_name='test_queue')
-        self._pubsub_client.activate_subscription(self._subscription_id)
-        
-                
-        # Set agent streams.
-        args = [
-            self._parsed_stream_name,
-            self._parsed_stream_id,
-            self._pack_mod,
-            self._pack_cls
-        ]
-        cmd = AgentCommand(command='add_data_stream', args=args)
-        retval = self._ia_client.execute_agent(cmd)        
-        
-        
-        def stop_subscriber(subscriber):
-            if subscriber:
-                subscriber.stop()
-            
-        self.addCleanup(stop_subscriber, self._subscriber)
+        # Add cleanup function to stop subscribers.        
+        def stop_subscriber(sub_list):
+            for sub in sub_list:
+                sub.stop()            
+        self.addCleanup(stop_subscriber, [parsed_sub, raw_sub])
                 
     def test_initialize(self):
         """
+        Test agent initialize command. This causes creation of
+        driver process and transition to inactive.
         """
-        args = [
-            self.driver_config,
-            self.comms_config
-        ]
-        cmd = AgentCommand(command='initialize', args=args)
+        cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)        
         time.sleep(2)
         
         caps = self._ia_client.get_capabilities()
-        print 'got caps: %s' % str(caps)
+        log.info('Capabilities: %s',str(caps))
         
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
 
     def test_go_active(self):
         """
+        Test agent go_active command. This causes a driver process to
+        launch a connection broker, connect to device hardware, determine
+        entry state of driver and intialize driver parameters.
         """
-        args = [
-            self.driver_config,
-            self.comms_config
-        ]
-        cmd = AgentCommand(command='initialize', args=args)
+        cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)        
         time.sleep(2)
         
@@ -181,12 +220,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
     def test_get_set(self):
         """
+        Test instrument driver resource get/set interface. This tests
+        getting and setting driver reousrce paramters in various syntaxes and
+        validates results including persistence on device hardware.
         """
-        args = [
-            self.driver_config,
-            self.comms_config
-        ]
-        cmd = AgentCommand(command='initialize', args=args)
+        cmd = AgentCommand(command='initialize')
         reply = self._ia_client.execute_agent(cmd)        
         time.sleep(2)
         
@@ -285,14 +323,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
 
-    def test_execute(self):
+    def test_poll(self):
         """
+        Test instrument driver resource execute interface to do polled
+        sampling.
         """
-        args = [
-            self.driver_config,
-            self.comms_config
-        ]
-        cmd = AgentCommand(command='initialize', args=args)
+        cmd = AgentCommand(command='initialize')
         reply = self._ia_client.execute_agent(cmd)        
         time.sleep(2)
         
@@ -327,12 +363,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
     def test_autosample(self):
         """
+        Test instrument driver execute interface to start and stop streaming
+        mode.
         """
-        args = [
-            self.driver_config,
-            self.comms_config
-        ]
-        cmd = AgentCommand(command='initialize', args=args)
+        cmd = AgentCommand(command='initialize')
         reply = self._ia_client.execute_agent(cmd)        
         time.sleep(2)
         
