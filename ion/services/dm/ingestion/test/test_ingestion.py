@@ -829,9 +829,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            stream_policy = self.ingestion_cli.read_dataset_config('abracadabra')
+            dataset_config = self.ingestion_cli.read_dataset_config('abracadabra')
 
-    def test_delete_stream_policy(self):
+    def test_delete_dataset_config(self):
         """
         Test deleting a strema policy
         """
@@ -841,7 +841,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Create a dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        dataset_config_id = self.ingestion_cli.create_dataset_configurationcreate_dataset_configuration(
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
             dataset_id = self.input_dataset_id,
             archive_data = True,
             archive_metadata = False,
@@ -859,9 +859,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            stream_policy = self.rr_cli.read(dataset_config_id)
+            dataset_config = self.rr_cli.read(dataset_config_id)
 
-    def test_delete_stream_policy_not_found(self):
+    def test_delete_dataset_config_not_found(self):
         """
         Test delting a stream that does not exist
         Assert that the operation fails
@@ -874,7 +874,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.ingestion_cli.delete_dataset_config('non_existent_stream_id')
 
-    @unittest.skip("todo")
     def test_ingestion_workers_writes_to_couch(self):
         """
         Test that the ingestion workers are writing messages to couch
@@ -935,7 +934,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
 
-    @unittest.skip("todo")
     def test_receive_policy_event(self):
         """
         test_receive_policy_event
@@ -969,20 +967,26 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         queue = gevent.queue.Queue()
 
-        def policy_hook(msg,headers):
+        def dataset_config_hook(msg,headers):
             queue.put(True)
 
 
-        proc_1.policy_event_test_hook = policy_hook
+        proc_1.dataset_configs_event_test_hook = dataset_config_hook
 
+        #--------------------------------------------------------------------------------------------------------
+        # Create a dataset config
+        #--------------------------------------------------------------------------------------------------------
 
-        self.ingestion_cli.create_stream_policy(stream_id=self.input_stream_id,archive_data=True, archive_metadata=True)
-
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
 
         self.assertTrue(queue.get(timeout=10))
 
 
-    @unittest.skip("todo")
     def test_policy_implementation_for_science_data(self):
         """
         test_policy_implementation_for_science_data
@@ -1005,17 +1009,14 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         log.info("PROCESS 2: %s" % str(proc_2))
 
         #------------------------------------------------------------------------
-        # Create a stream and a dataset config
+        # Create a dataset config
         #----------------------------------------------------------------------
 
-        ctd_stream_def = ctd_stream_definition()
-
-        stream_id = self.pubsub_cli.create_stream(stream_definition=ctd_stream_def)
-
-        stream_policy_id = self.ingestion_cli.create_stream_policy(
-            stream_id=stream_id,
-            archive_data=True,
-            archive_metadata=True
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
         )
 
         #------------------------------------------------------------------------

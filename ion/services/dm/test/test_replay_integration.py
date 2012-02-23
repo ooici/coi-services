@@ -104,7 +104,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
             view_name='datasets/stream_join_granule'
         )
 
-        stream_policy_id = self.ingestion_management_service.create_dataset_configuration(
+        dataset_config_id = self.ingestion_management_service.create_dataset_configuration(
             dataset_id = dataset_id,
             archive_data = True,
             archive_metadata = True,
