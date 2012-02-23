@@ -94,7 +94,7 @@ class PubSubTest(PyonTestCase):
         ret = self.pubsub_service.update_stream(stream_obj)
 
         self.mock_update.assert_called_once_with(stream_obj)
-        self.assertTrue(ret)
+        self.assertEqual(None, ret)
 
     def test_read_stream(self):
         self.mock_read.return_value = self.stream
@@ -121,7 +121,7 @@ class PubSubTest(PyonTestCase):
 
         self.mock_read.assert_called_once_with(self.stream_id, '')
         self.mock_delete.assert_called_once_with(self.stream_id)
-        self.assertTrue(ret)
+        self.assertEqual(None, ret)
 
     def test_delete_stream_not_found(self):
         self.mock_read.return_value = None
