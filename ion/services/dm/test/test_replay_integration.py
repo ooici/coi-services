@@ -92,7 +92,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         ctd_stream_def = ctd_stream_definition()
 
-        stream_def_id = self.pubsub_management_service.create_stream_defintion(container=ctd_stream_def, name='Junk definition')
+        stream_def_id = self.pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 
 
         stream_id = self.pubsub_management_service.create_stream(stream_definition_id=stream_def_id)
@@ -195,7 +195,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         """
         Checks that what replay was sending out was of correct format
         """
-        #@todo - this would fail if the stream defintion arrived before the stream granule - why does it work?
+        #@todo - this would fail if the stream definition arrived before the stream granule - why does it work?
         retrieved_hdf_string = message.identifiables['ctd_data'].values
 
         self.ar2.set(retrieved_hdf_string)
