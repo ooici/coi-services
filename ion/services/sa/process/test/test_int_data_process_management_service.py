@@ -15,7 +15,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
-from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber
+from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -26,7 +26,7 @@ import unittest
 class FakeProcess(LocalContextMixin):
     name = ''
 
-@attr('INT', group='mmm')
+@attr('INT', group='sa')
 #@unittest.skip('need to fix...')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
@@ -57,11 +57,18 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         dpd_obj = IonObject(RT.DataProcessDefinition,
                             name='data_process_definition',
                             description='some new dpd',
+                            module='ion.processes.data.transforms.transform_example',
+                            class_name='TransformExample',
                             process_source='some_source_reference')
         try:
             dprocdef_id = self.Processclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
+
+
+        # test Data Process Definition creation in rr
+        dprocdef_obj = self.Processclient.read_data_process_definition(dprocdef_id)
+        self.assertEquals(dprocdef_obj.name,'data_process_definition')
 
         # Create an input instrument
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
@@ -118,23 +125,30 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         # Create a producing example process
         # cheat to make a publisher object to send messages in the test.
         # it is really hokey to pass process=self.cc but it works
-        stream_route = self.PubSubClient.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.in_stream_id)
-        self.ctd_stream1_publisher = StreamPublisher(node=self.container.node, name=('science_data',stream_route.routing_key), process=self.container)
+        #stream_route = self.PubSubClient.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.in_stream_id)
+        #self.ctd_stream1_publisher = StreamPublisher(node=self.container.node, name=('science_data',stream_route.routing_key), process=self.container)
 
-        num = 3
-        msg = dict(num=str(num))
+
+        pid = self.container.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+        dummy_process = self.container.proc_manager.procs[pid]
+
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
+        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.in_stream_id)
+
+        msg = {'num':'3'}
         self.ctd_stream1_publisher.publish(msg)
 
         time.sleep(1)
 
-        num = 5
-        msg = dict(num=str(num))
+        msg = {'num':'5'}
         self.ctd_stream1_publisher.publish(msg)
 
         time.sleep(1)
 
-        num = 9
-        msg = dict(num=str(num))
+        msg = {'num':'9'}
         self.ctd_stream1_publisher.publish(msg)
 
         # See /tmp/transform_output for results.....
@@ -145,8 +159,13 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
+        with self.assertRaises(NotFound) as e:
+            self.Processclient.read_data_process(dproc_id)
+
         try:
             self.Processclient.delete_data_process_definition(dprocdef_id)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
+        with self.assertRaises(NotFound) as e:
+            self.Processclient.read_data_process_definition(dprocdef_id)
