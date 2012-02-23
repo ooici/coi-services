@@ -54,7 +54,7 @@ class PubsubManagementService(BasePubsubManagementService):
         @param container    StreamDefinitionContainer
         @retval stream_definition_id    str
         """
-        stream_definition = StreamDefinition(container=container)
+        stream_definition = StreamDefinition(container=container, name=name, description=description)
         stream_def_id, rev = self.clients.resource_registry.create(stream_definition)
 
         return stream_def_id
