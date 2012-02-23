@@ -69,7 +69,10 @@ class NoseTest():
         return generator.test_modulename()
 
     def _qualification_test_module(self):
-        return 'ion.processes.idk.test.driver_qual_tests'
+        return 'ion.processes.idk.test.driver_qualification'
+
+    def _qualification_test_class(self):
+        return 'RunFromIDK'
 
     ###
     #   Public Methods
@@ -131,9 +134,10 @@ class NoseTest():
         """
         self._log("*** Starting Qualification Tests ***")
         self._log(" ==> module: " + self._qualification_test_module())
-        args=[ sys.argv[0], '-a', 'QUAL']
+        args=[ sys.argv[0], '-a', 'QUAL', '-v' ]
+        module = "%s:%s" % (self._qualification_test_module(), self._qualification_test_class())
 
-        return nose.run(defaultTest=self._qualification_test_module(), testRunner=self.test_runner, argv=args, exit=False)
+        return nose.run(defaultTest=module, testRunner=self.test_runner, argv=args, exit=False)
 
 
 if __name__ == '__main__':

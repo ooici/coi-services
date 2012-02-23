@@ -150,12 +150,13 @@ class DriverGenerator:
     ###
     #   Private Methods
     ###
-    def __init__(self, metadata):
+    def __init__(self, metadata, force = False):
         """
         @brief Constructor
         @param metadata IDK Metadata object
         """
         self.metadata = metadata
+        self.force = force
 
     def _touch_init(self, dir):
         """
@@ -256,7 +257,7 @@ class DriverGenerator:
         """
         @brief Generate stub driver code
         """
-        if(os.path.exists(self.driver_path())):
+        if(os.path.exists(self.driver_path()) and not self.force):
             print "Warning: driver exists (" + self.driver_path() + ") not overwriting"
         else:
             template = self._get_template(self.driver_template())
@@ -270,7 +271,7 @@ class DriverGenerator:
         """
         @brief Generate stub driver test code
         """
-        if(os.path.exists(self.test_path())):
+        if(os.path.exists(self.test_path()) and not self.force):
             print "Warning: driver test file exists (" + self.test_path() + ") not overwriting"
         else:
             template = self._get_template(self.test_template())

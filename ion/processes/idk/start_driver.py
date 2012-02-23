@@ -28,12 +28,20 @@ class StartDriver():
         self.comm_config = CommConfig.get_config_from_console(self.metadata)
         self.comm_config.get_from_console()
 
-    def generate_code(self):
+    def generate_code(self, force = False):
         """
         @brief generate the directory structure, code and tests for the new driver.
         """
-        driver = DriverGenerator( self.metadata )
+        driver = DriverGenerator( self.metadata, force = force )
         driver.generate()
+
+    def overwrite(self):
+        """
+        @brief Overwrite the current files with what is stored in the current metadata file.
+        """
+        self.metadata = Metadata()
+        self.comm_config = CommConfig.get_config_from_file(self.metadata)
+        self.generate_code(force = True)
 
     def run(self):
         """
