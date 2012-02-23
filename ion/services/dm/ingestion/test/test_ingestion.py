@@ -15,17 +15,18 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import StreamPublisherRegistrar, CFG
-from interface.objects import HdfStorage, CouchStorage, StreamPolicy, StreamGranuleContainer
+from interface.objects import HdfStorage, CouchStorage, StreamGranuleContainer
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import RT, PRED, log, IonObject
 
 from pyon.datastore.datastore import DataStore
 from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
-from interface.objects import BlogPost, BlogComment, StreamIngestionPolicy, ExchangeQuery
+from interface.objects import BlogPost, BlogComment, ExchangeQuery, DatasetIngestionConfiguration
 from pyon.ion.process import StandaloneProcess
 
 import random
@@ -79,8 +80,6 @@ class IngestionTest(PyonTestCase):
         # number of workers
         self.number_of_workers = 2
 
-        # default policy
-        self.default_policy = StreamPolicy()
 
 
 
@@ -105,8 +104,11 @@ class IngestionTest(PyonTestCase):
         # Calling the delete ingestion configuration method
         #--------------------------------------------------------------------------------
 
-        ingestion_configuration_id_out = self.ingestion_service.create_ingestion_configuration(self.exchange_point_id,\
-            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+        ingestion_configuration_id_out = self.ingestion_service.create_ingestion_configuration(
+            exchange_point_id=self.exchange_point_id,
+            couch_storage=self.couch_storage,
+            hdf_storage=self.hdf_storage,
+            number_of_workers=self.number_of_workers)
 
 
         #--------------------------------------------------------------------------------
@@ -349,15 +351,15 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
         self.ingestion_cli = IngestionManagementServiceClient(node=self.cc.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
+        self.dataset_cli = DatasetManagementServiceClient(node=self.cc.node)
 
         #------------------------------------------------------------------------
         # Configuration parameters
         #----------------------------------------------------------------------
         self.exchange_point_id = 'science_data'
         self.number_of_workers = 2
-        self.hdf_storage = HdfStorage(file_system='mysystem')
+        self.hdf_storage = HdfStorage(relative_path='ingest')
         self.couch_storage = CouchStorage(datastore_name='test_datastore')
-        self.default_policy = StreamPolicy(archive_metadata=False)
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
 
@@ -366,7 +368,21 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Stream publisher for testing round robin handling
         #----------------------------------------------------------------------
 
-        self.input_stream_id = self.pubsub_cli.create_stream(name='input_stream',original=True)
+        ctd_stream_def = ctd_stream_definition()
+
+        stream_def_id = self.pubsub_cli.create_stream_definition(container=ctd_stream_def, name='Junk definition')
+
+
+        self.input_stream_id = self.pubsub_cli.create_stream(
+            name='input_stream',
+            original=True,
+            stream_definition_id=stream_def_id)
+
+        self.input_dataset_id = self.dataset_cli.create_dataset(
+            stream_id=self.input_stream_id,
+            datastore_name=self.couch_storage.datastore_name,
+            view_name='datasets/stream_join_granule'
+        )
 
 
         pid = self.container.spawn_process(name='dummy_process_for_test',
@@ -383,6 +399,21 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.db = self.container.datastore_manager.get_datastore('dm_datastore', DataStore.DS_PROFILE.EXAMPLES, CFG)
 
+        #------------------------------------------------------------------------
+        # Create ingestion configuration and activate it
+        #----------------------------------------------------------------------
+        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(
+            exchange_point_id=self.exchange_point_id,
+            couch_storage=self.couch_storage,
+            hdf_storage=self.hdf_storage,
+            number_of_workers=self.number_of_workers
+        )
+
+        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+
+        self.ingestion_configuration_id = ingestion_configuration_id
+
+
     def tearDown(self):
         """
         Cleanup. Delete Subscription, Stream, Process Definition
@@ -394,24 +425,20 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         Tests whether an ingestion configuration is created successfully and an ingestion_configuration_id
         is generated.
         """
-        #------------------------------------------------------------------------
-        # Create ingestion configuration
-        #----------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
+
 
         #------------------------------------------------------------------------
         # Make assertions
         #----------------------------------------------------------------------
         # checking that an ingestion_configuration_id gets successfully generated
-        self.assertIsNotNone(ingestion_configuration_id, "Could not generate ingestion_configuration_id.")
+        self.assertIsNotNone(self.ingestion_configuration_id, "Could not generate ingestion_configuration_id.")
 
         # read the ingestion configuration object and see if it contains what it is supposed to....
-        ingestion_configuration = self.ingestion_cli.read_ingestion_configuration(ingestion_configuration_id)
+        ingestion_configuration = self.ingestion_cli.read_ingestion_configuration(self.ingestion_configuration_id)
 
         self.assertEquals(ingestion_configuration.number_of_workers, self.number_of_workers)
-        self.assertEquals(ingestion_configuration.hdf_storage.file_system, self.hdf_storage.file_system)
+        self.assertEquals(ingestion_configuration.hdf_storage.relative_path, self.hdf_storage.relative_path)
         self.assertEquals(ingestion_configuration.couch_storage.datastore_name, self.couch_storage.datastore_name)
-        self.assertEquals(ingestion_configuration.default_policy.archive_metadata, self.default_policy.archive_metadata)
 
 
     def test_ingestion_workers_creation(self):
@@ -422,21 +449,17 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 	    3. Test the number of worker processes created by getting the process object from the container
         """
 
-        #------------------------------------------------------------------------
-        # Create ingestion configuration
-        #------------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #------------------------------------------------------------------------
         # Check that the two ingestion workers are running
         #------------------------------------------------------------------------
 
-        print ("self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform) : %s" % self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform))
-        print ("type : %s" % type(self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)))
+        print ("self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform) : %s" % self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform))
+        print ("type : %s" % type(self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)))
 
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         for transform in transforms:
             self.assertTrue(self.container.proc_manager.procs[transform.process_id])
@@ -451,17 +474,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
         #------------------------------------------------------------------------
-        # Create ingestion configuration and activate it
-        #----------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, \
-            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
-        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
-        #------------------------------------------------------------------------
         # Get the ingestion process instances:
         #------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -522,50 +539,22 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             "The ingestion workers are not properly consuming from the broker")
 
 
-
-    @unittest.skip("todo")
-    def test_activate_ingestion_configuration(self):
-        """
-        Test the activation of the ingestion configuration
-        """
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
-
-        # activate an ingestion configuration
-        ret = self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
-
-        self.assertTrue(ret)
-        # pubsub has tested the activation of subscriptions
-        # @TODO when these are proper life cycle state changes, test the state transition of the resources...
-
-
     @unittest.skip("todo")
     def test_deactivate_ingestion_configuration(self):
         """
         Test the deactivation of the ingestion configuration
         """
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
-
-        # activate an ingestion configuration
-        ret = self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
-        self.assertTrue(ret)
 
         # now deactivate the ingestion configuration
-        ret = self.ingestion_cli.deactivate_ingestion_configuration(ingestion_configuration_id)
+        ret = self.ingestion_cli.deactivate_ingestion_configuration(self.ingestion_configuration_id)
         self.assertTrue(ret)
 
-        # @TODO when these are proper life cycle state changes, test the state transition of the resources...
+        # @TODO Test deactivate and reactivate....
 
-        # pubsub has tested the deactivation of subscriptions
-
-
-    def test_create_stream_policy_and_event_subscriber(self):
+    def test_create_dataset_config_and_event_subscriber(self):
         """
-        Test the creation of a stream policy and the call-back method of the policy event subscriber
+        Test the creation of a dataset ingestion configuration and the call-back method of the event subscriber
         """
-
-
-        # Create the ingestion workers
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
 
         #------------------------------------------------------------------------
@@ -573,7 +562,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -603,62 +592,61 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_2.event_subscriber._callback = message_received_2
 
 
-        # Create a stream policy which sends an event
+        # Create a dataset ingestion config which sends an event
 
-        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
-        stream_policy = self.rr_cli.read(stream_policy_id)
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+            )
+
+
+        dataset_config = self.rr_cli.read(dataset_config_id)
 
         #--------------------------------------------------------------------------------------------------------
         # Do assertions!
         #--------------------------------------------------------------------------------------------------------
 
-        self.assertEquals(stream_policy.policy.stream_id, self.input_stream_id)
-        self.assertEquals(stream_policy.policy.archive_data, True)
-#        self.assertEquals(stream_policy.policy.archive_metadata, False)
+        self.assertEquals(dataset_config.configuration.stream_id, self.input_stream_id)
+        self.assertEquals(dataset_config.configuration.archive_data, True)
+        self.assertEquals(dataset_config.configuration.archive_metadata, False)
 
 
-        self.assertEqual(ar_1.get(timeout=10).stream_id,self.input_stream_id)
-        self.assertEqual(ar_2.get(timeout=10).stream_id,self.input_stream_id)
+        self.assertEqual(ar_1.get(timeout=10).configuration.stream_id,self.input_stream_id)
+        self.assertEqual(ar_2.get(timeout=10).configuration.stream_id,self.input_stream_id)
 
 
-    def test_create_stream_policy_stream_not_found(self):
+    def test_create_dataset_configuration_not_found(self):
         """
-        Test that trying to create a stream policy for a stream that does not exist results in the raising of an
+        Test that trying to create a dataset configuration for a dataset that does not exist results in the raising of an
         a NotFound Assertion Error.
         """
 
-        #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #--------------------------------------------------------------------------------------------------------
         # Do assertions!
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = 'non_existent_stream' , archive_data = True, archive_metadata=True)
+            dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+                dataset_id = 'non_existent_dataset' ,
+                archive_data = True,
+                archive_metadata=True)
 
-
-    def test_stream_policies_dict_in_ingestion_worker(self):
+    def test_dataset_config_dict_in_ingestion_worker(self):
         """
-        Test that when a policy is created, each ingestion worker updates its stream_policies dict containing the
-        stream_policy that has just been created
+        Test that when a dataset config is created, each ingestion worker updates its dataset configs dict containing the
+        config that has just been created
         """
 
-        #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #------------------------------------------------------------------------
         # Get the ingestion process instances:
         #------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -666,37 +654,51 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
         log.info("PROCESS 2: %s" % str(proc_2))
 
+        ar_1 = gevent.event.AsyncResult()
+        def got_event_1(msg, headers):
+            ar_1.set(msg)
+
+        ar_2 = gevent.event.AsyncResult()
+        def got_event_2(msg, headers):
+            ar_2.set(msg)
+
+        proc_1.dataset_configs_event_test_hook = got_event_1
+
+        proc_2.dataset_configs_event_test_hook = got_event_2
+
         #------------------------------------------------------------------------
-        # Create the stream policy
+        # Create the dataset config
         #------------------------------------------------------------------------
 
-        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
-
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
         #--------------------------------------------------------------------------------------------------------
         # Do assertions and checks!
         #--------------------------------------------------------------------------------------------------------
 
-        self.assertEquals(proc_1.stream_policies.get(self.input_stream_id).stream_id, self.input_stream_id)
-        self.assertEquals(proc_2.stream_policies.get(self.input_stream_id).stream_id, self.input_stream_id)
+        ar_1.get(timeout=5)
+        ar_2.get(timeout=5)
 
 
-    def test_update_stream_policy(self):
+        self.assertIn(self.input_stream_id, proc_1.dataset_configs)
+        self.assertIn(self.input_stream_id, proc_2.dataset_configs)
+
+
+    def test_update_dataset_config(self):
         """
-        Test updating a stream policy
+        Test updating a dataset config
         """
-
-        #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #------------------------------------------------------------------------
         # Get the ingestion process instances:
         #------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -705,78 +707,89 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         log.info("PROCESS 2: %s" % str(proc_2))
 
         #--------------------------------------------------------------------------------------------------------
-        # Create a stream policy
+        # Create a dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
-        stream_policy = self.rr_cli.read(stream_policy_id)
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
 
-        old_description = stream_policy.description
+        dataset_config = self.rr_cli.read(dataset_config_id)
+
+        old_description = dataset_config.description
+
+
+        # check that the dataset_configs dict in the ingestion workers have been updated
+        ar_1 = gevent.event.AsyncResult()
+        def got_event_1(msg, headers):
+            ar_1.set(msg)
+
+        ar_2 = gevent.event.AsyncResult()
+        def got_event_2(msg, headers):
+            ar_2.set(msg)
+
+        proc_1.dataset_configs_event_test_hook = got_event_1
+
+        proc_2.dataset_configs_event_test_hook = got_event_2
+
 
         #--------------------------------------------------------------------------------------------------------
-        # Change the stream policy and update it
+        # Change the dataset config and update it
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy.description = 'updated right now'
-        # now update the stream_policy
-        self.ingestion_cli.update_stream_policy( stream_policy)
+        dataset_config.configuration.archive_metadata = True
+        # now update the dataset_config
+        self.ingestion_cli.update_dataset_config( dataset_config)
 
-        # check that the stream_policy dict in the ingestion workers have been updated
+        ar_1.get(timeout=5)
+        ar_2.get(timeout=5)
 
-        self.assertEquals(proc_1.stream_policies[self.input_stream_id].description, 'updated right now')
-        self.assertEquals(proc_2.stream_policies[self.input_stream_id].description, 'updated right now')
+        self.assertEquals(proc_1.dataset_configs[self.input_stream_id].archive_metadata, True)
+        self.assertEquals(proc_2.dataset_configs[self.input_stream_id].archive_metadata, True)
 
         #--------------------------------------------------------------------------------------------------------
-        # Read the updated policy using resource registry to check that it has indeed been updated
+        # Read the updated config using resource registry to check that it has indeed been updated
         #--------------------------------------------------------------------------------------------------------
 
-        new_stream_policy = self.rr_cli.read(stream_policy_id)
+        new_dataset_config = self.rr_cli.read(dataset_config_id)
 
         #--------------------------------------------------------------------------------------------------------
         # Do assertions and checks!
         #--------------------------------------------------------------------------------------------------------
 
-        self.assertEquals(new_stream_policy.description, 'updated right now')
-        self.assertNotEquals(old_description, new_stream_policy.description)
+        self.assertEquals(new_dataset_config.configuration.archive_metadata, True)
 
-    def test_update_stream_policy_not_found(self):
+    def test_update_dataset_config_not_found(self):
         """
-        Test updating a stream policy that does not exist
+        Test updating a dataset config that does not exist
         Assert that the operation fails
         """
 
-        #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #--------------------------------------------------------------------------------------------------------
-        # Assert that a non existent stream policy cannot be updated
+        # Assert that a non existent dataset config cannot be updated
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(BadRequest):
-            stream_policy = StreamIngestionPolicy()
-            stream_policy.description = 'updated right now'
-            self.ingestion_cli.update_stream_policy(stream_policy = 'bad_stream')
+            dataset_config = DatasetIngestionConfiguration()
+            dataset_config.description = 'updated right now'
+            self.ingestion_cli.update_dataset_config(dataset_ingestion_configuration = dataset_config)
 
-    def test_read_stream_policy(self):
+    def test_read_dataset_config(self):
         """
-        Test reading a stream policy
+        Test reading a dataset config
         """
 
-        #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #------------------------------------------------------------------------
         # Get the ingestion process instances:
         #------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -785,106 +798,91 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         log.info("PROCESS 2: %s" % str(proc_2))
 
         #--------------------------------------------------------------------------------------------------------
-        # Create a stream policy
+        # Create a dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
 
         #--------------------------------------------------------------------------------------------------------
-        # Read the stream policy
+        # Read the dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy = self.ingestion_cli.read_stream_policy(stream_policy_id)
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
 
         #--------------------------------------------------------------------------------------------------------
         # Do assertions and checks!
         #--------------------------------------------------------------------------------------------------------
 
-        self.assertEquals(stream_policy.policy.stream_id, self.input_stream_id)
+        self.assertEquals(dataset_config.configuration.stream_id, self.input_stream_id)
 
 
-    def test_read_stream_policy_not_found(self):
+    def test_read_dataset_config_not_found(self):
         """
-        Test reading a stream policy that does not exist
+        Test reading a dataset config that does not exist
         Assert that the operation fails
         """
 
-        #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers... We keep this block exactly same and only pass in a bad policy id later
-        # to show that it is just passing the bad policy id that causes an AssetionError to be raised.
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #--------------------------------------------------------------------------------------------------------
-        # Assert that reading not existent stream policy raises an exception
+        # Assert that reading not existent dataset config raises an exception
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            stream_policy = self.ingestion_cli.read_stream_policy('abracadabra')
+            dataset_config = self.ingestion_cli.read_dataset_config('abracadabra')
 
-
-    def test_delete_stream_policy(self):
+    def test_delete_dataset_config(self):
         """
-        Test deleting a strema policy
+        Test deleting a dataset config
         """
 
-        #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
 
         #--------------------------------------------------------------------------------------------------------
-        # Create a stream policy
+        # Create a dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
 
         #--------------------------------------------------------------------------------------------------------
-        # Delete the stream policy
+        # Delete the dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        self.ingestion_cli.delete_stream_policy(stream_policy_id)
+        self.ingestion_cli.delete_dataset_config(dataset_config_id)
 
         #--------------------------------------------------------------------------------------------------------
-        # Assert that trying to read the stream policy now raises an exception
+        # Assert that trying to read the dataset config now raises an exception
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            stream_policy = self.rr_cli.read(stream_policy_id)
+            dataset_config = self.rr_cli.read(dataset_config_id)
 
-    def test_delete_stream_policy_not_found(self):
+    def test_delete_dataset_config_not_found(self):
         """
         Test delting a stream that does not exist
         Assert that the operation fails
         """
 
         #--------------------------------------------------------------------------------------------------------
-        # Create the ingestion workers... We keep this block exactly same and only pass in a bad stream id later
-        # to show that it is just passing the bad stream id that causes an AssetionError to be raised.
-        #--------------------------------------------------------------------------------------------------------
-
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id, self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
-
-        #--------------------------------------------------------------------------------------------------------
-        # Delete a stream policy that does not exists
+        # Delete a dataset config that does not exists
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            self.ingestion_cli.delete_stream_policy('non_existent_stream_id')
+            self.ingestion_cli.delete_dataset_config('non_existent_stream_id')
 
     def test_ingestion_workers_writes_to_couch(self):
         """
         Test that the ingestion workers are writing messages to couch
         """
 
-        #------------------------------------------------------------------------
-        # Create ingestion configuration and activate it
-        #----------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,\
-            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
-        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
         #------------------------------------------------------------------------
         # Publish messages
@@ -940,32 +938,25 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
 
-    def test_receive_policy_event(self):
+    def test_receive_dataset_config_event(self):
         """
-        test_receive_policy_event
-        Test that the default policy is being used properly
+        Test that the dataset config is being used properly
         """
 
-        #------------------------------------------------------------------------
-        # Create ingestion configuration and activate it
-        #----------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,
-            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
-        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
 
         #------------------------------------------------------------------------
-        # Test that the policy is implemented
+        # Test that the dataset config is implemented
         #----------------------------------------------------------------------
 
-        #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
+        #@todo after we have implemented how we handle stream depending on how dataset config gets evaluated, test the implementation
 
         #------------------------------------------------------------------------
         # Get the ingestion process instances:
         #------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -979,41 +970,39 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         queue = gevent.queue.Queue()
 
-        def policy_hook(msg,headers):
+        def dataset_config_hook(msg,headers):
             queue.put(True)
 
 
-        proc_1.policy_event_test_hook = policy_hook
+        proc_1.dataset_configs_event_test_hook = dataset_config_hook
 
+        #--------------------------------------------------------------------------------------------------------
+        # Create a dataset config
+        #--------------------------------------------------------------------------------------------------------
 
-        self.ingestion_cli.create_stream_policy(stream_id=self.input_stream_id,archive_data=True, archive_metadata=True)
-
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
 
         self.assertTrue(queue.get(timeout=10))
 
 
-    def test_policy_implementation_for_science_data(self):
+    def test_dataset_config_implementation_for_science_data(self):
         """
-        test_policy_implementation_for_science_data
-        Test that the default policy is being used properly. Test that create and update stream policy functions
-        properly and their implementation is correct
+        Test that the dataset config is being used properly for science data.
+        Test that create and update dataset config functions properly and their implementation is correct
         """
 
-        #------------------------------------------------------------------------
-        # Create ingestion configuration and activate it
-        #----------------------------------------------------------------------
-        ingestion_configuration_id =  self.ingestion_cli.create_ingestion_configuration(self.exchange_point_id,
-            self.couch_storage, self.hdf_storage, self.number_of_workers, self.default_policy)
-        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
-        #@todo after we have implemented how we handle stream depending on how policy gets evaluated, test the implementation
-
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Get the ingestion process instances:
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
         transforms = [self.rr_cli.read(assoc.o)
-                      for assoc in self.rr_cli.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+                      for assoc in self.rr_cli.find_associations(self.ingestion_configuration_id, PRED.hasTransform)]
 
         proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
@@ -1021,103 +1010,95 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         proc_2 = self.container.proc_manager.procs[transforms[1].process_id]
         log.info("PROCESS 2: %s" % str(proc_2))
 
-        #------------------------------------------------------------------------
-        # Create a stream and a stream policy
-        #----------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Create a dataset config
+        #--------------------------------------------------------------------------------------------------------
 
-        ctd_stream_def = ctd_stream_definition()
-
-        stream_id = self.pubsub_cli.create_stream(stream_definition=ctd_stream_def)
-
-        stream_policy_id = self.ingestion_cli.create_stream_policy(
-            stream_id=stream_id,
-            archive_data=True,
-            archive_metadata=True
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = True,
+            ingestion_configuration_id = self.ingestion_configuration_id
         )
 
-        #------------------------------------------------------------------------
-        # launch a ctd_publisher and set up AsyncResult()
-        #----------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Set up the gevent event AsyncResult queue
+        #--------------------------------------------------------------------------------------------------------
 
-        publisher = self.publisher_registrar.create_publisher(stream_id=stream_id)
         queue=gevent.queue.Queue()
 
-        def call_to_persist1(packet):
+        def call_to_persist(packet):
             queue.put(packet)
-        def call_to_persist2(packet):
-            queue.put(packet)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Grab the ingestion worker processes
+        #--------------------------------------------------------------------------------------------------------
 
         # when persist_immutable() is called, then call_to_persist() is called instead....
-        proc_1.persist_immutable = call_to_persist1
-        proc_2.persist_immutable = call_to_persist2
+        proc_1.persist_immutable = call_to_persist
+        proc_2.persist_immutable = call_to_persist
 
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Create a packet and publish it
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
-        ctd_packet = self._create_packet(stream_id)
+        ctd_packet = self._create_packet(self.input_stream_id)
 
-        publisher.publish(ctd_packet)
+        self.ctd_stream1_publisher.publish(ctd_packet)
 
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the policy
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the packets were handled according to the dataset config
+        #--------------------------------------------------------------------------------------------------------
 
-        # test that the ingestion worker tries to persist the ctd_packet in accordance to the policy
+        # test that the ingestion worker tries to persist the ctd_packet in accordance to the dataset config
         self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
-        #------------------------------------------------------------------------
-        # Now change the stream policy for the same stream
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Now change the dataset config for the same stream
+        #--------------------------------------------------------------------------------------------------------
 
-        stream_policy = self.rr_cli.read(stream_policy_id)
-        stream_policy.policy.archive_metadata = False
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
 
-        self.ingestion_cli.update_stream_policy(stream_policy)
+        dataset_config.configuration.archive_metadata = False
 
-        #------------------------------------------------------------------------
+        self.ingestion_cli.update_dataset_config(dataset_config)
+
+        #--------------------------------------------------------------------------------------------------------
         # Create a new packet and publish it
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
-        ctd_packet = self._create_packet(stream_id)
+        ctd_packet = self._create_packet(self.input_stream_id)
 
-        publisher.publish(ctd_packet)
+        self.ctd_stream1_publisher.publish(ctd_packet)
 
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the new policy...
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the packets were handled according to the new dataset config...
         # This time, the packet should not be persisted since archive_metadata is False
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(gevent.queue.Empty):
             queue.get(timeout=0.25)
 
-        #----------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Now just do this thing one more time, with an updated dataset config...
+        #
+        # Change the dataset config for the same stream for the third time, updating archive_metadata back to True
+        #--------------------------------------------------------------------------------------------------------
 
-        # Now just do this thing one more time, with an updated policy
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
+        dataset_config.configuration.archive_metadata = True
+        self.ingestion_cli.update_dataset_config(dataset_config)
 
-
-        #------------------------------------------------------------------------
-        # Now change the stream policy for the same stream for the third time
-        #------------------------------------------------------------------------
-
-
-        stream_policy = self.rr_cli.read(stream_policy_id)
-        stream_policy.policy.archive_metadata = True
-
-        self.ingestion_cli.update_stream_policy(stream_policy)
-
-
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
         # Create a new packet and publish it
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
 
-        ctd_packet = self._create_packet(stream_id)
+        ctd_packet = self._create_packet(self.input_stream_id)
+        self.ctd_stream1_publisher.publish(ctd_packet)
 
-        publisher.publish(ctd_packet)
-
-        #------------------------------------------------------------------------
-        # Assert that the packets were handled according to the new policy
-        #------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the packets were handled according to the new dataset config
+        #--------------------------------------------------------------------------------------------------------
 
         self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
@@ -1139,7 +1120,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         tvar = [ i for i in xrange(1,length+1)]
 
         ctd_packet = ctd_stream_packet(stream_id=stream_id,
-            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar, create_hdf=True)
 
         return ctd_packet
 

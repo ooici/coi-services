@@ -25,7 +25,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     class docstring
     """
 
-    def create_dataset(self, stream_id='', datastore_name='', view_name='', name='', description='', contact=None, user_metadata={}):
+    def create_dataset(self, stream_id='', datastore_name='', view_name='', name='', description='', contact=None, user_metadata=None):
         """@brief Create a resource which defines a dataset. For LCA it is assumed that datasets are organized by stream.
         @param stream_id is the primary key used in the couch view to retrieve the content or metadata
         @param datastore_name is the name of the datastore where this dataset resides.
