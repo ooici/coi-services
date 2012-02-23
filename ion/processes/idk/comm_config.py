@@ -52,7 +52,6 @@ class CommConfig(object):
         """
         return os.environ['HOME'] + "/.idk"
 
-
     def config_filename(self):
         """
         @brief get filename for comm config file
@@ -187,7 +186,12 @@ class CommConfig(object):
         @retval A CommConfig object for the type entered on the console
         """
         print( "\nDriver Comm Configuration" )
-        type = prompt.text( 'Type [' + CommConfig.valid_type_string() + ']', default_type )
+
+        # Currently there is only one type so let's just default to that
+        #type = prompt.text( 'Type [' + CommConfig.valid_type_string() + ']', default_type )
+        type='ethernet'
+        print "Type: ethernet"
+
         config = CommConfig.get_config_from_type(metadata, type)
 
         if( config ):

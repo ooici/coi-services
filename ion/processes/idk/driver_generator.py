@@ -48,7 +48,7 @@ class DriverGenerator:
         @brief directory to store the new driver code
         @retval driver dir name
         """
-        return "/".join([self.base_dir(), CFG.idk.repo, CFG.idk.driver_dir, self.metadata.name])
+        return "/".join([self.base_dir(), CFG.idk.repo, CFG.idk.driver_dir, self.metadata.name.lower()])
 
     def test_dir(self):
         """
@@ -69,8 +69,7 @@ class DriverGenerator:
         @brief file name of the new driver
         @retval driver filename
         """
-        # TODO: add code version drivers
-        return self.metadata.name + "_driver.py"
+        return "%s_v%02d_driver.py" % (self.metadata.name, self.driver_version())
 
     def driver_path(self):
         """
@@ -78,6 +77,13 @@ class DriverGenerator:
         @retval driver path
         """
         return "/".join([self.driver_dir(), self.driver_filename()])
+
+    def test_path(self):
+        """
+        @brief full path to the driver test code
+        @retval driver test path
+        """
+        return "/".join([self.test_dir(), self.test_filename()])
 
     def driver_relative_path(self):
         """
@@ -93,8 +99,7 @@ class DriverGenerator:
         @brief file name of the new driver tests
         @retval driver test filename
         """
-        # TODO: add code version drivers
-        return self.metadata.name + "_driver_test.py"
+        return "%s_v%02d_driver_test.py" % (self.metadata.name, self.driver_version())
 
     def test_template(self):
         """
@@ -129,11 +134,17 @@ class DriverGenerator:
         @retval driver test module name
         """
         driver_file = self.driver_dir() + "/" + self.driver_filename()
-        module_name = driver_file.replace(self.base_dir() + '/coi-services/', '')
+        module_name = driver_file.replace(self.base_dir() + '/' + CFG.idk.repo + '/', '')
         module_name = module_name.replace('/', '.')
         module_name = module_name.replace('.py', '')
 
         return module_name
+
+    def driver_version(self):
+        if(self.metadata.version and self.metadata.version > 0):
+            return self.metadata.version
+        else:
+            return self._get_next_version()
 
 
     ###
@@ -176,7 +187,6 @@ class DriverGenerator:
         """
         return {
             'driver_module': self.driver_modulename(),
-            'driver_class': self.metadata.driver_class,
             'file': self.driver_relative_path(),
             'author': self.metadata.author,
             'driver_name': self.metadata.name
@@ -191,11 +201,24 @@ class DriverGenerator:
         return {
             'test_module': self.test_modulename(),
             'driver_module': self.driver_modulename(),
-            'driver_class': self.metadata.driver_class,
             'file': self.driver_relative_path(),
             'author': self.metadata.author,
             'driver_name': self.metadata.name
         }
+
+
+    def _get_next_version(self):
+        """
+        @brief Get the next available version number for a driver
+        @retval version number
+        """
+        if(not os.path.exists(self.driver_dir())):
+            return 1
+
+        for file in os.listdir(self.driver_dir()):
+            pass
+
+        return 1
 
 
     ###
@@ -233,22 +256,28 @@ class DriverGenerator:
         """
         @brief Generate stub driver code
         """
-        template = self._get_template(self.driver_template())
-        ofile = open( self.driver_dir() + "/" + self.driver_filename(), 'w' )
-        code = template.substitute(self._driver_template_data())
-        ofile.write(code)
-        ofile.close()
+        if(os.path.exists(self.driver_path())):
+            print "Warning: driver exists (" + self.driver_path() + ") not overwriting"
+        else:
+            template = self._get_template(self.driver_template())
+            ofile = open( self.driver_path(), 'w' )
+            code = template.substitute(self._driver_template_data())
+            ofile.write(code)
+            ofile.close()
 
 
     def generate_test_code(self):
         """
         @brief Generate stub driver test code
         """
-        template = self._get_template(self.test_template())
-        ofile = open( self.test_dir() + "/" + self.test_filename(), 'w' )
-        code = template.substitute(self._test_template_data())
-        ofile.write(code)
-        ofile.close()
+        if(os.path.exists(self.test_path())):
+            print "Warning: driver test file exists (" + self.test_path() + ") not overwriting"
+        else:
+            template = self._get_template(self.test_template())
+            ofile = open( self.test_path(), 'w' )
+            code = template.substitute(self._test_template_data())
+            ofile.write(code)
+            ofile.close()
 
 
     def display_report(self):

@@ -54,19 +54,26 @@ class Metadata():
         """
         return self.idk_dir() + "/current.yml"
 
+    def set_driver_version(self, version):
+        """
+        @brief set the driver version
+        """
+        self.version = version
+        self.store_to_file()
 
     ###
     #   Private Methods
     ###
-    def __init__(self, name=None, author=None, email=None, driver_class=None, notes=None):
+    def __init__(self, name=None, author=None, email=None, instrument_class=None, notes=None):
         """
         @brief Constructor
         """
         self.author = author
         self.email = email
         self.name = name
-        self.driver_class = driver_class
+        self.instrument_class = instrument_class
         self.notes = notes
+        self.version = 0
 
         if( not(name or author or email or notes) ):
             self.read_from_file()
@@ -76,11 +83,12 @@ class Metadata():
         @brief initialize the object from YAML data
         @param data structure with YAML input
         """
-        self.author = yamlInput['driver_metadata']['author']
-        self.email = yamlInput['driver_metadata']['email']
-        self.name = yamlInput['driver_metadata']['name']
-        self.driver_class = yamlInput['driver_metadata']['driver_class']
-        self.notes = yamlInput['driver_metadata']['release_notes']
+        self.author = yamlInput['driver_metadata'].get('author')
+        self.email = yamlInput['driver_metadata'].get('email')
+        self.instrument_class = yamlInput['driver_metadata'].get('instrument_class')
+        self.name = yamlInput['driver_metadata'].get('name')
+        self.notes = yamlInput['driver_metadata'].get('release_notes')
+        self.version = yamlInput['driver_metadata'].get('version', 0)
 
 
     ###
@@ -90,11 +98,14 @@ class Metadata():
         """
         @brief Pretty print the current metadata object to STDOUT
         """
+        if( not self.version ): version = ''
+
         print( "Driver Name: " + self.name )
-        print( "Driver Class: " + self.driver_class )
+        print( "Instrument Class: " + self.instrument_class )
         print( "Author: " + self.author )
         print( "Email: " + self.email )
         print( "Release Notes: \n" + self.notes )
+        print( "Driver Version: \n" + version )
 
 
     def confirm_metadata(self):
@@ -116,8 +127,9 @@ class Metadata():
                                 'author': self.author,
                                 'email': self.email,
                                 'name': self.name,
-                                'driver_class': self.driver_class,
-                                'release_notes': self.notes
+                                'instrument_class': self.instrument_class,
+                                'release_notes': self.notes,
+                                'version': self.version
                           }
         }, default_flow_style=False)
 
@@ -169,8 +181,8 @@ class Metadata():
         """
         @brief Read metadata from the console and initialize the object.  Continue to do this until we get valid input.
         """
+        self.instrument_class = prompt.text( 'Instrument Class', self.instrument_class )
         self.name = prompt.text( 'Driver Name', self.name )
-        self.driver_class = prompt.text( 'Driver Class', self.driver_class )
         self.author = prompt.text( 'Author', self.author )
         self.email = prompt.text( 'Email', self.email )
         self.notes = prompt.multiline( 'Release Notes', self.notes )
