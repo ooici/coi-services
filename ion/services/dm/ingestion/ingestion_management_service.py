@@ -264,7 +264,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         if not dataset_id:
             raise IngestionManagementServiceException('Must pass a dataset id to create_dataset_configuration')
 
-        log.debug("Creating stream policy")
+        log.debug("Creating dataset configuration")
 
 
         dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
@@ -332,14 +332,16 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param dataset_ingestion_configuration    DatasetIngestionConfiguration
         """
 
-        log.info('stream policy to update: %s' % dataset_ingestion_configuration)
+        #@todo - make it an exception to change the dataset_id or the stream_id in the dataset config!
+
+        log.info('dataset configuration to update: %s' % dataset_ingestion_configuration)
 
         log.debug("Updating stream policy")
         dset_ingest_config_id, rev = self.clients.resource_registry.update(dataset_ingestion_configuration)
 
         ingest_config_ids, _ = self.clients.resource_registry.find_objects(dset_ingest_config_id, PRED.hasIngestionConfiguration, id_only=True)
 
-        if len(ingest_configs)!=1:
+        if len(ingest_config_ids)!=1:
             raise IngestionManagementServiceException('The dataset ingestion configuration is associated with more than one ingestion configuration!')
 
         ingest_config_id = ingest_config_ids[0]
@@ -362,7 +364,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         @throws NotFound    if ingestion configuration did not exist
         """
 
-        log.debug("Reading stream policy")
+        log.debug("Reading dataset configuration")
         dataset_ingestion_configuration = self.clients.resource_registry.read(dataset_ingestion_configuration_id)
 
         return dataset_ingestion_configuration
@@ -376,7 +378,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         dataset_ingestion_configuration = self.clients.resource_registry.read(dataset_ingestion_configuration_id)
 
-        log.debug("Deleting stream policy")
+        log.debug("Deleting dataset configuration")
         self.clients.resource_registry.delete(stream_policy_id)
 
         ingest_config_ids, association_ids = self.clients.resource_registry.find_objects(dataset_ingestion_configuration_id, PRED.hasIngestionConfiguration, id_only=True)

@@ -52,7 +52,6 @@ class IngestionWorker(TransformDataProcess):
         # Start up couch
         #----------------------------------------------
 
-        log.warn('Starting Ingestion Worker with Config:\n%s' % str(self.CFG))
 
         self.couch_config = self.CFG.get('couch_storage')
         self.hdf_storage = self.CFG.get('hdf_storage')
@@ -98,7 +97,12 @@ class IngestionWorker(TransformDataProcess):
 
 
         #Start the event subscriber - really - what a mess!
-        self.event_subscriber = DatasetIngestionConfigurationEventSubscriber(node = self.container.node, origin=self.ingest_config_id, callback=receive_dataset_config_event)
+        self.event_subscriber = DatasetIngestionConfigurationEventSubscriber(
+            node = self.container.node,
+            origin=self.ingest_config_id,
+            callback=receive_dataset_config_event
+            )
+
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
 
@@ -177,7 +181,7 @@ class IngestionWorker(TransformDataProcess):
 
                     calculated_sha1 = hashlib.sha1(hdfstring).hexdigest().upper()
 
-                    filename = FileSystem.get_url(FS.TEMP, calculated_sha1, ".hdf5")
+                    filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".hdf5")
 
                     if sha1 != calculated_sha1:
                         raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
