@@ -15,7 +15,7 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.public import RT, PRED, log
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
-from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
+from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, StreamDefinition
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
@@ -47,7 +47,7 @@ class PubsubManagementService(BasePubsubManagementService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    def create_stream_defintion(self, container=None):
+    def create_stream_definition(self, container=None):
         """@brief Create a new stream defintion which may be used to publish on one or more streams
         @param container is a stream definition container object
 
@@ -112,7 +112,7 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_obj.url = url
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
 
-        if stream_definition != '':
+        if stream_definition_id != '':
             self.clients.resource_registry.create_association(stream_id, PRED.hasStreamDefinition, stream_definition_id)
         #
         #    #@todo Very awkward right now - need to read the stream object and update a field with its own id...
