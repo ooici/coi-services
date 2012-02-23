@@ -367,7 +367,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ctd_stream_def = ctd_stream_definition()
 
-        stream_def_id = self.pubsub_cli.create_stream_defintion(container=ctd_stream_def, name='Junk definition')
+        stream_def_id = self.pubsub_cli.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 
 
         self.input_stream_id = self.pubsub_cli.create_stream(

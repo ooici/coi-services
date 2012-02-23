@@ -64,6 +64,22 @@ class ReplayProcess(BaseReplayProcess):
             raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
 
 
+
+    def _records(self, records, n):
+        """
+        Given a list of records, yield at most n at a time
+        """
+        while True:
+            yval = []
+            try:
+                for i in xrange(n):
+                    yval = yval + [records.pop(0)]
+                yield yval
+            except IndexError:
+                if yval:
+                    yield yval
+                break
+
     def _publish_query(self, results):
         '''
         Callback to publish the specified results
@@ -84,7 +100,7 @@ class ReplayProcess(BaseReplayProcess):
         #      in the last query we'll set include_docs to true and parse the docs.
         #-----------------------
 
-        #@todo: Add thread sync here because self.output is shared and deadlocks COULD occur
+
         log.warn('results: %s', results)
 
         for result in results:

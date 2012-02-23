@@ -45,7 +45,7 @@ class TransformManagementService(BaseTransformManagementService):
                          configuration=None):
 
         """Creates the transform and registers it with the resource registry
-        @param process_definition_id The process defintion contains the module and class of the process to be spawned
+        @param process_definition_id The process definition contains the module and class of the process to be spawned
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
         @param configuration {}
