@@ -160,7 +160,7 @@ class PubSubTest(PyonTestCase):
         ret = self.pubsub_service.update_stream_definition(stream_definition_obj)
 
         self.mock_update.assert_called_once_with(stream_definition_obj)
-        self.assertTrue(ret)
+        self.assertEqual(ret,None)
 
     def test_read_stream_definition(self):
         self.mock_read.return_value = self.stream_definition
