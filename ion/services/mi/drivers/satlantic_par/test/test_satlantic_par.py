@@ -30,6 +30,7 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_satlantic_par.py
 # Test device is at 10.180.80.173, port 2001
 
+@unittest.skip('Need to silence mi logger in nosetests.')
 @attr('UNIT', group='mi')
 class SatlanticParProtocolUnitTest(PyonTestCase):
     """

@@ -195,6 +195,14 @@ class InstrumentAgent(ResourceAgent):
         # stream publishers, set during process on_init.
         self._stream_registrar = None
 
+        # Latitude value. Set by subscription to platform. Used to
+        # append data packets prior to publication.
+        self._lat = 0
+        
+        # Longitude value. Set by subscription to platform. Used to
+        # append data packets prior to publication.
+        self._lon = 0
+
         ###############################################################################
         # Instrument agent parameter capabilities.
         ###############################################################################
@@ -237,8 +245,8 @@ class InstrumentAgent(ResourceAgent):
             if evt['type'] == 'sample':
                 name = evt['name']
                 value = evt['value']
-                value['lat'] = 0
-                value['lon'] = 0
+                value['lat'] = self._lat
+                value['lon'] = self._lon
                 value['stream_id'] = self._data_streams[name]
                 if isinstance(value, dict):
                     packet = self._packet_factories[name](**value)
@@ -337,8 +345,18 @@ class InstrumentAgent(ResourceAgent):
         return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
     ###############################################################################
+    # Misc instrument agent command interface.
+    ###############################################################################
+
+    def acmd_get_current_state(self, *args, **kwargs):
+        """
+        Query the agent current state.
+        """
+        return self._fsm.get_current_state()
+
+    ###############################################################################
     # Instrument agent capabilities interface. These functions override base
-    # class functinos for specialized instrument agent behavior.
+    # class helper functinos for specialized instrument agent behavior.
     ###############################################################################
 
     def _get_resource_commands(self):
