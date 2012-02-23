@@ -4,13 +4,81 @@
 @package ${driver_module}
 @file ${file}
 @author ${author}
-@brief Test cases for ${driver_name} driver
+@brief Driver for the ${driver_name}
+Release notes:
+
+${release_notes}
 """
 
 __author__ = '${author}'
 __license__ = 'Apache 2.0'
 
 
-import ion.services.mi.mi_logger
-from ion.processes.idk.metadata import Metadata
-from ion.processes.idk.comm_config import CommConfig
+import logging
+import time
+import re
+import datetime
+
+from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.instrument_driver import DriverChannel
+from ion.services.mi.instrument_driver import DriverCommand
+from ion.services.mi.instrument_driver import DriverState
+from ion.services.mi.instrument_driver import DriverEvent
+from ion.services.mi.instrument_driver import DriverParameter
+from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.services.mi.exceptions import InstrumentTimeoutException
+from ion.services.mi.exceptions import InstrumentStateException
+from ion.services.mi.exceptions import InstrumentConnectionException
+from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import BaseEnum
+from ion.services.mi.instrument_protocol import InstrumentProtocol
+from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
+from ion.services.mi.instrument_fsm import InstrumentFSM
+
+mi_logger = logging.getLogger('mi_logger')
+
+
+class ${driver_name}State(BaseEnum):
+    """
+    """
+    pass
+
+class ${driver_name}Event(BaseEnum):
+    """
+    """
+
+class ${driver_name}Channel(BaseEnum):
+    """
+    """
+    pass
+
+class ${driver_name}Command(DriverCommand):
+    """
+    """
+    pass
+
+class ${driver_name}Prompt(BaseEnum):
+    """
+    """
+    pass
+
+class ${driver_name}Parameter(DriverParameter):
+    """
+    """
+    pass
+
+
+class ${driver_name}Protocol(CommandResponseInstrumentProtocol):
+    """
+    """
+    pass
+
+
+class ${driver_name}Driver(InstrumentDriver):
+    """
+    """
+    pass
+
+
+
+

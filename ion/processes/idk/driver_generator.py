@@ -190,7 +190,8 @@ class DriverGenerator:
             'driver_module': self.driver_modulename(),
             'file': self.driver_relative_path(),
             'author': self.metadata.author,
-            'driver_name': self.metadata.name
+            'driver_name': self.metadata.name,
+            'release_notes': self.metadata.notes
         }
 
 
