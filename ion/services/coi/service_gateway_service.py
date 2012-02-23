@@ -10,7 +10,7 @@ from flask import Flask, request
 from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, ProcessRPCClient
-from pyon.core.exception import NotFound, Inconsistent
+from pyon.core.exception import NotFound, Inconsistent, BadRequest
 from pyon.core.registry import get_message_class_in_parm_type, getextends
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -106,21 +106,25 @@ def process_gateway_request(service_name, operation):
 
 
     try:
+
+        if not service_name:
+            raise BadRequest("Target service name not found in the URL")
+
         #Retrieve service definition
         from pyon.core.bootstrap import service_registry
         # MM: Note: service_registry can do more now
         target_service = service_registry.get_service_by_name(service_name)
 
         if not target_service:
-            raise NotFound("Target service name not found in the URL")
+            raise BadRequest("The requested service (%s) is not available" % service_name)
 
         if operation == '':
-            raise NotFound("Service operation not specified in the URL")
+            raise BadRequest("Service operation not specified in the URL")
 
 
         #Find the concrete client class for making the RPC calls.
         if not target_service.client:
-            raise NotFound("Cannot find a client class for the specified service: %s", service_name )
+            raise BadRequest("Cannot find a client class for the specified service: %s" % service_name )
 
         target_client = target_service.client
 
@@ -354,11 +358,8 @@ def list_resources_by_type(resource_type):
     try:
         #Resource Types are not in unicode
         res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
-        result = []
-        for res in res_list:
-            result.append(res)
 
-        return json_response({ GATEWAY_RESPONSE :result } )
+        return json_response({ GATEWAY_RESPONSE :res_list } )
 
     except Exception, e:
         return build_error_response(e)
@@ -370,6 +371,13 @@ def list_resources_by_type(resource_type):
 @app.route('/ion-service/run_bank_client')
 def create_accounts():
     from examples.bank.bank_client import run_client
+    run_client(Container.instance, process=service_gateway_instance)
+    return json_response("")
+
+
+@app.route('/ion-service/seed_gov')
+def seed_gov():
+    from examples.gov_client import run_client
     run_client(Container.instance, process=service_gateway_instance)
     return json_response("")
 

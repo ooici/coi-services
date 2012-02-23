@@ -3,6 +3,7 @@ __license__ = 'Apache 2.0'
 '''
 @author Maurice Manning
 @author Swarbhanu Chatterjee
+@author David Stuebe
 @file ion/services/dm/ingestion/ingestion_management_service.py
 @description Implementation for IngestionManagementService
 '''
@@ -13,8 +14,9 @@ from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
 from interface.objects import ExchangeQuery, IngestionConfiguration, ProcessDefinition
-from interface.objects import StreamIngestionPolicy, StreamPolicy
-from pyon.event.event import StreamIngestionPolicyEventPublisher
+from interface.objects import DatasetIngestionConfiguration, DatasetIngestionByStream, DatasetIngestionTypeEnum
+from pyon.event.event import DatasetIngestionConfigurationEventPublisher
+from pyon.core.object import IonObjectSerializer, IonObjectBase
 
 
 from pyon.datastore.datastore import DataStore
@@ -48,10 +50,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
+        self.serializer = IonObjectSerializer()
+
 
     def on_start(self):
         super(IngestionManagementService,self).on_start()
-        self.event_publisher = StreamIngestionPolicyEventPublisher(node = self.container.node)
+        self.event_publisher = DatasetIngestionConfigurationEventPublisher(node = self.container.node)
 
 
         #########################################################################################################
@@ -59,24 +63,22 @@ class IngestionManagementService(BaseIngestionManagementService):
         #   far to preload the process definitions. This will later probably be part of a set of predefinitions
         #   for processes.
         #########################################################################################################
-        self.process_definition = ProcessDefinition()
-        self.process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
-        self.process_definition.executable['class'] = 'IngestionWorker'
-        self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+        process_definition = ProcessDefinition()
+        process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
+        process_definition.executable['class'] = 'IngestionWorker'
+        self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
     def on_quit(self):
-        self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
+        #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(IngestionManagementService,self).on_quit()
 
-    def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,\
-                                       number_of_workers=0, default_policy=None):
+    def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,number_of_workers=0):
         """
         @brief Setup ingestion workers to ingest all the data from a single exchange point.
         @param exchange_point_id is the resource id for the exchagne point to ingest from
         @param couch_storage is the specification of the couch database to use
         @param hdf_storage is the specification of the filesystem to use for hdf data files
         @param number_of_workers is the number of ingestion workers to create
-        @param default_policy is the default policy for streams ingested on this exchange point
         """
 
 
@@ -104,9 +106,6 @@ class IngestionManagementService(BaseIngestionManagementService):
         if couch_storage is not None:
             ingestion_configuration.couch_storage.update(couch_storage)
 
-        if default_policy is not None:
-            ingestion_configuration.default_policy.update(default_policy)
-
 
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
@@ -126,6 +125,11 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         description = 'Ingestion worker'
 
+        configuration = self.serializer.serialize(ingestion_configuration)
+        configuration.pop('type_')
+        configuration['configuration_id'] = ingestion_configuration_id
+
+
         # launch the transforms
         for i in xrange(number_of_workers):
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
@@ -135,7 +139,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 in_subscription_id= subscription_id,
                 out_streams = {},
                 process_definition_id=process_definition_id,
-                configuration=ingestion_configuration) # The config is the ingestion configuration object!
+                configuration=ingestion_configuration)
 
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
@@ -247,124 +251,149 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         return True
 
-    def create_stream_policy(self, stream_id='', archive_data=True, archive_metadata=True):
-        """Create a policy for a particular stream and associate it to the ingestion configuration for the exchange point the stream is on. (After LCA)
+    def create_dataset_configuration(self, dataset_id='', archive_data=True, archive_metadata=True, ingestion_configuration_id=''):
+        """Create a configuration for ingestion of a particular dataset and associate it to a ingestion configuration.
 
-        @param stream_id    str
-        @param archive_data    str
-        @param archive_metadata    str
-        @retval stream_policy_id    str
+        @param dataset_id    str
+        @param archive_data    bool
+        @param archive_metadata    bool
+        @param ingestion_configuration_id    str
+        @retval dataset_ingestion_configuration_id    str
         """
 
-        if not stream_id:
-            raise IngestionManagementServiceException('Must pass a stream id to create stream policy')
+        if not dataset_id:
+            raise IngestionManagementServiceException('Must pass a dataset id to create_dataset_configuration')
 
-        log.debug("Creating stream policy")
+        log.debug("Creating dataset configuration")
+
+
+        dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
+
+        stream_id =dataset.primary_view_key
 
         # Read the stream to get the stream definition
-        stream = self.clients.pubsub_management.read_stream(stream_id=stream_id)
+        #stream = self.clients.pubsub_management.read_stream(stream_id=stream_id)
 
-        #@todo - once we have an exchange point associaiton this might all make sense. For now just add it to the db for all configs
-        resources, _ = self.clients.resource_registry.find_resources(RT.IngestionConfiguration, None, None, False)
+        # Get the associated stream definition!
+        stream_defs, _ = self.clients.resource_registry.find_objects(stream_id, PRED.hasStreamDefinition)
 
-        for ing_conf in resources:
+        if len(stream_defs)!=1:
+            raise IngestionManagementServiceException('The stream is associated with more than one stream definition!')
 
-            try:
-                couch_storage = ing_conf.couch_storage
-            except AttributeError:
-                continue
+        stream_def_resource = stream_defs[0]
+        # Get the container object out of the stream def resource and set the stream id field in the local instance
+        stream_def_container = stream_def_resource.container
+        stream_def_container.stream_resource_id = stream_id
 
-            log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
-            #@todo how do we get them to the right database?!?!
-            db = self.container.datastore_manager.get_datastore(couch_storage.datastore_name, couch_storage.datastore_profile, self.CFG)
+        # Get the ingestion configuration
+        ingestion_configuration = self.clients.resource_registry.read(ingestion_configuration_id)
+        couch_storage = ingestion_configuration.couch_storage
 
-            db.create(stream.stream_definition)
+        log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
+        db = self.container.datastore_manager.get_datastore(couch_storage.datastore_name, self.CFG)
 
-            db.close()
-
-
-        policy = StreamPolicy(  archive_data=archive_data,
-                                archive_metadata=archive_metadata,
-                                stream_id=stream_id)
-
-        stream_policy = StreamIngestionPolicy(  name='',
-                                                description='policy for %s' % stream_id,
-                                                policy = policy)
-
-        stream_policy_id, _ = self.clients.resource_registry.create(stream_policy)
+        # put it in couch db!
+        db.create(stream_def_container)
+        db.close()
 
 
-        #Use the Exchang Point name (id?) as the origin for stream policy events
-        #@todo Once XP is really a resource get the exchange_point id for the stream
-        XP = self.XP
-
-        self.event_publisher.create_and_publish_event(
-            origin=XP,
-            description = stream_policy.description,
-            stream_id =stream_id,
+        #@todo Add business logic to create the right kind of dataset ingestion configuration
+        config = DatasetIngestionByStream(
             archive_data=archive_data,
             archive_metadata=archive_metadata,
-            resource_id = stream_policy_id
+            stream_id=stream_id)
+
+        dset_ingest_config = DatasetIngestionConfiguration(
+            name = 'Dataset config %s' % dataset_id,
+            description = 'configuration for dataset %s' % dataset_id,
+            configuration = config,
+            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM
+            )
+
+        dset_ingest_config_id , _ = self.clients.resource_registry.create(dset_ingest_config)
+
+        self.clients.resource_registry.create_association(dset_ingest_config_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
+
+
+        self.event_publisher.create_and_publish_event(
+            origin=ingestion_configuration_id, # Use the ingestion configuration ID as the origin!
+            description = dset_ingest_config.description,
+            configuration = config,
+            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
+            resource_id = dset_ingest_config_id
             )
 
 
-        return stream_policy_id
+        return dset_ingest_config_id
 
-    def update_stream_policy(self, stream_policy=None):
-        """Change the number of workers or the default policy for ingesting data on each stream (After LCA)
+    def update_dataset_config(self, dataset_ingestion_configuration=None):
+        """Update the ingestion configuration for a dataset
 
-        @param stream_policy    Unknown
-        @throws NotFound    if policy does not exist
+        @param dataset_ingestion_configuration    DatasetIngestionConfiguration
         """
 
-        log.info('stream policy to update: %s' % stream_policy)
+        #@todo - make it an exception to change the dataset_id or the stream_id in the dataset config!
 
-        log.debug("Updating stream policy")
-        stream_policy_id, rev = self.clients.resource_registry.update(stream_policy)
+        log.info('dataset configuration to update: %s' % dataset_ingestion_configuration)
 
+        log.debug("Updating dataset config")
+        dset_ingest_config_id, rev = self.clients.resource_registry.update(dataset_ingestion_configuration)
+
+        ingest_config_ids, _ = self.clients.resource_registry.find_objects(dset_ingest_config_id, PRED.hasIngestionConfiguration, id_only=True)
+
+        if len(ingest_config_ids)!=1:
+            raise IngestionManagementServiceException('The dataset ingestion configuration is associated with more than one ingestion configuration!')
+
+        ingest_config_id = ingest_config_ids[0]
+
+        #@todo - what is it okay to update?
         self.event_publisher.create_and_publish_event(
-            origin=self.XP,
-            description = stream_policy.description,
-            stream_id =stream_policy.policy.stream_id,
-            archive_data=stream_policy.policy.archive_data,
-            archive_metadata=stream_policy.policy.archive_metadata,
-            resource_id = stream_policy_id
+            origin=ingest_config_id,
+            description = dataset_ingestion_configuration.description,
+            configuration = dataset_ingestion_configuration.configuration,
+            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
+            resource_id = dset_ingest_config_id
         )
 
 
-    def read_stream_policy(self, stream_policy_id=''):
-        """Get an existing stream policy object. (After LCA)
+    def read_dataset_config(self, dataset_ingestion_configuration_id=''):
+        """Get an existing dataset configuration.
 
-        @param stream_policy_id    str
-        @retval stream_policy    StreamIngestionPolicy
-        @throws NotFound    if stream policy does not exist
+        @param dataset_ingestion_configuration_id    str
+        @retval dataset_ingestion_configuration    DatasetIngestionConfiguration
+        @throws NotFound    if ingestion configuration did not exist
         """
 
-        log.debug("Reading stream policy")
-        stream_policy = self.clients.resource_registry.read(stream_policy_id)
+        log.debug("Reading dataset configuration")
+        dataset_ingestion_configuration = self.clients.resource_registry.read(dataset_ingestion_configuration_id)
 
-        return stream_policy
+        return dataset_ingestion_configuration
 
-    def delete_stream_policy(self, stream_policy_id=''):
-        """Delete an existing stream policy object. (After LCA)
+    def delete_dataset_config(self,dataset_ingestion_configuration_id=''):
+        """Delete an existing dataset configuration.
 
-        @param stream_policy_id    str
-        @throws NotFound    if stream_policy does not exist
+        @param dataset_ingestion_configuration_id    str
+        @throws NotFound    if ingestion configuration did not exist
         """
 
-        stream_policy = self.clients.resource_registry.read(stream_policy_id)
+        dataset_ingestion_configuration = self.clients.resource_registry.read(dataset_ingestion_configuration_id)
 
-        log.debug("Deleting stream policy")
-        self.clients.resource_registry.delete(stream_policy_id)
+        log.debug("Deleting dataset configuration")
+        self.clients.resource_registry.delete(dataset_ingestion_configuration_id)
 
-        #@todo publish an event for deleting policy
+        ingest_config_ids, association_ids = self.clients.resource_registry.find_objects(dataset_ingestion_configuration_id, PRED.hasIngestionConfiguration, id_only=True)
+
+        if len(ingest_config_ids)!=1:
+            raise IngestionManagementServiceException('The dataset ingestion configuration is associated with more than one ingestion configuration!')
+
+        ingest_config_id = ingest_config_ids[0]
+
+        self.clients.resource_registry.delete_association(association=association_ids[0])
 
         self.event_publisher.create_and_publish_event(
-            origin=self.XP,
-            description = 'delete stream_policy',
-            stream_id =stream_policy.policy.stream_id,
-            archive_data=stream_policy.policy.archive_data,
-            archive_metadata=stream_policy.policy.archive_metadata,
-            resource_id = stream_policy_id,
+            origin=ingest_config_id,
+            configuration = dataset_ingestion_configuration.configuration,
+            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
+            resource_id = dataset_ingestion_configuration_id,
             deleted = True
         )

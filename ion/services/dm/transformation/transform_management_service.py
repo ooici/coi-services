@@ -40,12 +40,12 @@ class TransformManagementService(BaseTransformManagementService):
                          name='',
                          description='',
                          in_subscription_id='',
-                         out_streams={},
+                         out_streams=None,
                          process_definition_id='',
-                         configuration={}):
+                         configuration=None):
 
         """Creates the transform and registers it with the resource registry
-        @param process_definition_id The process defintion contains the module and class of the process to be spawned
+        @param process_definition_id The process definition contains the module and class of the process to be spawned
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
         @param configuration {}
@@ -135,7 +135,7 @@ class TransformManagementService(BaseTransformManagementService):
 
 
 
-    def update_transform(self, configuration={}):
+    def update_transform(self, configuration=None):
         """Not currently possible to update a transform
         @throws NotImplementedError
         """
@@ -204,7 +204,7 @@ class TransformManagementService(BaseTransformManagementService):
 
 # ---------------------------------------------------------------------------
 
-    def execute_transform(self, process_definition_id='', data={}, configuration={}):
+    def execute_transform(self, process_definition_id='', data=None, configuration=None):
         process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
         module = process_definition.executable.get('module')
         cls = process_definition.executable.get('class')
