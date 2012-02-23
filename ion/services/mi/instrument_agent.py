@@ -245,8 +245,8 @@ class InstrumentAgent(ResourceAgent):
             if evt['type'] == 'sample':
                 name = evt['name']
                 value = evt['value']
-                value['lat'] = self._lat
-                value['lon'] = self._lon
+                value['lat'] = [self._lat]
+                value['lon'] = [self._lon]
                 value['stream_id'] = self._data_streams[name]
                 if isinstance(value, dict):
                     packet = self._packet_factories[name](**value)

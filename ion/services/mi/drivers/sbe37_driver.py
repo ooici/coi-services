@@ -828,9 +828,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         match = self._sample_regex.match(line)
         if match:
             sample = {}
-            sample['t'] = float(match.group(1))
-            sample['c'] = float(match.group(2))
-            sample['p'] = float(match.group(3))
+            sample['t'] = [float(match.group(1))]
+            sample['c'] = [float(match.group(2))]
+            sample['p'] = [float(match.group(3))]
 
             # Extract sound velocity and salinity if present.
             #if match.group(5) and match.group(7):
@@ -843,19 +843,23 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             #        sample['sound_velocity'] = match.group(5)
         
             # Extract date and time if present.
-            sample_time = None
-            if  match.group(8):
-                sample_time = time.strptime(match.group(8),', %d %b %Y, %H:%M:%S')
-            
-            elif match.group(15):
-                sample_time = time.strptime(match.group(15),', %m-%d-%Y, %H:%M:%S')
-        
-            if sample_time:
-                sample['time'] = \
-                    '%4i-%02i-%02iT:%02i:%02i:%02i' % sample_time[:6]
+            # sample_time = None
+            #if  match.group(8):
+            #    sample_time = time.strptime(match.group(8),', %d %b %Y, %H:%M:%S')
+            #
+            #elif match.group(15):
+            #    sample_time = time.strptime(match.group(15),', %m-%d-%Y, %H:%M:%S')
+            #
+            #if sample_time:
+            #    sample['time'] = \
+            #        '%4i-%02i-%02iT:%02i:%02i:%02i' % sample_time[:6]
 
             # Add UTC time from driver in iso 8601 format.
             #sample['driver_time'] = datetime.datetime.utcnow().isoformat()
+
+            # Driver timestamp.
+            sample['time'] = [time.time()]
+
 
             if publish and self.send_event:
                 event = {
