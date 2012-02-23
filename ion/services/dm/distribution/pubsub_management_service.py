@@ -47,7 +47,7 @@ class PubsubManagementService(BasePubsubManagementService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    def create_stream_defintion(self, container=None, name='', description=''):
+    def create_stream_definition(self, container=None, name='', description=''):
         """@brief Create a new stream defintion which may be used to publish on one or more streams
         @param container is a stream definition container object
 
