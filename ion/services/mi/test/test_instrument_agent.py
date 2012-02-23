@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 from nose.plugins.attrib import attr
 
-from interface.objects import CouchStorage, ProcessDefinition, StreamQuery, StreamPolicy
+from interface.objects import StreamQuery
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
