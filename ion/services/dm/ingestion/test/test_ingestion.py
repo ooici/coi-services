@@ -703,7 +703,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         log.info("PROCESS 2: %s" % str(proc_2))
 
         #--------------------------------------------------------------------------------------------------------
-        # Create a stream policy
+        # Create a dataset config
         #--------------------------------------------------------------------------------------------------------
 
         dataset_config_id = self.ingestion_cli.create_dataset_configuration(
@@ -733,7 +733,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
         #--------------------------------------------------------------------------------------------------------
-        # Change the stream policy and update it
+        # Change the dataset config and update it
         #--------------------------------------------------------------------------------------------------------
 
         dataset_config.configuration.archive_metadata = True
@@ -766,7 +766,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
         #--------------------------------------------------------------------------------------------------------
-        # Assert that a non existent stream policy cannot be updated
+        # Assert that a non existent dataset config cannot be updated
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(BadRequest):
@@ -774,10 +774,9 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             dataset_config.description = 'updated right now'
             self.ingestion_cli.update_dataset_config(dataset_ingestion_configuration = dataset_config)
 
-    @unittest.skip("todo")
-    def test_read_stream_policy(self):
+    def test_read_dataset_config(self):
         """
-        Test reading a stream policy
+        Test reading a dataset config
         """
 
 
@@ -795,40 +794,43 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         log.info("PROCESS 2: %s" % str(proc_2))
 
         #--------------------------------------------------------------------------------------------------------
-        # Create a stream policy
+        # Create a dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+        dataset_config_id = self.ingestion_cli.create_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
 
         #--------------------------------------------------------------------------------------------------------
-        # Read the stream policy
+        # Read the dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy = self.ingestion_cli.read_stream_policy(stream_policy_id)
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
 
         #--------------------------------------------------------------------------------------------------------
         # Do assertions and checks!
         #--------------------------------------------------------------------------------------------------------
 
-        self.assertEquals(stream_policy.policy.stream_id, self.input_stream_id)
+        self.assertEquals(dataset_config.configuration.stream_id, self.input_stream_id)
 
 
-    @unittest.skip("todo")
-    def test_read_stream_policy_not_found(self):
+    def test_read_dataset_config_not_found(self):
         """
-        Test reading a stream policy that does not exist
+        Test reading a dataset config that does not exist
         Assert that the operation fails
         """
 
 
         #--------------------------------------------------------------------------------------------------------
-        # Assert that reading not existent stream policy raises an exception
+        # Assert that reading not existent dataset config raises an exception
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            stream_policy = self.ingestion_cli.read_stream_policy('abracadabra')
+            stream_policy = self.ingestion_cli.read_dataset_config('abracadabra')
 
-    @unittest.skip("todo")
     def test_delete_stream_policy(self):
         """
         Test deleting a strema policy
@@ -836,25 +838,29 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
         #--------------------------------------------------------------------------------------------------------
-        # Create a stream policy
+        # Create a dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        stream_policy_id = self.ingestion_cli.create_stream_policy( stream_id = self.input_stream_id , archive_data = True, archive_metadata=False)
+        dataset_config_id = self.ingestion_cli.create_dataset_configurationcreate_dataset_configuration(
+            dataset_id = self.input_dataset_id,
+            archive_data = True,
+            archive_metadata = False,
+            ingestion_configuration_id = self.ingestion_configuration_id
+        )
 
         #--------------------------------------------------------------------------------------------------------
-        # Delete the stream policy
+        # Delete the dataset config
         #--------------------------------------------------------------------------------------------------------
 
-        self.ingestion_cli.delete_stream_policy(stream_policy_id)
+        self.ingestion_cli.delete_dataset_config(dataset_config_id)
 
         #--------------------------------------------------------------------------------------------------------
-        # Assert that trying to read the stream policy now raises an exception
+        # Assert that trying to read the dataset config now raises an exception
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            stream_policy = self.rr_cli.read(stream_policy_id)
+            stream_policy = self.rr_cli.read(dataset_config_id)
 
-    @unittest.skip("todo")
     def test_delete_stream_policy_not_found(self):
         """
         Test delting a stream that does not exist
@@ -862,11 +868,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         """
 
         #--------------------------------------------------------------------------------------------------------
-        # Delete a stream policy that does not exists
+        # Delete a dataset config that does not exists
         #--------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(NotFound):
-            self.ingestion_cli.delete_stream_policy('non_existent_stream_id')
+            self.ingestion_cli.delete_dataset_config('non_existent_stream_id')
 
     @unittest.skip("todo")
     def test_ingestion_workers_writes_to_couch(self):
@@ -980,7 +986,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
     def test_policy_implementation_for_science_data(self):
         """
         test_policy_implementation_for_science_data
-        Test that the default policy is being used properly. Test that create and update stream policy functions
+        Test that the default policy is being used properly. Test that create and update dataset config functions
         properly and their implementation is correct
         """
 
@@ -999,7 +1005,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         log.info("PROCESS 2: %s" % str(proc_2))
 
         #------------------------------------------------------------------------
-        # Create a stream and a stream policy
+        # Create a stream and a dataset config
         #----------------------------------------------------------------------
 
         ctd_stream_def = ctd_stream_definition()
@@ -1044,7 +1050,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
         #------------------------------------------------------------------------
-        # Now change the stream policy for the same stream
+        # Now change the dataset config for the same stream
         #------------------------------------------------------------------------
 
         stream_policy = self.rr_cli.read(stream_policy_id)
@@ -1074,7 +1080,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
         #------------------------------------------------------------------------
-        # Now change the stream policy for the same stream for the third time
+        # Now change the dataset config for the same stream for the third time
         #------------------------------------------------------------------------
 
 
