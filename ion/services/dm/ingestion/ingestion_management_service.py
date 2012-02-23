@@ -110,8 +110,13 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
 
-        self._launch_transforms(ingestion_configuration.number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, self.process_definition_id)
-
+        self._launch_transforms(
+            ingestion_configuration.number_of_workers,
+            subscription_id,
+            ingestion_configuration_id,
+            ingestion_configuration,
+            self.process_definition_id
+        )
         return ingestion_configuration_id
 
     def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id):
@@ -122,7 +127,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         description = 'Ingestion worker'
 
         # launch the transforms
-        for i in range(number_of_workers):
+        for i in xrange(number_of_workers):
             name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
             transform_id = self.clients.transform_management.create_transform(
                 name = name,
@@ -135,9 +140,8 @@ class IngestionManagementService(BaseIngestionManagementService):
             # create association between ingestion configuration and the transforms that act as Ingestion Workers
             if not transform_id:
                 raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
-
             self.clients.resource_registry.create_association(ingestion_configuration_id, PRED.hasTransform, transform_id)
-            #@todo How should we deal with failure?
+
 
     def update_ingestion_configuration(self, ingestion_configuration=None):
         """Change the number of workers or the default policy for ingesting data on each stream

@@ -40,6 +40,7 @@ class TestOrgManagementService(PyonTestCase):
         self.org.name = "Foo"
 
 
+    @patch('pyon.ion.directory.Directory.__init__', Mock(return_value=None))
     def test_create_org(self):
         self.mock_create.return_value = ['111', 1]
 

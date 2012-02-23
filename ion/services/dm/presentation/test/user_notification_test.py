@@ -66,6 +66,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
         
+    def test_find_events_for_resource(self):
+        pass
+        
     def test_create_two_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
