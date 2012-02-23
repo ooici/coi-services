@@ -13,6 +13,7 @@ import thread
 import getopt
 
 port = 4001  # Default port to run on.
+connection_count = 0
 
 class sbe37(asyncore.dispatcher_with_send):
     count = 8
@@ -777,7 +778,9 @@ class sbe37_server(asyncore.dispatcher):
             pass
         else:
             sock, addr = pair
-            print 'Incoming connection from %s' % repr(addr)
+            global connection_count
+            connection_count += 1
+            print str(connection_count) + ' Incoming connection from %s' % repr(addr)
             try:
                 thread.start_new_thread(sbe37, (sock, thread))
             except:
@@ -825,7 +828,7 @@ if __name__ == '__main__':
 
     print "\nStarting simulator on port " + str(port) + ".\n"
 
-    server = sbe37_server('localhost', port)
+    server = sbe37_server('', port)
 
     try:
         asyncore.loop()
