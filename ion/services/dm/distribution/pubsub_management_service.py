@@ -47,14 +47,14 @@ class PubsubManagementService(BasePubsubManagementService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    def create_stream_definition(self, container=None):
+    def create_stream_definition(self, container=None, name='', description=''):
         """@brief Create a new stream defintion which may be used to publish on one or more streams
         @param container is a stream definition container object
 
         @param container    StreamDefinitionContainer
         @retval stream_definition_id    str
         """
-        stream_definition = StreamDefinition(container=container)
+        stream_definition = StreamDefinition(container=container, name=name, description=description)
         stream_def_id, rev = self.clients.resource_registry.create(stream_definition)
 
         return stream_def_id
@@ -66,7 +66,8 @@ class PubsubManagementService(BasePubsubManagementService):
         @retval success    bool
         """
         id, rev = self.clients.resource_registry.update(stream_definition)
-        return True
+        #@todo will this throw a not found in the client if the op failed?
+
 
     def read_stream_definition(self, stream_definition_id=''):
         """Get an existing stream definition.
@@ -114,15 +115,6 @@ class PubsubManagementService(BasePubsubManagementService):
 
         if stream_definition_id != '':
             self.clients.resource_registry.create_association(stream_id, PRED.hasStreamDefinition, stream_definition_id)
-        #
-        #    #@todo Very awkward right now - need to read the stream object and update a field with its own id...
-        #    stream_obj = self.clients.resource_registry.read(stream_id)
-        #
-        #    stream_definition.stream_resource_id = stream_id
-        #
-        #    stream_obj.stream_definition.update(stream_definition)
-        #
-        #    id, rev = self.clients.resource_registry.update(stream_obj)
 
         return stream_id
 
@@ -137,7 +129,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         log.debug("Updating stream object: %s" % stream.name)
         id, rev = self.clients.resource_registry.update(stream)
-        return True
+        #@todo will this throw a NotFound in the client if there was a problem?
 
     def read_stream(self, stream_id=''):
         '''
@@ -210,7 +202,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, query={}, exchange_name='', name='', description=''):
+    def create_subscription(self, query=None, exchange_name='', name='', description=''):
         '''
         @brief Create a new subscription. The id string returned is the ID of the new subscription
         in the resource registry.
