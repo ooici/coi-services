@@ -6,6 +6,7 @@ from pyon.public import CFG, IonObject, log, RT, PRED
 
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.exception import Conflict, Inconsistent, NotFound
+from pyon.ion.directory import Directory
 from pyon.util.log import log
 
 class OrgManagementService(BaseOrgManagementService):
@@ -25,6 +26,7 @@ class OrgManagementService(BaseOrgManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
         org_id, version = self.clients.resource_registry.create(org)
+        directory = Directory(orgname=org.name)
         return org_id
 
     def update_org(self, org=None):
