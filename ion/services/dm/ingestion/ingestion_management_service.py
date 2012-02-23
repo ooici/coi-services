@@ -336,7 +336,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         log.info('dataset configuration to update: %s' % dataset_ingestion_configuration)
 
-        log.debug("Updating stream policy")
+        log.debug("Updating dataset config")
         dset_ingest_config_id, rev = self.clients.resource_registry.update(dataset_ingestion_configuration)
 
         ingest_config_ids, _ = self.clients.resource_registry.find_objects(dset_ingest_config_id, PRED.hasIngestionConfiguration, id_only=True)
@@ -379,11 +379,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         dataset_ingestion_configuration = self.clients.resource_registry.read(dataset_ingestion_configuration_id)
 
         log.debug("Deleting dataset configuration")
-        self.clients.resource_registry.delete(stream_policy_id)
+        self.clients.resource_registry.delete(dataset_ingestion_configuration_id)
 
         ingest_config_ids, association_ids = self.clients.resource_registry.find_objects(dataset_ingestion_configuration_id, PRED.hasIngestionConfiguration, id_only=True)
 
-        if len(ingest_configs)!=1:
+        if len(ingest_config_ids)!=1:
             raise IngestionManagementServiceException('The dataset ingestion configuration is associated with more than one ingestion configuration!')
 
         ingest_config_id = ingest_config_ids[0]
