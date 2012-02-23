@@ -29,6 +29,8 @@ DATA_LINE_PATTERN = re.compile(r'.*(\d+\.\d*\s*){12}.*')
 
 GENERIC_PROMPT_PATTERN = re.compile(r'.*--> ')
 
+MAX_NUM_LINES = 100
+
 
 class _Recv(Thread):
     """
@@ -41,14 +43,19 @@ class _Recv(Thread):
         self._conn = conn
         self._last_line = ''
         self._new_line = ''
+        self._lines = []
         self._active = True
         self._outfile = outfile
         self.setDaemon(True)
+        log.debug("### _Recv created.")
 
     def _update_lines(self, recv):
         if recv == '\n':
             self._last_line = self._new_line
             self._new_line = ''
+            self._lines.append(self._last_line)
+            if len(self._lines) > MAX_NUM_LINES:
+                self._lines = self._lines[MAX_NUM_LINES - 1:]
             return True
         else:
             self._new_line += recv
@@ -66,6 +73,7 @@ class _Recv(Thread):
             if self._outfile:
                 os.write(self._outfile.fileno(), recv)
                 self._outfile.flush()
+        log.debug("### _Recv.run done.")
 
 
 class BarsClient(object):
@@ -77,17 +85,27 @@ class BarsClient(object):
         """
         Establishes the connection and starts the receiving thread.
         """
-        log.debug("### connecting to %s:%s" % (host, port))
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._sock.connect((host, port))
-        self._bt = _Recv(self._sock, outfile)
-        self._bt.start()
+        self._host = host
+        self._port = port
+        self._sock = None
+        self._outfile = outfile
+        self._bt = None
 
         """sleep time used just before sending data"""
         self.delay_before_send = 0.2
 
         """sleep time used just before a expect operation"""
         self.delay_before_expect = 2
+
+    def connect(self):
+        host, port = self._host, self._port
+        log.debug("### connecting to %s:%s" % (host, port))
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.connect((host, port))
+        log.debug("### connected to %s:%s" % (host, port))
+        self._bt = _Recv(self._sock, self._outfile)
+        self._bt.start()
+        log.debug("### _Recv started.")
 
     def is_collecting_data(self, timeout=30):
         """
@@ -121,6 +139,9 @@ class BarsClient(object):
         log.debug("### got prompt. Sending one ^m to clean up any ^S leftover")
         self._send_control('m')
 
+    def get_last_buffer(self):
+        return '\n'.join(self._bt._lines)
+
     def send_enter(self):
         """
         Sleeps for self.delay_before_send and calls self._send_control('m').
@@ -129,15 +150,14 @@ class BarsClient(object):
         log.debug("### send_enter")
         self._send_control('m')
 
-    def send_option(self, char):
+    def send(self, string):
         """
-        Sleeps for self.delay_before_send and then sends the given char
-        followed by a ^m
+        Sleeps for self.delay_before_send and then sends string + '\r'
         """
         time.sleep(self.delay_before_send)
-        log.debug("### send_option: '%s'" % char)
-        self._send(char)
-        self._send_control('m')
+        s = string + '\r'
+        log.debug("### send: '%s'" % repr(s))
+        self._send(s)
 
     def expect_line(self, pattern, pre_delay=None, timeout=30):
         """
@@ -185,6 +205,7 @@ class BarsClient(object):
         """
         Ends the client.
         """
+        log.debug("### ending")
         self._bt.end()
         self._sock.close()
 
@@ -225,6 +246,7 @@ def main(host, port, outfile=sys.stdout):
                    (by default, sys.stdout).
     """
     bars_client = BarsClient(host, port, outfile)
+    bars_client.connect()
 
     print ":: is instrument collecting data?"
     if bars_client.is_collecting_data():
@@ -237,7 +259,7 @@ def main(host, port, outfile=sys.stdout):
     bars_client.enter_main_menu()
 
     print ":: select 6 to get system info"
-    bars_client.send_option('6')
+    bars_client.send('6')
     bars_client.expect_generic_prompt()
 
     print ":: send enter to return to main menu"
@@ -245,7 +267,7 @@ def main(host, port, outfile=sys.stdout):
     bars_client.expect_generic_prompt()
 
     print ":: resume data streaming"
-    bars_client.send_option('1')
+    bars_client.send('1')
 
     print ":: sleeping for 10 secs to receive some data"
     time.sleep(10)

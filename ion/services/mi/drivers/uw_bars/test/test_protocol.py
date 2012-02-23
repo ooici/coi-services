@@ -4,17 +4,19 @@ __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
 
-from ion.services.mi.drivers.uw_bars.test import BarsTestCase
+from ion.services.mi.drivers.uw_bars.test.pyon_test import PyonBarsTestCase
 from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
 from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
 
 import time
 
 from nose.plugins.attrib import attr
+from unittest import skip
 
 
+@skip('not yet easy to test protocol in isolation')
 @attr('UNIT', group='mi')
-class ProtocolTest(BarsTestCase):
+class ProtocolTest(PyonBarsTestCase):
 
     def test(self):
         """

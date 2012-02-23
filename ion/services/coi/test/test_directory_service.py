@@ -26,7 +26,7 @@ class TestDirectoryService(IonIntegrationTestCase):
 
     def test_directory_service(self):
         # Lookup of non-existent entry is benign
-        ret = self.directory_service.lookup("Foo")
+        ret = self.directory_service.lookup("/Foo")
         self.assertTrue(ret == None)
 
         # Find isn't implemented
