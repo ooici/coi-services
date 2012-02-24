@@ -127,7 +127,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         return objects
 
 
-    def activate_data_product_persistence(self, data_product_id=''):
+    def activate_data_product_persistence(self, data_product_id='', persist_data=True, persist_metadata=True):
         """Persist data product data into a data set
 
         @param data_product_id    str
@@ -145,15 +145,28 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         stream = streams[0]
 
-#        # Call ingestion management to create a ingestion configuration
-#        stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, True, True)
-#
-#        # activate an ingestion configuration
-#        #todo: Does DPMS call activate?
-#        #ret = self.clients.ingestion_management.activate_ingestion_configuration(ingestion_configuration_id)
-#
-#        # create the dataset for the data
-#        self.clients.dataset_management.create_dataset(self, stream, data_product_obj.name, data_product_obj.description)
+        # Call ingestion management to create a ingestion configuration
+        # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
+        log.debug('activate_data_product_persistence: Calling create_ingestion_configuration')
+        data_product_obj.ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(
+            exchange_point_id='science_data',
+            couch_storage=CouchStorage(datastore_name=self.datastore_name,datastore_profile='SCIDATA'),
+            number_of_workers=8
+        )
+        #todo: does DPMS need to save the ingest _config_id in the product resource? Can this be found via the stream id?
+
+        # activate an ingestion configuration
+        #todo: Does DPMS call activate?
+        ret = self.clients.ingestion_management.activate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
+
+        # create the dataset for the data
+        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(self, stream, data_product_obj.name, data_product_obj.description)
+        self.clients.resource_registry.update(data_product_obj)
+
+        # Call ingestion management to create a dataset configuration
+        log.debug('activate_data_product_persistence: Calling create_dataset_configuration')
+        dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration( dataset_id, persist_data, persist_metadata, ingestion_configuration_id)
+        #todo: does DPMS need to save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
         return
 
@@ -169,16 +182,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_obj = self.clients.resource_registry.read(data_product_id)
         if data_product_obj is None:
             raise NotFound("Data Product %s does not exist" % data_product_id)
-
-        # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
-        streams, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
-        if len(streams) > 1:
-            raise BadRequest('There are  multiple streams linked to this Data Product %s' % str(data_product_id))
-
-        stream = streams[0]
+        if data_product_obj.ingestion_configuration_id is None:
+            raise NotFound("Data Product %s ingestion configuration does not exist" % data_product_id)
 
         # Change the stream policy to stop ingestion
-        #stream_policy_id = self.clients.ingestion_management.create_stream_policy(self, stream, False, False)
+        self.clients.ingestion_management.deactivate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
 
         return
 
