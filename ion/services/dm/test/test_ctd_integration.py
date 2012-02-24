@@ -99,14 +99,24 @@ class CTDIntegrationTest(IonIntegrationTestCase):
                 ingestion_configuration_id = ingestion_configuration_id
             )
 
-            pid = cc.spawn_process(
-                name='CTD_%d' % iteration,
-                module='ion.processes.data.ctd_stream_publisher',
-                cls='SimpleCtdPublisher',
-                config={'process':{'stream_id':stream_id,'datastore_name':datastore_name}}
-            )
-            # Keep track, we'll kill 'em later.
 
+            producer_definition = ProcessDefinition()
+            producer_definition.executable = {
+                'module':'ion.processes.data.ctd_stream_publisher',
+                'class':'SimpleCtdPublisher'
+            }
+            configuration = {
+                'process':{
+                    'stream_id':stream_id,
+                    'datastore_name':datastore_name
+                }
+            }
+            procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
+            log.debug('LUKE_DEBUG: procdef_id: %s', procdef_id)
+            pid = process_dispatcher.schedule_process(process_definition_id=procdef_id, configuration=configuration)
+
+
+            # Keep track, we'll kill 'em later.
             process_list.append(pid)
         # Get about 4 seconds of data
         time.sleep(4)
@@ -116,7 +126,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         #---------------------------
 
         for process in process_list:
-            cc.proc_manager.terminate_process(process)
+            process_dispatcher.cancel_process(process)
 
         #----------------------------------------------
         # The replay and the transform, a love story.
