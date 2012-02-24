@@ -83,16 +83,7 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         # Container
         #-------------------------------------------------------------------------------------------------------
         self._start_container()
-
-        self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
-
-        self.cc.start_rel_from_url('res/deploy/r2dm.yml')
-
-        #-------------------------------------------------------------------------------------------------------
-        # Make a registrar object - this is work usually done for you by the container in a transform or data stream process
-        #-------------------------------------------------------------------------------------------------------
-
-        self.subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
 
     def test_blog_ingestion_replay(self):
@@ -100,8 +91,13 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         #-----------------------------------------------------------------------------------------------------
         # Do this statement just once in your script
         #-----------------------------------------------------------------------------------------------------
+        cc = self.container
 
-        cc = self.cc
+        #-------------------------------------------------------------------------------------------------------
+        # Make a registrar object - this is work usually done for you by the container in a transform or data stream process
+        #-------------------------------------------------------------------------------------------------------
+
+        subscriber_registrar = StreamSubscriberRegistrar(process=cc, node=cc.node)
 
         #-----------------------------------------------------------------------------------------------------
         # Service clients
@@ -109,6 +105,8 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
         ingestion_cli = IngestionManagementServiceClient(node=cc.node)
         dr_cli = DataRetrieverServiceClient(node=cc.node)
+        dsm_cli = DatasetManagementServiceClient(node=cc.node)
+        pubsub_cli = PubsubManagementServiceClient(node=cc.node)
 
         #-------------------------------------------------------------------------------------------------------
         # Create and activate ingestion configuration
@@ -133,13 +131,40 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         # Create the stateful listener to hold the captured data for comparison with replay
         captured_input = BlogListener()
 
-        # Start the subscription
-        self._create_subscriber(subscription_name='input_capture_queue', subscription_query=query , blog_listener = captured_input)
+
+        # Make a subscription to the input stream to ingestion
+        subscription_id = pubsub_cli.create_subscription(query = query, exchange_name='input_capture_queue' ,name = 'input_capture_queue')
+
+
+        # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
+        # Normally the container creates and starts subscribers for you when a transform process is spawned
+        subscriber = subscriber_registrar.create_subscriber(exchange_name='input_capture_queue', callback=captured_input.blog_store)
+        subscriber.start()
+
+        captured_input.subscriber = subscriber
+
+        pubsub_cli.activate_subscription(subscription_id)
+
 
         #-------------------------------------------------------------------------------------------------------
         # Launching blog scraper
         #-------------------------------------------------------------------------------------------------------
-        self._launch_blog_scraper()
+
+        blogs = [
+            'saintsandspinners',
+            'strobist',
+            'voodoofunk'
+        ]
+
+
+        log.debug('before spawning blog scraper')
+
+        for blog in blogs:
+            config = {'process':{'type':'stream_process','blog':blog}}
+            cc.spawn_process(name=blog,
+                module='ion.services.dm.ingestion.example.blog_scraper',
+                cls='FeedStreamer',
+                config=config)
 
         # wait ten seconds for some data to come in...
         log.warn('Sleeping for 10 seconds to wait for some input')
@@ -157,8 +182,8 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
         post_ids = []
 
-        if len(captured_input.blogs) < 1:
-            self.fail('No data returned in ten seconds by the blog scrappers!')
+
+
 
         for post_id, blog in captured_input.blogs.iteritems(): # Use items not iter items - I copy of fixed length
 
@@ -169,8 +194,21 @@ class BlogIntegrationTest(IonIntegrationTestCase):
             if len(post_ids) >3:
                 break
 
-        else:
+        ###=======================================================
+        ### This section is not scriptable
+        ###=======================================================
+
+
+        if len(post_ids) < 3:
             self.fail('Not enough comments returned by the blog scrappers in 30 seconds')
+
+        if len(captured_input.blogs) < 1:
+            self.fail('No data returned in ten seconds by the blog scrappers!')
+
+        ###=======================================================
+        ### End non-scriptable
+        ###=======================================================
+
 
         #------------------------------------------------------------------------------------------------------
         # Create subscriber to listen to the replays
@@ -181,18 +219,50 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         for idx, post_id in enumerate(post_ids):
             # Create the stateful listener to hold the captured data for comparison with replay
 
-            replay_id, stream_id = self._create_replay(post_id)
+
+            dataset_id = dsm_cli.create_dataset(
+                stream_id=post_id,
+                datastore_name='dm_datastore',
+                view_name='posts/posts_join_comments')
+
+            replay_id, stream_id =dr_cli.define_replay(dataset_id)
 
 
             query = StreamQuery(stream_ids=[stream_id])
 
             captured_replay = BlogListener()
 
-            self._create_subscriber(subscription_name='replay_capture_queue_%d' % idx, subscription_query=query , blog_listener = captured_replay)
+            #------------------------------------------------------------------------------------------------------
+            # Create subscriber to listen to the messages published to the ingestion
+            #------------------------------------------------------------------------------------------------------
+
+            # Make a subscription to the input stream to ingestion
+            subscription_name = 'replay_capture_queue_%d' % idx
+            subscription_id = pubsub_cli.create_subscription(query = query, exchange_name=subscription_name ,name = subscription_name)
+
+
+            # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
+            # Normally the container creates and starts subscribers for you when a transform process is spawned
+            subscriber = subscriber_registrar.create_subscriber(exchange_name=subscription_name, callback=captured_replay.blog_store)
+            subscriber.start()
+
+            captured_replay.subscriber = subscriber
+
+            pubsub_cli.activate_subscription(subscription_id)
+
+            #------------------------------------------------------------------------------------------------------
+            # Start the replay and listen to the results!
+            #------------------------------------------------------------------------------------------------------
 
             dr_cli.start_replay(replay_id)
 
             captured_replays[post_id] = captured_replay
+
+
+        ###=======================================================
+        ### The rest is not scriptable
+        ###=======================================================
+
 
         # wait five seconds for some data to come in...
         log.warn('Sleeping for 5 seconds to wait for some output')
@@ -224,100 +294,6 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         log.info('Matched comments on the following blogs: %s' % matched_comments)
 
 
-
-
-    def _create_subscriber(self, subscription_name, subscription_query, blog_listener):
-
-        #-----------------------------------------------------------------------------------------------------
-        # Do this statement just once in your script
-        #-----------------------------------------------------------------------------------------------------
-
-        cc = self.cc
-
-        #-----------------------------------------------------------------------------------------------------
-        # Service clients
-        #-----------------------------------------------------------------------------------------------------
-
-        pubsub_cli = PubsubManagementServiceClient(node=cc.node)
-
-        #------------------------------------------------------------------------------------------------------
-        # Create subscriber to listen to the messages published to the ingestion
-        #------------------------------------------------------------------------------------------------------
-
-        # Make a subscription to the input stream to ingestion
-        subscription_id = pubsub_cli.create_subscription(query = subscription_query, exchange_name=subscription_name ,name = subscription_name)
-
-
-        # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
-        # Normally the container creates and starts subscribers for you when a transform process is spawned
-        subscriber = self.subscriber_registrar.create_subscriber(exchange_name=subscription_name, callback=blog_listener.blog_store)
-        subscriber.start()
-
-        blog_listener.subscriber = subscriber
-
-        pubsub_cli.activate_subscription(subscription_id)
-
-        return subscription_id
-
-    def _launch_blog_scraper(self):
-        #-------------------------------------------------------------------------------------------------------
-        # Launching blog scraper
-        #-------------------------------------------------------------------------------------------------------
-
-        blogs = [
-            'voodoofunk',
-            'google-code-featured',
-            'googleblog',
-            'deerhuntertheband',
-            'googlewebmastercentral',
-            'strobist',
-            'chrome',
-            'hellohighprices',
-            'saintsandspinners',
-            'warnakubrunei']
-
-
-        blogs = [
-            'saintsandspinners',
-            'strobist',
-            'voodoofunk'
-        ]
-
-
-        log.debug('before spawning blog scraper')
-
-        for blog in blogs:
-            config = {'process':{'type':'stream_process','blog':blog}}
-            self.cc.spawn_process(name=blog,
-                module='ion.services.dm.ingestion.example.blog_scraper',
-                cls='FeedStreamer',
-                config=config)
-
-    def _create_replay(self, post_id):
-        """
-        Define the replay
-        """
-        #-----------------------------------------------------------------------------------------------------
-        # Do this statement just once in your script
-        #-----------------------------------------------------------------------------------------------------
-
-        cc = self.cc
-
-        #-----------------------------------------------------------------------------------------------------
-        # Service clients
-        #-----------------------------------------------------------------------------------------------------
-
-        dr_cli = DataRetrieverServiceClient(node=cc.node)
-        dsm_cli = DatasetManagementServiceClient(node=cc.node)
-
-        dataset_id = dsm_cli.create_dataset(
-            stream_id=post_id,
-            datastore_name='dm_datastore',
-            view_name='posts/posts_join_comments'
-        )
-
-
-        return dr_cli.define_replay(dataset_id)
 
 
 
