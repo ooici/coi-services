@@ -12,17 +12,19 @@ definitions and then tests functionality in the base classes.
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-
+import logging
+import unittest
+from nose.plugins.attrib import attr
+from mock import Mock
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
+from ion.services.mi.exceptions import RequiredParameterException
 from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
 
-from nose.plugins.attrib import attr
-import unittest
-
+mi_logger = logging.getLogger('mi_logger')
 
 class Command(BaseEnum):
     pass
@@ -80,7 +82,8 @@ class MyProtocol(InstrumentProtocol):
             self._values[param] = next_value
 
     def get(self, params, *args, **kwargs):
-        print "MyProtocol(%s).get: params=%s" % (self._channel, str(params))
+        mi_logger.debug("MyProtocol(%s).get: params=%s" % (self._channel,
+                                                           str(params)))
         assert isinstance(params, (list, tuple))
         result = {}
         for param in params:
@@ -93,7 +96,8 @@ class MyProtocol(InstrumentProtocol):
         return result
 
     def set(self, params, *args, **kwargs):
-        print "MyProtocol(%s).set: params=%s" % (self._channel, str(params))
+        mi_logger.debug("MyProtocol(%s).set: params=%s" % (self._channel,
+                                                           str(params)))
 
         assert isinstance(params, dict)
 
@@ -153,22 +157,23 @@ class Some(object):
 
 
 def _print_dict(title, d):
-    print "%s:" % title
+    mi_logger.debug("%s:" % title)
     for item in d.items():
-        print "\t%s" % str(item)
+        mi_logger.debug("\t%s" % str(item))
 
 
 @attr('UNIT', group='mi')
 class DriverTest(unittest.TestCase):
 
     def setUp(self):
+        self.callback = Mock()
         MyProtocol.next_base_value = 0
-        self.driver = MyDriver()
+        self.driver = MyDriver(self.callback)
 
     def test_get_params(self):
         params = Some.VALID_PARAMS + Some.INVALID_PARAMS
 
-        print "\nGET: %s" % str(params)
+        mi_logger.debug("\nGET: %s" % str(params))
 
         get_result = self.driver.get(params)
 
@@ -187,7 +192,7 @@ class DriverTest(unittest.TestCase):
         params = [(Channel.ALL, Parameter.PARAM1),
                   (Channel.ALL, Parameter.PARAM2)]
 
-        print "\nGET: %s" % str(params)
+        mi_logger.debug("\nGET: %s" % str(params))
 
         get_result = self.driver.get(params)
 
@@ -242,3 +247,48 @@ class DriverTest(unittest.TestCase):
 
         self.assertEqual(set_result[(Channel.CHAN1, Parameter.PARAM1)],
                          InstErrorCode.DUPLICATE_PARAMETER)
+        
+    def test_check_channel(self):
+        """Test the routines to check the channel arguments"""
+        self.assertRaises(RequiredParameterException,
+                          self.driver._check_channel_args, DriverChannel.ALL)
+        self.assertRaises(RequiredParameterException,
+                          self.driver._check_channel_args, [])
+        self.assertRaises(RequiredParameterException,
+                          self.driver._check_channel_args, None)
+        
+        (bad, good) = self.driver._check_channel_args([DriverChannel.INSTRUMENT])
+        self.assertEquals(bad, {})
+        self.assertEquals(good, [DriverChannel.INSTRUMENT])
+        
+        (bad, good) = self.driver._check_channel_args(["BAD_CHANNEL"])
+        self.assertEquals(bad, {"BAD_CHANNEL":InstErrorCode.INVALID_CHANNEL})
+        self.assertEquals(good, [])
+        
+        (bad, good) = self.driver._check_channel_args([Channel.CHAN1])
+        self.assertEquals(bad, {})
+        self.assertEquals(good, [Channel.CHAN1])
+        
+        (bad, good) = self.driver._check_channel_args([Channel.CHAN1,
+                                                       Channel.CHAN1])
+        self.assertEquals(bad, {})
+        self.assertEquals(good, [Channel.CHAN1])
+
+        # @todo Need a better test...something with more channels
+        (bad, good) = self.driver._check_channel_args([Channel.CHAN1,
+                                                       Channel.ALL])
+        self.assertEquals(bad, {})
+        self.assertEquals(good, [Channel.CHAN1, Channel.CHAN2])
+
+        (bad, good) = self.driver._check_channel_args([Channel.CHAN1,
+                                                       Channel.INSTRUMENT])
+        self.assertEquals(bad, {})
+        self.assertEquals(good.count(Channel.CHAN1), 1)
+        self.assertEquals(good.count(Channel.INSTRUMENT), 1)
+        self.assertEquals(len(good), 2)
+        
+
+        (bad, good) = self.driver._check_channel_args([Channel.CHAN1,
+                                                       "BAD_CHANNEL"])
+        self.assertEquals(bad, {"BAD_CHANNEL":InstErrorCode.INVALID_CHANNEL})
+        self.assertEquals(good, [Channel.CHAN1])
