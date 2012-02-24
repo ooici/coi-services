@@ -9,7 +9,6 @@ from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from interface.objects import CouchStorage, ProcessDefinition, StreamQuery
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -44,7 +43,6 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         dataset_management_service = DatasetManagementServiceClient(node=cc.node)
         data_retriever_service = DataRetrieverServiceClient(node=cc.node)
         transform_management_service = TransformManagementServiceClient(node=cc.node)
-        resource_registry_service = ResourceRegistryServiceClient(node=cc.node)
         process_dispatcher = ProcessDispatcherServiceClient(node=cc.node)
 
         process_list = []
@@ -99,14 +97,24 @@ class CTDIntegrationTest(IonIntegrationTestCase):
                 ingestion_configuration_id = ingestion_configuration_id
             )
 
-            pid = cc.spawn_process(
-                name='CTD_%d' % iteration,
-                module='ion.processes.data.ctd_stream_publisher',
-                cls='SimpleCtdPublisher',
-                config={'process':{'stream_id':stream_id,'datastore_name':datastore_name}}
-            )
-            # Keep track, we'll kill 'em later.
 
+            producer_definition = ProcessDefinition()
+            producer_definition.executable = {
+                'module':'ion.processes.data.ctd_stream_publisher',
+                'class':'SimpleCtdPublisher'
+            }
+            configuration = {
+                'process':{
+                    'stream_id':stream_id,
+                    'datastore_name':datastore_name
+                }
+            }
+            procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
+            log.debug('LUKE_DEBUG: procdef_id: %s', procdef_id)
+            pid = process_dispatcher.schedule_process(process_definition_id=procdef_id, configuration=configuration)
+
+
+            # Keep track, we'll kill 'em later.
             process_list.append(pid)
         # Get about 4 seconds of data
         time.sleep(4)
@@ -116,7 +124,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         #---------------------------
 
         for process in process_list:
-            cc.proc_manager.terminate_process(process)
+            process_dispatcher.cancel_process(process)
 
         #----------------------------------------------
         # The replay and the transform, a love story.
