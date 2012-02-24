@@ -78,7 +78,6 @@ class BlogListener(object):
 class BlogIntegrationTest(IonIntegrationTestCase):
 
     def setUp(self):
-        # set up the container for testing
 
         #-------------------------------------------------------------------------------------------------------
         # Container
@@ -89,36 +88,40 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
         self.cc.start_rel_from_url('res/deploy/r2dm.yml')
 
-        # make a registrar object - this is work usually done for you by the container in a transform or data stream process
+        #-------------------------------------------------------------------------------------------------------
+        # Make a registrar object - this is work usually done for you by the container in a transform or data stream process
+        #-------------------------------------------------------------------------------------------------------
+
         self.subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+
+
+    def test_blog_ingestion_replay(self):
+
+        #-----------------------------------------------------------------------------------------------------
+        # Do this statement just once in your script
+        #-----------------------------------------------------------------------------------------------------
+
+        cc = self.cc
 
         #-----------------------------------------------------------------------------------------------------
         # Service clients
         #-----------------------------------------------------------------------------------------------------
-        self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
-        self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
-        self.ingestion_cli = IngestionManagementServiceClient(node=self.cc.node)
-        self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
-        self.dr_cli = DataRetrieverServiceClient(node=self.cc.node)
-        self.dsm_cli = DatasetManagementServiceClient(node=self.cc.node)
 
-
-
-
-    def test_blog_ingestion_replay(self):
+        ingestion_cli = IngestionManagementServiceClient(node=cc.node)
+        dr_cli = DataRetrieverServiceClient(node=cc.node)
 
         #-------------------------------------------------------------------------------------------------------
         # Create and activate ingestion configuration
         #-------------------------------------------------------------------------------------------------------
 
-        ingestion_configuration_id = self.ingestion_cli.create_ingestion_configuration(
+        ingestion_configuration_id = ingestion_cli.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name='dm_datastore',datastore_profile='EXAMPLES'),
             hdf_storage=HdfStorage(),
             number_of_workers=6,
         )
         # activates the transforms... so bindings will be created in this step
-        self.ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
+        ingestion_cli.activate_ingestion_configuration(ingestion_configuration_id)
 
         #------------------------------------------------------------------------------------------------------
         # Create subscriber to listen to the messages published to the ingestion
@@ -169,12 +172,9 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         else:
             self.fail('Not enough comments returned by the blog scrappers in 30 seconds')
 
-
-
         #------------------------------------------------------------------------------------------------------
         # Create subscriber to listen to the replays
         #------------------------------------------------------------------------------------------------------
-
 
         captured_replays = {}
 
@@ -190,12 +190,9 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
             self._create_subscriber(subscription_name='replay_capture_queue_%d' % idx, subscription_query=query , blog_listener = captured_replay)
 
-            self.dr_cli.start_replay(replay_id)
+            dr_cli.start_replay(replay_id)
 
             captured_replays[post_id] = captured_replay
-
-
-
 
         # wait five seconds for some data to come in...
         log.warn('Sleeping for 5 seconds to wait for some output')
@@ -230,12 +227,25 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
 
     def _create_subscriber(self, subscription_name, subscription_query, blog_listener):
+
+        #-----------------------------------------------------------------------------------------------------
+        # Do this statement just once in your script
+        #-----------------------------------------------------------------------------------------------------
+
+        cc = self.cc
+
+        #-----------------------------------------------------------------------------------------------------
+        # Service clients
+        #-----------------------------------------------------------------------------------------------------
+
+        pubsub_cli = PubsubManagementServiceClient(node=cc.node)
+
         #------------------------------------------------------------------------------------------------------
         # Create subscriber to listen to the messages published to the ingestion
         #------------------------------------------------------------------------------------------------------
 
         # Make a subscription to the input stream to ingestion
-        subscription_id = self.pubsub_cli.create_subscription(query = subscription_query, exchange_name=subscription_name ,name = subscription_name)
+        subscription_id = pubsub_cli.create_subscription(query = subscription_query, exchange_name=subscription_name ,name = subscription_name)
 
 
         # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
@@ -245,7 +255,7 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
         blog_listener.subscriber = subscriber
 
-        self.pubsub_cli.activate_subscription(subscription_id)
+        pubsub_cli.activate_subscription(subscription_id)
 
         return subscription_id
 
@@ -271,7 +281,7 @@ class BlogIntegrationTest(IonIntegrationTestCase):
             'saintsandspinners',
             'strobist',
             'voodoofunk'
-            ]
+        ]
 
 
         log.debug('before spawning blog scraper')
@@ -287,14 +297,27 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         """
         Define the replay
         """
-        dataset_id = self.dsm_cli.create_dataset(
+        #-----------------------------------------------------------------------------------------------------
+        # Do this statement just once in your script
+        #-----------------------------------------------------------------------------------------------------
+
+        cc = self.cc
+
+        #-----------------------------------------------------------------------------------------------------
+        # Service clients
+        #-----------------------------------------------------------------------------------------------------
+
+        dr_cli = DataRetrieverServiceClient(node=cc.node)
+        dsm_cli = DatasetManagementServiceClient(node=cc.node)
+
+        dataset_id = dsm_cli.create_dataset(
             stream_id=post_id,
             datastore_name='dm_datastore',
             view_name='posts/posts_join_comments'
         )
 
 
-        return self.dr_cli.define_replay(dataset_id)
+        return dr_cli.define_replay(dataset_id)
 
 
 
