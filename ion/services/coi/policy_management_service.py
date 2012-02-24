@@ -5,9 +5,13 @@ __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
-from pyon.core.exception import Conflict, Inconsistent, NotFound
+from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest
 from pyon.public import PRED, RT
 from pyon.util.log import log
+
+MANAGER_ROLE = 'Manager'
+REGISTERED_USER_ROLE = 'Registered User'
+
 
 class PolicyManagementService(BasePolicyManagementService):
 
@@ -49,6 +53,9 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval policy    Policy
         @throws NotFound    object with specified id does not exist
         """
+        if not policy_id:
+            raise BadRequest("The policy_id parameter is missing")
+
         policy = self.clients.resource_registry.read(policy_id)
         if not policy:
             raise NotFound("Policy %s does not exist" % policy_id)
@@ -61,6 +68,9 @@ class PolicyManagementService(BasePolicyManagementService):
         @param policy_id    str
         @throws NotFound    object with specified id does not exist
         """
+        if not policy_id:
+            raise BadRequest("The policy_id parameter is missing")
+
         policy = self.clients.resource_registry.read(policy_id)
         if not policy:
             raise NotFound("Policy %s does not exist" % policy_id)
@@ -73,6 +83,9 @@ class PolicyManagementService(BasePolicyManagementService):
         @param policy_id    str
         @throws NotFound    object with specified id does not exist
         """
+        if not policy_id:
+            raise BadRequest("The policy_id parameter is missing")
+
         raise NotImplementedError()
 
 
@@ -83,6 +96,9 @@ class PolicyManagementService(BasePolicyManagementService):
         @param policy_id    str
         @throws NotFound    object with specified id does not exist
         """
+        if not policy_id:
+            raise BadRequest("The policy_id parameter is missing")
+
         raise NotImplementedError()
 
     def create_role(self, user_role=None):
@@ -119,6 +135,9 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval user_role    UserRole
         @throws NotFound    object with specified id does not exist
         """
+        if not user_role_id:
+            raise BadRequest("The user_role_id parameter is missing")
+
         user_role = self.clients.resource_registry.read(user_role_id)
         if not user_role:
             raise NotFound("Role %s does not exist" % user_role_id)
@@ -131,57 +150,32 @@ class PolicyManagementService(BasePolicyManagementService):
         @param user_role_id    str
         @throws NotFound    object with specified id does not exist
         """
+        if not user_role_id:
+            raise BadRequest("The user_role_id parameter is missing")
+
         user_role = self.clients.resource_registry.read(user_role_id)
         if not user_role:
             raise NotFound("Role %s does not exist" % user_role_id)
         self.clients.resource_registry.delete(user_role_id)
 
+    def find_roles(self):
+        """Returns a list of UserRole objects defined in the resource registry.
 
-    def grant_role(self, org_id='', user_id='', user_role_id='', scope=None):
-        """Grants a defined role within an organization to a specific user. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
+        @retval user_role_list    list
+        """
+        role_list, _ = self.clients.resource_registry.find_resources(RT.UserRole, None, None, False)
+        return role_list
 
-        @param org_id    str
-        @param user_id    str
-        @param user_role_id    str
-        @param scope    RoleScope
+    def find_role(self, name=''):
+        """Returns UserRole object that matches the specified name.
+
+        @param name    str
+        @retval user_role    UserRole
         @throws NotFound    object with specified id does not exist
         """
-        raise NotImplementedError()
+        role_list, _ = self.clients.resource_registry.find_resources(RT.UserRole, None, name, False)
+        if not role_list:
+            raise NotFound('The User Role with name %s does not exist' % name )
+        return role_list[0]
 
-    def revoke_role(self, org_id='', user_id='', user_role_id=''):
-        """Revokes a defined role within an organization to a specific user. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param user_id    str
-        @param user_role_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-        raise NotImplementedError()
-
-    def find_roles_by_user(self, org_id='', user_id=''):
-        """Returns a list of organization roles for a specific user. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param user_id    str
-        @retval user_role_list    []
-        @throws NotFound    object with specified id does not exist
-        """
-        raise NotImplementedError()
-
-
-    def has_permission(self, org_id='', user_id='', action_id='', resource_id=''):
-        """Returns a boolean of the specified user has permission for the specified action on a specified resource. Will
-        throw a NotFound exception if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param user_id    str
-        @param action_id    str
-        @param resource_id    str
-        @retval has_permission    bool
-        @throws NotFound    object with specified id does not exist
-        """
-        raise NotImplementedError()
 

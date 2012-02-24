@@ -16,7 +16,7 @@ from nose.plugins.attrib import attr
 import random
 
 
-@attr('UNIT',group='DM')
+@attr('UNIT',group='dm')
 class DatasetManagementTest(PyonTestCase):
     def setUp(self):
         mock_clients = self._create_service_mock('dataset_management')
@@ -62,7 +62,7 @@ class DatasetManagementTest(PyonTestCase):
         self.mock_rr_delete.assert_called_with('123')
 
 
-@attr('INT', group='DM')
+@attr('INT', group='dm')
 class DatasetManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         import couchdb

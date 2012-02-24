@@ -23,6 +23,9 @@ from nose.plugins.attrib import attr
 import unittest, time
 from pyon.public import log
 
+import unittest
+import os
+
 @attr('UNIT',group='dm')
 class DataRetrieverServiceTest(PyonTestCase):
     def setUp(self):
@@ -37,6 +40,7 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.mock_rr_delete_assoc = self.data_retriever_service.clients.resource_registry.delete_association
         self.mock_rr_find_assoc = self.data_retriever_service.clients.resource_registry.find_associations
         self.mock_ps_create_stream = self.data_retriever_service.clients.pubsub_management.create_stream
+        self.mock_ps_create_stream_definition = self.data_retriever_service.clients.pubsub_management.create_stream_definition
         self.data_retriever_service.container = DotDict({'id':'123','spawn_process':Mock(),'proc_manager':DotDict({'terminate_process':Mock(),'procs':[]})})
         self.mock_cc_spawn = self.data_retriever_service.container.spawn_process
         self.mock_cc_terminate = self.data_retriever_service.container.proc_manager.terminate_process
@@ -74,10 +78,11 @@ class DataRetrieverServiceTest(PyonTestCase):
         r,s = self.data_retriever_service.define_replay(dataset_id='dataset_id', query='myquery')
 
         # assertions
-        self.mock_ps_create_stream.assert_called_with('', True, None, '', '', '')
+        self.assertTrue(self.mock_ps_create_stream_definition.called)
+        self.assertTrue(self.mock_ps_create_stream.called)
         self.assertTrue(self.mock_rr_create.called)
         self.mock_rr_create_assoc.assert_called_with('replay_id',PRED.hasStream,'12345',None)
-        self.mock_pd_schedule.assert_called_with('mock_procdef_id',None,config )
+        self.assertTrue(self.mock_pd_schedule.called)
         self.assertTrue(self.mock_rr_update.called)
         self.assertEquals(r,'replay_id')
         self.assertEquals(s,'12345')
@@ -129,7 +134,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         super(DataRetrieverServiceIntTest,self).tearDown()
 
 
-
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_define_replay(self):
         dataset_id = self.dsm_cli.create_dataset(
             stream_id='12345',
@@ -147,6 +152,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.dr_cli.cancel_replay(replay_id)
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_cancel_replay(self):
         dataset_id = self.dsm_cli.create_dataset(
             stream_id='12345',
@@ -171,6 +177,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.rr_cli.read(replay_id)
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_start_replay(self):
         post = BlogPost(title='test blog post', post_id='12345', author=BlogAuthor(name='Jon Doe'), content='this is a blog post',
         updated=time.strftime("%Y-%m-%dT%H:%M%S-05"))
@@ -210,6 +217,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         subscriber.stop()
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_chop_chop(self):
         # Override couch
 
