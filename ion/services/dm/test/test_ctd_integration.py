@@ -27,43 +27,49 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        self.pubsub_management_service = PubsubManagementServiceClient(node=self.container.node)
-        self.ingestion_management_service = IngestionManagementServiceClient(node=self.container.node)
-        self.dataset_management_service = DatasetManagementServiceClient(node=self.container.node)
-        self.data_retriever_service = DataRetrieverServiceClient(node=self.container.node)
-        self.transform_management_service = TransformManagementServiceClient(node=self.container.node)
-        self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
-        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
-
-        # We keep track of our own processes
-        self.process_list = []
-        self.datasets = []
-
-        # store name
-        self.datastore_name = 'test_dm_integration'
 
     def test_dm_integration(self):
         '''
+        test_dm_integration
         Test full DM Services Integration
         '''
+        cc = self.container
+        assertions = self.assertTrue
+
+        #-----------------------------
+        # Copy below here
+        #-----------------------------
+        pubsub_management_service = PubsubManagementServiceClient(node=cc.node)
+        ingestion_management_service = IngestionManagementServiceClient(node=cc.node)
+        dataset_management_service = DatasetManagementServiceClient(node=cc.node)
+        data_retriever_service = DataRetrieverServiceClient(node=cc.node)
+        transform_management_service = TransformManagementServiceClient(node=cc.node)
+        resource_registry_service = ResourceRegistryServiceClient(node=cc.node)
+        process_dispatcher = ProcessDispatcherServiceClient(node=cc.node)
+
+        process_list = []
+        datasets = []
+
+        datastore_name = 'test_dm_integration'
+
 
         #---------------------------
         # Set up ingestion
         #---------------------------
         # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
         log.debug('Calling create_ingestion_configuration')
-        ingestion_configuration_id = self.ingestion_management_service.create_ingestion_configuration(
+        ingestion_configuration_id = ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
-            couch_storage=CouchStorage(datastore_name=self.datastore_name,datastore_profile='SCIDATA'),
+            couch_storage=CouchStorage(datastore_name=datastore_name,datastore_profile='SCIDATA'),
             number_of_workers=8
         )
         #
-        self.ingestion_management_service.activate_ingestion_configuration(
+        ingestion_management_service.activate_ingestion_configuration(
             ingestion_configuration_id=ingestion_configuration_id)
 
         ctd_stream_def = ctd_stream_definition()
 
-        stream_def_id = self.pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Junk definition')
+        stream_def_id = pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 
 
         #---------------------------
@@ -73,35 +79,35 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         for iteration in xrange(5):
             # Make a stream to output on
 
-            stream_id = self.pubsub_management_service.create_stream(stream_definition_id=stream_def_id)
+            stream_id = pubsub_management_service.create_stream(stream_definition_id=stream_def_id)
 
             #---------------------------
             # Set up the datasets
             #---------------------------
-            dataset_id = self.dataset_management_service.create_dataset(
+            dataset_id = dataset_management_service.create_dataset(
                 stream_id=stream_id,
-                datastore_name=self.datastore_name,
+                datastore_name=datastore_name,
                 view_name='datasets/stream_join_granule'
             )
             # Keep track of the datasets
-            self.datasets.append(dataset_id)
+            datasets.append(dataset_id)
 
-            stream_policy_id = self.ingestion_management_service.create_dataset_configuration(
+            stream_policy_id = ingestion_management_service.create_dataset_configuration(
                 dataset_id = dataset_id,
                 archive_data = True,
                 archive_metadata = True,
                 ingestion_configuration_id = ingestion_configuration_id
             )
 
-            pid = self.container.spawn_process(
+            pid = cc.spawn_process(
                 name='CTD_%d' % iteration,
                 module='ion.processes.data.ctd_stream_publisher',
                 cls='SimpleCtdPublisher',
-                config={'process':{'stream_id':stream_id,'datastore_name':self.datastore_name}}
+                config={'process':{'stream_id':stream_id,'datastore_name':datastore_name}}
             )
             # Keep track, we'll kill 'em later.
 
-            self.process_list.append(pid)
+            process_list.append(pid)
         # Get about 4 seconds of data
         time.sleep(4)
 
@@ -109,8 +115,8 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Stop producing data
         #---------------------------
 
-        for process in self.process_list:
-            self.container.proc_manager.terminate_process(process)
+        for process in process_list:
+            cc.proc_manager.terminate_process(process)
 
         #----------------------------------------------
         # The replay and the transform, a love story.
@@ -122,43 +128,43 @@ class CTDIntegrationTest(IonIntegrationTestCase):
             'module':'ion.processes.data.transforms.transform_example',
             'class':'TransformCapture'
         }
-        transform_definition_id = self.process_dispatcher.create_process_definition(process_definition=transform_definition)
+        transform_definition_id = process_dispatcher.create_process_definition(process_definition=transform_definition)
 
-        dataset_id = self.datasets.pop() # Just need one for now
-        replay_id, stream_id = self.data_retriever_service.define_replay(dataset_id=dataset_id)
+        dataset_id = datasets.pop() # Just need one for now
+        replay_id, stream_id = data_retriever_service.define_replay(dataset_id=dataset_id)
 
         #--------------------------------------------
         # I'm Selling magazine subscriptions here!
         #--------------------------------------------
 
-        subscription = self.pubsub_management_service.create_subscription(query=StreamQuery(stream_ids=[stream_id]),
+        subscription = pubsub_management_service.create_subscription(query=StreamQuery(stream_ids=[stream_id]),
             exchange_name='transform_capture_point')
 
         #--------------------------------------------
         # Start the transform (capture)
         #--------------------------------------------
-        transform_id = self.transform_management_service.create_transform(
+        transform_id = transform_management_service.create_transform(
             name='capture_transform',
             in_subscription_id=subscription,
             process_definition_id=transform_definition_id
         )
 
-        self.transform_management_service.activate_transform(transform_id=transform_id)
+        transform_management_service.activate_transform(transform_id=transform_id)
 
         #--------------------------------------------
         # BEGIN REPLAY!
         #--------------------------------------------
 
-        self.data_retriever_service.start_replay(replay_id=replay_id)
+        data_retriever_service.start_replay(replay_id=replay_id)
 
         #--------------------------------------------
         # Lets get some boundaries
         #--------------------------------------------
 
-        bounds = self.dataset_management_service.get_dataset_bounds(dataset_id=dataset_id)
-        self.assertTrue('latitude_bounds' in bounds, 'dataset_id: %s' % dataset_id)
-        self.assertTrue('longitude_bounds' in bounds)
-        self.assertTrue('pressure_bounds' in bounds)
+        bounds = dataset_management_service.get_dataset_bounds(dataset_id=dataset_id)
+        assertions('latitude_bounds' in bounds, 'dataset_id: %s' % dataset_id)
+        assertions('longitude_bounds' in bounds)
+        assertions('pressure_bounds' in bounds)
 
         #--------------------------------------------
         # Make sure the transform capture worked
@@ -168,7 +174,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
 
         stats = os.stat(FileSystem.get_url(FS.TEMP,'transform_output'))
-        self.assertTrue(stats.st_blksize > 0)
+        assertions(stats.st_blksize > 0)
 
         # BEAUTIFUL!
 
