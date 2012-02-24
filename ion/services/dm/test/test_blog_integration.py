@@ -78,7 +78,6 @@ class BlogListener(object):
 class BlogIntegrationTest(IonIntegrationTestCase):
 
     def setUp(self):
-        # set up the container for testing
 
         #-------------------------------------------------------------------------------------------------------
         # Container
@@ -89,14 +88,18 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
         self.cc.start_rel_from_url('res/deploy/r2dm.yml')
 
-        # make a registrar object - this is work usually done for you by the container in a transform or data stream process
+        #-------------------------------------------------------------------------------------------------------
+        # Make a registrar object - this is work usually done for you by the container in a transform or data stream process
+        #-------------------------------------------------------------------------------------------------------
+
         self.subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
 
-        #-----------------------------------------------------------------------------------------------------
-        # Service clients
-        #-----------------------------------------------------------------------------------------------------
 
     def test_blog_ingestion_replay(self):
+
+        #-----------------------------------------------------------------------------------------------------
+        # Do this statement just once in your script
+        #-----------------------------------------------------------------------------------------------------
 
         cc = self.cc
 
@@ -225,6 +228,10 @@ class BlogIntegrationTest(IonIntegrationTestCase):
 
     def _create_subscriber(self, subscription_name, subscription_query, blog_listener):
 
+        #-----------------------------------------------------------------------------------------------------
+        # Do this statement just once in your script
+        #-----------------------------------------------------------------------------------------------------
+
         cc = self.cc
 
         #-----------------------------------------------------------------------------------------------------
@@ -290,7 +297,15 @@ class BlogIntegrationTest(IonIntegrationTestCase):
         """
         Define the replay
         """
+        #-----------------------------------------------------------------------------------------------------
+        # Do this statement just once in your script
+        #-----------------------------------------------------------------------------------------------------
+
         cc = self.cc
+
+        #-----------------------------------------------------------------------------------------------------
+        # Service clients
+        #-----------------------------------------------------------------------------------------------------
 
         dr_cli = DataRetrieverServiceClient(node=cc.node)
         dsm_cli = DatasetManagementServiceClient(node=cc.node)
