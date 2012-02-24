@@ -9,6 +9,10 @@ from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest
 from pyon.public import PRED, RT
 from pyon.util.log import log
 
+MANAGER_ROLE = 'Manager'
+REGISTERED_USER_ROLE = 'Registered User'
+
+
 class PolicyManagementService(BasePolicyManagementService):
 
     """

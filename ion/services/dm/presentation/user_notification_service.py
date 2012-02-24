@@ -27,7 +27,8 @@ class NotificationEventSubscriber(EventSubscriber):
     
     def __init__(self, origin=None, event_name=None, callback=None):
         self.listener_greenlet = None
-        self.subscriber = EventSubscriber(origin=origin, event_name=event_name, callback=callback)
+        subscriber_event_name = event_name.upper() + "_EVENT"
+        self.subscriber = EventSubscriber(origin=origin, event_name=subscriber_event_name, callback=callback)
         
     def start_listening(self):
         self.listener_greenlet = spawn(self.subscriber.listen)
@@ -335,6 +336,17 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified paramteres does not exist
         """
         return self.event_repo.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime)
+
+    def find_event_types_for_resource(self, resource_id=''):
+        resource_object = self.clients.resource_registry.read(resource_id)
+        if not resource_object:
+            raise NotFound("UserNotificationService.find_event_types_for_resource(): resource with id %s does not exist" % resource_id)
+        resource_type = type(resource_object).__name__.lower()
+        log.debug("UserNotificationService.find_event_types_for_resource(): resource type = " + resource_type)
+        if resource_type in self.event_table:
+            return self.event_table[resource_type]
+        log.debug("UserNotificationService.find_event_types_for_resource(): resource type %s not an event originator" %resource_type)
+        return []
 
 
   

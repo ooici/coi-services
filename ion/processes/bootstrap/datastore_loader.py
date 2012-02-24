@@ -146,11 +146,8 @@ class DatastoreAdmin(ImmediateProcess):
         numwrites = 0
         for obj_id, obj_key, obj in objs:
             fn = obj_id
-            if obj_id.startswith("_design"):
-                fn = obj_id.replace("/","_")
-            # Some object ids start with slash
-            if obj_id.startswith("/"):
-                fn = obj_id.replace("/","_")
+            # Some object ids have slashes
+            fn = obj_id.replace("/","_")
             with open("%s/%s.yml" % (outpath, fn), 'w') as f:
                 yaml.dump(obj, f, default_flow_style=False)
                 numwrites += 1
