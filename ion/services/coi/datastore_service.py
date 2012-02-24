@@ -103,5 +103,5 @@ class DataStoreService(BaseDatastoreService):
     def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
         return self.obj_store.find_subjects(subject_type, predicate, object, id_only=id_only)
 
-    def find_associations(self, subject="", predicate="", object="", id_only=False):
-        return self.obj_store.find_associations(subject, predicate, object, id_only=id_only)
+    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
+        return self.obj_store.find_associations(subject, predicate, object, assoc_type, id_only=id_only)

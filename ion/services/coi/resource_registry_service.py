@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.datastore.datastore import DataStore
 from pyon.ion.resource import lcs_workflows
-from pyon.public import log, LCS
+from pyon.public import log, LCS, AT
 from pyon.util.containers import get_ion_ts
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
@@ -76,8 +76,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         updres = self.rr_store.update(res_obj)
         return new_state
 
-    def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
-        return self.rr_store.create_association(subject, predicate, object, assoc_type)
+    def create_association(self, subject=None, predicate=None, obj=None, assoc_type=None):
+        return self.rr_store.create_association(subject, predicate, obj, assoc_type)
 
     def delete_association(self, association=''):
         return self.rr_store.delete_association(association)
@@ -88,20 +88,21 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def find_objects(self, subject="", predicate="", object_type="", id_only=False):
         return self.rr_store.find_objects(subject, predicate, object_type, id_only=id_only)
 
-    def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
-        return self.rr_store.find_subjects(subject_type, predicate, object, id_only=id_only)
+    def find_subjects(self, subject_type="", predicate="", obj="", id_only=False):
+        return self.rr_store.find_subjects(subject_type, predicate, obj, id_only=id_only)
 
-    def find_associations(self, subject="", predicate="", object="", id_only=False):
-        return self.rr_store.find_associations(subject, predicate, object, id_only=id_only)
+    def find_associations(self, subject="", predicate="", obj="", assoc_type=None, id_only=False):
+        return self.rr_store.find_associations(subject, predicate, obj, assoc_type, id_only=id_only)
 
-    def get_association(self, subject="", predicate="", object="", id_only=False):
-        assoc = self.rr_store.find_associations(subject, predicate, object, id_only=id_only)
+    def get_association(self, subject="", predicate="", obj="", assoc_type=None, id_only=False):
+        assoc_type = assoc_type or AT.H2H
+        assoc = self.rr_store.find_associations(subject, predicate, obj, assoc_type, id_only=id_only)
         if not assoc:
-            raise NotFound("Association for subject/predicate/object %s/%s/%s not found" % (
-                        str(subject),str(predicate),str(object)))
+            raise NotFound("Association for subject/predicate/object/type %s/%s/%s/%s not found" % (
+                        str(subject),str(predicate),str(obj),str(assoc_type)))
         elif len(assoc) > 1:
-            raise Inconsistent("Duplicate associations found for subject/predicate/object %s/%s/%s" % (
-                        str(subject),str(predicate),str(object)))
+            raise Inconsistent("Duplicate associations found for subject/predicate/object/type %s/%s/%s/%s" % (
+                        str(subject),str(predicate),str(obj),str(assoc_type)))
         return assoc[0]
 
     def find_resources(self, restype="", lcstate="", name="", id_only=False):
