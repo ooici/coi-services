@@ -119,9 +119,9 @@ class sbe37(asyncore.dispatcher_with_send):
         return data
  
     def send_data(self, data, debug):
-        print "OUT [" + str(data.replace("\r", "\\r").replace("\n", "\\n")) + "]"
 
         try:
+            print "OUT [" + str(data.replace("\r", "\\r").replace("\n", "\\n")) + "]"
             self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
@@ -410,7 +410,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     #print "really got stop command\r\n"
 
                 elif command_args[0] == 'ts':
-                    self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(680, 710), random.uniform(-0.001, -0.01), random.uniform(-300, -350), random.uniform(0.01, 0.02), random.uniform(268000, 270000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'tsr':
                     self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'tsr line 1')
