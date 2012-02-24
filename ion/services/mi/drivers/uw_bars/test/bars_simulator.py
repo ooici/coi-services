@@ -17,9 +17,12 @@ It accepts multiple clients but in sequential order.
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
+import ion.services.mi.drivers.uw_bars.bars as bars
+
 import socket
 import random
 import time
+import sys
 
 from threading import Thread
 
@@ -50,15 +53,17 @@ def _escape(str):
 class _BurstThread(Thread):
     """Thread to generate data bursts"""
 
-    def __init__(self, conn, log_prefix):
+    def __init__(self, conn, log_prefix, outfile=sys.stdout):
         Thread.__init__(self, name="_BurstThread")
+        self._outfile = outfile
         self._conn = conn
         self._running = True
         self._enabled = True
         self._log_prefix = log_prefix
 
     def _log(self, m):
-        print "%s_BurstThread: %s" % (self._log_prefix, m)
+        self._outfile.write("%s_BurstThread: %s\n" % (self._log_prefix, m))
+        self._outfile.flush()
 
     def run(self):
         self._log("burst thread running")
@@ -76,9 +81,11 @@ class _BurstThread(Thread):
         self._log("burst thread exiting")
 
     def set_enabled(self, enabled):
+        self._log("set_enabled: %s" % str(enabled))
         self._enabled = enabled
 
     def end(self):
+        self._log("end")
         self._enabled = False
         self._running = False
 
@@ -90,7 +97,7 @@ class _BurstThread(Thread):
         return values
 
 
-class BarsSimulator(object):
+class BarsSimulator(Thread):
     """
     Dispatches multiple clients but sequentially. The special command
     'q' can be requested by a client to make the whole simulator terminate.
@@ -99,6 +106,7 @@ class BarsSimulator(object):
     _next_simulator_no = 0
 
     def __init__(self, host='', port=0, accept_timeout=None,
+                 outfile=sys.stdout,
                  log_prefix='\t\t\t\t|* '):
         """
         @param host Socket is bound to given (host,port)
@@ -106,6 +114,9 @@ class BarsSimulator(object):
         @param accept_timeout Timeout for accepting a connection
         @param log_prefix a prefix for every log message
         """
+        Thread.__init__(self, name="BarsSimulator")
+
+        self._outfile = outfile
 
         BarsSimulator._next_simulator_no += 1
         self._simulator_no = BarsSimulator._next_simulator_no
@@ -120,26 +131,37 @@ class BarsSimulator(object):
         self._log("bound to port %s" % self._port)
         self._bt = None
 
-        # helps to ignore \r coming right after normal commands, which would
-        # have already been dispatched.
-        self._pre_recv = ''
+        self._cycle_time = "20"
+        self._cycle_time_units = "Seconds"
+
+        self._verbose_vs_data_only = "Data Only"
 
     def _log_client(self, m):
-        print "%s[%d.%d] BarsSimulator: %s" % (self._log_prefix,
-                                               self._simulator_no,
-                                               self._client_no,
-                                               m)
+        self._outfile.write("%s[%d.%d] BarsSimulator: %s\n" %
+                            (self._log_prefix,
+                             self._simulator_no,
+                             self._client_no,
+                             m))
+        self._outfile.flush()
 
     def _log(self, m):
-        print "%s[%d]BarsSimulator: %s" % (self._log_prefix,
-                                           self._simulator_no,
-                                           m)
+        self._outfile.write("%s[%d]BarsSimulator: %s\n" %
+                            (self._log_prefix,
+                             self._simulator_no,
+                             m))
+        self._outfile.flush()
 
     @property
     def port(self):
         return self._port
 
     def run(self):
+        try:
+            self._run()
+        finally:
+            self._end_burst_thread()
+
+    def _run(self):
         #
         # internal timeout for the accept. It allows to check regularly if
         # the simulator has been requested to terminate.
@@ -168,12 +190,12 @@ class BarsSimulator(object):
             self._client_no += 1
             self._log_client('Connected by %s' % str(addr))
 
-            self._bt = _BurstThread(self._conn, self._log_prefix)
+            self._bt = _BurstThread(self._conn, self._log_prefix,
+                                    outfile=self._outfile)
             self._bt.start()
 
             explicit_quit = self._connected()
-            self._bt.end()
-            self._bt = None
+            self._end_burst_thread()
 
             self._conn.close()
 
@@ -181,6 +203,13 @@ class BarsSimulator(object):
             time.sleep(1)
 
         self._sock.close()
+
+    def _end_burst_thread(self):
+        self._log_client('end burst thread %s' % str(self._bt))
+        self._bt, bt = None, self._bt
+        if bt is not None:
+            bt.end()
+            bt.join()
 
     def stop(self):
         """Requests that the simulator terminate"""
@@ -201,35 +230,23 @@ class BarsSimulator(object):
             try:
                 input = None
 
-                recv = self._conn.recv(1)
+                recv = self._conn.recv(4096)
 
                 if recv is not None:
-                    self._log_client("RECV: '%s'   _pre_recv = '%s'" % (
-                        _escape(recv), _escape(self._pre_recv)))
+                    self._log_client("RECV: '%s'" % _escape(recv))
                     if EOF == recv:
                         self._enabled = False
                         break
                     if '\r' == recv:
-                        if self._pre_recv == '':
-                            input = recv
-                        else:
-                            # ignore \r, self._pre_recv already notified
-                            self._pre_recv = ''
-                            self._log_client("\\r IGNORED.")
-                            continue
+                        input = recv
 
                     elif len(recv.strip()) > 0:
                         input = recv.strip()
-                        if input != CONTROL_S:
-                            self._pre_recv += input
-                            self._log_client("APPENDED _pre_recv = '%s'" % \
-                                _escape(self._pre_recv))
                     else:
                         input = recv
 
                 else:
                     self._log_client("RECV: None")
-                    self._pre_recv = ''
 
                 if input is not None:
                     self._log_client("input: '%s'" % _escape(input))
@@ -252,8 +269,6 @@ class BarsSimulator(object):
         False otherwise.
         """
 
-        #self._conn.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1)
-
         # set an ad hoc timeout to regularly check whether termination has been
         # requested
         self._conn.settimeout(1.0)
@@ -265,7 +280,7 @@ class BarsSimulator(object):
                 break
 
             if input == "q":
-                self._log_client("exiting connected upon explicit quit request")
+                self._log_client("exiting connected, explicit quit request")
                 return True  # explicit quit
 
             if input == CONTROL_S:
@@ -279,41 +294,7 @@ class BarsSimulator(object):
         return False
 
     def _main_menu(self):
-        menu = """\
-  ***************************************************************
-  *                                                             *
-  *            Welcome to the BARS Program Main Menu            *
-  *              (Benthic And Resistivity Sensors)              *
-  *                    (Serial Number 002)                      *
-  *                                                             *
-  ***************************************************************
-
-             Version 1.7 - Last Revision: July 11, 2011
-
-                           Written by:
-
-                           Rex Johnson
-                           Engineering Services
-                           School of Oceanography
-                           University of Washington
-                           Seattle, WA 98195
-
-
-              The System Clock has not been set.
-                Use option 4 to Set the Clock.
-
-              Select one of the following functions:
-
-                  0).  Reprint Time & this Menu.
-                  1).  Restart Data Collection.
-                  2).  Change Data Collection Parameters.
-                  3).  System Diagnostics.
-                  4).  Set the System Clock.
-                  5).  Control Power to Sensors.
-                  6).  Provide Information on this System.
-                  7).  Exit this Program.
-
-                Enter 0, 1, 2, 3, 4, 5, 6 or 7 here  --> """
+        menu = bars.MAIN_MENU
 
         while self._enabled:
             self._clear_screen(menu)
@@ -365,30 +346,12 @@ class BarsSimulator(object):
         self._bt.set_enabled(True)
 
     def _change_params_menu(self):
-        menu = """\
-                               System Parameter Menu
-
-*****************************************************************************
-
-                       The present value for the Cycle Time is
-                                 20 Seconds.
-
-                  The present setting for Verbose versus Data only is
-                                     Data Only.
-
-*****************************************************************************
-
-
-                Select one of the following functions:
-
-                      0).  Reprint this Menu.
-                      1).  Change the Cycle Time.
-                      2).  Change the Verbose Setting.
-                      3).  Return to the Main Menu.
-
-                    Enter 0, 1, 2, or 3 here  --> """
 
         while self._enabled:
+            menu = bars.SYSTEM_PARAMETER_MENU_FORMAT % (
+                self._cycle_time, self._cycle_time_units,
+                self._verbose_vs_data_only
+            )
             self._clear_screen(menu)
 
             input = self._recv()
@@ -401,8 +364,8 @@ class BarsSimulator(object):
                 pass
 
             elif input == "1":
-                # TODO change cycle time
-                break
+                self._change_cycle_time()
+                continue
 
             elif input == "2":
                 # TODO change verbose setting
@@ -417,6 +380,37 @@ class BarsSimulator(object):
 
         self._log_client("exiting _change_params_menu")
 
+    def _change_cycle_time(self):
+        menu = bars.CHANGE_CYCLE_TIME
+
+        while self._enabled:
+            self._clear_screen(menu)
+
+            input = self._recv()
+            if not self._enabled:
+                break
+            if not input:
+                break
+
+            if input in ["0", "1"]:
+                if input == "0":  # enter seconds
+                    self._conn.sendall(bars.CHANGE_CYCLE_TIME_IN_SECONDS)
+                    units = "Seconds"
+                else:  # enter minutes
+                    self._conn.sendall(bars.CHANGE_CYCLE_TIME_IN_MINUTES)
+                    units = "Minutes"
+
+                input = self._recv()
+                value = int(input)
+                self._cycle_time = value
+                self._cycle_time_units = units
+                break
+            else:
+                # just continue
+                continue
+
+        self._log_client("exiting _change_cycle_time")
+
     def _diagnostics(self):
         # TODO diagnostics
         self._conn.sendall("TODO diagnostics" + NEWLINE)
@@ -426,13 +420,7 @@ class BarsSimulator(object):
         self._conn.sendall("TODO reset clock" + NEWLINE)
 
     def _system_info(self):
-        info = """\
-  System Name: BARS (Benthic And Resistivity Sensors)
-  System Owner: Marv Lilley, University of Washington
-  Owner Contact Phone #: 206-543-0859
-  System Serial #: 002
-
-  Press Enter to return to the Main Menu. --> """
+        info = bars.SYSTEM_INFO
 
         while self._enabled:
             self._clear_screen(info)
@@ -452,33 +440,7 @@ class BarsSimulator(object):
         self._log_client("exiting _system_info")
 
     def _sensor_power_menu(self):
-        menu = """\
-                             Sensor Power Control Menu
-
-*****************************************************************************
-
-                 Here is the current status of power to each sensor
-
-                      Res Sensor Power is ............. On
-                      Instrumentation Amp Power is .... On
-                      eH Isolation Amp Power is ....... On
-                      Hydrogen Power .................. On
-                      Reference Temperature Power ..... On
-
-*****************************************************************************
-
-
-            Select one of the following functions:
-
-                  0).  Reprint this Menu.
-                  1).  Toggle Power to Res Sensor.
-                  2).  Toggle Power to the Instrumentation Amp.
-                  3).  Toggle Power to the eH Isolation Amp.
-                  4).  Toggle Power to the Hydrogen Sensor.
-                  5).  Toggle Power to the Reference Temperature Sensor.
-                  6).  Return to the Main Menu.
-
-                Enter 0, 1, 2, 3, 4, 5, or 6 here  --> """
+        menu = bars.SENSOR_POWER_CONTROL_MENU
 
         while self._enabled:
             self._clear_screen(menu)
@@ -523,5 +485,51 @@ class BarsSimulator(object):
 
 
 if __name__ == '__main__':
-    simulator = BarsSimulator()
-    simulator.run()
+    usage = """USAGE: bars_simulator.py [options]
+       --port port             # port to bind to (0 by default)
+       --accept_timeout time   # accept timeout (no timeout by default)
+       --outfile filename      # file to write messages to (stdout by default)
+       --loglevel level        # used to eval mi_logger.setLevel(logging.%s)
+
+    Output will show actual port used.
+    """
+
+    accept_timeout = None
+    port = 0
+    outfile = sys.stdout
+
+    show_usage = False
+    arg = 1
+    while arg < len(sys.argv):
+        if sys.argv[arg] == "--accept_timeout":
+            arg += 1
+            accept_timeout = int(sys.argv[arg])
+        elif sys.argv[arg] == "--port":
+            arg += 1
+            port = int(sys.argv[arg])
+        elif sys.argv[arg] == "--outfile":
+            arg += 1
+            outfile = file(sys.argv[arg], 'w')
+        elif sys.argv[arg] == "--loglevel":
+            arg += 1
+            loglevel = sys.argv[arg].upper()
+            import logging
+            mi_logger = logging.getLogger('mi_logger')
+            eval("mi_logger.setLevel(logging.%s)" % loglevel)
+        elif sys.argv[arg] == "--help":
+            show_usage = True
+            break
+        else:
+            sys.stderr.write("error: unrecognized option %s\n" % sys.argv[arg])
+            sys.stderr.flush()
+            show_usage = True
+            break
+        arg += 1
+
+    if show_usage:
+        print usage
+    else:
+        simulator = BarsSimulator(port=port,
+                                  accept_timeout=accept_timeout,
+                                  outfile=outfile)
+        simulator.run()

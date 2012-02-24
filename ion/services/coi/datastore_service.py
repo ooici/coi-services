@@ -73,24 +73,6 @@ class DataStoreService(BaseDatastoreService):
     def delete_doc(self, object={}, datastore_name=''):
         return self.obj_store.delete_doc(object, datastore_name)
 
-    def find(self, criteria=[], datastore_name=''):
-        return self.obj_store.find(criteria, datastore_name)
-
-    def find_doc(self, criteria=[], datastore_name=''):
-        return self.obj_store.find_doc(criteria, datastore_name)
-
-    def find_by_idref(self, criteria=[], association="", datastore_name=""):
-        return self.obj_store.find_by_idref(criteria, association, datastore_name)
-
-    def find_by_idref_doc(self, criteria=[], association="", datastore_name=""):
-        return self.obj_store.find_by_idref_doc(criteria, association, datastore_name)
-
-    def resolve_idref(self, subject="", predicate="", object="", datastore_name=""):
-        return self.obj_store.resolve_idref(subject, predicate, object, datastore_name)
-
-    def resolve_idref_doc(self, subject="", predicate="", object="", datastore_name=""):
-        return self.obj_store.resolve_idref_doc(subject, predicate, object, datastore_name)
-
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.obj_store.create_association(subject, predicate, object, assoc_type)
 

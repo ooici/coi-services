@@ -16,7 +16,7 @@ from pyon.util.log import log
 from pyon.event.event import ResourceLifecycleEventPublisher, DataEventPublisher
 import gevent
 
-@attr('UNIT',group='DM')
+@attr('UNIT',group='dm')
 @unittest.skip('not working')
 class UserNotificationTest(PyonTestCase):
     def setUp(self):
@@ -56,7 +56,7 @@ class UserNotificationTest(PyonTestCase):
         pass
 
 
-@attr('INT', group='DM')
+@attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
@@ -65,6 +65,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc = UserNotificationServiceClient(node=self.container.node)
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
+        
+    def test_find_events_for_resource(self):
+        pass
         
     def test_create_two_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")

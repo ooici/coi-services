@@ -10,7 +10,7 @@ from flask import Flask, request
 from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, ProcessRPCClient
-from pyon.core.exception import NotFound, Inconsistent
+from pyon.core.exception import NotFound, Inconsistent, BadRequest
 from pyon.core.registry import get_message_class_in_parm_type, getextends
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -106,27 +106,25 @@ def process_gateway_request(service_name, operation):
 
 
     try:
+
+        if not service_name:
+            raise BadRequest("Target service name not found in the URL")
+
         #Retrieve service definition
         from pyon.core.bootstrap import service_registry
         # MM: Note: service_registry can do more now
         target_service = service_registry.get_service_by_name(service_name)
 
         if not target_service:
-            raise NotFound("Target service name not found in the URL")
+            raise BadRequest("The requested service (%s) is not available" % service_name)
 
         if operation == '':
-            raise NotFound("Service operation not specified in the URL")
+            raise BadRequest("Service operation not specified in the URL")
 
 
         #Find the concrete client class for making the RPC calls.
-        #target_client = None
-        #for name, cls in inspect.getmembers(inspect.getmodule(target_service),inspect.isclass):
-        #    if issubclass(cls, ProcessRPCClient) and not name.endswith('ProcessRPCClient'):
-        #        target_client = cls
-        #        break
-
         if not target_service.client:
-            raise NotFound("Cannot find a client class for the specified service: %s", service_name )
+            raise BadRequest("Cannot find a client class for the specified service: %s" % service_name )
 
         target_client = target_service.client
 
@@ -155,6 +153,11 @@ def process_gateway_request(service_name, operation):
 
         param_list = create_parameter_list(service_name, target_client,operation, json_params)
 
+        #Add governance headers - these are the default values.
+        ion_actor_id = 'anonymous'
+        expiry = '0'
+        param_list['headers'] = {'ion-actor-id': ion_actor_id, 'expiry': expiry}
+
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
         result = methodToCall(**param_list)
@@ -163,14 +166,7 @@ def process_gateway_request(service_name, operation):
 
 
     except Exception, e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        result = {
-            GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-            GATEWAY_ERROR_MESSAGE : str(e.message)
-            }
-
-        return json_response({ GATEWAY_ERROR :result } )
-
+        return build_error_response(e)
 
 
 
@@ -179,6 +175,16 @@ def json_response(response_data):
 
     return app.response_class(simplejson.dumps({'data': response_data}, default=ion_object_encoder,
         indent=None if request.is_xhr else 2), mimetype='application/json')
+
+def build_error_response(e):
+
+    exc_type, exc_obj, exc_tb = sys.exc_info()
+    result = {
+        GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+        GATEWAY_ERROR_MESSAGE : str(e.message)
+    }
+
+    return json_response({ GATEWAY_ERROR :result } )
 
 
 #Build parameter list dynamically from
@@ -281,12 +287,8 @@ def list_resource_types():
 
 
     except Exception, e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        ret = {
-                GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-                GATEWAY_ERROR_MESSAGE : str(e.message)
-               }
-        return json_response({ GATEWAY_ERROR :  ret } )
+        return build_error_response(e)
+
 
 
 #Returns a json object for a specified resource type with all default values.
@@ -314,15 +316,11 @@ def get_resource_schema(resource_type):
                     setattr(ret_obj, field, value)
 
 
-        return json_response({ GATEWAY_ERROR :ret_list } )
+        return json_response({ GATEWAY_RESPONSE :ret_obj } )
 
     except Exception, e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        ret = {
-            GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-            GATEWAY_ERROR_MESSAGE : str(e.message)
-        }
-        return json_response({ GATEWAY_ERROR :  ret } )
+        return build_error_response(e)
+
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -344,12 +342,8 @@ def get_resource(resource_id):
             return json_response({ GATEWAY_RESPONSE :result } )
 
         except Exception, e:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            ret = {
-                GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-                GATEWAY_ERROR_MESSAGE : str(e.message)
-            }
-            return json_response({ GATEWAY_ERROR :  ret } )
+            return build_error_response(e)
+
 
 
 
@@ -364,19 +358,12 @@ def list_resources_by_type(resource_type):
     try:
         #Resource Types are not in unicode
         res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
-        result = []
-        for res in res_list:
-            result.append(res)
 
-        return json_response({ GATEWAY_RESPONSE :result } )
+        return json_response({ GATEWAY_RESPONSE :res_list } )
 
     except Exception, e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        ret = {
-            GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-            GATEWAY_ERROR_MESSAGE : str(e.message)
-        }
-        return json_response({ GATEWAY_ERROR :  ret } )
+        return build_error_response(e)
+
 
 
 #Example restful call to a client function for another service like
@@ -384,6 +371,13 @@ def list_resources_by_type(resource_type):
 @app.route('/ion-service/run_bank_client')
 def create_accounts():
     from examples.bank.bank_client import run_client
+    run_client(Container.instance, process=service_gateway_instance)
+    return json_response("")
+
+
+@app.route('/ion-service/seed_gov')
+def seed_gov():
+    from examples.gov_client import run_client
     run_client(Container.instance, process=service_gateway_instance)
     return json_response("")
 

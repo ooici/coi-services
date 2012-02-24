@@ -274,7 +274,7 @@ class InstrumentDriver(object):
     # Channel connection interface.
     ########################################################################
     
-    def initialize(self, channels, timeout=10):
+    def initialize(self, channels, *args, **kwargs):
         """
         Return a device channel to an unconnected, unconfigured state.
         @param channels List of channel names to initialize.
@@ -282,7 +282,7 @@ class InstrumentDriver(object):
         """
         pass
 
-    def configure(self, configs, timeout=10):
+    def configure(self, configs, *args, **kwargs):
         """
         Configure the driver for communications with an instrument channel.
         @param config A dict containing channel name keys, with
@@ -291,7 +291,7 @@ class InstrumentDriver(object):
         """
         pass        
         
-    def connect(self, channels, timeout=10):
+    def connect(self, channels, *args, **kwargs):
         """
         Establish communications with a device channel.
         @param channels List of channel names to connect.
@@ -299,7 +299,7 @@ class InstrumentDriver(object):
         """
         pass
     
-    def disconnect(self, channels, timeout=10):
+    def disconnect(self, channels, *args, **kwargs):
         """
         Disconnect communications with a device channel.
         @param channels List of channel names to disconnect.
@@ -308,7 +308,7 @@ class InstrumentDriver(object):
         """
         pass
 
-    def detach(self, channels, timeout=10):
+    def detach(self, channels, *args, **kwargs):
         """
         Disconnect communications with a device channel.
         @param channels List of channel names to disconnect.
@@ -320,24 +320,39 @@ class InstrumentDriver(object):
     # Channel command interface.
     ########################################################################
 
-    def get(self, params, timeout=10):
+    def get(self, params, *args, **kwargs):
         """
         @param timeout Number of seconds before this operation times out
         """
         pass
     
-    def set(self, params, timeout=10):
+    def set(self, params, *args, **kwargs):
         """
         @param timeout Number of seconds before this operation times out
         """
         pass
 
-    def execute(self, channels, command, timeout=10):
+    def execute_acquire_sample(self, channels, *args, **kwargs):
         """
         """
         pass
 
-    def execute_direct(self, channels, bytes):
+    def execute_start_autosample(self, channels, *args, **kwargs):
+        """
+        """
+        pass
+
+    def execute_stop_autosample(self, channels, *args, **kwargs):
+        """
+        """
+        pass
+
+    def execute_test(self, channels, *args, **kwargs):
+        """
+        """
+        pass
+    
+    def execute_direct(self, channels, *args, **kwargs):
         """
         """
         pass
@@ -358,16 +373,25 @@ class InstrumentDriver(object):
     ########################################################################
     # TBD.
     ########################################################################    
-    
-    def get_status(self, params, timeout=10):
+        
+    def get_capabilities(self, channels, *args, **kwargs):
         """
         @param timeout Number of seconds before this operation times out
         """
         pass
-    
-    def get_capabilities(self, params, timeout=10):
+
+    def get_channels(self):
         """
-        @param timeout Number of seconds before this operation times out
+        """
+        pass
+    
+    def get_active_channels(self):
+        """
+        """
+        pass
+    
+    def get_current_state(self, channels):
+        """
         """
         pass
 

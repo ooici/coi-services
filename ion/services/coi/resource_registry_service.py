@@ -36,6 +36,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.rr_store.create(object)
 
     def read(self, object_id='', rev_id=''):
+        if not object_id:
+            raise BadRequest("The object_id parameter is an empty string")
+
         return self.rr_store.read(object_id, rev_id)
 
     def update(self, object={}):
