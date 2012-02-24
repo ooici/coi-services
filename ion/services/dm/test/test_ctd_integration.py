@@ -9,7 +9,6 @@ from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from interface.objects import CouchStorage, ProcessDefinition, StreamQuery
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -44,7 +43,6 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         dataset_management_service = DatasetManagementServiceClient(node=cc.node)
         data_retriever_service = DataRetrieverServiceClient(node=cc.node)
         transform_management_service = TransformManagementServiceClient(node=cc.node)
-        resource_registry_service = ResourceRegistryServiceClient(node=cc.node)
         process_dispatcher = ProcessDispatcherServiceClient(node=cc.node)
 
         process_list = []
