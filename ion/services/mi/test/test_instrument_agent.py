@@ -44,7 +44,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
     
-#@unittest.skip('Do not run hardware test.')
+@unittest.skip('Do not run hardware test.')
 @attr('INT', group='mi')
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
