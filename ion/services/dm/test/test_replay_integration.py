@@ -16,7 +16,7 @@ from pyon.public import StreamPublisherRegistrar, StreamSubscriberRegistrar
 from nose.plugins.attrib import attr
 from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
 from pyon.public import RT, PRED, log, IonObject
-
+import unittest, os
 
 import random
 
@@ -28,7 +28,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_replay_integration(self):
         '''
         Test full DM Services Integration
