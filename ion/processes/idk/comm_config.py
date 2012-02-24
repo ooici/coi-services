@@ -258,9 +258,9 @@ class CommConfigEthernet(CommConfig):
     def type(): return 'ethernet'
 
     def __init__(self, metadata):
-        self.device_address = None
+        self.device_addr = None
         self.device_port = None
-        self.server_address = None
+        self.server_addr = None
         self.server_port = None
 
         CommConfig.__init__(self, metadata)
@@ -269,30 +269,30 @@ class CommConfigEthernet(CommConfig):
         CommConfig._init_from_yaml(self, yamlInput)
 
         if( yamlInput ):
-            self.device_address = yamlInput['comm'].get('device_address')
+            self.device_addr = yamlInput['comm'].get('device_address')
             self.device_port = yamlInput['comm'].get('device_port')
-            self.server_address = yamlInput['comm'].get('server_address')
+            self.server_addr = yamlInput['comm'].get('server_address')
             self.server_port = yamlInput['comm'].get('server_port')
 
     def get_from_console(self):
-        self.device_address = prompt.text( 'Device Address', self.device_address )
+        self.device_addr = prompt.text( 'Device Address', self.device_addr )
         self.device_port = prompt.text( 'Device Port', self.device_port )
-        self.server_address = prompt.text( 'Server Address', self.server_address )
+        self.server_addr = prompt.text( 'Server Address', self.server_addr )
         self.server_port = prompt.text( 'Server Port', self.server_port )
         CommConfig.get_from_console(self)
 
     def display_config(self):
         CommConfig.display_config(self)
-        print( "Device Address: " + self.device_address )
+        print( "Device Address: " + self.device_addr )
         print( "Device Port: " + self.device_port )
-        print( "Server Address: " + self.server_address )
+        print( "Server Address: " + self.server_addr )
         print( "Server Port: " + self.server_port )
 
     def _config_dictionary(self):
         config = CommConfig._config_dictionary(self)
-        config['device_address'] = self.device_address
+        config['device_address'] = self.device_addr
         config['device_port'] = self.device_port
-        config['server_address'] = self.server_address
+        config['server_address'] = self.server_addr
         config['server_port'] = self.server_port
 
         return config

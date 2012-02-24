@@ -5,43 +5,145 @@
 @file ${file}
 @author ${author}
 @brief Test cases for ${driver_name} driver
+ 
+USAGE:
+ Make tests verbose and provide stdout
+   * From the IDK
+       $$ bin/test_driver
+
+   * From pyon
+       $$ bin/nosetests -s -v ${driver_path}
 """
 
 __author__ = '${author}'
 __license__ = 'Apache 2.0'
 
+import time
+from mock import Mock, call, DEFAULT
 
 from nose.plugins.attrib import attr
 
-import ion.services.mi.mi_logger
-
 from ion.processes.idk.metadata import Metadata
 from ion.processes.idk.comm_config import CommConfig
+from ion.processes.idk.unit_test import InstrumentDriverTestCase
+from ion.processes.idk.test.driver_qualification import DriverQualificationTestCase
+from ${driver_module} import State
+from ${driver_module} import Event
+from ${driver_module} import Error
+from ${driver_module} import Status
+from ${driver_module} import Prompt
+from ${driver_module} import Channel
+from ${driver_module} import Command
+from ${driver_module} import Parameter
+from ${driver_module} import Capability
+from ${driver_module} import MetadataParameter
+from ${driver_module} import ${driver_name}InstrumentProtocol
+from ${driver_module} import ${driver_name}InstrumentDriver
 
+
+###############################################################################
+#                                UNIT TESTS                                   #
+###############################################################################
 
 @attr('UNIT', group='mi')
-class Test${driver_name}_UNIT():
-    def test_b(self):
-        assert 'a' == 'a'
+class Test${driver_name}_UNIT(InstrumentDriverTestCase):
+    def test_driver_init(self):
+        '''
+        Initialize an instrument driver object
+        '''
+        driver = ${driver_name}InstrumentDriver()
+        
+    def test_protocol_init(self):
+        '''
+        Initialize an instrument protocol object
+        '''
+        protocol = ${driver_name}InstrumentProtocol()
+        
+    ###
+    #    Add driver specific unit tests
+    ###
+        
 
+###############################################################################
+#                            INTEGRATION TESTS                                #
+###############################################################################
 
 @attr('INT', group='mi')
-class Test${driver_name}_INT():
-    def __init__(self):
-        self.comm_config = self._get_comm_config()
+class Test${driver_name}_INT(InstrumentDriverTestCase):
+    def driver_module(self):
+        return 'ion.services.mi.drivers.sbe37_driver'
+        return '${driver_module}'
+        
+    def driver_class(self):
+        return 'SBE37Driver'
+        return '${driver_name}InstrumentDriver'    
+    
+    def test_process(self):
+        """
+        Test for correct launch of driver process and communications, including
+        asynchronous driver events.
+        """
+        driver_process, driver_client = self._init_driver_process_client();
+        
+        # Add test to verify process exists.
 
-    def _get_comm_config(self):
-        raise Exception( "TODO: Overload for automated testing" )
+        # Send a test message to the process interface, confirm result.
+        msg = 'I am a ZMQ message going to the process.'
+        reply = driver_client.cmd_dvr('process_echo', msg)
+        self.assertEqual(reply,'process_echo: '+msg)
 
-    def test_a(self):
-        assert 'a' == 'a'
+        # Send a test message to the driver interface, confirm result.
+        msg = 'I am a ZMQ message going to the driver.'
+        reply = driver_client.cmd_dvr('driver_echo', msg)
+        self.assertEqual(reply, 'driver_echo: '+msg)
+        
+        # Test the event thread publishes and client side picks up events.
+        events = [
+            'I am important event #1!',
+            'And I am important event #2!'
+            ]
+        reply = driver_client.cmd_dvr('test_events', events=events)
+        time.sleep(2)
+        
+        # Confirm the events received are as expected.
+        self.assertEqual(self.events, events)
+        
+        # Terminate driver process and stop client messaging.
+        self._terminate_driver(driver_client, driver_process);
+
+    ###
+    #    Add driver specific integration tests
+    ###
 
 
-class RunFromIDK(Test${driver_name}_INT):
+###############################################################################
+# Auto generated code.  There should rarely be reason to edit anything below. #
+###############################################################################
+@attr('QUAL', group='mi')
+class Test${driver_name}_QUAL(DriverQualificationTestCase):
+    pass
+
+class IntFromIDK(Test${driver_name}_INT):
     """
     This class overloads the default test class so that comm configurations can be overloaded.  This is the test class
     called from the IDK test_driver program
     """
-    def _gget_comm_config(self):
-        return CommConfig(Metadata())
+    def init_comm(self):
+        self.comm_config = CommConfig.get_config_from_file(Metadata())
+
+class UnitFromIDK(Test${driver_name}_UNIT):
+    """
+    This class overloads the default test class so that comm configurations can be overloaded.  This is the test class
+    called from the IDK test_driver program
+    """
+    def init_comm(self):
+        self.comm_config = CommConfig.get_config_from_file(Metadata())
+
+class QualFromIDK(Test${driver_name}_QUAL):
+    """
+    This class overloads the default test class so that comm configurations can be overloaded.  This is the test class
+    called from the IDK test_driver program
+    """
+    def init_comm(self):
+        self.comm_config = CommConfig.get_config_from_file(Metadata())
 

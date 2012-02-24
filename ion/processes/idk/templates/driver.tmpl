@@ -19,6 +19,8 @@ import time
 import re
 import datetime
 
+from ion.services.mi.instrument_connection import SerialInstrumentConnection
+from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
 from ion.services.mi.instrument_driver import DriverCommand
@@ -31,53 +33,132 @@ from ion.services.mi.exceptions import InstrumentStateException
 from ion.services.mi.exceptions import InstrumentConnectionException
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_protocol import InstrumentProtocol
-from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_fsm import InstrumentFSM
 
-mi_logger = logging.getLogger('mi_logger')
+
+###
+#   Module wide values
+###
+log = logging.getLogger('mi_logger')
+INSTRUMENT_NEWLINE = '\n'
 
 
-class ${driver_name}State(BaseEnum):
+###
+#   Static Enumerations
+###
+class State(BaseEnum):
     """
+    Enumerated driver states.  Your driver will likly only support a subset of these.
     """
+    UNCONFIGURED = DriverState.UNCONFIGURED
+    DISCONNECTED =  DriverState.DISCONNECTED
+    CONNECTING =  DriverState.CONNECTING
+    DISCONNECTING =  DriverState.DISCONNECTING
+    CONNECTED =  DriverState.CONNECTED
+    ACQUIRE_SAMPLE =  DriverState.ACQUIRE_SAMPLE
+    UPDATE_PARAMS =  DriverState.UPDATE_PARAMS
+    SET =  DriverState.SET
+    AUTOSAMPLE =  DriverState.AUTOSAMPLE
+    TEST =  DriverState.TEST
+    CALIBRATE =  DriverState.CALIBRATE
+    DETACHED =  DriverState.DETACHED
+    COMMAND =  DriverState.COMMAND
+
+class Event(BaseEnum):
+    """
+    Enumerated driver events.  Your driver will likly only support a subset of these.
+    """
+    CONFIGURE = DriverEvent.CONFIGURE
+    INITIALIZE = DriverEvent.INITIALIZE
+    CONNECT = DriverEvent.CONNECT
+    CONNECTION_COMPLETE = DriverEvent.CONNECTION_COMPLETE
+    CONNECTION_FAILED = DriverEvent.CONNECTION_FAILED
+    CONNECTION_LOST = DriverEvent.CONNECTION_LOST
+    DISCONNECT = DriverEvent.DISCONNECT
+    DISCONNECT_COMPLETE = DriverEvent.DISCONNECT_COMPLETE
+    DISCONNECT_FAILED = DriverEvent.DISCONNECT_FAILED
+    PROMPTED = DriverEvent.PROMPTED
+    DATA_RECEIVED = DriverEvent.DATA_RECEIVED
+    COMMAND_RECEIVED = DriverEvent.COMMAND_RECEIVED
+    RESPONSE_TIMEOUT = DriverEvent.RESPONSE_TIMEOUT
+    SET = DriverEvent.SET
+    GET = DriverEvent.GET
+    EXECUTE = DriverEvent.EXECUTE
+    ACQUIRE_SAMPLE = DriverEvent.ACQUIRE_SAMPLE
+    START_AUTOSAMPLE = DriverEvent.START_AUTOSAMPLE
+    STOP_AUTOSAMPLE = DriverEvent.STOP_AUTOSAMPLE
+    TEST = DriverEvent.TEST
+    STOP_TEST = DriverEvent.STOP_TEST
+    CALIBRATE = DriverEvent.CALIBRATE
+    RESET = DriverEvent.RESET
+    ENTER = DriverEvent.ENTER
+    EXIT = DriverEvent.EXIT
+    ATTACH = DriverEvent.ATTACH
+    DETACH = DriverEvent.DETACH
+    UPDATE_PARAMS = DriverEvent.UPDATE_PARAMS
+
+class Channel(BaseEnum):
+    """
+    Enumerated driver channels.  Your driver will likly only support a subset of these.
+    """
+    CTD = DriverChannel.CTD
+    ALL = DriverChannel.ALL
+
+class Command(DriverCommand):
     pass
 
-class ${driver_name}Event(BaseEnum):
-    """
-    """
-
-class ${driver_name}Channel(BaseEnum):
-    """
-    """
+class Prompt(BaseEnum):
     pass
 
-class ${driver_name}Command(DriverCommand):
-    """
-    """
+class Parameter(DriverParameter):
     pass
 
-class ${driver_name}Prompt(BaseEnum):
-    """
-    """
+class MetadataParameter(BaseEnum):
     pass
 
-class ${driver_name}Parameter(DriverParameter):
-    """
-    """
+class Error(BaseEnum):
+    pass
+
+class Capability(BaseEnum):
+    pass
+
+class Status(BaseEnum):
     pass
 
 
-class ${driver_name}Protocol(CommandResponseInstrumentProtocol):
+###
+#   Protocol for ${driver_name}
+###
+class ${driver_name}InstrumentProtocol(CommandResponseInstrumentProtocol):
     """
+    The protocol is a very simple command/response protocol with a few show
+    commands and a few set commands.
     """
-    pass
+    
+    def __init__(self, callback=None, prompt=Prompt(), newline=INSTRUMENT_NEWLINE):
+        CommandResponseInstrumentProtocol.__init__(self, callback, prompt, newline)
+        
+        self._fsm = InstrumentFSM(State, Event, Event.ENTER,
+                                  Event.EXIT,
+                                  InstErrorCode.UNHANDLED_EVENT)
 
-
-class ${driver_name}Driver(InstrumentDriver):
+###
+#   Protocol for ${driver_name}
+###
+class ${driver_name}InstrumentDriver(InstrumentDriver):
     """
     """
-    pass
+    def __init__(self):
+        """Instrument-specific enums"""
+        self.instrument_connection = SerialInstrumentConnection()
+        self.instrument_commands = Command()
+        self.instrument_metadata_parameters = MetadataParameter()
+        self.instrument_parameters = Parameter()
+        self.instrument_channels = Channel()
+        self.instrument_errors = Error()
+        self.instrument_capabilities = Capability()
+        self.instrument_status = Status()
+        self.protocol = ${driver_name}InstrumentProtocol(self.protocol_callback)
 
 
 

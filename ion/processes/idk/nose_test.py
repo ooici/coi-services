@@ -69,10 +69,16 @@ class NoseTest():
         return generator.test_modulename()
 
     def _qualification_test_module(self):
-        return 'ion.processes.idk.test.driver_qualification'
+        return self._driver_test_module()
 
-    def _qualification_test_class(self):
-        return 'RunFromIDK'
+    def _unit_test_class(self):
+        return 'UnitFromIDK'
+
+    def _int_test_class(self):
+        return 'IntFromIDK'
+
+    def _qual_test_class(self):
+        return 'QualFromIDK'
 
     ###
     #   Public Methods
@@ -114,9 +120,10 @@ class NoseTest():
         """
         self._log("*** Starting Unit Tests ***")
         self._log(" ==> module: " + self._driver_test_module())
-        args=[ sys.argv[0], '-a', 'UNIT']
+        args=[ sys.argv[0], '-s', '-v', '-a', 'UNIT']
+        module = "%s:%s" % (self._driver_test_module(), self._unit_test_class())
 
-        return nose.run(defaultTest=self._driver_test_module(), testRunner=self.test_runner, argv=args, exit=False)
+        return nose.run(defaultTest=module, testRunner=self.test_runner, argv=args, exit=False)
 
     def run_integration(self):
         """
@@ -124,9 +131,10 @@ class NoseTest():
         """
         self._log("*** Starting Integration Tests ***")
         self._log(" ==> module: " + self._driver_test_module())
-        args=[ sys.argv[0], '-a', 'INT']
+        args=[ sys.argv[0], '-s', '-v', '-a', 'INT']
+        module = "%s:%s" % (self._driver_test_module(), self._int_test_class())
 
-        return nose.run(defaultTest=self._driver_test_module(), testRunner=self.test_runner, argv=args, exit=False)
+        return nose.run(defaultTest=module, testRunner=self.test_runner, argv=args, exit=False)
 
     def run_qualification(self):
         """
@@ -134,8 +142,8 @@ class NoseTest():
         """
         self._log("*** Starting Qualification Tests ***")
         self._log(" ==> module: " + self._qualification_test_module())
-        args=[ sys.argv[0], '-a', 'QUAL', '-v' ]
-        module = "%s:%s" % (self._qualification_test_module(), self._qualification_test_class())
+        args=[ sys.argv[0], '-s', '-v', '-a', 'QUAL', '-v' ]
+        module = "%s:%s" % (self._qualification_test_module(), self._qual_test_class())
 
         return nose.run(defaultTest=module, testRunner=self.test_runner, argv=args, exit=False)
 

@@ -69,7 +69,7 @@ class DriverGenerator:
         @brief file name of the new driver
         @retval driver filename
         """
-        return "%s_v%02d_driver.py" % (self.metadata.name, self.driver_version())
+        return "%s_v%02d_driver.py" % (self.metadata.name.lower(), self.driver_version())
 
     def driver_path(self):
         """
@@ -99,7 +99,7 @@ class DriverGenerator:
         @brief file name of the new driver tests
         @retval driver test filename
         """
-        return "%s_v%02d_driver_test.py" % (self.metadata.name, self.driver_version())
+        return "%s_v%02d_driver_test.py" % (self.metadata.name.lower(), self.driver_version())
 
     def test_template(self):
         """
@@ -203,6 +203,7 @@ class DriverGenerator:
         return {
             'test_module': self.test_modulename(),
             'driver_module': self.driver_modulename(),
+            'driver_path': self.driver_relative_path(),
             'file': self.driver_relative_path(),
             'author': self.metadata.author,
             'driver_name': self.metadata.name

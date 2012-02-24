@@ -44,7 +44,6 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
-@unittest.skip('Do not run hardware test.')
 @attr('INT', group='mi')
 class TestSBE37Driver(PyonTestCase):    
     """
@@ -70,7 +69,7 @@ class TestSBE37Driver(PyonTestCase):
         self.comms_config = {
             SBE37Channel.CTD:{
                 'method':'ethernet',
-                'device_addr': '137.110.112.119',
+                'device_addr': 'localhost',
                 'device_port': 4001,
                 'server_addr': 'localhost',
                 'server_port': 8888
