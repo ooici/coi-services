@@ -28,61 +28,84 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        self.pubsub_management_service = PubsubManagementServiceClient(node=self.container.node)
-        self.ingestion_management_service = IngestionManagementServiceClient(node=self.container.node)
-        self.dataset_management_service = DatasetManagementServiceClient(node=self.container.node)
-        self.data_retriever_service = DataRetrieverServiceClient(node=self.container.node)
-        self.transform_management_service = TransformManagementServiceClient(node=self.container.node)
-        self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
-        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
-
-        # datastore name
-        self.datastore_name = 'test_replay_integration'
-
-        pid = self.container.spawn_process(name='dummy_process_for_test',
-            module='pyon.ion.process',
-            cls='SimpleProcess',
-            config={})
-
-        dummy_process = self.container.proc_manager.procs[pid]
-
-        # Normally the user does not see or create the publisher, this is part of the containers business.
-        # For the test we need to set it up explicitly
-        self.publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
-        self.subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
-
-        # Create an async result
-        self.ar = gevent.event.AsyncResult()
-        self.ar2 = gevent.event.AsyncResult()
 
     def test_replay_integration(self):
         '''
         Test full DM Services Integration
         '''
 
+        cc = self.container
+
+        pubsub_management_service = PubsubManagementServiceClient(node=cc.node)
+        ingestion_management_service = IngestionManagementServiceClient(node=cc.node)
+        dataset_management_service = DatasetManagementServiceClient(node=cc.node)
+        data_retriever_service = DataRetrieverServiceClient(node=cc.node)
+        resource_registry_service = ResourceRegistryServiceClient(node=cc.node)
+
+        #------------------------------------------------------------------------------------------------------
+        # Datastore name
+        #------------------------------------------------------------------------------------------------------
+
+        datastore_name = 'test_replay_integration'
+
+        #------------------------------------------------------------------------------------------------------
+        # Spawn process
+        #------------------------------------------------------------------------------------------------------
+
+        pid = cc.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+
+        dummy_process = cc.proc_manager.procs[pid]
+
+        #------------------------------------------------------------------------------------------------------
+        # Set up subscriber
+        #------------------------------------------------------------------------------------------------------
+
+        # Normally the user does not see or create the publisher, this is part of the containers business.
+        # For the test we need to set it up explicitly
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=cc.node)
+        subscriber_registrar = StreamSubscriberRegistrar(process=cc, node=cc.node)
+
+        #------------------------------------------------------------------------------------------------------
+        # Create an async result
+        #------------------------------------------------------------------------------------------------------
+
+        ar = gevent.event.AsyncResult()
+        self.ar2 = gevent.event.AsyncResult()
+
         #------------------------------------------------------------------------------------------------------
         # Set up ingestion
         #------------------------------------------------------------------------------------------------------
 
         # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
-        ingestion_configuration_id = self.ingestion_management_service.create_ingestion_configuration(
+        ingestion_configuration_id = ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
-            couch_storage=CouchStorage(datastore_name=self.datastore_name, datastore_profile='SCIDATA'),
+            couch_storage=CouchStorage(datastore_name=datastore_name, datastore_profile='SCIDATA'),
             hdf_storage=HdfStorage(),
             number_of_workers=1,
         )
 
-        self.ingestion_management_service.activate_ingestion_configuration(
+        ingestion_management_service.activate_ingestion_configuration(
             ingestion_configuration_id=ingestion_configuration_id)
 
-        transforms = [self.resource_registry_service.read(assoc.o)
-                      for assoc in self.resource_registry_service.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+        #------------------------------------------------------------------------------------------------------
+        # Grab the transforms acting as ingestion workers
+        #------------------------------------------------------------------------------------------------------
 
-        proc_1 = self.container.proc_manager.procs[transforms[0].process_id]
+        transforms = [resource_registry_service.read(assoc.o)
+                      for assoc in resource_registry_service.find_associations(ingestion_configuration_id, PRED.hasTransform)]
+
+        proc_1 = cc.proc_manager.procs[transforms[0].process_id]
         log.info("PROCESS 1: %s" % str(proc_1))
 
+        #------------------------------------------------------------------------------------------------------
+        # Set up the test hooks for the gevent event AsyncResult object
+        #------------------------------------------------------------------------------------------------------
+
         def ingestion_worker_received(message, headers):
-            self.ar.set(message)
+            ar.set(message)
 
         proc_1.ingest_process_test_hook = ingestion_worker_received
 
@@ -92,31 +115,34 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         ctd_stream_def = ctd_stream_definition()
 
-        stream_def_id = self.pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Junk definition')
+        stream_def_id = pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 
 
-        stream_id = self.pubsub_management_service.create_stream(stream_definition_id=stream_def_id)
+        stream_id = pubsub_management_service.create_stream(stream_definition_id=stream_def_id)
+
+        #------------------------------------------------------------------------------------------------------
+        # Set up the dataset config
+        #------------------------------------------------------------------------------------------------------
 
 
-        dataset_id = self.dataset_management_service.create_dataset(
+        dataset_id = dataset_management_service.create_dataset(
             stream_id=stream_id,
-            datastore_name=self.datastore_name,
+            datastore_name=datastore_name,
             view_name='datasets/stream_join_granule'
         )
 
-        dataset_config_id = self.ingestion_management_service.create_dataset_configuration(
+        dataset_config_id = ingestion_management_service.create_dataset_configuration(
             dataset_id = dataset_id,
             archive_data = True,
             archive_metadata = True,
             ingestion_configuration_id = ingestion_configuration_id
         )
 
-
         #------------------------------------------------------------------------------------------------------
         # Launch a ctd_publisher
         #------------------------------------------------------------------------------------------------------
 
-        publisher = self.publisher_registrar.create_publisher(stream_id=stream_id)
+        publisher = publisher_registrar.create_publisher(stream_id=stream_id)
 
         #------------------------------------------------------------------------
         # Create a packet and publish it
@@ -131,7 +157,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         # Catch what the ingestion worker gets! Assert it is the same packet that was published!
         #------------------------------------------------------------------------------------------------------
 
-        packet = self.ar.get(timeout=2)
+        packet = ar.get(timeout=2)
 
         self.assertEquals(packet.identifiables['stream_encoding'].sha1, ctd_packet.identifiables['stream_encoding'].sha1)
 
@@ -139,29 +165,35 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         # Create subscriber to listen to the replays
         #------------------------------------------------------------------------------------------------------
 
-        replay_id, replay_stream_id = self.data_retriever_service.define_replay(dataset_id)
+        replay_id, replay_stream_id = data_retriever_service.define_replay(dataset_id)
 
-        # Create a subscriber for the replay stream
         query = StreamQuery(stream_ids=[replay_stream_id])
 
-        subscription_id = self.pubsub_management_service.create_subscription(query = query, exchange_name='replay_capture_point' ,name = 'replay_capture_point')
+        subscription_id = pubsub_management_service.create_subscription(query = query, exchange_name='replay_capture_point' ,name = 'replay_capture_point')
 
         # It is not required or even generally a good idea to use the subscription resource name as the queue name, but it makes things simple here
         # Normally the container creates and starts subscribers for you when a transform process is spawned
-        subscriber = self.subscriber_registrar.create_subscriber(exchange_name='replay_capture_point', callback=self._subscriber_call_back)
+        subscriber = subscriber_registrar.create_subscriber(exchange_name='replay_capture_point', callback=self._subscriber_call_back)
         subscriber.start()
 
-        self.pubsub_management_service.activate_subscription(subscription_id)
+        pubsub_management_service.activate_subscription(subscription_id)
 
-
+        #------------------------------------------------------------------------------------------------------
         # Start the replay
-        self.data_retriever_service.start_replay(replay_id)
+        #------------------------------------------------------------------------------------------------------
 
+        data_retriever_service.start_replay(replay_id)
 
+        #------------------------------------------------------------------------------------------------------
         # Get the hdf string from the captured stream in the replay
+        #------------------------------------------------------------------------------------------------------
+
         retrieved_hdf_string  = self.ar2.get(timeout=2)
 
+        #------------------------------------------------------------------------------------------------------
         # Assert that it matches the message we sent
+        #------------------------------------------------------------------------------------------------------
+
         self.assertEquals(retrieved_hdf_string, published_hdfstring)
 
 
