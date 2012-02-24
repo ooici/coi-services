@@ -66,64 +66,72 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
         
-    def test_find_events_for_resource(self):
-        pass
+    def xtest_find_event_types_for_resource(self):
+        dataset_object = IonObject(RT.DataSet, name="dataset1")
+        dataset_id, version = self.rrc.create(dataset_object)
+        events = self.unsc.find_event_types_for_resource(dataset_id)
+        log.debug("dataset events = " + str(events))
+        try:
+            events = self.unsc.find_event_types_for_resource("bogus_id")
+            self.fail("failed to detect non-existant resource")
+        except:
+            pass
         
-    def test_create_two_user_notifications(self):
+    def xtest_create_two_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['RESOURCE_LIFECYCLE_EVENT']})
+                                                                 "events_list":['resource_lifecycle']})
         self.unsc.create_notification(notification_object, user_id)
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DATA_EVENT']})
+                                                                 "events_list":['data']})
         self.unsc.create_notification(notification_object, user_id)
 
-    def test_delete_user_notifications(self):
+    def xtest_delete_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
         notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['RESOURCE_LIFECYCLE_EVENT']})
+                                                                 "events_list":['resource_lifecycle']})
         notification1_id = self.unsc.create_notification(notification_object1, user_id)
         notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DATA_EVENT']})
+                                                                 "events_list":['data']})
         notification2_id = self.unsc.create_notification(notification_object2, user_id)
         self.unsc.delete_notification(notification1_id)
         self.unsc.delete_notification(notification2_id)
 
-    def test_find_user_notifications(self):
+    def xtest_find_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['RESOURCE_LIFECYCLE_EVENT']})
+                                                                 "events_list":['resource_lifecycle']})
         self.unsc.create_notification(notification_object, user_id)
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DATA_EVENT']})
+                                                                 "events_list":['data']})
         self.unsc.create_notification(notification_object, user_id)
         notifications = self.unsc.find_notifications_by_user(user_id)
         for n in notifications:
             log.debug("n = " +str(n))
 
-    def test_update_user_notification(self):
+    def xtest_update_user_notification(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['RESOURCE_LIFECYCLE_EVENT']})
+                                                                 "events_list":['resource_lifecycle']})
         notification_id = self.unsc.create_notification(notification_object, user_id)
         notification = self.rrc.read(notification_id)
         notification.origin_list = ['Some_Resource_Agent_ID5']
@@ -136,11 +144,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.imc.create_user_info(user_id, user_info_object)
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['RESOURCE_LIFECYCLE_EVENT']})
+                                                                 "events_list":['resource_lifecycle']})
         self.unsc.create_notification(notification_object, user_id)
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DATA_EVENT']})
+                                                                 "events_list":['data']})
         self.unsc.create_notification(notification_object, user_id)
         rle_publisher = ResourceLifecycleEventPublisher()
         rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
@@ -148,7 +156,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event")
         gevent.sleep(1)
 
-    def test_find_events(self):
+    def xtest_find_events(self):
         rle_publisher = ResourceLifecycleEventPublisher(event_repo=self.container.event_repository)
         rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event1")
         rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event2")
