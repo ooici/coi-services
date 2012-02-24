@@ -42,6 +42,7 @@ class FakeProcess(LocalContextMixin):
     """
     name = ''
     id=''
+    process_type = ''
     
 @unittest.skip('Do not run hardware test.')
 @attr('INT', group='mi')
@@ -108,9 +109,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Create parsed stream. The stream name must match one
         # used by the driver to label packet data.
         parsed_stream_def = ctd_stream_definition(stream_id=None)
+        parsed_stream_def_id = self._pubsub_client.create_stream_definition(
+                                                    container=parsed_stream_def)        
         parsed_stream_id = self._pubsub_client.create_stream(
                         name=parsed_stream_name,
-                        stream_definition=parsed_stream_def,
+                        stream_definition_id=parsed_stream_def_id,
                         original=True,
                         encoding='ION R2')
 
@@ -118,8 +121,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # driver to label packet data. This stream does not yet have a
         # packet definition so will not be published.
         raw_stream_def = ctd_stream_definition(stream_id=None)
+        raw_stream_def_id = self._pubsub_client.create_stream_definition(
+                                                    container=raw_stream_def)        
         raw_stream_id = self._pubsub_client.create_stream(name=raw_stream_name,
-                        stream_definition=raw_stream_def,
+                        stream_definition_id=raw_stream_def_id,
                         original=True,
                         encoding='ION R2')
         
