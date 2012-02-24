@@ -13,14 +13,14 @@ from ion.services.dm.distribution.pubsub_management_service import PubsubManagem
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import PRED, RT, StreamPublisher, StreamSubscriber, log, StreamSubscriberRegistrar, StreamPublisherRegistrar
+from pyon.public import PRED, RT, StreamSubscriberRegistrar, StreamPublisherRegistrar
 from nose.plugins.attrib import attr
 import unittest
-from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum
+from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum, StreamDefinition, StreamDefinitionContainer
 from pyon.util.containers import DotDict
 
 
-@attr('UNIT', group='dm')
+@attr('UNIT', group='dm1')
 class PubSubTest(PyonTestCase):
 
     def setUp(self):
@@ -41,6 +41,13 @@ class PubSubTest(PyonTestCase):
         self.mock_find_associations = mock_clients.resource_registry.find_associations
         self.mock_find_objects = mock_clients.resource_registry.find_objects
 
+        #StreamDefinition
+        self.stream_definition_id = "stream_definition_id"
+        self.stream_definition = Mock()
+        self.stream_definition.name = "SampleStreamDefinition"
+        self.stream_definition.description = "Sample StreamDefinition In PubSub"
+        self.stream_definition.container = StreamDefinitionContainer()
+
         # Stream
         self.stream_id = "stream_id"
         self.stream = Mock()
@@ -48,7 +55,7 @@ class PubSubTest(PyonTestCase):
         self.stream.description = "Sample Stream In PubSub"
         self.stream.encoding = ""
         self.stream.original = True
-        self.stream.stream_definition_type = ""
+        self.stream.stream_definition_id = self.stream_definition_id
         self.stream.url = ""
         self.stream.producers = ['producer1', 'producer2', 'producer3']
 
@@ -80,9 +87,11 @@ class PubSubTest(PyonTestCase):
         self.mock_create.return_value = [self.stream_id, 1]
 
         stream_id = self.pubsub_service.create_stream(name=self.stream.name,
-                                                      description=self.stream.description)
+                                                      description=self.stream.description,
+                                                      stream_definition_id=self.stream.stream_definition_id)
 
         self.assertTrue(self.mock_create.called)
+        self.mock_create_association.assert_called_once_with(self.stream_id, PRED.hasStreamDefinition, self.stream.stream_definition_id, None)
         self.assertEqual(stream_id, self.stream_id)
 
     def test_read_and_update_stream(self):
@@ -94,7 +103,7 @@ class PubSubTest(PyonTestCase):
         ret = self.pubsub_service.update_stream(stream_obj)
 
         self.mock_update.assert_called_once_with(stream_obj)
-        self.assertTrue(ret)
+        self.assertEqual(None, ret)
 
     def test_read_stream(self):
         self.mock_read.return_value = self.stream
@@ -121,7 +130,6 @@ class PubSubTest(PyonTestCase):
 
         self.mock_read.assert_called_once_with(self.stream_id, '')
         self.mock_delete.assert_called_once_with(self.stream_id)
-        self.assertTrue(ret)
 
     def test_delete_stream_not_found(self):
         self.mock_read.return_value = None
@@ -132,6 +140,63 @@ class PubSubTest(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Stream notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
+        self.assertEqual(self.mock_delete.call_count, 0)
+
+    def test_create_stream_definition(self):
+        self.mock_create.return_value = [self.stream_definition_id, 1]
+
+        stream_definition_id = self.pubsub_service.create_stream_definition(container=self.stream_definition.container)
+
+        self.assertTrue(self.mock_create.called)
+        self.assertEqual(stream_definition_id, self.stream_definition_id)
+
+    def test_read_and_update_stream_definition(self):
+        self.mock_read.return_value = self.stream_definition
+        stream_definition_obj = self.pubsub_service.read_stream_definition(self.stream_definition_id)
+
+        self.mock_update.return_value = [self.stream_definition_id, 2]
+        stream_definition_obj.name = "UpdatedSampleStreamDefinition"
+        ret = self.pubsub_service.update_stream_definition(stream_definition_obj)
+
+        self.mock_update.assert_called_once_with(stream_definition_obj)
+        self.assertEqual(ret,None)
+
+    def test_read_stream_definition(self):
+        self.mock_read.return_value = self.stream_definition
+        stream_definition_obj = self.pubsub_service.read_stream_definition(self.stream_definition_id)
+
+        assert stream_definition_obj is self.mock_read.return_value
+        self.mock_read.assert_called_once_with(self.stream_definition_id, '')
+
+    def test_read_stream_definition_not_found(self):
+        self.mock_read.return_value = None
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.read_stream_definition('notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'StreamDefinition notfound does not exist')
+        self.mock_read.assert_called_once_with('notfound', '')
+
+    def test_delete_stream_definition(self):
+        self.mock_read.return_value = self.stream_definition
+
+        ret = self.pubsub_service.delete_stream_definition(self.stream_definition_id)
+
+        self.mock_read.assert_called_once_with(self.stream_definition_id, '')
+        self.mock_delete.assert_called_once_with(self.stream_definition_id)
+
+    def test_delete_stream_definition_not_found(self):
+        self.mock_read.return_value = None
+
+        # TEST: Execute the service operation call
+        with self.assertRaises(NotFound) as cm:
+            self.pubsub_service.delete_stream_definition('notfound')
+
+        ex = cm.exception
+        self.assertEqual(ex.message, 'StreamDefinition notfound does not exist')
         self.mock_read.assert_called_once_with('notfound', '')
         self.assertEqual(self.mock_delete.call_count, 0)
 

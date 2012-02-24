@@ -47,13 +47,13 @@ data collection:
     DEBUG      bars_client               5988   MainThread      - ### sending ^S
     DEBUG      bars_client               5988   MainThread      - ### got prompt. Sending one ^m to clean up any ^S leftover
     :: select 6 to get system info
-    DEBUG      bars_client               5988   MainThread      - ### send_option: '6'
+    DEBUG      bars_client               5988   MainThread      - ### send: '6'
     DEBUG      bars_client               5988   MainThread      - ### expecting '.*--> '
     :: send enter to return to main menu
     DEBUG      bars_client               5988   MainThread      - ### send_enter
     DEBUG      bars_client               5988   MainThread      - ### expecting '.*--> '
     :: resume data streaming
-    DEBUG      bars_client               5988   MainThread      - ### send_option: '1'
+    DEBUG      bars_client               5988   MainThread      - ### send: '1'
     :: sleeping for 10 secs to receive some data
     :: bye
 

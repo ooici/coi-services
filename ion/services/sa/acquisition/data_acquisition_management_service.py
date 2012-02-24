@@ -9,7 +9,7 @@ and the relationships between them
 '''
 
 from interface.services.sa.idata_acquisition_management_service import BaseDataAcquisitionManagementService
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, LCS, PRED
 
 
@@ -20,24 +20,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     # -----------------
     # The following operations register different types of data producers
     # -----------------
-
-    def _remove_producer(self, resource_id='', producers=None):
-        log.debug("Removing DataProducer objects and links")
-        for producer in producers:
-            # List all association ids with given subject, predicate, object triples
-            assoc_ids = self.clients.resource_registry.find_associations(resource_id, PRED.hasDataProducer, producer, True)
-            self.clients.resource_registry.delete_association(assoc_ids[0])
-
-            # DELETE THE STREAM associated with the data producer via call to PubSub
-            res_ids, _ = self.clients.resource_registry.find_objects(producer, PRED.hasStream, None, True)
-            if res_ids is None:
-                raise NotFound("Stream for Data Producer  %d does not exist" % producer)
-            for streamId in res_ids:
-                self.clients.pubsub_management.delete_stream(streamId)
-
-            self.clients.resource_registry.delete(producer)
-
-        return
 
 
     def register_external_data_set(self, external_dataset_id=''):
@@ -52,7 +34,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("External Data Set %s does not exist" % external_dataset_id)
 
         #create data producer resource and associate to this external_dataset_id
-        data_producer_id = self.create_data_producer(name=data_set_obj.name, description=data_set_obj.description)
+        data_producer_obj = IonObject(RT.DataProducer,name=data_set_obj.name, description="primary producer resource for this data set", is_primary=True)
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
         self.clients.resource_registry.create_association(external_dataset_id, PRED.hasDataProducer, data_producer_id)
@@ -74,7 +57,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if res_ids is None:
             raise NotFound("Data Producer for External Data Set %d does not exist" % external_dataset_id)
 
-        return self._remove_producer(external_dataset_id, res_ids)
+        #todo: check that there are not attached data products?
+
+        #todo: delete the data producer object and assoc to ext_data_set
+
+        return
     
 
     def register_process(self, data_process_id=''):
@@ -88,7 +75,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Data Process %s does not exist" % data_process_id)
 
         #create data producer resource and associate to this data_process_id
-        data_producer_id = self.create_data_producer(name=data_process_obj.name, description=data_process_obj.description)
+        data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name, description="primary producer resource for this process", is_primary=True)
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
         self.clients.resource_registry.create_association(data_process_id, PRED.hasDataProducer, data_producer_id)
@@ -100,7 +88,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def unregister_process(self, data_process_id=''):
         """
-        Remove the associated DataProcess
+        Remove the associated DataProcess and disc
 
         """
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
@@ -108,7 +96,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if res_ids is None:
             raise NotFound("Data Producer for Data Process %d does not exist" % data_process_id)
 
-        return self._remove_producer(data_process_id, res_ids)
+        # TODO: remove associations
+
+        #todo: check that there are not attached data products?
+
+        #todo: delete the data producer object and assoc to ext_data_set
+
+        return
 
     def register_instrument(self, instrument_id=''):
         """
@@ -120,7 +114,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Instrument %s does not exist" % instrument_id)
 
         #create data producer resource and associate to this instrument_id
-        data_producer_id = self.create_data_producer(name=instrument_obj.name, description=instrument_obj.description)
+        data_producer_obj = IonObject(RT.DataProducer,name=instrument_obj.name, description="primary producer resource for this instrument", is_primary=True)
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("register_instrument  data_producer_id %s" % data_producer_id)
 
         # Create association
@@ -129,71 +124,160 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         return data_producer_id
 
     def unregister_instrument(self, instrument_id=''):
-        """
-        Remove the associated DataProcess
 
-        """
-        # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        res_ids, _ = self.clients.resource_registry.find_objects(instrument_id, PRED.hasDataProducer, None, True)
-        if res_ids is None:
-            raise NotFound("Data Producer for Instrument %d does not exist" % instrument_id)
+        # Verify that both ids are valid
+        input_resource_obj = self.clients.resource_registry.read(instrument_id)
+        if not input_resource_obj:
+            raise BadRequest("Source resource %s does not exist" % instrument_id)
 
-        return self._remove_producer(instrument_id, res_ids)
+        #find the data producer resource associated with the source resource that is creating the data product
+        producer_ids, _ = self.clients.resource_registry.find_objects(instrument_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
+        if producer_ids is None:
+            raise NotFound("No Data Producers associated with source resource ID " + str(instrument_id) )
+        if len(producer_ids) > 1:
+            raise BadRequest("All child Data Producers associated with instrument must be unassigned before instrument is unregistered " + str(instrument_id))
+
+        #find the 'head' producer
+        self.primary_producer = None
+        for producer_id in producer_ids:
+            producer_obj = self.clients.resource_registry.read(producer_id)
+            if not producer_obj:
+                raise NotFound("Data Producer %s does not exist" % producer_id)
+            if producer_obj.is_primary:
+                self.primary_producer = producer_id
+
+        if self.primary_producer is None:
+            raise NotFound("No primary Data Producer associated with source resource ID " + str(instrument_id))
+
+        # TODO: remove associations
+
+        #todo: check that there are no attached data products?
+
+        #todo: delete the data producer object and assoc to ext_data_set
+
+        return
 
 
-    def assign_data_product(self, input_resource_id='', data_product_id=''):
+    def assign_data_product(self, input_resource_id='', data_product_id='', create_stream=False):
         """Connect the producer for an existing input resource with a data product
 
         @param input_resource_id    str
         @param data_product_id    str
         @retval data_producer_id    str
         """
-        source_obj = self.clients.resource_registry.read(input_resource_id)
-        if not source_obj:
-            raise NotFound("Source resource %s does not exist" % input_resource_id)
+        # Verify that both ids are valid
+        input_resource_obj = self.clients.resource_registry.read(input_resource_id)
+        if not input_resource_obj:
+            raise BadRequest("Source resource %s does not exist" % input_resource_id)
+        data_product_obj = self.clients.resource_registry.read(data_product_id)
+        if not data_product_obj:
+            raise BadRequest("Data Product resource %s does not exist" % data_product_id)
 
         #find the data producer resource associated with the source resource that is creating the data product
         producer_ids, _ = self.clients.resource_registry.find_objects(input_resource_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
         if producer_ids is None:
             raise NotFound("No Data Producers associated with source resource ID " + str(input_resource_id))
+        #find the 'head' producer
+        self.primary_producer = None
+        for producer_id in producer_ids:
+            producer_obj = self.clients.resource_registry.read(producer_id)
+            if not producer_obj:
+                raise NotFound("Data Producer %s does not exist" % producer_id)
+            if producer_obj.is_primary:
+                self.primary_producer = producer_id
 
-        self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  producer_ids[0])
+        if self.primary_producer is None:
+            raise NotFound("No primary Data Producer associated with source resource ID " + str(input_resource_id))
+
+        #create data producer resource for this data product
+        data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+
+
+        # Associate the Product with the Producer
+        self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
+        # Associate the Producer with the main Producer
+        self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  self.primary_producer)
+        # Associate the input resource with the child data Producer
+        self.clients.resource_registry.create_association(input_resource_id,  PRED.hasDataProducer, data_producer_id)
+
+        #Create the stream if requested
+        log.debug("assign_data_product: create_stream %s" % create_stream)
+        if create_stream:
+            stream_id = self.clients.pubsub_management.create_stream(name=data_product_obj.name,  description=data_product_obj.description)
+            log.debug("assign_data_product: create stream stream_id %s" % stream_id)
+            # Associate the Stream with the main Data Product
+            self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
+
         return
 
-    def unassign_data_product(self, input_resource_id='', data_product_id=''):
-        """@todo document this interface!!!
+    def unassign_data_product(self, input_resource_id='', data_product_id='', delete_stream=False):
+        """
+        Disconnect the Data Product from the Data Producer
 
-        @param input_resource_id    str
         @param data_product_id    str
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        # Verify that both ids are valid
+        input_resource_obj = self.clients.resource_registry.read(input_resource_id)
+        if not input_resource_obj:
+            raise BadRequest("Source resource %s does not exist" % input_resource_id)
+        data_product_obj = self.clients.resource_registry.read(data_product_id)
+        if not data_product_obj:
+            raise BadRequest("Data Product resource %s does not exist" % data_product_id)
 
-    def create_data_producer(self, name='', description=''):
-        """
-        Create a new data_producer.
+        #find the data producer resource associated with the source resource that is creating the data product
+        producer_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
+        if producer_ids is None or len(producer_ids) > 1:
+            raise NotFound("Invalid Data Producers associated with data product ID " + str(data_product_id))
+
+        data_producer_obj = self.read_data_producer(producer_ids[0])
+        if data_producer_obj is None:
+            raise NotFound("Data producer %d does not exist" % producer_ids[0])
+
+        # Remove the link between the child Data Producer resource and the primary Data Producer resource
+        associations = self.clients.resource_registry.find_associations(producer_ids[0], PRED.hasParent, RT.DataProducer, True)
+        for association in associations:
+            log.debug("unassign_data_product: link to primary DataProducer %s" % association)
+            self.clients.resource_registry.delete_association(association)
+
+        # Remove the link between the input resource (instrument/process/ext_data_set) resource and the child Data Producer resource
+        associations = self.clients.resource_registry.find_associations(input_resource_id, PRED.hasDataProducer, producer_ids[0], True)
+        for association in associations:
+            log.debug("unassign_data_product: link from input resource to child DataProducer %s" % association)
+            self.clients.resource_registry.delete_association(association)
+
+        self.clients.resource_registry.delete(producer_ids[0])
+
+        return
+
+
+        #Delete  the stream if requested
+        log.debug("assign_data_product: delete_stream %s" % delete_stream)
+        if delete_stream:
+            #find the data producer resource associated with the source resource that is creating the data product
+            stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
+            if stream_ids is None or len(stream_ids) > 1:
+                raise NotFound("Invalid Streams associated with data product ID " + str(data_product_id))
+            # List all association ids with given subject, predicate, object triples
+            associations = self.clients.resource_registry.find_associations(data_product_id, PRED.hasStream, stream_ids[0], True)
+            for association in associations:
+                self.clients.resource_registry.delete_association(association)
+            self.clients.pubsub_management.delete_stream(stream_ids[0])
+
+
+        return
+
+
+    def create_data_producer(name='', description=''):
+        """Create a data producer resource, create a stream reource via DM then associate the two resources. Currently, data producers and streams are one-to-one. If the data producer is a process, connect the data producer to any parent data producers.
 
         @param name    str
         @param description    str
         @retval data_producer_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-
-        log.debug("Creating DataProducer object")
-        data_producer_obj = IonObject(RT.DataProducer,name=name, description=description)
-        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
-        log.debug("create_data_producer  data producer id %s" % data_producer_id)
-
-        # create the stream for this data producer
-        stream = IonObject(RT.Stream, name=name)
-        streamId = self.clients.pubsub_management.create_stream(stream)
-
-        log.debug("create_data_producer  Stream id %s" % streamId)
-
-        # Create association
-        self.clients.resource_registry.create_association(data_producer_id, PRED.hasStream, streamId)
-
-        return data_producer_id
+        pass
 
     def update_data_producer(self, data_producer=None):
         '''

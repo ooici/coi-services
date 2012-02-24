@@ -15,7 +15,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
-from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber
+from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -27,7 +27,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 @attr('INT', group='sa')
-#unittest.skip('coi/dm/sa services not working yet for integration tests to pass')
+#@unittest.skip('need to fix...')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -57,11 +57,18 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         dpd_obj = IonObject(RT.DataProcessDefinition,
                             name='data_process_definition',
                             description='some new dpd',
+                            module='ion.processes.data.transforms.transform_example',
+                            class_name='TransformExample',
                             process_source='some_source_reference')
         try:
             dprocdef_id = self.Processclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
+
+
+        # test Data Process Definition creation in rr
+        dprocdef_obj = self.Processclient.read_data_process_definition(dprocdef_id)
+        self.assertEquals(dprocdef_obj.name,'data_process_definition')
 
         # Create an input instrument
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
@@ -71,12 +78,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         data_producer_id = self.DAMSclient.register_instrument(instrument_id)
         log.debug("TestIntDataProcessManagementService  data_producer_id %s" % data_producer_id)
 
-        # Retrieve the stream via the Instrument->DataProducer->Stream associations
-        stream_ids, _ = self.RRclient.find_objects(data_producer_id, PRED.hasStream, None, True)
 
-        log.debug("TestIntDataProcessManagementService: stream_ids "   +  str(stream_ids))
-        self.in_stream_id = stream_ids[0]
-        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
         #-------------------------------
         # Input Data Product
@@ -88,6 +90,12 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new input data product: %s" %ex)
 
+        # Retrieve the stream via the DataProduct->Stream associations
+        stream_ids, _ = self.RRclient.find_objects(input_dp_id, PRED.hasStream, None, True)
+
+        log.debug("TestIntDataProcessManagementService: in stream_ids "   +  str(stream_ids))
+        self.in_stream_id = stream_ids[0]
+        log.debug("TestIntDataProcessManagementService: Input Stream: "   +  str( self.in_stream_id))
 
         #-------------------------------
         # Output Data Product
@@ -96,6 +104,8 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         output_dp_obj = IonObject(RT.DataProduct, name='OutDataProduct',description='transform output')
         output_dp_id = self.DPMSclient.create_data_product(output_dp_obj)
 
+        # this will NOT create a stream for the product becuase the data process (source) resource has not been created yet.
+
         #-------------------------------
         # Create the data process
         #-------------------------------
@@ -103,7 +113,9 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         try:
             dproc_id = self.Processclient.create_data_process(dprocdef_id, input_dp_id, output_dp_id)
         except BadRequest as ex:
-            self.fail("failed to create new data process definition: %s" %ex)
+            self.fail("failed to create new data process: %s" %ex)
+
+        self.DAMSclient.assign_data_product(dproc_id, output_dp_id, False)
 
         log.debug("TestIntDataProcessManagementService: create_data_process return")
 
@@ -113,23 +125,30 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         # Create a producing example process
         # cheat to make a publisher object to send messages in the test.
         # it is really hokey to pass process=self.cc but it works
-        stream_route = self.PubSubClient.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.in_stream_id)
-        self.ctd_stream1_publisher = StreamPublisher(node=self.container.node, name=('science_data',stream_route.routing_key), process=self.container)
+        #stream_route = self.PubSubClient.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.in_stream_id)
+        #self.ctd_stream1_publisher = StreamPublisher(node=self.container.node, name=('science_data',stream_route.routing_key), process=self.container)
 
-        num = 3
-        msg = dict(num=str(num))
+
+        pid = self.container.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+        dummy_process = self.container.proc_manager.procs[pid]
+
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
+        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.in_stream_id)
+
+        msg = {'num':'3'}
         self.ctd_stream1_publisher.publish(msg)
 
         time.sleep(1)
 
-        num = 5
-        msg = dict(num=str(num))
+        msg = {'num':'5'}
         self.ctd_stream1_publisher.publish(msg)
 
         time.sleep(1)
 
-        num = 9
-        msg = dict(num=str(num))
+        msg = {'num':'9'}
         self.ctd_stream1_publisher.publish(msg)
 
         # See /tmp/transform_output for results.....
@@ -140,8 +159,13 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
+        with self.assertRaises(NotFound) as e:
+            self.Processclient.read_data_process(dproc_id)
+
         try:
             self.Processclient.delete_data_process_definition(dprocdef_id)
         except BadRequest as ex:
             self.fail("failed to create new data process definition: %s" %ex)
 
+        with self.assertRaises(NotFound) as e:
+            self.Processclient.read_data_process_definition(dprocdef_id)

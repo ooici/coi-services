@@ -20,18 +20,13 @@ class BootstrapService(BaseBootstrapService):
         log.info("Bootstrap service INIT: System init")
         global bootstrap_instance
         bootstrap_instance = self
-        self.level_seen = set()
 
     def on_start(self):
         log.info("Bootstrap service START: System start")
 
     def trigger_level(self, level, config):
         #print "Bootstrap level: %s config: %s" % (str(level),str(config))
-        if level in self.level_seen:
-            log.error("Bootstrap level already triggered: %s" % level)
-            return
 
-        self.level_seen.add(level)
         if level == "datastore":
             self.post_datastore(config)
         elif level == "directory":
@@ -85,7 +80,8 @@ class BootstrapService(BaseBootstrapService):
 
     def post_org_management(self, config):
         # Create root Org: ION
-        org = IonObject(RT.Org, name="ION", description="ION Root Org")
+        root_orgname = CFG.system.root_org
+        org = IonObject(RT.Org, name=root_orgname, description="Root Org")
         self.org_id = self.clients.org_management.create_org(org)
 
     def post_exchange_management(self, config):

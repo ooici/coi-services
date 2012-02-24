@@ -7,11 +7,26 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
-from pyon.core.exception import BadRequest
-from pyon.datastore.datastore import DataStore, DatastoreManager
+from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
+from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
 from interface.services.dm.ireplay_process import BaseReplayProcess
+from pyon.util.containers import DotDict
+from pyon.core.exception import IonException
+from pyon.util.file_sys import FS, FileSystem
+
+import hashlib
+
+class ReplayProcessException(IonException):
+    """
+    Exception class for IngestionManagementService exceptions. This class inherits from IonException
+    and implements the __str__() method.
+    """
+    def __str__(self):
+        return str(self.get_status_code()) + str(self.get_error_message())
+
+
 class ReplayProcess(BaseReplayProcess):
     process_type="standalone"
     def __init__(self, *args, **kwargs):
@@ -30,29 +45,40 @@ class ReplayProcess(BaseReplayProcess):
         '''
         self.stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
 
-        # Get the stream(s)
-        streams = self.CFG.get('process',{}).get('publish_streams',{})
 
         # Get the query
-        self.query = self.CFG.get('process',{}).get('query',{})
+        self.query = self.CFG.get_safe('process.query',{})
 
         # Get the delivery_format
-        self.delivery_format = self.CFG.get('process',{}).get('delivery_format',{})
+        self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
+        self.datastore_name = self.CFG.get_safe('process.datastore_name','dm_datastore')
 
-        self.datastore_name = self.CFG.get('process',{}).get('datastore_name','dm_datastore')
+        self.view_name = self.CFG.get_safe('process.view_name','datasets/dataset_by_id')
+        self.key_id = self.CFG.get_safe('process.key_id')
+        # Get a stream_id for this process
+        self.stream_id = self.CFG.get_safe('process.publish_streams.output',{})
 
 
-        # Attach a publisher to each stream_name attribute
-        #@TODO does this belong here? Should it be in the container somewhere?
-        self.stream_count = len(streams)
-        for name,stream_id in streams.iteritems():
-            pub = self.stream_publisher_registrar.create_publisher(stream_id=stream_id)
-            log.warn('Setup publisher named: %s' % name)
-            setattr(self,name,pub)
 
-        if not hasattr(self,'output'):
+        if not (self.stream_id and hasattr(self,'output')):
             raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
 
+
+
+    def _records(self, records, n):
+        """
+        Given a list of records, yield at most n at a time
+        """
+        while True:
+            yval = []
+            try:
+                for i in xrange(n):
+                    yval = yval + [records.pop(0)]
+                yield yval
+            except IndexError:
+                if yval:
+                    yield yval
+                break
 
     def _publish_query(self, results):
         '''
@@ -74,20 +100,83 @@ class ReplayProcess(BaseReplayProcess):
         #      in the last query we'll set include_docs to true and parse the docs.
         #-----------------------
 
-        #@todo: Add thread sync here because self.output is shared and deadlocks COULD occur
+
         log.warn('results: %s', results)
 
         for result in results:
-            log.warn('Result: %s' % result)
-            if 'doc' in result:
-                log.debug('Result contains document.')
-                blog_msg = result['doc']
-                blog_msg.is_replay = True
+            log.warn('REPLAY Result: %s' % result)
+
+
+
+            assert('doc' in result)
+
+            replay_obj_msg = result['doc']
+
+            if isinstance(replay_obj_msg, BlogBase):
+                replay_obj_msg.is_replay = True
+
+                self.lock.acquire()
+                self.output.publish(replay_obj_msg)
+                self.lock.release()
+
+            elif isinstance(replay_obj_msg, StreamDefinitionContainer):
+
+                replay_obj_msg.stream_resource_id = self.stream_id
+
+
+            elif isinstance(replay_obj_msg, StreamGranuleContainer):
+
+                # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
+                replay_obj_msg.stream_resource_id = self.stream_id
+
+                datastream = None
+                sha1 = None
+
+                for key, identifiable in replay_obj_msg.identifiables.iteritems():
+                    if isinstance(identifiable, DataStream):
+                        datastream = identifiable
+                    elif isinstance(identifiable, Encoding):
+                        sha1 = identifiable.sha1
+
+                if sha1: # if there is an encoding
+
+                    # Get the file from disk
+                    filename = FileSystem.get_url(FS.CACHE, sha1, ".hdf5")
+
+                    log.warn('Replay reading from filename: %s' % filename)
+
+                    hdf_string = ''
+                    try:
+                        with open(filename, mode='rb') as f:
+                            hdf_string = f.read()
+                            f.close()
+
+                            # Check the Sha1
+                            retreived_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
+                            if sha1 != retreived_hdfstring_sha1:
+                                raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
+
+                    except IOError:
+                        log.warn('No HDF file found!')
+                        #@todo deal with this situation? How?
+                        hdf_string = 'HDF File %s not found!' % filename
+
+                    # set the datastream.value field!
+                    datastream.values = hdf_string
+
+                else:
+                    log.warn('No encoding in the StreamGranuleContainer!')
+
+                self.lock.acquire()
+                self.output.publish(replay_obj_msg)
+                self.lock.release()
+
+
             else:
-                blog_msg = result['value'] # Document ID, not a document
-            self.lock.acquire()
-            self.output.publish(blog_msg)
-            self.lock.release()
+                 log.warn('Unknown type retrieved in DOC!')
+
+
 
         #@todo: log when there are not results
         if results is None:
@@ -100,55 +189,21 @@ class ReplayProcess(BaseReplayProcess):
         log.debug('(Replay Agent %s)', self.name)
 
         # Handle the query
-        if self.query:
-            datastore_name = self.query.get('datastore_name','dm_datastore')
-            post_id = self.query.get('post_id','7877516528284978243')
-        else:
-            raise BadRequest('(Replay Agent %s): Improper Query Received' % self.name)
+        datastore_name = self.datastore_name
+        key_id = self.key_id
+
 
         # Got the post ID, pull the post and the comments
-        view_name = 'posts/posts_join_comments'
+        view_name = self.view_name
         opts = {
-            'start_key':[post_id, 0],
-            'end_key':[post_id,2],
+            'start_key':[key_id, 0],
+            'end_key':[key_id,2],
             'include_docs': True
         }
         g = Greenlet(self._query,datastore_name=datastore_name, view_name=view_name, opts=opts,
             callback=lambda results: self._publish_query(results))
         g.start()
 
-#    def execute_replay(self):
-#        '''
-#        Performs the replay action in a threaded manner
-#        Queries the data IAW the query argument and publishes the data on the output streams
-#        '''
-#
-#        log.debug('(Replay Agent %s)', self.name)
-#        if self.query:
-#            datastore_name = self.query.get('datastore_name','dm_datastore')
-#            view_name = self.query.get('view_name','posts/posts_by_id')
-#            opts = self.query.get('options',{'include_docs=True'})
-#        else:
-#            datastore_name = 'dm_datastore'
-#            view_name = 'posts/posts_by_id'
-#            opts = {'include_docs=True'}
-#
-#        log.debug('Replay Query:\n\t%s\n\t%s\n\t%s', datastore_name, view_name, opts)
-#
-#        #@todo: Evaluate the possibility of a separate stream per thread
-#        #---------------------
-#        # Threaded (greenlet)
-#        #---------------------
-#        # Execute_replay is now non_blocking
-#        # execute_replay is thread safe so it can be called multiple times,
-#        # there is a bottleneck at the stream, if the thread is publishing a large stream,
-#        # the other threads have to wait until it is done.
-#
-#
-#        g = Greenlet(self._query,datastore_name=datastore_name,view_name=view_name,opts=opts,
-#            callback = lambda results: self._publish_query(results))
-#
-#        g.start()
 
 
 

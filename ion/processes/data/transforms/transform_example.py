@@ -4,24 +4,24 @@
 @description Transform Examples, Transform Example Launcher
 '''
 import commands
-import threading
 import time
+from gevent.greenlet import Greenlet
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.ion.streamproc import StreamProcess
 from pyon.ion.transform import TransformDataProcess
 from pyon.ion.transform import TransformProcessAdaptor
 from pyon.ion.transform import TransformFunction
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
-from pyon.public import IonObject, RT, log, PRED
-
+from pyon.public import IonObject, RT, log
 from interface.objects import ProcessDefinition, StreamQuery, BlogPost, BlogComment, BlogAuthor
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 import json
 import re
 import urllib2
 import base64
+from pyon.util.file_sys import FS, FileSystem
 
 class TransformExampleProducer(StreamProcess):
     """
@@ -46,9 +46,7 @@ class TransformExampleProducer(StreamProcess):
         else:
             self.output_streams = None
 
-        self.producer_proc = threading.Thread(target=self._trigger_func)
-
-
+        self.producer_proc = Greenlet(self._trigger_func)
         self.producer_proc.start()
 
 
@@ -56,7 +54,8 @@ class TransformExampleProducer(StreamProcess):
         pass
 
     def on_quit(self):
-        log.debug("StreamProducer quit")
+        log.debug("TransformExampleProducer quit")
+        self.producer_proc.kill()
 
     def _trigger_func(self):
         interval = self.CFG.get('stream_producer').get('interval')
@@ -78,7 +77,7 @@ class TransformCapture(TransformDataProcess):
         super(TransformCapture, self).on_start()
 #        #@todo: Remove debugging statements
         log.debug('(Transform: %s) Starting...',self.name)
-        self.file_name = self.CFG.get('process',{}).get('file_name','/tmp/transform_output')
+        self.file_name = self.CFG.get_safe('process.file_name',FileSystem.get_url(FS.TEMP,'transform_output'))
 
 
     def process(self, packet):
@@ -117,8 +116,6 @@ class TransformCampfire(TransformDataProcess):
             return # do nothing
 
         log.warn('Attempt to publish to campfire')
-
-
 
         if isinstance(packet.author, BlogAuthor):
             author = packet.author.name
@@ -174,15 +171,16 @@ class TransformEvenOdd(TransformDataProcess):
     '''
     def on_start(self):
         super(TransformEvenOdd,self).on_start()
-        assert len(self.streams)==2
+        assert hasattr(self,'even')
+        assert hasattr(self,'odd')
 
     def process(self, packet):
         input = int(packet.get('num'))
 
         even = input * 2
         odd = (input * 2) + 1
-        self.even.publish(dict(num=even))
-        self.odd.publish(dict(num=odd))
+        self.even.publish({'num':even})
+        self.odd.publish({'num':odd})
         log.debug('(%s) Processing Packet: %s', self.name, packet)
         log.debug('(%s) Even Transform: %s', self.name, even)
         log.debug('(%s) Odd Transform: %s', self.name, odd)
@@ -192,7 +190,7 @@ class TransformExample(TransformDataProcess):
     parses the input for an integer and adds 1 to it. If the transform
     has an output_stream it will publish the output on the output stream.
 
-    This transform appends transform work in '/tmp/transform_output'
+    This transform appends transform work in 'FS.TEMP/transform_output'
     '''
 
     def __init__(self, *args, **kwargs):
@@ -217,9 +215,7 @@ class TransformExample(TransformDataProcess):
         if self.has_output:
             self.publish(dict(num=str(output)))
 
-
-        with open('/tmp/transform_output', 'a') as f:
-
+        with open(FileSystem.get_url(FS.TEMP,"transform_output"),'a') as f:
             f.write('(%s): Received Packet: %s\n' % (self.name,packet))
             f.write('(%s):   - Transform - %d\n' % (self.name,output))
 
@@ -240,7 +236,7 @@ class ExternalTransform(TransformProcessAdaptor):
         if self.has_output:
             self.publish(dict(num=output))
 
-        with open('/tmp/transform_output', 'a') as f:
+        with open(FileSystem.get_url(FS.TEMP,"transform_output"),'a') as f:
             f.write('(%s): Received %s, transform: %s\n' %(self.name, packet, output))
 
 class ReverseTransform(TransformFunction):
@@ -301,12 +297,12 @@ class TransformExampleLauncher(BaseService):
           the producer is acting as a CTD or instrument in this example.
         A is a basic transform that increments its input and publishes it on the 'transform_output' stream.
         B is a basic transform that receives input.
-        All transforms write logging data to '/tmp/transform_output' so you can visually see activity of the transforms
+        All transforms write logging data to 'FS.TEMP/transform_output' so you can visually see activity of the transforms
         '''
 
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         #-------------------------------
         # Process Definition
@@ -317,7 +313,7 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
-        process_definition_id, _ = rr_cli.create(process_definition)
+        process_definition_id = procd_cli.create_process_definition(process_definition)
 
         #-------------------------------
         # First Transform
@@ -370,7 +366,7 @@ class TransformExampleLauncher(BaseService):
 
         # Create a producing example process
         id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':ctd_output_stream_id}},'stream_producer':{'interval':4000}})
-        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
+        self.container.proc_manager.procs[id_p].start()
 
     #-------------------------------
     # run_reverse_transform()
@@ -378,10 +374,8 @@ class TransformExampleLauncher(BaseService):
     def run_reverse_transform(self):
         ''' Runs a reverse transform example and displays the results of performing the transform
         '''
-        pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
-
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         #-------------------------------
         # Process Definition
@@ -391,7 +385,8 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'ReverseTransform'
         }
-        process_definition_id, _ = rr_cli.create(process_definition)
+
+        process_definition_id = procd_cli.create_process_definition(process_definition)
 
         #-------------------------------
         # Execute Transform
@@ -417,8 +412,7 @@ class TransformExampleLauncher(BaseService):
         '''
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
-
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         #-------------------------------
         # Process Definition
@@ -429,7 +423,7 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
-        basic_transform_definition_id, _ = rr_cli.create(process_definition)
+        basic_transform_definition_id = procd_cli.create_process_definition(process_definition=process_definition)
 
         # Create The process definition for the TransformEvenOdd
         process_definition = IonObject(RT.ProcessDefinition, name='basic_transform_definition')
@@ -437,7 +431,7 @@ class TransformExampleLauncher(BaseService):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformEvenOdd'
         }
-        evenodd_transform_definition_id, _ = rr_cli.create(process_definition)
+        evenodd_transform_definition_id = procd_cli.create_process_definition(process_definition=process_definition)
 
         #-------------------------------
         # Streams
@@ -499,7 +493,7 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
 
         id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
-        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
+        self.container.proc_manager.procs[id_p].start()
 
     #-------------------------------
     # run_external_transform()
@@ -509,12 +503,12 @@ class TransformExampleLauncher(BaseService):
         This example script illustrates how a transform can interact with the an outside process (very basic)
         it launches an external_transform example which uses the operating system command 'bc' to add 1 to the input
 
-        Producer -> A -> '/tmp/transform_output'
+        Producer -> A -> 'FS.TEMP/transform_output'
         A is an external transform that spawns an OS process to increment the input by 1
         '''
         pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         tms_cli = TransformManagementServiceClient(node=self.container.node)
-        rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        procd_cli = ProcessDispatcherServiceClient(node=self.container.node)
         
         #-------------------------------
         # Process Definition
@@ -522,7 +516,7 @@ class TransformExampleLauncher(BaseService):
         process_definition = ProcessDefinition(name='external_transform_definition')
         process_definition.executable['module'] = 'ion.processes.data.transforms.transform_example'
         process_definition.executable['class'] = 'ExternalTransform'
-        process_definition_id, _ = rr_cli.create(process_definition)
+        process_definition_id = procd_cli.create_process_definition(process_definition=process_definition)
 
         #-------------------------------
         # Streams
@@ -552,5 +546,5 @@ class TransformExampleLauncher(BaseService):
         #-------------------------------
 
         id_p = self.container.spawn_process('myproducer', 'ion.processes.data.transforms.transform_example', 'TransformExampleProducer', {'process':{'type':'stream_process','publish_streams':{'out_stream':input_stream_id}},'stream_producer':{'interval':4000}})
-        self.container.proc_manager.procs['%s.%s' %(self.container.id,id_p)].start()
+        self.container.proc_manager.procs[id_p].start()
 

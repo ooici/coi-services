@@ -12,7 +12,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.core.bootstrap import CFG
 
 
-@attr('INT', group='coi')
+@attr('SYSTEM', group='coi')
 class TestServiceGateway(IonIntegrationTestCase):
 
     def setUp(self):

@@ -11,7 +11,7 @@
 from pyon.public import LCS #, LCE
 from pyon.public import RT, PRED
 from pyon.core.bootstrap import IonObject
-#from pyon.core.exception import BadRequest #, NotFound
+from pyon.core.exception import Inconsistent,BadRequest #, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
@@ -29,10 +29,10 @@ from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImp
 from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
 from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
 
-
-# TODO: these are for methods which may belong in DAMS and DPMS
+# TODO: these are for methods which may belong in DAMS/DPMS/MFMS
 from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
+from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
 
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
@@ -82,8 +82,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.sensor_device   = SensorDeviceImpl(self.clients)
 
         #TODO: may not belong in this service
-        self.data_product   = DataProductImpl(self.clients)
-        self.data_producer  = DataProducerImpl(self.clients)
+        self.data_product        = DataProductImpl(self.clients)
+        self.data_producer       = DataProducerImpl(self.clients)
+        self.logical_instrument  = LogicalInstrumentImpl(self.clients)
 
 
     ##########################################################################
@@ -271,15 +272,24 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         pduct_id = self.DPMS.create_data_product(dpms_pduct_obj)
 
+        #TODO: DPMS isn't creating a data producer for new data products. not sure why.
+        #
+        prod_pducer_id = self.data_producer.create_one(IonObject(RT.DataProducer,
+                                                                 name=str(inst_obj.name + " L0 Producer"),
+                                                                 description=str("L0 DataProducer for " + inst_obj.name)))
+        self.data_product.link_data_producer(pduct_id, prod_pducer_id)
 
         # get data product's data producer (via association)
+        #TODO: this belongs in DPMS
         prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
-        prod_pducer_id = prod_pducers[0]
         
         # (TODO: there should only be one assoc_id.  what error to raise?)
         # TODO: what error to raise if there are no assoc ids?
+        prod_pducer_id = prod_pducers[0]
+
 
         # instrument data producer is the parent of the data product producer
+        #TODO: this belongs in DAMS
         self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
 
         #TODO: error checking
@@ -778,6 +788,134 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
 
 
+    # reassigning a logical instrument to an instrument device is a little bit special
+    # TODO: someday we may be able to dig up the correct data products automatically,
+    #       but once we have them this is the function that does all the work.
+    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='', 
+                                                         old_instrument_device_id='', 
+                                                         new_instrument_device_id='',
+                                                         logical_data_product_ids=[],
+                                                         old_instrument_data_product_ids=[],
+                                                         new_instrument_data_product_ids=[]):
+        """
+        associate a logical instrument with a physical one.  this involves linking the
+        physical instrument's data product(s) to the logical one(s).
+        
+        the 2 lists of data products must be of equal length, and will map 1-1
+
+        @param logical_instrument_id
+        @param instrument_device_id
+        @param logical_data_product_ids a list of data products associated to a logical instrument
+        @param instrument_data_product_ids a list of data products coming from an instrument device
+        """
+ 
+        
+        def verify_dp_origin(supplied_dps, assigned_dps, instrument_id, instrument_label):
+            """
+            check that the supplied dps (data products) are in the set of what's actually assigned
+            @param supplied_dps list of data product ids
+            @param assigned_dps list of data product ids
+            @param instrument_id a logical or instrument device id
+            """
+            badones = []
+            for p in supplied_dps:
+                if not p in assigned_dps:
+                    badones.append(p)
+                    if 0 < len(badones):
+                        raise BadRequest("want to assign %s's data products, but the following were supplied " +
+                                         "that don't seem to come from %s '%s': [%s]" %
+                                         (instrument_label, instrument_label, instrument_id, ", ".join(badones)))
+
+
+        log.info("Checking consistency of existing logical/instrument assignments")
+        existing_assignments = self.instrument_device.find_having_assignment(logical_instrument_id)
+        if 1 < len(existing_assignments):
+            raise Inconsistent("There is more than 1 instrument device associated with logical instrument '%s'" %
+                               logical_instrument_id)
+
+        log.info("Checking whether supplied logical/instrument arguments are proper")
+        if 0 < len(existing_assignments):
+            if not old_instrument_device_id:
+                raise BadRequest(("Tried to assign logical instrument '%s' for the first time, but it is already " + 
+                                  "assigned to instrument device '%s'") % (logical_instrument_id, existing_assignments[0]))
+            elif old_instrument_device_id != existing_assignments[0]:
+                raise BadRequest(("Tried to reassign logical instrument '%s' from instrument device '%s' but it is " +
+                                  "actually associated to instrument device '%s'") % 
+                                 (logical_instrument_id, old_instrument_device_id, existing_assignments[0]))
+
+
+        # log.info("Checking whether supplied data products are proper")
+        #  existing_logical_data_products = self.logical_instrument.find_stemming_data_product(logical_instrument_id)
+        #
+        #TODO: need a check that all the logical data products are being provided for
+        #
+        # log.info("Checking whether all logical data products are provided")
+        # if len(logical_data_product_ids) != len(existing_logical_data_products):
+        #     raise BadRequest("tried to assign logical instrument but only provided %d of %d " +
+        #                      "data products" % (len(logical_data_product_ids), len(existing_logical_data_products)))
+        #
+        # log.info("Checking that supplied logical data products are properly rooted")
+        # verify_dp_origin(logical_data_product_ids,
+        #                  existing_logical_data_products,
+        #                  logical_instrument_id,
+        #                  "logical_instrument")
+
+
+        
+        if old_instrument_device_id:
+            log.info("Checking that the data product to be dissociated are properly rooted")
+            verify_dp_origin(old_instrument_data_product_ids,
+                             self.find_data_product_by_instrument_device(old_instrument_device_id),
+                             old_instrument_device_id,
+                             "instrument_device")
+
+            log.info("Checking that all data products to be dissociated have been supplied")
+            if len(logical_data_product_ids) != len(old_instrument_data_product_ids):
+                raise BadRequest("Can't unmap %d instrument data products from %d logical products" %
+                                 (len(old_instrument_data_product_ids), len(logical_data_product_ids)))
+
+
+        log.info("Checking that supplied instrument data products are properly rooted")
+        verify_dp_origin(new_instrument_data_product_ids,
+                         self.find_data_product_by_instrument_device(new_instrument_device_id),
+                         new_instrument_device_id,
+                         "instrument_device")
+
+        log.info("Checking that all data products to be associated have been supplied")
+        if len(logical_data_product_ids) != len(new_instrument_data_product_ids):
+            raise BadRequest("Can't map %d instrument data products to %d logical products" %
+                             (len(new_instrument_data_product_ids), len(logical_data_product_ids)))
+
+        log.info("Assigning the instruments themselves")
+        if "" != old_instrument_device_id:
+            self.instrument_device.unlink_assignment(old_instrument_device_id, logical_instrument_id)
+        self.instrument_device.link_assignment(new_instrument_device_id, logical_instrument_id)
+
+
+        # functions to link and unlink data products as appropriate
+
+        def link_logical_dp_to_instrument_dp(logical_dp_id, inst_dp_id):
+            # TODO: this should be a function call, probably to DPMS,
+            #       which sets up inst_dp to copy its data stream
+            #       directly into the logical_dp
+            pass
+
+        def unlink_logical_dp_from_instrument_dp(logical_dp_id, inst_dp_id):
+            #TODO: undo the above
+            pass
+
+
+        if old_instrument_device_id:
+            log.info("Unlinking existing instrument data product(s) from logical instrument's product(s)")
+            map(unlink_logical_dp_from_instrument_dp, logical_data_product_ids, old_instrument_data_product_ids)
+
+        log.info("Linking new instrument data products with logical instrument's product(s)")
+        map(link_logical_dp_to_instrument_dp, logical_data_product_ids, new_instrument_data_product_ids)
+
+
+
+
+
     ############################
     #
     #  ASSOCIATION FIND METHODS
@@ -830,9 +968,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ############################
 
     def find_data_product_by_instrument_device(self, instrument_device_id=''):
-        log.debug("FIND DATA PRODUCT BY INSTRUMNET DEVICE")
-        #init return value, a list of data sets
+        log.debug("FIND DATA PRODUCT BY INSTRUMENT DEVICE")
+        #init return value, a list of data products
         data_products = []
+        seen_data_producers = []
 
         #init working set of data producers to walk
         data_producers = []
@@ -843,10 +982,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #iterate through all un-processed data producers (could also do recursively)
         while 0 < len(data_producers):
            producer_id = data_producers.pop()
+           if producer_id in seen_data_producers:
+               raise Inconsistent("There is a cycle in data producers that includes '%s'" % producer_id)
+           seen_data_producers.append(producer_id)
+
            log.debug("Analyzing data producer '%s'" % producer_id)
            #get any products that are associated with this data producer and return them
+           #TODO: this belongs in DPMS
            new_data_products = self.data_product.find_having_data_producer(producer_id)
            #get any producers that receive input from this data producer
+           #TODO: this belongs in DAMS
            new_data_producers = self.data_producer.find_having_input_data_producer(producer_id)
 
            log.debug("Got %d new products, %d new producers" % (len(new_data_products), 
@@ -856,6 +1001,41 @@ class InstrumentManagementService(BaseInstrumentManagementService):
            data_producers += new_data_producers
 
         return data_products
+
+    def find_instrument_device_by_data_product(self, data_product_id=''):
+        log.debug("FIND INSTRUMENT DEVICE BY DATA PRODUCT")
+        #init return value, a list of instrument devices
+        instrument_devices = []
+        seen_data_producers = []
+
+        #init working set of data producers to walk
+        data_producers = []
+        #TODO: this belongs in DPMS
+        pducers = self.data_product.find_stemming_data_producer(data_product_id)
+        data_producers += pducers
+
+        #iterate through all un-processed data producers (could also do recursively)
+        while 0 < len(data_producers):
+           producer_id = data_producers.pop()
+           if producer_id in seen_data_producers:
+               raise Inconsistent("There is a cycle in data producers that includes '%s'" % producer_id)
+           seen_data_producers.append(producer_id)
+
+           log.debug("Analyzing data producer '%s'" % producer_id)
+           #get any devices that are associated with this data producer and return them
+           new_instrument_devices = self.instrument_device.find_having_data_producer(producer_id)
+           #get any producers that give input to this data producer
+           #TODO: this belongs in DPMS
+           new_data_producers = self.data_producer.find_stemming_input_data_producer(producer_id)
+
+           log.debug("Got %d new devices, %d new producers" % (len(new_instrument_devices), 
+                                                                len(new_data_producers)))
+
+           instrument_devices  += new_instrument_devices
+           data_producers      += new_data_producers
+
+        return instrument_devices
+
 
     def find_data_product_by_platform_device(self, platform_device_id=''):
         ret = []

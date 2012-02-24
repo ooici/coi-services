@@ -98,3 +98,16 @@ class DataParserDecorator(DataDecorator):
     
     def handle_incoming_data(self, original_data=None, chained_data=None):
         '''Pulls translates the original data into a new chained data format'''
+
+class ChecksumDecorator(DataDecorator):
+    '''A decorator that confirms a checksum is good or not. Must be instrument
+    specific (or generic enough) to handle the particular type of checksum the
+    instrument uses for its data.
+    
+    The decorator parses the native format and sends on the chained_data as
+    a new format. This class may include a description of the format in some
+    regex or other class variable.
+    '''
+    
+    def handle_incoming_data(self, original_data=None, chained_data=None):
+        '''Pulls translates the original data into a new chained data format'''

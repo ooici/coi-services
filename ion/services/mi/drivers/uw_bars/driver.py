@@ -27,9 +27,8 @@ log = logging.getLogger('mi_logger')
 
 
 class BarsInstrumentDriver(InstrumentDriver):
-    """The InstrumentDriver class for the TRHPH BARS sensor.
-
-    @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
+    """
+    The InstrumentDriver class for the TRHPH BARS sensor.
     """
 
     # TODO actual handling of the "channel" concept in the design.
@@ -50,12 +49,32 @@ class BarsInstrumentDriver(InstrumentDriver):
     def get_current_state(self):
         return self._state
 
-    def initialize(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def _assert_state(self, obj):
         """
-        Return a device channel to an unconnected, unconfigured state.
-        @param channels List of channel names to initialize.
-        @param timeout Number of seconds before this operation times out
+        Asserts that the current state is the same as the one given (if not
+        a list) or is one of the elements of the given list.
         """
+        cs = self.get_current_state()
+        if isinstance(obj, list):
+            if cs in obj:
+                return
+            else:
+                raise AssertionError("current state=%s, expected one of %s" %
+                                 (cs, str(obj)))
+        state = obj
+        if cs != state:
+            raise AssertionError("current state=%s, expected=%s" % (cs, state))
+
+    def initialize(self, channels, *args, **kwargs):
+        """
+        """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
+        self._assert_state([DriverState.UNCONFIGURED,
+                            DriverState.DISCONNECTED])
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -66,13 +85,15 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def configure(self, configs, timeout=10):
+    def configure(self, configs, *args, **kwargs):
         """
-        Configure the driver for communications with an instrument channel.
-        @param config A dict containing channel name keys, with
-        dict values containing the comms configuration for the named channel.
-        @param timeout Number of seconds before this operation times out
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("configs=%s args=%s kwargs=%s" %
+                      (str(configs), str(args), str(kwargs)))
+
+        self._assert_state(DriverState.UNCONFIGURED)
 
         assert isinstance(configs, dict)
         assert len(configs) == 1
@@ -86,12 +107,15 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def connect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def connect(self, channels, *args, **kwargs):
         """
-        Establish communications with a device channel.
-        @param channels List of channel names to connect.
-        @param timeout Number of seconds before this operation times out
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
+        self._assert_state(DriverState.DISCONNECTED)
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -116,13 +140,13 @@ class BarsInstrumentDriver(InstrumentDriver):
         self.protocol.configure(self.config)
         self.protocol.connect()
 
-    def disconnect(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def disconnect(self, channels, *args, **kwargs):
         """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
+        """
 
-        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
 
         assert len(channels) == 1
         assert channels[0] == BarsChannel.INSTRUMENT
@@ -136,11 +160,8 @@ class BarsInstrumentDriver(InstrumentDriver):
 
         return result
 
-    def detach(self, channels=[BarsChannel.INSTRUMENT], timeout=10):
+    def detach(self, channels, *args, **kwargs):
         """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
         """
         pass
 
@@ -148,29 +169,48 @@ class BarsInstrumentDriver(InstrumentDriver):
     # Channel command interface.
     ########################################################################
 
-    def get(self, params=[(BarsChannel.INSTRUMENT,
-                           BarsParameter.TIME_BETWEEN_BURSTS)],
-            timeout=10):
+    def get(self, params, *args, **kwargs):
 
-        result = self.protocol.get(params, timeout)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("params=%s args=%s kwargs=%s" %
+                      (str(params), str(args), str(kwargs)))
+
+        result = self.protocol.get(params, *args, **kwargs)
 
         return result
 
-    def set(self, params, timeout=10):
+    def set(self, params, *args, **kwargs):
         """
-        @param timeout Number of seconds before this operation times out
         """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("params=%s args=%s kwargs=%s" %
+                      (str(params), str(args), str(kwargs)))
+
+
         pass
 
-    def execute(self, channels, command, timeout=10):
+    def execute(self, channels, *args, **kwargs):
         """
         """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
         pass
 
-    def execute_direct(self, channels, bytes):
+    def execute_direct(self, channels, *args, **kwargs):
         """
         """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
         pass
+
+    def get_channels(self):
+        """
+        """
+        return BarsChannel.list()
 
     ########################################################################
     # TBD.

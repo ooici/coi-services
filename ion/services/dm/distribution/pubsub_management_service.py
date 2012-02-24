@@ -15,7 +15,7 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.public import RT, PRED, log
 from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
-from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute
+from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, StreamDefinition
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
@@ -47,24 +47,58 @@ class PubsubManagementService(BasePubsubManagementService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
+    def create_stream_definition(self, container=None, name='', description=''):
+        """
+        @brief Create a new stream definition which may be used to publish on one or more streams
+        @param container is a stream definition container object
 
-        self.stream_definition_type_names = CFG.core_stream_types
+        @param container    StreamDefinitionContainer
+        @retval stream_definition_id    str
+        """
+        stream_definition = StreamDefinition(container=container, name=name, description=description)
+        stream_def_id, rev = self.clients.resource_registry.create(stream_definition)
 
-        self.stream_definition_types= {}
+        return stream_def_id
 
-        for cls_name in self.stream_definition_type_names:
-            self.stream_definition_types[cls_name] = getattr(objects,cls_name)
+    def update_stream_definition(self, stream_definition=None):
+        """Update an existing stream definition
+
+        @param stream_definition    StreamDefinition
+        @retval success    bool
+        """
+        id, rev = self.clients.resource_registry.update(stream_definition)
+        #@todo will this throw a not found in the client if the op failed?
 
 
-    #def __init__(self, *args, **kwargs):
-    #    BasePubsubManagementService.__init__(self, *args, **kwargs)
-    #    self.definition_publisher = StreamPublisher(name=(self.XP, 'dummy_stream'), process=self)
-    
-    def create_stream(self, encoding='', original=True, stream_definition_type='', name='', description='', url=''):
+    def read_stream_definition(self, stream_definition_id=''):
+        """Get an existing stream definition.
+
+        @param stream_definition_id    str
+        @retval stream_definition    StreamDefinition
+        @throws NotFound    if stream_definition_id doesn't exist
+        """
+        stream_definition = self.clients.resource_registry.read(stream_definition_id)
+        if stream_definition is None:
+            raise NotFound("StreamDefinition %s does not exist" % stream_definition_id)
+        return stream_definition
+
+    def delete_stream_definition(self, stream_definition_id=''):
+        """Delete an existing stream definition.
+
+        @param stream_definition_id    str
+        @throws NotFound    if stream_definition_id doesn't exist
+        """
+        stream_definition = self.clients.resource_registry.read(stream_definition_id)
+        if stream_definition is None:
+            raise NotFound("StreamDefinition %s does not exist" % stream_definition_id)
+
+        self.clients.resource_registry.delete(stream_definition_id)
+
+    def create_stream(self,encoding='', original=True, stream_definition_id='', name='', description='', url=''):
         '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
         @param encoding the encoding for data on this stream
         @param original is the data on this stream from a source or a transform
-        @param stream_defintion_type a predefined stream definition type for this stream
+        @param stream_definition a predefined stream definition type for this stream
         @param name (optional) the name of the stream
         @param description (optional) the description of the stream
         @param url (optional) the url where data from this stream can be found (Not implemented)
@@ -73,18 +107,15 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         log.debug("Creating stream object")
 
-        #definition = self.stream_types.get(stream_definition_type, None)
-
         stream_obj = Stream(name=name, description=description)
         stream_obj.original = original
         stream_obj.encoding = encoding
+
         stream_obj.url = url
         stream_id, rev = self.clients.resource_registry.create(stream_obj)
 
-
-        ### @TODO - what should we do with the stream definition?
-        #self.definition_publisher.publish(definition, to_name=(self.XP, stream_id+'.data'))
-
+        if stream_definition_id != '':
+            self.clients.resource_registry.create_association(stream_id, PRED.hasStreamDefinition, stream_definition_id)
 
         return stream_id
 
@@ -99,7 +130,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         log.debug("Updating stream object: %s" % stream.name)
         id, rev = self.clients.resource_registry.update(stream)
-        return True
+        #@todo will this throw a NotFound in the client if there was a problem?
 
     def read_stream(self, stream_id=''):
         '''
@@ -130,7 +161,6 @@ class PubsubManagementService(BasePubsubManagementService):
             raise NotFound("Stream %s does not exist" % stream_id)
 
         self.clients.resource_registry.delete(stream_id)
-        return True
 
     def find_streams(self, filter=None):
         '''
@@ -173,7 +203,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, query={}, exchange_name='', name='', description=''):
+    def create_subscription(self, query=None, exchange_name='', name='', description=''):
         '''
         @brief Create a new subscription. The id string returned is the ID of the new subscription
         in the resource registry.

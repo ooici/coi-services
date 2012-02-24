@@ -9,7 +9,7 @@
 from pyon.public import PRED, RT
 
 
-from ion.services.sa.resource_impl.resource_simple_impl import ResourceImpl
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
 class DataProductImpl(ResourceImpl):
     """
@@ -34,6 +34,12 @@ class DataProductImpl(ResourceImpl):
     def unlink_data_set(self, data_product_id='', data_set_id=''):
         return self._unlink_resources(data_product_id, PRED.hasDataset, data_set_id)
 
+    def link_parent(self, data_product_id='', parent_data_product_id=''):
+        return self._link_resources(data_product_id, PRED.hasParent, parent_data_product_id)
+
+    def unlink_parent(self, data_product_id='', parent_data_product_id=''):
+        return self._unlink_resources(data_product_id, PRED.hasParent, parent_data_product_id)
+
     def find_having_data_producer(self, data_producer_id):
         return self._find_having(PRED.hasDataProducer, data_producer_id)
 
@@ -45,3 +51,10 @@ class DataProductImpl(ResourceImpl):
 
     def find_stemming_data_set(self, data_product_id):
         return self._find_stemming(data_product_id, PRED.hasDataset, RT.DataSet)
+
+    def find_having_parent(self, parent_data_set_id):
+        return self._find_having(PRED.hasParent, parent_data_set_id)
+
+    def find_stemming_parent(self, data_product_id):
+        return self._find_stemming(data_product_id, PRED.hasParent, RT.DataProduct)
+
