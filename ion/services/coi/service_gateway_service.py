@@ -377,8 +377,8 @@ def create_accounts():
 
 @app.route('/ion-service/seed_gov')
 def seed_gov():
-    from examples.gov_client import run_client
-    run_client(Container.instance, process=service_gateway_instance)
+    from examples.gov_client import seed_gov
+    seed_gov(Container.instance)
     return json_response("")
 
 

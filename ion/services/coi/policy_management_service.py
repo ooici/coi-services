@@ -5,12 +5,12 @@ __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
-from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import PRED, RT
 from pyon.util.log import log
 
 MANAGER_ROLE = 'Manager'
-REGISTERED_USER_ROLE = 'Registered User'
+MEMBER_ROLE = 'Member'
 
 
 class PolicyManagementService(BasePolicyManagementService):
