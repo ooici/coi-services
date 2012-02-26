@@ -13,7 +13,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound, BadRequest
+from pyon.core.exception import NotFound, BadRequeueest
 from pyon.public import StreamPublisherRegistrar, CFG
 from interface.objects import HdfStorage, CouchStorage, StreamGranuleContainer
 from interface.services.icontainer_agent import ContainerAgentClient
