@@ -79,9 +79,9 @@ class CommConfig(object):
         if( self.metadata.name ):
             self.read_from_file()
 
-    def __str__(self):
-        return str(self.__dict())
-
+    def __getitem__(self, *args):
+        return args;
+        
     def _init_from_yaml(self, yamlInput):
         """
         @brief initialize the object from yaml data.  This method should be sub classed
@@ -95,7 +95,7 @@ class CommConfig(object):
         @brief get a dictionary of configuration parameters.  This method should be sub classed to extend config
         @retval dictionary containing all config parameters.
         """
-        return { 'type': self.type() }
+        return { 'method': self.type() }
 
 
     ###
@@ -115,6 +115,13 @@ class CommConfig(object):
         return yaml.dump( {'comm': self._config_dictionary()
         }, default_flow_style=False)
 
+    def dict(self):
+        """
+        @brief Return a dict for the comm config
+        @retval dict of all comm config data
+        """
+        return self._config_dictionary()
+        
     def store_to_file(self):
         """
         @brief Store object config data to a config file.
@@ -290,10 +297,10 @@ class CommConfigEthernet(CommConfig):
 
     def _config_dictionary(self):
         config = CommConfig._config_dictionary(self)
-        config['device_address'] = self.device_addr
-        config['device_port'] = self.device_port
-        config['server_address'] = self.server_addr
-        config['server_port'] = self.server_port
+        config['device_addr'] = self.device_addr
+        config['device_port'] = int(self.device_port)
+        config['server_addr'] = self.server_addr
+        config['server_port'] = int(self.server_port)
 
         return config
 

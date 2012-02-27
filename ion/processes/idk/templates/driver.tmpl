@@ -143,22 +143,22 @@ class ${driver_name}InstrumentProtocol(CommandResponseInstrumentProtocol):
                                   InstErrorCode.UNHANDLED_EVENT)
 
 ###
-#   Protocol for ${driver_name}
+#   Driver for ${driver_name}
 ###
 class ${driver_name}InstrumentDriver(InstrumentDriver):
     """
     """
-    def __init__(self):
-        """Instrument-specific enums"""
-        self.instrument_connection = SerialInstrumentConnection()
-        self.instrument_commands = Command()
-        self.instrument_metadata_parameters = MetadataParameter()
-        self.instrument_parameters = Parameter()
-        self.instrument_channels = Channel()
-        self.instrument_errors = Error()
-        self.instrument_capabilities = Capability()
-        self.instrument_status = Status()
-        self.protocol = ${driver_name}InstrumentProtocol(self.protocol_callback)
+    def __init__(self, evt_callback):
+        InstrumentDriver.__init__(self, evt_callback)
+        self.protocol = ${driver_name}InstrumentProtocol(evt_callback)
+    
+    def driver_echo(self, msg):
+        """
+        @brief Sample driver command. 
+        """
+        echo = 'driver_echo: %s' % msg
+        return echo
+
 
 
 
