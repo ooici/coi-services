@@ -750,8 +750,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ar_1.get(timeout=5)
         ar_2.get(timeout=5)
 
-        self.assertEquals(proc_1.dataset_configs[self.input_stream_id].archive_metadata, True)
-        self.assertEquals(proc_2.dataset_configs[self.input_stream_id].archive_metadata, True)
+        self.assertEquals(proc_1.dataset_configs[self.input_stream_id].configuration.archive_metadata, True)
+        self.assertEquals(proc_2.dataset_configs[self.input_stream_id].configuration.archive_metadata, True)
 
         #--------------------------------------------------------------------------------------------------------
         # Read the updated config using resource registry to check that it has indeed been updated

@@ -33,5 +33,6 @@ setup(  name = 'coi-services',
             'Flask==0.8',
             'WebTest',
             'requests',
+            'seawater',
         ],
      )
