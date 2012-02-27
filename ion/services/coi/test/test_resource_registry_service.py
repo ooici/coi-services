@@ -11,7 +11,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
 
-@attr('FOO', group='coi')
+@attr('INT', group='coi')
 class TestResourceRegistry(IonIntegrationTestCase):
     
 #    service_dependencies = [('resource_registry', {'resource_registry': {'persistent': True, 'force_clean': True}})]
@@ -332,15 +332,11 @@ class TestResourceRegistry(IonIntegrationTestCase):
             self.resource_registry_service.get_association(user_identity_obj_id, None, user_info_obj)
         self.assertTrue(cm.exception.message == "Object id not available in object")
 
-        with self.assertRaises(Inconsistent) as cm:
-            self.resource_registry_service.get_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(cm.exception.message.startswith("Duplicate associations found for subject/predicate/object"))
-
         # Delete one of the associations
-        self.resource_registry_service.delete_association(assoc_id1)
+        self.resource_registry_service.delete_association(assoc_id2)
 
         assoc = self.resource_registry_service.get_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(assoc._id == assoc_id2)
+        self.assertTrue(assoc._id == assoc_id1)
 
         # Delete (bad cases)
         with self.assertRaises(NotFound) as cm:
@@ -348,7 +344,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message == "Object with id bogus does not exist.")
 
         # Delete other association
-        self.resource_registry_service.delete_association(assoc_id2)
+        self.resource_registry_service.delete_association(assoc_id1)
 
         # Delete resources
         self.resource_registry_service.delete(user_identity_obj_id)
