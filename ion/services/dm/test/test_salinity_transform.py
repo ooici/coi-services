@@ -105,7 +105,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         ingestion_configuration_id = ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=datastore_name,datastore_profile='SCIDATA'),
-            number_of_workers=2
+            number_of_workers=1
         )
         #
         ingestion_management_service.activate_ingestion_configuration(
@@ -245,7 +245,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
             import numpy
 
-            assertions(isinstance(salinity, numpy.array))
+            assertions(isinstance(salinity, numpy.ndarray))
 
             assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
 

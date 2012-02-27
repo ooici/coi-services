@@ -74,7 +74,7 @@ class SalinityTransform(TransformFunction):
         psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)
 
         for i in xrange(len(salinity)):
-            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i]))
-            psc.add_point_coverage(point_id=point_id, coverage_id='salinity', values=salinity[i])
+            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
 
-        return psc.get_stream_granule()
+        return psc.close_stream_granule()

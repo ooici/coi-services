@@ -13,7 +13,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from nose.plugins.attrib import attr
-from pyon.core.exception import NotFound, BadRequeueest
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import StreamPublisherRegistrar, CFG
 from interface.objects import HdfStorage, CouchStorage, StreamGranuleContainer
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -750,8 +750,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         ar_1.get(timeout=5)
         ar_2.get(timeout=5)
 
-        self.assertEquals(proc_1.dataset_configs[self.input_stream_id].archive_metadata, True)
-        self.assertEquals(proc_2.dataset_configs[self.input_stream_id].archive_metadata, True)
+        self.assertEquals(proc_1.dataset_configs[self.input_stream_id].configuration.archive_metadata, True)
+        self.assertEquals(proc_2.dataset_configs[self.input_stream_id].configuration.archive_metadata, True)
 
         #--------------------------------------------------------------------------------------------------------
         # Read the updated config using resource registry to check that it has indeed been updated
