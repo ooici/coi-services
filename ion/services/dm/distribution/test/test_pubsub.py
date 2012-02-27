@@ -316,7 +316,7 @@ class PubSubTest(PyonTestCase):
 
         self.assertEqual(ret, True)
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_associations.assert_called_once_with(self.subscription_id, PRED.hasStream, '', False)
+        self.mock_find_associations.assert_called_once_with(self.subscription_id, PRED.hasStream, '', None, False)
         self.mock_delete_association.assert_called_once_with(self.association_id)
         self.mock_delete.assert_called_once_with(self.subscription_id)
 
@@ -344,7 +344,7 @@ class PubSubTest(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'Subscription to Stream association for subscription id subscription_id does not exist')
         self.mock_read.assert_called_once_with(self.subscription_id, '')
-        self.mock_find_associations.assert_called_once_with(self.subscription_id, PRED.hasStream, '', False)
+        self.mock_find_associations.assert_called_once_with(self.subscription_id, PRED.hasStream, '', None, False)
         self.assertEqual(self.mock_delete_association.call_count, 0)
         self.assertEqual(self.mock_delete.call_count, 0)
 

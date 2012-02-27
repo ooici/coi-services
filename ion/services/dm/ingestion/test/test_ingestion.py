@@ -189,7 +189,7 @@ class IngestionTest(PyonTestCase):
 
         self.mock_find_objects.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, RT.Transform , True)
         self.mock_transform_delete.assert_called_with(transform1)
-        self.mock_find_associations.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, '', False)
+        self.mock_find_associations.assert_called_once_with(ingestion_configuration_id, PRED.hasTransform, '', None, False)
         self.mock_delete_association.assert_called_once_with('association')
         self.mock_delete.assert_called_once_with(ingestion_configuration_id)
 

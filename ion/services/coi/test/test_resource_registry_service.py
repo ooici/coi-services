@@ -11,7 +11,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
 
-@attr('INT', group='coi')
+@attr('FOO', group='coi')
 class TestResourceRegistry(IonIntegrationTestCase):
     
 #    service_dependencies = [('resource_registry', {'resource_registry': {'persistent': True, 'force_clean': True}})]
@@ -186,7 +186,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_identity_obj_id)
         self.assertTrue(cm.exception.message == "Illegal object type UserIdentity for predicate hasInfo")
 
-        # Create duplicate associations
+        # Create two different association types between the same subject and predicate
         assoc_id1, assoc_rev1 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
         assoc_id2, assoc_rev2 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, "H2R")
 
@@ -197,9 +197,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(len(ret1) == len(ret2) == len(ret3))
         self.assertTrue(ret1[0]._id == ret2[0]._id == ret3[0]._id)
 
-        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, True)
-        ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=True)
-        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=True)
+        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, None, False)
+        ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=False)
+        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=False)
         self.assertTrue(ret1 == ret2 == ret3)
 
         # Search for associations (good cases)
@@ -209,7 +209,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(len(ret1) == len(ret2) == len(ret3))
         self.assertTrue(ret1[0]._id == ret2[0]._id == ret3[0]._id)
 
-        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, read_user_info_obj, True)
+        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, read_user_info_obj, None, True)
         ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=True)
         ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=True)
         self.assertTrue(ret1 == ret2 == ret3)
