@@ -5,10 +5,9 @@
 __author__ = 'Michael Meisinger'
 
 from pyon.public import CFG, IonObject, log, get_sys_name, RT, LCS, PRED, iex
+from pyon.ion.exchange import ION_ROOT_XS
 
 from interface.services.ibootstrap_service import BaseBootstrapService
-
-bootstrap_instance = None
 
 class BootstrapService(BaseBootstrapService):
     """
@@ -18,11 +17,12 @@ class BootstrapService(BaseBootstrapService):
 
     def on_init(self):
         log.info("Bootstrap service INIT: System init")
-        global bootstrap_instance
-        bootstrap_instance = self
 
     def on_start(self):
-        log.info("Bootstrap service START: System start")
+        level = self.CFG.level
+        log.info("Bootstrap service START: service start, level: %s", level)
+
+        self.trigger_level(level, self.CFG)
 
     def trigger_level(self, level, config):
         #print "Bootstrap level: %s config: %s" % (str(level),str(config))
@@ -50,6 +50,7 @@ class BootstrapService(BaseBootstrapService):
     def post_datastore(self, config):
         # Make sure to detect that system was already bootstrapped.
         # Look in datastore for secret cookie\
+
         cookie_name = get_sys_name() + ".ION_INIT"
         try:
             res = self.clients.datastore.read_doc(cookie_name)
@@ -85,39 +86,34 @@ class BootstrapService(BaseBootstrapService):
         self.org_id = self.clients.org_management.create_org(org)
 
     def post_exchange_management(self, config):
+        # find root org
+        root_orgname = CFG.system.root_org      # @TODO: THIS CAN BE SPECIFIED ON A PER LAUNCH BASIS, HOW TO FIND?
+        org = self.clients.org_management.find_org(name=root_orgname)
+
         # Create root ExchangeSpace
-        xs = IonObject(RT.ExchangeSpace, name="ioncore", description="ION service XS")
-        self.xs_id = self.clients.exchange_management.create_exchange_space(xs, self.org_id)
+        xs = IonObject(RT.ExchangeSpace, name=ION_ROOT_XS, description="ION service XS")
+        self.xs_id = self.clients.exchange_management.create_exchange_space(xs, org._id)
 
         #self.clients.resource_registry.find_objects(self.org_id, "HAS-A")
 
         #self.clients.resource_registry.find_subjects(self.xs_id, "HAS-A")
 
     def post_startup(self):
-        # Do some sanity tests across the board
-        org_ids, _ = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
-        self.assert_condition(len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined")
+        log.info("Cannot sanity check bootstrap yet, need better plan to sync local state (or pull from datastore?)")
 
-        xs_ids, _ = self.clients.resource_registry.find_resources(RT.ExchangeSpace, None, None, True)
-        self.assert_condition(len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined")
-
-        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, PRED.hasExchangeSpace, RT.ExchangeSpace, True)
-        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated")
-
-        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, self.xs_id, True)
-        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated")
+#        # Do some sanity tests across the board
+#        org_ids, _ = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
+#        self.assert_condition(len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined")
+#
+#        xs_ids, _ = self.clients.resource_registry.find_resources(RT.ExchangeSpace, None, None, True)
+#        self.assert_condition(len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined")
+#
+#        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, PRED.hasExchangeSpace, RT.ExchangeSpace, True)
+#        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated")
+#
+#        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, self.xs_id, True)
+#        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated")
 
     def on_quit(self):
         log.info("Bootstrap service QUIT: System quit")
 
-
-def start(container, starttype, app_definition, config):
-    #print "Bootstrap starttype: %s app_definition: %s config: %s" % (str(starttype),str(app_definition),str(config))
-    level = config.get("level", 0)
-    log.debug("Bootstrap Trigger Level: %s" % level)
-    bootstrap_instance.trigger_level(level, config)
-
-    return (None, None)
-
-def stop(container, state):
-    pass
