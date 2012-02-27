@@ -158,6 +158,10 @@ class InstrumentDriverTestCase(PyonTestCase):
         pid = process.pid
         
         self.log.debug("Killing driver process. PID: %d" % pid)
+        # For some reason process.kill and process.terminate didn't actually kill the process.
+        # that's whay we had to use the os kill command.  We have to call process.wait so that
+        # the returncode attribute is updated which could be blocking.  process.poll didn't
+        # seem to work.
             
         for sig in [ signal.SIGTERM, signal.SIGKILL ]:
             if(process.returncode != None):
