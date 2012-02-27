@@ -2,6 +2,7 @@
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
 
+import datetime
 from pyon.public import CFG, IonObject, log, RT, PRED
 
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
@@ -11,6 +12,8 @@ from pyon.ion.directory import Directory
 from pyon.util.log import log
 
 ROOT_ION_ORG_NAME = 'ION'
+
+now = datetime.datetime.now()
 
 class OrgManagementService(BaseOrgManagementService):
 
@@ -236,8 +239,202 @@ class OrgManagementService(BaseOrgManagementService):
         if not org:
             raise NotFound("Org %s does not exist" % org_id)
 
-        role_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasRole, RT.UserRole)
+        role_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRole, RT.UserRole)
         return role_list
+
+
+    def request_enroll(self, org_id='', user_id=''):
+        """Requests for an enrollment with an Org which must be accepted or denied as a separate process.
+        Membership in the ION Org is implied by registration with the system, so a membership
+        association to the ION Org is not maintained. Throws a NotFound exception if neither id is found.
+
+        @param org_id    str
+        @param user_id    str
+        @retval request_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+            raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        if org.name == ROOT_ION_ORG_NAME:
+            raise BadRequest("A request to enroll in the root ION Org is not allowed")
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+        req_obj = IonObject(RT.UserRequest,name='Enroll Request',type="Enroll", org_id=org_id,
+            user_id=user_id, status="Open", description='%s Org Enroll Request at %s' % (user_id, str(now)))
+        req_id, _ = self.clients.resource_registry.create(req_obj)
+        req_obj = self.clients.resource_registry.read(req_id)
+        self.clients.resource_registry.create_association(org, PRED.hasRequest, req_obj)
+        self.clients.resource_registry.create_association(user, PRED.hasRequest, req_obj)
+
+        return req_id
+
+    def request_role(self, org_id='', user_id='', user_role_id=''):
+        """Requests for an role within an Org which must be accepted or denied as a separate process.
+         A role of Member is automatically implied with successfull enrollment.  Throws a
+         NotFound exception if neither id is found.
+
+        @param org_id    str
+        @param user_id    str
+        @param user_role_id    str
+        @retval request_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+            raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        if not user_role_id:
+            raise BadRequest("The user_role_id parameter is missing")
+
+        user_role = self.clients.policy_management.read_role(user_role_id)
+        if not user_role:
+            raise NotFound("User Role %s does not exist" % user_role_id)
+
+        if user_role.name == MEMBER_ROLE:
+            raise BadRequest("The Member User Role is already assigned with an enrollment to an Org")
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+        req_obj = IonObject(RT.UserRequest,name='User Role Request',type="User Role", org_id=org_id,
+            user_id=user_id, status="Open", description='%s User Role Request at %s' % (user_id, str(now)))
+        req_id, _ = self.clients.resource_registry.create(req_obj)
+        req_obj = self.clients.resource_registry.read(req_id)
+        self.clients.resource_registry.create_association(org, PRED.hasRequest, req_obj)
+        self.clients.resource_registry.create_association(user, PRED.hasRequest, req_obj)
+
+
+        #If the user is not enrolled with the Org then immediately deny the request
+        if not self.is_enrolled(org_id, user_id):
+            self.deny_request(org_id, req_id, "The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
+
+        return req_id
+
+    def find_requests(self, org_id=''):
+        """Returns a list of open requests for an Org. Will throw a not NotFound exception
+        if none of the specified ids do not exist.
+
+        @param org_id    str
+        @retval requests    list
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+          raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest, RT.UserRequest)
+        return request_list
+
+    def approve_request(self, org_id='', request_id=''):
+        """Approves a request made to an Org. Will throw a not NotFound exception
+        if none of the specified ids do not exist.
+
+        @param org_id    str
+        @param request_id    str
+        @retval success    bool
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+          raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        if not request_id:
+            raise BadRequest("The request_id parameter is missing")
+
+        request = self.clients.resource_registry.read(object_id=request_id)
+        if not request:
+            raise NotFound("User Request %s does not exist" % request_id)
+
+        request.status = "Approved"
+        self.clients.resource_registry.update(request)
+
+    def deny_request(self, org_id='', request_id='', reason=''):
+        """Denys a request made to an Org. An optional reason can be recorded with the denial.
+        Will throw a not NotFound exception if none of the specified ids do not exist.
+
+        @param org_id    str
+        @param request_id    str
+        @param reason    str
+        @retval success    bool
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+            raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        if not request_id:
+            raise BadRequest("The request_id parameter is missing")
+
+        request = self.clients.resource_registry.read(object_id=request_id)
+        if not request:
+            raise NotFound("User Request %s does not exist" % request_id)
+
+        request.status = "Denied"
+        request.status_description = reason
+        self.clients.resource_registry.update(request)
+
+
+    def find_user_requests(self, user_id='', org_id=''):
+        """Returns a list of requests for a specified User. All requests for all Orgs will be returned
+        unless an org_id is specified. Will throw a not NotFound exception
+        if none of the specified ids do not exist.
+
+        @param user_id    str
+        @param org_id    str
+        @retval requests    list
+        @throws NotFound    object with specified id does not exist
+        """
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.policy_management.read_role(user_id)
+        if not user:
+            raise NotFound("User  %s does not exist" % user_id)
+
+        ret_list = []
+
+        if org_id:
+            org = self.clients.resource_registry.read(org_id)
+            if not org:
+                raise NotFound("Org %s does not exist" % org_id)
+
+            request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest, RT.UserRequest)
+            for req in request_list:
+                if req.user_id == user_id:
+                    ret_list.append(req)
+
+            return ret_list
+
+        request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, RT.UserRequest)
+        return request_list
+
 
 
     def grant_role(self, org_id='', user_id='', user_role_id='', scope=None):

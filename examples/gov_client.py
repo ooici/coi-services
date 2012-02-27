@@ -8,7 +8,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceProcessClient
 import simplejson, urllib
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
-from ion.services.coi.policy_management_service import MANAGER_ROLE
+from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE
 
 class FakeProcess(LocalContextMixin):
     name = 'gov_client'
@@ -107,6 +107,11 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         log.info("This should fail:")
         log.info(e.message)
 
+
+    roles = org_client.find_org_roles(ion_org._id)
+    for r in roles:
+        log.info('Org UserRole: ' + str(r))
+
     users = org_client.find_enrolled_users(ion_org._id)
     for u in users:
         log.info( str(u))
@@ -114,7 +119,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 
     roles = org_client.find_roles_by_user(ion_org._id, user_id)
     for r in roles:
-        log.info('UserRole: ' + str(r))
+        log.info('User UserRole: ' + str(r))
 
 
     log.info("Adding Instrument Operator Role")
@@ -123,8 +128,46 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     org_client.grant_role(ion_org._id, user_id, role._id)
     roles = org_client.find_roles_by_user(ion_org._id, user_id)
     for r in roles:
-        log.info('UserRole: ' +str(r))
+        log.info('User UserRole: ' +str(r))
 
+
+    requests = org_client.find_requests(ion_org._id)
+    log.info("Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    org2 = IonObject(RT.Org, name='Org2', description='a second Org')
+    org2_id = org_client.create_org(org2)
+
+    requests = org_client.find_requests(org2_id)
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+
+
+
+
+    req_id = org_client.request_enroll(org2_id,user_id )
+
+    requests = org_client.find_requests(org2_id)
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    org_client.approve_request(org2_id, req_id)
+
+    requests = org_client.find_user_requests(user_id)
+    log.info("User Request count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+    role = org_client.find_org_role_by_name(org2_id, MANAGER_ROLE)
+    req_id = org_client.request_role(org2_id,user_id, role._id)
+    requests = org_client.find_requests(org2_id)
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
 
 #    marine_client = MarineFacilityManagementServiceProcessClient(node=container.node, process=process)
 #    mf_obj = IonObject(RT.MarineFacility, name='Marine Facility Org', description='a new marine facility')
