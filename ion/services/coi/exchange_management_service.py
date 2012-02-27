@@ -5,7 +5,7 @@ __author__ = 'Michael Meisinger'
 from pyon.public import CFG, IonObject, log, RT, PRED
 
 from interface.services.coi.iexchange_management_service import BaseExchangeManagementService
-from pyon.core.exception import Conflict, Inconsistent, NotFound
+from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest
 from pyon.util.log import log
 #from pyon.ion.exchange import ExchangeSpace, ExchangeName, ExchangePoint
 from pyon.ion import exchange
@@ -35,15 +35,15 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_space_id,rev = self.clients.resource_registry.create(exchange_space)
 
         aid = self.clients.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
-#
-#        # Now do the work
-#
+
+        # Now do the work
+
 #        if exchange_space.name == "ioncore":
 #            # Bottom turtle initialization
 #            # @TODO: what's different here
 #            self.container.ex_manager.create_xs(exchange_space.name)
 #        else:
-#            self.container.ex_manager.create_xs(exchange_space.name)
+        self.container.ex_manager.create_xs(exchange_space.name, use_ems=False)
         
         return exchange_space_id
 
@@ -98,9 +98,9 @@ class ExchangeManagementService(BaseExchangeManagementService):
         # delete XS now
         self.clients.resource_registry.delete(exchange_space_id)
 
-#        # call container API to delete
-#        xs = exchange.ExchangeSpace(exchange_space.name)
-#        self.container.ex_manager.delete_xs(xs)
+        # call container API to delete
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        self.container.ex_manager.delete_xs(xs, use_ems=False)
 
     def find_exchange_spaces(self, filters=None):
         """Returns a list of Exchange Space resources for the given Resource Filter.
@@ -119,14 +119,21 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval canonical_name    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+        # get xntype and translate @TODO should we just consolidate these to be the same?
+        typemap = { 'XN_SERVICE':'service', 'XN_PROCESS':'process', 'XN_QUEUE':'queue' }
+        if not exchange_name.xn_type in typemap:
+            raise BadRequest("Unknown exchange name type: %s" % exchange_name.xn_type)
+
+        xntype = typemap[exchange_name.xn_type]
+
         exchange_space          = self.read_exchange_space(exchange_space_id)
         exchange_name_id,rev    = self.clients.resource_registry.create(exchange_name)
 
         aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangeName, exchange_name_id)
 
-#        # call container API (even though create_xn is really a noop)
-#        xs = exchange.ExchangeSpace(exchange_space.name)
-#        self.container.ex_manager.create_xn(xs, exchange_name.name)
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        self.container.ex_manager._create_xn(xntype, exchange_name.name, xs, use_ems=False)
 
         return exchange_name_id  #QUestion - is this the correct canonical name?
 
@@ -146,6 +153,13 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         exchange_name_id = exchange_name._id        # yes, this should be same, but let's make it look cleaner
 
+        # get associated XS first
+        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
+        if not len(exchange_space_list) == 1:
+            raise NotFound("Associated Exchange Space to Exchange Point %s does not exist" % exchange_point_id)
+
+        exchange_space = exchange_space_list[0]
+
         # remove association between itself and XS
         _, assocs = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id, id_only=True)
         for assoc in assocs:
@@ -153,6 +167,11 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         # remove XN
         self.clients.resource_registry.delete(exchange_name_id)
+
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xn = exchange.ExchangeName(self.container.ex_manager, exchange_point.name, xs)              # type doesn't matter here
+        self.container.ex_manager.delete_xn(xn, use_ems=False)
 
     def find_exchange_names(self, filters=None):
         """Returns a list of exchange name resources for the given resource filter.
@@ -174,10 +193,10 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
 
         aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
-#
-#        # call container API
-#        xs = exchange.ExchangeSpace(exchange_space.name)
-#        self.container.ex_manager.create_xp(xs, exchange_point.name, xptype='ttree')
+
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        self.container.ex_manager.create_xp(xs, exchange_point.name, xptype=exchange_point.topology_type, use_ems=False)
 
         return exchange_point_id
 
@@ -229,10 +248,10 @@ class ExchangeManagementService(BaseExchangeManagementService):
         # delete from RR
         self.clients.resource_registry.delete(exchange_point_id)
 
-#        # call container API
-#        xs = exchange.ExchangeSpace(exchange_space.name)
-#        xp = exchange.ExchangePoint(exchange_point.name, xs, 'ttree')
-#        self.container.ex_manager.delete_xp(xp)
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xp = exchange.ExchangePoint(exchange_point.name, xs, 'ttree')
+        self.container.ex_manager.delete_xp(xp, use_ems=False)
 
     def find_exchange_points(self, filters=None):
         """Returns a list of exchange point resources for the provided resource filter.
