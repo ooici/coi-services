@@ -440,7 +440,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(ingestion_configuration.hdf_storage.relative_path, self.hdf_storage.relative_path)
         self.assertEquals(ingestion_configuration.couch_storage.datastore_name, self.couch_storage.datastore_name)
 
-
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ingestion_workers_creation(self):
         """
         test_ingestion_workers
@@ -551,6 +551,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # @TODO Test deactivate and reactivate....
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_dataset_config_and_event_subscriber(self):
         """
         Test the creation of a dataset ingestion configuration and the call-back method of the event subscriber
@@ -634,6 +635,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 archive_data = True,
                 archive_metadata=True)
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_dataset_config_dict_in_ingestion_worker(self):
         """
         Test that when a dataset config is created, each ingestion worker updates its dataset configs dict containing the
@@ -688,6 +690,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertIn(self.input_stream_id, proc_2.dataset_configs)
 
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_update_dataset_config(self):
         """
         Test updating a dataset config
@@ -778,6 +781,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             dataset_config.description = 'updated right now'
             self.ingestion_cli.update_dataset_config(dataset_ingestion_configuration = dataset_config)
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_read_dataset_config(self):
         """
         Test reading a dataset config
@@ -938,6 +942,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_receive_dataset_config_event(self):
         """
         Test that the dataset config is being used properly
@@ -989,7 +994,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.assertTrue(queue.get(timeout=10))
 
-
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_dataset_config_implementation_for_science_data(self):
         """
         Test that the dataset config is being used properly for science data.
