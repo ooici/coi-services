@@ -88,14 +88,14 @@ class CommConfig(object):
         @param yamlInput yaml data structure
         """
         if( yamlInput ):
-            self.config_type = yamlInput['comm'].get('type')
+            self.config_type = yamlInput['comm'].get('method')
 
     def _config_dictionary(self):
         """
         @brief get a dictionary of configuration parameters.  This method should be sub classed to extend config
         @retval dictionary containing all config parameters.
         """
-        return { 'method': self.type() }
+        return { 'method': self.method() }
 
 
     ###
@@ -105,7 +105,7 @@ class CommConfig(object):
         """
         @brief Pretty print object configuration to stdout.  This method should be sub classed.
         """
-        print( "Type: " + self.type() )
+        print( "Type: " + self.method() )
 
     def serialize(self):
         """
@@ -146,10 +146,7 @@ class CommConfig(object):
         else:
             inputFile = self.config_path()
 
-        try:
-            infile = open( inputFile )
-        except IOError:
-            return True
+        infile = open( inputFile )
 
         input = yaml.load( infile )
 
@@ -178,7 +175,7 @@ class CommConfig(object):
     #   Static Methods
     ###
     @staticmethod
-    def type():
+    def method():
         """
         @brief Defines the "type" of object.  This must be overloaded in the sub class.
         @retval type of comm configuration object.
@@ -234,6 +231,7 @@ class CommConfig(object):
         if(config.config_type):
             return CommConfig.get_config_from_type(metadata,config.config_type)
         else:
+            raise Exception("Boom")
             return None
 
     @staticmethod
@@ -244,7 +242,7 @@ class CommConfig(object):
         """
         result = []
         for config in _CONFIG_OBJECTS:
-            result.append(config.type())
+            result.append(config.method())
         return result
 
     @staticmethod
@@ -262,7 +260,7 @@ class CommConfigEthernet(CommConfig):
     """
 
     @staticmethod
-    def type(): return 'ethernet'
+    def method(): return 'ethernet'
 
     def __init__(self, metadata):
         self.device_addr = None
