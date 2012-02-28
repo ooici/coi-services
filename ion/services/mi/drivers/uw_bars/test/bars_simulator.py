@@ -32,8 +32,6 @@ EOF = '\x04'
 
 CONTROL_S = '\x13'
 
-time_between_bursts = 2
-
 
 def _escape(str):
     str = str.replace('\r', '\\r')
@@ -57,6 +55,7 @@ class _BurstThread(Thread):
         Thread.__init__(self, name="_BurstThread")
         self._outfile = outfile
         self._conn = conn
+        self._time_between_bursts = 15
         self._running = True
         self._enabled = True
         self._log_prefix = log_prefix
@@ -65,8 +64,21 @@ class _BurstThread(Thread):
         self._outfile.write("%s_BurstThread: %s\n" % (self._log_prefix, m))
         self._outfile.flush()
 
+    def _dot(self):
+        self._outfile.write('.')
+        self._outfile.flush()
+
+    def set_time_between_bursts(self, secs):
+        """
+        @param secs time in seconds
+        """
+        self._time_between_bursts = secs
+        self._log("set time_between_bursts = %d secs" %
+                  self._time_between_bursts)
+
     def run(self):
-        self._log("burst thread running")
+        self._log("burst thread running, time_between_bursts = %d secs"
+                  % self._time_between_bursts)
         time_next_burst = time.time()  # just now
         while self._running:
             if self._enabled:
@@ -74,7 +86,8 @@ class _BurstThread(Thread):
                     values = self._generate_burst()
                     reply = "%s%s" % (" ".join(values), NEWLINE)
                     self._conn.sendall(reply)
-                    time_next_burst = time.time() + time_between_bursts
+                    time_next_burst = time.time() + self._time_between_bursts
+                    self._dot()
 
             time.sleep(0.2)
 
@@ -131,7 +144,7 @@ class BarsSimulator(Thread):
         self._log("bound to port %s" % self._port)
         self._bt = None
 
-        self._cycle_time = "20"
+        self._cycle_time = "15"
         self._cycle_time_units = "Seconds"
 
         self._verbose_vs_data_only = "Data Only"
@@ -190,8 +203,10 @@ class BarsSimulator(Thread):
             self._client_no += 1
             self._log_client('Connected by %s' % str(addr))
 
-            self._bt = _BurstThread(self._conn, self._log_prefix,
+            self._bt = _BurstThread(self._conn,
+                                    self._log_prefix,
                                     outfile=self._outfile)
+            self._bt.set_time_between_bursts(self._get_time_between_bursts())
             self._bt.start()
 
             explicit_quit = self._connected()
@@ -203,6 +218,11 @@ class BarsSimulator(Thread):
             time.sleep(1)
 
         self._sock.close()
+
+    def _get_time_between_bursts(self):
+        """Gets the time between bursts in seconds"""
+        value = int(self._cycle_time)
+        return value if self._cycle_time_units == "Seconds" else 60 * value
 
     def _end_burst_thread(self):
         self._log_client('end burst thread %s' % str(self._bt))
@@ -404,6 +424,11 @@ class BarsSimulator(Thread):
                 value = int(input)
                 self._cycle_time = value
                 self._cycle_time_units = units
+                self._log_client("cycle_time set to: %s %s" %
+                    (self._cycle_time, self._cycle_time_units))
+
+                self._bt.set_time_between_bursts(
+                        self._get_time_between_bursts())
                 break
             else:
                 # just continue
