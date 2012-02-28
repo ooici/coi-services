@@ -71,7 +71,7 @@ class SalinityTransform(TransformFunction):
 
 
         # Use the constructor to put data into a granule
-        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)
+        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
 
         for i in xrange(len(salinity)):
             point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
