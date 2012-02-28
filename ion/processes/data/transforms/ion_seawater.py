@@ -105,7 +105,7 @@ class DensityTransform(TransformFunction):
         """
 
         # Use the deconstructor to pull data from a granule
-        psd = PointSupplementDeconstructor(stream_definition=self.incoming_stream_def, stream_granule=granule)
+        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
 
 
         conductivity = psd.get_values('conductivity')
