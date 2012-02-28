@@ -12,7 +12,6 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT, IonObject
 from ion.services.coi.org_management_service import OrgManagementService
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 
 @attr('UNIT', group='coi')
@@ -107,10 +106,7 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         self.org_management_service = OrgManagementServiceClient(node=self.container.node)
 

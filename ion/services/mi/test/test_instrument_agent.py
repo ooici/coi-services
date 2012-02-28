@@ -91,12 +91,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Start container.
         self._start_container()
 
-        # Establish endpoint with container.
+        # Establish endpoint with container (used in tests below)
         self._container_client = ContainerAgentClient(node=self.container.node,
                                                       name=self.container.name)
         
-        # Bring up services in a deploy file.        
-        self._container_client.start_rel_from_url('res/deploy/r2dm.yml')
+        # Bring up services in a deploy file (no need to message)
+        self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
         # Create a pubsub client to create streams.
         self._pubsub_client = PubsubManagementServiceClient(

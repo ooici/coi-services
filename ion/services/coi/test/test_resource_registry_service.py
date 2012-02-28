@@ -8,7 +8,6 @@ from pyon.core.exception import BadRequest, Conflict, NotFound, Inconsistent
 from pyon.public import IonObject, PRED, RT, LCS, LCE, iex
 from pyon.util.int_test import IonIntegrationTestCase
 
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
 
 @attr('INT', group='coi')
@@ -19,10 +18,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         # Now create client to bank service
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)

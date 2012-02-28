@@ -11,7 +11,6 @@ from pyon.public import CFG
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
-from interface.services.icontainer_agent import ContainerAgentClient
 
 from ion.processes.data.transforms.transform_example import TransformExample
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
@@ -176,12 +175,9 @@ class ProcessDispatcherServiceLocalIntTest(IonIntegrationTestCase):
 
         # set up the container
         self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
 
-        self.cc = ContainerAgentClient(node=self.container.node, name=self.container.name)
-
-        self.cc.start_rel_from_url('res/deploy/r2cei.yml')
-
-        self.pd_cli = ProcessDispatcherServiceClient(node=self.cc.node)
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         self.process_definition = ProcessDefinition(name='basic_transform_definition')
         self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',
@@ -232,14 +228,12 @@ class ProcessDispatcherServiceBridgeIntTest(IonIntegrationTestCase):
         # set up the container
         self._start_container()
 
-        self.cc = ContainerAgentClient(node=self.container.node, name=self.container.name)
-
         CFG['process_dispatcher_bridge'] = dict(uri="memory://local",
             exchange="test_pd_bridge_exchange", topic="processdispatcher")
 
-        self.cc.start_rel_from_url('res/deploy/r2cei.yml')
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
 
-        self.pd_cli = ProcessDispatcherServiceClient(node=self.cc.node)
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         self.process_definition = ProcessDefinition(name='basic_transform_definition')
         self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',

@@ -8,7 +8,6 @@
 import gevent
 from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.icontainer_agent import ContainerAgentClient
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
@@ -507,12 +506,9 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
         self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
-
-        self.cc.start_rel_from_url('res/deploy/r2dm.yml')
-
-        self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
 
         self.ctd_stream1_id = self.pubsub_cli.create_stream(name="SampleStream1",
                                                             description="Sample Stream 1 Description")
@@ -548,7 +544,7 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
 
         self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream1_id)
 
@@ -556,7 +552,7 @@ class PubSubIntTest(IonIntegrationTestCase):
 
 
         # Cheat and use the cc as the process - I don't think it is used for anything...
-        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.cc.node)
+        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.container.node)
 
 
 
