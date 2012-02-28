@@ -20,7 +20,7 @@ from prototype.sci_data.ctd_stream import ctd_stream_definition
 from pyon.public import log
 import os
 import time
-from prototype.sci_data.deconstructor_apis import PointSupplementDeconstructor
+from prototype.sci_data.deconstructor_apis import PointSupplementStreamParser
 
 import gevent
 
@@ -234,7 +234,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
         for message in results:
 
-            psd = PointSupplementDeconstructor(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
+            psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
 
             # Test the handy info method for the names of fields in the stream def
             assertions('salinity' in psd.list_field_names())

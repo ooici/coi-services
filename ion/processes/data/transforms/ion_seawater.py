@@ -13,7 +13,7 @@ from pyon.public import IonObject, RT, log
 
 from prototype.sci_data.ctd_stream import scalar_point_stream_definition, ctd_stream_definition
 
-from prototype.sci_data.deconstructor_apis import PointSupplementDeconstructor
+from prototype.sci_data.deconstructor_apis import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from seawater.gibbs import SP_from_cndr
@@ -47,7 +47,7 @@ class SalinityTransform(TransformFunction):
         """
 
         # Use the deconstructor to pull data from a granule
-        psd = PointSupplementDeconstructor(stream_definition=self.incoming_stream_def, stream_granule=granule)
+        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
 
 
         conductivity = psd.get_values('conductivity')
