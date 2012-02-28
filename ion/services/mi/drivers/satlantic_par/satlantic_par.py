@@ -20,6 +20,7 @@ from ion.services.mi.data_decorator import ChecksumDecorator
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
+from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.instrument_fsm_args import InstrumentFSM
@@ -316,7 +317,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     def initialize(self, *args, **kwargs):
         mi_logger.info('Initializing PAR sensor')
         self._fsm.on_event(Event.INITIALIZE, *args, **kwargs)
-
+        
     ################
     # State handlers
     ################
@@ -735,8 +736,15 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
                                          State.AUTOSAMPLE_MODE,
                                          State.POLL_MODE]
         self.protocol = SatlanticPARInstrumentProtocol(self.protocol_callback)
-        self.chan_map = {Channel.PAR:self.protocol}
-
+        
+        # A few mappings from protocol to driver
+        self.chan_map = {DriverChannel.INSTRUMENT:self.protocol,
+                         Channel.PAR:self.protocol}
+        self.state_map = {State.AUTOSAMPLE_MODE:DriverState.AUTOSAMPLE,
+                          State.COMMAND_MODE:DriverState.COMMAND,
+                          State.POLL_MODE:DriverState.ACQUIRE_SAMPLE,
+                          State.UNKNOWN:DriverState.UNCONFIGURED}
+        
 class SatlanticChecksumDecorator(ChecksumDecorator):
     """Checks the data checksum for the Satlantic PAR sensor"""
     
