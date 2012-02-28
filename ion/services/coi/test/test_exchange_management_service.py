@@ -118,9 +118,13 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         self.ems = self.container.proc_manager.procs_by_name['exchange_management']
-        self.org_id = self.container.proc_manager.procs_by_name['bootstrap'].org_id
 
         self.rr = ResourceRegistryServiceClient()
+        orglist, _ = self.rr.find_resources(RT.Org)
+        if not len(orglist) == 1:
+            raise StandardError("Unexpected number of orgs found")
+
+        self.org_id = orglist[0]._id
 
     def test_xs_create_delete(self):
         exchange_space = ExchangeSpace(name="bobo")
@@ -206,9 +210,9 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         # TEST ONLY: have to clean up the xp or we leave junk on the broker
         # we have to do it manually because the xs is gone
         #self.ems.delete_exchange_point(epid)
-        xs = exchange.ExchangeSpace(exchange_space.name)
-        xp = exchange.ExchangePoint(exchange_point.name, xs, 'ttree')
-        self.container.ex_manager.delete_xp(xp)
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xp = exchange.ExchangePoint(self.container.ex_manager, exchange_point.name, xs, 'ttree')
+        self.container.ex_manager.delete_xp(xp, use_ems=False)
 
     def test_xs_create_update(self):
         raise unittest.SkipTest("Test not implemented yet")
@@ -219,7 +223,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         exchange_space = ExchangeSpace(name="bozo")
         esid = self.ems.create_exchange_space(exchange_space, self.org_id)
 
-        exchange_name = ExchangeName(name='shoes')
+        exchange_name = ExchangeName(name='shoes', xn_type="XN_PROCESS")
         enid = self.ems.declare_exchange_name(exchange_name, esid)
 
         # should be in RR
@@ -237,7 +241,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.ems.delete_exchange_space(esid)
 
     def test_xn_declare_no_xs(self):
-        exchange_name = ExchangeName(name="shoez")
+        exchange_name = ExchangeName(name="shoez", xn_type='XN_PROCESS')
         self.assertRaises(NotFound, self.ems.declare_exchange_name, exchange_name, '11')
 
     def test_xn_undeclare_without_declare(self):
@@ -252,7 +256,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         exchange_space = ExchangeSpace(name="bozo")
         esid = self.ems.create_exchange_space(exchange_space, self.org_id)
 
-        exchange_name = ExchangeName(name='shnoz')
+        exchange_name = ExchangeName(name='shnoz', xn_type="XN_PROCESS")
         enid = self.ems.declare_exchange_name(exchange_name, esid)
 
         # delete the XS

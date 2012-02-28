@@ -196,7 +196,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
-        self.container.ex_manager.create_xp(xs, exchange_point.name, xptype=exchange_point.topology_type, use_ems=False)
+        self.container.ex_manager.create_xp(exchange_point.name, xs, xptype=exchange_point.topology_type, use_ems=False)
 
         return exchange_point_id
 
@@ -250,7 +250,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
-        xp = exchange.ExchangePoint(exchange_point.name, xs, 'ttree')
+        xp = exchange.ExchangePoint(self.container.ex_manager, exchange_point.name, xs, 'ttree')
         self.container.ex_manager.delete_xp(xp, use_ems=False)
 
     def find_exchange_points(self, filters=None):
