@@ -18,7 +18,7 @@ from interface.services.dm.itransform_management_service import TransformManagem
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.public import  StreamSubscriberRegistrar
+from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.ctd_stream import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
@@ -26,6 +26,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 
 import time
 import unittest
@@ -84,11 +85,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                     'server_addr': 'localhost',
                     'server_port': 8888
                 }                
-            },
-            'packet_config' : {
-                parsed_stream_name : ('prototype.sci_data.ctd_stream',
-                                'ctd_stream_packet'),
-                raw_stream_name : None
             }
         }
 
@@ -106,6 +102,46 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._pubsub_client = PubsubManagementServiceClient(
                                                     node=self.container.node)
 
+        # A callback for processing subscribed-to data.
+        def consume(message, headers):
+            log.info('Subscriber received message: %s', str(message))
+
+        # Create a stream subscriber registrar to create subscribers.
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
+                                                node=self.container.node)
+
+        self.subs = []
+
+        # Create streams for each stream named in driver.
+        self.stream_config = {}
+        for (stream_name, val) in PACKET_CONFIG.iteritems():
+            stream_def = ctd_stream_definition(stream_id=None)
+            stream_def_id = self._pubsub_client.create_stream_definition(
+                                                    container=stream_def)        
+            stream_id = self._pubsub_client.create_stream(
+                        name=stream_name,
+                        stream_definition_id=stream_def_id,
+                        original=True,
+                        encoding='ION R2')
+            self.stream_config[stream_name] = stream_id
+            
+            # Create subscriptions for each stream.
+            exchange_name = '%s_queue' % stream_name
+            sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name, callback=consume)
+            sub.start()
+            query = StreamQuery(stream_ids=[stream_id])
+            sub_id = self._pubsub_client.create_subscription(\
+                                query=query, exchange_name=exchange_name)
+            self._pubsub_client.activate_subscription(sub_id)
+            self.subs.append(sub)
+            
+        # Add cleanup function to stop subscribers.        
+        def stop_subscriber(sub_list):
+            for sub in sub_list:
+                sub.stop()            
+        self.addCleanup(stop_subscriber, self.subs)            
+            
+        """            
         # Create parsed stream. The stream name must match one
         # used by the driver to label packet data.
         parsed_stream_def = ctd_stream_definition(stream_id=None)
@@ -133,7 +169,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             parsed_stream_name : parsed_stream_id,
             raw_stream_name : raw_stream_id
         }
-
+        
+        
         # A callback for processing subscribed-to data.
         def consume(message, headers):
             log.info('Subscriber received message: %s', str(message))
@@ -142,6 +179,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
                                                 node=self.container.node)
 
+        
+        
         # Create and activate parsed data subscription.
         parsed_sub = subscriber_registrar.create_subscriber(exchange_name=\
                                             'parsed_queue', callback=consume)
@@ -159,6 +198,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         raw_sub_id = self._pubsub_client.create_subscription(\
                             query=raw_query, exchange_name='raw_queue')
         self._pubsub_client.activate_subscription(raw_sub_id)
+
+        """
 
         # Create agent config.
         self.agent_config = {
@@ -180,11 +221,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                                               process=FakeProcess())
         log.info('got ia client %s', str(self._ia_client))        
         
-        # Add cleanup function to stop subscribers.        
-        def stop_subscriber(sub_list):
-            for sub in sub_list:
-                sub.stop()            
-        self.addCleanup(stop_subscriber, [parsed_sub, raw_sub])
                 
     def test_initialize(self):
         """

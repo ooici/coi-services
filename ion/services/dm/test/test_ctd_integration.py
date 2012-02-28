@@ -106,7 +106,6 @@ class CTDIntegrationTest(IonIntegrationTestCase):
             configuration = {
                 'process':{
                     'stream_id':stream_id,
-                    'datastore_name':datastore_name
                 }
             }
             procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)

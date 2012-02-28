@@ -90,7 +90,7 @@ class IngestionWorker(TransformDataProcess):
                 except KeyError:
                     log.warn('Tried to remove dataset config that does not exist!')
             else:
-                self.dataset_configs[stream_id] = event_msg.configuration
+                self.dataset_configs[stream_id] = event_msg
 
             # Hook to override just before processing is complete
             self.dataset_configs_event_test_hook(event_msg, headers)
@@ -231,10 +231,12 @@ class IngestionWorker(TransformDataProcess):
 
         dset_config = self.dataset_configs.get(stream_id, None)
 
+        configuration = None
         if dset_config is None:
-            log.info('No policy found for stream id: %s ' % stream_id)
+            log.info('No config found for stream id: %s ' % stream_id)
         else:
-            log.info('Got policy: %s for stream id: %s' % (dset_config, stream_id))
+            log.info('Got config: %s for stream id: %s' % (dset_config, stream_id))
+            configuration = dset_config.configuration
 
         # return the extracted instruction
-        return dset_config
+        return configuration
