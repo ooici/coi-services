@@ -13,7 +13,7 @@ from pyon.public import IonObject, RT, log
 
 from prototype.sci_data.ctd_stream import scalar_point_stream_definition, ctd_stream_definition
 
-from prototype.sci_data.deconstructor_apis import PointSupplementStreamParser
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from seawater.gibbs import SP_from_cndr

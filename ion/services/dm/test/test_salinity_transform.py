@@ -20,7 +20,7 @@ from prototype.sci_data.ctd_stream import ctd_stream_definition
 from pyon.public import log
 import os
 import time
-from prototype.sci_data.deconstructor_apis import PointSupplementStreamParser
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
 import gevent
 
