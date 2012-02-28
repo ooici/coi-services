@@ -8,7 +8,6 @@ import simplejson, urllib
 
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.core.bootstrap import CFG
 
 
@@ -18,10 +17,7 @@ class TestServiceGateway(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2deploy.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
     def tearDown(self):
         self._stop_container()

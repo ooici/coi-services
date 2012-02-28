@@ -12,7 +12,6 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT, IonObject
 from ion.services.coi.identity_management_service import IdentityManagementService
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
 
 from pyon.util.context import LocalContextMixin
@@ -440,10 +439,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
 

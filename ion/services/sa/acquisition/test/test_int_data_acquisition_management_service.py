@@ -6,7 +6,6 @@
 @test ion.services.sa.acquisition.DataAcquisitionManagementService integration test
 '''
 
-from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.public import RT
@@ -34,11 +33,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2sa.yml')
 
         # Now create client to DataAcquisitionManagementService
         self.client = DataAcquisitionManagementServiceClient(node=self.container.node)

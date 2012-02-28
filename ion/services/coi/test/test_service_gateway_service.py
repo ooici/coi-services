@@ -15,7 +15,6 @@ from pyon.core.registry import get_message_class_in_parm_type, getextends
 from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode, GATEWAY_RESPONSE, \
             GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
 
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from pyon.util.containers import DictDiffer
 from pyon.util.log import log
@@ -30,10 +29,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         # Now create client to service
         self.service_gateway_service = ServiceGatewayServiceClient(node=self.container.node)

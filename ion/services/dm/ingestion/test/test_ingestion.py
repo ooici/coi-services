@@ -16,7 +16,6 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import StreamPublisherRegistrar, CFG
 from interface.objects import HdfStorage, CouchStorage, StreamGranuleContainer
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
@@ -339,19 +338,16 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Container
         #----------------------------------------------------------------------
         self._start_container()
-
-        self.cc = ContainerAgentClient(node=self.container.node,name=self.container.name)
-
-        self.cc.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
         #------------------------------------------------------------------------
         # Service clients
         #----------------------------------------------------------------------
-        self.pubsub_cli = PubsubManagementServiceClient(node=self.cc.node)
-        self.tms_cli = TransformManagementServiceClient(node=self.cc.node)
-        self.ingestion_cli = IngestionManagementServiceClient(node=self.cc.node)
-        self.rr_cli = ResourceRegistryServiceClient(node=self.cc.node)
-        self.dataset_cli = DatasetManagementServiceClient(node=self.cc.node)
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
+        self.tms_cli = TransformManagementServiceClient(node=self.container.node)
+        self.ingestion_cli = IngestionManagementServiceClient(node=self.container.node)
+        self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        self.dataset_cli = DatasetManagementServiceClient(node=self.container.node)
 
         #------------------------------------------------------------------------
         # Configuration parameters
@@ -393,7 +389,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        self.publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.cc.node)
+        self.publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
         self.ctd_stream1_publisher = self.publisher_registrar.create_publisher(stream_id=self.input_stream_id)
 
 
