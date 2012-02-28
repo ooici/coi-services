@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.drivers.uw_bars.driver0
-@file ion/services/mi/drivers/uw_bars/driver0.py
+@package ion.services.mi.drivers.uw_bars.protocol0
+@file ion/services/mi/drivers/uw_bars/protocol0.py
 @author Carlos Rueda
-@brief UW TRHPH BARS driver implementation based on bars_client
+@brief UW TRHPH BARS protocol implementation based on bars_client.
+BarsInstrumentProtocol extends InstrumentProtocol but does not use the
+connection mechanisms there; instead it uses the bars_client utility.
 """
 
 __author__ = 'Carlos Rueda'
@@ -13,32 +15,25 @@ __license__ = 'Apache 2.0'
 from ion.services.mi.drivers.uw_bars.bars_client import BarsClient
 import ion.services.mi.drivers.uw_bars.bars as bars
 
-from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_driver import DriverState
-from ion.services.mi.exceptions import InstrumentProtocolException
-
 from ion.services.mi.common import InstErrorCode
-from ion.services.mi.drivers.uw_bars.common import BarsChannel
-from ion.services.mi.drivers.uw_bars.common import BarsParameter
+from ion.services.mi.common import DriverAnnouncement
 
-import re
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
 #import ion.services.mi.mi_logger
 import logging
 log = logging.getLogger('mi_logger')
 
 
-class BarsInstrumentDriver(InstrumentDriver):
+class BarsInstrumentProtocol(InstrumentProtocol):
     """
-    The InstrumentDriver class for the TRHPH BARS sensor.
+    The protocol for the BarsChannel.INSTRUMENT channel.
     """
-
-    # TODO actual handling of the "channel" concept in the design.
-
-    # TODO NOTE: Assumes all interaction is for the INSTRUMENT special channel
 
     def __init__(self, evt_callback=None):
-        InstrumentDriver.__init__(self, evt_callback)
+        InstrumentProtocol.__init__(self, evt_callback)
 
         self.bars_client = None
         self.config = None
@@ -64,66 +59,49 @@ class BarsInstrumentDriver(InstrumentDriver):
         if cs != state:
             raise AssertionError("current state=%s, expected=%s" % (cs, state))
 
-    def initialize(self, channels=None, *args, **kwargs):
+    def initialize(self, *args, **kwargs):
         """
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("channels=%s args=%s kwargs=%s" %
-                      (str(channels), str(args), str(kwargs)))
+            log.debug("args=%s kwargs=%s" %
+                      (str(args), str(kwargs)))
 
         self._assert_state([DriverState.UNCONFIGURED,
                             DriverState.DISCONNECTED])
 
-        channels = channels or [BarsChannel.INSTRUMENT]
-
-        assert len(channels) == 1
-        assert channels[0] == BarsChannel.INSTRUMENT
-
-        result = None
+        super(BarsInstrumentProtocol, self).initialize(*args, **kwargs)
 
         self._state = DriverState.UNCONFIGURED
 
-        return result
-
-    def configure(self, configs, *args, **kwargs):
+    def configure(self, config, *args, **kwargs):
         """
+        Stores the given config object and set the current state as
+        DriverState.DISCONNECTED.
+        Note that super.configure is not called.
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("configs=%s args=%s kwargs=%s" %
-                      (str(configs), str(args), str(kwargs)))
+            log.debug("config=%s args=%s kwargs=%s" %
+                      (str(config), str(args), str(kwargs)))
 
         self._assert_state(DriverState.UNCONFIGURED)
 
-        assert isinstance(configs, dict)
-        assert len(configs) == 1
-        assert BarsChannel.INSTRUMENT in configs
-
-        self.config = configs.get(BarsChannel.INSTRUMENT, None)
-
-        result = None
+        self.config = config
 
         self._state = DriverState.DISCONNECTED
 
-        return result
-
-    def connect(self, channels=None, *args, **kwargs):
+    def connect(self, *args, **kwargs):
         """
+        Sets up the bars_client and connects to the instrument.
+        Note that super.connect is not called.
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("channels=%s args=%s kwargs=%s" %
-                      (str(channels), str(args), str(kwargs)))
+            log.debug("args=%s kwargs=%s" %
+                      (str(args), str(kwargs)))
 
         self._assert_state(DriverState.DISCONNECTED)
-
-        channels = channels or [BarsChannel.INSTRUMENT]
-
-        assert len(channels) == 1
-        assert channels[0] == BarsChannel.INSTRUMENT
-
-        result = None
 
         self._setup_bars_client(self.config)
 
@@ -134,8 +112,6 @@ class BarsInstrumentDriver(InstrumentDriver):
             # TODO proper handling
             raise Exception("Not handled yet. BARS not collecting data")
 
-        return result
-
     def _setup_bars_client(self, config):
         config = self.config
         host = config['device_addr']
@@ -144,32 +120,29 @@ class BarsInstrumentDriver(InstrumentDriver):
         self.bars_client = BarsClient(host, port, outfile)
         self.bars_client.connect()
 
-    def disconnect(self, channels=None, *args, **kwargs):
+    def disconnect(self, *args, **kwargs):
         """
+        Ends the bars_client.
+        Note that super.disconnect is not called.
         """
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("channels=%s args=%s kwargs=%s" %
-                      (str(channels), str(args), str(kwargs)))
-
-        channels = channels or [BarsChannel.INSTRUMENT]
-
-        assert len(channels) == 1
-        assert channels[0] == BarsChannel.INSTRUMENT
-
-        result = None
+            log.debug("args=%s kwargs=%s" %
+                      (str(args), str(kwargs)))
 
         self.bars_client.end()
         self.bars_client = None
 
         self._state = DriverState.DISCONNECTED
 
-        return result
-
-    def detach(self, channels, *args, **kwargs):
+    def detach(self, *args, **kwargs):
         """
+        Does nothing.
+        Note that super.detach is not called.
         """
-        pass
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" %
+                      (str(args), str(kwargs)))
 
     ########################################################################
     # Channel command interface.
@@ -177,8 +150,7 @@ class BarsInstrumentDriver(InstrumentDriver):
 
     def get(self, params, *args, **kwargs):
 
-        # TODO it only handles [(BarsChannel.INSTRUMENT,
-        # BarsParameter.TIME_BETWEEN_BURSTS)]
+        # TODO it only handles BarsParameter.TIME_BETWEEN_BURSTS
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("params=%s args=%s kwargs=%s" %
@@ -187,8 +159,20 @@ class BarsInstrumentDriver(InstrumentDriver):
         self._assert_state(DriverState.AUTOSAMPLE)
 
         assert isinstance(params, list)
-        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
-        assert params == [cp]
+
+        params = list(set(params))  # remove any duplicates
+
+        result = {}
+        for param in params:
+            if param == BarsParameter.TIME_BETWEEN_BURSTS:
+                value = self._get_cycle_time()
+            else:
+                value = InstErrorCode.INVALID_PARAMETER
+            result[param] = value
+
+        return result
+
+    def _get_cycle_time(self):
 
         log.debug("breaking data streaming to enter main menu")
         self.bars_client.enter_main_menu()
@@ -203,8 +187,8 @@ class BarsInstrumentDriver(InstrumentDriver):
         log.debug("VALUE='%s'" % string)
         seconds = bars.get_cycle_time_seconds(string)
         if seconds is None:
-            raise InstrumentProtocolException(
-                    msg="Unexpected: string could not be matched: %s" % string)
+            # Unexpected: string could not be matched
+            return InstErrorCode.MESSAGING_ERROR
 
         log.debug("send 3 to return to main menu")
         self.bars_client.send('3')
@@ -216,12 +200,13 @@ class BarsInstrumentDriver(InstrumentDriver):
         log.debug("resume data streaming")
         self.bars_client.send('1')
 
-        result = {cp: seconds}
-        return result
+        return seconds
 
     def set(self, params, *args, **kwargs):
         """
         """
+        # TODO it only handles BarsParameter.TIME_BETWEEN_BURSTS
+
         if log.isEnabledFor(logging.DEBUG):
             log.debug("params=%s args=%s kwargs=%s" %
                       (str(params), str(args), str(kwargs)))
@@ -229,12 +214,28 @@ class BarsInstrumentDriver(InstrumentDriver):
         self._assert_state(DriverState.AUTOSAMPLE)
 
         assert isinstance(params, dict)
-        assert len(params) == 1
-        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
-        assert cp in params
-        seconds = params.get(cp)
-        assert isinstance(seconds, int)
-        assert seconds >= 15
+
+        updated_params = 0
+        result = {}
+        for (param, value) in params.items():
+            if param == BarsParameter.TIME_BETWEEN_BURSTS:
+                result[param] = self._set_cycle_time(value)
+                if InstErrorCode.is_ok(result[param]):
+                    updated_params += 1
+            else:
+                result[param] = InstErrorCode.INVALID_PARAMETER
+
+        msg = "%s parameter(s) successfully set." % updated_params
+        log.debug("announcing to driver: %s" % msg)
+        self.announce_to_driver(DriverAnnouncement.CONFIG_CHANGE, msg=msg)
+        return result
+
+    def _set_cycle_time(self, seconds):
+        if not isinstance(seconds, int):
+            return InstErrorCode.INVALID_PARAM_VALUE
+
+        if seconds < 15:
+            return InstErrorCode.INVALID_PARAM_VALUE
 
         log.debug("break data streaming to enter main menu")
         self.bars_client.enter_main_menu()
@@ -278,37 +279,4 @@ class BarsInstrumentDriver(InstrumentDriver):
         log.debug("resume data streaming")
         self.bars_client.send('1')
 
-        result = {cp: InstErrorCode.OK}
-        return result
-
-    def execute_direct(self, channels, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("channels=%s args=%s kwargs=%s" %
-                      (str(channels), str(args), str(kwargs)))
-
-        pass
-
-    def get_channels(self):
-        """
-        """
-        return BarsChannel.list()
-
-    ########################################################################
-    # TBD.
-    ########################################################################
-
-    def get_status(self, params, timeout=10):
-        """
-        @param timeout Number of seconds before this operation times out
-        """
-
-        # TODO for the moment just returning the current driver state
-        return self.get_current_state()
-
-    def get_capabilities(self, params, timeout=10):
-        """
-        @param timeout Number of seconds before this operation times out
-        """
-        pass
+        return InstErrorCode.OK
