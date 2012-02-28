@@ -7,7 +7,9 @@
 '''
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
+import time
 from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
+from prototype.sci_data.constructor_apis import DefinitionTree
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
@@ -17,6 +19,14 @@ from pyon.core.exception import IonException
 from pyon.util.file_sys import FS, FileSystem
 
 import hashlib
+
+
+#@todo: Remove this debugging stuff
+def llog(msg):
+    with open(FileSystem.get_url(FS.TEMP,'debug'),'a') as f:
+        f.write('%s ' % time.strftime('%Y-%m-%dT%H:%M:%S'))
+        f.write(msg)
+        f.write('\n')
 
 class ReplayProcessException(IonException):
     """
@@ -52,6 +62,8 @@ class ReplayProcess(BaseReplayProcess):
         # Get the delivery_format
         self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
         self.datastore_name = self.CFG.get_safe('process.datastore_name','dm_datastore')
+        self.definition = self.delivery_format.get('container',None)
+        self.fields = self.delivery_format.get('fields',None)
 
         self.view_name = self.CFG.get_safe('process.view_name','datasets/dataset_by_id')
         self.key_id = self.CFG.get_safe('process.key_id')
@@ -137,9 +149,34 @@ class ReplayProcess(BaseReplayProcess):
                         datastream = identifiable
                     elif isinstance(identifiable, Encoding):
                         sha1 = identifiable.sha1
+                if self.fields: # This matches what is in the definition
+                    # Check for these fields in the granule
+                    for field in self.fields:
+                        llog('Field: %s' % field)
+                        # See if the granule's got the field
+                        if field in replay_obj_msg.identifiables:
+                            # The field is there, so get the updated info like values path from the granule
+                            range_id = replay_obj_msg.identifiables[field].range_id
+                            # The range may be in the granule or the definition, try the granule first (pri)
+                        else:
+                            # Ok so maybe the range is in the granule but not the coverage
+                            range_id = self.definition.identifiables[field].range_id
+
+                        if range_id in replay_obj_msg.identifiables:
+                            range_obj = replay_obj_msg.identifiables[range_id]
+                        else:
+                            range_obj = self.definition.identifiables[range_id]
+
+                        values_path = range_obj.values_path
+                        llog('Got values path: %s' % values_path)
+
+
+
+
+
 
                 if sha1: # if there is an encoding
-
+                    llog('sha1: %s' % sha1[:8])
                     # Get the file from disk
                     filename = FileSystem.get_url(FS.CACHE, sha1, ".hdf5")
 
@@ -152,9 +189,9 @@ class ReplayProcess(BaseReplayProcess):
                             f.close()
 
                             # Check the Sha1
-                            retreived_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+                            retrieved_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
 
-                            if sha1 != retreived_hdfstring_sha1:
+                            if sha1 != retrieved_hdfstring_sha1:
                                 raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
 
                     except IOError:
