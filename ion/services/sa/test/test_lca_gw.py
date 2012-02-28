@@ -1,12 +1,12 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
-from pyon.public import Container, IonObject
+from pyon.public import  CFG
 #from pyon.util.log import log
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
-from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, LCS # , PRED
+#from pyon.core.exception import BadRequest, NotFound, Conflict
+#from pyon.public import RT, LCS # , PRED
 from nose.plugins.attrib import attr
 import unittest
 
@@ -54,7 +54,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         return
 
     def test_csv_loader_all(self):
-        loader = PreloadCSV("localhost", 5000)
+        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port)
 
         loader.preload(["ion/services/sa/preload/LogicalInstrument.csv",
                         "ion/services/sa/preload/InstrumentDevice.csv",
@@ -71,7 +71,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
 
 
     def test_csv_loader_tagged(self):
-        loader = PreloadCSV("localhost", 5000)
+        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port)
 
         loader.preload(["ion/services/sa/preload/LogicalInstrument.csv",
                         "ion/services/sa/preload/InstrumentDevice.csv",
