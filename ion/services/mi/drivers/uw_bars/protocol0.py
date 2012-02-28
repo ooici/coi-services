@@ -101,7 +101,8 @@ class BarsInstrumentProtocol(InstrumentProtocol):
             log.debug("args=%s kwargs=%s" %
                       (str(args), str(kwargs)))
 
-        self._assert_state(DriverState.DISCONNECTED)
+        self._assert_state([DriverState.UNCONFIGURED,
+                            DriverState.DISCONNECTED])
 
         self._setup_bars_client(self.config)
 

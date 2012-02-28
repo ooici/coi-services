@@ -21,10 +21,13 @@ from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.exceptions import RequiredParameterException
 from ion.services.mi.instrument_protocol import InstrumentProtocol
+from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
 
+import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
+
 
 class Command(BaseEnum):
     pass
@@ -80,6 +83,29 @@ class MyProtocol(InstrumentProtocol):
         for param in params:
             next_value += 1
             self._values[param] = next_value
+
+    def initialize(self, *args, **kwargs):
+        self._state = DriverState.UNCONFIGURED
+        return InstErrorCode.OK
+
+    def configure(self, config, *args, **kwargs):
+        self.config = config
+        self._state = DriverState.DISCONNECTED
+        return InstErrorCode.OK
+
+    def connect(self, *args, **kwargs):
+        self._state = DriverState.AUTOSAMPLE
+        return InstErrorCode.OK
+
+    def disconnect(self, *args, **kwargs):
+        self._state = DriverState.DISCONNECTED
+        return InstErrorCode.OK
+
+    def attach(self, *args, **kwargs):
+        return InstErrorCode.OK
+
+    def detach(self, *args, **kwargs):
+        return InstErrorCode.OK
 
     def get(self, params, *args, **kwargs):
         mi_logger.debug("MyProtocol(%s).get: params=%s" % (self._channel,
@@ -144,6 +170,15 @@ class MyDriver(InstrumentDriver):
 
 
 class Some(object):
+    VALID_CHANNELS = [
+            Channel.CHAN1,
+            Channel.CHAN2,
+            Channel.INSTRUMENT]
+
+    INVALID_CHANNELS = [
+            "invalid_chan1",
+            "invalid_chan2"]
+
     VALID_PARAMS = [
             (Channel.CHAN1, Parameter.PARAM1),
             (Channel.CHAN1, Parameter.PARAM1),  # duplicate of previous one
@@ -170,7 +205,73 @@ class DriverTest(unittest.TestCase):
         MyProtocol.next_base_value = 0
         self.driver = MyDriver(self.callback)
 
+    def test_initialize(self):
+        """Driver initialization tests"""
+        channels = Some.VALID_CHANNELS + Some.INVALID_CHANNELS
+
+        mi_logger.debug("\n initialize: %s" % str(channels))
+
+        result = self.driver.initialize(channels)
+
+        _print_dict("\n initialize result", result)
+
+        for c in channels:
+            self.assertTrue(c in result)
+
+        for c in Some.INVALID_CHANNELS:
+            self.assertEqual(result[c], InstErrorCode.INVALID_CHANNEL)
+
+        for c in Some.VALID_CHANNELS:
+            self.assertEqual(result[c], InstErrorCode.OK)
+
+    def test_configure(self):
+        """Driver configuration tests"""
+        channels = Some.VALID_CHANNELS + Some.INVALID_CHANNELS
+
+        mi_logger.debug("\n configure: %s" % str(channels))
+
+        configs = {}
+        for c in channels:
+            configs[c] = {'method': 'ethernet',
+                          'device_addr': '1.1.1.1',
+                          'device_port': 1,
+                          'server_addr': '2.2.2.2',
+                          'server_port': 2}
+
+        result = self.driver.configure(configs)
+
+        _print_dict("\n configure result", result)
+
+        for c in channels:
+            self.assertTrue(c in result)
+
+        for c in Some.INVALID_CHANNELS:
+            self.assertEqual(result[c], InstErrorCode.INVALID_CHANNEL)
+
+        for c in Some.VALID_CHANNELS:
+            self.assertEqual(result[c], InstErrorCode.OK)
+
+    def test_connect(self):
+        """Driver connection tests"""
+        channels = Some.VALID_CHANNELS + Some.INVALID_CHANNELS
+
+        mi_logger.debug("\n connect: %s" % str(channels))
+
+        result = self.driver.connect(channels)
+
+        _print_dict("\n connect result", result)
+
+        for c in channels:
+            self.assertTrue(c in result)
+
+        for c in Some.INVALID_CHANNELS:
+            self.assertEqual(result[c], InstErrorCode.INVALID_CHANNEL)
+
+        for c in Some.VALID_CHANNELS:
+            self.assertEqual(result[c], InstErrorCode.OK)
+
     def test_get_params(self):
+        """Driver get params tests"""
         params = Some.VALID_PARAMS + Some.INVALID_PARAMS
 
         mi_logger.debug("\nGET: %s" % str(params))
@@ -189,6 +290,7 @@ class DriverTest(unittest.TestCase):
             self.assertTrue(cp in get_result)
 
     def test_get_params_channel_all(self):
+        """Driver get all params tests"""
         params = [(Channel.ALL, Parameter.PARAM1),
                   (Channel.ALL, Parameter.PARAM2)]
 
@@ -203,7 +305,7 @@ class DriverTest(unittest.TestCase):
                 self.assertTrue((c, Parameter.PARAM1) in get_result)
                 self.assertTrue((c, Parameter.PARAM2) in get_result)
 
-    def _prepate_set_params(self, params):
+    def _prepare_set_params(self, params):
         """Gets a dict for the set operation"""
         value = 99000
         set_params = {}
@@ -214,9 +316,10 @@ class DriverTest(unittest.TestCase):
         return set_params
 
     def test_set_params(self):
+        """Driver set params tests"""
         params = Some.VALID_PARAMS + Some.INVALID_PARAMS
 
-        set_params = self._prepate_set_params(params)
+        set_params = self._prepare_set_params(params)
 
         set_result = self.driver.set(set_params)
 
@@ -232,6 +335,7 @@ class DriverTest(unittest.TestCase):
             self.assertEqual(set_params[cp], get_result[cp])
 
     def test_set_duplicate_param(self):
+        """Driver set duplicate params tests"""
         #
         # Note that via the ALL specifier, along with a specific channel,
         # one could indicate a duplicate parameter for the same channel.
@@ -239,7 +343,7 @@ class DriverTest(unittest.TestCase):
         params = [(Channel.ALL, Parameter.PARAM1),
                   (Channel.CHAN1, Parameter.PARAM1)]
 
-        set_params = self._prepate_set_params(params)
+        set_params = self._prepare_set_params(params)
 
         set_result = self.driver.set(set_params)
 
@@ -247,7 +351,7 @@ class DriverTest(unittest.TestCase):
 
         self.assertEqual(set_result[(Channel.CHAN1, Parameter.PARAM1)],
                          InstErrorCode.DUPLICATE_PARAMETER)
-        
+
     def test_check_channel(self):
         """Test the routines to check the channel arguments"""
         self.assertRaises(RequiredParameterException,
@@ -256,19 +360,20 @@ class DriverTest(unittest.TestCase):
                           self.driver._check_channel_args, [])
         self.assertRaises(RequiredParameterException,
                           self.driver._check_channel_args, None)
-        
-        (bad, good) = self.driver._check_channel_args([DriverChannel.INSTRUMENT])
+
+        (bad, good) = self.driver._check_channel_args(
+                [DriverChannel.INSTRUMENT])
         self.assertEquals(bad, {})
         self.assertEquals(good, [DriverChannel.INSTRUMENT])
-        
+
         (bad, good) = self.driver._check_channel_args(["BAD_CHANNEL"])
-        self.assertEquals(bad, {"BAD_CHANNEL":InstErrorCode.INVALID_CHANNEL})
+        self.assertEquals(bad, {"BAD_CHANNEL": InstErrorCode.INVALID_CHANNEL})
         self.assertEquals(good, [])
-        
+
         (bad, good) = self.driver._check_channel_args([Channel.CHAN1])
         self.assertEquals(bad, {})
         self.assertEquals(good, [Channel.CHAN1])
-        
+
         (bad, good) = self.driver._check_channel_args([Channel.CHAN1,
                                                        Channel.CHAN1])
         self.assertEquals(bad, {})
@@ -286,9 +391,8 @@ class DriverTest(unittest.TestCase):
         self.assertEquals(good.count(Channel.CHAN1), 1)
         self.assertEquals(good.count(Channel.INSTRUMENT), 1)
         self.assertEquals(len(good), 2)
-        
 
         (bad, good) = self.driver._check_channel_args([Channel.CHAN1,
                                                        "BAD_CHANNEL"])
-        self.assertEquals(bad, {"BAD_CHANNEL":InstErrorCode.INVALID_CHANNEL})
+        self.assertEquals(bad, {"BAD_CHANNEL": InstErrorCode.INVALID_CHANNEL})
         self.assertEquals(good, [Channel.CHAN1])

@@ -91,15 +91,23 @@ class InstrumentProtocol(object):
     
     def initialize(self, *args, **kwargs):
         """
+        Reset this device channel to an unconnected, unconfigured state.
+        @retval InstErrorCode.OK or some other code if an error occurs.
         """
-        mi_logger.info('Initializing device comms.')        
+        mi_logger.info('Resetting logger and logger_client to None')
         self._logger = None
         self._logger_client = None
+
+        return InstErrorCode.OK
     
     def configure(self, config, *args, **kwargs):
         """
+        Configure this device channel.
+        @param config The configuration
+        @retval InstErrorCode.OK or some other code if an error occurs.
+        @throws InstrumentConnectionException
         """
-        mi_logger.info('Configuring for device comms.')        
+        mi_logger.info('Configuring for device comms.')
 
         method = config['method']
                 
@@ -119,14 +127,17 @@ class InstrumentProtocol(object):
         else:
             # The config dict does not have a valid connection method.
             raise InstrumentConnectionException()
+
+        return InstErrorCode.OK
     
     def connect(self, *args, **kwargs):
         """Connect via the instrument connection object
         
         @param args connection arguments
+        @retval InstErrorCode.OK or some other code if an error occurs.
         @throws InstrumentConnectionException
         """
-        mi_logger.info('Connecting to device.')
+        mi_logger.info('Connecting to device channel')
         
         logger_pid = self._logger.get_pid()
         mi_logger.info('Found logger pid: %s.', str(logger_pid))
@@ -146,28 +157,41 @@ class InstrumentProtocol(object):
             # There was a pidfile for the device.
             raise InstrumentConnectionException()
 
+        # TODO return InstErrorCode.OK to comply with pydoc above OR adjust
+        # the whole specification of return value consistently.
         return logger_pid
         
     def disconnect(self, *args, **kwargs):
         """Disconnect via the instrument connection object
-        
+
+        @retval InstErrorCode.OK or some other code if an error occurs.
         @throws InstrumentConnectionException
         """
         mi_logger.info('Disconnecting from device.')
         self.detach()
         self._logger.stop()
+
+        return InstErrorCode.OK
     
     def attach(self, *args, **kwargs):
         """
+        ...
+        @retval InstErrorCode.OK or some other code if an error occurs.
         """
         mi_logger.info('Attaching to device.')        
         self._logger_client.init_comms(self._got_data)
+
+        return InstErrorCode.OK
     
     def detach(self, *args, **kwargs):
         """
+        ...
+        @retval InstErrorCode.OK or some other code if an error occurs.
         """
         mi_logger.info('Detaching from device.')
         self._logger_client.stop_comms()
+
+        return InstErrorCode.OK
         
     def reset(self, *args, **kwargs):
         """Reset via the instrument connection object"""

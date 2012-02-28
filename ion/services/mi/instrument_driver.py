@@ -305,47 +305,91 @@ class InstrumentDriver(object):
     # Channel connection interface.
     ########################################################################
     
-    def initialize(self, channels, *args, **kwargs):
+    def initialize(self, channels=None, *args, **kwargs):
         """
-        Return a device channel to an unconnected, unconfigured state.
-        @param channels List of channel names to initialize.
-        @param timeout Number of seconds before this operation times out
+        Reset the given device channels to an unconnected, unconfigured state.
+        @param channels List of channel names to initialize, by default
+                        [DriverChannel.INSTRUMENT]
+        @retval a dict with keys equal to the requested channels and values
+        corresponding the the initialization of the corresponding channels.
         """
-        pass
+
+        channels = channels or [DriverChannel.INSTRUMENT]
+
+        (result, valid_channels) = self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            result[channel] = self.chan_map[channel].initialize(*args, **kwargs)
+
+        return result
 
     def configure(self, configs, *args, **kwargs):
         """
-        Configure the driver for communications with an instrument channel.
-        @param config A dict containing channel name keys, with
+        Configure the driver for communications with the device channels
+        indicated in the keys of the configs dict.
+        @param configs A dict containing channel name keys, with
         dict values containing the comms configuration for the named channel.
-        @param timeout Number of seconds before this operation times out        
         """
-        pass        
-        
-    def connect(self, channels, *args, **kwargs):
-        """
-        Establish communications with a device channel.
-        @param channels List of channel names to connect.
-        @param timeout Number of seconds before this operation times out
-        """
-        pass
-    
-    def disconnect(self, channels, *args, **kwargs):
-        """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
-        
-        """
-        pass
 
-    def detach(self, channels, *args, **kwargs):
+        channels = configs.keys()
+
+        (result, valid_channels) = self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            config = configs[channel]
+            result[channel] = self.chan_map[channel].configure(config,
+                                                               *args, **kwargs)
+
+        return result
+
+    def connect(self, channels=None, *args, **kwargs):
         """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
+        Establish communications with the given device channels.
+        @param channels List of channel names to connect, by default
+                        [DriverChannel.INSTRUMENT]
         """
-        pass
+
+        channels = channels or [DriverChannel.INSTRUMENT]
+
+        (result, valid_channels) = self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            result[channel] = self.chan_map[channel].connect(*args, **kwargs)
+
+        return result
+
+    def disconnect(self, channels=None, *args, **kwargs):
+        """
+        Disconnect communications with the given device channels.
+        @param channels List of channel names to disconnect, by default
+                        [DriverChannel.INSTRUMENT]
+        """
+
+        channels = channels or [DriverChannel.INSTRUMENT]
+
+        (result, valid_channels) = self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            result[channel] = self.chan_map[channel].disconnect(*args,
+                                                                **kwargs)
+
+        return result
+
+    def detach(self, channels=None, *args, **kwargs):
+        """
+        Disconnect communications with the given device channels.
+        @param channels List of channel names to disconnect, by default
+                        [DriverChannel.INSTRUMENT]
+        """
+
+        channels = channels or [DriverChannel.INSTRUMENT]
+
+        (result, valid_channels) = self._check_channel_args(channels)
+
+        for channel in valid_channels:
+            result[channel] = self.chan_map[channel].detach(*args, **kwargs)
+
+        return result
 
     ########################################################################
     # Channel command interface.

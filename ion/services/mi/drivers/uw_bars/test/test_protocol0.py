@@ -10,6 +10,7 @@ from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.common import InstErrorCode
 
 import time
+import ion.services.mi.mi_logger
 import logging
 log = logging.getLogger('mi_logger')
 
@@ -125,3 +126,64 @@ class ProtocolTest(BarsTestCase):
         curr_state = self.protoc.get_current_state()
         self.assertEqual(DriverState.AUTOSAMPLE, curr_state)
         log.debug("protoc state = %s" % str(curr_state))
+
+
+from ion.services.mi.instrument_driver import InstrumentDriver
+from ion.services.mi.drivers.uw_bars.common import BarsCommand
+from ion.services.mi.drivers.uw_bars.common import BarsParameter
+from ion.services.mi.drivers.uw_bars.common import BarsChannel
+from ion.services.mi.drivers.uw_bars.common import BarsError
+
+from mock import Mock
+
+
+class MyDriver(InstrumentDriver):
+
+    def __init__(self, evt_callback=None):
+        InstrumentDriver.__init__(self, evt_callback)
+
+        self.instrument_commands = BarsCommand
+        self.instrument_parameters = BarsParameter
+        self.instrument_channels = BarsChannel
+        self.instrument_errors = BarsError
+
+        self.protoc = BarsInstrumentProtocol(self.protocol_callback)
+        self.chan_map[BarsChannel.INSTRUMENT] = self.protoc
+
+
+def _print_dict(title, d):
+    log.debug("%s:" % title)
+    for item in d.items():
+        log.debug("\t%s" % str(item))
+
+
+# explicit run_it because of threading + gevent-monkey-patching issues
+@unittest.skipIf(os.getenv('run_it') is None, 'define run_it to run this.')
+@attr('UNIT', group='mi')
+class DriverTest(BarsTestCase):
+
+    def setUp(self):
+        super(DriverTest, self).setUp()
+        self.callback = Mock()
+        self.driver = MyDriver(self.callback)
+        log.debug("configuring")
+        self.driver.configure({BarsChannel.INSTRUMENT: self.config})
+        log.debug("connecting")
+        self.driver.connect([BarsChannel.INSTRUMENT])
+
+    def tearDown(self):
+        log.debug("disconnecting")
+        self.driver.disconnect([BarsChannel.INSTRUMENT])
+        super(DriverTest, self).tearDown()
+
+    def test_get_params(self):
+        params = [(BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)]
+
+        log.debug("\nGET: %s" % str(params))
+
+        get_result = self.driver.get(params)
+
+        _print_dict("\nGET get_result", get_result)
+
+        for cp in params:
+            self.assertTrue(cp in get_result)
