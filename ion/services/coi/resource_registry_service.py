@@ -98,7 +98,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.rr_store.find_associations(subject, predicate, object, assoc_type, id_only=id_only)
 
     def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
-        assoc_type = assoc_type or AT.H2H
+        if predicate:
+            assoc_type = assoc_type or AT.H2H
         assoc = self.rr_store.find_associations(subject, predicate, object, assoc_type, id_only=id_only)
         if not assoc:
             raise NotFound("Association for subject/predicate/object/type %s/%s/%s/%s not found" % (
