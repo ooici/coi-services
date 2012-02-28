@@ -141,8 +141,16 @@ class ReplayProcess(BaseReplayProcess):
                 # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
                 replay_obj_msg.stream_resource_id = self.stream_id
 
+                # The message is valid until proven otherwise.
+                valid=True
+
                 datastream = None
                 sha1 = None
+
+                # Get number of records
+                record_count_id = DefinitionTree.get(self.definition,'%s.element_count_id' % self.definition.data_stream_id)
+                record_count = replay_obj_msg.identifiables[record_count_id].value
+                llog('Records: %d' % record_count)
 
                 for key, identifiable in replay_obj_msg.identifiables.iteritems():
                     if isinstance(identifiable, DataStream):
@@ -161,14 +169,24 @@ class ReplayProcess(BaseReplayProcess):
                         else:
                             # Ok so maybe the range is in the granule but not the coverage
                             range_id = self.definition.identifiables[field].range_id
+                            llog('range_id is %s' % range_id)
 
                         if range_id in replay_obj_msg.identifiables:
+                            # The range object is in the granule and has the correct values
                             range_obj = replay_obj_msg.identifiables[range_id]
-                        else:
-                            range_obj = self.definition.identifiables[range_id]
+                            values_path = range_obj.values_path or self.definition.identifiables[range_id].values_path
+                            llog('Got values path: %s' % values_path)
 
-                        values_path = range_obj.values_path
-                        llog('Got values path: %s' % values_path)
+                        else:
+                            # The granule doesn't have the data we're looking for, continue
+                            # This message is no longer valid
+                            llog('granule didnt have enough info %s not found' % range_id)
+                            valid=False
+                            break
+
+
+
+
 
 
 
@@ -204,10 +222,10 @@ class ReplayProcess(BaseReplayProcess):
 
                 else:
                     log.warn('No encoding in the StreamGranuleContainer!')
-
-                self.lock.acquire()
-                self.output.publish(replay_obj_msg)
-                self.lock.release()
+                if valid:
+                    self.lock.acquire()
+                    self.output.publish(replay_obj_msg)
+                    self.lock.release()
 
 
             else:

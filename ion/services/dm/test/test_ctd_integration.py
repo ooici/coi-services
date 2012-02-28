@@ -55,7 +55,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # Set up ingestion
         #---------------------------
         # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
-        log.debug('Calling create_ingestion_configuration')
+
         ingestion_configuration_id = ingestion_management_service.create_ingestion_configuration(
             exchange_point_id='science_data',
             couch_storage=CouchStorage(datastore_name=datastore_name,datastore_profile='SCIDATA'),
@@ -109,7 +109,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
                 }
             }
             procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
-            log.debug('LUKE_DEBUG: procdef_id: %s', procdef_id)
+
             pid = process_dispatcher.schedule_process(process_definition_id=procdef_id, configuration=configuration)
 
 

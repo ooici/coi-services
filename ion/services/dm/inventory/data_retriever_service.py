@@ -7,6 +7,7 @@
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
+from ion.processes.data.replay_process import llog
 from prototype.sci_data.constructor_apis import DefinitionTree, StationDataStreamDefinitionConstructor
 from prototype.sci_data.ctd_stream import ctd_stream_definition
 from pyon.core.exception import BadRequest
@@ -64,26 +65,37 @@ class DataRetrieverService(BaseDataRetrieverService):
             forvery field in fields append the important stuff to the new definition
             """
 
+            def traverse(identifiables,node):
+                '''
+                Recursively traverse the definition for keys with _id and return all the values in a list to append later
+                '''
+                retval = []
+                for key in dir(node):
+                    if key.endswith('_id'):
+                        val = getattr(node,key)
+                        retval.append(val)
+                        if val in identifiables:
+                            r = traverse(identifiables,identifiables[getattr(node,key)])
+                            for i in r:
+                                if i:
+                                    retval.append(i)
+
+                return retval
+
+
             definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
             definition_constructor = StationDataStreamDefinitionConstructor()
-
-            for field in fields:
-                f = definition.identifiables[field]
-                # This is the coverage
-                range = definition.identifiables[f.range_id]
-                field_name = field
-                field_definition = f.definition
-                units = range.unit_of_measure
-                field_units_code = units.code
-                field_range=range.constraint.values
-
-                definition_constructor.define_coverage(
-                    field_name=field_name,
-                    field_definition=field_definition,
-                    field_units_code=field_units_code,
-                    field_range=field_range
-                )
-                definition_container = definition_constructor.stream_definition
+            definition_container = definition_constructor.stream_definition
+            for field_id in fields:
+                # I need to traverse each node looking for _id
+                identifiables = definition.identifiables
+                field = identifiables[field_id]
+                for id in traverse(identifiables, field):
+                    if id not in definition_container.identifiables:
+                        llog('Copying %s' % id)
+                        definition_container.identifiables[id] = identifiables[id]
+                llog('Copying coverage %s' % field_id)
+                definition_container.identifiables[field_id] = field
 
         else:
             definition_container = ctd_stream_definition()
