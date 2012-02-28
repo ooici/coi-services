@@ -1,2 +1,3 @@
-ID,name,description
-I1,Instrument Device 1, this is instrument number 1
+Scenarios,ID,name,description
+LCA,I1,Instrument Device 1, this is instrument number 1
+DEBUG,I2,Instrument Device 2, this is instrument number 2
