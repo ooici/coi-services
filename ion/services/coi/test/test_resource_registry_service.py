@@ -8,7 +8,6 @@ from pyon.core.exception import BadRequest, Conflict, NotFound, Inconsistent
 from pyon.public import IonObject, PRED, RT, LCS, LCE, iex
 from pyon.util.int_test import IonIntegrationTestCase
 
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
 
 @attr('INT', group='coi')
@@ -19,10 +18,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         # Now create client to bank service
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
@@ -186,7 +182,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
             self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_identity_obj_id)
         self.assertTrue(cm.exception.message == "Illegal object type UserIdentity for predicate hasInfo")
 
-        # Create duplicate associations
+        # Create two different association types between the same subject and predicate
         assoc_id1, assoc_rev1 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
         assoc_id2, assoc_rev2 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, "H2R")
 
@@ -197,9 +193,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(len(ret1) == len(ret2) == len(ret3))
         self.assertTrue(ret1[0]._id == ret2[0]._id == ret3[0]._id)
 
-        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, True)
-        ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=True)
-        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=True)
+        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, None, False)
+        ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=False)
+        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=False)
         self.assertTrue(ret1 == ret2 == ret3)
 
         # Search for associations (good cases)
@@ -209,7 +205,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(len(ret1) == len(ret2) == len(ret3))
         self.assertTrue(ret1[0]._id == ret2[0]._id == ret3[0]._id)
 
-        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, read_user_info_obj, True)
+        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, read_user_info_obj, None, True)
         ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=True)
         ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=True)
         self.assertTrue(ret1 == ret2 == ret3)
@@ -332,15 +328,11 @@ class TestResourceRegistry(IonIntegrationTestCase):
             self.resource_registry_service.get_association(user_identity_obj_id, None, user_info_obj)
         self.assertTrue(cm.exception.message == "Object id not available in object")
 
-        with self.assertRaises(Inconsistent) as cm:
-            self.resource_registry_service.get_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(cm.exception.message.startswith("Duplicate associations found for subject/predicate/object"))
-
         # Delete one of the associations
-        self.resource_registry_service.delete_association(assoc_id1)
+        self.resource_registry_service.delete_association(assoc_id2)
 
         assoc = self.resource_registry_service.get_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(assoc._id == assoc_id2)
+        self.assertTrue(assoc._id == assoc_id1)
 
         # Delete (bad cases)
         with self.assertRaises(NotFound) as cm:
@@ -348,7 +340,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message == "Object with id bogus does not exist.")
 
         # Delete other association
-        self.resource_registry_service.delete_association(assoc_id2)
+        self.resource_registry_service.delete_association(assoc_id1)
 
         # Delete resources
         self.resource_registry_service.delete(user_identity_obj_id)

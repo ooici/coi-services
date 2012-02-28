@@ -9,6 +9,9 @@ from pyon.core.exception import BadRequest #, NotFound
 import requests, json
 #from functools import wraps
 
+TAG_FIELD = "Scenarios"
+TAG_DELIM = " " 
+
 
 class PreloadCSV(object):
     
@@ -26,7 +29,7 @@ class PreloadCSV(object):
 
 
     # actual action function to call
-    def preload(self, csv_files):
+    def preload(self, csv_files, tag=None):
         associations_file = None
         resource_ids = {}
         for c in csv_files:
@@ -43,13 +46,13 @@ class PreloadCSV(object):
                     associations_file = c
                 else:
                     #enter now and save ids
-                    resource_ids[b] = self._preload_resources(b, reader)
+                    resource_ids[b] = self._preload_resources(b, reader, tag)
 
         #now that all resources are in, do the associations
         if associations_file:
             with open(associations_file, "rb") as csvfile:
                 associations_reader = self._get_csv_reader(csvfile)
-                self._preload_associations(resource_ids, associations_reader)
+                self._preload_associations(resource_ids, associations_reader, tag)
 
                 
 
@@ -139,7 +142,15 @@ class PreloadCSV(object):
 
         #sys.stderr.write(str(resp) + "\n")
 
-        return resp
+        if "GatewayResponse" not in resp["data"]:
+            if "GatewayError" in resp["data"]:
+                raise BadRequest("%s: %s" % (resp["data"]["GatewayError"]["Exception"], 
+                                             resp["data"]["GatewayError"]["Message"]))
+            else:
+                raise BadRequest("Unknown error object: %s" % str(resp))
+
+
+        return resp["data"]["GatewayResponse"]
 
     def _service_request_template(self):
         return {
@@ -155,7 +166,7 @@ class PreloadCSV(object):
 
     
     # process a csv full of associations.    # TODO: NOT TESTED YET
-    def _preload_associations(self, resource_ids, associations_reader):
+    def _preload_associations(self, resource_ids, associations_reader, desired_tag):
         for row in associations_reader:
             valuesonly = []
             for f in associations_reader.fieldnames:
@@ -186,6 +197,14 @@ class PreloadCSV(object):
             if not pred in PRED:
                 raise BadRequest("Unknown association type '%s'" % pred)
 
+            # with tags, it's possible that the user is not loading all resources.
+            # in that case, the resource ID will be None
+            if desired_tag:
+                if not resource_ids[subj_type][subj_id]:
+                    continue
+                if not resource_ids[obj_type][obj_id]:
+                    continue
+
             # generate the service method that we need
             associate_op = self.call_for_association(subj_type, pred, obj_type)
             
@@ -207,7 +226,7 @@ class PreloadCSV(object):
 
            
 
-    def _preload_resources(self, resource_type, reader):
+    def _preload_resources(self, resource_type, reader, desired_tag):
         if not resource_type in self.lookup_svc:
             raise NotImplementedError("'%s' is not a recognized resource type" % resource_type)
         
@@ -219,6 +238,22 @@ class PreloadCSV(object):
             #store ID and delete it
             friendly_id = row["ID"]
             del row["ID"]            
+
+            # filtering by scenario
+            if TAG_FIELD in row:
+                # no desired tag means all
+                if desired_tag:
+                    #tags are delimited, so split it up
+                    tags = row[TAG_FIELD].split(TAG_DELIM)
+                    
+                    if not desired_tag in tags:
+                        # record the id as having been defined, but don't insert it
+                        ids[friendly_id] = None
+                        continue
+
+                #delete this field
+                del row[TAG_FIELD]
+                    
 
             #load the rest of the params into a dict
             resource_type_params = {}
@@ -241,7 +276,8 @@ class PreloadCSV(object):
                                              create_op,
                                              post_data)
 
-            ids[friendly_id] = response['data']['GatewayResponse']
+
+            ids[friendly_id] = response
 
         return ids
 

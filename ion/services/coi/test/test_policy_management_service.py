@@ -12,7 +12,6 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT, IonObject
 from ion.services.coi.policy_management_service import PolicyManagementService
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceClient
 
 @attr('UNIT', group='coi')
@@ -160,10 +159,7 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         self.policy_management_service = PolicyManagementServiceClient(node=self.container.node)
 

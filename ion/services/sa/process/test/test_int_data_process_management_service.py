@@ -18,7 +18,6 @@ from pyon.util.containers import DotDict
 from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
-from interface.services.icontainer_agent import ContainerAgentClient
 import time
 from pyon.util.int_test import IonIntegrationTestCase
 import unittest
@@ -33,11 +32,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2sa.yml')
 
 
         # Now create client to DataProcessManagementService

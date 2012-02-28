@@ -1,4 +1,3 @@
-from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
@@ -27,10 +26,8 @@ class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
         #print 'started container'
         setattr(self.container, 'ia_mock_quit', False)
 
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
         #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/examples/ia_mock.yml')
+        self.container.start_rel_from_url('res/deploy/examples/ia_mock.yml')
         print 'started services'
 
         self.container_client = container_client
@@ -53,9 +50,7 @@ if __name__ == '__main__':
     print("CC created")
     container.start()
     print("CC started")
-    container_client = ContainerAgentClient(node=container.node, name=container.name)
-    print("CC client created")
-    container_client.start_rel_from_url('res/deploy/examples/ia_mock.yml')
+    container.start_rel_from_url('res/deploy/examples/ia_mock.yml')
     while True:
         if container.ia_mock_quit == True:
             break

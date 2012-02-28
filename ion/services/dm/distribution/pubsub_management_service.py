@@ -19,6 +19,7 @@ from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, S
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
+from pyon.net.transport import NameTrio
 
 # Can't make a couchdb data store here...
 ### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
@@ -27,7 +28,7 @@ from pyon.core import bootstrap # Is the sysname imported correctly in pyon.publ
 class BindingChannel(SubscriberChannel):
 
     def _declare_queue(self, queue):
-        self._recv_name = (self._recv_name[0], '.'.join(self._recv_name))
+        self._recv_name = NameTrio(self._recv_name.exchange, '.'.join((self._recv_name.exchange, self._recv_name.queue)))
 
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -414,12 +415,12 @@ class PubsubManagementService(BasePubsubManagementService):
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
         channel = self.container.node.channel(BindingChannel)
-        channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
+        channel.setup_listener(NameTrio(exchange_point, exchange_name), binding=routing_key)
 
     def _unbind_subscription(self, exchange_point, exchange_name, routing_key):
         channel = self.container.node.channel(BindingChannel)
-        channel._recv_name = (exchange_point, exchange_name)
-        channel._recv_name = (channel._recv_name[0], '.'.join(channel._recv_name))
+        channel._recv_name = NameTrio(exchange_point, exchange_name)
+        channel._recv_name = NameTrio(channel._recv_name.exchange, '.'.join([exchange_point, exchange_name]))
         channel._recv_binding = routing_key
         channel._destroy_binding()
 
