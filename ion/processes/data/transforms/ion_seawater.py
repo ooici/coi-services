@@ -16,7 +16,7 @@ from prototype.sci_data.ctd_stream import scalar_point_stream_definition, ctd_st
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
-from seawater.gibbs import SP_from_cndr, rho_CT25, SA_from_SP, CT_from_t
+from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
 class SalinityTransform(TransformFunction):
@@ -127,9 +127,8 @@ class DensityTransform(TransformFunction):
 
         sa = SA_from_SP(sp, pressure, lon, lat)
 
-        ct = CT_from_t(sa, temperature, pressure)
 
-        dens = rho_CT25(sa, ct, pressure)
+        dens = rho_CT25(sa, temperature, pressure)
 
         log.warn('Got density: %s' % str(dens))
 
