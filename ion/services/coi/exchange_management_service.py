@@ -154,9 +154,9 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_name_id = exchange_name._id        # yes, this should be same, but let's make it look cleaner
 
         # get associated XS first
-        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
+        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id)
         if not len(exchange_space_list) == 1:
-            raise NotFound("Associated Exchange Space to Exchange Point %s does not exist" % exchange_point_id)
+            raise NotFound("Associated Exchange Space to Exchange Name %s does not exist" % exchange_name_id)
 
         exchange_space = exchange_space_list[0]
 
@@ -170,7 +170,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
-        xn = exchange.ExchangeName(self.container.ex_manager, exchange_point.name, xs)              # type doesn't matter here
+        xn = exchange.ExchangeName(self.container.ex_manager, exchange_name.name, xs)              # type doesn't matter here
         self.container.ex_manager.delete_xn(xn, use_ems=False)
 
     def find_exchange_names(self, filters=None):

@@ -10,12 +10,15 @@ from mock import Mock, patch, sentinel
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
+from pyon.net.transport import BaseTransport
+from pyon.util.containers import DotDict
 
 import unittest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT
+from pyon.util.config import CFG
 from ion.services.coi.exchange_management_service import ExchangeManagementService
 
 
@@ -111,6 +114,7 @@ class TestExchangeManagementService(PyonTestCase):
 
 
 @attr('INT', group='coi')
+@patch.dict(CFG, {'container':{'exchange':{'auto_register': True}}})
 class TestExchangeManagementServiceInt(IonIntegrationTestCase):
 
     def setUp(self):
@@ -119,12 +123,15 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
 
         self.ems = self.container.proc_manager.procs_by_name['exchange_management']
 
-        self.rr = ResourceRegistryServiceClient()
+        self.rr = self.container.proc_manager.procs_by_name['resource_registry']
         orglist, _ = self.rr.find_resources(RT.Org)
         if not len(orglist) == 1:
             raise StandardError("Unexpected number of orgs found")
 
         self.org_id = orglist[0]._id
+
+        # we test actual exchange interaction in pyon, so it's fine to mock the broker interaction here
+        self.container.ex_manager = Mock(exchange.ExchangeManager)
 
     def test_xs_create_delete(self):
         exchange_space = ExchangeSpace(name="bobo")
@@ -134,8 +141,8 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         es2 = self.rr.read(esid)
         self.assertEquals(exchange_space.name, es2.name)
 
-        # should have an exchange declared on the broker (how to test)
-        # @TODO
+        # should have an exchange declared on the broker
+        self.container.ex_manager.create_xs.assert_called_once_with('bobo', use_ems=False)
 
         # should have an assoc to an org
         orglist, _ = self.rr.find_subjects(RT.Org, PRED.hasExchangeSpace, esid, id_only=True)
@@ -151,8 +158,9 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         orglist2, _ = self.rr.find_subjects(RT.Org, PRED.hasExchangeSpace, esid, id_only=True)
         self.assertEquals(len(orglist2), 0)
 
-        # should no longer have that exchange declared (how to test)
-        # @TODO
+        # should no longer have that exchange declared
+        self.assertEquals(self.container.ex_manager.delete_xs.call_count, 1)
+        self.assertIn('bobo', self.container.ex_manager.delete_xs.call_args[0][0].exchange) # prefixed with sysname
 
     def test_xs_delete_without_create(self):
         self.assertRaises(NotFound, self.ems.delete_exchange_space, '123')
@@ -176,7 +184,8 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.assertEquals(xslist[0], esid)
 
         # should exist on broker (both xp and xs)
-        # @TODO
+        self.container.ex_manager.create_xs.assert_called_once_with('doink', use_ems=False)
+        self.assertIn('hammer', self.container.ex_manager.create_xp.call_args[0])
 
         self.ems.delete_exchange_point(epid)
         self.ems.delete_exchange_space(esid)
@@ -189,7 +198,6 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.assertEquals(len(xslist2), 0)
 
         # should no longer exist on broker (both xp and xs)
-        # @TODO
 
     def test_xp_create_then_delete_xs(self):
 
@@ -217,7 +225,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
     def test_xs_create_update(self):
         raise unittest.SkipTest("Test not implemented yet")
 
-    def test_xn_declare(self):
+    def test_xn_declare_and_undeclare(self):
 
         # xn needs an xs first
         exchange_space = ExchangeSpace(name="bozo")
@@ -235,20 +243,15 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.assertEquals(len(xnlist), 1)
         self.assertEquals(xnlist[0], esid)
 
-        # container API got called (but is a noop)
-
-        # TEST ONLY: have to clean up the xs or we leave junk on the broker
-        self.ems.delete_exchange_space(esid)
+        # container API got called, will have declared a queue
+        self.ems.undeclare_exchange_name(enid)      # canonical name = xn id in current impl
 
     def test_xn_declare_no_xs(self):
         exchange_name = ExchangeName(name="shoez", xn_type='XN_PROCESS')
         self.assertRaises(NotFound, self.ems.declare_exchange_name, exchange_name, '11')
 
     def test_xn_undeclare_without_declare(self):
-        raise unittest.SkipTest("Undeclare exchange name not implemented yet")
-
-    def test_xn_declare_and_undeclare(self):
-        raise unittest.SkipTest("Undeclare exchange name not implemented yet")
+        self.assertRaises(NotFound, self.ems.undeclare_exchange_name, 'some_non_id')
 
     def test_xn_declare_then_delete_xs(self):
 
@@ -265,3 +268,42 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         # no longer should have assoc from XS to XN
         xnlist, _ = self.rr.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, enid, id_only=True)
         self.assertEquals(len(xnlist), 0)
+
+
+@attr('INT', group='coi')
+class TestContainerExchangeToEms(IonIntegrationTestCase):
+    # these tests should auto contact the EMS to do the work
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+
+        self.ems = self.container.proc_manager.procs_by_name['exchange_management']
+        self.rr = self.container.proc_manager.procs_by_name['resource_registry']
+
+        # we want the ex manager to do its thing, but without actual calls to broker
+        # just mock out the transport
+        self.container.ex_manager._transport = Mock(BaseTransport)
+
+    @patch.dict(CFG, {'container':{'exchange':{'auto_register': True}}})
+    def test_create_xs_talks_to_ems(self):
+
+        self.container.ex_manager.create_xs('house')
+
+        # should have called EMS and set RR items
+        res, _ = self.rr.find_resources(RT.ExchangeSpace, name='house')
+        self.assertEquals(res[0].name, 'house')
+
+        # should have tried to call broker as well
+        self.assertEquals(self.container.ex_manager._transport.declare_exchange_impl.call_count, 1)
+        self.assertIn('house', self.container.ex_manager._transport.declare_exchange_impl.call_args[0][1])
+
+    @patch.dict(CFG, {'container':{'exchange':{'auto_register': False}}})
+    def test_create_xs_with_no_flag_only_uses_ex_manager(self):
+
+        self.container.ex_manager.create_xs('house')
+        e1,e2 = self.rr.find_resources(RT.ExchangeSpace, name='house')
+        self.assertEquals(e1, [])
+        self.assertEquals(e2, [])
+        self.assertEquals(self.container.ex_manager._transport.declare_exchange_impl.call_count, 1)
+        self.assertIn('house', self.container.ex_manager._transport.declare_exchange_impl.call_args[0][1])
+
