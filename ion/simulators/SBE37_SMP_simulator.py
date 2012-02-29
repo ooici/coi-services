@@ -252,7 +252,7 @@ class sbe37(asyncore.dispatcher_with_send):
                             (int(command_args[1][2:4]) < 13) and
                             (int(command_args[1][0:2]) > 0) and
                             (int(command_args[1][0:2]) < 32)):
-                            self.date=command_args[1][2:4] + command_args[0][0:2] + command_args[0][4:6]
+                            self.date=command_args[1][2:4] + command_args[1][0:2] + command_args[1][4:6]
                         else:
                             self.send_data("***DATE RANGE ERROR***" + command_args[1] + "\r\n", 'ddmmyy line 1')
                     except ValueError:
