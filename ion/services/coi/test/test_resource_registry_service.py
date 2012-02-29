@@ -5,7 +5,7 @@ __author__ = 'Michael Meisinger, Thomas Lennan'
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, NotFound, Inconsistent
-from pyon.public import IonObject, PRED, RT, LCS, LCE, iex
+from pyon.public import IonObject, PRED, RT, LCS, LCE, iex, log
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
@@ -92,29 +92,33 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message.startswith("Object with id"))
            
     def test_lifecycle(self):
-        att = IonObject("Attachment", name='mine', description='desc')
+        att = IonObject("InstrumentDevice", name='mine', description='desc')
 
         rid,rev = self.resource_registry_service.create(att)
 
         att1 = self.resource_registry_service.read(rid)
         self.assertEquals(att1.name, att.name)
-        self.assertEquals(att1.lcstate, LCS.DRAFT)
+        self.assertEquals(att1.lcstate, LCS.DRAFT_PRIVATE)
 
-        new_state = self.resource_registry_service.execute_lifecycle_transition(rid, LCE.register)
-        self.assertEquals(new_state, LCS.PLANNED)
+        new_state = self.resource_registry_service.execute_lifecycle_transition(rid, LCE.PLAN)
+        self.assertEquals(new_state, LCS.PLANNED_PRIVATE)
 
         att2 = self.resource_registry_service.read(rid)
-        self.assertEquals(att2.lcstate, LCS.PLANNED)
+        self.assertEquals(att2.lcstate, LCS.PLANNED_PRIVATE)
 
-        with self.assertRaises(Inconsistent) as cm:
-            self.resource_registry_service.execute_lifecycle_transition(rid, LCE.register)
-        self.assertTrue("type=Attachment, lcstate=PLANNED has no transition for event register" in cm.exception.message)
+        with self.assertRaises(BadRequest) as cm:
+            self.resource_registry_service.execute_lifecycle_transition(rid, LCE.UNANNOUNCE)
+        self.assertTrue("type=InstrumentDevice, lcstate=PLANNED_PRIVATE has no transition for event unannounce" in cm.exception.message)
 
-        new_state = self.resource_registry_service.execute_lifecycle_transition(rid, LCE.develop, LCS.PLANNED)
-        self.assertEquals(new_state, LCS.DEVELOPED)
+        new_state = self.resource_registry_service.execute_lifecycle_transition(rid, LCE.DEVELOP)
+        self.assertEquals(new_state, LCS.DEVELOPED_PRIVATE)
 
-        self.assertRaises(iex.Inconsistent, self.resource_registry_service.execute_lifecycle_transition,
-                                            resource_id=rid, transition_event=LCE.develop, current_lcstate=LCS.PLANNED)
+        self.assertRaises(iex.BadRequest, self.resource_registry_service.execute_lifecycle_transition,
+                                            resource_id=rid, transition_event='NONE##')
+
+        self.resource_registry_service.set_lifecycle_state(rid, LCS.INTEGRATED_PRIVATE)
+        att1 = self.resource_registry_service.read(rid)
+        self.assertEquals(att1.lcstate, LCS.INTEGRATED_PRIVATE)
 
     def test_association(self):
         # Instantiate UserIdentity object
@@ -355,17 +359,17 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(len(ret[0]) == 0)
 
         # Instantiate an object
-        obj = IonObject("UserInfo", name="name")
+        obj = IonObject("InstrumentDevice", name="name")
         
         # Persist object and read it back
         obj_id, obj_rev = self.resource_registry_service.create(obj)
         read_obj = self.resource_registry_service.read(obj_id)
 
-        ret = self.resource_registry_service.find_resources(RT.UserInfo, None, "name", False)
+        ret = self.resource_registry_service.find_resources(RT.InstrumentDevice, None, "name", False)
         self.assertTrue(len(ret[0]) == 1)
         self.assertTrue(ret[0][0]._id == read_obj._id)
 
-        ret = self.resource_registry_service.find_resources(RT.UserInfo, LCS.DRAFT, None, False)
+        ret = self.resource_registry_service.find_resources(RT.InstrumentDevice, LCS.DRAFT, None, False)
         self.assertTrue(len(ret[0]) == 1)
         self.assertTrue(ret[0][0]._id == read_obj._id)
 

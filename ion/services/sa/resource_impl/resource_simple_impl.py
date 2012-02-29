@@ -54,7 +54,8 @@ class ResourceSimpleImpl(ResourceImpl):
         @param obj_id an object id
         @param obj the object itself (not needed in this case)
         """
-        self.advance_lcs(obj_id, LCS.AVAILABLE)
+        # Note MM: Some resources do not have a LC state anymore
+        #self.advance_lcs(obj_id, LCS.AVAILABLE)
 
         return
 

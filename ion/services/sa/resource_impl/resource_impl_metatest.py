@@ -703,4 +703,4 @@ class ResourceImplMetatest(object):
         gen_test_find()
         gen_tests_associations()
         gen_tests_associated_finds()
-        gen_tests_advance_lcs()
+        #gen_tests_advance_lcs()
