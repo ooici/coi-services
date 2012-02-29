@@ -24,6 +24,7 @@ from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverChannel
+from ion.services.mi.instrument_driver import DriverState, ConnectionState
 
 import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
@@ -166,6 +167,8 @@ class MyDriver(InstrumentDriver):
             params_per_channel = self.instrument_parameters.list()
             protocol = MyProtocol(channel, params_per_channel,
                                   self.protocol_callback)
+            protocol._fsm = Mock()
+            protocol._fsm.get_current_state = Mock(return_value=DriverState.UNCONFIGURED)
             self.chan_map[channel] = protocol
 
 
@@ -396,3 +399,19 @@ class DriverTest(unittest.TestCase):
                                                        "BAD_CHANNEL"])
         self.assertEquals(bad, {"BAD_CHANNEL": InstErrorCode.INVALID_CHANNEL})
         self.assertEquals(good, [Channel.CHAN1])
+
+    def test_connect_disconnect(self):
+        """Test state change when connecting and disconnecting"""
+        result = self.driver.get_current_state()
+        mi_logger.debug("*** initial state result: %s", result)
+        self.assertEquals(result[DriverChannel.INSTRUMENT], DriverState.UNCONFIGURED)
+
+        self.driver.chan_map[DriverChannel.INSTRUMENT].connect = Mock(return_value = 12)
+        result = self.driver.connect()
+        result = self.driver.get_current_state()
+        # Verify we hit the protocol since we are "connected"
+        self.assertEquals(result[DriverChannel.INSTRUMENT], DriverState.UNCONFIGURED)
+        result = self.driver.disconnect()
+        result = self.driver.get_current_state()
+        # driver FSM should intercept
+        self.assertEquals(result[DriverChannel.INSTRUMENT], ConnectionState.DISCONNECTED)

@@ -25,10 +25,9 @@ class InstrumentFSM():
 
         @param states The list of states that the FSM handles
         @param events The list of events that the FSM handles
-        @param state_handlers A dict of which state maps to which handling
-        routine
         @param enter_event The event that indicates a state is being entered
         @param exit_event The event that indicates a state is being exited
+        @param err_unhandled The error code to return on unhandled event
         """
         self.states = states
         self.events = events

@@ -280,7 +280,8 @@ class InstrumentProtocol(object):
         # TODO harmonize the concepts "driver state" and "protocol state"
         # -- these are not clearly separated, if that's what we should do.
         #
-        pass
+        # By default, get the current state
+        return self._fsm.get_current_state()
 
     ########################################################################
     # Helper methods

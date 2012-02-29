@@ -13,11 +13,12 @@ __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 import logging
-from ion.services.mi.common import BaseEnum
-from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import BaseEnum, InstErrorCode
 from ion.services.mi.exceptions import InstrumentConnectionException 
 from ion.services.mi.exceptions import RequiredParameterException 
 from ion.services.mi.common import DEFAULT_TIMEOUT
+from ion.services.mi.instrument_fsm_args import InstrumentFSM
+
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -45,7 +46,6 @@ class DriverCommand(BaseEnum):
     GET_METADATA = 'DRIVER_CMD_GET_METADATA'
     UPDATE_PARAMS = 'DRIVER_CMD_UPDATE_PARAMS'
     TEST_ERRORS = 'DRIVER_CMD_TEST_ERRORS'    
-
 
 class DriverState(BaseEnum):
     """Common driver state enum"""
@@ -128,6 +128,19 @@ class ObservatoryState(BaseEnum):
     ACQUIRING = 'OBSERVATORY_STATUS_ACQUIRING'
     UNKNOWN = 'OBSERVATORY_STATUS_UNKNOWN'
 
+class ConnectionState(BaseEnum):
+    CONNECTED = 'CONNECTION_STATE_CONNECTED'
+    CONNECTIING = 'CONNECTION_STATE_CONNECTING'
+    DISCONNECTED = 'CONNECTION_STATE_DISCONNECTED'
+    DISCONNECTING = 'CONNECTION_STATE_DISCONNECTING'
+    UNKNOWN = 'CONNECTION_STATE_UNKNOWN'
+    
+class ConnectionEvent(BaseEnum):
+    CONNECT = 'CONNECTION_EVENT_CONNECT'
+    DISCONNECT = 'CONNECTION_EVENT_DISCONNECT'
+    ENTER_STATE = 'CONNECTION_EVENT_ENTER'
+    EXIT_STATE = 'CONNECTION_EVENT_EXIT'
+    
 """
 TODO:
 Do we want timeouts in the driver interface. timeout=DEFAULT_TIMEOUT.
@@ -179,6 +192,9 @@ class InstrumentDriver(object):
         """A list of the active states found in the BaseEnum-derived state
         class"""
         
+        self.state_map = None
+        """An optional mapping of specific driver states to DriverState enums"""
+        
         # Below are old members with comments from EH.
         #
         # Protocol will create and own the connection it fronts.
@@ -216,8 +232,26 @@ class InstrumentDriver(object):
         # at driver level if there are multiple connections. If one connection,
         # one state machine.
         # Setup the state machine
+        
+        self.connection_fsm = InstrumentFSM(ConnectionState, ConnectionEvent,
+                                        ConnectionEvent.ENTER_STATE,
+                                        ConnectionEvent.EXIT_STATE,
+                                        InstErrorCode.UNHANDLED_EVENT)
+        self.connection_fsm.add_handler(ConnectionState.DISCONNECTED,
+                                    ConnectionEvent.CONNECT,
+                                    self._handler_disconnected_connect)
+        self.connection_fsm.add_handler(ConnectionState.CONNECTED,
+                                    ConnectionEvent.DISCONNECT,
+                                    self._handler_connected_disconnect)
+        self.connection_fsm.add_handler(ConnectionState.UNKNOWN,
+                                    ConnectionEvent.CONNECT,
+                                    self._handler_unknown_connect)
+        self.connection_fsm.add_handler(ConnectionState.UNKNOWN,
+                                    ConnectionEvent.DISCONNECT,
+                                    self._handler_unknown_disconnect)
+        self.connection_fsm.start(ConnectionState.UNKNOWN)
+                              
         """
-        self.driver_fsm = FSM(DriverState.UNCONFIGURED)
         self.driver_fsm.add_transition(DriverEvent.CONFIGURE,
                                        DriverState.UNCONFIGURED,
                                        action=self._handle_configure,
@@ -329,16 +363,24 @@ class InstrumentDriver(object):
         indicated in the keys of the configs dict.
         @param configs A dict containing channel name keys, with
         dict values containing the comms configuration for the named channel.
+        @retval Dict of channels and configure outputs
+        @throws RequiredParameterException On missing parameters in config
         """
+        assert isinstance(configs, dict)
+
+        mi_logger.debug("Issuing base configure...")
 
         channels = configs.keys()
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
 
-        (result, valid_channels) = self._check_channel_args(channels)
+            for channel in valid_channels:
+                config = configs[channel]
+                result[channel] = self.chan_map[channel].configure(
+                        config, *args, **kwargs)
 
-        for channel in valid_channels:
-            config = configs[channel]
-            result[channel] = self.chan_map[channel].configure(config,
-                                                               *args, **kwargs)
+        except (RequiredParameterException, TypeError):
+            result = InstErrorCode.REQUIRED_PARAMETER
 
         return result
 
@@ -347,14 +389,23 @@ class InstrumentDriver(object):
         Establish communications with the given device channels.
         @param channels List of channel names to connect, by default
                         [DriverChannel.INSTRUMENT]
+        @retval Dict of channels and configure outputs
+        @throws RequiredParameterException on missing connection parameter
         """
 
         channels = channels or [DriverChannel.INSTRUMENT]
 
-        (result, valid_channels) = self._check_channel_args(channels)
+        mi_logger.debug("Issuing base connect...")
+        try:
+            (result, valid_channels) = self._check_channel_args(channels)
 
-        for channel in valid_channels:
-            result[channel] = self.chan_map[channel].connect(*args, **kwargs)
+            for channel in valid_channels:
+                result[channel] = self.chan_map[channel].connect(*args,
+                                                                 **kwargs)
+
+            self.connection_fsm.on_event(ConnectionEvent.CONNECT)
+        except RequiredParameterException:
+            result = InstErrorCode.REQUIRED_PARAMETER
 
         return result
 
@@ -364,8 +415,10 @@ class InstrumentDriver(object):
         @param channels List of channel names to disconnect, by default
                         [DriverChannel.INSTRUMENT]
         """
-
         channels = channels or [DriverChannel.INSTRUMENT]
+
+        mi_logger.debug("Issuing empty disconnect...")
+        self.connection_fsm.on_event(ConnectionEvent.DISCONNECT)
 
         (result, valid_channels) = self._check_channel_args(channels)
 
@@ -383,6 +436,8 @@ class InstrumentDriver(object):
         """
 
         channels = channels or [DriverChannel.INSTRUMENT]
+
+        mi_logger.debug("Issuing empty detach...")
 
         (result, valid_channels) = self._check_channel_args(channels)
 
@@ -542,17 +597,25 @@ class InstrumentDriver(object):
         
         @param channels A list of the channels of interest, values from the
         specific driver's channel enumeration list. Default is DriverChannel.INSTRUMENT
-        @retval result A dict of {channel_name:state}
+        @retval result A dict of {channel_name:state}. If disconnected,
+        {DriverChannel.INSTRUMENT:ConnectionState.DISCONNECTED
         @throws RequiredParameterException When a parameter is missing
         """
+
         if (channels == None):
-            channels = DriverChannel.INSTRUMENT
-            
+            channels = [DriverChannel.INSTRUMENT]
+        
         (result, valid_channels) = self._check_channel_args(channels)
+        if self.connection_fsm.get_current_state() == ConnectionState.DISCONNECTED:
+            return {DriverChannel.INSTRUMENT:ConnectionState.DISCONNECTED}
 
         for channel in valid_channels:
             result[channel] = self.chan_map[channel].get_current_state()
 
+            # lookup the driver state if there is a mapping
+            if (self.state_map):
+                result[channel] = self.state_map[result[channel]]
+                
         return result
     
     ########################################################################
@@ -782,59 +845,21 @@ class InstrumentDriver(object):
 
         return (result, valid_params)
 
-    ######################
+    #######################
     # State change handlers
     #######################
-    #def _handle_configure(self):
-    #    """State change handler"""
-    #
-    #def _handle_initialize(self):
-    #    """State change handler"""
-    #
-    #def _handle_disconnect_failure(self):
-    #    """State change handler"""
-    #
-    #def _handle_disconnect_success(self):
-    #    """State change handler"""
-    #
-    #def _handle_disconnect(self):
-    #    """State change handler"""
-    #
-    #def _handle_connect(self):
-    #    """State change handler"""
-    #
-    #def _handle_connect_success(self):
-    #    """State change handler"""
-    #
-    #def _handle_connect_failed(self):
-    #    """State change handler"""
-    #
-    #def _handle_start_autosample(self):
-    #    """State change handler"""
-    #
-    #def _handle_stop_autosample(self):
-    #    """State change handler"""
-    #
-    #def _handle_connection_lost(self):
-    #    """State change handler"""
-    #
-    #def _handle_reset(self):
-    #    """State change handler"""
-    #
-    #def _handle_handle_data_received(self):
-    #    """State change handler"""
-    #    
-    #def _handle_handle_get(self):
-    #    """State change handler"""
-    #    
-    #def _handle_handle_set(self):
-    #    """State change handler"""
-    #
-    #def _handle_handle_acquire_sample(self):
-    #    """State change handler"""
-    #    
-    #def _handle_handle_test(self):
-    #    """State change handler"""
-    #
-    #def _handle_handle_calibrate(self):
-    #    """State change handler"""  
+    def _handler_connected_disconnect(self, *args, **kwards):
+        """Handle connected state with disconnect event"""
+        return (ConnectionState.DISCONNECTED, None)
+        
+    def _handler_disconnected_connect(self, *args, **kwards):
+        """Handle connected state with disconnect event"""
+        return(ConnectionState.CONNECTED, None)
+        
+    def _handler_unknown_disconnect(self, *args, **kwards):
+        """Handle connected state with disconnect event"""
+        return (ConnectionState.DISCONNECTED, None)
+        
+    def _handler_unknown_connect(self, *args, **kwards):
+        """Handle connected state with disconnect event"""
+        return(ConnectionState.CONNECTED, None)

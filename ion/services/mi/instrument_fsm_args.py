@@ -86,12 +86,16 @@ class InstrumentFSM():
         @param params Optional parameters to be sent with the event to the
             handler.
         @retval result from the handler executed by the current state/event pair.
-        @throw InstrumentProtocolException
+        @throw InstrumentProtocolException when used in a protocol context
         @throw InstrumentTimeoutException
+        @throw InstrumentException when an unstarted FSM is being used
         """        
         next_state = None
         result = None
         
+        if self.current_state == None:
+            raise InstrumentException(InstErrorCode.INVALID_TRANSITION,
+                                      "FSM not started!")
         if self.events.has(event):
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:

@@ -258,49 +258,49 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
 
     def _initialize(self):
         reply = self.driver_client.cmd_dvr('initialize', [Channel.INSTRUMENT])
-        print("*** initialize reply=%s" % str(reply))
+        mi_logger.debug("*** initialize reply=%s" % str(reply))
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
-        print("*** get_current_state reply=%s" % str(reply))
-        self.assertEqual(DriverState.UNCONFIGURED, reply)
+        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual({Channel.INSTRUMENT:DriverState.UNCONFIGURED}, reply)
         time.sleep(1)
 
     def _connect(self):
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
-        print("*** get_current_state reply=%s" % str(reply))
-        self.assertEqual(DriverState.UNCONFIGURED, reply)
+        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual({Channel.INSTRUMENT:DriverState.UNCONFIGURED}, reply)
 
         self._initialize()
 
-        configs = {Channel.INSTRUMENT: self.config}
+        configs = {Channel.INSTRUMENT: self.config_params}
         reply = self.driver_client.cmd_dvr('configure', configs)
-        print("*** configure reply=%s" % str(reply))
+        mi_logger.debug("*** configure reply=%s" % str(reply))
 
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
-        print("*** get_current_state reply=%s" % str(reply))
+        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
 
         reply = self.driver_client.cmd_dvr('connect', [Channel.INSTRUMENT])
-        print("** connect reply=%s" % str(reply))
+        mi_logger.debug("** connect reply=%s" % str(reply))
 
         time.sleep(1)
 
-        reply = self.driver_client.cmd_dvr('get_current_state')
-        print("*** get_current_state reply=%s" % str(reply))
-        self.assertEqual(DriverState.AUTOSAMPLE, reply)
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
 
         time.sleep(1)
 
         reply = self.driver_client.cmd_dvr('get_status', [Channel.INSTRUMENT])
-        print("** get_status reply=%s" % str(reply))
-        self.assertEqual(DriverState.AUTOSAMPLE, reply)
+        mi_logger.debug("** get_status reply=%s" % str(reply))
+        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
 
         time.sleep(1)
 
     def _disconnect(self):
         reply = self.driver_client.cmd_dvr('disconnect', [Channel.INSTRUMENT])
-        print("*** disconnect reply=%s" % str(reply))
+        mi_logger.debug("*** disconnect reply=%s" % str(reply))
         reply = self.driver_client.cmd_dvr('get_current_state')
-        print("*** get_current_state reply=%s" % str(reply))
-        self.assertEqual(DriverState.DISCONNECTED, reply)
+        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
+        self.assertEqual({Channel.INSTRUMENT:DriverState.DISCONNECTED}, reply)
         time.sleep(1)
 
         self._initialize()
