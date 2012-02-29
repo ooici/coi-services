@@ -60,7 +60,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
 
         # Associate the StreamDefinition with the Stream
-        self.clients.resource_registry.create_association(stream_id,  PRED.hasStreamDefinition, stream_definition_id)
+        if stream_definition_id:
+            self.clients.resource_registry.create_association(stream_id,  PRED.hasStreamDefinition, stream_definition_id)
 
         # Return a resource ref to the new data product
         return data_product_id
