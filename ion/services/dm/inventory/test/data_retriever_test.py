@@ -259,14 +259,17 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             datastore_name='test_replay',
             view_name='datasets/dataset_by_id'
         )
-        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature']})
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature','pressure']})
 
 
         xs = '.'.join([bootstrap.get_sys_name(),'science_data'])
-        queue = gevent.queue.Queue()
+        results = []
+        result = gevent.event.AsyncResult()
 
         def dump(m,h):
-            queue.put(1)
+            results.append(1)
+            if len(results)==3:
+                result.set(True)
 
         subscriber = Subscriber(name=(xs,'test_replay'), callback=dump)
         g = gevent.Greenlet(subscriber.listen, binding='%s.data' % stream_id)
@@ -275,7 +278,4 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         time.sleep(1) # let the subscriber catch up
 
         dr_cli.start_replay(replay_id=replay_id)
-
-        time.sleep(3)
-        size = queue.qsize()
-        assertions(size==3,'Replay did not replay enough messages (%d) ' % size)
+        assertions(result.get(timeout=3),'Replay did not replay enough messages (%d) ' % len(results))

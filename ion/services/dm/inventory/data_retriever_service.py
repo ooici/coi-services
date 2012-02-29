@@ -86,6 +86,9 @@ class DataRetrieverService(BaseDataRetrieverService):
             definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
             definition_constructor = StationDataStreamDefinitionConstructor()
             definition_container = definition_constructor.stream_definition
+            llog('Before')
+            llog('%s' % definition_container.identifiables.keys())
+
             for field_id in fields:
                 # I need to traverse each node looking for _id
                 identifiables = definition.identifiables
@@ -96,6 +99,8 @@ class DataRetrieverService(BaseDataRetrieverService):
                         definition_container.identifiables[id] = identifiables[id]
                 llog('Copying coverage %s' % field_id)
                 definition_container.identifiables[field_id] = field
+            llog('After')
+            llog('%s' % definition_container.identifiables.keys())
 
         else:
             definition_container = ctd_stream_definition()

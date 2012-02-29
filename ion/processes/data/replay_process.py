@@ -150,6 +150,7 @@ class ReplayProcess(BaseReplayProcess):
                 # Get number of records
                 record_count_id = DefinitionTree.get(self.definition,'%s.element_count_id' % self.definition.data_stream_id)
                 record_count = replay_obj_msg.identifiables[record_count_id].value
+                llog('----------------------------')
                 llog('Records: %d' % record_count)
 
                 for key, identifiable in replay_obj_msg.identifiables.iteritems():
