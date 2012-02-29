@@ -75,26 +75,26 @@ class ctd_L0_all(TransformDataProcess):
 
 
         # Use the constructor to put data into a granule
-        psc_conductivity = PointSupplementConstructor(stream_id="my_stream_id_conduct", point_definition=self.outgoing_stream_conductivity)
-
-        psc_pressure = PointSupplementConstructor(stream_id="my_stream_id_conduct", point_definition=self.outgoing_stream_pressure)
-
-        psc_temperature = PointSupplementConstructor(stream_id="my_stream_id_conduct", point_definition=self.outgoing_stream_temperature)
-
-        for i in xrange(len(conductivity)):
-            point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
-        self.conductivity.publish(psc_conductivity.close_stream_granule())
-
-        for i in xrange(len(pressure)):
-            point_id = psc_pressure.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
-        self.conductivity.publish(psc_pressure.close_stream_granule())
-
-        for i in xrange(len(temperature)):
-            point_id = psc_temperature.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
-        self.conductivity.publish(psc_temperature.close_stream_granule())
+#        psc_conductivity = PointSupplementConstructor(stream_id="my_stream_id_conduct", point_definition=self.outgoing_stream_conductivity)
+#
+#        psc_pressure = PointSupplementConstructor(stream_id="my_stream_id_conduct", point_definition=self.outgoing_stream_pressure)
+#
+#        psc_temperature = PointSupplementConstructor(stream_id="my_stream_id_conduct", point_definition=self.outgoing_stream_temperature)
+#
+#        for i in xrange(len(conductivity)):
+#            point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+#            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
+#        self.conductivity.publish(psc_conductivity.close_stream_granule())
+#
+#        for i in xrange(len(pressure)):
+#            point_id = psc_pressure.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+#            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
+#        self.conductivity.publish(psc_pressure.close_stream_granule())
+#
+#        for i in xrange(len(temperature)):
+#            point_id = psc_temperature.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+#            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
+#        self.conductivity.publish(psc_temperature.close_stream_granule())
 
         return
 
