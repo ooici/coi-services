@@ -209,10 +209,13 @@ class OrgManagementService(BaseOrgManagementService):
         return role
 
 
-    def _find_role(self, org_id='', name=MEMBER_ROLE):
+    def _find_role(self, org_id='', name=''):
 
         if not org_id:
             raise BadRequest("The org_id parameter is missing")
+
+        if not name:
+            raise BadRequest("The name parameter is missing")
 
         org_roles = self.find_org_roles(org_id)
         for role in org_roles:
@@ -238,6 +241,7 @@ class OrgManagementService(BaseOrgManagementService):
             raise NotFound("Org %s does not exist" % org_id)
 
         role_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRole, RT.UserRole)
+
         return role_list
 
 
@@ -412,9 +416,13 @@ class OrgManagementService(BaseOrgManagementService):
         if not user_id:
             raise BadRequest("The user_id parameter is missing")
 
-        user = self.clients.policy_management.read_role(user_id)
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
         if not user:
-            raise NotFound("User  %s does not exist" % user_id)
+            raise NotFound("User %s does not exist" % user_id)
+
 
         ret_list = []
 
@@ -435,13 +443,14 @@ class OrgManagementService(BaseOrgManagementService):
 
 
 
-    def grant_role(self, org_id='', user_id='', user_role_id='', scope=None):
-        """Grants a defined role within an organization to a specific user. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
+    def grant_role(self, org_id='', user_id='', role_name='', scope=None):
+        """Grants a defined role within an organization to a specific user. A role of Member is
+        automatically implied with successfull enrollment. Will throw a not NotFound exception
+        if none of the specified ids or role_name does not exist.
 
         @param org_id    str
         @param user_id    str
-        @param user_role_id    str
+        @param role_name    str
         @param scope    RoleScope
         @retval success    bool
         @throws NotFound    object with specified id does not exist
@@ -456,19 +465,19 @@ class OrgManagementService(BaseOrgManagementService):
         if not user_id:
             raise BadRequest("The user_id parameter is missing")
 
-        user = self.clients.policy_management.read_role(user_id)
+        user = self.clients.resource_registry.read(user_id)
+
         if not user:
-            raise NotFound("User  %s does not exist" % user_id)
+            raise NotFound("User %s does not exist" % user_id)
 
-        if not user_role_id:
-            raise BadRequest("The user_role_id parameter is missing")
+        if not role_name:
+            raise BadRequest("The role_name parameter is missing")
 
-        user_role = self.clients.policy_management.read_role(user_role_id)
-        if not user_role:
-            raise NotFound("User Role %s does not exist" % user_role_id)
+        user_role = self._find_role(org_id, role_name)
+        if user_role is None:
+            raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
 
-
-        #First make sure the user is enrolled with the Org
+        #First make sure the user is enrolled with the Org  TODO - replace with external policy
         if not self.is_enrolled(org_id, user_id):
             raise BadRequest("The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
@@ -491,13 +500,13 @@ class OrgManagementService(BaseOrgManagementService):
         return True
 
 
-    def revoke_role(self, org_id='', user_id='', user_role_id=''):
-        """Revokes a defined role within an organization to a specific user. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
+    def revoke_role(self, org_id='', user_id='', role_name=''):
+        """Revokes a defined Role within an organization to a specific user. Will throw a not NotFound exception
+        if none of the specified ids or role_name does not exist.
 
         @param org_id    str
         @param user_id    str
-        @param user_role_id    str
+        @param role_name    str
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
@@ -513,28 +522,28 @@ class OrgManagementService(BaseOrgManagementService):
         if not user_id:
             raise BadRequest("The user_id parameter is missing")
 
-        user = self.clients.policy_management.read_role(user_id)
+        user = self.clients.resource_registry.read(user_id)
         if not user:
-            raise NotFound("User  %s does not exist" % user_id)
+            raise NotFound("User %s does not exist" % user_id)
 
-        if not user_role_id:
-            raise BadRequest("The user_role_id parameter is missing")
+        if not role_name:
+            raise BadRequest("The role_name parameter is missing")
 
-        user_role = self.clients.policy_management.read_role(user_role_id)
-        if not user_role:
-            raise NotFound("User Role %s does not exist" % user_role_id)
+        user_role = self._find_role(org_id, role_name)
+        if user_role is None:
+            raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
 
 
         return _delete_role_association(user, user_role)
 
 
     def find_roles_by_user(self, org_id='', user_id=''):
-        """Returns a list of organization roles for a specific user. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
+        """Returns a list of User Roles for a specific user in an Org.
+        Will throw a not NotFound exception if either of the IDs do not exist.
 
         @param org_id    str
         @param user_id    str
-        @retval user_role_list    []
+        @retval user_role_list    list
         @throws NotFound    object with specified id does not exist
         """
 
@@ -548,15 +557,16 @@ class OrgManagementService(BaseOrgManagementService):
         if not user_id:
             raise BadRequest("The user_id parameter is missing")
 
-        user = self.clients.policy_management.read_role(user_id)
+        user = self.clients.resource_registry.read(user_id)
         if not user:
-            raise NotFound("User  %s does not exist" % user_id)
+            raise NotFound("User %s does not exist" % user_id)
 
-        #First make sure the user is enrolled with the Org
+
+        #First make sure the user is enrolled with the Org  - TODO - Replace with policy
         if not self.is_enrolled(org_id, user_id):
             raise BadRequest("The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
-        role_list,_ = self.clients.resource_registry.find_objects(user_id, PRED.hasRole, RT.UserRole)
+        role_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRole, RT.UserRole)
 
         #Because a user is enrolled with an Org then the membership role is implied - so add it to the list
         member_role = self._find_role(org_id, MEMBER_ROLE)
@@ -568,7 +578,32 @@ class OrgManagementService(BaseOrgManagementService):
         return role_list
 
 
+    def find_all_roles_by_user(self, user_id=''):
+        """Returns a list of all User Roles roles by Org associated with the specified user.
+        Will throw a not NotFound exception if either of the IDs do not exist.
 
+        @param user_id    str
+        @retval user_roles_by_org    dict
+        @throws NotFound    object with specified id does not exist
+        """
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+        ret_val = dict()
+
+        org_list = self.find_enrolled_orgs(user_id)
+
+        #Membership with the ION Root Org is implied thrgoun
+        for org in org_list:
+            role_list = self.find_roles_by_user(org._id,user_id)
+            ret_val[org.name] = role_list
+
+        return ret_val
 
     def enroll_member(self, org_id='', user_id=''):
         """Enrolls a specified user into the specified Org so that they may find and negotiate to use resources
@@ -701,6 +736,29 @@ class OrgManagementService(BaseOrgManagementService):
 
         return user_list
 
+    def find_enrolled_orgs(self, user_id=''):
+        """Returns a list of Orgs that the user is enrolled in. Will throw a not NotFound exception
+        if none of the specified ids do not exist.
+
+        @param user_id    str
+        @retval org_list    list
+        @throws NotFound    object with specified id does not exist
+        """
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+        org_list,_ = self.clients.resource_registry.find_subjects(RT.Org,PRED.hasMembership, user )
+
+        #Membership into the Root ION Org is implied as part of registration
+        ion_org = self.find_org()
+        org_list.append(ion_org)
+
+        return org_list
 
     def has_permission(self, org_id='', user_id='', action_id='', resource_id=''):
         """Returns a boolean of the specified user has permission for the specified action on a specified resource. Will

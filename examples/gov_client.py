@@ -125,14 +125,12 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     results = find_instrument_agents(ion_org._id,user_id)
     log.info(results)
 
-    role = org_client.find_org_role_by_name(ion_org._id, 'Operator')
-    org_client.grant_role(ion_org._id, user_id, role._id)
+
+    org_client.grant_role(ion_org._id, user_id, 'Operator')
     roles = org_client.find_roles_by_user(ion_org._id, user_id)
     for r in roles:
         log.info('User UserRole: ' +str(r))
 
-    results = find_instrument_agents(ion_org._id,user_id)
-    log.info(results)
 
 #    log.info("Adding Instrument Operator Role")
 
@@ -161,6 +159,16 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         log.info('Org2 UserRole: ' + str(r))
 
 
+    org_roles = org_client.find_all_roles_by_user(user_id)
+    log.info("All Org Roles: " + str(org_roles))
+
+    org_client.enroll_member(org2_id, user_id)
+
+
+    roles = org_client.find_roles_by_user(org2_id, user_id)
+
+    org_roles = org_client.find_all_roles_by_user(user_id)
+    log.info("All Org Roles: " + str(org_roles))
 
 #    req_id = org_client.request_enroll(org2_id,user_id )
 
