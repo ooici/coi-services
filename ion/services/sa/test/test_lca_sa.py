@@ -251,7 +251,7 @@ class TestLCASA(IonIntegrationTestCase):
         instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent, 
                                                        "instrument_agent", 
                                                        self.client.IMS, 
-                                                       True)        
+                                                       False)
         
         log.info("LCA step 6.3: associate instrument model to instrument agent")
         log.info("LCA step 6.4: find instrument model by instrument agent")
@@ -433,8 +433,8 @@ class TestLCASA(IonIntegrationTestCase):
 
         #"simple" resources go available immediately upon creation, so check:
         if is_simple:
-            log.info("Verifying that resource went AVAILABLE on creation")
-            self.assertEqual(generic_ret.lcstate, LCS.AVAILABLE)
+            log.info("Verifying that resource went DEPLOYED_AVAILABLE on creation")
+            self.assertEqual(generic_ret.lcstate, LCS.DEPLOYED_AVAILABLE)
 
         log.info("Updating %s #%s" % (resource_label, generic_id))
         generic_newname = "%s updated" % generic_ret.name

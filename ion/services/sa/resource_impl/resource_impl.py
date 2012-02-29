@@ -145,7 +145,8 @@ class ResourceImpl(object):
         # get the workflow that we need
         restype_workflow = lcs_workflows.get(resource_type, None)
         if not restype_workflow:
-            restype_workflow = lcs_workflows['Resource']
+            raise BadRequest("Resource id=%s type=%s does not have a lifecycle" % (resource_id, resource_type))
+            #restype_workflow = lcs_workflows['Resource']
 
         # check that the transition is possible
         possible_transitions = restype_workflow.get_predecessors(new_state)

@@ -4,8 +4,9 @@ __author__ = 'Thomas R. Lennan, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
+from pyon.core.object import IonObjectBase
 from pyon.datastore.datastore import DataStore
-from pyon.ion.resource import lcs_workflows
+from pyon.ion.resource import get_restype_lcsm, is_resource
 from pyon.public import log, LCS, AT
 from pyon.util.containers import get_ion_ts
 
@@ -29,11 +30,21 @@ class ResourceRegistryService(BaseResourceRegistryService):
         BaseResourceRegistryService.on_quit(self)
         self.rr_store.close()
 
-    def create(self, object={}):
+    def create(self, object=None):
+        if object is None:
+            raise BadRequest("Object not present")
+        if not isinstance(object, IonObjectBase):
+            raise BadRequest("Object is not an IonObject")
+        if not is_resource(object):
+            raise BadRequest("Object is not a Resource")
+
+        lcsm = get_restype_lcsm(object._get_type())
+        object.lcstate = lcsm.initial_state if lcsm else "DEPLOYED_AVAILABLE"
         cur_time = get_ion_ts()
         object.ts_created = cur_time
         object.ts_updated = cur_time
-        return self.rr_store.create(object)
+        res_id = self.rr_store.create(object)
+        return res_id
 
     def read(self, object_id='', rev_id=''):
         if not object_id:
@@ -41,13 +52,20 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
         return self.rr_store.read(object_id, rev_id)
 
-    def update(self, object={}):
+    def update(self, object=None):
+        if object is None:
+            raise BadRequest("Object not present")
         if not hasattr(object, "_id") or not hasattr(object, "_rev"):
             raise BadRequest("Object does not have required '_id' or '_rev' attribute")
         # Do an check whether LCS has been modified
         res_obj = self.read(object._id)
-        self.assert_condition(res_obj.lcstate == object.lcstate, "Cannot modify life cycle state in update!")
+
         object.ts_updated = get_ion_ts()
+        if res_obj.lcstate != object.lcstate:
+            log.warn("Cannot modify life cycle state in update current=%s given=%s. DO NOT REUSE THE SAME OBJECT IN CREATE THEN UPDATE" % (
+                            res_obj.lcstate, object.lcstate))
+            object.lcstate = res_obj.lcstate
+
         return self.rr_store.update(object)
 
     def delete(self, object_id=''):
@@ -56,28 +74,40 @@ class ResourceRegistryService(BaseResourceRegistryService):
             raise NotFound("Resource %s does not exist" % object_id)
         return self.rr_store.delete(res_obj)
 
-    def execute_lifecycle_transition(self, resource_id='', transition_event='', current_lcstate=''):
-        self.assert_condition(not current_lcstate or current_lcstate in LCS, "Unknown life-cycle state %s" % current_lcstate)
+    def execute_lifecycle_transition(self, resource_id='', transition_event=''):
         res_obj = self.read(resource_id)
 
-        if current_lcstate and res_obj.lcstate != current_lcstate:
-            raise Inconsistent("Resource id=%s lcstate is %s, expected was %s" % (
-                                resource_id, res_obj.lcstate, current_lcstate))
-
-        restype = type(res_obj).__name__
-        restype_workflow = lcs_workflows.get(restype, None)
+        restype = res_obj._get_type()
+        restype_workflow = get_restype_lcsm(restype)
         if not restype_workflow:
-            restype_workflow = lcs_workflows['Resource']
+            raise BadRequest("Resource id=%s type=%s has no lifecycle" % (resource_id, restype))
 
         new_state = restype_workflow.get_successor(res_obj.lcstate, transition_event)
         if not new_state:
-            raise Inconsistent("Resource id=%s, type=%s, lcstate=%s has no transition for event %s" % (
+            raise BadRequest("Resource id=%s, type=%s, lcstate=%s has no transition for event %s" % (
                                 resource_id, restype, res_obj.lcstate, transition_event))
 
         res_obj.lcstate = new_state
         res_obj.ts_updated = get_ion_ts()
         updres = self.rr_store.update(res_obj)
         return new_state
+
+    def set_lifecycle_state(self, resource_id='', target_lcstate=''):
+        self.assert_condition(not target_lcstate or target_lcstate in LCS, "Unknown life-cycle state %s" % target_lcstate)
+
+        res_obj = self.read(resource_id)
+        restype = res_obj._get_type()
+        restype_workflow = get_restype_lcsm(restype)
+        if not restype_workflow:
+            raise BadRequest("Resource id=%s type=%s has no lifecycle" % (resource_id, restype))
+
+        # Check that target state is allowed
+        if not target_lcstate in restype_workflow.get_successors(res_obj.lcstate).values():
+            raise BadRequest("Target state %s not reachable for resource in state %s" % (target_lcstate, res_obj.lcstate))
+
+        res_obj.lcstate = target_lcstate
+        res_obj.ts_updated = get_ion_ts()
+        updres = self.rr_store.update(res_obj)
 
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.rr_store.create_association(subject, predicate, object, assoc_type)
