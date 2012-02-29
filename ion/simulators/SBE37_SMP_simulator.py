@@ -77,6 +77,7 @@ class sbe37(asyncore.dispatcher_with_send):
 
     def __init__(self, socket, thread):
         self.socket = socket
+        self.socket.settimeout(0.0)
         self.thread = thread
         try:
             self.socket.send("S>")
@@ -114,6 +115,7 @@ class sbe37(asyncore.dispatcher_with_send):
 
             while True:
                 c = self.read_a_char()
+                print "read " + c
                 if c == None:
                     break
                 if c == '\n' or c == '':
@@ -154,6 +156,7 @@ class sbe37(asyncore.dispatcher_with_send):
             data = None
             data = self.get_data()
             if data == "":
+                print "closing"
                 self.socket.close()
                 self.thread.exit()
 

@@ -220,7 +220,7 @@ def build_message_headers( ion_actor_id, expiry):
 
     #If this is an anonymous requester then there are no roles associated with the request
     if ion_actor_id == DEFAULT_ACTOR_ID:
-        headers['ion-org-roles'] = dict()
+        headers['ion-actor-roles'] = dict()
         return headers
 
 
@@ -236,7 +236,7 @@ def build_message_headers( ion_actor_id, expiry):
             role_header[org].append(role.name)
 
 
-    headers['ion-org-roles'] = role_header
+    headers['ion-actor-roles'] = role_header
 
     return headers
 
