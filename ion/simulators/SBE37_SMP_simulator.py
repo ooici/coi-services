@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-__author__ = 'Roger Unwin'
+__author__ = 'roger unwin'
 __license__ = 'Apache 2.0'
 
 import socket
@@ -16,6 +16,7 @@ port = 4001  # Default port to run on.
 connection_count = 0
 
 class sbe37(asyncore.dispatcher_with_send):
+    buf = ""
     count = 8
     time_set_at = time.time() 
     out_buffer = ""
@@ -96,13 +97,25 @@ class sbe37(asyncore.dispatcher_with_send):
         format = "%m-%d-%Y, %H:%M:%S"
         return current_time.strftime(format)
 
+
+
+    def read_a_char(self):
+            c = None
+            if len(self.buf) > 0:
+                c = self.buf[0:1]
+                self.buf = self.buf[1:]
+            else:
+                self.buf = self.recv(8192)
+
+            return c
     def get_data(self):
         try:
             ret = ''
 
             while True:
-                c = self.socket.recv(1)
-
+                c = self.read_a_char()
+                if c == None:
+                    break
                 if c == '\n' or c == '':
                     break
                 else:
@@ -459,11 +472,11 @@ class sbe37(asyncore.dispatcher_with_send):
                         end = int(command_args[1])
                     except ValueError:
                         self.send_data("*** end ERROR expected INTEGER", 'dd line 2')
-                        self.send_data('start time =  ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + '  ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 3') 
-                        self.send_data('sample interval = ' + str(self.interval) + ' seconds\r\n', 'dd line 4')  
-                        self.send_data('start sample number = ' + str(self.sample_number) + '\r\n\r\n', 'dd line 5')  
-                        for sample in range(begin, end):
-                            self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 6')
+                    self.send_data('start time =  ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + '  ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 3') 
+                    self.send_data('sample interval = ' + str(self.interval) + ' seconds\r\n', 'dd line 4')  
+                    self.send_data('start sample number = ' + str(self.sample_number) + '\r\n\r\n', 'dd line 5')  
+                    for sample in range(begin, end):
+                        self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 6')
 
                 elif command_args[0] == "tt":
                     count = 100
