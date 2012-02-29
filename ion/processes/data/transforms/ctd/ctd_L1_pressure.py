@@ -4,7 +4,7 @@
 @description Transforms CTD parsed data into L1 product for pressure
 '''
 
-from pyon.ion.transform import TransformFunction
+from pyon.ion.transform import TransformFunction, TransformDataProcess
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
@@ -67,11 +67,10 @@ class CTDL1PressureTransform(TransformFunction):
         # 2) Convert the hexadecimal string to a decimal string
         # 3) For the SBE 37IM only, convert the pressure range (P_rng) from psia to dbar SBE 37IM
         #    Convert P_rng (input from metadata) from psia to dbar
-        #    P_rng (dbar) = 0.6894757 * [P_rng (psia) – 14.7)]
         # 4) Perform scaling operation
         #    SBE 37IM
         #    L1 pressure data product (in dbar):
-        #    P_L1 = [p_dec * P_rng / (0.85 * 65536)] – (0.05* P_rng)
+
 
         # Use the constructor to put data into a granule
         psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)

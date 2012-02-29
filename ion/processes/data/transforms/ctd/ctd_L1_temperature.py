@@ -62,13 +62,13 @@ class CTDL1TemperatureTransform(TransformFunction):
         log.warn('Got pressure: %s' % str(pressure))
 
 
-        # The L1 temperature data product algorithm takes the L0 temperature data product and converts it into °Celcius (°C).
+        # The L1 temperature data product algorithm takes the L0 temperature data product and converts it into Celcius.
         # Once the hexadecimal string is converted to decimal, only scaling (dividing by a factor and adding an offset) is
-        # required to produce the correct decimal representation of the data in °Celsius.
+        # required to produce the correct decimal representation of the data in Celsius.
         # The scaling function differs by CTD make/model as described below.
         #    SBE 37IM, Output Format 0
         #    1) Standard conversion from 5-character hex string (Thex) to decimal (tdec)
-        #    2) Scaling: T [°C] = (tdec / 10,000) - 10
+        #    2) Scaling: T [C] = (tdec / 10,000) - 10
 
         # Use the constructor to put data into a granule
         psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)

@@ -4,7 +4,7 @@
 @description Transforms CTD parsed data into L1 product for conductivity
 '''
 
-from pyon.ion.transform import TransformFunction
+from pyon.ion.transform import TransformFunction, TransformDataProcess
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
@@ -42,14 +42,11 @@ class CTDL1ConductivityTransform(TransformFunction):
 
 
 
-
     def execute(self, granule):
         """Processes incoming data!!!!
         """
-
         # Use the deconstructor to pull data from a granule
         psd = PointSupplementDeconstructor(stream_definition=self.incoming_stream_def, stream_granule=granule)
-
 
         conductivity = psd.get_values('conductivity')
         pressure = psd.get_values('pressure')
@@ -65,9 +62,8 @@ class CTDL1ConductivityTransform(TransformFunction):
         # The L1 conductivity data product algorithm takes the L0 conductivity data product and converts it
         # into Siemens per meter (S/m)
         #    SBE 37IM Output Format 0
-        #    1) Standard conversion from 5-character hex string (Chex) to decimal (Cdec)
-        #    2) Scaling: C [S/m] = (Cdec / 100,000) – 0.5
-
+        #    1) Standard conversion from 5-character hex string to decimal
+        #    2)Scaling
         # Use the constructor to put data into a granule
         psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)
 
