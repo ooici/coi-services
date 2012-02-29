@@ -39,9 +39,7 @@ class TestOrgManagementService(PyonTestCase):
         self.org.name = "Foo"
 
         self.user_role = Mock()
-        self.user_role.name = "Member"
         self.user_role2 = Mock()
-        self.user_role2.name = "Member"
 
     @patch('pyon.ion.directory.Directory.__init__', Mock(return_value=None))
     def test_create_org(self):
