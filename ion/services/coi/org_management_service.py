@@ -9,6 +9,7 @@ from interface.services.coi.iorg_management_service import BaseOrgManagementServ
 from ion.services.coi.policy_management_service import MEMBER_ROLE, MANAGER_ROLE
 from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
+from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 
 ROOT_ION_ORG_NAME = CFG.system.root_org
@@ -32,12 +33,17 @@ class OrgManagementService(BaseOrgManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
 
+        if not org:
+            raise BadRequest("The org parameter is missing")
 
         #Only allow one root ION Org in the system
         if org.name == ROOT_ION_ORG_NAME:
             res_list,_  = self.clients.resource_registry.find_resources(restype=RT.Org, name=ROOT_ION_ORG_NAME)
             if len(res_list) > 0:
                 raise BadRequest('There can only be one Org named %s' % ROOT_ION_ORG_NAME)
+
+        if not is_basic_identifier(org.name):
+            raise BadRequest("The Org name '%s' can only contain alphanumeric and underscore characters" % org.name)
 
 
         org_id, version = self.clients.resource_registry.create(org)

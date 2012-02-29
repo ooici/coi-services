@@ -110,7 +110,12 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
 
 
     def test_org_crud(self):
-        org_obj = IonObject("Org", {"name": "Test Facility"})
+
+        with self.assertRaises(BadRequest) as br:
+            self.org_management_service.create_org(IonObject("Org", {"name": "Test Facility"}))
+        self.assertTrue("can only contain alphanumeric and underscore characters" in br.exception.message)
+
+        org_obj = IonObject("Org", {"name": "TestFacility"})
         org_id = self.org_management_service.create_org(org_obj)
         self.assertNotEqual(org_id, None)
 
@@ -118,14 +123,17 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         org = self.org_management_service.read_org(org_id)
         self.assertNotEqual(org, None)
 
+        #Check that the roles got associated to them
+        role_list = self.org_management_service.find_org_roles(org_id)
+        self.assertEqual(len(role_list),2 )
 
-        org.name = 'Updated Test Facility'
+        org.name = 'Updated_TestFacility'
         self.org_management_service.update_org(org)
 
         org = None
         org = self.org_management_service.read_org(org_id)
         self.assertNotEqual(org, None)
-        self.assertEqual(org.name, 'Updated Test Facility')
+        self.assertEqual(org.name, 'Updated_TestFacility')
 
         self.org_management_service.delete_org(org_id)
 
@@ -144,7 +152,7 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         root_org = self.org_management_service.find_org()
         self.assertNotEqual(root_org, None)
 
-        org_obj = IonObject("Org", {"name": "Test Facility"})
+        org_obj = IonObject("Org", {"name": "TestFacility"})
         org_id = self.org_management_service.create_org(org_obj)
         self.assertNotEqual(org_id, None)
 

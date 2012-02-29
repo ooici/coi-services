@@ -148,15 +148,17 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 ##    for r in requests:
 #        log.info('Org Request: ' +str(r))
 
-#    org2 = IonObject(RT.Org, name='Org2', description='a second Org')
-#    org2_id = org_client.create_org(org2)
+    org2 = IonObject(RT.Org, name='Org2', description='A second Org')
+    org2_id = org_client.create_org(org2)
 
-#    requests = org_client.find_requests(org2_id)
-#    log.info("Org2 Request count: %d" % len(requests))
-#    for r in requests:
-#        log.info('Org Request: ' +str(r))
+    requests = org_client.find_requests(org2_id)
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org2 Request: ' +str(r))
 
-
+    roles = org_client.find_org_roles(org2_id)
+    for r in roles:
+        log.info('Org2 UserRole: ' + str(r))
 
 
 

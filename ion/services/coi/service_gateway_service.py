@@ -155,8 +155,8 @@ def process_gateway_request(service_name, operation):
         param_list = create_parameter_list(service_name, target_client,operation, json_params)
 
         #Add governance headers
-        org_id, ion_actor_id, expiry = get_governance_info_from_request(json_params)
-        param_list['headers'] = build_message_headers(org_id, ion_actor_id, expiry)
+        ion_actor_id, expiry = get_governance_info_from_request(json_params)
+        param_list['headers'] = build_message_headers(ion_actor_id, expiry)
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
@@ -189,14 +189,9 @@ def build_error_response(e):
 def get_governance_info_from_request(json_params):
 
     #Default values for governance headers.
-    org_id = ''
     actor_id = 'anonymous'
     expiry = '0'
     if not json_params:
-
-
-        if request.args.has_key('serviceOrg'):
-            org_id = convert_unicode(request.args['serviceOrg'])
 
         if request.args.has_key('requester'):
             actor_id = convert_unicode(request.args['requester'])
@@ -204,8 +199,6 @@ def get_governance_info_from_request(json_params):
         if request.args.has_key('expiry'):
             expiry = convert_unicode(request.args['expiry'])
     else:
-        if json_params['serviceRequest'].has_key('serviceOrg'):
-            org_id = convert_unicode(json_params['serviceRequest']['serviceOrg'])
 
         if json_params['serviceRequest'].has_key('requester'):
             actor_id = convert_unicode(json_params['serviceRequest']['requester'])
@@ -213,22 +206,22 @@ def get_governance_info_from_request(json_params):
         if json_params['serviceRequest'].has_key('expiry'):
             expiry = convert_unicode(json_params['serviceRequest']['expiry'])
 
-    return org_id, actor_id, expiry
+    return actor_id, expiry
 
-def build_message_headers(org_id, ion_actor_id, expiry):
+def build_message_headers( ion_actor_id, expiry):
 
     headers = dict()
 
     headers['ion-actor-id'] = ion_actor_id
     headers['expiry'] = expiry
 
-    org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-    roles = org_client.find_roles_by_user(org_id,ion_actor_id)
-    role_list = []
-    for r in roles:
-        role_list.append(r.name)
+#    org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+##    roles = org_client.find_roles_by_user(org_id,ion_actor_id)
+#    role_list = []
+#    for r in roles:
+#        role_list.append(r.name)
 
-    headers['org_roles'] = role_list
+#    headers['org_roles'] = role_list
 
     return headers
 
