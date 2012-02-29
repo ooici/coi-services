@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-__author__ = 'Roger Unwin'
+__author__ = 'roger unwin'
 __license__ = 'Apache 2.0'
 
 import socket
@@ -16,6 +16,7 @@ port = 4001  # Default port to run on.
 connection_count = 0
 
 class sbe37(asyncore.dispatcher_with_send):
+    buf = ""
     count = 8
     time_set_at = time.time() 
     out_buffer = ""
@@ -96,13 +97,25 @@ class sbe37(asyncore.dispatcher_with_send):
         format = "%m-%d-%Y, %H:%M:%S"
         return current_time.strftime(format)
 
+
+
+    def read_a_char(self):
+            c = None
+            if len(self.buf) > 0:
+                c = self.buf[0:1]
+                self.buf = self.buf[1:]
+            else:
+                self.buf = self.recv(8192)
+
+            return c
     def get_data(self):
         try:
             ret = ''
 
             while True:
-                c = self.socket.recv(1)
-
+                c = self.read_a_char()
+                if c == None:
+                    break
                 if c == '\n' or c == '':
                     break
                 else:
