@@ -7,7 +7,7 @@ from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.core.object import IonObjectBase
 from pyon.datastore.datastore import DataStore
 from pyon.ion.resource import get_restype_lcsm, is_resource
-from pyon.public import log, LCS, AT
+from pyon.public import log, LCS, PRED, AT
 from pyon.util.containers import get_ion_ts
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
@@ -43,8 +43,15 @@ class ResourceRegistryService(BaseResourceRegistryService):
         cur_time = get_ion_ts()
         object.ts_created = cur_time
         object.ts_updated = cur_time
-        res_id = self.rr_store.create(object)
-        return res_id
+        res = self.rr_store.create(object)
+        res_id, rev = res
+
+        ion_actor_id = self.get_context().get('ion-actor-id', None)
+        if ion_actor_id and ion_actor_id != 'anonymous':
+            log.debug("Associate resource_id=%s with owner=%s" % (res_id, ion_actor_id))
+            self.rr_store.create_association(res_id, PRED.hasOwner, ion_actor_id)
+
+        return res
 
     def read(self, object_id='', rev_id=''):
         if not object_id:

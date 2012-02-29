@@ -90,7 +90,17 @@ class TestResourceRegistry(IonIntegrationTestCase):
         with self.assertRaises(NotFound) as cm:
             self.resource_registry_service.delete(obj_id)
         self.assertTrue(cm.exception.message.startswith("Object with id"))
-           
+
+        # Owner creation tests
+        user = IonObject("UserIdentity", name='user')
+        uid,_ = self.resource_registry_service.create(user)
+
+        inst = IonObject("InstrumentDevice", name='instrument')
+        iid,_ = self.resource_registry_service.create(inst, headers={'ion-actor-id':str(uid)})
+
+        ids = self.resource_registry_service.find_associations(iid, PRED.hasOwner)
+        self.assertEquals(len(ids), 1)
+
     def test_lifecycle(self):
         att = IonObject("InstrumentDevice", name='mine', description='desc')
 
@@ -372,6 +382,3 @@ class TestResourceRegistry(IonIntegrationTestCase):
         ret = self.resource_registry_service.find_resources(RT.InstrumentDevice, LCS.DRAFT, None, False)
         self.assertTrue(len(ret[0]) == 1)
         self.assertTrue(ret[0][0]._id == read_obj._id)
-
-#    def test_service(self):
-#        res = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
