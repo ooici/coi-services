@@ -613,9 +613,9 @@ class InstrumentDriver(object):
             result[channel] = self.chan_map[channel].get_current_state()
 
             # lookup the driver state if there is a mapping
-            if (self.state_map):
+            if self.state_map and result[channel] in self.state_map:
                 result[channel] = self.state_map[result[channel]]
-                
+
         return result
     
     ########################################################################
