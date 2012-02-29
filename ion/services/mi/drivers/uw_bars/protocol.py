@@ -212,9 +212,8 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         assert isinstance(params, list)
         assert len(params) == 1
 
-        channel, param = cp = params[0]
+        param = params[0]
 
-        assert channel == BarsChannel.INSTRUMENT
         assert param == BarsParameter.TIME_BETWEEN_BURSTS
 
         #
@@ -260,7 +259,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
             raise InstrumentProtocolException(
                     msg="Unexpected: string could not be matched: %s" % menu)
 
-        result = {cp: seconds}
+        result = {param: seconds}
         return result
 
     ########################################################################
@@ -282,6 +281,25 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
 
+    def disconnect(self, channels=None, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
+        channels = channels or [BarsChannel.INSTRUMENT]
+
+        #self._assert_state(BarsProtocolState.PRE_INIT)
+        super(BarsInstrumentProtocol, self).disconnect(channels, *args,
+                                                      **kwargs)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("disconnected.")
+
+        #self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
+
+    ########################################################################
     # State handlers
     ########################################################################
 
@@ -339,8 +357,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
             got_prompt = GENERIC_PROMPT_PATTERN.search(string) is not None
 
         if not got_prompt:
-            # TODO: raise InstrumentTimeoutException()
-            raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
+            raise InstrumentTimeoutException()
 
         log.debug("### got prompt. Sending one ^m to clean up any ^S leftover")
         result = self._do_cmd_resp(CONTROL_M, timeout=10)

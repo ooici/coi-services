@@ -105,7 +105,7 @@ class ProtocolTest(BarsTestCase):
         if new_seconds > 30 or new_seconds < 15:
             new_seconds = 15
 
-        # get a parameter
+        # set a parameter
         result = protoc.set({p: new_seconds})
         log.debug("set result = %s" % str(result))
         code = result.get(p)
@@ -128,9 +128,13 @@ class ProtocolTest(BarsTestCase):
         log.debug("protoc state = %s" % str(curr_state))
 
 
+#############################################################################
+#
+# The following is to test the protocol through a driver definition.
+#
+
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.drivers.uw_bars.common import BarsCommand
-from ion.services.mi.drivers.uw_bars.common import BarsParameter
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsError
 
@@ -146,6 +150,8 @@ class MyDriver(InstrumentDriver):
         self.instrument_parameters = BarsParameter
         self.instrument_channels = BarsChannel
         self.instrument_errors = BarsError
+
+        # a single protocol (associated with BarsChannel.INSTRUMENT)
 
         self.protoc = BarsInstrumentProtocol(self.protocol_callback)
         self.chan_map[BarsChannel.INSTRUMENT] = self.protoc

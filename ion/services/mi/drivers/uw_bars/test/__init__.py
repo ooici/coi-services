@@ -5,6 +5,9 @@ __license__ = 'Apache 2.0'
 
 import os
 import unittest
+import logging
+import ion.services.mi.mi_logger
+log = logging.getLogger('mi_logger')
 
 
 @unittest.skipIf(os.getenv('UW_BARS') is None,
@@ -60,7 +63,7 @@ class BarsTestCase(unittest.TestCase):
             except:
                 self.skipTest("Malformed UW_BARS value")
 
-            print "==Assuming BARS is listening on %s:%s==" % (a, p)
+            log.info("==Assuming BARS is listening on %s:%s==" % (a, p))
             self.device_address = a
             self.device_port = port
 
@@ -93,7 +96,7 @@ class _SimulatorLauncher(object):
     otherwise, self.launch() always starts a new simulator (in the running
     python instance, not as a separate process)
 
-    This helper was mainly created to delat with issues related with gevent
+    This helper was mainly created to deal with issues related with gevent
     monkey patching that sometimes interferes with some of the tests when
     threads are involved. In concrete, the "embedded simulator" style in
     combination with pyon initialization makes the test case hang. The
@@ -135,12 +138,12 @@ class _SimulatorLauncher(object):
                 '--outfile', output_name
         ]
 
-        print "\n==STARTING SIMULATOR== %s" % str(args)
+        log.info("\n==STARTING SIMULATOR== %s" % str(args))
 
         # bufsize=1: line buffered. The goal is that we be able to scan the
         # few first lines of the subprocess output for the port.
         cls._os_proc = subprocess.Popen(args, bufsize=1)
-        print "process launched, pid=%s" % cls._os_proc.pid
+        log.info("process launched, pid=%s" % cls._os_proc.pid)
         time.sleep(0.2)
 
         # now, capture the port used by the simulator:
@@ -156,15 +159,14 @@ class _SimulatorLauncher(object):
         fread.close()
 
         if port is None:
-            print "WARNING: could not scan port number from subprocess output!"
+            log.error("could not scan port number from subprocess output!")
         else:
-            print "simulator subprocess bound to port = %s" % str(port)
+            log.info("simulator subprocess bound to port = %s" % str(port))
 
         cls._port = port
 
         import atexit
         atexit.register(cls._os_proc.kill)
-
 
     def __init__(self):
         self._port = None
@@ -181,7 +183,7 @@ class _SimulatorLauncher(object):
         if _SimulatorLauncher._use_separate_process:
             pass  # already launched in __init__
         else:
-            print "\n==STARTING SIMULATOR=="
+            log.info("\n==STARTING SIMULATOR==")
             self._simulator.start()
 
     @property
@@ -192,6 +194,6 @@ class _SimulatorLauncher(object):
         if _SimulatorLauncher._use_separate_process:
             pass  # subprocess will be killed at exit.
         else:
-            print "==STOPPING SIMULATOR=="
+            log.info("==STOPPING SIMULATOR==")
             self._simulator.stop()
             self._simulator.join()
