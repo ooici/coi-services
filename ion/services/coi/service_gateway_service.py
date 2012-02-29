@@ -31,6 +31,9 @@ GATEWAY_ERROR = 'GatewayError'
 GATEWAY_ERROR_EXCEPTION = 'Exception'
 GATEWAY_ERROR_MESSAGE = 'Message'
 
+DEFAULT_ACTOR_ID = 'anonymous'
+DEFAULT_EXPIRY = '0'
+
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
 
@@ -189,8 +192,8 @@ def build_error_response(e):
 def get_governance_info_from_request(json_params):
 
     #Default values for governance headers.
-    actor_id = 'anonymous'
-    expiry = '0'
+    actor_id = DEFAULT_ACTOR_ID
+    expiry = DEFAULT_EXPIRY
     if not json_params:
 
         if request.args.has_key('requester'):
@@ -215,13 +218,25 @@ def build_message_headers( ion_actor_id, expiry):
     headers['ion-actor-id'] = ion_actor_id
     headers['expiry'] = expiry
 
-#    org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-##    roles = org_client.find_roles_by_user(org_id,ion_actor_id)
-#    role_list = []
-#    for r in roles:
-#        role_list.append(r.name)
+    #If this is an anonymous requester then there are no roles associated with the request
+    if ion_actor_id == DEFAULT_ACTOR_ID:
+        headers['ion-org-roles'] = dict()
+        return headers
 
-#    headers['org_roles'] = role_list
+
+    org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+    org_roles = org_client.find_all_roles_by_user(ion_actor_id)  #TODO - How does this request get protected?
+
+    #Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
+    #to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
+    role_header = dict()
+    for org in org_roles:
+        role_header[org] = []
+        for role in org_roles[org]:
+            role_header[org].append(role.name)
+
+
+    headers['ion-org-roles'] = role_header
 
     return headers
 

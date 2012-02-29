@@ -119,10 +119,10 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         log.info('User UserRole: ' + str(r))
 
 
-    results = find_data_products(ion_org._id,user_id)
+    results = find_data_products(user_id)
     log.info(results)
 
-    results = find_instrument_agents(ion_org._id,user_id)
+    results = find_instrument_agents(user_id)
     log.info(results)
 
 
@@ -168,7 +168,9 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     roles = org_client.find_roles_by_user(org2_id, user_id)
 
     org_roles = org_client.find_all_roles_by_user(user_id)
-    log.info("All Org Roles: " + str(org_roles))
+    log.info("All Org Roles for: " + str(org_roles))
+
+    log.info(user_id)
 
 #    req_id = org_client.request_enroll(org2_id,user_id )
 
@@ -252,7 +254,7 @@ def gateway_request(uri, payload):
 
     return result
 
-def find_data_products(org_id = '', requester=''):
+def find_data_products(requester=''):
 
     """
     data_product_find_request = {  "serviceRequest": {
@@ -273,7 +275,6 @@ def find_data_products(org_id = '', requester=''):
     data_product_find_request = {  "serviceRequest": {
         "serviceName": "data_product_management",
         "serviceOp": "find_data_products",
-        "serviceOrg": org_id,
         "requester": requester,
         "expiry": 0,
         "params": {
@@ -296,13 +297,12 @@ def find_data_products(org_id = '', requester=''):
 
     return response_data
 
-def find_instrument_agents(org_id = '', requester=''):
+def find_instrument_agents( requester=''):
 
 
     instrument_agent_find_request = {  "serviceRequest": {
         "serviceName": "instrument_management",
         "serviceOp": "find_instrument_agents",
-        "serviceOrg": org_id,
         "requester": requester,
         "expiry": 0,
         "params": {
@@ -325,12 +325,11 @@ def find_instrument_agents(org_id = '', requester=''):
 
     return response_data
 
-def find_org_roles(org_id = '', requester=''):
+def find_org_roles(requester=''):
 
     find_org_request = {  "serviceRequest": {
         "serviceName": "org_management",
         "serviceOp": "find_org",
-        "serviceOrg": org_id,
         "requester": requester,
         "expiry": 0,
         "params": {
@@ -352,7 +351,6 @@ def find_org_roles(org_id = '', requester=''):
     find_org_roles_request = {  "serviceRequest": {
         "serviceName": "org_management",
         "serviceOp": "find_org_roles",
-        "serviceOrg": org_id,
         "requester": requester,
         "expiry": 0,
         "params": {
