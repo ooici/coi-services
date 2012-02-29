@@ -20,6 +20,8 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
 import time
 from pyon.util.int_test import IonIntegrationTestCase
+from prototype.sci_data.ctd_stream import ctd_stream_definition
+
 import unittest
 
 class FakeProcess(LocalContextMixin):
@@ -75,15 +77,21 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
 
 
+        # create a stream definition for the data from the ctd simulator
+        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def_id = self.PubSubClient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+
         #-------------------------------
         # Input Data Product
         #-------------------------------
         log.debug("TestIntDataProcessManagementService: create input data product")
         input_dp_obj = IonObject(RT.DataProduct, name='InputDataProduct', description='some new dp')
         try:
-            input_dp_id = self.DPMSclient.create_data_product(input_dp_obj, instrument_id)
+            input_dp_id = self.DPMSclient.create_data_product(input_dp_obj, ctd_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new input data product: %s" %ex)
+
+        self.DAMSclient.assign_data_product(instrument_id, input_dp_id)
 
         # Retrieve the stream via the DataProduct->Stream associations
         stream_ids, _ = self.RRclient.find_objects(input_dp_id, PRED.hasStream, None, True)
@@ -97,7 +105,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestIntDataProcessManagementService: create output data product")
         output_dp_obj = IonObject(RT.DataProduct, name='OutDataProduct',description='transform output')
-        output_dp_id = self.DPMSclient.create_data_product(output_dp_obj)
+        output_dp_id = self.DPMSclient.create_data_product(output_dp_obj, '')
 
         # this will NOT create a stream for the product becuase the data process (source) resource has not been created yet.
 

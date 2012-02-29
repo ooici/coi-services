@@ -30,7 +30,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     
 
-    def create_data_product(self, data_product=None, source_resource_id=''):
+    def create_data_product(self, data_product=None, stream_definition_id=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -50,14 +50,17 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_id = self.data_product.create_one(data_product)
 
 
-        if source_resource_id:
-            log.debug("DataProductManagementService:create_data_product: source resource id = %s" % source_resource_id)
-            # TODO: currently create stream for the product is ALWAYS on, this should be surfaced
-            # Call Data Aquisition Mgmt Svc:assign_data_product to coordinate connection of the data product to data producer and to the source resource
-            self.clients.data_acquisition_management.assign_data_product(source_resource_id, data_product_id, True)  # TODO: what errors can occur here?
+        #Create the stream if a stream definition is provided
+        #if stream_definition_id:
+        log.debug("DataProductManagementService:create_data_product: stream definition id = %s" % stream_definition_id)
 
-            # todo: should this method create the hasOutputProduct association?
-            self.clients.resource_registry.create_association(source_resource_id,  PRED.hasOutputProduct,  data_product_id)
+        stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,  description=data_product.description, stream_definition_id=stream_definition_id)
+        log.debug("assign_data_product: create stream stream_id %s" % stream_id)
+        # Associate the Stream with the main Data Product
+        self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
+
+        # Associate the StreamDefinition with the Stream
+        self.clients.resource_registry.create_association(stream_id,  PRED.hasStreamDefinition, stream_definition_id)
 
         # Return a resource ref to the new data product
         return data_product_id

@@ -173,6 +173,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if not data_product_obj:
             raise BadRequest("Data Product resource %s does not exist" % data_product_id)
 
+        self.clients.resource_registry.create_association(input_resource_id,  PRED.hasOutputProduct,  data_product_id)
+
         #find the data producer resource associated with the source resource that is creating the data product
         producer_ids, _ = self.clients.resource_registry.find_objects(input_resource_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
         if producer_ids is None:
@@ -192,7 +194,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #create data producer resource for this data product
         data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
-
 
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
