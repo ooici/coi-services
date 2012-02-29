@@ -62,13 +62,10 @@ def seed_gov(container, process=FakeProcess()):
 
     policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
 
-    role_obj = IonObject(RT.UserRole, name='Instrument Operator', description='Users assigned to this role are instrument operators')
-    role_id = policy_client.create_role(role_obj)
-    org_client.add_user_role(ion_org._id, role_id)
+    org_client.add_user_role(ion_org._id, name='Operator', description='Instrument Operator')
 
     try:
-        role_id = policy_client.create_role(role_obj)
-        org_client.add_user_role(ion_org._id, role_id)
+        org_client.add_user_role(ion_org._id, name='Operator', description='Instrument Operator')
     except Exception, e:
         log.info("This should fail")
         log.info(e.message)
@@ -122,52 +119,67 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         log.info('User UserRole: ' + str(r))
 
 
-    log.info("Adding Instrument Operator Role")
+    results = find_data_products(ion_org._id,user_id)
+    log.info(results)
 
-    role = org_client.find_org_role_by_name(ion_org._id, 'Instrument Operator')
+    results = find_instrument_agents(ion_org._id,user_id)
+    log.info(results)
+
+    role = org_client.find_org_role_by_name(ion_org._id, 'Operator')
     org_client.grant_role(ion_org._id, user_id, role._id)
     roles = org_client.find_roles_by_user(ion_org._id, user_id)
     for r in roles:
         log.info('User UserRole: ' +str(r))
 
+    results = find_instrument_agents(ion_org._id,user_id)
+    log.info(results)
 
-    requests = org_client.find_requests(ion_org._id)
-    log.info("Request count: %d" % len(requests))
-    for r in requests:
-        log.info('Org Request: ' +str(r))
+#    log.info("Adding Instrument Operator Role")
 
-    org2 = IonObject(RT.Org, name='Org2', description='a second Org')
-    org2_id = org_client.create_org(org2)
-
-    requests = org_client.find_requests(org2_id)
-    log.info("Org2 Request count: %d" % len(requests))
-    for r in requests:
-        log.info('Org Request: ' +str(r))
+#    role = org_client.find_org_role_by_name(ion_org._id, 'Instrument Operator')
+#    org_client.grant_role(ion_org._id, user_id, role._id)
+#    roles = org_client.find_roles_by_user(ion_org._id, user_id)
+#    for r in roles:
+#        log.info('User UserRole: ' +str(r))
 
 
+#    requests = org_client.find_requests(ion_org._id)
+#    log.info("Request count: %d" % len(requests))
+##    for r in requests:
+#        log.info('Org Request: ' +str(r))
+
+#    org2 = IonObject(RT.Org, name='Org2', description='a second Org')
+#    org2_id = org_client.create_org(org2)
+
+#    requests = org_client.find_requests(org2_id)
+#    log.info("Org2 Request count: %d" % len(requests))
+#    for r in requests:
+#        log.info('Org Request: ' +str(r))
 
 
 
-    req_id = org_client.request_enroll(org2_id,user_id )
 
-    requests = org_client.find_requests(org2_id)
-    log.info("Org2 Request count: %d" % len(requests))
-    for r in requests:
-        log.info('Org Request: ' +str(r))
 
-    org_client.approve_request(org2_id, req_id)
+#    req_id = org_client.request_enroll(org2_id,user_id )
 
-    requests = org_client.find_user_requests(user_id)
-    log.info("User Request count: %d" % len(requests))
-    for r in requests:
-        log.info('User Request: ' +str(r))
+#    requests = org_client.find_requests(org2_id)
+#    log.info("Org2 Request count: %d" % len(requests))
+#    for r in requests:
+#        log.info('Org Request: ' +str(r))
 
-    role = org_client.find_org_role_by_name(org2_id, MANAGER_ROLE)
-    req_id = org_client.request_role(org2_id,user_id, role._id)
-    requests = org_client.find_requests(org2_id)
-    log.info("Org2 Request count: %d" % len(requests))
-    for r in requests:
-        log.info('Org Request: ' +str(r))
+#    org_client.approve_request(org2_id, req_id)
+
+#    requests = org_client.find_user_requests(user_id)
+#    log.info("User Request count: %d" % len(requests))
+#    for r in requests:
+#        log.info('User Request: ' +str(r))
+
+#    role = org_client.find_org_role_by_name(org2_id, MANAGER_ROLE)
+#    req_id = org_client.request_role(org2_id,user_id, role._id)
+#    requests = org_client.find_requests(org2_id)
+#    log.info("Org2 Request count: %d" % len(requests))
+#    for r in requests:
+#        log.info('Org Request: ' +str(r))
 
 #    marine_client = MarineFacilityManagementServiceProcessClient(node=container.node, process=process)
 #    mf_obj = IonObject(RT.MarineFacility, name='Marine Facility Org', description='a new marine facility')
@@ -230,12 +242,14 @@ def gateway_request(uri, payload):
 
     return result
 
-def find_data_products():
+def find_data_products(org_id = '', requester=''):
 
     """
     data_product_find_request = {  "serviceRequest": {
         "serviceName": "resource_registry",
         "serviceOp": "find_resources",
+        "requester": requester,
+        "expiry": 0,
         "params": {
             "restype": 'DataProduct',
             "id_only": False
@@ -249,6 +263,9 @@ def find_data_products():
     data_product_find_request = {  "serviceRequest": {
         "serviceName": "data_product_management",
         "serviceOp": "find_data_products",
+        "serviceOrg": org_id,
+        "requester": requester,
+        "expiry": 0,
         "params": {
         }
     }
@@ -269,12 +286,15 @@ def find_data_products():
 
     return response_data
 
-def find_instrument_agents():
+def find_instrument_agents(org_id = '', requester=''):
 
 
     instrument_agent_find_request = {  "serviceRequest": {
         "serviceName": "instrument_management",
         "serviceOp": "find_instrument_agents",
+        "serviceOrg": org_id,
+        "requester": requester,
+        "expiry": 0,
         "params": {
         }
     }
@@ -295,11 +315,14 @@ def find_instrument_agents():
 
     return response_data
 
-def find_org_roles():
+def find_org_roles(org_id = '', requester=''):
 
     find_org_request = {  "serviceRequest": {
         "serviceName": "org_management",
         "serviceOp": "find_org",
+        "serviceOrg": org_id,
+        "requester": requester,
+        "expiry": 0,
         "params": {
         }
     }
@@ -319,6 +342,9 @@ def find_org_roles():
     find_org_roles_request = {  "serviceRequest": {
         "serviceName": "org_management",
         "serviceOp": "find_org_roles",
+        "serviceOrg": org_id,
+        "requester": requester,
+        "expiry": 0,
         "params": {
             "org_id": ion_org_id
         }
