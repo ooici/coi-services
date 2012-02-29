@@ -2,6 +2,7 @@
 
 """Process that bootstraps an ION system"""
 
+
 __author__ = 'Michael Meisinger'
 
 from pyon.public import CFG, IonObject, log, get_sys_name, RT, LCS, PRED, iex
@@ -82,7 +83,7 @@ class BootstrapService(BaseBootstrapService):
     def post_org_management(self, config):
         # Create root Org: ION
         root_orgname = CFG.system.root_org
-        org = IonObject(RT.Org, name=root_orgname, description="Root Org")
+        org = IonObject(RT.Org, name=root_orgname, description="ION Root Org")
         self.org_id = self.clients.org_management.create_org(org)
 
     def post_exchange_management(self, config):

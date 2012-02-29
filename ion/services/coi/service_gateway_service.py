@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 
-
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
@@ -15,6 +14,8 @@ from pyon.core.registry import get_message_class_in_parm_type, getextends
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
+from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+
 
 #Initialize the flask app
 app = Flask(__name__)
@@ -153,10 +154,9 @@ def process_gateway_request(service_name, operation):
 
         param_list = create_parameter_list(service_name, target_client,operation, json_params)
 
-        #Add governance headers - these are the default values.
-        ion_actor_id = 'anonymous'
-        expiry = '0'
-        param_list['headers'] = {'ion-actor-id': ion_actor_id, 'expiry': expiry}
+        #Add governance headers
+        org_id, ion_actor_id, expiry = get_governance_info_from_request(json_params)
+        param_list['headers'] = build_message_headers(org_id, ion_actor_id, expiry)
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
@@ -186,6 +186,51 @@ def build_error_response(e):
 
     return json_response({ GATEWAY_ERROR :result } )
 
+def get_governance_info_from_request(json_params):
+
+    #Default values for governance headers.
+    org_id = ''
+    actor_id = 'anonymous'
+    expiry = '0'
+    if not json_params:
+
+
+        if request.args.has_key('serviceOrg'):
+            org_id = convert_unicode(request.args['serviceOrg'])
+
+        if request.args.has_key('requester'):
+            actor_id = convert_unicode(request.args['requester'])
+
+        if request.args.has_key('expiry'):
+            expiry = convert_unicode(request.args['expiry'])
+    else:
+        if json_params['serviceRequest'].has_key('serviceOrg'):
+            org_id = convert_unicode(json_params['serviceRequest']['serviceOrg'])
+
+        if json_params['serviceRequest'].has_key('requester'):
+            actor_id = convert_unicode(json_params['serviceRequest']['requester'])
+
+        if json_params['serviceRequest'].has_key('expiry'):
+            expiry = convert_unicode(json_params['serviceRequest']['expiry'])
+
+    return org_id, actor_id, expiry
+
+def build_message_headers(org_id, ion_actor_id, expiry):
+
+    headers = dict()
+
+    headers['ion-actor-id'] = ion_actor_id
+    headers['expiry'] = expiry
+
+    org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+    roles = org_client.find_roles_by_user(org_id,ion_actor_id)
+    role_list = []
+    for r in roles:
+        role_list.append(r.name)
+
+    headers['org_roles'] = role_list
+
+    return headers
 
 #Build parameter list dynamically from
 def create_parameter_list(service_name, target_client,operation, json_params):

@@ -11,7 +11,7 @@ from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
 from pyon.util.log import log
 
-ROOT_ION_ORG_NAME = 'ION'
+ROOT_ION_ORG_NAME = CFG.system.root_org
 
 now = datetime.datetime.now()
 
@@ -46,13 +46,9 @@ class OrgManagementService(BaseOrgManagementService):
         directory = Directory(orgname=org.name)
 
         #Instantiate initial set of User Roles for this Org
-        role_obj = IonObject(RT.UserRole, name=MANAGER_ROLE, description='Users assigned to this role are Managers of the Org')
-        role_id = self.clients.policy_management.create_role(role_obj)
-        self.add_user_role(org_id, role_id)
+        self.add_user_role(org_id, name=MANAGER_ROLE, description='Org Manager')
 
-        role_obj = IonObject(RT.UserRole, name=MEMBER_ROLE, description='Users assigned to this role are members of the Org')
-        role_id = self.clients.policy_management.create_role(role_obj)
-        self.add_user_role(org_id, role_id)
+        self.add_user_role(org_id, name=MEMBER_ROLE, description='Org Member')
 
         return org_id
 
@@ -112,13 +108,15 @@ class OrgManagementService(BaseOrgManagementService):
         return res_list[0]
 
 
-    def add_user_role(self, org_id='', user_role_id=''):
-        """Adds a UserRole to an Org.
+    def add_user_role(self, org_id='', name='', description=''):
+        """Adds a UserRole to an Org. Will call Policy Management Service to actually
+        create the role based on name and description.
         Throws exception if either id does not exist.
 
         @param org_id    str
-        @param user_role_id    str
-        @retval success    bool
+        @param name    str
+        @param description    str
+        @retval user_role_id    str
         @throws NotFound    object with specified name does not exist
         """
 
@@ -129,28 +127,27 @@ class OrgManagementService(BaseOrgManagementService):
         if not org:
             raise NotFound("Org %s does not exist" % org_id)
 
-        user_role = self.clients.policy_management.read_role(user_role_id)
-        if not user_role:
-            raise NotFound("User Role %s does not exist" % user_role_id)
+        if not name:
+            raise BadRequest("The name parameter is missing")
 
-        role_list = self.find_org_roles(org_id)
-        for role in role_list:
-            if role.name == user_role.name:
-                raise BadRequest("The User Role '%s' is already associated with this Org" % user_role.name )
+        if self._find_role(org_id, name) is not None:
+            raise BadRequest("The user role '%s' is already associated with this Org" % name)
+
+        role_obj = IonObject(RT.UserRole, name=name, description=description)
+        user_role_id = self.clients.policy_management.create_role(role_obj)
+        user_role = self.clients.policy_management.read_role(user_role_id)
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasRole, user_role)
-        if not aid:
-            return False
 
-        return True
+        return user_role_id
 
-    def remove_user_role(self, org_id='', user_role_id='', force_removal=False):
+    def remove_user_role(self, org_id='', name='', force_removal=False):
         """Removes a UserRole from an Org. The UserRole will not be removed if there are
         users associated with the UserRole unless the force_removal paramater is set to True
         Throws exception if either id does not exist.
 
         @param org_id    str
-        @param user_role_id    str
+        @param name    str
         @param force_removal    bool
         @retval success    bool
         @throws NotFound    object with specified name does not exist
@@ -162,17 +159,12 @@ class OrgManagementService(BaseOrgManagementService):
         if not org:
             raise NotFound("Org %s does not exist" % org_id)
 
-        if not user_role_id:
-            raise BadRequest("The user_role_id parameter is missing")
+        if not name:
+            raise BadRequest("The name parameter is missing")
 
-        user_role = self.clients.policy_management.read_role(user_role_id)
+        user_role = self._find_role(org_id, name)
         if not user_role:
-            raise NotFound("User Role %s does not exist" % user_role_id)
-
-        try:
-            aid = self.clients.resource_registry.get_association(org, PRED.hasRole, user_role)
-        except NotFound, e:
-            raise NotFound("The association between the specified User Role and Org was not found")
+            raise NotFound("User Role %s does not exist or is not associated with the Org" % user_role_id)
 
         if not force_removal:
             alist,_ = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasRole, user_role)

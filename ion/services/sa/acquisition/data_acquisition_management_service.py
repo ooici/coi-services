@@ -236,13 +236,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Data producer %d does not exist" % producer_ids[0])
 
         # Remove the link between the child Data Producer resource and the primary Data Producer resource
-        associations = self.clients.resource_registry.find_associations(producer_ids[0], PRED.hasParent, RT.DataProducer, True)
+        associations = self.clients.resource_registry.find_associations(producer_ids[0], PRED.hasParent, RT.DataProducer, id_only=True)
         for association in associations:
             log.debug("unassign_data_product: link to primary DataProducer %s" % association)
             self.clients.resource_registry.delete_association(association)
 
         # Remove the link between the input resource (instrument/process/ext_data_set) resource and the child Data Producer resource
-        associations = self.clients.resource_registry.find_associations(input_resource_id, PRED.hasDataProducer, producer_ids[0], True)
+        associations = self.clients.resource_registry.find_associations(input_resource_id, PRED.hasDataProducer, producer_ids[0], id_only=True)
         for association in associations:
             log.debug("unassign_data_product: link from input resource to child DataProducer %s" % association)
             self.clients.resource_registry.delete_association(association)
@@ -260,7 +260,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             if stream_ids is None or len(stream_ids) > 1:
                 raise NotFound("Invalid Streams associated with data product ID " + str(data_product_id))
             # List all association ids with given subject, predicate, object triples
-            associations = self.clients.resource_registry.find_associations(data_product_id, PRED.hasStream, stream_ids[0], True)
+            associations = self.clients.resource_registry.find_associations(data_product_id, PRED.hasStream, stream_ids[0], id_only=True)
             for association in associations:
                 self.clients.resource_registry.delete_association(association)
             self.clients.pubsub_management.delete_stream(stream_ids[0])
@@ -518,7 +518,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # delete the associations
         # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(data_source_id, PRED.hasProvider, external_data_provider_id, True)
+        associations = self.clients.resource_registry.find_associations(data_source_id, PRED.hasProvider, external_data_provider_id, id_only=True)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
@@ -546,7 +546,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("External Data Source Model resource %s does not exist" % data_source_model_id)
         # delete the associations
         # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(data_source_id,  PRED.hasModel,  data_source_model_id, True)
+        associations = self.clients.resource_registry.find_associations(data_source_id,  PRED.hasModel,  data_source_model_id, id_only=True)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
@@ -575,7 +575,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # delete the associations
         # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, True)
+        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, id_only=True)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
@@ -604,7 +604,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # delete the associations
         # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(external_data_agent_id,  PRED.hasInstance,  agent_instance_id, True)
+        associations = self.clients.resource_registry.find_associations(external_data_agent_id,  PRED.hasInstance,  agent_instance_id, id_only=True)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
@@ -632,7 +632,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("External Data Source Model resource %s does not exist" % data_source_model_id)
         # delete the associations
         # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(external_data_agent_id,  PRED.hasModel,  data_source_model_id, True)
+        associations = self.clients.resource_registry.find_associations(external_data_agent_id,  PRED.hasModel,  data_source_model_id, id_only=True)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
@@ -662,7 +662,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # delete the associations
         # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, True)
+        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, id_only=True)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 

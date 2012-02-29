@@ -10,7 +10,6 @@ from pyon.datastore.datastore import DataStore
 from pyon.public import IonObject, RT
 from pyon.util.int_test import IonIntegrationTestCase
 
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.idatastore_service import DatastoreServiceClient, DatastoreServiceProcessClient
 
 @attr('INT', group='coi')
@@ -19,10 +18,7 @@ class TestDatastore(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         # Now create client to bank service
         self.datastore_service = DatastoreServiceClient(node=self.container.node)

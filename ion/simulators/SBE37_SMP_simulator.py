@@ -175,7 +175,7 @@ class sbe37(asyncore.dispatcher_with_send):
                 self.send_data(data, 'ECHO COMMAND BACK TO SENDER')
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
-                if command_args[0] == 'BAUD':
+                if command_args[0] == 'baud':
                     if command_args[1] in self.allowable_baud_rates:
                         self.baud_rate = command_args[1]
                     else:

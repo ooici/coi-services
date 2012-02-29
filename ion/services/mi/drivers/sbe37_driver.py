@@ -127,6 +127,12 @@ class SBE37Parameter(DriverParameter):
     RTCA1 = 'RTCA1'
     RTCA2 = 'RTCA2'
         
+        
+PACKET_CONFIG = {
+        'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
+        'ctd_raw' : None            
+}
+
 ###############################################################################
 # Seabird Electronics 37-SMP MicroCAT protocol.
 ###############################################################################
@@ -134,6 +140,7 @@ class SBE37Parameter(DriverParameter):
 class SBE37Protocol(CommandResponseInstrumentProtocol):
     """
     """
+    
     def __init__(self, prompts, newline, evt_callback):
         """
         """
@@ -1012,7 +1019,7 @@ class SBE37Driver(InstrumentDriver):
         self._channels = {SBE37Channel.CTD:protocol}
             
     ########################################################################
-    # Channel connection interface.
+    # Channel connection interface. 
     ########################################################################
     
     def initialize(self, channels = [SBE37Channel.CTD], *args, **kwargs):

@@ -1017,7 +1017,7 @@ class InstrumentAgent(ResourceAgent):
 
         else:
             log.info('Insturment agent %s started its driver.', self._proc_name)
-            self._construct_packet_factories()
+            self._construct_packet_factories(dvr_mod)
 
     def _stop_driver(self):
         """
@@ -1049,33 +1049,40 @@ class InstrumentAgent(ResourceAgent):
             log.info('Instrumen agent %s created publisher for stream %s',
                      self._proc_name, name)        
         
-    def _construct_packet_factories(self):
+    def _construct_packet_factories(self, dvr_mod):
         """
         Construct packet factories from packet_config member of the
         driver_config.
         @retval None
         """
-        packet_config = self._dvr_config['packet_config']
-        for (name, val) in packet_config.iteritems():
-            if val:
-                mod = val[0]
-                cls = val[1]
-                import_str = 'from %s import %s' % (mod, cls)
-                ctor_str = 'ctor = %s' % cls
-                
-                try:
-                    exec import_str
-                    exec ctor_str
+
+        import_str = 'from %s import PACKET_CONFIG' % dvr_mod
+        try:
+            exec import_str
+            log.info('Instrument agent %s imported packet config.', self._proc_name)
+            for (name, val) in PACKET_CONFIG.iteritems():
+                if val:
+                    try:
+                        mod = val[0]
+                        cls = val[1]
+                        import_str = 'from %s import %s' % (mod, cls)
+                        ctor_str = 'ctor = %s' % cls
+                        exec import_str
+                        exec ctor_str
+                        self._packet_factories[name] = ctor
                     
-                except Exception:
-                    log.error('Instrument agent %s had error creating packet factories from %s.%s',
-                              self._proc_name, mod, cls)
-                
-                else:
-                    self._packet_factories[name] = ctor
-                    log.info('Instrument agent %s created packet factory for stream %s',
-                             self._proc_name, name)
+                    except Exception:
+                        log.error('Instrument agent %s had error creating packet factory for stream %s',
+                                 self._proc_name, name)
                     
+                    else:
+                        log.info('Instrument agent %s created packet factory for stream %s',
+                                 self._proc_name, name)
+
+        except Exception:
+            log.error('Instrument agent %s had error creating packet factories.',
+                      self._proc_name)
+                                
     def _clear_packet_factories(self):
         """
         Delete packet factories.

@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
 
+
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import PRED, RT
+from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 
 MANAGER_ROLE = 'Manager'
@@ -102,28 +104,39 @@ class PolicyManagementService(BasePolicyManagementService):
         raise NotImplementedError()
 
     def create_role(self, user_role=None):
-        """Persists the provided UserRole object. The id string returned
-        is the internal id by which a UserRole will be indentified in the data store.
+        """Persists the provided UserRole object. The name of a role can only contain
+        alphanumeric and underscore characters while the description can me human
+        readable. The id string returned is the internal id by which a UserRole will
+        be indentified in the data store.
 
         @param user_role    UserRole
         @retval user_role_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+
+        if not is_basic_identifier(user_role.name):
+            raise BadRequest("The role name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+
         user_role_id, version = self.clients.resource_registry.create(user_role)
         return user_role_id
 
     def update_role(self, user_role=None):
-        """Updates the provided UserRole object.  Throws NotFound exception if
-        an existing version of UserRole is not found.  Throws Conflict if
-        the provided UserRole object is not based on the latest persisted
-        version of the object.
+        """Updates the provided UserRole object.  The name of a role can only contain
+        alphanumeric and underscore characters while the description can me human
+        readable.Throws NotFound exception if an existing version of UserRole is
+        not found.  Throws Conflict if the provided UserRole object is not based on
+        the latest persisted version of the object.
 
         @param user_role    UserRole
         @retval success    bool
-        @throws NotFound    object with specified id does not exist
         @throws BadRequest    if object does not have _id or _rev attribute
+        @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
+
+        if not is_basic_identifier(user_role.name):
+            raise BadRequest("The role name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+
         self.clients.resource_registry.update(user_role)
 
     def read_role(self, user_role_id=''):

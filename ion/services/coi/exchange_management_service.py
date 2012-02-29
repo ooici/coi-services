@@ -5,8 +5,10 @@ __author__ = 'Michael Meisinger'
 from pyon.public import CFG, IonObject, log, RT, PRED
 
 from interface.services.coi.iexchange_management_service import BaseExchangeManagementService
-from pyon.core.exception import Conflict, Inconsistent, NotFound
+from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest
 from pyon.util.log import log
+#from pyon.ion.exchange import ExchangeSpace, ExchangeName, ExchangePoint
+from pyon.ion import exchange
 
 class ExchangeManagementService(BaseExchangeManagementService):
 
@@ -35,12 +37,13 @@ class ExchangeManagementService(BaseExchangeManagementService):
         aid = self.clients.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
 
         # Now do the work
-        if exchange_space.name == "ioncore":
-            # Bottom turtle initialization
-            pass
-        else:
-            # All other XS initialization
-            pass
+
+#        if exchange_space.name == "ioncore":
+#            # Bottom turtle initialization
+#            # @TODO: what's different here
+#            self.container.ex_manager.create_xs(exchange_space.name)
+#        else:
+        self.container.ex_manager.create_xs(exchange_space.name, use_ems=False)
         
         return exchange_space_id
 
@@ -76,7 +79,28 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_space = self.clients.resource_registry.read(exchange_space_id)
         if not exchange_space:
             raise NotFound("Exchange Space %s does not exist" % exchange_space_id)
-        self.clients.resource_registry.delete(exchange_space)
+
+        # remove association between itself and org
+        _, assocs = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, exchange_space_id, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
+        # delete assocs to XNs
+        _, assocs = self.clients.resource_registry.find_objects(exchange_space_id, PRED.hasExchangeName, RT.ExchangeName, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
+        # delete assocs to XPs
+        _, assocs = self.clients.resource_registry.find_objects(exchange_space_id, PRED.hasExchangePoint, RT.ExchangePoint, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
+        # delete XS now
+        self.clients.resource_registry.delete(exchange_space_id)
+
+        # call container API to delete
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        self.container.ex_manager.delete_xs(xs, use_ems=False)
 
     def find_exchange_spaces(self, filters=None):
         """Returns a list of Exchange Space resources for the given Resource Filter.
@@ -95,9 +119,21 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval canonical_name    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-        exchange_name_id,rev = self.clients.resource_registry.create(exchange_name)
+        # get xntype and translate @TODO should we just consolidate these to be the same?
+        typemap = { 'XN_SERVICE':'service', 'XN_PROCESS':'process', 'XN_QUEUE':'queue' }
+        if not exchange_name.xn_type in typemap:
+            raise BadRequest("Unknown exchange name type: %s" % exchange_name.xn_type)
 
-        aid = self.clients.resource_registry.create_association(exchange_space, PRED.hasExchangeName, exchange_name_id)
+        xntype = typemap[exchange_name.xn_type]
+
+        exchange_space          = self.read_exchange_space(exchange_space_id)
+        exchange_name_id,rev    = self.clients.resource_registry.create(exchange_name)
+
+        aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangeName, exchange_name_id)
+
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        self.container.ex_manager._create_xn(xntype, exchange_name.name, xs, use_ems=False)
 
         return exchange_name_id  #QUestion - is this the correct canonical name?
 
@@ -109,7 +145,33 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        raise NotImplementedError()
+        # @TODO: currently we are using the exchange_name's id as the canonical name
+        # and exchange_space_id is unused?
+        exchange_name = self.clients.resource_registry.read(canonical_name)
+        if not exchange_name:
+            raise NotFound("Exchange Name with id %s does not exist" % canonical_name)
+
+        exchange_name_id = exchange_name._id        # yes, this should be same, but let's make it look cleaner
+
+        # get associated XS first
+        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id)
+        if not len(exchange_space_list) == 1:
+            raise NotFound("Associated Exchange Space to Exchange Name %s does not exist" % exchange_name_id)
+
+        exchange_space = exchange_space_list[0]
+
+        # remove association between itself and XS
+        _, assocs = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
+        # remove XN
+        self.clients.resource_registry.delete(exchange_name_id)
+
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xn = exchange.ExchangeName(self.container.ex_manager, exchange_name.name, xs)              # type doesn't matter here
+        self.container.ex_manager.delete_xn(xn, use_ems=False)
 
     def find_exchange_names(self, filters=None):
         """Returns a list of exchange name resources for the given resource filter.
@@ -127,9 +189,14 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_point_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+        exchange_space          = self.read_exchange_space(exchange_space_id)
         exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
 
-        #aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
+        aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
+
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        self.container.ex_manager.create_xp(exchange_point.name, xs, xptype=exchange_point.topology_type, use_ems=False)
 
         return exchange_point_id
 
@@ -166,7 +233,25 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_point = self.clients.resource_registry.read(exchange_point_id)
         if not exchange_point:
             raise NotFound("Exchange Point %s does not exist" % exchange_point_id)
-        self.clients.resource_registry.delete(exchange_point)
+
+        # get associated XS first
+        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
+        if not len(exchange_space_list) == 1:
+            raise NotFound("Associated Exchange Space to Exchange Point %s does not exist" % exchange_point_id)
+
+        exchange_space = exchange_space_list[0]
+
+        # delete association to XS
+        for assoc in assoc_list:
+            self.clients.resource_registry.delete_association(assoc._id)
+
+        # delete from RR
+        self.clients.resource_registry.delete(exchange_point_id)
+
+        # call container API
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xp = exchange.ExchangePoint(self.container.ex_manager, exchange_point.name, xs, 'ttree')
+        self.container.ex_manager.delete_xp(xp, use_ems=False)
 
     def find_exchange_points(self, filters=None):
         """Returns a list of exchange point resources for the provided resource filter.
