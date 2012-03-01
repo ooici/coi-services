@@ -80,7 +80,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'comms_config': {
                 SBE37Channel.CTD: {
                     'method':'ethernet',
-                    'device_addr': '137.110.112.119',
+                    #'device_addr': 'sbe37-simulator.oceanobservatories.org',
+                    'device_addr':'localhost',
                     'device_port': 4001,
                     'server_addr': 'localhost',
                     'server_port': 8888
@@ -222,7 +223,48 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         log.info('got ia client %s', str(self._ia_client))        
         
                 
-    def test_initialize(self):
+    def test_direct_access(self):
+        """
+        Test agent direct_access command. This causes creation of
+        driver process and transition to direct access.
+        """
+        print("test initing")
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+
+        print("test go_active")
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test run")
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test go_da")
+        cmd = AgentCommand(command='go_direct_access')
+        retval = self._ia_client.execute_agent(cmd) 
+        print("retval=" + str(retval))       
+        time.sleep(20)
+
+        print("test go_ob")
+        cmd = AgentCommand(command='go_observatory')
+        retval = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+
+        print("test go_inactive")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test reset")
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+    def xtest_initialize(self):
         """
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.

@@ -100,9 +100,12 @@ class TelnetServer(object):
 			
 	def server_greenlet(self):
 		log.debug("TelnetServer.server_greenlet(): started")
-		self.server_socket.listen(1)
-		new_socket, address = self.server_socket.accept()
-		self.handler(new_socket, address)
+		try:
+			self.server_socket.listen(1)
+			new_socket, address = self.server_socket.accept()
+			self.handler(new_socket, address)
+		except Exception as ex:
+			log.info("TelnetServer.server_greenlet(): exception caught <%s>" %str(ex))
 		log.debug("TelnetServer.server_greenlet(): stopping")
 		
 	def __init__(self, input_callback=None):

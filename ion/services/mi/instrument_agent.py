@@ -25,6 +25,8 @@ from ion.services.mi.common import BaseEnum
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
+from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
+
 
 class InstrumentAgentState(BaseEnum):
     """
@@ -229,6 +231,23 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.start(self._initial_state)
 
 
+    ###############################################################################
+    # Event callback and handling for direct access.
+    ###############################################################################
+    
+    def telnet_input_processor(self, data):
+        # callback passed to DA Server for receiving input server       
+        if isinstance(data, int):
+            # not character data, so check for lost connection
+            if data == -1:
+                print ("InstAgent.telnetInputProcessor: connection lost")
+                self.lost_connection = True
+            else:
+                print ("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
+            return
+        print ("InstAgent.telnetInputProcessor: data = " + str(data) + " len=" + str(len(data)))
+        self.da_server.send("InstAgent.telnetInputProcessor() rcvd: " + data + chr(10))
+            
     ###############################################################################
     # Event callback and handling.
     ###############################################################################
@@ -492,7 +511,7 @@ class InstrumentAgent(ResourceAgent):
         result = self._start_driver(self._dvr_config)
         if not result:
             next_state = InstrumentAgentState.INACTIVE
-
+            
         return (next_state, result)
 
     def _handler_uninitialized_reset(self,  *args, **kwargs):
@@ -579,14 +598,18 @@ class InstrumentAgent(ResourceAgent):
         con_result = self._dvr_client.cmd_dvr('connect', channels)
 
         result = cfg_result.copy()
-        for (key, val) in con_result.iteritems():
-            result[key] = val
+
+        try:
+            for (key, val) in con_result.iteritems():
+                result[key] = val
+        except:
+            log.error("Instrument agent connection failure: " + str(con_result))
 
         self._active_channels = self._dvr_client.cmd_dvr('get_active_channels')
 
         if len(self._active_channels)>0:
                 next_state = InstrumentAgentState.IDLE
-        
+
         return (next_state, result)
 
     ###############################################################################
@@ -805,6 +828,11 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
+        log.info("Instrument agent requested to go to direct access mode")
+        self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor)
+        addr, port, name, password = self.da_server.get_connection_info()
+        result = {'ip_address':addr, 'port':port, 'username':name, 'password':password}
+        next_state = InstrumentAgentState.DIRECT_ACCESS
         return (next_state, result)
 
     def _handler_get_params(self, params, *args, **kwargs):
@@ -930,6 +958,9 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
+        self.da_server.stop()
+        del self.da_server
+        next_state = InstrumentAgentState.OBSERVATORY
         return (next_state, result)
 
     ###############################################################################

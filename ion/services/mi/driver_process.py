@@ -119,6 +119,7 @@ class DriverProcess(object):
         args = msg.get('args', None)
         kwargs = msg.get('kwargs', None)
         cmd_func = getattr(self.driver, cmd, None)
+        mi_logger.debug("DriverProcess.cmd_driver(): cmd=%s, cmd_func=%s" %(cmd, cmd_func))
         if cmd == 'stop_driver_process':
             self.stop_messaging()
             return'stop_driver_process'
