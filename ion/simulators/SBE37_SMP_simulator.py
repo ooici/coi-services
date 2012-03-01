@@ -188,7 +188,7 @@ class sbe37(asyncore.dispatcher_with_send):
                         data = None
 
             if data:
-                self.send_data(data, 'ECHO COMMAND BACK TO SENDER')
+                self.send_data(data.rstrip('\r').rstrip('\n') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
                 if command_args[0] == 'baud':
