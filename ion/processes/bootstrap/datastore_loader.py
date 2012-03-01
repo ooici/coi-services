@@ -30,6 +30,9 @@ class DatastoreAdmin(ImmediateProcess):
         pass
 
     def on_start(self):
+        # print env temporarily to debug cei
+        import os
+        log.info('ENV vars: %s' % str(os.environ))
         op = self.CFG.get("op", None)
         datastore = self.CFG.get("datastore", None)
         path = self.CFG.get("path", None)
