@@ -11,12 +11,15 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from gevent import monkey
-monkey.patch_all()
+#from gevent import monkey
+#monkey.patch_all()
 
 import time
 
-from ion.services.mi.drivers.uw_bars.test.pyon_test import PyonBarsTestCase
+# NOTE: not using the pyon-based PyonBarsTestCase class because of issue with
+# logging: log messages from the test case are not generated.
+#from ion.services.mi.drivers.uw_bars.test.pyon_test import PyonBarsTestCase
+from ion.services.mi.drivers.uw_bars.test import BarsTestCase
 
 from ion.services.mi.instrument_driver import DriverState
 
@@ -26,13 +29,15 @@ from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
+from ion.services.mi.mi_logger import mi_logger
+log = mi_logger
 
 import unittest
 from nose.plugins.attrib import attr
 
 
 @attr('UNIT', group='mi')
-class BarsDriverTest(PyonBarsTestCase):
+class BarsDriverTest(BarsTestCase):
     """
     Tests involving ZMQ driver process and ZMQ client.
     """
@@ -74,11 +79,10 @@ class BarsDriverTest(PyonBarsTestCase):
     def _get_current_state(self):
         driver_client = self._driver_client
         reply = driver_client.cmd_dvr('get_current_state')
-        print("** get_current_state reply=%s" % str(reply))
+        log.info("get_current_state reply=%s" % str(reply))
         return reply[BarsChannel.INSTRUMENT]
 
-    def _get_and_assert_state(self, state):
-        curr_state = self._get_current_state()
+    def _assert_state(self, state, curr_state):
         self.assertEqual(state, curr_state, "expected: %s, current=%s" %
                          (state, curr_state))
 
@@ -86,33 +90,33 @@ class BarsDriverTest(PyonBarsTestCase):
         driver_client = self._driver_client
 
         reply = driver_client.cmd_dvr('initialize', [BarsChannel.INSTRUMENT])
-        print("** initialize reply=%s" % str(reply))
+        log.info("initialize reply=%s" % str(reply))
 
         # TODO review driver state vs. protocol state
-        self._get_current_state()
-        #self._get_and_assert_state(DriverState.UNCONFIGURED)
+        curr_state = self._get_current_state()
+#        self._assert_state(DriverState.UNCONFIGURED, curr_state)
 
         time.sleep(1)
 
     def _connect(self):
         driver_client = self._driver_client
 
-        self._get_and_assert_state(DriverState.UNCONFIGURED)
+        self._assert_state(DriverState.UNCONFIGURED, self._get_current_state())
 
         self._initialize()
 
         configs = {BarsChannel.INSTRUMENT: self.config}
         reply = driver_client.cmd_dvr('configure', configs)
-        print("** configure reply=%s" % str(reply))
+        log.info("configure reply=%s" % str(reply))
 
         self._get_current_state()
 
         reply = driver_client.cmd_dvr('connect', [BarsChannel.INSTRUMENT])
-        print("** connect reply=%s" % str(reply))
+        log.info("connect reply=%s" % str(reply))
 
         time.sleep(1)
 
-        self._get_and_assert_state(DriverState.AUTOSAMPLE)
+        self._assert_state(DriverState.AUTOSAMPLE, self._get_current_state())
 
         time.sleep(1)
 
@@ -120,18 +124,20 @@ class BarsDriverTest(PyonBarsTestCase):
         driver_client = self._driver_client
 
         reply = driver_client.cmd_dvr('disconnect', [BarsChannel.INSTRUMENT])
-        print("** disconnect reply=%s" % str(reply))
+        log.info("disconnect reply=%s" % str(reply))
 
         # TODO review driver state vs. protocol state
-        self._get_current_state()
-        #self._get_and_assert_state(DriverState.DISCONNECTED)
+        curr_state = self._get_current_state()
+#        self._assert_state(DriverState.DISCONNECTED, curr_state)
 
         time.sleep(1)
 
         self._initialize()
 
     def test_get(self):
-        """BARS get"""
+        """BARS get tests"""
+
+        log.debug("***************HERE****************")
 
         self._connect()
 
@@ -142,8 +148,45 @@ class BarsDriverTest(PyonBarsTestCase):
         get_params = [cp]
 
         reply = driver_client.cmd_dvr('get', get_params)
-        print "get reply = %s" % str(reply)
+        log.info("get reply = %s" % str(reply))
         seconds = reply.get(cp)
         assert isinstance(seconds, int)
+
+        self._disconnect()
+
+    def test_get_set(self):
+        """BARS get and set tests"""
+        pass
+
+        self._connect()
+
+        driver_client = self._driver_client
+
+        # get a parameter
+        cp = (BarsChannel.INSTRUMENT, BarsParameter.TIME_BETWEEN_BURSTS)
+        get_params = [cp]
+
+        reply = driver_client.cmd_dvr('get', get_params)
+        log.info("get reply = %s" % str(reply))
+        seconds = reply.get(cp)
+        assert isinstance(seconds, int)
+
+        new_seconds = seconds + 5
+        if new_seconds > 30 or new_seconds < 15:
+            new_seconds = 15
+
+        # set a parameter
+        set_params = {cp: new_seconds}
+        reply = driver_client.cmd_dvr('set', set_params)
+        log.info("set reply = %s" % str(reply))
+
+        # get again
+        reply = driver_client.cmd_dvr('get', get_params)
+        log.info("get reply = %s" % str(reply))
+        seconds = reply.get(cp)
+        assert isinstance(seconds, int)
+
+        self.assertEqual(new_seconds, seconds)
+        time.sleep(1)
 
         self._disconnect()

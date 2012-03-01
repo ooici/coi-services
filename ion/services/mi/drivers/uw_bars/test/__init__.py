@@ -5,9 +5,8 @@ __license__ = 'Apache 2.0'
 
 import os
 import unittest
-import logging
-import ion.services.mi.mi_logger
-log = logging.getLogger('mi_logger')
+from ion.services.mi.mi_logger import mi_logger
+log = mi_logger
 
 
 @unittest.skipIf(os.getenv('UW_BARS') is None,

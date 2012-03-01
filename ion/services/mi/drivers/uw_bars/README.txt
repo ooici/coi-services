@@ -81,3 +81,18 @@ It accepts multiple clients but in sequential order.
 Using MI core classes
 ---------------------
 
+
+
+
+Misc notes
+----------
+
+- Having pyon stuff included in some way causes some misbehaviors:
+
+  - threads not started: likely caused by a mix of gevent monkey-patching (see
+    test_thread.py for some details).
+
+  - logging settings: log messages from test files are not generated when
+    PyonTestCase (from pyon.util.unit_test) is used, and in combination with
+    the BarsTestCase used as a mixin, see pyon_test.py. Noticed this with
+    test_driver_proc.py
