@@ -135,8 +135,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Associate with dataProcess
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
-        self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
-        self.clients.resource_registry.create_association(data_process_id, PRED.hasOutputProduct, out_data_product_id)
+
+        #Todo: currently this is handled explicitly after creating the dat product, that code then calls DMAS:assign_data_product
+        #self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
+        #self.clients.resource_registry.create_association(data_process_id, PRED.hasOutputProduct, out_data_product_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
