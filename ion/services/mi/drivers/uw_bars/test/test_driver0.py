@@ -101,7 +101,7 @@ class DriverTest(BarsTestCase):
         if new_seconds > 30 or new_seconds < 15:
             new_seconds = 15
 
-        # get a parameter
+        # set a parameter
         result = driver.set({cp: new_seconds})
         print "set result = %s" % str(result)
         code = result.get(cp)
