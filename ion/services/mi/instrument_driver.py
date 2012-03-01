@@ -14,8 +14,8 @@ __license__ = 'Apache 2.0'
 
 import logging
 from ion.services.mi.common import BaseEnum, InstErrorCode
-from ion.services.mi.exceptions import InstrumentConnectionException 
-from ion.services.mi.exceptions import RequiredParameterException 
+from ion.services.mi.exceptions import InstrumentConnectionException
+from ion.services.mi.exceptions import RequiredParameterException
 from ion.services.mi.common import DEFAULT_TIMEOUT
 from ion.services.mi.instrument_fsm_args import InstrumentFSM
 
@@ -30,10 +30,10 @@ class DriverChannel(BaseEnum):
 
 class DriverCommand(BaseEnum):
     """Common driver commands
-    
+
     Commands and events should have unique strings that either indicate
     something or can be used in some other rational fashion."""
-    
+
     ACQUIRE_SAMPLE = 'DRIVER_CMD_ACQUIRE_SAMPLE'
     START_AUTO_SAMPLING = 'DRIVER_CMD_START_AUTO_SAMPLING'
     STOP_AUTO_SAMPLING = 'DRIVER_CMD_STOP_AUTO_SAMPLING'
@@ -45,11 +45,11 @@ class DriverCommand(BaseEnum):
     GET_STATUS = 'DRIVER_CMD_GET_STATUS'
     GET_METADATA = 'DRIVER_CMD_GET_METADATA'
     UPDATE_PARAMS = 'DRIVER_CMD_UPDATE_PARAMS'
-    TEST_ERRORS = 'DRIVER_CMD_TEST_ERRORS'    
+    TEST_ERRORS = 'DRIVER_CMD_TEST_ERRORS'
 
 class DriverState(BaseEnum):
     """Common driver state enum"""
-    
+
     UNCONFIGURED = 'DRIVER_STATE_UNCONFIGURED'
     DISCONNECTED = 'DRIVER_STATE_DISCONNECTED'
     CONNECTING = 'DRIVER_STATE_CONNECTING'
@@ -66,10 +66,10 @@ class DriverState(BaseEnum):
 
 class DriverEvent(BaseEnum):
     """Common driver event enum
-    
+
     Commands and events should have unique strings that either indicate
     something or can be used in some other rational fashion."""
-    
+
     CONFIGURE = 'DRIVER_EVENT_CONFIGURE'
     INITIALIZE = 'DRIVER_EVENT_INITIALIZE'
     CONNECT = 'DRIVER_EVENT_CONNECT'
@@ -98,11 +98,11 @@ class DriverEvent(BaseEnum):
     ATTACH = 'DRIVER_EVENT_ATTACH'
     DETACH = 'DRIVER_EVENT_DETACH'
     UPDATE_PARAMS = 'DRIVER_EVENT_UPDATE_PARAMS'
-    
+
 
 class DriverStatus(BaseEnum):
     """Common driver status enum"""
-    
+
     DRIVER_VERSION = 'DRIVER_STATUS_DRIVER_VERSION'
     DRIVER_STATE = 'DRIVER_STATUS_DRIVER_STATE'
     OBSERVATORY_STATE = 'DRIVER_STATUS_OBSERVATORY_STATE'
@@ -112,13 +112,13 @@ class DriverStatus(BaseEnum):
 
 class DriverParameter(BaseEnum):
     """Common driver parameter enum"""
-    
+
     ALL = 'DRIVER_PARAMETER_ALL'
 
 
 class ObservatoryState(BaseEnum):
     """The status of a device in observatory mode"""
-    
+
     NONE = 'OBSERVATORY_STATUS_NONE'
     STANDBY = 'OBSERVATORY_STATUS_STANDBY'
     STREAMING = 'OBSERVATORY_STATUS_STREAMING'
@@ -134,13 +134,13 @@ class ConnectionState(BaseEnum):
     DISCONNECTED = 'CONNECTION_STATE_DISCONNECTED'
     DISCONNECTING = 'CONNECTION_STATE_DISCONNECTING'
     UNKNOWN = 'CONNECTION_STATE_UNKNOWN'
-    
+
 class ConnectionEvent(BaseEnum):
     CONNECT = 'CONNECTION_EVENT_CONNECT'
     DISCONNECT = 'CONNECTION_EVENT_DISCONNECT'
     ENTER_STATE = 'CONNECTION_EVENT_ENTER'
     EXIT_STATE = 'CONNECTION_EVENT_EXIT'
-    
+
 """
 TODO:
 Do we want timeouts in the driver interface. timeout=DEFAULT_TIMEOUT.
@@ -149,12 +149,12 @@ How would we provide such behavior?
 
 class InstrumentDriver(object):
     """The base instrument driver class
-    
+
     This is intended to be extended where necessary to provide a coherent
     driver for interfacing between the instrument and the instrument agent.
     Think of this class as encapsulating the session layer of the instrument
     interaction.
-    
+
     @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
     """
 
@@ -165,36 +165,36 @@ class InstrumentDriver(object):
         # We need to change this to protocol or connection name, rather than channel.
         self.channels = {}
         """@todo clean this up as chan_map gets used more"""
-        
+
         self.chan_map = {}
         """The channel to protocol mapping"""
-        
+
         self.send_event = evt_callback
         """The callback method that the protocol uses to alert the driver to
         events"""
-        
+
         self.instrument_commands = None
         """A BaseEnum-derived class of the acceptable commands"""
-        
+
         self.instrument_parameters = None
         """A BaseEnum-derived class of the acceptable parameters"""
-    
+
         self.instrument_channels = None
         """A BaseEnum-derived class of the acceptable channels"""
-        
+
         self.instrument_errors = None
         """A BaseEnum-derived class of the acceptable errors"""
-        
+
         self.instrument_states = None
         """A BaseEnum-derived class of the acceptable channel states"""
-        
+
         self.instrument_active_states = []
         """A list of the active states found in the BaseEnum-derived state
         class"""
-        
+
         self.state_map = None
         """An optional mapping of specific driver states to DriverState enums"""
-        
+
         # Below are old members with comments from EH.
         #
         # Protocol will create and own the connection it fronts.
@@ -227,12 +227,12 @@ class InstrumentDriver(object):
         # TBD.
         #self.instrument_status = None
         #"""The instrument-specific status list"""
-        
+
         # Do we need this also? Just use simple harmonizing logic
         # at driver level if there are multiple connections. If one connection,
         # one state machine.
         # Setup the state machine
-        
+
         self.connection_fsm = InstrumentFSM(ConnectionState, ConnectionEvent,
                                         ConnectionEvent.ENTER_STATE,
                                         ConnectionEvent.EXIT_STATE,
@@ -250,7 +250,7 @@ class InstrumentDriver(object):
                                     ConnectionEvent.DISCONNECT,
                                     self._handler_unknown_disconnect)
         self.connection_fsm.start(ConnectionState.UNKNOWN)
-                              
+
         """
         self.driver_fsm.add_transition(DriverEvent.CONFIGURE,
                                        DriverState.UNCONFIGURED,
@@ -259,48 +259,48 @@ class InstrumentDriver(object):
         self.driver_fsm.add_transition(DriverEvent.INITIALIZE,
                                        DriverState.DISCONNECTED,
                                        action=self._handle_initialize,
-                                       next_state=DriverState.UNCONFIGURED)        
+                                       next_state=DriverState.UNCONFIGURED)
         self.driver_fsm.add_transition(DriverEvent.DISCONNECT_FAILED,
                                        DriverState.DISCONNECTING,
                                        action=self._handle_disconnect_failure,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
         self.driver_fsm.add_transition(DriverEvent.DISCONNECT_COMPLETE,
                                        DriverState.DISCONNECTING,
                                        action=self._handle_disconnect_success,
-                                       next_state=DriverState.DISCONNECTED) 
+                                       next_state=DriverState.DISCONNECTED)
         self.driver_fsm.add_transition(DriverEvent.DISCONNECT,
                                        DriverState.CONNECTED,
                                        action=self._handle_disconnect,
-                                       next_state=DriverState.DISCONNECTING) 
+                                       next_state=DriverState.DISCONNECTING)
         self.driver_fsm.add_transition(DriverEvent.CONNECT,
                                        DriverState.DISCONNECTED,
                                        action=self._handle_connect,
-                                       next_state=DriverState.CONNECTING) 
+                                       next_state=DriverState.CONNECTING)
         self.driver_fsm.add_transition(DriverEvent.CONNECTION_COMPLETE,
                                        DriverState.CONNECTING,
                                        action=self._handle_connect_success,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
         self.driver_fsm.add_transition(DriverEvent.CONNECTION_FAILED,
                                        DriverState.CONNECTING,
                                        action=self._handle_connect_failed,
-                                       next_state=DriverState.DISCONNECTED) 
+                                       next_state=DriverState.DISCONNECTED)
         self.driver_fsm.add_transition(DriverEvent.START_AUTOSAMPLE,
                                        DriverState.CONNECTED,
                                        action=self._handle_start_autosample,
-                                       next_state=DriverState.AUTOSAMPLE) 
+                                       next_state=DriverState.AUTOSAMPLE)
         self.driver_fsm.add_transition(DriverEvent.STOP_AUTOSAMPLE,
                                        DriverState.AUTOSAMPLE,
                                        action=self._handle_stop_autosample,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
         self.driver_fsm.add_transition(DriverEvent.CONNECTION_LOST,
                                        DriverState.AUTOSAMPLE,
                                        action=self._handle_connection_lost,
-                                       next_state=DriverState.DISCONNECTED) 
+                                       next_state=DriverState.DISCONNECTED)
         self.driver_fsm.add_transition(DriverEvent.CONNECTION_LOST,
                                        DriverState.CONNECTED,
                                        action=self._handle_connection_lost,
-                                       next_state=DriverState.DISCONNECTED) 
-        
+                                       next_state=DriverState.DISCONNECTED)
+
         self.driver_fsm.add_transition(DriverEvent.DATA_RECEIVED,
                                        DriverState.CONNECTED,
                                        action=self._handle_data_received,
@@ -312,33 +312,33 @@ class InstrumentDriver(object):
         self.driver_fsm.add_transition(DriverEvent.GET,
                                        DriverState.CONNECTED,
                                        action=self._handle_get,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
         self.driver_fsm.add_transition(DriverEvent.SET,
                                        DriverState.CONNECTED,
                                        action=self._handle_set,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
         self.driver_fsm.add_transition(DriverEvent.ACQUIRE_SAMPLE,
                                        DriverState.CONNECTED,
                                        action=self._handle_acquire_sample,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
         self.driver_fsm.add_transition(DriverEvent.TEST,
                                        DriverState.CONNECTED,
                                        action=self._handle_test,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
         self.driver_fsm.add_transition(DriverEvent.CALIBRATE,
                                        DriverState.CONNECTED,
                                        action=self._handle_calibrate,
-                                       next_state=DriverState.CONNECTED) 
+                                       next_state=DriverState.CONNECTED)
 
         self.driver_fsm.add_transition_catch(DriverEvent.RESET,
                                        action=self._handle_reset,
-                                       next_state=DriverState.UNCONFIGURED)    
+                                       next_state=DriverState.UNCONFIGURED)
         """
-        
+
     ########################################################################
     # Channel connection interface.
     ########################################################################
-    
+
     def initialize(self, channels=None, *args, **kwargs):
         """
         Reset the given device channels to an unconnected, unconfigured state.
@@ -417,14 +417,13 @@ class InstrumentDriver(object):
         """
         channels = channels or [DriverChannel.INSTRUMENT]
 
-        mi_logger.debug("Issuing empty disconnect...")
-        self.connection_fsm.on_event(ConnectionEvent.DISCONNECT)
-
         (result, valid_channels) = self._check_channel_args(channels)
 
         for channel in valid_channels:
             result[channel] = self.chan_map[channel].disconnect(*args,
                                                                 **kwargs)
+
+        self.connection_fsm.on_event(ConnectionEvent.DISCONNECT)
 
         return result
 
@@ -521,29 +520,29 @@ class InstrumentDriver(object):
         """
         """
         pass
-    
+
     def execute_direct(self, channels, *args, **kwargs):
         """
         """
         pass
-        
+
     ################################
     # Announcement callback from protocol
     ################################
     def protocol_callback(self, event):
         """The callback method that the protocol calls when there is some sort
         of event worth notifying the driver about.
-        
+
         @param event The event object from the event service
         @todo Make event a real event object of some sort instead of the hack
         tuple of (DriverAnnouncement enum, any error code, message)
         """
-    
-    
+
+
     ########################################################################
     # TBD.
-    ########################################################################    
-        
+    ########################################################################
+
     def get_resource_commands(self):
         """
         Gets the list of (channel, cmd) pairs gathered from all the
@@ -578,10 +577,10 @@ class InstrumentDriver(object):
         """
         """
         return self.instrument_channels.list()
-    
+
     def get_active_channels(self):
         """Get a list of channels that are in some form of an active state
-        
+
         @retval a list of channels that are in an active state
         """
         result = []
@@ -589,12 +588,12 @@ class InstrumentDriver(object):
         for chan in chan_state_dict.keys:
             if chan_state_dict[chan] in self.instrument_active_states:
                 result.append[chan]
-            
+
         return result
-    
+
     def get_current_state(self, channels=None):
         """Get the current state of the instrument
-        
+
         @param channels A list of the channels of interest, values from the
         specific driver's channel enumeration list. Default is DriverChannel.INSTRUMENT
         @retval result A dict of {channel_name:state}. If disconnected,
@@ -602,12 +601,13 @@ class InstrumentDriver(object):
         @throws RequiredParameterException When a parameter is missing
         """
 
-        if (channels == None):
-            channels = [DriverChannel.INSTRUMENT]
-        
-        (result, valid_channels) = self._check_channel_args(channels)
         if self.connection_fsm.get_current_state() == ConnectionState.DISCONNECTED:
             return {DriverChannel.INSTRUMENT:ConnectionState.DISCONNECTED}
+
+        if (channels == None):
+            channels = [DriverChannel.INSTRUMENT]
+
+        (result, valid_channels) = self._check_channel_args(channels)
 
         for channel in valid_channels:
             result[channel] = self.chan_map[channel].get_current_state()
@@ -617,13 +617,13 @@ class InstrumentDriver(object):
                 result[channel] = self.state_map[result[channel]]
 
         return result
-    
+
     ########################################################################
     # Private helpers.
-    ######################################################################## 
+    ########################################################################
     def _check_channel_args(self, channels):
         """Checks the channel arguments that are supplied
-        
+
         They should be:
         a. In the self.instrument_channel enum
         b. Have a specific channel or DriverChannel.ALL or DriverChannel.INSTRUMENT
@@ -636,19 +636,19 @@ class InstrumentDriver(object):
         """
         valid_channels = []
         invalid_chan_dict = {}
-        
+
         if (channels == None) or (not isinstance(channels, (list, tuple))):
             raise RequiredParameterException()
-            
+
         elif len(channels) == 0:
             raise RequiredParameterException()
-            
+
         else:
             clist = self.instrument_channels.list()
-            
+
             if DriverChannel.ALL in clist:
                 clist.remove(DriverChannel.ALL)
-                
+
             # Expand "ALL" channel keys.
             if DriverChannel.ALL in channels:
                 channels = clist
@@ -665,7 +665,7 @@ class InstrumentDriver(object):
                     valid_channels.append(c)
                 else:
                     invalid_chan_dict[c] = InstErrorCode.INVALID_CHANNEL
-                
+
         return (invalid_chan_dict, valid_channels)
 
     def _check_get_args(self, params):
@@ -851,15 +851,15 @@ class InstrumentDriver(object):
     def _handler_connected_disconnect(self, *args, **kwards):
         """Handle connected state with disconnect event"""
         return (ConnectionState.DISCONNECTED, None)
-        
+
     def _handler_disconnected_connect(self, *args, **kwards):
         """Handle connected state with disconnect event"""
         return(ConnectionState.CONNECTED, None)
-        
+
     def _handler_unknown_disconnect(self, *args, **kwards):
         """Handle connected state with disconnect event"""
         return (ConnectionState.DISCONNECTED, None)
-        
+
     def _handler_unknown_connect(self, *args, **kwards):
         """Handle connected state with disconnect event"""
         return(ConnectionState.CONNECTED, None)
