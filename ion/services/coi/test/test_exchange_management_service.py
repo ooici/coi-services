@@ -15,6 +15,7 @@ from pyon.util.containers import DotDict
 
 import unittest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.coi.iexchange_management_service import ExchangeManagementServiceClient
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT
@@ -121,9 +122,9 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
-        self.ems = self.container.proc_manager.procs_by_name['exchange_management']
+        self.ems = ExchangeManagementServiceClient()
+        self.rr = ResourceRegistryServiceClient()
 
-        self.rr = self.container.proc_manager.procs_by_name['resource_registry']
         orglist, _ = self.rr.find_resources(RT.Org)
         if not len(orglist) == 1:
             raise StandardError("Unexpected number of orgs found")
@@ -277,8 +278,8 @@ class TestContainerExchangeToEms(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
-        self.ems = self.container.proc_manager.procs_by_name['exchange_management']
-        self.rr = self.container.proc_manager.procs_by_name['resource_registry']
+        self.ems = ExchangeManagementServiceClient()
+        self.rr = ResourceRegistryServiceClient()
 
         # we want the ex manager to do its thing, but without actual calls to broker
         # just mock out the transport

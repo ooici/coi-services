@@ -86,7 +86,7 @@ class DataProductManagementService(BaseDataProductManagementService):
  
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
                
-        self.data_product.update_one(data_product)
+        self.clients.resource_registry.update(data_product)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
@@ -143,33 +143,35 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest('Data Product must have one stream associated%s' % str(data_product_id))
 
         stream = streams[0]
-        log.debug("activate_data_product_persistence stream = %s"  % str(stream))
+        log.debug("activate_data_product_persistence: stream = %s"  % str(stream))
 
-        # Call ingestion management to create a ingestion configuration
-        # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
-        log.debug('activate_data_product_persistence: Calling create_ingestion_configuration')
-        #todo - where to get config for this call?
-        data_product_obj.ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(
-            exchange_point_id='science_data',
-            couch_storage=CouchStorage(datastore_name='testdb', datastore_profile='SCIDATA'),
-            number_of_workers=8 )
+        # Find THE ingestion configuration in the RR to create a ingestion configuration
+        # todo: how are multiple ingest configs for a site managed?
+        ingest_config_ids, _ = self.clients.resource_registry.find_resources(restype=RT.IngestionConfiguration, id_only=True)
+        if len(ingest_config_ids) > 1 or len(ingest_config_ids) == 0:
+            raise BadRequest('Data Product must have one ingestion configuration %s' % str(data_product_id))
+        log.debug("activate_data_product_persistence: ingest_config_ids = %s"  % str(ingest_config_ids))
+
+        data_product_obj.ingestion_configuration_id = ingest_config_ids[0]
+        log.debug("activate_data_product_persistence: ingestion_configuration_id = %s"  % str(data_product_obj.ingestion_configuration_id))
 
         #todo: does DPMS need to save the ingest _config_id in the product resource? Can this be found via the stream id?
 
         # activate an ingestion configuration
         #todo: Does DPMS call activate?
         ret = self.clients.ingestion_management.activate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
-        log.debug("activate_data_product_persistence activate = %s"  % str(ret))
+        log.debug("activate_data_product_persistence: activate = %s"  % str(ret))
 
         # create the dataset for the data
-        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(self, stream, data_product_obj.name, data_product_obj.description)
-        log.debug("activate_data_product_persistence create_dataset = %s"  % str(data_product_obj.dataset_id))
-        self.clients.resource_registry.update(data_product_obj)
+        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream, datastore_name=data_product_obj.name, description=data_product_obj.description)
+        log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
 
-        # Call ingestion management to create a dataset configuration
-        log.debug('activate_data_product_persistence: Calling create_dataset_configuration')
-        dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration( dataset_id, persist_data, persist_metadata, ingestion_configuration_id)
-        log.debug("activate_data_product_persistence create_dataset_configuration = %s"  % str(dataset_configuration_id))
+        self.update_data_product(data_product_obj)
+
+        # call ingestion management to create a dataset configuration
+        log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
+        dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration( dataset_id=data_product_obj.dataset_id, archive_data=persist_data, archive_metadata=persist_metadata, ingestion_configuration_id=data_product_obj.ingestion_configuration_id)
+        log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
         #todo: does DPMS need to save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
         return
@@ -190,7 +192,9 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise NotFound("Data Product %s ingestion configuration does not exist" % data_product_id)
 
         # Change the stream policy to stop ingestion
-        self.clients.ingestion_management.deactivate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
+        log.debug("suspend_data_product_persistence: calling deactivate with ingestion_configuration_id %s"  % str(data_product_obj.ingestion_configuration_id))
+        ret = self.clients.ingestion_management.deactivate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
+        log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
 
         return
 

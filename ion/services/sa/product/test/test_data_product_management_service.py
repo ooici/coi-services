@@ -4,10 +4,12 @@ from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.product.data_product_management_service import DataProductManagementService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from prototype.sci_data.ctd_stream import ctd_stream_definition
+from interface.objects import HdfStorage, CouchStorage
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
@@ -16,6 +18,7 @@ from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
+import time
 
 from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
@@ -124,17 +127,29 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
+        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
 
     def test_createDataProduct(self):
         client = self.client
         rrclient = self.rrclient
 
 
-        #Not sure we want to mix in DAMS tests here
-        # set up initial data source and its associated data producer
-        #instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
-        #instrument_id, rev = rrclient.create(instrument_obj)
-        #self.damsclient.register_instrument(instrument_id)
+        # ingestion configuration parameters
+        self.exchange_point_id = 'science_data'
+        self.number_of_workers = 2
+        self.hdf_storage = HdfStorage(relative_path='ingest')
+        self.couch_storage = CouchStorage(datastore_name='test_datastore')
+        self.XP = 'science_data'
+        self.exchange_name = 'ingestion_queue'
+
+        # Create ingestion configuration and activate it
+        ingestion_configuration_id =  self.ingestclient.create_ingestion_configuration(
+            exchange_point_id=self.exchange_point_id,
+            couch_storage=self.couch_storage,
+            hdf_storage=self.hdf_storage,
+            number_of_workers=self.number_of_workers
+        )
+        print 'test_createDataProduct: ingestion_configuration_id', ingestion_configuration_id
 
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = ctd_stream_definition()
@@ -151,10 +166,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', dp_id
 
-#        try:
-#            client.activate_data_product_persistence(dp_id, persist_data=True, persist_metadata=True)
-#        except BadRequest as ex:
-#            self.fail("failed to create new data product: %s" %ex)
 
         # test creating a new data product with  a stream definition
         print 'Creating new data product with a stream definition'
@@ -166,6 +177,15 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', dp_id2
+
+        # test activate and suspend data product persistence
+        try:
+            client.activate_data_product_persistence(dp_id2, persist_data=True, persist_metadata=True)
+            time.sleep(3)
+            client.suspend_data_product_persistence(dp_id2)
+        except BadRequest as ex:
+            self.fail("failed to activate / deactivate data product persistence : %s" %ex)
+
 
         # test creating a duplicate data product
         print 'Creating the same data product a second time (duplicate)'
