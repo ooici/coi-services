@@ -5,18 +5,21 @@
 @file ion/processes/data/replay_process.py
 @description Implementation for the Replay Agent
 '''
+from pyon.util.containers import DotDict
+from pyon.core.exception import IonException
+from pyon.util.file_sys import FS, FileSystem
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
 import time
 from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
+from prototype.hdf.hdf_array_iterator import acquire_data
 from prototype.sci_data.constructor_apis import DefinitionTree
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
 from interface.services.dm.ireplay_process import BaseReplayProcess
-from pyon.util.containers import DotDict
-from pyon.core.exception import IonException
-from pyon.util.file_sys import FS, FileSystem
+
+import os
 
 import hashlib
 
@@ -64,6 +67,7 @@ class ReplayProcess(BaseReplayProcess):
         self.datastore_name = self.CFG.get_safe('process.datastore_name','dm_datastore')
         self.definition = self.delivery_format.get('container',None)
         self.fields = self.delivery_format.get('fields',None)
+        self.record_count = self.delivery_format.get('record_count',None)
 
         self.view_name = self.CFG.get_safe('process.view_name','datasets/dataset_by_id')
         self.key_id = self.CFG.get_safe('process.key_id')
@@ -92,6 +96,150 @@ class ReplayProcess(BaseReplayProcess):
                     yield yval
                 break
 
+
+    def _parse_results(self, results):
+        '''
+        @return Returns a publish queue
+        '''
+        publish_queue = []
+        log.warn('results: %s', results)
+
+        publish_queue = []
+        outgoing_message = {
+            'granule':None,
+            'records':0,
+            'data_string':''
+        }
+        for result in results:
+            log.warn('REPLAY Result: %s' % result)
+
+            # Here's what we'll do is we'll have a big queue
+            # Inside this queue will go outgoing messages
+
+
+            assert('doc' in result)
+
+            replay_obj_msg = result['doc']
+
+            if isinstance(replay_obj_msg, BlogBase):
+                replay_obj_msg.is_replay = True
+                self.lock.acquire()
+                self.output.publish(replay_obj_msg)
+                self.lock.release()
+                continue
+
+            elif isinstance(replay_obj_msg, StreamDefinitionContainer):
+                replay_obj_msg.stream_resource_id = self.stream_id
+
+            elif isinstance(replay_obj_msg, StreamGranuleContainer):
+                packet = self._parse_granule(replay_obj_msg)
+                if packet:
+                    publish_queue.append(packet)
+
+
+            else:
+                log.warn('Unknown type retrieved in DOC!')
+        return publish_queue
+
+    def _parse_granule(self, replay_obj_msg):
+
+        assert(isinstance(replay_obj_msg, StreamGranuleContainer))
+        # The message is valid until proven otherwise.
+        valid=True
+        datastream = None
+        sha1 = None
+
+        # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
+        replay_obj_msg.stream_resource_id = self.stream_id
+
+        # Get number of records
+        record_count_id = DefinitionTree.get(self.definition,'%s.element_count_id' % self.definition.data_stream_id)
+        record_count = replay_obj_msg.identifiables[record_count_id].value
+
+        # Obviously it's not valid if there are no records.
+        if not (record_count > 0):
+            return None
+
+        llog('----------------------------')
+        llog('Records: %d' % record_count)
+
+        # Get the datastream if there is one
+        data_stream_id = self.definition.data_stream_id
+
+        if data_stream_id in replay_obj_msg.identifiables:
+            datastream = replay_obj_msg.identifiables[data_stream_id]
+        else:
+            datastream = self.definition.identifiables[data_stream_id]
+
+        # Get the encoding if there is one
+        encoding_id = datastream.encoding_id
+        if not encoding_id in replay_obj_msg.identifiables:
+            return None
+        else:
+            sha1 = replay_obj_msg.identifiables[encoding_id].sha1 or None
+
+
+
+        if self.fields: # This matches what is in the definition
+            # Check for these fields in the granule
+            for field in self.fields:
+                llog('Field: %s' % field)
+                # See if the granule's got the field
+                if field in replay_obj_msg.identifiables:
+                    # The field is there, so get the updated info like values path from the granule
+                    range_id = replay_obj_msg.identifiables[field].range_id
+                    # The range may be in the granule or the definition, try the granule first (pri)
+                else:
+                    # Ok so maybe the range is in the granule but not the coverage
+                    range_id = self.definition.identifiables[field].range_id
+                    llog('range_id is %s' % range_id)
+
+                if range_id in replay_obj_msg.identifiables:
+                    # The range object is in the granule and has the correct values
+                    range_obj = replay_obj_msg.identifiables[range_id]
+                    values_path = range_obj.values_path or self.definition.identifiables[range_id].values_path
+                    llog('Got values path: %s' % values_path)
+
+                else:
+                    # The granule doesn't have the data we're looking for, continue
+                    # This message is no longer valid
+                    llog('granule didnt have enough info %s not found' % range_id)
+                    return None # msg is invalid
+
+        if not sha1:
+            return None # There is no encoding, no values and therefore not valid
+
+        llog("Got sha1: %s" % sha1)
+        # There is in fact an hdf file
+        filepath = FileSystem.get_url(FS.TEMP,'%s.hdf5' % sha1)
+        if not os.path.exists(filepath):
+            llog('File doesnt exist: %s' % FileSystem.get_url(FS.TEMP,'%s.hdf5' % sha1))
+            return None # Not valid
+
+        # The file is there get the DATA!!!!
+        g = acquire_data(
+            hdf_files=[filepath],
+            var_name=values_path,
+            buffer_size=record_count,
+            slice_=(slice(0,record_count)),
+            concatenate_block_size=record_count
+        )
+        values = 'to be determined.'
+        llog("%s" % str(values))
+        datastream.values = 'hdf string of the values array'
+
+
+
+
+        llog('Pushing message')
+        return {
+            'granule':replay_obj_msg,
+            'records':record_count,
+            'data':values
+        }
+
+
+
     def _publish_query(self, results):
         '''
         Callback to publish the specified results
@@ -115,123 +263,21 @@ class ReplayProcess(BaseReplayProcess):
 
         log.warn('results: %s', results)
 
-        for result in results:
-            log.warn('REPLAY Result: %s' % result)
+        publish_queue = self._parse_results(results)
+        outgoing_message = {
+            'granule':None,
+            'records':0,
+            'data_string':''
+        }
+        for msg in publish_queue:
+            llog('outgoing:')
+            llog('\tGranule: %s' % msg['granule'])
+            llog('\tRecords: %s' % msg['records'])
+            llog('\tData: %s' % msg['data'])
 
-
-
-            assert('doc' in result)
-
-            replay_obj_msg = result['doc']
-
-            if isinstance(replay_obj_msg, BlogBase):
-                replay_obj_msg.is_replay = True
-
-                self.lock.acquire()
-                self.output.publish(replay_obj_msg)
-                self.lock.release()
-
-            elif isinstance(replay_obj_msg, StreamDefinitionContainer):
-
-                replay_obj_msg.stream_resource_id = self.stream_id
-
-
-            elif isinstance(replay_obj_msg, StreamGranuleContainer):
-
-                # Override the resource_stream_id so ingestion doesn't reingest, also this is a NEW stream (replay)
-                replay_obj_msg.stream_resource_id = self.stream_id
-
-                # The message is valid until proven otherwise.
-                valid=True
-
-                datastream = None
-                sha1 = None
-
-                # Get number of records
-                record_count_id = DefinitionTree.get(self.definition,'%s.element_count_id' % self.definition.data_stream_id)
-                record_count = replay_obj_msg.identifiables[record_count_id].value
-                llog('----------------------------')
-                llog('Records: %d' % record_count)
-
-                for key, identifiable in replay_obj_msg.identifiables.iteritems():
-                    if isinstance(identifiable, DataStream):
-                        datastream = identifiable
-                    elif isinstance(identifiable, Encoding):
-                        sha1 = identifiable.sha1
-                if self.fields: # This matches what is in the definition
-                    # Check for these fields in the granule
-                    for field in self.fields:
-                        llog('Field: %s' % field)
-                        # See if the granule's got the field
-                        if field in replay_obj_msg.identifiables:
-                            # The field is there, so get the updated info like values path from the granule
-                            range_id = replay_obj_msg.identifiables[field].range_id
-                            # The range may be in the granule or the definition, try the granule first (pri)
-                        else:
-                            # Ok so maybe the range is in the granule but not the coverage
-                            range_id = self.definition.identifiables[field].range_id
-                            llog('range_id is %s' % range_id)
-
-                        if range_id in replay_obj_msg.identifiables:
-                            # The range object is in the granule and has the correct values
-                            range_obj = replay_obj_msg.identifiables[range_id]
-                            values_path = range_obj.values_path or self.definition.identifiables[range_id].values_path
-                            llog('Got values path: %s' % values_path)
-
-                        else:
-                            # The granule doesn't have the data we're looking for, continue
-                            # This message is no longer valid
-                            llog('granule didnt have enough info %s not found' % range_id)
-                            valid=False
-                            break
-
-
-
-
-
-
-
-
-
-
-                if sha1: # if there is an encoding
-                    llog('sha1: %s' % sha1[:8])
-                    # Get the file from disk
-                    filename = FileSystem.get_url(FS.CACHE, sha1, ".hdf5")
-
-                    log.warn('Replay reading from filename: %s' % filename)
-
-                    hdf_string = ''
-                    try:
-                        with open(filename, mode='rb') as f:
-                            hdf_string = f.read()
-                            f.close()
-
-                            # Check the Sha1
-                            retrieved_hdfstring_sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-
-                            if sha1 != retrieved_hdfstring_sha1:
-                                raise  ReplayProcessException('The sha1 mismatch between the sha1 in datastream and the sha1 of hdf_string in the saved file in hdf storage')
-
-                    except IOError:
-                        log.warn('No HDF file found!')
-                        #@todo deal with this situation? How?
-                        hdf_string = 'HDF File %s not found!' % filename
-
-                    # set the datastream.value field!
-                    datastream.values = hdf_string
-
-                else:
-                    log.warn('No encoding in the StreamGranuleContainer!')
-                if valid:
-                    self.lock.acquire()
-                    self.output.publish(replay_obj_msg)
-                    self.lock.release()
-
-
-            else:
-                 log.warn('Unknown type retrieved in DOC!')
-
+            self.lock.acquire()
+            self.output.publish(msg['granule'])
+            self.lock.release()
 
 
         #@todo: log when there are not results
