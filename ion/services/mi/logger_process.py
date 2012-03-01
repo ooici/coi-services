@@ -357,12 +357,14 @@ class BaseLoggerProcess(DaemonProcess):
             driver_data = self.read_driver()
             if driver_data:
                 self.write_device(driver_data)
-                self.logfile.write(self.delim[0]+driver_data+self.delim[1])
+                self.logfile.write(self.delim[0]+repr(driver_data)+self.delim[1])
+                self.logfile.write('\n')
                 self.logfile.flush()
             device_data = self.read_device()
             if device_data:
                 self.write_driver(device_data)
-                self.logfile.write(device_data)
+                self.logfile.write(repr(device_data))
+                self.logfile.write('\n')
                 self.logfile.flush()
             if not driver_data and not device_data:
                 time.sleep(.1)
