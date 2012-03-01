@@ -1490,7 +1490,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         def dump(m,h):
             llog('Got message')
-            llog('%s' % m.identifiables['ctd_data'])
+            llog('records: %d' % m.identifiables['record_count'].value)
+            llog('sha: %s' % m.identifiables['stream_encoding'].sha1)
 
 
         subscriber = Subscriber(name=(xs,'test_replay'), callback=dump)

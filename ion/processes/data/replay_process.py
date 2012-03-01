@@ -13,7 +13,7 @@ from gevent.coros import RLock
 import time
 from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
 from prototype.hdf.hdf_array_iterator import acquire_data
-from prototype.sci_data.constructor_apis import DefinitionTree
+from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
 from pyon.datastore.datastore import DataStore
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.public import log
@@ -85,24 +85,13 @@ class ReplayProcess(BaseReplayProcess):
         """
         Given a list of records, yield at most n at a time
         """
-        while True:
-            yval = []
-            try:
-                for i in xrange(n):
-                    yval = yval + [records.pop(0)]
-                yield yval
-            except IndexError:
-                if yval:
-                    yield yval
-                break
+        pass
 
 
     def _parse_results(self, results):
         '''
         @return Returns a publish queue
         '''
-        publish_queue = []
-        log.warn('results: %s', results)
 
         publish_queue = []
         outgoing_message = {
@@ -135,7 +124,6 @@ class ReplayProcess(BaseReplayProcess):
                 packet = self._parse_granule(replay_obj_msg)
                 if packet:
                     publish_queue.append(packet)
-
 
             else:
                 log.warn('Unknown type retrieved in DOC!')
@@ -178,8 +166,6 @@ class ReplayProcess(BaseReplayProcess):
         else:
             sha1 = replay_obj_msg.identifiables[encoding_id].sha1 or None
 
-
-
         if self.fields: # This matches what is in the definition
             # Check for these fields in the granule
             for field in self.fields:
@@ -217,16 +203,7 @@ class ReplayProcess(BaseReplayProcess):
             return None # Not valid
 
         # The file is there get the DATA!!!!
-        g = acquire_data(
-            hdf_files=[filepath],
-            var_name=values_path,
-            buffer_size=record_count,
-            slice_=(slice(0,record_count)),
-            concatenate_block_size=record_count
-        )
-        values = 'to be determined.'
-        llog("%s" % str(values))
-        datastream.values = 'hdf string of the values array'
+        # acquire_data
 
 
 
@@ -235,8 +212,40 @@ class ReplayProcess(BaseReplayProcess):
         return {
             'granule':replay_obj_msg,
             'records':record_count,
-            'data':values
+            'data':sha1
         }
+
+
+    def _merge(self, msgs):
+        records = 0
+        files = []
+        for msg in msgs:
+            records += msg['records']
+            files.append(msg['data'])
+
+        granule = PointSupplementConstructor(point_definition=self.definition, stream_id=self.stream_id)
+        granule = granule.close_stream_granule()
+        encoding_id = DefinitionTree.get(self.definition, '%s.encoding_id' % self.definition.data_stream_id)
+        element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
+
+        #@todo: fill this in
+        # acquire_data([files], fields, records)
+        # get me the hdf_encoding => hdf_string
+        sha1 = 'new hash'
+        granule.identifiables[encoding_id].sha1 = sha1
+        granule.identifiables[element_count_id].value = records
+
+        # get bounds for each field etc.
+
+        return {
+            'granule':granule,
+            'records':records,
+            'data':sha1,
+            'hdf_string':'string'
+        }
+
+
+
 
 
 
@@ -269,15 +278,22 @@ class ReplayProcess(BaseReplayProcess):
             'records':0,
             'data_string':''
         }
-        for msg in publish_queue:
-            llog('outgoing:')
-            llog('\tGranule: %s' % msg['granule'])
-            llog('\tRecords: %s' % msg['records'])
-            llog('\tData: %s' % msg['data'])
 
+        if self.record_count:
+            llog('I need to chop up the messages')
+
+        else: #Transmit it in one big shot
+            outgoing = self._merge(publish_queue)
+            packet = outgoing['granule']
+            packet.identifiables[self.definition.data_stream_id].values = outgoing['hdf_string']
+            llog('outgoing:')
+            llog('\tGranule: %s' % outgoing['granule'].identifiables.keys())
+            llog('\tRecords: %s' % outgoing['records'])
+            llog('\tData: %s' % outgoing['data'])
             self.lock.acquire()
-            self.output.publish(msg['granule'])
+            self.output.publish(packet)
             self.lock.release()
+
 
 
         #@todo: log when there are not results

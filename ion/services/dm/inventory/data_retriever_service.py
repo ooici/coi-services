@@ -86,6 +86,8 @@ class DataRetrieverService(BaseDataRetrieverService):
             definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
             definition_constructor = StationDataStreamDefinitionConstructor()
             definition_container = definition_constructor.stream_definition
+            definition_container.identifiables['data_record'].domain_ids = definition.identifiables['data_record'].domain_ids
+
             llog('Before')
             llog('%s' % definition_container.identifiables.keys())
 
