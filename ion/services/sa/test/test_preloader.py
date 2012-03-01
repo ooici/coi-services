@@ -61,11 +61,7 @@ class TestPreloader(IonIntegrationTestCase):
 
     #@unittest.skip('temporarily')
     def test_csv_loader_all(self):
-        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port)
-
-        loader.preload(["ion/services/sa/preload/LogicalInstrument.csv",
-                        "ion/services/sa/preload/InstrumentDevice.csv",
-                        "ion/services/sa/preload/associations.csv"])
+        self._generic_loader()
 
         log_inst_ids = self.client.MFMS.find_logical_instruments()
         self.assertEqual(2, len(log_inst_ids))
@@ -79,12 +75,7 @@ class TestPreloader(IonIntegrationTestCase):
 
     #@unittest.skip('temporarily')
     def test_csv_loader_tagged(self):
-        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port)
-
-        loader.preload(["ion/services/sa/preload/LogicalInstrument.csv",
-                        "ion/services/sa/preload/InstrumentDevice.csv",
-                        "ion/services/sa/preload/associations.csv"],
-                       "LCA")
+        self._generic_loader("LCA")
 
         log_inst_ids = self.client.MFMS.find_logical_instruments()
         self.assertEqual(1, len(log_inst_ids))
@@ -102,4 +93,15 @@ class TestPreloader(IonIntegrationTestCase):
 
 
 
+    def _generic_loader(self, tag=None):
+        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port, log)
 
+        loader.preload(
+            "ion/services/sa/preload/StreamDefinition.csv",
+            ["ion/services/sa/preload/LogicalInstrument.csv",
+             "ion/services/sa/preload/InstrumentDevice.csv"],
+            "ion/services/sa/preload/DataProduct.csv",
+            "ion/services/sa/preload/DataProcess.csv",
+            "ion/services/sa/preload/IngestionConfiguration.csv",
+            "ion/services/sa/preload/associations.csv",
+            tag)
