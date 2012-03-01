@@ -81,11 +81,26 @@ class ReplayProcess(BaseReplayProcess):
 
 
 
-    def _records(self, records, n):
-        """
-        Given a list of records, yield at most n at a time
-        """
-        pass
+    def _records(self, outgoing, n):
+        '''
+        Given a full packet return at most n packets per yield
+        '''
+        record_count = outgoing['records']
+        file = outgoing['data']
+        granule = outgoing['granule']
+        element_count_id = DefinitionTree.get(self.defintion, '%s.element_count_id' % self.definition.data_stream_id)
+        record_count = granule.identifiables[element_count_id]
+        data_stream = granule.identifiables[self.definition.data_stream_id]
+
+        '''
+        generator = acquire_data([file], self.fields, n)
+        for segment in generator:
+            # Get the hdf_string for segment
+            # Replace the record count and bounds in the current granule
+            record_count.value = len(segment)
+            # Handle bounds
+            data_stream.values = hdf_string
+        '''
 
 
     def _parse_results(self, results):
@@ -281,6 +296,8 @@ class ReplayProcess(BaseReplayProcess):
 
         if self.record_count:
             llog('I need to chop up the messages')
+            outgoing = self._merge(publish_queue)
+
 
         else: #Transmit it in one big shot
             outgoing = self._merge(publish_queue)
