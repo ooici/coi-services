@@ -105,7 +105,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
 
 
-@attr('INT', group='mmm')
+@attr('INT', group='sa')
 #@unittest.skip('not working')
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
