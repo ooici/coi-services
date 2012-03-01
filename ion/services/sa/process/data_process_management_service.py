@@ -86,10 +86,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_def_list , _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, None, True)
         return data_process_def_list
 
-    def create_data_process(self,
-                            data_process_definition_id='',
-                            in_data_product_id='',
-                            out_data_product_id=''):
+    def create_data_process(self, data_process_definition_id='', in_data_product_id='', out_data_product_id=''):
         """
         @param  data_process_definition_id: Object with definition of the
                     transform to apply to the input data product
@@ -111,7 +108,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
 
-
         # Create and store a new DataProcess with the resource registry
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry")
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
@@ -121,27 +117,28 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                             str(out_data_product_id) + time.ctime()
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
-        log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: " +  str(data_process_id))
+        log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
-        log.debug("DataProcessManagementService:create_data_process - Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream")
         #TODO: should this be outside this method? Called by orchastration?
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
+        log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s", str(data_producer_id) )
 
         #Assign the output Data Product to this producer resource
         #todo: check that the product is not already associated with a producer
         #TODO: should this be outside this method? Called by orchastration?
-        self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, True)
+        self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
 
         # Associate with dataProcess
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
 
         #Todo: currently this is handled explicitly after creating the dat product, that code then calls DMAS:assign_data_product
-        #self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
-        #self.clients.resource_registry.create_association(data_process_id, PRED.hasOutputProduct, out_data_product_id)
+        self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
+
+        log.debug("DataProcessManagementService:create_data_process retrieve out data prod streams: %s", str(stream_ids))
         if not stream_ids:
             raise NotFound("No Stream created for output Data Product " + str(out_data_product_id))
         if len(stream_ids) != 1:

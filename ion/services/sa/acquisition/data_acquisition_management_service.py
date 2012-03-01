@@ -137,24 +137,32 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if len(producer_ids) > 1:
             raise BadRequest("All child Data Producers associated with instrument must be unassigned before instrument is unregistered " + str(instrument_id))
 
-        #find the 'head' producer
-        self.primary_producer = None
-        for producer_id in producer_ids:
-            producer_obj = self.clients.resource_registry.read(producer_id)
-            if not producer_obj:
-                raise NotFound("Data Producer %s does not exist" % producer_id)
-            if producer_obj.is_primary:
-                self.primary_producer = producer_id
+        #find the primary producer
+#        self.primary_producer = None
+#        for producer_id in producer_ids:
+#            producer_obj = self.clients.resource_registry.read(producer_id)
+#            if not producer_obj:
+#                raise NotFound("Data Producer %s does not exist" % producer_id)
+#            if producer_obj.is_primary:
+#                self.primary_producer = producer_id
 
-        if self.primary_producer is None:
-            raise NotFound("No primary Data Producer associated with source resource ID " + str(instrument_id))
+#        if self.primary_producer is None:
+#            raise NotFound("No primary Data Producer associated with source resource ID " + str(instrument_id))
 
-        # TODO: remove associations
 
-        #todo: check that there are no attached data products?
+        data_producer_obj = self.clients.resource_registry.read(producer_ids[0])
+        if not data_producer_obj:
+            raise NotFound("Data Producer %s does not exist" % producer_ids[0])
+        if not data_producer_obj.is_primary:
+            raise NotFound("Data Producer is not primary %s" % producer_ids[0])
 
-        #todo: delete the data producer object and assoc to ext_data_set
+        # Remove the link between the child Data Producer resource and the primary Data Producer resource
+        associations = self.clients.resource_registry.find_associations(instrument_id, PRED.hasDataProducer, self.primary_producer, id_only=True)
+        for association in associations:
+            log.debug("unregister_instrument: link to primary DataProducer %s" % association)
+            self.clients.resource_registry.delete_association(association)
 
+        self.clients.resource_registry.delete(producer_ids[0])
         return
 
 
@@ -188,12 +196,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             if producer_obj.is_primary:
                 self.primary_producer = producer_id
 
+        log.debug("DAMS:assign_data_product: primary_producer %s" % str(self.primary_producer))
+
         if self.primary_producer is None:
             raise NotFound("No primary Data Producer associated with source resource ID " + str(input_resource_id))
 
         #create data producer resource for this data product
         data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+        log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
 
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)

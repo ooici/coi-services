@@ -28,7 +28,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 @attr('INT', group='sa')
-@unittest.skip('need to fix...')
+#@unittest.skip('need to fix...')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -75,8 +75,6 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         data_producer_id = self.DAMSclient.register_instrument(instrument_id)
         log.debug("TestIntDataProcessManagementService  data_producer_id %s" % data_producer_id)
 
-
-
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = ctd_stream_definition()
         ctd_stream_def_id = self.PubSubClient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
@@ -118,7 +116,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-        self.DAMSclient.assign_data_product(dproc_id, output_dp_id, False)
+        #self.DAMSclient.assign_data_product(dproc_id, output_dp_id, False)
 
         log.debug("TestIntDataProcessManagementService: create_data_process return")
 

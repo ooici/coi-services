@@ -44,7 +44,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.data_source.description = 'data source desc'
 
 
-    @unittest.skip('not working')
+    #@unittest.skip('not working')
     def test_createDataProduct_and_DataProducer_success(self):
         # setup
         self.resource_registry.find_resources.return_value = ([], 'do not care')
@@ -62,10 +62,9 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         # check results
         self.assertEqual(dp_id, 'SOME_RR_ID1')
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
-        #todo: need to match signiture to the create_stream:  clients.pubsub_management.create_stream('', True, '', 'DPT_Y', 'some new data product', '')
-        self.pubsub_management.create_stream.assert_called_once_with(name='DPT_Y', description='some new data product')
+        self.pubsub_management.create_stream.assert_called_once_with('', True, 'stream_def_id', 'DPT_Y', 'some new data product', '')
         self.resource_registry.create.assert_called_once_with(dpt_obj)
-        #self.data_acquisition_management.assign_data_product.assert_called_once_with('source_resource_id', 'SOME_RR_ID1', True)
+
 
     @unittest.skip('not working')
     def test_createDataProduct_and_DataProducer_with_id_NotFound(self):
@@ -104,7 +103,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
 
 
 @attr('INT', group='sa')
-@unittest.skip('not working')
+#@unittest.skip('not working')
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -141,7 +140,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         ctd_stream_def = ctd_stream_definition()
         ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
 
-        # test creating a new data product w/o a data producer
+        # test creating a new data product w/o a stream definition
         print 'Creating new data product w/o a stream definition'
         dp_obj = IonObject(RT.DataProduct,
                            name='DP1',
@@ -152,8 +151,12 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', dp_id
 
+#        try:
+#            client.activate_data_product_persistence(dp_id, persist_data=True, persist_metadata=True)
+#        except BadRequest as ex:
+#            self.fail("failed to create new data product: %s" %ex)
 
-        # test creating a new data product w/o a data producer
+        # test creating a new data product with  a stream definition
         print 'Creating new data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,
                            name='DP2',
@@ -174,23 +177,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         else:
             self.fail("duplicate data product was created with the same name")
 
-        """
-        # This is broken until the interceptor handles lists properly (w/o converting them to constants)
-        # and DAMS works with pubsub_management.register_producer() correctly
-        # test creating a new data product with a data producer
-        print 'Creating new data product with a data producer'
-        dp_obj = IonObject(RT.DataProduct,
-                           name='DP2',
-                           description='another new dp')
-        data_producer_obj = IonObject(RT.DataProducer,
-                                      name='DataProducer1',
-                                      description='a new data producer')
-        try:
-            dp_id = client.create_data_product(dp_obj, data_producer_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new data product")
-        print 'new dp_id = ', dp_id
-        """
 
         # test reading a non-existent data product
         print 'reading non-existent data product'

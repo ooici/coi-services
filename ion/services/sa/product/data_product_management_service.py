@@ -5,10 +5,10 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-
 from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 
 from pyon.datastore.datastore import DataStore
+from interface.objects import HdfStorage, CouchStorage
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, LCS, PRED
@@ -51,11 +51,10 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         #Create the stream if a stream definition is provided
-        #if stream_definition_id:
         log.debug("DataProductManagementService:create_data_product: stream definition id = %s" % stream_definition_id)
 
         stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,  description=data_product.description, stream_definition_id=stream_definition_id)
-        log.debug("assign_data_product: create stream stream_id %s" % stream_id)
+        log.debug("create_data_product: create stream stream_id %s" % stream_id)
         # Associate the Stream with the main Data Product
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
 
@@ -102,7 +101,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             log.debug("DataProductManagementService:delete_data_product: %s" % str(producer_ids))
             self.clients.data_acquisition_management.unassign_data_product(data_product_id)
         
-        # Delete the data process
+        # Delete the data product
         self.clients.resource_registry.delete(data_product_id)
         return
 
@@ -144,28 +143,33 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest('Data Product must have one stream associated%s' % str(data_product_id))
 
         stream = streams[0]
+        log.debug("activate_data_product_persistence stream = %s"  % str(stream))
 
         # Call ingestion management to create a ingestion configuration
         # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
         log.debug('activate_data_product_persistence: Calling create_ingestion_configuration')
+        #todo - where to get config for this call?
         data_product_obj.ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(
             exchange_point_id='science_data',
-            couch_storage=CouchStorage(datastore_name=self.datastore_name,datastore_profile='SCIDATA'),
-            number_of_workers=8
-        )
+            couch_storage=CouchStorage(datastore_name='testdb', datastore_profile='SCIDATA'),
+            number_of_workers=8 )
+
         #todo: does DPMS need to save the ingest _config_id in the product resource? Can this be found via the stream id?
 
         # activate an ingestion configuration
         #todo: Does DPMS call activate?
         ret = self.clients.ingestion_management.activate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
+        log.debug("activate_data_product_persistence activate = %s"  % str(ret))
 
         # create the dataset for the data
         data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(self, stream, data_product_obj.name, data_product_obj.description)
+        log.debug("activate_data_product_persistence create_dataset = %s"  % str(data_product_obj.dataset_id))
         self.clients.resource_registry.update(data_product_obj)
 
         # Call ingestion management to create a dataset configuration
         log.debug('activate_data_product_persistence: Calling create_dataset_configuration')
         dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration( dataset_id, persist_data, persist_metadata, ingestion_configuration_id)
+        log.debug("activate_data_product_persistence create_dataset_configuration = %s"  % str(dataset_configuration_id))
         #todo: does DPMS need to save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
         return
