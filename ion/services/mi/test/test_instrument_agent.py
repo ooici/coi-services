@@ -27,6 +27,7 @@ from pyon.util.context import LocalContextMixin
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+from pyon.public import CFG
 
 import time
 import unittest
@@ -45,8 +46,8 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
     
-@unittest.skip('Do not run hardware test.')
-@attr('INT', group='mi')
+#@unittest.skip('Do not run hardware test.')
+@attr('HARDWARE', group='mi')
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
     Test cases for instrument agent class. Functions in this class provide
@@ -80,9 +81,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'comms_config': {
                 SBE37Channel.CTD: {
                     'method':'ethernet',
-                    #'device_addr': 'sbe37-simulator.oceanobservatories.org',
-                    'device_addr':'localhost',
-                    'device_port': 4001,
+                    'device_addr': CFG.device.sbe37.host,
+                    'device_port': CFG.device.sbe37.port,
                     'server_addr': 'localhost',
                     'server_port': 8888
                 }                

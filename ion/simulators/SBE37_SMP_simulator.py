@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-__author__ = 'roger unwin'
+__author__ = 'Roger Unwin'
 __license__ = 'Apache 2.0'
 
 import socket
@@ -11,6 +11,7 @@ import random
 import asyncore
 import thread
 import getopt
+import select
 
 port = 4001  # Default port to run on.
 connection_count = 0
@@ -72,6 +73,7 @@ class sbe37(asyncore.dispatcher_with_send):
     rtca0 = 9.999862e-01
     rtca1 = 1.686132e-06
     rtca2 = -3.022745e-08
+    knock_count = 0
 
     months = ['BAD PROGRAMMER MONTH', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -79,10 +81,6 @@ class sbe37(asyncore.dispatcher_with_send):
         self.socket = socket
         self.socket.settimeout(0.0)
         self.thread = thread
-        try:
-            self.socket.send("S>")
-        except:
-            print "exception could not send 'S>' for some reason...\n"
         self.handle_read()
 
     def handle_error(self, request, client_address):
@@ -110,40 +108,46 @@ class sbe37(asyncore.dispatcher_with_send):
 
             return c
     def get_data(self):
+        data = ""
         try:
-            ret = ''
+            ret = ""
 
             while True:
                 c = self.read_a_char()
-                print "read " + c
+                print "GOT " + str(c)
                 if c == None:
                     break
                 if c == '\n' or c == '':
+                    ret += c
                     break
                 else:
                     ret += c
 
             data = ret
+        except AttributeError:
+            print "CLOSING"
+            self.socket.close()
+            self.thread.exit()
         except:
-            data = None
+            data = ""
 
         if data:
             data = data.lower()
-            print "\nIN  [" + str(data.replace("\r", "\\r").replace("\n", "\\n")) + "]\n"
+            print "IN  [" + repr(data) + "]"
 
         return data
  
     def send_data(self, data, debug):
 
         try:
-            print "OUT [" + str(data.replace("\r", "\\r").replace("\n", "\\n")) + "]"
+            print "OUT [" + repr(data) + "]"
             self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
 
     def handle_read(self):
         while True:
-            time.sleep(0.5)
+            time.sleep(0.1)
             start_time = datetime.datetime.strptime(self.start_mmddyy + " " + self.start_time, "%m%d%y %H%M%S")
             current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + \
                            datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
@@ -153,17 +157,12 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.logging = True
 
             #------------------------------------------------------------------#
-            data = None
             data = self.get_data()
-            if data == "":
-                print "closing"
-                self.socket.close()
-                self.thread.exit()
 
             if self.logging == True:
                 self.count += 1
-                time.sleep(1)
-                if self.count > 8:
+                time.sleep(0.1)
+                if self.count > 80:
                     self.count = 1
                     self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(10,30), random.uniform(0.03, 0.07), random.uniform(-5, -9), random.uniform(0.18, 0.36), random.uniform(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
 
@@ -172,10 +171,20 @@ class sbe37(asyncore.dispatcher_with_send):
                     command_args = string.splitfields(data.rstrip('\r\n'), "=")
                     if data[0] == '\r' or data[0] == '\n':
                         locked = False
-                        self.send_data('S>', 'is this what it wants')
-                        self.send_data('S>\r\n', 'is this what it wants')
-                        time.sleep(1)
-                        self.send_data('S>\r\n', 'is this what it wants')
+
+                        self.knock_count += 1
+
+                        if self.knock_count == 5:
+                            self.send_data('\r\nS>\r\n', 'NEW')
+
+                        if self.knock_count == 4:
+                            self.send_data('\r\nS>\r\n', 'NEW')
+
+                        if self.knock_count == 3:
+                            self.send_data('\x00SBE 37-SM\r\n', 'NEW')
+                            self.send_data('S>', 'NEW')
+                            
+                        #time.sleep(1)
 
                     if command_args[0] in ['ds', 'dc', 'ts', 'tsr', 'slt', 'sltr', 'qs', 'stop', '\r\n', '\n\r']:
                         """
@@ -188,7 +197,9 @@ class sbe37(asyncore.dispatcher_with_send):
                         data = None
 
             if data:
-                self.send_data(data.rstrip('\r').rstrip('\n') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
+                handled = True
+                if data.rstrip('\r').rstrip('\n') != "":
+                    self.send_data(data.replace('\r','').replace('\n','') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
                 if command_args[0] == 'baud':
@@ -367,15 +378,24 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.send_data('start now\r\n', 'startnow line 1')
                     self.logging = True
                     self.locked = True
+                    self.knock_count = 0
 
                 elif data[0] == '\r':
-                    self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    handled = False
+                    if self.logging == False:
+                        self.send_data('\r\nS>', '\\ r line 1')
                     self.locked = False
+                    data = ""
                 elif data[1] == '\r\n':
-                    self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    handled = False
+                    self.send_data('S>  ', '\\ r \\ n line 1')
                     self.locked = False
                 elif command_args[0] == '\x1b':
-                    self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    handled = False
+                    self.send_data('S>  ', '\\ x1b line 1')
                     self.locked = False
 
                 elif command_args[0] == 'startmmddyy':
@@ -423,7 +443,7 @@ class sbe37(asyncore.dispatcher_with_send):
                 elif command_args[0] == 'stop':
                     self.start_later = False
                     self.logging = False
-                    #print "really got stop command\r\n"
+                    print "really got stop command\r\n"
 
                 elif command_args[0] == 'ts':
                     self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(680, 710), random.uniform(-0.001, -0.01), random.uniform(-300, -350), random.uniform(0.01, 0.02), random.uniform(268000, 270000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
@@ -773,9 +793,11 @@ class sbe37(asyncore.dispatcher_with_send):
                         self.send_data("? CMD\r\n", 'rtca2 line 1')
 
                 else:
+                    handled = False
                     self.send_data("? CMD\r\n", 'else line 1 RESPONSE TO ' + data)
              
-                self.send_data("\r\nS>", 'default command prompt')
+                if handled == True:
+                    self.send_data("\r\nS>", 'default command prompt')
                 #------------------------------------------------------------------#
 
  
