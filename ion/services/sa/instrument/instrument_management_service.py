@@ -16,6 +16,8 @@ from pyon.core.exception import Inconsistent,BadRequest #, NotFound
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 
+from interface.objects import ProcessDefinition
+
 from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
 from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
@@ -44,8 +46,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     """
     def on_init(self):
         #suppress a few "variable declared but not used" annoying pyflakes errors
-        IonObject("Resource") 
-        log 
+        IonObject("Resource")
 
         self.override_clients(self.clients)
 
@@ -101,6 +102,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
+
+        
+
         return self.instrument_agent_instance.create_one(instrument_agent_instance)
 
     def update_instrument_agent_instance(self, instrument_agent_instance=None):
@@ -261,6 +265,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #get instrument object and instrument's data producer
         inst_obj = self.instrument_device.read_one(instrument_device_id)
+
+        #todo: first you need to call DAMS:register_instrument (or somebody does)
+
         inst_pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
         inst_pducer_id = inst_pducers[0]
         log.debug("instrument data producer id='%s'" % inst_pducer_id)
@@ -273,28 +280,69 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         pduct_id = self.DPMS.create_data_product(dpms_pduct_obj)
 
         #TODO: DPMS isn't creating a data producer for new data products. not sure why.
-        #
-        prod_pducer_id = self.data_producer.create_one(IonObject(RT.DataProducer,
-                                                                 name=str(inst_obj.name + " L0 Producer"),
-                                                                 description=str("L0 DataProducer for " + inst_obj.name)))
-        self.data_product.link_data_producer(pduct_id, prod_pducer_id)
+        #TODO  BECAUSE: you call DAMS:AssignData_product
+#        prod_pducer_id = self.data_producer.create_one(IonObject(RT.DataProducer,
+#                                                                 name=str(inst_obj.name + " L0 Producer"),
+#                                                                 description=str("L0 DataProducer for " + inst_obj.name)))
+#        self.data_product.link_data_producer(pduct_id, prod_pducer_id)
 
         # get data product's data producer (via association)
         #TODO: this belongs in DPMS
-        prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
+        #prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
         
         # (TODO: there should only be one assoc_id.  what error to raise?)
         # TODO: what error to raise if there are no assoc ids?
-        prod_pducer_id = prod_pducers[0]
+        #prod_pducer_id = prod_pducers[0]   #you NEVER create or assign producers
 
 
         # instrument data producer is the parent of the data product producer
         #TODO: this belongs in DAMS
-        self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
+        #self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
 
         #TODO: error checking
 
 
+    def activate_instrument(self, instrument_device_id=''):
+
+        # retrieve the instrument device
+        instrument_device_obj = self.clients.resource_registry.read(instrument_device_id)
+        if not instrument_device_obj:
+            raise NotFound("InstrumentDevice %s does not exist" % instrument_device_id)
+
+
+        model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
+        if not model_ids:
+            raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
+        if len(model_ids) != 1:
+            raise BadRequest("Instrument Device should only have ONE Instrument Model" + str(instrument_device_id))
+
+        instrument_model_id = model_ids[0]
+        log.debug("activate_instrument:instrument_model %s"  +  str(instrument_model_id))
+
+
+        agent_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentAgent, predicate=PRED.hasModel, object=instrument_model_id,  id_only=True)
+        if not agent_ids:
+            raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
+        if len(agent_ids) != 1:
+            raise BadRequest("Instrument Agent should only have ONE Instrument Model" + str(instrument_model_id))
+
+        instrument_agent_id = agent_ids[0]
+        log.debug("activate_instrument:instrument_agent %s"  +  str(instrument_agent_id))
+
+        # retrieve the instrument agent
+        instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
+        if not instrument_agent_obj:
+            raise NotFound("InstrumentAgent %s does not exist" % instrument_agent_id)
+
+        # Create the process definition to launch the agent
+        instAgentInstance_definition = ProcessDefinition(name='instrument_device_obj.name')
+        instAgentInstance_definition.executable = {  'module':instrument_agent_obj.driver_module, 'class':instrument_agent_obj.driver_class }
+        agent_process_id = self.clients.process_dispatcher.create_process_definition(process_definition=instAgentInstance_definition)
+        log.debug("activate_instrument: create_process_definition id %s"  +  str(agent_process_id))
+
+        #todo create InstAgentInstance
+
+        return "instrument_agent_instance_id"
 
     def create_instrument_device(self, instrument_device=None):
         """
