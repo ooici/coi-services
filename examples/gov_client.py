@@ -260,7 +260,7 @@ def gateway_request(uri, payload):
 
     return result
 
-def find_data_products(requester=''):
+def find_data_products(requester=None):
 
     """
     data_product_find_request = {  "serviceRequest": {
@@ -281,12 +281,14 @@ def find_data_products(requester=''):
     data_product_find_request = {  "serviceRequest": {
         "serviceName": "data_product_management",
         "serviceOp": "find_data_products",
-        "requester": requester,
         "expiry": 0,
         "params": {
         }
     }
     }
+
+    if requester is not None:
+        data_product_find_request["serviceRequest"]["requester"] = requester
 
     response = gateway_request('data_product_management/find_data_products',  simplejson.dumps(data_product_find_request) )
 
@@ -303,18 +305,20 @@ def find_data_products(requester=''):
 
     return response_data
 
-def find_instrument_agents( requester=''):
+def find_instrument_agents( requester=None):
 
 
     instrument_agent_find_request = {  "serviceRequest": {
         "serviceName": "instrument_management",
         "serviceOp": "find_instrument_agents",
-        "requester": requester,
         "expiry": 0,
         "params": {
         }
     }
     }
+
+    if requester is not None:
+        instrument_agent_find_request["serviceRequest"]["requester"] = requester
 
     response = gateway_request('instrument_management/find_instrument_agents',  simplejson.dumps(instrument_agent_find_request) )
 
@@ -336,12 +340,14 @@ def find_org_roles(requester=''):
     find_org_request = {  "serviceRequest": {
         "serviceName": "org_management",
         "serviceOp": "find_org",
-        "requester": requester,
         "expiry": 0,
         "params": {
         }
     }
     }
+
+    if requester is not None:
+        find_org_request["serviceRequest"]["requester"] = requester
 
     response = gateway_request('org_management/find_org',  simplejson.dumps(find_org_request) )
 
@@ -357,13 +363,15 @@ def find_org_roles(requester=''):
     find_org_roles_request = {  "serviceRequest": {
         "serviceName": "org_management",
         "serviceOp": "find_org_roles",
-        "requester": requester,
         "expiry": 0,
         "params": {
             "org_id": ion_org_id
         }
     }
     }
+
+    if requester is not None:
+        find_org_roles_request["serviceRequest"]["requester"] = requester
 
     response = gateway_request('org_management/find_org_roles',  simplejson.dumps(find_org_roles_request) )
 

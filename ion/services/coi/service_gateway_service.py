@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
@@ -14,7 +13,8 @@ from pyon.core.exception import NotFound, Inconsistent, BadRequest
 from pyon.core.registry import get_message_class_in_parm_type, getextends
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
-from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
+from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from pyon.util.log import log
 
@@ -256,6 +256,13 @@ def build_message_headers( ion_actor_id, expiry):
 
     headers = dict()
 
+    idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+
+    try:
+        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
+    except NotFound, e:
+        ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
+
     headers['ion-actor-id'] = ion_actor_id
     headers['expiry'] = expiry
 
@@ -264,18 +271,21 @@ def build_message_headers( ion_actor_id, expiry):
         headers['ion-actor-roles'] = dict()
         return headers
 
+    try:
+        org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        #TODO - How does this request get protected?
+        org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
 
-    org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-    org_roles = org_client.find_all_roles_by_user(ion_actor_id)  #TODO - How does this request get protected?
+        #Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
+        #to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
+        role_header = dict()
+        for org in org_roles:
+            role_header[org] = []
+            for role in org_roles[org]:
+                role_header[org].append(role.name)
 
-    #Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
-    #to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
-    role_header = dict()
-    for org in org_roles:
-        role_header[org] = []
-        for role in org_roles[org]:
-            role_header[org].append(role.name)
-
+    except Exception, e:
+        role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
 
     headers['ion-actor-roles'] = role_header
 
