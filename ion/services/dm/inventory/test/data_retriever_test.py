@@ -3,10 +3,11 @@
 @file ion/services/dm/inventory/test/data_retriever_test.py
 @description Testing Platform for Data Retriver Service
 '''
-import hashlib
+
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from ion.processes.data.replay_process import llog
+from prototype.hdf.hdf_codec import HDFEncoder
 from prototype.sci_data.constructor_apis import DefinitionTree
 from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore
@@ -27,6 +28,8 @@ from ion.services.dm.inventory.data_retriever_service import DataRetrieverServic
 from nose.plugins.attrib import attr
 from mock import Mock
 import unittest, time
+import hashlib
+import numpy as np
 import pyon.core.bootstrap as bootstrap
 import gevent
 import unittest
@@ -1291,42 +1294,33 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         '''
         This generates three known good hdf files
         '''
-        import gzip
-        import base64
-        files={'590F7E0A26D535738FF5B728CFC0073D71F3CF9D.hdf5':
-                   """H4sICAduTk8AAzU5MEY3RTBBMjZENTM1NzM4RkY1QjcyOENGQzAwNzNENzFGM0NG
-        OUQuaGRmNQDr9HBx4+WS4mIAAQ4OBhYGAQZk8B8KWjhQ+TD5BCjNCKU7oPQKJpg4
-        I1hOAiouCDUfXV1IkKsrSPV/NACzx4AFQnMwjIKRCDxcHQNAdASUD0tPJ5hQ1ZWk
-        5hakFiWWlBalgvmwdOlApr2MDGwQMxhhfIjNjIwQAU6oOhjNDJQHyQgqyDNAkqwC
-        gzgHg3g9VJ4VmIJB8kxMTGADOKDqmRkToElbBcV+IWiKB6lhz/PzZ2CoINMn1AHB
-        fv4uoBwNy4cKzAPqnFEwCkbBoAYN9gzg4tcBiBuAeAEQHwDiB0DM4MjAIOAIAO36
-        NGyECAAA""",
-               'F4C2D691F80BFB05481E172E5768F4329A5C7692.hdf5':
-                   """H4sICHlvTk8AA0Y0QzJENjkxRjgwQkZCMDU0ODFFMTcyRTU3NjhGNDMyOUE1Qzc2
-        OTIuaGRmNQDr9HBx4+WS4mIAAQ4OBhYGAQZk8B8KSjhQ+TD5BCjNCKU7oPQKJpg4
-        I1hOAiouCDUfXV1IkKsrSPV/NACzx4AFQnMwjIKRCDxcHQNAdASUD0tPJ5hQ1ZWk
-        5hakFiWWlBalgvmwdOlApr2MDGwQMxhhfIjNjIwQAVaoOhjNDJQHyQgqyDNAkqwC
-        gzgHg3g9XB0HWJ6JiQlsAAdUPTNjAjRpi6DYLwRN8SA1lfl+/gwMFWT6hDog2M/f
-        BZSjYflQgXlAnTMKRsEoGNRAwRFYewOxAxAHAHGCIwDpp0VkdAgAAA==""",
-               '2C609FAD036620B6229624D0905310E87296E6D9.hdf5':
-                   """H4sICJdwTk8AAzJDNjA5RkFEMDM2NjIwQjYyMjk2MjREMDkwNTMxMEU4NzI5NkU2
-        RDkuaGRmNQDtlDFrwlAQx++9WHkIBe2iOGg+gt+gCZjipFIdHLO4B0Xo1ox269aO
-        jo4dOzo6dnR07Lew/5d3B01GBy00f/hx3P2Puwz38jLoP9zW2jWyMoYqVKffOrEO
-        Jp+LH3NUHNcct1rqKvNaXG/w/GLf9DGKbPepINnTq7hoqNR/1CAKxzbOOJd72ut8
-        X7KYL5erxVxyucvgzL2Kqm6GktxtVsoVOtwn0YNvnYbfJXeyPjUNNZ/Zv8EFW19r
-        nQ0w3O+pmE/7Kbf/ji/e9rwlw1HRv7Qmw1Hfvmh5h7531c8pVarUn1d6T9kvOAAp
-        2IAdOAIKierABz0QgDGIQQJSsAav4B1swBZ8gE+wA3vwBQ7gCL7DH8S+pfbYCAAA
-        """}
-        for k,v in files.iteritems():
-            f = open(FileSystem.get_url(FS.TEMP,'%s.gzip' % k),'w')
-            f.write(base64.b64decode(v))
-            f.close()
-            f = gzip.open(FileSystem.get_url(FS.TEMP,'%s.gzip' % k), 'r')
-            out = open(FileSystem.get_url(FS.TEMP,'%s' % k), 'w')
-            out.write(f.read())
-            f.close()
-            out.close()
-            FileSystem.unlink(FileSystem.get_url(FS.TEMP,'%s.gzip' % k))
+        files = [
+
+            {
+                'field':'pressure',
+                'name':'2C609FAD036620B6229624D0905310E87296E6D9.hdf5',
+                'data':np.arange(0,30,dtype='float32')
+            },
+            {
+                'field':'temperature',
+                'name':'590F7E0A26D535738FF5B728CFC0073D71F3CF9D.hdf5',
+                'data':np.arange(1,9,dtype='float32')
+            },
+            {
+                'field':'temperature',
+                'name':'F4C2D691F80BFB05481E172E5768F4329A5C7692.hdf5',
+                'data':np.arange(10,15,dtype='float32')
+            }
+        ]
+
+
+        for file in files:
+            codec = HDFEncoder()
+            codec.add_hdf_dataset(file['field'],file['data'])
+            hdf_string = codec.encoder_close()
+            with open(FileSystem.get_url(FS.TEMP,file['name']),'w') as f:
+                f.write(hdf_string)
+
 
 
     def tearDown(self):
