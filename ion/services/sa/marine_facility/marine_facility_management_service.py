@@ -74,7 +74,14 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.marine_facility.create_one(marine_facility)
+        log.debug("MarineFacilityManagementService.create_marine_facility(): %s" %str(marine_facility))
+        marine_facility_id = self.marine_facility.create_one(marine_facility)
+        org_obj = IonObject(RT.Org, name=marine_facility.name+'_org')
+        org_id = self.clients.org_management.create_org(org_obj)
+        # Associate the facility with the org
+        asso_id, _ = self.clients.resource_registry.create_association(org_id,  PRED.hasObservatory, marine_facility_id)
+        return marine_facility_id
+
 
     def update_marine_facility(self, marine_facility=None):
         """
@@ -110,6 +117,16 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
         """
         return self.marine_facility.find_some(filters)
+
+    def find_marine_facility_org(self, marine_facility_id=''):
+        """
+
+        """
+        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
+        if len(org_ids) == 0:
+            return ""
+        else:
+            return org_ids[0]
 
 
     ##########################################################################
@@ -162,11 +179,6 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
         """
         return self.site.find_some(filters)
-
-
-
-
-
 
 
     ##########################################################################
