@@ -199,7 +199,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - transform_definition_id: "   +  str(transform_definition_id) )
         log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
 
-        transform_id = self.clients.transform_management.create_transform( name='data_process_id', description='data_process_id',
+        transform_id = self.clients.transform_management.create_transform( name=data_process_id, description=data_process_id,
                            in_subscription_id=self.input_subscription_id,
                            out_streams={'output':out_stream_id},
                            process_definition_id=transform_definition_id,
