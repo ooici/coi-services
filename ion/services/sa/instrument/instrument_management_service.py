@@ -16,7 +16,11 @@ from pyon.core.exception import Inconsistent,BadRequest #, NotFound
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 
+#for agent mgmt
 from interface.objects import ProcessDefinition
+from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 
 from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -302,7 +306,47 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #TODO: error checking
 
 
+
+    def register_instrument(self, instrument_device=None, instrument_model_id=''):
+
+        # retrieve the instrument model info
+        instrument_model_obj = self.clients.resource_registry.read(instrument_model_id)
+        if not instrument_model_obj:
+            raise NotFound("InstrumentModel %s does not exist" % instrument_model_id)
+
+        instrument_device_id = self.create_instrument_device(instrument_device)
+
+        #associate the model and the device
+        self.clients.resource_registry.create_association(instrument_device_id,  PRED.hasModel, instrument_model_id)
+
+        #register the instrument as a data producer
+        self.clients.data_acquisition_management.register_instrument(instrument_device_id)
+
+        return instrument_device_id
+
     def activate_instrument(self, instrument_device_id=''):
+
+
+        #TEMP - does this go into InstAgent?
+        # Driver configuration.
+        self.driver_config = {
+            'svr_addr': 'localhost',
+            'cmd_port': 5556,
+            'evt_port': 5557,
+            'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_cls': 'SBE37Driver',
+            'comms_config': {
+                SBE37Channel.CTD: {
+                    'method':'ethernet',
+                    'device_addr': '137.110.112.119',
+                    'device_port': 4001,
+                    'server_addr': 'localhost',
+                    'server_port': 8888
+                }
+            }
+        }
+
+
 
         # retrieve the instrument device
         instrument_device_obj = self.clients.resource_registry.read(instrument_device_id)
@@ -310,6 +354,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("InstrumentDevice %s does not exist" % instrument_device_id)
 
 
+        #retrieve the instrument model
         model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
         if not model_ids:
             raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
@@ -320,19 +365,56 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("activate_instrument:instrument_model %s"  +  str(instrument_model_id))
 
 
+        #retrieve the asssociated instrument agent
         agent_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentAgent, predicate=PRED.hasModel, object=instrument_model_id,  id_only=True)
         if not agent_ids:
             raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
-        if len(agent_ids) != 1:
+        if len(agent_ids) > 1:
             raise BadRequest("Instrument Agent should only have ONE Instrument Model" + str(instrument_model_id))
 
         instrument_agent_id = agent_ids[0]
         log.debug("activate_instrument:instrument_agent %s"  +  str(instrument_agent_id))
 
-        # retrieve the instrument agent
+        # retrieve the instrument agent information
         instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
         if not instrument_agent_obj:
             raise NotFound("InstrumentAgent %s does not exist" % instrument_agent_id)
+
+
+        self.out_streams = []
+        #retrieve the output products
+        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        if not data_product_ids:
+            raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
+
+        for product_id in data_product_ids:
+            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
+
+            #One stream per product ...for now.
+            if not stream_ids:
+                raise NotFound("No Stream  attached to this Data Product " + str(product_id))
+            if len(stream_ids) > 1:
+                raise BadRequest("Data Product should only have ONE Stream" + str(product_id))
+
+            # retrieve the stream
+            stream_obj = self.clients.resource_registry.read(stream_ids[0])
+            if not stream_obj:
+                raise NotFound("Stream %s does not exist" % stream_ids[0])
+
+            log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
+            self.out_streams.append(stream_ids[0])
+
+
+        for (stream_name, val) in PACKET_CONFIG.iteritems():
+            log.debug("activate_instrument:PACKET_CONFIG stream_name %s"  +  str(stream_name))
+            print 'activate_instrument: PACKET_CONFIG stream_name = ', stream_name
+
+
+        # Create agent config.
+#        self.agent_config = {
+#            'driver_config' : self.driver_config,
+#            'stream_config' : self.stream_config
+#        }
 
         # Create the process definition to launch the agent
         instAgentInstance_definition = ProcessDefinition(name='instrument_device_obj.name')
@@ -353,10 +435,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
         instrument_device_id = self.instrument_device.create_one(instrument_device)
-        self.DAMS.register_instrument(instrument_device_id)
-        
-        #TODO: create data producer and product
-        self.setup_data_production_chain(instrument_device_id)
 
         return instrument_device_id
 

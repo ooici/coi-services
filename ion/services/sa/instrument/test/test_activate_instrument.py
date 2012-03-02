@@ -31,7 +31,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sa')
+@attr('INT', group='mmm')
 #@unittest.skip('not working')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
@@ -82,13 +82,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Create InstrumentDevice
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
         try:
-            instDevice_id = self.imsclient.create_instrument_device(instDevice_obj)
+            instDevice_id = self.imsclient.register_instrument(instrument_device=instDevice_obj, instrument_model_id=instModel_id)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
         print 'new InstrumentDevice id = ', instDevice_id
-        self.rrclient.create_association(instDevice_id,  PRED.hasModel, instModel_id)
+        #self.rrclient.create_association(instDevice_id,  PRED.hasModel, instModel_id)
         #register this instrument as a Producer
-        self.damsclient.register_instrument(instDevice_id)
+        #self.damsclient.register_instrument(instDevice_id)
 
 
         # create a stream definition for the data from the ctd simulator
@@ -109,7 +109,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
         print 'Data product streams = ', stream_ids
-
 
 
         inst_agent_instance_id = self.imsclient.activate_instrument(instrument_device_id=instDevice_id)
