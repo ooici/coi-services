@@ -19,7 +19,7 @@ import time
 
 import random
 
-from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
+from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -28,6 +28,9 @@ class SimpleCtdPublisher(StandaloneProcess):
     def __init__(self, *args, **kwargs):
         super(StandaloneProcess, self).__init__(*args,**kwargs)
         #@todo Init stuff
+
+    outgoing_stream_def = SBE37_CDM_stream_definition()
+
 
     def on_start(self):
         '''
@@ -46,7 +49,7 @@ class SimpleCtdPublisher(StandaloneProcess):
         # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
         if not stream_id:
 
-            ctd_def = ctd_stream_definition(stream_id=stream_id)
+            ctd_def = SBE37_CDM_stream_definition(stream_id=stream_id)
             pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
             stream_id = pubsub_cli.create_stream(
                 name='Example CTD Data',
@@ -98,6 +101,7 @@ class SimpleCtdPublisher(StandaloneProcess):
 
             ctd_packet = ctd_stream_packet(stream_id=stream_id,
                 c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+
 
             log.warn('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)

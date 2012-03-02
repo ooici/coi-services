@@ -9,12 +9,10 @@ from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 
-#from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-
-from prototype.sci_data.ctd_stream import scalar_point_stream_definition, ctd_stream_definition
-
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
+
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_density_stream_definition, L2_practical_salinity_stream_definition
 
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
@@ -26,15 +24,9 @@ class SalinityTransform(TransformFunction):
     Output is Practical Salinity as calculated by the Gibbs Seawater package
     '''
 
-    outgoing_stream_def = scalar_point_stream_definition(
-        description='Practical Salinity Scale data from science transform',
-        field_name = 'salinity',
-        field_definition = 'http://sweet.jpl.nasa.gov/2.0/physThermo.owl#Salinity', # Does not exist - what to use?
-        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-        field_range = [0.1, 40.0]
-    )
+    outgoing_stream_def = L2_practical_salinity_stream_definition()
 
-    incoming_stream_def = ctd_stream_definition()
+    incoming_stream_def = SBE37_CDM_stream_definition()
 
 
 
@@ -53,6 +45,7 @@ class SalinityTransform(TransformFunction):
 
         longitude = psd.get_values('longitude')
         latitude = psd.get_values('latitude')
+        height = psd.get_values('height')
         time = psd.get_values('time')
 
 
@@ -71,7 +64,7 @@ class SalinityTransform(TransformFunction):
         psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
 
         for i in xrange(len(salinity)):
-            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
             psc.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
 
         return psc.close_stream_granule()
@@ -86,17 +79,9 @@ class DensityTransform(TransformFunction):
     Output is Density as calculated by the Gibbs Seawater package
     '''
 
-    outgoing_stream_def = scalar_point_stream_definition(
-        description='Absolute Density data from science transform',
-        field_name = 'density',
-        field_definition = 'http://sweet.jpl.nasa.gov/2.0/physThermo.owl#Density', # Does not exist - what to use?
-        field_units_code = 'kg/m3',
-        field_range = [0.1, 40.0]
-    )
+    outgoing_stream_def = L2_density_stream_definition()
 
-
-    incoming_stream_def = ctd_stream_definition()
-
+    incoming_stream_def = SBE37_CDM_stream_definition()
 
 
 
@@ -114,6 +99,7 @@ class DensityTransform(TransformFunction):
 
         longitude = psd.get_values('longitude')
         latitude = psd.get_values('latitude')
+        height = psd.get_values('height')
         time = psd.get_values('time')
 
 
@@ -137,7 +123,7 @@ class DensityTransform(TransformFunction):
         psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
 
         for i in xrange(len(dens)):
-            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
             psc.add_scalar_point_coverage(point_id=point_id, coverage_id='density', value=dens[i])
 
         return psc.close_stream_granule()
