@@ -16,6 +16,9 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceClient
 
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+        
+
 import requests, json
 
 from ion.services.sa.preload.preload_csv import PreloadCSV
@@ -51,9 +54,10 @@ class TestPreloader(IonIntegrationTestCase):
         # Now create client to DataProductManagementService
         self.client = DotDict()
         #self.client.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
-        #self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
+        self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
         self.client.MFMS = MarineFacilityManagementServiceClient(node=self.container.node)
+        self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
     #@unittest.skip('temporarily')
     def test_just_the_setup(self):
@@ -94,12 +98,14 @@ class TestPreloader(IonIntegrationTestCase):
 
 
     def _generic_loader(self, tag=None):
-        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port, log)
+        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port, self.client.PSMS, self.client.DPMS, log)
 
         loader.preload(
             "ion/services/sa/preload/StreamDefinition.csv",
             ["ion/services/sa/preload/LogicalInstrument.csv",
-             "ion/services/sa/preload/InstrumentDevice.csv"],
+             "ion/services/sa/preload/InstrumentDevice.csv",
+             "ion/services/sa/preload/DataProcessDefinition.csv",
+             ],
             "ion/services/sa/preload/DataProduct.csv",
             "ion/services/sa/preload/DataProcess.csv",
             "ion/services/sa/preload/IngestionConfiguration.csv",

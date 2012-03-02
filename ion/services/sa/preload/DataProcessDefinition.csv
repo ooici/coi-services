@@ -1,0 +1,6 @@
+Scenarios,ID,name,description,module,class_name,process_source
+LCA,DPD1,CTD_L0,L0 - Conductivity/Temp/Pressure,ion.processes.data.transforms.ctd.ctd_L0_all,ctd_L0_all,foo
+LCA,DPD2,CONDWAT,L1 - Conductivity,ion.processes.data.transforms.ctd.ctd_L1_conductivity,CTDL1ConductivityTransform,bar
+LCA,DPD3,TEMPWAT,L1 - Temperature,ion.processes.data.transforms.ctd.ctd_L1_temperature,CTDL1PressureTransform,baz
+LCA,DPD4,PRESWAT,L1 - Pressure (Depth),ion.processes.data.transforms.ctd.ctd_L1_pressure,CTDL1TemperatureTransform,fixme
+DEBUG,DPD5,PRACSAL,L2 - Practical Salinity,ion.processes.data.transforms.ion_seawater,SalinityTransform,todo
