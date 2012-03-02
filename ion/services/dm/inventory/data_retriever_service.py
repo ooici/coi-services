@@ -20,6 +20,24 @@ class DataRetrieverService(BaseDataRetrieverService):
     def __init__(self, *args, **kwargs):
         super(DataRetrieverService,self).__init__(*args,**kwargs)
 
+    @staticmethod
+    def traverse(identifiables,node):
+        '''
+        Recursively traverse the definition for keys with _id and return all the values in a list to append later
+        '''
+        retval = []
+        for key in dir(node):
+            if key.endswith('_id'):
+                val = getattr(node,key)
+                retval.append(val)
+                if val in identifiables:
+                    r = DataRetrieverService.traverse(identifiables,identifiables[getattr(node,key)])
+                    for i in r:
+                        if i:
+                            retval.append(i)
+
+        return retval
+
     def on_start(self):
         super(DataRetrieverService,self).on_start()
         self.process_definition = ProcessDefinition()
@@ -58,55 +76,39 @@ class DataRetrieverService(BaseDataRetrieverService):
         # Make a new definition container
 
 
-        if fields:
-            """
-            break down
-            Create a new definition without fields
-            forvery field in fields append the important stuff to the new definition
-            """
 
-            def traverse(identifiables,node):
-                '''
-                Recursively traverse the definition for keys with _id and return all the values in a list to append later
-                '''
-                retval = []
-                for key in dir(node):
-                    if key.endswith('_id'):
-                        val = getattr(node,key)
-                        retval.append(val)
-                        if val in identifiables:
-                            r = traverse(identifiables,identifiables[getattr(node,key)])
-                            for i in r:
-                                if i:
-                                    retval.append(i)
+        # Make a definition
+        definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
+        definition_constructor = StationDataStreamDefinitionConstructor()
+        definition_container = definition_constructor.stream_definition
+        definition_container.identifiables['data_record'].domain_ids = definition.identifiables['data_record'].domain_ids
 
-                return retval
+        llog('Before')
+        llog('%s' % definition_container.identifiables.keys())
+        if not fields:
+            fields = DefinitionTree.get(definition,'%s.element_type_id.data_record_id.field_ids' % definition.data_stream_id)
 
 
-            definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
-            definition_constructor = StationDataStreamDefinitionConstructor()
-            definition_container = definition_constructor.stream_definition
-            definition_container.identifiables['data_record'].domain_ids = definition.identifiables['data_record'].domain_ids
+        """
+        break down
+        Create a new definition without fields
+        forvery field in fields append the important stuff to the new definition
+        """
+        data_record_id = DefinitionTree.get(definition,'%s.element_type_id.data_record_id' % definition.data_stream_id)
 
-            llog('Before')
-            llog('%s' % definition_container.identifiables.keys())
-
-            for field_id in fields:
-                # I need to traverse each node looking for _id
-                identifiables = definition.identifiables
-                field = identifiables[field_id]
-                for id in traverse(identifiables, field):
-                    if id not in definition_container.identifiables:
-                        llog('Copying %s' % id)
-                        definition_container.identifiables[id] = identifiables[id]
-                llog('Copying coverage %s' % field_id)
-                definition_container.identifiables[field_id] = field
-            llog('After')
-            llog('%s' % definition_container.identifiables.keys())
-
-        else:
-            definition_container = ctd_stream_definition()
-
+        for field_id in fields:
+            # I need to traverse each node looking for _id
+            identifiables = definition.identifiables
+            field = identifiables[field_id]
+            for id in DataRetrieverService.traverse(identifiables, field):
+                if id not in definition_container.identifiables:
+                    llog('Copying %s' % id)
+                    definition_container.identifiables[id] = identifiables[id]
+            llog('Copying coverage %s' % field_id)
+            definition_container.identifiables[field_id] = field
+            definition_container.identifiables[data_record_id].field_ids.append(field_id)
+        llog('After')
+        llog('%s' % definition_container.identifiables.keys())
 
 
 

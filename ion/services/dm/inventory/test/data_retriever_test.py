@@ -3,9 +3,11 @@
 @file ion/services/dm/inventory/test/data_retriever_test.py
 @description Testing Platform for Data Retriver Service
 '''
+import hashlib
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from ion.processes.data.replay_process import llog
+from prototype.sci_data.constructor_apis import DefinitionTree
 from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore
 from pyon.public import  StreamSubscriberRegistrar
@@ -1467,6 +1469,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         ps_cli = self.ps_cli
         tms_cli = self.tms_cli
         pd_cli = self.pd_cli
+        rr_cli = self.rr_cli
         assertions = self.assertTrue
         '''
         dr_cli = pn['data_retriever']
@@ -1484,14 +1487,30 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         )
         replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature']})
 
+        definition = rr_cli.find_objects(stream_id,PRED.hasStreamDefinition)[0][0]
+        definition = definition.container
+
+
         xs = '.'.join([bootstrap.get_sys_name(),'science_data'])
         results = []
         result = gevent.event.AsyncResult()
 
         def dump(m,h):
             llog('Got message')
-            llog('records: %d' % m.identifiables['record_count'].value)
-            llog('sha: %s' % m.identifiables['stream_encoding'].sha1)
+            llog('\tKeys in this granule: %s' % m.identifiables.keys())
+            data_stream = m.identifiables[m.data_stream_id]
+            hdf_string = data_stream.values
+            encoding_id = DefinitionTree.get(definition,'%s.encoding_id' % definition.data_stream_id)
+            sha1 = m.identifiables[encoding_id].sha1
+            check = bool(sha1 == hashlib.sha1(hdf_string).hexdigest().upper())
+            element_count_id = DefinitionTree.get(definition,'%s.element_count_id' % definition.data_stream_id)
+            record_count = m.identifiables[element_count_id].value
+            llog('\tSha1: %s' % sha1)
+            llog('\tChecksum: %s' % check)
+            llog('\tRecords: %d' % record_count)
+            with open('/tmp/test.hdf5','w') as f:
+                f.write(hdf_string)
+
 
 
         subscriber = Subscriber(name=(xs,'test_replay'), callback=dump)

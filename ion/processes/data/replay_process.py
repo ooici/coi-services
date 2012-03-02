@@ -5,12 +5,14 @@
 @file ion/processes/data/replay_process.py
 @description Implementation for the Replay Agent
 '''
+from prototype.hdf.hdf_codec import HDFEncoder
 from pyon.util.containers import DotDict
 from pyon.core.exception import IonException
 from pyon.util.file_sys import FS, FileSystem
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
 import time
+import numpy as np
 from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
 from prototype.hdf.hdf_array_iterator import acquire_data
 from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
@@ -91,6 +93,13 @@ class ReplayProcess(BaseReplayProcess):
         element_count_id = DefinitionTree.get(self.defintion, '%s.element_count_id' % self.definition.data_stream_id)
         record_count = granule.identifiables[element_count_id]
         data_stream = granule.identifiables[self.definition.data_stream_id]
+
+        for i in xrange(record_count / n):
+            values = np.arange(0,n,dtype='float32')
+            llog('chunk of values: %s' % str(values))
+            codec = HDFEncoder()
+
+
 
         '''
         generator = acquire_data([file], self.fields, n)
@@ -206,7 +215,10 @@ class ReplayProcess(BaseReplayProcess):
                     # This message is no longer valid
                     llog('granule didnt have enough info %s not found' % range_id)
                     return None # msg is invalid
-
+        else:
+            # No fields were specified so let's see what the fields were
+            fields = DefinitionTree.get(self.definition,'%s.element_type_id.data_record_id.field_ids' % self.definition.data_stream_id)
+            llog('%s' % fields)
         if not sha1:
             return None # There is no encoding, no values and therefore not valid
 
@@ -237,8 +249,33 @@ class ReplayProcess(BaseReplayProcess):
         for msg in msgs:
             records += msg['records']
             files.append(msg['data'])
-
         granule = PointSupplementConstructor(point_definition=self.definition, stream_id=self.stream_id)
+
+        # acquire_data from every file
+        # gen = acquire_data(files,self.fields,records)
+        # data = gen.next()[4]
+
+        #------ MOCKING --------
+        codec = HDFEncoder()
+        data = {}
+        for field in self.fields:
+            llog('making data for field %s' % field)
+            data[field] = np.arange(0,records,dtype='float32')
+
+            for i in xrange(len(data[field])):
+                coverage_id = DefinitionTree.get(self.definition,'%s.range_id' % field)
+                granule.add_scalar_point_coverage(point_id=i,coverage_id=coverage_id,value=data[field][i])
+
+            codec.add_hdf_dataset(field,data[field])
+
+        hdf_string = codec.encoder_close()
+        sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+        #-----------------------
+
+
+        #-----------------------
+        # At this point I have the things I need
+
         granule = granule.close_stream_granule()
         encoding_id = DefinitionTree.get(self.definition, '%s.encoding_id' % self.definition.data_stream_id)
         element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
@@ -246,17 +283,17 @@ class ReplayProcess(BaseReplayProcess):
         #@todo: fill this in
         # acquire_data([files], fields, records)
         # get me the hdf_encoding => hdf_string
-        sha1 = 'new hash'
         granule.identifiables[encoding_id].sha1 = sha1
         granule.identifiables[element_count_id].value = records
 
         # get bounds for each field etc.
+        llog('merged granule: %s' % granule.identifiables.keys())
 
         return {
             'granule':granule,
             'records':records,
             'data':sha1,
-            'hdf_string':'string'
+            'hdf_string':hdf_string
         }
 
 
@@ -306,7 +343,7 @@ class ReplayProcess(BaseReplayProcess):
             llog('outgoing:')
             llog('\tGranule: %s' % outgoing['granule'].identifiables.keys())
             llog('\tRecords: %s' % outgoing['records'])
-            llog('\tData: %s' % outgoing['data'])
+            llog('\tSha1: %s' % outgoing['data'])
             self.lock.acquire()
             self.output.publish(packet)
             self.lock.release()
