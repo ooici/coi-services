@@ -9,7 +9,7 @@ from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.core.object import IonObjectBase
 from pyon.datastore.datastore import DataStore
 from pyon.ion.resource import get_restype_lcsm, is_resource
-from pyon.public import log, LCS, PRED, AT
+from pyon.public import log, LCS, PRED, AT, RT
 from pyon.util.containers import get_ion_ts
 
 from interface.objects import Attachment, AttachmentType
