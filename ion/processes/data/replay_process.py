@@ -1,24 +1,22 @@
-__author__ = 'luke'
-from prototype.hdf.hdf_codec import HDFEncoder
-from pyon.util.containers import DotDict
+'''
+@author Luke Campbell
+@file ion/processes/data/replay_process.py
+@description Replay Process handling set manipulations for the DataModel
+'''
+from pyon.public import log
+from pyon.datastore.datastore import DataStore
 from pyon.core.exception import IonException
 from pyon.util.file_sys import FS, FileSystem
+from prototype.hdf.hdf_array_iterator import acquire_data
+from prototype.hdf.hdf_codec import HDFEncoder
+from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
+from interface.objects import BlogBase, StreamGranuleContainer, StreamDefinitionContainer
+from interface.services.dm.ireplay_process import BaseReplayProcess
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
+import os
 import time
 import numpy as np
-from interface.objects import BlogBase, StreamGranuleContainer, DataStream, Encoding, StreamDefinitionContainer
-from prototype.hdf.hdf_array_iterator import acquire_data
-from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
-from pyon.datastore.datastore import DataStore
-from pyon.ion.endpoint import StreamPublisherRegistrar
-from pyon.public import log
-from interface.services.dm.ireplay_process import BaseReplayProcess
-
-import os
-
-import hashlib
-
 
 
 #@todo: Remove this debugging stuff
@@ -66,6 +64,9 @@ class ReplayProcess(BaseReplayProcess):
             raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
 
     def execute_replay(self):
+        '''
+        Spawns a greenlet to take care of the query and work
+        '''
         datastore_name = self.datastore_name
         key_id = self.key_id
 
@@ -82,6 +83,9 @@ class ReplayProcess(BaseReplayProcess):
         g.start()
 
     def _query(self,datastore_name='dm_datastore', view_name='posts/posts_by_id', opts={}, callback=None):
+        '''
+        Makes the couch query and then callsback to publish
+        '''
         db = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
 
         ret = db.query_view(view_name=view_name,opts=opts)
@@ -89,6 +93,10 @@ class ReplayProcess(BaseReplayProcess):
         callback(ret)
 
     def _publish_query(self, results):
+        '''
+        Merges the results into one dataset
+        Manages the publishing rules
+        '''
 
         if results is None:
             log.warn('No Results')
@@ -110,6 +118,9 @@ class ReplayProcess(BaseReplayProcess):
         self.lock.release()
 
     def _parse_results(self, results):
+        '''
+        Switch-case logic for what packet types replay can handle and how to handle
+        '''
 
         publish_queue = []
 
@@ -152,13 +163,14 @@ class ReplayProcess(BaseReplayProcess):
                     granule.add_scalar_point_coverage(point_id=i, coverage_id=field,value=data[i])
             granule = granule.close_stream_granule()
             yield granule
-            
+
 
     def _parse_granule(self, granule):
+        '''
+        Ensures the granule is valid and gets some metadata from the granule for building the dataset
+        '''
 
         granule.stream_resource_id = self.stream_id
-
-
 
         element_count_id = DefinitionTree.get(self.definition,'%s.element_count_id' % self.definition.data_stream_id)
         encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
@@ -192,7 +204,12 @@ class ReplayProcess(BaseReplayProcess):
 
 
     def _merge(self, msgs):
-
+        '''
+        Merges all the granules and datasets into one large dataset (Union)
+             n
+        D := U [ msgs_i ]
+            i=0
+        '''
         records = 0
         files = []
         for msg in msgs:
@@ -221,3 +238,10 @@ class ReplayProcess(BaseReplayProcess):
             'records':records,
             'sha1':sha1,
             }
+
+    def _subset(self, dataset):
+        '''
+        returns a dataset subset based on the fields
+
+        '''
+        pass
