@@ -18,8 +18,6 @@ from interface.services.sa.imarine_facility_management_service import MarineFaci
 
 import requests, json
 
-from ion.services.sa.preload.preload_csv import PreloadCSV
-
 # some stuff for logging info to the console
 import sys
 log = DotDict()
@@ -57,55 +55,6 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
     #@unittest.skip('temporarily')
     def test_just_the_setup(self):
         return
-
-    #@unittest.skip('temporarily')
-    def test_csv_loader_all(self):
-        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port)
-
-        loader.preload(["ion/services/sa/preload/LogicalInstrument.csv",
-                        "ion/services/sa/preload/InstrumentDevice.csv",
-                        "ion/services/sa/preload/associations.csv"])
-
-        log_inst_ids = self.client.MFMS.find_logical_instruments()
-        self.assertEqual(2, len(log_inst_ids))
-
-        inst_ids = self.client.IMS.find_instrument_devices()
-        self.assertEqual(2, len(inst_ids))
-
-        associated_ids = self.client.IMS.find_logical_instrument_by_instrument_device(inst_ids[0])
-        self.assertEqual(1, len(associated_ids))
-
-
-    #@unittest.skip('temporarily')
-    def test_csv_loader_tagged(self):
-        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port)
-
-        loader.preload(["ion/services/sa/preload/LogicalInstrument.csv",
-                        "ion/services/sa/preload/InstrumentDevice.csv",
-                        "ion/services/sa/preload/associations.csv"],
-                       "LCA")
-
-        log_inst_ids = self.client.MFMS.find_logical_instruments()
-        self.assertEqual(1, len(log_inst_ids))
-        log_inst = self.client.MFMS.read_logical_instrument(logical_instrument_id=log_inst_ids[0])
-        self.assertEqual(log_inst.name, "Logical Instrument 1")
-
-        
-        inst_ids = self.client.IMS.find_instrument_devices()
-        self.assertEqual(1, len(inst_ids))
-        inst = self.client.IMS.read_instrument_device(instrument_device_id=inst_ids[0])
-        self.assertEqual(inst.name, "Instrument Device 1")
-
-        associated_ids = self.client.IMS.find_logical_instrument_by_instrument_device(inst_ids[0])
-        self.assertEqual(1, len(associated_ids))
-
-
-
-
-
-
-
-
 
 
 

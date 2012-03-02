@@ -989,6 +989,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def find_instrument_agent_by_instrument_model(self, instrument_model_id=''):
         return self.instrument_agent.find_having_model(instrument_model_id)
 
+    def find_instrument_device_by_instrument_agent_instance(self, instrument_agent_instance_id=''):
+        return self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)
+
+    def find_instrument_agent_instance_by_instrument_device(self, instrument_device_id=''):
+        return self.instrument_device.find_stemming_agent_instance(instrument_device_id)
+
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
         return self.platform_device.find_stemming_instrument(platform_device_id)
 
