@@ -52,9 +52,11 @@ class OrgManagementService(BaseOrgManagementService):
         directory = Directory(orgname=org.name)
 
         #Instantiate initial set of User Roles for this Org
-        self.add_user_role(org_id, name=MANAGER_ROLE, description='Org Manager')
+        manager_role = IonObject(RT.UserRole, name=MANAGER_ROLE,label='Org Manager', description='Org Manager')
+        self.add_user_role(org_id, manager_role)
 
-        self.add_user_role(org_id, name=MEMBER_ROLE, description='Org Member')
+        member_role = IonObject(RT.UserRole, name=MEMBER_ROLE,label='Org Member', description='Org Member')
+        self.add_user_role(org_id, member_role)
 
         return org_id
 
@@ -114,14 +116,13 @@ class OrgManagementService(BaseOrgManagementService):
         return res_list[0]
 
 
-    def add_user_role(self, org_id='', name='', description=''):
+    def add_user_role(self, org_id='', user_role=None):
         """Adds a UserRole to an Org. Will call Policy Management Service to actually
-        create the role based on name and description.
-        Throws exception if either id does not exist.
+        create the role object that is passed in, if the role by the specified
+        name does not exist. Throws exception if either id does not exist.
 
         @param org_id    str
-        @param name    str
-        @param description    str
+        @param user_role    UserRole
         @retval user_role_id    str
         @throws NotFound    object with specified name does not exist
         """
@@ -133,14 +134,14 @@ class OrgManagementService(BaseOrgManagementService):
         if not org:
             raise NotFound("Org %s does not exist" % org_id)
 
-        if not name:
-            raise BadRequest("The name parameter is missing")
+        if not user_role:
+            raise BadRequest("The user_role parameter is missing")
 
-        if self._find_role(org_id, name) is not None:
-            raise BadRequest("The user role '%s' is already associated with this Org" % name)
+        if self._find_role(org_id, user_role.name) is not None:
+            raise BadRequest("The user role '%s' is already associated with this Org" % user_role.name)
 
-        role_obj = IonObject(RT.UserRole, name=name, description=description, org_id=org_id)
-        user_role_id = self.clients.policy_management.create_role(role_obj)
+        user_role.org_id = org_id
+        user_role_id = self.clients.policy_management.create_role(user_role)
         user_role = self.clients.policy_management.read_role(user_role_id)
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasRole, user_role)

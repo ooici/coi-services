@@ -60,12 +60,13 @@ def seed_gov(container, process=FakeProcess()):
     ion_org = org_client.find_org()
 
 
-    policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
+    #policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
 
-    org_client.add_user_role(ion_org._id, name='Operator', description='Instrument Operator')
+    operator_role = IonObject(RT.UserRole, name='Operator',label='Instrument Operator', description='Instrument Operator')
+    org_client.add_user_role(ion_org._id, operator_role)
 
     try:
-        org_client.add_user_role(ion_org._id, name='Operator', description='Instrument Operator')
+        org_client.add_user_role(ion_org._id, operator_role)
     except Exception, e:
         log.info("This should fail")
         log.info(e.message)
@@ -228,13 +229,18 @@ def gateway_request(uri, payload):
     server_hostname = 'localhost'
     server_port = 5000
     web_server_cfg = None
-    if 'web_server' in CFG:
-        web_server_cfg = CFG['web_server']
+    try:
+        web_server_cfg = CFG['container']['service_gateway']['web_server']
+    except Exception, e:
+        web_server_cfg = None
+
     if web_server_cfg is not None:
         if 'hostname' in web_server_cfg:
             server_hostname = web_server_cfg['hostname']
         if 'port' in web_server_cfg:
             server_port = web_server_cfg['port']
+
+
 
     SEARCH_BASE = 'http://' + server_hostname + ':' + str(server_port) + '/ion-service/' + uri
 
