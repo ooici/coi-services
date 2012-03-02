@@ -5,8 +5,9 @@ __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 import inspect, collections, ast, simplejson, json, sys
-from flask import Flask, request
+from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
+from werkzeug.exceptions import Forbidden
 
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
@@ -15,6 +16,7 @@ from pyon.core.registry import get_message_class_in_parm_type, getextends
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+from pyon.util.log import log
 
 
 #Initialize the flask app
@@ -55,20 +57,33 @@ class ServiceGatewayService(BaseServiceGatewayService):
         global service_gateway_instance
         service_gateway_instance = self
 
-        #get configuration settings if specified
-        if 'web_server' in self.CFG:
-            web_server_cfg = self.CFG['web_server']
-            if web_server_cfg is not None:
-                if 'hostname' in web_server_cfg:
-                    self.server_hostname = web_server_cfg['hostname']
-                if 'port' in web_server_cfg:
-                    self.server_port = web_server_cfg['port']
-                if 'enabled' in web_server_cfg:
-                    self.web_server_enabled = web_server_cfg['enabled']
-                if 'log' in web_server_cfg:
-                    self.logging = web_server_cfg['log']
+        try:
+            self.web_server_cfg = self.CFG['container']['service_gateway']['web_server']
+        except Exception, e:
+            self.web_server_cfg = None
 
-        #need to figure out how to redirect HTTP logging to a file
+        if self.web_server_cfg is not None:
+            if 'hostname' in self.web_server_cfg:
+                self.server_hostname = self.web_server_cfg['hostname']
+            if 'port' in self.web_server_cfg:
+                self.server_port = self.web_server_cfg['port']
+            if 'enabled' in self.web_server_cfg:
+                self.web_server_enabled = self.web_server_cfg['enabled']
+            if 'log' in self.web_server_cfg:
+                self.logging = self.web_server_cfg['log']
+
+        try:
+            #Optional list of trusted originators can be specified in config.
+            self.trusted_originators = self.CFG['container']['service_gateway']['trusted_originators']
+            if len(self.trusted_originators) == 0:
+                self.trusted_originators = None
+        except Exception, e:
+            self.trusted_originators = None
+
+        if self.trusted_originators is None:
+            log.info("Service Gateway will not check requests against trusted originators since none are configured.")
+
+        #Start the gevent web server unless disabled
         if self.web_server_enabled:
             self.start_service(self.server_hostname,self.server_port)
 
@@ -93,7 +108,33 @@ class ServiceGatewayService(BaseServiceGatewayService):
             self.http_server.stop()
         return True
 
-        
+    def is_trusted_address(self, requesting_address):
+
+        if self.trusted_originators is None:
+            return True
+
+        for addr in self.trusted_originators:
+            if requesting_address == addr:
+                return True
+
+        return False
+
+@app.errorhandler(403)
+def custom_403(error):
+    return json_response({GATEWAY_ERROR: "The request has been denied since it did not originate from a trusted originator configured in the pyon.yaml file."})
+
+
+#Checks to see if the remote_addr in the request is in the list of specified trusted addresses, if any.
+@app.before_request
+def is_trusted_request():
+
+    if request.remote_addr is not None:
+        log.debug("Request from: " + request.remote_addr)
+
+    if not service_gateway_instance.is_trusted_address(request.remote_addr):
+        abort(403)
+
+
 
 # This is a service operation for handling generic service operation calls with arguments passed as query string parameters; like this:
 # http://hostname:port/ion-service/resource_registry/find_resources?restype=BankAccount&id_only=False
