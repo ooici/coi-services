@@ -3,6 +3,8 @@
 __author__ = 'Thomas R. Lennan, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
+import base64
+
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.core.object import IonObjectBase
 from pyon.datastore.datastore import DataStore
@@ -10,6 +12,7 @@ from pyon.ion.resource import get_restype_lcsm, is_resource
 from pyon.public import log, LCS, PRED, AT
 from pyon.util.containers import get_ion_ts
 
+from interface.objects import Attachment, AttachmentType
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
 class ResourceRegistryService(BaseResourceRegistryService):
@@ -46,7 +49,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         res = self.rr_store.create(object)
         res_id, rev = res
 
-        ion_actor_id = self.get_context().get('ion-actor-id', None)
+        ctx = self.get_context()
+        ion_actor_id = ctx.get('ion-actor-id', None) if ctx else None
         if ion_actor_id and ion_actor_id != 'anonymous':
             log.debug("Associate resource_id=%s with owner=%s" % (res_id, ion_actor_id))
             self.rr_store.create_association(res_id, PRED.hasOwner, ion_actor_id)
@@ -79,7 +83,14 @@ class ResourceRegistryService(BaseResourceRegistryService):
         res_obj = self.read(object_id)
         if not res_obj:
             raise NotFound("Resource %s does not exist" % object_id)
-        return self.rr_store.delete(res_obj)
+
+        # Delete all owner users.
+        owners,_ = self.rr_store.find_objects(object_id, PRED.hasOwner, RT.UserIdentity, id_only=True)
+        for oid in owners:
+            self.rr_store.delete_association(object_id, PRED.hasOwner, oid)
+
+        res = self.rr_store.delete(res_obj)
+        return res
 
     def execute_lifecycle_transition(self, resource_id='', transition_event=''):
         res_obj = self.read(resource_id)
@@ -115,6 +126,56 @@ class ResourceRegistryService(BaseResourceRegistryService):
         res_obj.lcstate = target_lcstate
         res_obj.ts_updated = get_ion_ts()
         updres = self.rr_store.update(res_obj)
+
+    def create_attachment(self, resource_id='', attachment=None):
+        if attachment is None:
+            raise BadRequest("Object not present")
+        if not isinstance(attachment, Attachment):
+            raise BadRequest("Object is not an Attachment")
+
+        attachment.object_id = resource_id if resource_id else ""
+
+        if attachment.attachment_type == AttachmentType.BLOB:
+            self.assert_condition(type(attachment.content) is str, "Attachment content must be str")
+            attachment.content = base64.encodestring(attachment.content)
+        elif attachment.attachment_type == AttachmentType.ASCII:
+            self.assert_condition(type(attachment.content) is str, "Attachment content must be str")
+        elif attachment.attachment_type == AttachmentType.OBJECT:
+            pass
+        else:
+            raise BadRequest("Unknown attachment-type: %s" % attachment.attachment_type)
+
+        att_id,_ = self.create(attachment)
+
+        if resource_id:
+            self.rr_store.create_association(resource_id, PRED.hasAttachment, att_id)
+
+        return att_id
+
+    def read_attachment(self, attachment_id=''):
+        attachment = self.read(attachment_id)
+        if not isinstance(attachment, Attachment):
+            raise Inconsistent("Object in datastore must be Attachment, not %s" % type(attachment))
+
+        if attachment.attachment_type == AttachmentType.BLOB:
+            self.assert_condition(type(attachment.content) is str, "Attachment content must be str")
+            attachment.content = base64.decodestring(attachment.content)
+
+        return attachment
+
+    def delete_attachment(self, attachment_id=''):
+        return self.delete(attachment_id, del_associations=True)
+
+    def find_attachments(self, resource_id='', limit=0, descending=False, include_content=False, id_only=True):
+        key = [resource_id]
+
+        atts = self.rr_store.find_by_view("attachment", "by_resource", start_key=key, end_key=key,
+                            descending=descending, limit=limit, id_only=id_only)
+        if not id_only and not include_content:
+            for att in atts:
+                att.content = None
+
+        return atts
 
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.rr_store.create_association(subject, predicate, object, assoc_type)
