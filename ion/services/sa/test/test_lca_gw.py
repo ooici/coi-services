@@ -529,8 +529,8 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         for k, v in params.iteritems():
             post_data['serviceRequest']['params'][k] = v
 
-        url = "http://%s:%s/ion-service/%s/%s" % (CFG.web_server.hostname, 
-                                                  CFG.web_server.port, 
+        url = "http://%s:%s/ion-service/%s/%s" % (CFG.container.service_gateway.web_server.hostname, 
+                                                  CFG.container.service_gateway.web_server.port, 
                                                   service, 
                                                   method)
 

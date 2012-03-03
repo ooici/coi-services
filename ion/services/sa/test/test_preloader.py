@@ -98,7 +98,11 @@ class TestPreloader(IonIntegrationTestCase):
 
 
     def _generic_loader(self, tag=None):
-        loader = PreloadCSV(CFG.web_server.hostname, CFG.web_server.port, self.client.PSMS, self.client.DPMS, log)
+        loader = PreloadCSV(CFG.container.service_gateway.web_server.hostname, 
+                            CFG.container.service_gateway.web_server.port, 
+                            self.client.PSMS, 
+                            self.client.DPMS, 
+                            log)
 
         loader.preload(
             "ion/services/sa/preload/StreamDefinition.csv",
