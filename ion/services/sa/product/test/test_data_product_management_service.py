@@ -113,10 +113,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # Start container
         #print 'instantiating container'
         self._start_container()
-        #container = Container()
-        #print 'starting container'
-        #container.start()
-        #print 'started container'
 
         self.container.start_rel_from_url('res/deploy/r2sa.yml')
 
@@ -185,6 +181,40 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             client.suspend_data_product_persistence(dp_id2)
         except BadRequest as ex:
             self.fail("failed to activate / deactivate data product persistence : %s" %ex)
+
+
+
+
+        pid = self.container.spawn_process(name='dummy_process_for_test',
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
+        dummy_process = self.container.proc_manager.procs[pid]
+
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
+        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.in_stream_id)
+
+        msg = {'num':'3'}
+        self.ctd_stream1_publisher.publish(msg)
+
+        time.sleep(1)
+
+        msg = {'num':'5'}
+        self.ctd_stream1_publisher.publish(msg)
+
+        time.sleep(1)
+
+        msg = {'num':'9'}
+        self.ctd_stream1_publisher.publish(msg)
+
+
+
+
+
+
+
+
+
 
 
         # test creating a duplicate data product

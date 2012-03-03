@@ -17,7 +17,7 @@ from pyon.core.exception import Inconsistent,BadRequest #, NotFound
 from pyon.util.log import log
 
 #for agent mgmt
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
@@ -39,7 +39,6 @@ from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
 from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
 from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
-
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -324,35 +323,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return instrument_device_id
 
-    def activate_instrument(self, instrument_device_id=''):
 
-
-        #TEMP - does this go into InstAgent?
-        # Driver configuration.
-        self.driver_config = {
-            'svr_addr': 'localhost',
-            'cmd_port': 5556,
-            'evt_port': 5557,
-            'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
-            'dvr_cls': 'SBE37Driver',
-            'comms_config': {
-                SBE37Channel.CTD: {
-                    'method':'ethernet',
-                    'device_addr': '137.110.112.119',
-                    'device_port': 4001,
-                    'server_addr': 'localhost',
-                    'server_port': 8888
-                }
-            }
-        }
-
-
+    def activate_instrument(self, instrument_device_id='', instrument_agent_instance=None):
 
         # retrieve the instrument device
         instrument_device_obj = self.clients.resource_registry.read(instrument_device_id)
         if not instrument_device_obj:
             raise NotFound("InstrumentDevice %s does not exist" % instrument_device_id)
 
+        if not instrument_agent_instance:
+            raise BadRequest("InstrumentAgentInstance not provided, must have configuration information" )
 
         #retrieve the instrument model
         model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
@@ -405,26 +385,49 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self.out_streams.append(stream_ids[0])
 
 
-        for (stream_name, val) in PACKET_CONFIG.iteritems():
-            log.debug("activate_instrument:PACKET_CONFIG stream_name %s"  +  str(stream_name))
-            print 'activate_instrument: PACKET_CONFIG stream_name = ', stream_name
-
+        #todo: how to tell which prod is raw and which is parsed? Check the name?
+        self.stream_config = {"ctd_raw":self.out_streams[1], "ctd_parsed":self.out_streams[0]}
+        # Driver configuration.
+        self.driver_config = {
+            'svr_addr': instrument_agent_instance.svr_addr, 'cmd_port':instrument_agent_instance.cmd_port, 'evt_port':instrument_agent_instance.evt_port,
+            'dvr_mod': instrument_agent_instance.driver_module, 'dvr_cls': instrument_agent_instance.driver_class,
+            'comms_config': {
+                SBE37Channel.CTD: { 'method':instrument_agent_instance.comms_method, 'device_addr': instrument_agent_instance.comms_device_address, 'device_port': instrument_agent_instance.comms_device_port,
+                    'server_addr': instrument_agent_instance.comms_server_address, 'server_port': instrument_agent_instance.comms_server_port
+                }
+            }
+        }
 
         # Create agent config.
-#        self.agent_config = {
-#            'driver_config' : self.driver_config,
-#            'stream_config' : self.stream_config
-#        }
+        self.agent_config = {
+            'driver_config' : self.driver_config,
+            'stream_config' : self.stream_config
+        }
+        log.debug("activate_instrument: agent_config %s ", str(self.agent_config))
 
         # Create the process definition to launch the agent
         instAgentInstance_definition = ProcessDefinition(name='instrument_device_obj.name')
         instAgentInstance_definition.executable = {  'module':instrument_agent_obj.driver_module, 'class':instrument_agent_obj.driver_class }
-        agent_process_id = self.clients.process_dispatcher.create_process_definition(process_definition=instAgentInstance_definition)
-        log.debug("activate_instrument: create_process_definition id %s"  +  str(agent_process_id))
+        process_def_id = self.clients.process_dispatcher.create_process_definition(process_definition=instAgentInstance_definition)
+        log.debug("activate_instrument: create_process_definition id %s"  +  str(process_def_id))
 
-        #todo create InstAgentInstance
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_def_id, schedule=None, configuration=self.agent_config)
+        log.debug("activate_instrument: schedule_process %s", pid)
 
-        return "instrument_agent_instance_id"
+        # Launch an instrument agent process.
+#        self._ia_name = 'agent007'
+#        self._ia_mod = 'ion.services.mi.instrument_agent'
+#        self._ia_class = 'InstrumentAgent'
+#        pid = self.container.spawn_process(name=self._ia_name,
+#                                       module=self._ia_mod, cls=self._ia_class,
+#                                       config=self.agent_config)
+#        log.info('activate_instrument: got pid=%s', str(pid))
+
+        instrument_agent_instance.agent_process_id = pid
+        instrument_agent_instance_id = self.create_instrument_agent_instance(instrument_agent_instance)
+        log.debug("activate_instrument: instrument_agent_instance_id %s", instrument_agent_instance_id)
+
+        return instrument_agent_instance_id
 
     def create_instrument_device(self, instrument_device=None):
         """

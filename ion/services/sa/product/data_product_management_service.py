@@ -149,6 +149,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # todo: how are multiple ingest configs for a site managed?
         ingest_config_ids, _ = self.clients.resource_registry.find_resources(restype=RT.IngestionConfiguration, id_only=True)
         if len(ingest_config_ids) > 1 or len(ingest_config_ids) == 0:
+            log.debug("activate_data_product_persistence: ERROR ingest_config_ids = %s"  % str(ingest_config_ids))
             raise BadRequest('Data Product must have one ingestion configuration %s' % str(data_product_id))
         log.debug("activate_data_product_persistence: ingest_config_ids = %s"  % str(ingest_config_ids))
 
@@ -156,14 +157,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug("activate_data_product_persistence: ingestion_configuration_id = %s"  % str(data_product_obj.ingestion_configuration_id))
 
         #todo: does DPMS need to save the ingest _config_id in the product resource? Can this be found via the stream id?
-
-        # activate an ingestion configuration
-        #todo: Does DPMS call activate?
-        ret = self.clients.ingestion_management.activate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
-        log.debug("activate_data_product_persistence: activate = %s"  % str(ret))
+        ingestion_configuration_obj = self.clients.resource_registry.read(ingest_config_ids[0])
+        if ingestion_configuration_obj is None:
+            raise NotFound("Ingestion Configuration object does not exist %s" % ingest_config_ids[0])
+        log.debug("activate_data_product_persistence: ingestion_configuration_obj = %s"  % str(ingestion_configuration_obj))
 
         # create the dataset for the data
-        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream, datastore_name=data_product_obj.name, description=data_product_obj.description)
+        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream, datastore_name=ingestion_configuration_obj.name, description=data_product_obj.description)
         log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
 
         self.update_data_product(data_product_obj)
