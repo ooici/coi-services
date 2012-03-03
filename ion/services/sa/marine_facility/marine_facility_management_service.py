@@ -22,9 +22,11 @@ from ion.services.sa.resource_impl.site_impl import SiteImpl
 from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
 
-
 from interface.services.sa.imarine_facility_management_service import BaseMarineFacilityManagementService
 
+INSTRUMENT_OPERATOR_ROLE = 'INSTRUMENT_OPERATOR'
+OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
+DATA_OPERATOR_ROLE = 'DATA_OPERATOR'
 
 class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
@@ -74,7 +76,31 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.marine_facility.create_one(marine_facility)
+        log.debug("MarineFacilityManagementService.create_marine_facility(): %s" %str(marine_facility))
+        
+        # create the marine facility
+        marine_facility_id = self.marine_facility.create_one(marine_facility)
+        
+        # create the org 
+        org_obj = IonObject(RT.Org, name=marine_facility.name+'_org')
+        org_id = self.clients.org_management.create_org(org_obj)
+        
+        # Associate the facility with the org
+        asso_id, _ = self.clients.resource_registry.create_association(org_id,  PRED.hasObservatory, marine_facility_id)
+        
+        #Instantiate initial set of User Roles for this marine facility
+        instrument_operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, 
+                                             label='Instrument Operator', description='Marine Facility Instrument Operator')
+        self.clients.org_management.add_user_role(org_id, instrument_operator_role)
+        observatory_operator_role = IonObject(RT.UserRole, name=OBSERVATORY_OPERATOR_ROLE, 
+                                             label='Observatory Operator', description='Marine Facility Observatory Operator')
+        self.clients.org_management.add_user_role(org_id, observatory_operator_role)
+        data_operator_role = IonObject(RT.UserRole, name=DATA_OPERATOR_ROLE, 
+                                             label='Data Operator', description='Marine Facility Data Operator')
+        self.clients.org_management.add_user_role(org_id, data_operator_role)
+        
+        return marine_facility_id
+
 
     def update_marine_facility(self, marine_facility=None):
         """
@@ -110,6 +136,16 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
         """
         return self.marine_facility.find_some(filters)
+
+    def find_marine_facility_org(self, marine_facility_id=''):
+        """
+
+        """
+        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
+        if len(org_ids) == 0:
+            return ""
+        else:
+            return org_ids[0]
 
 
     ##########################################################################
@@ -162,11 +198,6 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
         """
         return self.site.find_some(filters)
-
-
-
-
-
 
 
     ##########################################################################

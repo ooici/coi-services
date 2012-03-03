@@ -27,6 +27,7 @@ from pyon.util.context import LocalContextMixin
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+from pyon.public import CFG
 
 import time
 import unittest
@@ -45,8 +46,8 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
     
-@unittest.skip('Do not run hardware test.')
-@attr('INT', group='mi')
+#@unittest.skip('Do not run hardware test.')
+@attr('HARDWARE', group='mi')
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
     Test cases for instrument agent class. Functions in this class provide
@@ -80,8 +81,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'comms_config': {
                 SBE37Channel.CTD: {
                     'method':'ethernet',
-                    'device_addr': '137.110.112.119',
-                    'device_port': 4001,
+                    'device_addr': CFG.device.sbe37.host,
+                    'device_port': CFG.device.sbe37.port,
                     'server_addr': 'localhost',
                     'server_port': 8888
                 }                
@@ -222,7 +223,48 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         log.info('got ia client %s', str(self._ia_client))        
         
                 
-    def test_initialize(self):
+    def test_direct_access(self):
+        """
+        Test agent direct_access command. This causes creation of
+        driver process and transition to direct access.
+        """
+        print("test initing")
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+
+        print("test go_active")
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test run")
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test go_da")
+        cmd = AgentCommand(command='go_direct_access')
+        retval = self._ia_client.execute_agent(cmd) 
+        print("retval=" + str(retval))       
+        time.sleep(20)
+
+        print("test go_ob")
+        cmd = AgentCommand(command='go_observatory')
+        retval = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+
+        print("test go_inactive")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test reset")
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+    def xtest_initialize(self):
         """
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.

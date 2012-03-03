@@ -18,6 +18,7 @@ import logging
 from subprocess import Popen
 import os
 import signal
+from pyon.public import CFG
 
 from nose.plugins.attrib import attr
 
@@ -44,8 +45,8 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
-@unittest.skip('Do not run hardware test.')
-@attr('INT', group='mi')
+#@unittest.skip('Do not run hardware test.')
+@attr('HARDWARE', group='mi')
 class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
@@ -70,8 +71,8 @@ class TestSBE37Driver(PyonTestCase):
         self.comms_config = {
             SBE37Channel.CTD:{
                 'method':'ethernet',
-                'device_addr': '137.110.112.119',
-                'device_port': 4001,
+                'device_addr': CFG.device.sbe37.host,
+                'device_port': CFG.device.sbe37.port,
                 'server_addr': 'localhost',
                 'server_port': 8888
             }

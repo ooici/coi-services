@@ -9,9 +9,9 @@ from pyon.public import IonObject, PRED, RT, LCS, LCE, iex, log
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.objects import Attachment, AttachmentType
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-@attr('INT', group='coi')
+@attr('INT', group='coirr')
 class TestResourceRegistry(IonIntegrationTestCase):
 
     def setUp(self):
@@ -382,18 +382,16 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(len(ret[0]) == 1)
         self.assertTrue(ret[0][0]._id == read_obj._id)
 
-@attr('INT', group='coir')
-class TestResourceRegistry1(IonIntegrationTestCase):
-
-#    service_dependencies = [('resource_registry', {'resource_registry': {'persistent': True, 'force_clean': True}})]
-
-    def setUp(self):
-        # Start container
-        self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2coi.yml')
-
-        # Now create client to bank service
-        self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
+#@attr('INT', group='coirr1')
+#class TestResourceRegistry1(IonIntegrationTestCase):
+#
+#    def setUp(self):
+#        # Start container
+#        self._start_container()
+#        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+#
+#        # Now create client to bank service
+#        self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
 
     def test_attach(self):
 
@@ -426,7 +424,7 @@ class TestResourceRegistry1(IonIntegrationTestCase):
         self.assertEquals(att_ids, [aid2])
 
         atts = self.resource_registry_service.find_attachments(iid, id_only=False, limit=1)
-        self.assertEquals(atts.content, att1.content)
+        self.assertEquals(atts[0].content, att1.content)
 
         self.resource_registry_service.delete_attachment(aid1)
 
@@ -437,3 +435,4 @@ class TestResourceRegistry1(IonIntegrationTestCase):
 
         att_ids = self.resource_registry_service.find_attachments(iid, id_only=True)
         self.assertEquals(att_ids, [])
+

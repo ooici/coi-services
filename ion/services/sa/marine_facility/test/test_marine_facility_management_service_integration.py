@@ -1,15 +1,15 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
-#from pyon.public import Container, log, IonObject
+from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.sa.marine_facility.marine_facility_management_service import MarineFacilityManagementService
-#from interface.services.sa.imarine_facility_management_service import IMarineFacilityManagementService, MarineFacilityManagementServiceClient
+from interface.services.sa.imarine_facility_management_service import IMarineFacilityManagementService, MarineFacilityManagementServiceClient
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, PRED, LCS
+from pyon.public import RT, PRED
 #from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -38,8 +38,8 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2sa.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
-        
-        print 'started services'
+        self.client = MarineFacilityManagementServiceClient(node=self.container.node)
+        #print 'TestMarineFacilityManagementServiceIntegration: started services'
 
     def test_just_the_setup(self):
         return
@@ -80,6 +80,19 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
 
         #site
         self.RR.create_association(site_id, PRED.hasSite, site2_id)
+        
+    def test_create_marine_facility(self):
+        marine_facility_obj = IonObject(RT.MarineFacility,
+                                        name='TestFacility',
+                                        description='some new mf')
+        self.client.create_marine_facility(marine_facility_obj)
 
+    def test_find_marine_facility_org(self):
+        marine_facility_obj = IonObject(RT.MarineFacility,
+                                        name='TestFacility',
+                                        description='some new mf')
+        marine_facility_id = self.client.create_marine_facility(marine_facility_obj)
+        org_id = self.client.find_marine_facility_org(marine_facility_id)
+        print("org_id=<" + org_id + ">")
 
 
