@@ -18,6 +18,7 @@ class BootstrapService(BaseBootstrapService):
 
     def on_init(self):
         log.info("Bootstrap service INIT: System init")
+        self.system_actor_id = None
 
     def on_start(self):
         level = self.CFG.level
@@ -77,23 +78,32 @@ class BootstrapService(BaseBootstrapService):
             #self.clients.datastore.create(rt)
 
     def post_identity_management(self, config):
-        # TBD
-        pass
+
+        #Create the ION System Agent user which should be passed in subsequent bootstraping calls
+        system_actor = CFG.system.system_actor
+        user = IonObject(RT.UserIdentity, name=system_actor, description="ION System Agent")
+        self.clients.identity_management.create_user_identity(user)
 
     def post_org_management(self, config):
+
+        system_actor = self.clients.identity_management.find_user_identity_by_name(name=CFG.system.system_actor)
+
         # Create root Org: ION
         root_orgname = CFG.system.root_org
         org = IonObject(RT.Org, name=root_orgname, description="ION Root Org")
-        self.org_id = self.clients.org_management.create_org(org)
+        self.org_id = self.clients.org_management.create_org(org, headers={'ion-actor-id': system_actor._id})
 
     def post_exchange_management(self, config):
+
+        system_actor = self.clients.identity_management.find_user_identity_by_name(name=CFG.system.system_actor)
+
         # find root org
         root_orgname = CFG.system.root_org      # @TODO: THIS CAN BE SPECIFIED ON A PER LAUNCH BASIS, HOW TO FIND?
         org = self.clients.org_management.find_org(name=root_orgname)
 
         # Create root ExchangeSpace
         xs = IonObject(RT.ExchangeSpace, name=ION_ROOT_XS, description="ION service XS")
-        self.xs_id = self.clients.exchange_management.create_exchange_space(xs, org._id)
+        self.xs_id = self.clients.exchange_management.create_exchange_space(xs, org._id,headers={'ion-actor-id': system_actor._id})
 
         #self.clients.resource_registry.find_objects(self.org_id, "HAS-A")
 

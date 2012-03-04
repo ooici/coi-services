@@ -224,7 +224,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         # low-level portion of this concept.
 
         #first, we need the data product of the instrument
-        inst_data_product_id = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)[0]
+ #       inst_data_product_id = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)[0]
 
         #now GO!  2nd and 5th arguments are blank, because there is no prior instrument 
         c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
@@ -595,7 +595,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
 
         _obj_count[resource_type] = _obj_count[resource_type] + 1
 
-        name = "%s %d" % (resource_type, _obj_count[resource_type])
+        name = "%s_%d" % (resource_type, _obj_count[resource_type])
         desc = "My %s #%d" % (resource_type, _obj_count[resource_type])
         log.debug("Creating any old %s object (#%d)" % (resource_type, _obj_count[resource_type]))
 

@@ -42,6 +42,22 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise NotFound("UserIdentity %s does not exist" % user_id)
         self.clients.resource_registry.delete(user_id)
 
+    def find_user_identity_by_name(self, name=''):
+        """Return the UserIdentity object whose name attribute matches the passed value.
+
+        @param name    str
+        @retval user_info    UserIdentity
+        @throws NotFound    failed to find UserIdentity
+        @throws Inconsistent    Multiple UserIdentity objects matched name
+        """
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserIdentity, None, name, False)
+        if not objects:
+            raise NotFound("UserIdentity with name %s does not exist" % name)
+        if len(objects) > 1:
+            raise Inconsistent("Multiple UserIdentity objects with name %s exist" % name)
+        return objects[0]
+
+
     def register_user_credentials(self, user_id='', credentials=None):
         # Create UserCredentials object
         credentials_obj_id, version = self.clients.resource_registry.create(credentials)
@@ -120,7 +136,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not objects:
             raise NotFound("UserInfo with name %s does not exist" % name)
         if len(objects) > 1:
-            raise Inconsistent("Multiple UserInfos with name %s exist" % name)
+            raise Inconsistent("Multiple UserInfo objects with name %s exist" % name)
         return objects[0]
 
     def find_user_info_by_subject(self, subject=''):
