@@ -330,11 +330,18 @@ class PubsubManagementService(BasePubsubManagementService):
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
             for stream_id in ids:
-                print stream_id
-                self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
+                try:
+                    self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
+                except TransportException, te:
+                    log.exception('Raised transport error during deactivate_subscription. Assuming that it is due to deleting a binding that already exists and continuing!')
+
+
 
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
-            self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+            try:
+                self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+            except TransportException, te:
+                log.exception('Raised transport error during deactivate_subscription. Assuming that it is due to deleting a binding that already exists and continuing!')
 
         return True
 

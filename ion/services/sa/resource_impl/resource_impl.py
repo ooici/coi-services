@@ -416,6 +416,34 @@ class ResourceImpl(object):
         return ret
 
 
+    def _find_having_exclusive(self, association_predicate, some_object):
+        """
+        enforces exclusivity: 0 or 1 association allowed
+        """
+        ret = self._find_having(self, association_predicate, some_object)
+
+        if 1 < len(ret):
+            raise Inconsistent("More than one %s point to %s '%s'" % (association_predicate,
+                                                                      self.iontype,
+                                                                      some_object))
+        return ret
+
+    def _find_stemming_exclusive(self, primary_object_id, association_predicate, some_object_type):
+        """
+        enforces exclusivity: 0 or 1 association allowed
+        """
+        
+        ret = self._find_stemming(primary_object_id, association_predicate, some_object_type)
+
+        if 1 < len(ret):
+            raise Inconsistent("%s '%s' has more than one %s:" % (self.iontype,
+                                                                  primary_object_id,
+                                                                  association_predicate,
+                                                                  some_object_type))
+        return ret
+
+
+
     def find_having_attachment(self, attachment_id):
         """
         find resource having the specified attachment

@@ -713,9 +713,13 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
         try:
             prompt = None
+            count = 0
             timeout = kwargs.get('timeout', 10)
             while prompt != SBE37Prompt.AUTOSAMPLE:
                 prompt = self._wakeup(timeout)
+                count += 1
+                if count == 3:
+                    break
             self._do_cmd_resp('stop', *args, **kwargs)
             prompt = None
             while prompt != SBE37Prompt.COMMAND:
