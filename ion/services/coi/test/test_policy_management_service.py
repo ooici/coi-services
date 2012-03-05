@@ -37,7 +37,8 @@ class TestPolicyManagementService(PyonTestCase):
         # Policy
         self.policy = Mock()
         self.policy.name = "Foo"
-
+        self.policy.description ="This is a test policy"
+        self.policy.rule = '<Rule id="%s"> <description>%s</description></Rule>'
 
         # UserRole
         self.user_role = Mock()
@@ -163,9 +164,8 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
         self.policy_management_service = PolicyManagementServiceClient(node=self.container.node)
 
-
     def test_policy_crud(self):
-        policy_obj = IonObject("Policy", {"name": "Test Policy"})
+        policy_obj = IonObject("Policy", {"name": "Test_Policy", "description":"This is a test policy", "rule": '<Rule id="%s"> <description>%s</description></Rule>' })
         policy_id = self.policy_management_service.create_policy(policy_obj)
         self.assertNotEqual(policy_id, None)
 
@@ -173,13 +173,13 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         policy = self.policy_management_service.read_policy(policy_id)
         self.assertNotEqual(policy, None)
 
-        policy.name = 'Updated Test Policy'
+        policy.name = 'Updated_Test_Policy'
         self.policy_management_service.update_policy(policy)
 
         policy = None
         policy = self.policy_management_service.read_policy(policy_id)
         self.assertNotEqual(policy, None)
-        self.assertEqual(policy.name, 'Updated Test Policy')
+        self.assertEqual(policy.name, 'Updated_Test_Policy')
 
         self.policy_management_service.delete_policy(policy_id)
 
@@ -193,29 +193,29 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
 
     def test_role_crud(self):
-        user_role_obj = IonObject("UserRole", {"name": "Test User Role"})
-        user_role_id = self.policy_management_service.create_policy(user_role_obj)
+        user_role_obj = IonObject("UserRole", {"name": "Test_User_Role"})
+        user_role_id = self.policy_management_service.create_role(user_role_obj)
         self.assertNotEqual(user_role_id, None)
 
         user_role = None
-        user_role = self.policy_management_service.read_policy(user_role_id)
+        user_role = self.policy_management_service.read_role(user_role_id)
         self.assertNotEqual(user_role, None)
 
-        user_role.name = 'Test User Role'
+        user_role.name = 'Test_User_Role_2'
         self.policy_management_service.update_policy(user_role)
 
         user_role = None
-        user_role = self.policy_management_service.read_policy(user_role_id)
+        user_role = self.policy_management_service.read_role(user_role_id)
         self.assertNotEqual(user_role, None)
-        self.assertEqual(user_role.name, 'Test User Role')
+        self.assertEqual(user_role.name, 'Test_User_Role_2')
 
-        self.policy_management_service.delete_policy(user_role_id)
+        self.policy_management_service.delete_role(user_role_id)
 
         with self.assertRaises(NotFound) as cm:
-            self.policy_management_service.read_policy(user_role_id)
+            self.policy_management_service.read_role(user_role_id)
         self.assertIn("does not exist", cm.exception.message)
 
         with self.assertRaises(NotFound) as cm:
-            self.policy_management_service.delete_policy(user_role_id)
+            self.policy_management_service.delete_role(user_role_id)
         self.assertIn("does not exist", cm.exception.message)
 

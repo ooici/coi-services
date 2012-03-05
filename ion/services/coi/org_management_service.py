@@ -495,7 +495,7 @@ class OrgManagementService(BaseOrgManagementService):
     def _delete_role_association(self, user, user_role):
         aid = self.clients.resource_registry.get_association(user, PRED.hasRole, user_role)
         if not aid:
-            raise NotFound("The association between the specified User Role and User was not found")
+            raise NotFound("The association between the specified User %s and User Role %s was not found" % (user._id, user_role._id))
 
         self.clients.resource_registry.delete_association(aid)
         return True
@@ -535,7 +535,7 @@ class OrgManagementService(BaseOrgManagementService):
             raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
 
 
-        return _delete_role_association(user, user_role)
+        return self._delete_role_association(user, user_role)
 
     def _find_org_roles_by_user(self, org=None, user=None):
 
