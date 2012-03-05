@@ -89,7 +89,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         Makes the couch query and then callsback to publish
         '''
-        db = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.EXAMPLES, self.CFG)
+        db = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA, self.CFG)
 
         ret = db.query_view(view_name=view_name,opts=opts)
 
@@ -106,7 +106,8 @@ class ReplayProcess(BaseReplayProcess):
             return
 
         publish_queue = self._parse_results(results)
-
+        for item in publish_queue:
+            log.debug('Item in queue: %s' % type(item))
         granule = self._merge(publish_queue)
 
         element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
@@ -128,7 +129,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         Switch-case logic for what packet types replay can handle and how to handle
         '''
-
+        log.debug('called _parse_results')
         publish_queue = []
 
         for result in results:
@@ -148,7 +149,9 @@ class ReplayProcess(BaseReplayProcess):
 
             if isinstance(packet, StreamGranuleContainer):
                 packet = self._parse_granule(packet)
+                log.debug('Got packet')
                 if packet:
+                    log.debug('Appending packet')
                     publish_queue.append(packet)
                 continue
 
@@ -188,19 +191,23 @@ class ReplayProcess(BaseReplayProcess):
 
         # If there are no records then this is not a proper granule
         if not (record_count > 0):
+            log.debug('Granule had no record count discarding.')
             return None
 
         # No encoding, no packet
         if not encoding_id in granule.identifiables:
+            log.debug('Granule had no encoding discarding.')
             return None
 
         if not sha1:
+            log.debug('Granule had no sha1')
             return None
 
 
         filepath = FileSystem.get_url(FS.CACHE,'%s.hdf5' % sha1)
 
         if not os.path.exists(filepath):
+            log.debug('File with sha1 does not exist')
             return None
 
         return {

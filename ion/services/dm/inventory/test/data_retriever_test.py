@@ -157,7 +157,11 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             psc.add_scalar_point_coverage(point_id=i, coverage_id='pressure', value=np.float32(1.0))
             psc.add_scalar_point_coverage(point_id=i, coverage_id='conductivity', value=np.float32(2.0))
         granule = psc.close_stream_granule()
-        #strip hdf_string
+        # Strip and make file
+        hdf_string = granule.identifiables[definition.data_stream_id].values
+        sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+        with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
+            f.write(hdf_string)
         granule.identifiables[definition.data_stream_id].values = ''
 
         self.couch.create(granule)
@@ -170,7 +174,13 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             psc.add_scalar_point_coverage(point_id=i, coverage_id='pressure', value=np.float32(1.0))
             psc.add_scalar_point_coverage(point_id=i, coverage_id='conductivity', value=np.float32(2.0))
         granule = psc.close_stream_granule()
-        #strip hdf_string
+
+
+        # Strip and make file
+        hdf_string = granule.identifiables[definition.data_stream_id].values
+        sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+        with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
+            f.write(hdf_string)
         granule.identifiables[definition.data_stream_id].values = ''
 
         self.couch.create(granule)
@@ -187,22 +197,59 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions = self.assertTrue
         cc = self.container
 
-        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name)
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
         replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id)
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
         assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
         assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
-        
 
 
 
     def test_cancel_replay(self):
-        pass
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
+
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id)
+
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+
+        dr_cli.cancel_replay(replay_id=replay_id)
+
+        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
     def test_start_replay(self):
-        pass
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
+
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id)
+
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+
+        dr_cli.start_replay(replay_id=replay_id)
+
+        time.sleep(0.5)
+
+        dr_cli.cancel_replay(replay_id=replay_id)
+        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+
 
     def test_fields_replay(self):
         pass

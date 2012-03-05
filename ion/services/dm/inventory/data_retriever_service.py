@@ -9,7 +9,7 @@ from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
 from ion.processes.data.replay_process import llog
 from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED
 
 
@@ -77,7 +77,10 @@ class DataRetrieverService(BaseDataRetrieverService):
 
 
         # Make a definition
-        definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
+        try:
+            definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
+        except IndexError:
+            raise NotFound('The requested document was not located.')
         definition_container = definition
 
 
