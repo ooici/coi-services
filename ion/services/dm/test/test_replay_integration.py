@@ -11,6 +11,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import StreamPublisherRegistrar, StreamSubscriberRegistrar
 from nose.plugins.attrib import attr
@@ -156,7 +157,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         # Set up the producers (CTD Simulators)
         #------------------------------------------------------------------------------------------------------
 
-        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def = SBE37_CDM_stream_definition()
 
         stream_def_id = pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 

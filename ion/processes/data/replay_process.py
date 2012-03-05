@@ -348,9 +348,9 @@ class ReplayProcess(BaseReplayProcess):
 #            'sha1':sha1,
 #            }
 
-    def _subset(self, dataset):
+    def _subset(self, ranges):
         '''
         returns a dataset subset based on the fields
 
         '''
-        pass
+        field_ids = DefinitionTree.get(self.definition,'%s.element_type_id.data_record_id.field_ids')
