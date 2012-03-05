@@ -12,6 +12,22 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from prototype.sci_data.ctd_stream import ctd_stream_definition
 from interface.objects import HdfStorage, CouchStorage
 
+from pyon.public import log
+from nose.plugins.attrib import attr
+
+from pyon.public import StreamSubscriberRegistrar
+from prototype.sci_data.ctd_stream import ctd_stream_definition
+from pyon.agent.agent import ResourceAgentClient
+from interface.objects import AgentCommand
+from pyon.util.int_test import IonIntegrationTestCase
+from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+from pyon.public import CFG
+
+
+
+from pyon.public import CFG
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.context import LocalContextMixin
@@ -37,8 +53,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
-@unittest.skip('not working')
+@attr('INT', group='mmm')
+#@unittest.skip('not working')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -116,10 +132,16 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #self.damsclient.register_instrument(instDevice_id)
 
         # Create InstrumentAgentInstance to hold configuration information
+        # TODO: !!!!!!!!!!!!! change to use the CFG from pyon!!!!!!
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
                                           driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-                                          cmd_port="5556", evt_port="5557", comms_method="ethernet", comms_device_address="137.110.112.119", comms_device_port="4001",
-                                          comms_server_address="localhost", comms_server_port="8888")
+                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="sbe37-simulator.oceanobservatories.org", comms_device_port=4001,
+                                          comms_server_address="localhost", comms_server_port=8888)
+
+#        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
+#                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
+#                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4001,
+#                                          comms_server_address="localhost", comms_server_port=8888)
 
 
         # create a stream definition for the data from the ctd simulator
@@ -173,46 +195,57 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrument: got ia client %s", str(self._ia_client))
 
 
-#        cmd = AgentCommand(command='initialize')
-#        retval = self._ia_client.execute_agent(cmd)
-#        print retval
-#        log.debug("test_activateInstrument: initialize %s", str(retval))
-#
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='go_active')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: go_active %s", str(reply))
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='run')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: run %s", str(reply))
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='go_inactive')
-#        reply = self._ia_client.execute_agent(cmd)
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        time.sleep(2)
+
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        print retval
+        log.debug("test_activateInstrument: initialize %s", str(retval))
+
+        time.sleep(2)
+
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: go_active %s", str(reply))
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: run %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample ")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample 2")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample 3")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling go_inactive ")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: return from reset %s", str(reply))
+        time.sleep(2)
 
 
 
 
 
 
-  

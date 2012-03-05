@@ -7,7 +7,7 @@
 """
 
 
-#from pyon.public import Container
+from pyon.public import Container
 from pyon.public import LCS #, LCE
 from pyon.public import RT, PRED
 from pyon.core.bootstrap import IonObject
@@ -40,6 +40,11 @@ from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
 from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
 
+from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+
+
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -63,7 +68,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # the resource_impl_metatests will work
         if hasattr(self.clients, "resource_registry"):
             self.RR    = self.clients.resource_registry
-            
+
         if hasattr(self.clients, "data_acquisition_management"):
             self.DAMS  = self.clients.data_acquisition_management
 
@@ -106,7 +111,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        
+
 
         return self.instrument_agent_instance.create_one(instrument_agent_instance)
 
@@ -292,7 +297,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # get data product's data producer (via association)
         #TODO: this belongs in DPMS
         #prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
-        
+
         # (TODO: there should only be one assoc_id.  what error to raise?)
         # TODO: what error to raise if there are no assoc ids?
         #prod_pducer_id = prod_pducers[0]   #you NEVER create or assign producers
@@ -406,12 +411,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("activate_instrument: agent_config %s ", str(self.agent_config))
 
         # Create the process definition to launch the agent
-        instAgentInstance_definition = ProcessDefinition(name='instrument_device_obj.name')
-        instAgentInstance_definition.executable = {  'module':instrument_agent_obj.driver_module, 'class':instrument_agent_obj.driver_class }
-        process_def_id = self.clients.process_dispatcher.create_process_definition(process_definition=instAgentInstance_definition)
-        log.debug("activate_instrument: create_process_definition id %s"  +  str(process_def_id))
+        process_definition = ProcessDefinition()
+        process_definition.executable['module']='ion.services.mi.instrument_agent'
+        process_definition.executable['class'] = 'InstrumentAgent'
+        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+        log.debug("activate_instrument: create_process_definition id %s"  +  str(process_definition_id))
 
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_def_id, schedule=None, configuration=self.agent_config)
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, schedule=None, configuration=self.agent_config)
         log.debug("activate_instrument: schedule_process %s", pid)
 
         # Launch an instrument agent process.
@@ -422,10 +428,24 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #                                       module=self._ia_mod, cls=self._ia_class,
 #                                       config=self.agent_config)
 #        log.info('activate_instrument: got pid=%s', str(pid))
+#
+#
+#        # Launch an instrument agent process.
+#        self._ia_name = 'agent007'
+#        self._ia_mod = 'ion.services.mi.instrument_agent'
+#        self._ia_class = 'InstrumentAgent'
+#        pid = self.container.spawn_process(name=self._ia_name,
+#                                       module=self._ia_mod, cls=self._ia_class,
+#                                       config=self.agent_config)
+#        log.info('activate_instrument: got pid=%s', str(pid))
+
 
         instrument_agent_instance.agent_process_id = pid
         instrument_agent_instance_id = self.create_instrument_agent_instance(instrument_agent_instance)
         log.debug("activate_instrument: instrument_agent_instance_id %s", instrument_agent_instance_id)
+
+        # associate the InstAgentInstance and InstAgent
+        self.clients.resource_registry.create_association(instrument_agent_id,  PRED.hasInstance, instrument_agent_instance_id)
 
         return instrument_agent_instance_id
 
@@ -920,8 +940,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     # reassigning a logical instrument to an instrument device is a little bit special
     # TODO: someday we may be able to dig up the correct data products automatically,
     #       but once we have them this is the function that does all the work.
-    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='', 
-                                                         old_instrument_device_id='', 
+    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='',
+                                                         old_instrument_device_id='',
                                                          new_instrument_device_id='',
                                                          logical_data_product_ids=[],
                                                          old_instrument_data_product_ids=[],
@@ -929,7 +949,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         associate a logical instrument with a physical one.  this involves linking the
         physical instrument's data product(s) to the logical one(s).
-        
+
         the 2 lists of data products must be of equal length, and will map 1-1
 
         @param logical_instrument_id
@@ -937,8 +957,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @param logical_data_product_ids a list of data products associated to a logical instrument
         @param instrument_data_product_ids a list of data products coming from an instrument device
         """
- 
-        
+
+
         def verify_dp_origin(supplied_dps, assigned_dps, instrument_id, instrument_label):
             """
             check that the supplied dps (data products) are in the set of what's actually assigned
@@ -965,11 +985,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.info("Checking whether supplied logical/instrument arguments are proper")
         if 0 < len(existing_assignments):
             if not old_instrument_device_id:
-                raise BadRequest(("Tried to assign logical instrument '%s' for the first time, but it is already " + 
+                raise BadRequest(("Tried to assign logical instrument '%s' for the first time, but it is already " +
                                   "assigned to instrument device '%s'") % (logical_instrument_id, existing_assignments[0]))
             elif old_instrument_device_id != existing_assignments[0]:
                 raise BadRequest(("Tried to reassign logical instrument '%s' from instrument device '%s' but it is " +
-                                  "actually associated to instrument device '%s'") % 
+                                  "actually associated to instrument device '%s'") %
                                  (logical_instrument_id, old_instrument_device_id, existing_assignments[0]))
 
 
@@ -990,7 +1010,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #                  "logical_instrument")
 
 
-        
+
         if old_instrument_device_id:
             log.info("Checking that the data product to be dissociated are properly rooted")
             verify_dp_origin(old_instrument_data_product_ids,
@@ -1129,7 +1149,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
            #TODO: this belongs in DAMS
            new_data_producers = self.data_producer.find_having_input_data_producer(producer_id)
 
-           log.debug("Got %d new products, %d new producers" % (len(new_data_products), 
+           log.debug("Got %d new products, %d new producers" % (len(new_data_products),
                                                                 len(new_data_producers)))
 
            data_products  += new_data_products
@@ -1163,7 +1183,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
            #TODO: this belongs in DPMS
            new_data_producers = self.data_producer.find_stemming_input_data_producer(producer_id)
 
-           log.debug("Got %d new devices, %d new producers" % (len(new_instrument_devices), 
+           log.debug("Got %d new devices, %d new producers" % (len(new_instrument_devices),
                                                                 len(new_data_producers)))
 
            instrument_devices  += new_instrument_devices
@@ -1181,7 +1201,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     ret.append(d)
 
         return ret
-        
+
 
 
     ############################
