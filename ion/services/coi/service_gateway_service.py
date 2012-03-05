@@ -261,7 +261,7 @@ def build_message_headers( ion_actor_id, expiry):
     try:
         user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
     except NotFound, e:
-        ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
+        ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous  #TODO - Find out if this is acceptable
 
     headers['ion-actor-id'] = ion_actor_id
     headers['expiry'] = expiry
@@ -273,16 +273,9 @@ def build_message_headers( ion_actor_id, expiry):
 
     try:
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        #TODO - How does this request get protected?
         org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
 
-        #Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
-        #to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
-        role_header = dict()
-        for org in org_roles:
-            role_header[org] = []
-            for role in org_roles[org]:
-                role_header[org].append(role.name)
+        role_header = get_role_message_headers(org_roles)
 
     except Exception, e:
         role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
@@ -290,6 +283,17 @@ def build_message_headers( ion_actor_id, expiry):
     headers['ion-actor-roles'] = role_header
 
     return headers
+
+#Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
+#to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
+def get_role_message_headers(org_roles):
+
+    role_header = dict()
+    for org in org_roles:
+        role_header[org] = []
+        for role in org_roles[org]:
+            role_header[org].append(role.name)
+    return role_header
 
 #Build parameter list dynamically from
 def create_parameter_list(service_name, target_client,operation, json_params):

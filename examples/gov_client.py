@@ -7,7 +7,7 @@ from pyon.util.context import LocalContextMixin
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceProcessClient
 import simplejson, urllib
-from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
+from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, get_role_message_headers
 from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE
 
 class FakeProcess(LocalContextMixin):
@@ -16,39 +16,48 @@ class FakeProcess(LocalContextMixin):
 
 def seed_gov(container, process=FakeProcess()):
 
+    id_client = IdentityManagementServiceProcessClient(node=container.node, process=process)
+
+    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+    log.info('system actor:' + system_actor._id)
+
     dp_client = DataProductManagementServiceProcessClient(node=container.node, process=process)
 
     dp_obj = IonObject(RT.DataProduct, name='DataProd1', description='some new dp')
 
-    dp_client.create_data_product(dp_obj)
+    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
 
 
     dp_obj = IonObject(RT.DataProduct,
         name='DataProd2',
         description='and of course another new dp')
 
-    dp_client.create_data_product(dp_obj,)
+    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
 
     dp_obj = IonObject(RT.DataProduct,
         name='DataProd3',
         description='yet another new dp')
 
-    dp_client.create_data_product(dp_obj,)
+    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
 
     log.debug('Data Products')
     dp_list = dp_client.find_data_products()
     for dp_obj in dp_list:
         log.debug( str(dp_obj))
 
+
+    results = find_data_products(system_actor._id)
+    log.info(results)
+
     ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
 
     ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent1', description='The first Instrument Agent')
 
-    ims_client.create_instrument_agent(ia_obj)
+    ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': system_actor._id})
 
     ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent2', description='The second Instrument Agent')
 
-    ims_client.create_instrument_agent(ia_obj)
+    ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': system_actor._id})
 
     log.debug( 'Instrument Agents')
     ia_list = ims_client.find_instrument_agents()
@@ -63,7 +72,7 @@ def seed_gov(container, process=FakeProcess()):
     #policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
 
     operator_role = IonObject(RT.UserRole, name='Operator',label='Instrument Operator', description='Instrument Operator')
-    org_client.add_user_role(ion_org._id, operator_role)
+    org_client.add_user_role(ion_org._id, operator_role, headers={'ion-actor-id': system_actor._id})
 
     try:
         org_client.add_user_role(ion_org._id, operator_role)
@@ -93,7 +102,6 @@ f8b270icOVgkOKRdLP/Q4r/x8skKSCRz1ZsRdR+7+B/EgksAJj7Ut3yiWoUekEMxCaTdAHPTMD/g
 Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 -----END CERTIFICATE-----"""
 
-    id_client = IdentityManagementServiceProcessClient(node=container.node, process=process)
 
     user_id, valid_until, registered = id_client.signon(certificate, True)
 
@@ -126,11 +134,17 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     results = find_instrument_agents(user_id)
     log.info(results)
 
+    roles = org_client.find_all_roles_by_user(system_actor._id)
+    header_roles = get_role_message_headers(roles)
 
-    org_client.grant_role(ion_org._id, user_id, 'Operator')
+    org_client.grant_role(ion_org._id, user_id, 'Operator', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
     roles = org_client.find_roles_by_user(ion_org._id, user_id)
     for r in roles:
         log.info('User UserRole: ' +str(r))
+
+    roles = org_client.find_roles_by_user(ion_org._id, system_actor._id)
+    for r in roles:
+        log.info('ION System UserRole: ' +str(r))
 
 
 #    log.info("Adding Instrument Operator Role")
@@ -146,7 +160,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 #    log.info("Request count: %d" % len(requests))
 ##    for r in requests:
 #        log.info('Org Request: ' +str(r))
-
+    '''
     org2 = IonObject(RT.Org, name='Org2', description='A second Org')
     org2_id = org_client.create_org(org2)
 
@@ -172,7 +186,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     log.info("All Org Roles for: " + str(org_roles))
 
     log.info(user_id)
-
+    '''
 #    req_id = org_client.request_enroll(org2_id,user_id )
 
 #    requests = org_client.find_requests(org2_id)
