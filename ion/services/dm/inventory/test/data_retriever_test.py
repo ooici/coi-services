@@ -252,7 +252,27 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
 
     def test_fields_replay(self):
-        pass
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
+
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature']})
+
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+
+        dr_cli.start_replay(replay_id=replay_id)
+
+        time.sleep(0.5)
+
+        dr_cli.cancel_replay(replay_id=replay_id)
+        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
     def test_advanced_replay(self):
         pass

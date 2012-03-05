@@ -110,6 +110,9 @@ class ReplayProcess(BaseReplayProcess):
             log.debug('Item in queue: %s' % type(item))
         granule = self._merge(publish_queue)
 
+        if self.delivery_format.has_key('fields'):
+            granule = self.subset(granule,self.delivery_format['fields'])
+
         element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
         encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
         record_count = granule.identifiables[element_count_id].value
@@ -355,9 +358,87 @@ class ReplayProcess(BaseReplayProcess):
 #            'sha1':sha1,
 #            }
 
-    def _subset(self, ranges):
+    def subset(self,granule,coverages):
         '''
         returns a dataset subset based on the fields
 
         '''
-        field_ids = DefinitionTree.get(self.definition,'%s.element_type_id.data_record_id.field_ids')
+        assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
+        field_ids = DefinitionTree.get(self.definition,'%s.element_type_id.data_record_id.field_ids' % self.definition.data_stream_id)
+        element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
+        encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
+
+
+        values_path = list()
+        domain_ids = list()
+        coverage_ids = list()
+        coverages = list(coverages)
+        log.debug('Coverages include %s of type %s', coverages, type(coverages))
+        for field_id in field_ids:
+            range_id = self.definition.identifiables[field_id].range_id
+            if isinstance(self.definition.identifiables[range_id], CoordinateAxis):
+                log.debug('got a domain: %s' % range_id)
+                domain_ids.append(field_id)
+                if granule.identifiables.has_key(range_id):
+                    value_path = granule.identifiables[range_id].values_path or self.definition.identifiables[range_id].values_path
+                    values_path.append(value_path)
+                else:
+                    value_path = self.definition.identifiables[range_id].values_path
+                    values_path.append(value_path)
+                continue
+
+            if isinstance(self.definition.identifiables[range_id], RangeSet):
+                # If its a rangeset, a specified coverage and the granule has it, add it to the list
+                if  field_id in coverages:
+                    if granule.identifiables.has_key(range_id):
+                        log.debug('got a range: %s' % range_id)
+                        coverage_ids.append(field_id)
+                        if granule.identifiables.has_key(range_id):
+                            value_path = granule.identifiables[range_id].values_path or self.definition.identifiables[range_id].values_path
+                            values_path.append(value_path)
+                        else:
+                            value_path = self.definition.identifiables[range_id].values_path
+                            values_path.append(value_path)
+                        continue
+
+                range_id = self.definition.identifiables[field_id].range_id
+                bounds_id = self.definition.identifiables[range_id].bounds_id
+
+
+
+                if not (field_id in coverages):
+                    log.debug('%s doesn\'t belong in %s.', field_id, coverages)
+                    log.debug('rebool: %s', bool(field_id in coverages))
+                    if granule.identifiables.has_key(range_id):
+                        log.debug('Removing %s from granule', range_id)
+                        del granule.identifiables[range_id]
+                    if granule.identifiables.has_key(bounds_id):
+                        log.debug('Removing %s from granule', bounds_id)
+                        del granule.identifiables[bounds_id]
+        log.debug('Domains: %s', domain_ids)
+        log.debug('Ranges: %s', coverage_ids)
+        log.debug('Values_paths: %s', values_path)
+        f = FileSystem.mktemp()
+        f.write(granule.identifiables[self.definition.data_stream_id].values)
+        file_path = f.name
+        f.close()
+
+        assert os.path.exists(file_path), 'file didn\'t persist.'
+        full_coverage = list(domain_ids + coverage_ids)
+
+
+
+
+
+        log.debug('Full coverage: %s' % full_coverage)
+        log.debug('Calling acquire_data with: %s, %s, %s', [file_path],values_path,granule.identifiables[element_count_id].value)
+        generator = acquire_data([file_path],values_path,granule.identifiables[element_count_id].value)
+        codec = HDFEncoder()
+        dataset = generator.next()['arrays_out_dict']
+        for field in dataset.keys():
+            codec.add_hdf_dataset(field, dataset[field])
+        hdf_string = codec.encoder_close()
+        granule.identifiables[self.definition.data_stream_id].values = hdf_string
+        granule.identifiables[encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
+        return granule
