@@ -10,6 +10,7 @@ from interface.services.sa.idata_product_management_service import IDataProductM
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from prototype.sci_data.ctd_stream import ctd_stream_definition
 from interface.objects import HdfStorage, CouchStorage
+from pyon.ion.endpoint import StreamPublisherRegistrar
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
@@ -190,7 +191,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             cls='SimpleProcess',
             config={})
         dummy_process = self.container.proc_manager.procs[pid]
-
+        '''
         publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
         self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.in_stream_id)
 
@@ -206,7 +207,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         msg = {'num':'9'}
         self.ctd_stream1_publisher.publish(msg)
-
+        '''
 
 
 
