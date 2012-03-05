@@ -72,6 +72,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         raw_stream_name = 'ctd_raw'        
 
         # Driver configuration.
+        
         self.driver_config = {
             'svr_addr': 'localhost',
             'cmd_port': 5556,
@@ -88,7 +89,24 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 }                
             }
         }
-
+        """
+        self.driver_config = {
+            'svr_addr': 'localhost',
+            'cmd_port': 5556,
+            'evt_port': 5557,
+            'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_cls': 'SBE37Driver',
+            'comms_config': {
+                SBE37Channel.CTD: {
+                    'method':'ethernet',
+                    'device_addr': '137.110.112.119',
+                    'device_port': 4001,
+                    'server_addr': 'localhost',
+                    'server_port': 8888
+                }                
+            }
+        }
+        """
         # Start container.
         self._start_container()
 
@@ -264,7 +282,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         time.sleep(2)
 
-    def xtest_initialize(self):
+    def test_initialize(self):
         """
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.
