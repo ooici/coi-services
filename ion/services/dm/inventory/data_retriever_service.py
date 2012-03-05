@@ -8,8 +8,7 @@ from interface.services.dm.idata_retriever_service import BaseDataRetrieverServi
 from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
 from ion.processes.data.replay_process import llog
-from prototype.sci_data.constructor_apis import DefinitionTree, StationDataStreamDefinitionConstructor
-from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
 from pyon.core.exception import BadRequest
 from pyon.public import PRED
 
@@ -70,7 +69,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         datastore_name = dataset.datastore_name
         datastore = self.container.datastore_manager.get_datastore(datastore_name)
         delivery_format = delivery_format or {}
-        fields = delivery_format.get('fields',None)
+
         view_name = dataset.view_name
         key_id = dataset.primary_view_key
         # Make a new definition container
@@ -79,36 +78,8 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         # Make a definition
         definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
-        definition_constructor = StationDataStreamDefinitionConstructor()
-        definition_container = definition_constructor.stream_definition
-        definition_container.identifiables['data_record'].domain_ids = definition.identifiables['data_record'].domain_ids
+        definition_container = definition
 
-        llog('Before')
-        llog('%s' % definition_container.identifiables.keys())
-        if not fields:
-            fields = DefinitionTree.get(definition,'%s.element_type_id.data_record_id.field_ids' % definition.data_stream_id)
-
-
-        """
-        break down
-        Create a new definition without fields
-        forvery field in fields append the important stuff to the new definition
-        """
-        data_record_id = DefinitionTree.get(definition,'%s.element_type_id.data_record_id' % definition.data_stream_id)
-
-        for field_id in fields:
-            # I need to traverse each node looking for _id
-            identifiables = definition.identifiables
-            field = identifiables[field_id]
-            for id in DataRetrieverService.traverse(identifiables, field):
-                if id not in definition_container.identifiables:
-                    llog('Copying %s' % id)
-                    definition_container.identifiables[id] = identifiables[id]
-            llog('Copying coverage %s' % field_id)
-            definition_container.identifiables[field_id] = field
-            definition_container.identifiables[data_record_id].field_ids.append(field_id)
-        llog('After')
-        llog('%s' % definition_container.identifiables.keys())
 
 
 
@@ -121,6 +92,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay = Replay()
         replay.delivery_format = delivery_format
 
+        definition_container.stream_resource_id = replay_stream_id
 
 
 

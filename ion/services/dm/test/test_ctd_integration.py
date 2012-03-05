@@ -4,6 +4,7 @@
 @file ion/services/dm/test/test_ctd_integration.py
 @description Provides a full fledged integration from ingestion to replay using scidata
 """
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
@@ -65,7 +66,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         ingestion_management_service.activate_ingestion_configuration(
             ingestion_configuration_id=ingestion_configuration_id)
 
-        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def = SBE37_CDM_stream_definition()
 
         stream_def_id = pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 

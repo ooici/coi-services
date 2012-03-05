@@ -3,14 +3,17 @@
 @file ion/processes/data/replay_process.py
 @description Replay Process handling set manipulations for the DataModel
 '''
+import hashlib
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.public import log
 from pyon.datastore.datastore import DataStore
 from pyon.core.exception import IonException
 from pyon.util.file_sys import FS, FileSystem
 from prototype.hdf.hdf_array_iterator import acquire_data
 from prototype.hdf.hdf_codec import HDFEncoder
+
 from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
-from interface.objects import BlogBase, StreamGranuleContainer, StreamDefinitionContainer
+from interface.objects import BlogBase, StreamGranuleContainer, StreamDefinitionContainer, CoordinateAxis, QuantityRangeElement, CountElement, RangeSet
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
@@ -21,7 +24,7 @@ import numpy as np
 
 #@todo: Remove this debugging stuff
 def llog(msg):
-    with open(FileSystem.get_url(FS.TEMP,'debug'),'a') as f:
+    with open(FileSystem.get_url(FS.CACHE,'debug'),'a') as f:
         f.write('%s ' % time.strftime('%Y-%m-%dT%H:%M:%S'))
         f.write(msg)
         f.write('\n')
@@ -104,17 +107,21 @@ class ReplayProcess(BaseReplayProcess):
 
         publish_queue = self._parse_results(results)
 
-        dataset = self._merge(publish_queue)
+        granule = self._merge(publish_queue)
 
+        element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
+        encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
+        record_count = granule.identifiables[element_count_id].value
+        sha1 = granule.identifiables[encoding_id].sha1
         # regardless of what anyone wants at first the entire dataset is going
-        packet = dataset['granule']
+
         llog('outgoing: ')
-        llog('\tGranule: %s' % packet.identifiables.keys())
-        llog('\tRecords: %s' % dataset['records'])
-        llog('\tSHA1: %s' % dataset['sha1'])
+        llog('\tGranule: %s' % granule.identifiables.keys())
+        llog('\tRecords: %s' % record_count)
+        llog('\tSHA1: %s' % sha1)
 
         self.lock.acquire()
-        self.output.publish(packet)
+        self.output.publish(granule)
         self.lock.release()
 
     def _parse_results(self, results):
@@ -160,7 +167,8 @@ class ReplayProcess(BaseReplayProcess):
             for field in self.fields:
                 data = np.arange(i*segments,(i+1)*segments,dtype='float32')
                 for i in data:
-                    granule.add_scalar_point_coverage(point_id=i, coverage_id=field,value=data[i])
+                    point_id = granule.add_point(time=i, location=(0,0,i))
+                    granule.add_scalar_point_coverage(point_id=point_id, coverage_id=field,value=data[i])
             granule = granule.close_stream_granule()
             yield granule
 
@@ -190,7 +198,7 @@ class ReplayProcess(BaseReplayProcess):
             return None
 
 
-        filepath = FileSystem.get_url(FS.TEMP,'%s.hdf5' % sha1)
+        filepath = FileSystem.get_url(FS.CACHE,'%s.hdf5' % sha1)
 
         if not os.path.exists(filepath):
             return None
@@ -201,6 +209,119 @@ class ReplayProcess(BaseReplayProcess):
             'sha1':sha1
         }
 
+    @staticmethod
+    def merge_granule(definition, granule1, granule2):
+        '''
+
+        returns the union of these two granules
+
+        granule1 := granule1 U granule2
+        '''
+        assert isinstance(definition,StreamDefinitionContainer), 'object is not a definition.'
+        assert isinstance(granule1, StreamGranuleContainer), 'object is not a granule.'
+        assert isinstance(granule2, StreamGranuleContainer), 'object is not a granule.'
+
+        encoding_id = DefinitionTree.get(definition,'%s.encoding_id' % definition.data_stream_id)
+
+        files = []
+        if encoding_id in granule1.identifiables:
+            if granule1.identifiables[encoding_id].sha1:
+                files.append('%s.hdf5' % granule1.identifiables[encoding_id].sha1)
+        if encoding_id in granule2.identifiables:
+            if granule2.identifiables[encoding_id].sha1:
+                files.append('%s.hdf5' % granule2.identifiables[encoding_id].sha1)
+
+        element_count_id = DefinitionTree.get(definition, '%s.element_count_id' % definition.data_stream_id)
+        record_count = 0
+        if element_count_id in granule1.identifiables:
+            record_count += granule1.identifiables[element_count_id].value
+        if element_count_id in granule2.identifiables:
+            record_count += granule2.identifiables[element_count_id].value
+
+        if not element_count_id in granule1.identifiables:
+            granule1.identifiables[element_count_id] = CountElement()
+            granule1.identifiables[element_count_id].value = record_count
+        else:
+            granule1.identifiables[element_count_id].value = record_count
+
+        fields1 = ReplayProcess._list_data(definition, granule1)
+        fields2 = ReplayProcess._list_data(definition, granule2)
+        #@todo albeit counterintuitive an intersection is the only thing I can support
+        merged_paths = {}
+        for k,v in fields1.iteritems():
+            if fields2.has_key(k):
+                merged_paths[k] = v
+
+
+
+        for k,v in granule2.identifiables.iteritems():
+            # Switch(value):
+
+            # Case Bounds:
+            if isinstance(v, QuantityRangeElement):
+                # If its not in granule1 just throw it in there
+                if k not in granule1.identifiables:
+                    llog('%s was not in first granule, appending...' % k)
+                    granule1.identifiables[k] = v
+                else:
+                    llog('%s was in the first one calculating upper and lower bounds.' % k)
+                    bounds1 = granule1.identifiables[k].value_pair
+                    bounds2 = granule2.identifiables[k].value_pair
+                    bounds = np.append(bounds1,bounds2)
+                    granule1.identifiables[k].value_pair = [np.nanmin(bounds), np.nanmax(bounds)]
+
+
+            if isinstance(v, RangeSet): #Including coordinate axis
+                if merged_paths.has_key(k) and not granule1.identifiables.has_key(k):
+                    granule1.identifiables[k] = v # Copy it over
+
+        # Now make sure granule1 doesnt have excess stuff
+        del_list = []
+        for k,v in granule1.identifiables.iteritems():
+            if isinstance(v, RangeSet):
+                if not merged_paths.has_key(k):
+                    del_list.append(k)
+
+        for item in del_list:
+            del granule1.identifiables[item]
+
+        # generator = acquire_data(files, merged_paths.values(), record_count)
+        # genset = generator.next()['arrays_out_dict']
+        codec = HDFEncoder()
+        dataset = {}
+        for field in merged_paths.values():
+
+            # codec.add_hdf_dataset(field, genset[field])
+            codec.add_hdf_dataset(field, np.arange(0,record_count,dtype='float32'))
+
+        hdf_string = codec.encoder_close()
+        granule1.identifiables[definition.data_stream_id].values = hdf_string
+        granule1.identifiables[encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
+        return granule1
+
+
+
+
+    @staticmethod
+    def _list_data(definition, granule):
+        '''
+        Lists all the fields in the granule
+        '''
+        from interface.objects import StreamDefinitionContainer, StreamGranuleContainer, RangeSet, CoordinateAxis
+        assert isinstance(definition, StreamDefinitionContainer), 'object is not a definition.'
+        assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
+        retval = {}
+        for key, value in granule.identifiables.iteritems():
+            if isinstance(value, RangeSet):
+                values_path = value.values_path or definition.identifiables[key].values_path
+                retval[key] = values_path
+            elif isinstance(value, CoordinateAxis):
+                values_path = value.values_path or definition.identifiables[key].values_path
+                retval[key] = values_path
+
+        return retval
+
 
 
     def _merge(self, msgs):
@@ -210,34 +331,22 @@ class ReplayProcess(BaseReplayProcess):
         D := U [ msgs_i ]
             i=0
         '''
-        records = 0
-        files = []
-        for msg in msgs:
-            records += msg['records']
-            files.append(msg['sha1'])
-        granule = PointSupplementConstructor(point_definition=self.definition, stream_id=self.stream_id)
+        granule = None
+        count = len(msgs)
+        for i in xrange(count):
+            if i==0:
+                granule = msgs[0]['granule']
+                continue
+            granule = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=msgs[i]['granule'])
 
-        data = {}
-        for field in self.fields:
-            data[field] = np.arange(0,records,dtype='float32')
-
-            for i in xrange(len(data[field])):
-            #                point_id = granule.add_point(time=np.float32(i), location=(1,1,1))
-                coverage_id = DefinitionTree.get(self.definition,'%s.range_id' % field)
-                granule.add_scalar_point_coverage(point_id=i, coverage_id=coverage_id, value=data[field][i])
+        return granule
 
 
-        granule = granule.close_stream_granule()
-        encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
-        sha1 = granule.identifiables[encoding_id].sha1
-
-        element_count_id = DefinitionTree.get(self.definition,'%s.element_count_id' % self.definition.data_stream_id)
-        granule.identifiables[element_count_id].value = records
-        return {
-            'granule':granule,
-            'records':records,
-            'sha1':sha1,
-            }
+#        return {
+#            'granule':granule,
+#            'records':records,
+#            'sha1':sha1,
+#            }
 
     def _subset(self, dataset):
         '''
