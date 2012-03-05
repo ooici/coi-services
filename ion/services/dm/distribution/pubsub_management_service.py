@@ -19,7 +19,7 @@ from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, S
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
-from pyon.net.transport import TransportError
+from pyon.net.transport import NameTrio, TransportError
 
 # Can't make a couchdb data store here...
 ### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
