@@ -16,7 +16,7 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from nose.plugins.attrib import attr
-from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from pyon.public import log
 import os
 import time
@@ -66,7 +66,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         ### In the beginning there were two stream definitions...
         ###
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
 
         # create a stream definition for the data from the salinity Transform

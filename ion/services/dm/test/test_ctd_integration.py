@@ -171,7 +171,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         bounds = dataset_management_service.get_dataset_bounds(dataset_id=dataset_id)
         assertions('latitude_bounds' in bounds, 'dataset_id: %s' % dataset_id)
         assertions('longitude_bounds' in bounds)
-        assertions('pressure_bounds' in bounds)
+        assertions('height_bounds' in bounds)
 
         #--------------------------------------------
         # Make sure the transform capture worked
