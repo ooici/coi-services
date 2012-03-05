@@ -324,7 +324,7 @@ class TestIdentityManagementService(PyonTestCase):
             self.identity_management_service.find_user_info_by_name("John Doe")
 
         ex = cm.exception
-        self.assertEqual(ex.message, 'Multiple UserInfos with name John Doe exist')
+        self.assertEqual(ex.message, 'Multiple UserInfo objects with name John Doe exist')
         self.mock_find_resources.assert_called_once_with(RT.UserInfo, None, "John Doe", False)
 
     def test_find_user_info_by_subject(self):
