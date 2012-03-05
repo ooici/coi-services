@@ -587,6 +587,10 @@ class ResourceImplMetatest(object):
                             mylink = getattr(myimpl, link_name)
 
                             #set up Mock
+                            find_reply = ([], []) #for exclusive associations
+                            svc.clients.resource_registry.find_subjects.return_value = find_reply
+                            svc.clients.resource_registry.find_objects.return_value = find_reply
+
                             reply = ('333', 'bla')
                             svc.clients.resource_registry.create_association.return_value = reply
 

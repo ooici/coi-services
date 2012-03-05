@@ -420,7 +420,7 @@ class ResourceImpl(object):
         """
         enforces exclusivity: 0 or 1 association allowed
         """
-        ret = self._find_having(self, association_predicate, some_object)
+        ret = self._find_having(association_predicate, some_object)
 
         if 1 < len(ret):
             raise Inconsistent("More than one %s point to %s '%s'" % (association_predicate,
@@ -508,14 +508,14 @@ class ResourceImpl(object):
 
         # see if there are any other objects of this type and pred on this subject
         obj_type = self._get_resource_type_by_id(object_id)
-        existing_links, _ = self._find_stemming(subject_id, association_type, obj_type)
+        existing_links = self._find_stemming(subject_id, association_type, obj_type)
         
         if len(existing_links) > 1:
-            raise Inconsistent("Multiple %s-%s objects found on the same %s subject with id='%s'", 
+            raise Inconsistent("Multiple %s-%s objects found on the same %s subject with id='%s'" %
                                (association_type, obj_type, self.iontype, subject_id))
         elif len(existing_links) > 0:
             if raise_exn:
-                raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'",
+                raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'" %
                                  (association_type, obj_type, self.iontype, subject_id))
             else:
                 self._unlink_resources(self, subject_id, association_type, existing_links[0])
