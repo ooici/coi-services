@@ -125,6 +125,7 @@ class TestPolicyManagementService(PyonTestCase):
 
     def test_delete_user_role(self):
         self.mock_read.return_value = self.user_role
+        self.mock_find_subjects.return_value = ([], [])
 
         self.policy_management_service.delete_role('123')
 

@@ -397,26 +397,9 @@ class PolicyManagementService(BasePolicyManagementService):
         user_role = self.clients.resource_registry.read(user_role_id)
         if not user_role:
             raise NotFound("Role %s does not exist" % user_role_id)
+
+        alist,_ = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasRole, user_role)
+        if len(alist) > 0:
+            raise BadRequest('The User Role %s cannot be removed as there are %s users associated to it' % (user_role.name, str(len(alist))))
+
         self.clients.resource_registry.delete(user_role_id)
-
-    def find_roles(self):
-        """Returns a list of UserRole objects defined in the resource registry.
-
-        @retval user_role_list    list
-        """
-        role_list, _ = self.clients.resource_registry.find_resources(RT.UserRole, None, None, False)
-        return role_list
-
-    def find_role(self, name=''):
-        """Returns UserRole object that matches the specified name.
-
-        @param name    str
-        @retval user_role    UserRole
-        @throws NotFound    object with specified id does not exist
-        """
-        role_list, _ = self.clients.resource_registry.find_resources(RT.UserRole, None, name, False)
-        if not role_list:
-            raise NotFound('The User Role with name %s does not exist' % name )
-        return role_list[0]
-
-

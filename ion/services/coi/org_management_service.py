@@ -176,8 +176,8 @@ class OrgManagementService(BaseOrgManagementService):
         if not force_removal:
             alist,_ = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasRole, user_role)
             if len(alist) > 0:
-                raise BadRequest('This User Role cannot be removed as there are %d users associated to it' % len(alist))
-
+                raise BadRequest('The User Role %s cannot be removed as there are %s users associated to it' %
+                                 (user_role.name, str(len(alist))))
 
         self.clients.resource_registry.delete_association(aid)
 
