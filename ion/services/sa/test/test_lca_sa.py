@@ -54,7 +54,8 @@ class TestLCASA(IonIntegrationTestCase):
 
 
 
-    @unittest.skip('temporarily')
+    #@unittest.skip('temporarily')
+    @unittest.skip('Fixing data product creation')
     def test_lca_step_1_to_6(self):
         c = self.client
 
