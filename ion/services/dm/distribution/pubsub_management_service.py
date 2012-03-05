@@ -19,7 +19,7 @@ from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, S
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
-from pyon.net.transport import NameTrio
+from pyon.net.transport import TransportError
 
 # Can't make a couchdb data store here...
 ### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
@@ -332,7 +332,7 @@ class PubsubManagementService(BasePubsubManagementService):
             for stream_id in ids:
                 try:
                     self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
-                except TransportException, te:
+                except TransportError, te:
                     log.exception('Raised transport error during deactivate_subscription. Assuming that it is due to deleting a binding that already exists and continuing!')
 
 
@@ -340,7 +340,7 @@ class PubsubManagementService(BasePubsubManagementService):
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
             try:
                 self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
-            except TransportException, te:
+            except TransportError, te:
                 log.exception('Raised transport error during deactivate_subscription. Assuming that it is due to deleting a binding that already exists and continuing!')
 
         return True
