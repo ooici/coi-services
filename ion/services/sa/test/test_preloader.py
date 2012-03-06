@@ -59,7 +59,7 @@ class TestPreloader(IonIntegrationTestCase):
         self.client.MFMS = MarineFacilityManagementServiceClient(node=self.container.node)
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
-    #@unittest.skip('temporarily')
+    @unittest.skip('this test just for debugging')
     def test_just_the_setup(self):
         return
 

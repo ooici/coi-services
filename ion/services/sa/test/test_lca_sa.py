@@ -10,6 +10,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, LCS # , PRED
@@ -17,7 +18,7 @@ from nose.plugins.attrib import attr
 import unittest
 
 from ion.services.sa.test.helpers import any_old
-
+from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
 
 # some stuff for logging info to the console
 import sys
@@ -50,7 +51,9 @@ class TestLCASA(IonIntegrationTestCase):
         self.client.MFMS = MarineFacilityManagementServiceClient(node=self.container.node)
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
-    @unittest.skip('temporarily')
+        self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
+
+    #@unittest.skip('temporarily')
     def test_just_the_setup(self):
         return
 
@@ -85,6 +88,15 @@ class TestLCASA(IonIntegrationTestCase):
     #@unittest.skip('Fixing data product creation')
     def test_lca_step_1_to_6(self):
         c = self.client
+
+        inst_model_impl = InstrumentModelImpl({"resource_registry": self.client.RR})
+        
+        def find_instrument_model_by_stream_definition(stream_definition_id):
+            return inst_model_impl.find_having_stream_definition(stream_definition_id)
+
+        def find_stream_definition_by_instrument_model(instrument_model_id):
+            return inst_model_impl.find_stemming_stream_definition(instrument_model_id)
+
         
         resource_ids = self._low_level_init()
 
@@ -159,8 +171,8 @@ class TestLCASA(IonIntegrationTestCase):
         log.info("LCA <missing step>: assign stream definitions to instrument model")
         for name, stream_definition_id in resource_ids[RT.StreamDefinition].iteritems():
             self.generic_association_script(c.IMS.assign_stream_definition_to_instrument_model,
-                                            c.IMS.find_instrument_model_by_stream_definition,
-                                            c.IMS.find_stream_definition_by_instrument_model,
+                                            find_instrument_model_by_stream_definition,
+                                            find_stream_definition_by_instrument_model,
                                             instrument_model_id,
                                             stream_definition_id)
 
