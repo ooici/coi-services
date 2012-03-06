@@ -369,23 +369,47 @@ class ReplayProcess(BaseReplayProcess):
 
         file_list.sort()
         file_list = list(i[1] for i in file_list)
+        file_list = list([FileSystem.get_url(FS.CACHE, '%s' % i) for i in file_list])
+
+        def find_value_path(path_obj, field):
+            pairs = path_obj.values()
+            for pair in pairs:
+                if pair[0] == field:
+                    return pair[1]
+            return None
+
         log.debug('Ultimate file_list: %s', file_list)
 
         fields = self._list_data(self.definition,granule)
-        fields = list([i.split('/').pop() for i in fields.values()])
+        path_obj = dict()
+        for field,path in fields.iteritems():
+            path_obj[field] = (path.split('/').pop(),path)
 
-        log.debug('Ultimate Fields: %s', fields)
 
-        data = acquire_data(file_list, fields, )
+        var_names = list([path_obj.values()[i][0] for i in xrange(len(path_obj))])
+
+
+        log.debug('Path Obj: %s', path_obj)
+        record_count = granule.identifiables[self.element_count_id].value
+        codec = HDFEncoder()
+        log.debug('acquire_data:')
+        log.debug('\tfile_list: %s', file_list)
+        log.debug('\tfields: %s', var_names)
+        log.debug('\trecords: %s', record_count)
+
+        data = acquire_data(file_list, var_names, record_count).next()
+        for row,value in data.iteritems():
+            log.debug('row: %s', row)
+            value_path = find_value_path(path_obj, row)
+            log.debug('value path: %s', value_path)
+            log.debug('value: %s', value['values'])
+            codec.add_hdf_dataset(value_path,nparray=value['values'])
+        hdf_string = codec.encoder_close()
+        granule.identifiables[self.data_stream_id].values = hdf_string
+        granule.identifiables[self.encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
 
         return granule
 
-
-#        return {
-#            'granule':granule,
-#            'records':records,
-#            'sha1':sha1,
-#            }
 
     def record_limit(self, granule, record_count):
         '''
