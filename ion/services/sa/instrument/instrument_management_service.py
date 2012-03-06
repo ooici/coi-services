@@ -11,7 +11,7 @@ from pyon.public import Container
 from pyon.public import LCS #, LCE
 from pyon.public import RT, PRED
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import Inconsistent,BadRequest #, NotFound
+from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
@@ -44,7 +44,6 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 
-from pyon.core.exception import BadRequest, NotFound, Conflict
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -75,6 +74,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         if hasattr(self.clients, "data_product_management"):
             self.DPMS  = self.clients.data_product_management
+
+        if hasattr(self.clients, "pubsub_management"):
+            self.PSMS = self.clients.pubsub_management
 
         #farm everything out to the impls
 
@@ -280,95 +282,67 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def setup_data_production_chain(self, instrument_device_id=''):
         """
-        create a data product (L0) for the instrument, and establish provenance
-        between the corresponding data producers
+        create data products for all the streams defined by this instrument's model/agent
         """
 
         #get instrument object and instrument's data producer
         inst_obj = self.instrument_device.read_one(instrument_device_id)
 
-        #todo: first you need to call DAMS:register_instrument (or somebody does)
+        models = self.find_instrument_model_by_instrument_device(instrument_device_id)
 
-        inst_pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
-        inst_pducer_id = inst_pducers[0]
-        log.debug("instrument data producer id='%s'" % inst_pducer_id)
+        if 1 != len(models):
+            raise Inconsistent("The instrument device had %d associated models, expected 1" % len(models))
 
-        #create a new data product
-        dpms_pduct_obj = IonObject(RT.DataProduct,
-                                   name=str(inst_obj.name + " L0 Product"),
-                                   description=str("L0 DataProduct for " + inst_obj.name))
+        agents = self.find_instrument_agent_by_instrument_model(models[0])
 
-        pduct_id = self.DPMS.create_data_product(dpms_pduct_obj)
-
-        #TODO: DPMS isn't creating a data producer for new data products. not sure why.
-        #TODO  BECAUSE: you call DAMS:AssignData_product
-#        prod_pducer_id = self.data_producer.create_one(IonObject(RT.DataProducer,
-#                                                                 name=str(inst_obj.name + " L0 Producer"),
-#                                                                 description=str("L0 DataProducer for " + inst_obj.name)))
-#        self.data_product.link_data_producer(pduct_id, prod_pducer_id)
-
-        # get data product's data producer (via association)
-        #TODO: this belongs in DPMS
-        #prod_pducers = self.data_product.find_stemming_data_producer(pduct_id)
-
-        # (TODO: there should only be one assoc_id.  what error to raise?)
-        # TODO: what error to raise if there are no assoc ids?
-        #prod_pducer_id = prod_pducers[0]   #you NEVER create or assign producers
+        if 1 != len(agents):
+            raise Inconsistent("The instrument model had %d associated agents, expected 1" % len(agents))
 
 
-        # instrument data producer is the parent of the data product producer
-        #TODO: this belongs in DAMS
-        #self.data_producer.link_input_data_producer(prod_pducer_id, inst_pducer_id)
+        stream_definition_ids = self.find_stream_definition_by_instrument_agent(agents[0])
 
-        #TODO: error checking
+        for stream_definition_id in stream_definition_ids:
+            log.debug("Getting name of stream with id='%s'" % stream_definition_id)
+
+            streamdef_obj = self.PSMS.read_stream_definition(stream_definition_id)
+            names = (streamdef_obj.name, inst_obj.name)
+            log.debug("Creating data product named '%s for %s'" % names)
+            data_product_obj = IonObject(RT.DataProduct,
+                                       name=str("%s for %s" % names),
+                                       description=str("Product for '%s' instrument's '%s' stream" % names))
+
+            #create data product with specified stream definition
+            data_product_id = self.DPMS.create_data_product(data_product_obj, stream_definition_id)
+
+            #associate this data product with the instrument
+            log.debug("Associating data product's producers with instrument via DAMS")
+            self.DAMS.assign_data_product(instrument_device_id, data_product_id)
 
 
-
-    def register_instrument(self, instrument_device=None, instrument_model_id=''):
-
-        # retrieve the instrument model info
-        instrument_model_obj = self.clients.resource_registry.read(instrument_model_id)
-        if not instrument_model_obj:
-            raise NotFound("InstrumentModel %s does not exist" % instrument_model_id)
-
+    #shortcut register method
+    def register_instrument(self, instrument_device=None, instrument_model_id=""):
         instrument_device_id = self.create_instrument_device(instrument_device)
-
-        #associate the model and the device
-        self.clients.resource_registry.create_association(instrument_device_id,  PRED.hasModel, instrument_model_id)
-
-        #register the instrument as a data producer
-        self.clients.data_acquisition_management.register_instrument(instrument_device_id)
-
+        
+        self.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
+        
         return instrument_device_id
 
 
     def activate_instrument(self, instrument_device_id='', instrument_agent_instance=None):
 
-        # retrieve the instrument device
-        instrument_device_obj = self.clients.resource_registry.read(instrument_device_id)
-        if not instrument_device_obj:
-            raise NotFound("InstrumentDevice %s does not exist" % instrument_device_id)
-
-        if not instrument_agent_instance:
-            raise BadRequest("InstrumentAgentInstance not provided, must have configuration information" )
-
         #retrieve the instrument model
-        model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
+        model_ids = self.instrument_device.find_stemming_model(instrument_device_id)
         if not model_ids:
             raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
-        if len(model_ids) != 1:
-            raise BadRequest("Instrument Device should only have ONE Instrument Model" + str(instrument_device_id))
 
         instrument_model_id = model_ids[0]
         log.debug("activate_instrument:instrument_model %s"  +  str(instrument_model_id))
 
 
         #retrieve the asssociated instrument agent
-        agent_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentAgent, predicate=PRED.hasModel, object=instrument_model_id,  id_only=True)
+        agent_ids = self.instrument_agent.find_having_model(instrument_model_id)
         if not agent_ids:
             raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
-        if len(agent_ids) > 1:
-            raise BadRequest("Instrument Agent should only have ONE Instrument Model" + str(instrument_model_id))
 
         instrument_agent_id = agent_ids[0]
         log.debug("activate_instrument:instrument_agent %s"  +  str(instrument_agent_id))
@@ -402,13 +376,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
 
         for product_id in data_product_ids:
-            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
+            stream_ids = self.data_product.find_stemming_stream(product_id)
 
             #One stream per product ...for now.
             if not stream_ids:
                 raise NotFound("No Stream  attached to this Data Product " + str(product_id))
             if len(stream_ids) > 1:
-                raise BadRequest("Data Product should only have ONE Stream" + str(product_id))
+                raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
 
             # retrieve the stream
             stream_obj = self.clients.resource_registry.read(stream_ids[0])
@@ -912,9 +886,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
+        agents = self.find_instrument_agent_by_instrument_model(instrument_model_id)
+        if 0 == len(agents):
+            raise BadRequest("Tried to assign a model to an instrument, but the model didn't have an agent")
         self.instrument_device.link_model(instrument_device_id, instrument_model_id)
+        self.setup_data_production_chain(instrument_device_id)
 
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
+        raise Inconsistent("Unassigning an instrument model from an instrument device (cleanly) has not been defined")
         self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
 
     def assign_instrument_model_to_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
@@ -970,8 +949,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     # reassigning a logical instrument to an instrument device is a little bit special
     # TODO: someday we may be able to dig up the correct data products automatically,
     #       but once we have them this is the function that does all the work.
-    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='',
-                                                         old_instrument_device_id='',
+    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='', 
+                                                         old_instrument_device_id='', 
                                                          new_instrument_device_id='',
                                                          logical_data_product_ids=[],
                                                          old_instrument_data_product_ids=[],
@@ -979,7 +958,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         associate a logical instrument with a physical one.  this involves linking the
         physical instrument's data product(s) to the logical one(s).
-
+        
         the 2 lists of data products must be of equal length, and will map 1-1
 
         @param logical_instrument_id
@@ -987,8 +966,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @param logical_data_product_ids a list of data products associated to a logical instrument
         @param instrument_data_product_ids a list of data products coming from an instrument device
         """
-
-
+ 
+        
         def verify_dp_origin(supplied_dps, assigned_dps, instrument_id, instrument_label):
             """
             check that the supplied dps (data products) are in the set of what's actually assigned
@@ -1015,11 +994,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.info("Checking whether supplied logical/instrument arguments are proper")
         if 0 < len(existing_assignments):
             if not old_instrument_device_id:
-                raise BadRequest(("Tried to assign logical instrument '%s' for the first time, but it is already " +
+                raise BadRequest(("Tried to assign logical instrument '%s' for the first time, but it is already " + 
                                   "assigned to instrument device '%s'") % (logical_instrument_id, existing_assignments[0]))
             elif old_instrument_device_id != existing_assignments[0]:
                 raise BadRequest(("Tried to reassign logical instrument '%s' from instrument device '%s' but it is " +
-                                  "actually associated to instrument device '%s'") %
+                                  "actually associated to instrument device '%s'") % 
                                  (logical_instrument_id, old_instrument_device_id, existing_assignments[0]))
 
 
@@ -1040,7 +1019,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #                  "logical_instrument")
 
 
-
+        
         if old_instrument_device_id:
             log.info("Checking that the data product to be dissociated are properly rooted")
             verify_dp_origin(old_instrument_data_product_ids,
@@ -1179,7 +1158,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
            #TODO: this belongs in DAMS
            new_data_producers = self.data_producer.find_having_input_data_producer(producer_id)
 
-           log.debug("Got %d new products, %d new producers" % (len(new_data_products),
+           log.debug("Got %d new products, %d new producers" % (len(new_data_products), 
                                                                 len(new_data_producers)))
 
            data_products  += new_data_products
@@ -1213,7 +1192,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
            #TODO: this belongs in DPMS
            new_data_producers = self.data_producer.find_stemming_input_data_producer(producer_id)
 
-           log.debug("Got %d new devices, %d new producers" % (len(new_instrument_devices),
+           log.debug("Got %d new devices, %d new producers" % (len(new_instrument_devices), 
                                                                 len(new_data_producers)))
 
            instrument_devices  += new_instrument_devices
@@ -1231,7 +1210,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     ret.append(d)
 
         return ret
-
+        
 
 
     ############################
