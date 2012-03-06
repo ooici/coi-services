@@ -29,6 +29,7 @@ from ion.services.dm.inventory.data_retriever_service import DataRetrieverServic
 from nose.plugins.attrib import attr
 from mock import Mock
 import unittest, time
+import random
 import hashlib
 import numpy as np
 import pyon.core.bootstrap as bootstrap
@@ -157,41 +158,29 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.couch.create(definition)
 
-        # First one is going to have 4 records
-        psc = PointSupplementConstructor(point_definition=definition, stream_id=stream_id)
-        for i in xrange(4):
-            psc.add_point(time=i+1, location=(0,0,0))
-            psc.add_scalar_point_coverage(point_id=i, coverage_id='temperature', value=np.random.normal(loc=48.0,scale=4.0, size=1)[0])
-            psc.add_scalar_point_coverage(point_id=i, coverage_id='pressure', value=np.float32(1.0))
-            psc.add_scalar_point_coverage(point_id=i, coverage_id='conductivity', value=np.float32(2.0))
-        granule = psc.close_stream_granule()
-        # Strip and make file
-        hdf_string = granule.identifiables[definition.data_stream_id].values
-        sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-        with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
-            f.write(hdf_string)
-        granule.identifiables[definition.data_stream_id].values = ''
+        total = 200
+        n = 10 # at most n records per granule
+        i = 0
 
-        self.couch.create(granule)
+        while i < total:
+            r = random.randint(1,n)
 
-        # Second one is going to have 5 records
-        psc = PointSupplementConstructor(point_definition=definition, stream_id=stream_id)
-        for i in xrange(5,11):
-            point_id = psc.add_point(time=i+1, location=(0,0,0))
-            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=np.random.normal(loc=48.0,scale=4.0, size=1)[0])
-            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=np.float32(1.0))
-            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=np.float32(2.0))
-        granule = psc.close_stream_granule()
+            psc = PointSupplementConstructor(point_definition=definition, stream_id=stream_id)
+            for x in xrange(r):
+                i+=1
+                point_id = psc.add_point(time=i, location=(0,0,0))
+                psc.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=np.random.normal(loc=48.0,scale=4.0, size=1)[0])
+                psc.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=np.float32(1.0))
+                psc.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=np.float32(2.0))
+            granule = psc.close_stream_granule()
+            hdf_string = granule.identifiables[definition.data_stream_id].values
+            sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+            with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
+                f.write(hdf_string)
+            granule.identifiables[definition.data_stream_id].values = ''
+            self.couch.create(granule)
 
 
-        # Strip and make file
-        hdf_string = granule.identifiables[definition.data_stream_id].values
-        sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-        with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
-            f.write(hdf_string)
-        granule.identifiables[definition.data_stream_id].values = ''
-
-        self.couch.create(granule)
 
     def start_listener(self, stream_id, callback):
 
@@ -307,5 +296,41 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
     def test_advanced_replay(self):
-        pass
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
+
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature'], 'time':(1,4)})
+
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+
+        result = gevent.event.AsyncResult()
+
+        def check_msg(msg, header):
+            assertions(isinstance(msg, StreamGranuleContainer), 'Msg is not a container')
+            hdf_string = msg.identifiables[msg.data_stream_id].values
+            sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+            log.debug('Sha1 matches')
+            log.debug('Dumping file so you can inspect it.')
+            log.debug('Records: %d' % msg.identifiables['record_count'].value)
+            with open(FileSystem.get_url(FS.TEMP,'%s.cap.hdf5' % sha1[:8]),'w') as f:
+                f.write(hdf_string)
+                log.debug('Stream Capture: %s', f.name)
+            result.set(True)
+
+        self.start_listener(stream_id=stream_id, callback=check_msg)
+
+        dr_cli.start_replay(replay_id=replay_id)
+
+        assertions(result.get(timeout=3), 'Did not receive a msg from replay')
+
+        dr_cli.cancel_replay(replay_id=replay_id)
+        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 

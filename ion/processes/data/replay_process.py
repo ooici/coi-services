@@ -73,6 +73,7 @@ class ReplayProcess(BaseReplayProcess):
         self.data_record_id = self.definition.identifiables[self.element_type_id].data_record_id
         self.field_ids = self.definition.identifiables[self.data_record_id].field_ids
         self.domain_ids = self.definition.identifiables[self.data_record_id].domain_ids
+        self.time_id = self.definition.identifiables[self.domain_ids[0]].temporal_coordinate_vector_id
 
     def execute_replay(self):
         '''
@@ -119,7 +120,12 @@ class ReplayProcess(BaseReplayProcess):
         granule = self._merge(publish_queue)
 
         if self.delivery_format.has_key('fields'):
-            granule = self.subset(granule,self.delivery_format['fields'])
+            res = self.subset(granule,self.delivery_format['fields'])
+            granule = res
+
+        if self.delivery_format.has_key('time'):
+            granule = self.time_subset(granule, self.delivery_format['time'])
+
 
         element_count_id = self.element_count_id
         encoding_id = self.encoding_id
@@ -242,6 +248,7 @@ class ReplayProcess(BaseReplayProcess):
         assert granule1.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
         assert granule2.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
         encoding_id = DefinitionTree.get(definition,'%s.encoding_id' % definition.data_stream_id)
+
         pair1 = (
             granule1.identifiables['time_bounds'].value_pair[0],
             '%s.hdf5' % granule1.identifiables[encoding_id].sha1
@@ -252,7 +259,8 @@ class ReplayProcess(BaseReplayProcess):
             '%s.hdf5' % granule2.identifiables[encoding_id].sha1
         )
 
-
+        log.debug('pair1: %d',pair1[0])
+        log.debug('pair2: %d',pair2[0])
 
 
         files = []
@@ -358,16 +366,27 @@ class ReplayProcess(BaseReplayProcess):
         granule = None
         file_list = list()
         count = len(msgs)
+        used_vals = list()
         for i in xrange(count):
             if i==0:
                 granule = msgs[0]['granule']
                 continue
             res = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=msgs[i]['granule'])
             granule = res['granule']
-            file_list += res['files']
-            log.debug('File list is : %s' % file_list)
+            file_pair = res['files']
+            if file_pair[0] not in file_list and file_pair[0][0] not in used_vals:
+
+                file_list.append( tuple(file_pair[0]))
+                used_vals.append(file_pair[0][0])
+            if file_pair[1] not in file_list and file_pair[1][0] not in used_vals:
+
+                file_list.append(tuple(file_pair[1]))
+                used_vals.append(file_pair[1][0])
+
+
 
         file_list.sort()
+        log.debug('Ordered pairs: %s', file_list)
         file_list = list(i[1] for i in file_list)
         file_list = list([FileSystem.get_url(FS.CACHE, '%s' % i) for i in file_list])
 
@@ -418,6 +437,88 @@ class ReplayProcess(BaseReplayProcess):
         element_count_id = self.element_count_id
         records = granule.identifiables[element_count_id].value
         start, stop = 0,0
+
+
+    def time_subset(self, granule, time_bounds):
+        assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
+        lower = time_bounds[0]
+        upper = time_bounds[1]
+
+        lower_index = self._get_time_index(granule,lower)
+        log.debug('time_subset lower: %s', lower_index)
+        upper_index = self._get_time_index(granule,upper)
+        log.debug('time_subset upper: %s', upper_index)
+        fields = self._list_data(self.definition, granule)
+        log.debug('time_subset fields: %s', fields)
+        codec = HDFEncoder()
+
+        pairs = list()
+        for i in fields.values():
+            pairs.append((i.split('/').pop(),i))
+        log.debug('Pairs: %s', pairs)
+
+        var_names = list([i[0] for i in pairs])
+        log.debug('var_names: %s', var_names)
+
+        f = FileSystem.mktemp()
+        f.write(granule.identifiables[self.data_stream_id].values)
+        file_path = f.name
+        f.close()
+
+        vector = acquire_data([file_path], var_names, (upper_index - lower_index), slice(lower_index, upper_index)).next()
+        for row,value in vector.iteritems():
+            vp = None
+            for pair in pairs:
+                if pair[0] == row:
+                    vp = pair[1]
+                    break
+            codec.add_hdf_dataset(vp, value['values'])
+            log.debug('field: %s', vp)
+            log.debug('values: %s', value['values'])
+        hdf_string = codec.encoder_close()
+        granule.identifiables[self.data_stream_id].values = hdf_string
+        granule.identifiables[self.encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
+        return granule
+
+
+
+    def _get_time_index(self, granule, timeval):
+        '''
+        @param granule must be a complete dataset (hdf_string provided)
+        '''
+        assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
+        assert granule.identifiables[self.data_stream_id].values, 'hdf_string is not provided.'
+
+        hdf_string = granule.identifiables[self.data_stream_id].values
+
+        f = FileSystem.mktemp()
+        f.write(hdf_string)
+        file_path = f.name
+        f.close()
+
+        # Get the time field, temporal coordinate vector id
+        time_field = self.definition.identifiables[self.time_id].coordinate_ids[0]
+        value_path = granule.identifiables[time_field].values_path or self.definition.identifiables[time_field].values_path
+        log.debug('time_field: %s', time_field)
+        log.debug('value_path: %s', value_path)
+        record_count = granule.identifiables[self.element_count_id].value
+        var_name = value_path.split('/').pop()
+        res = acquire_data([file_path], [var_name], record_count).next()
+        time_vector = res[var_name]['values']
+        log.debug('time_vector: %s', res[var_name]['values'])
+        log.debug('check: %s', type(time_vector))
+        for i in xrange(len(time_vector)):
+            if time_vector[i] == timeval:
+                return i
+            elif i==0 and time_vector[i] > timeval:
+                return i
+            elif (i+1) < len(time_vector): # not last val
+                if time_vector[i] < timeval and time_vector[i+1] > timeval:
+                    return i
+            else: # last val
+                return i
+
 
 
 
