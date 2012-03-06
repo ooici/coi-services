@@ -293,13 +293,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if 1 != len(models):
             raise Inconsistent("The instrument device had %d associated models, expected 1" % len(models))
 
-        agents = self.find_instrument_agent_by_instrument_model(models[0])
+        #todo: stream association should be with agent, not model... but that's for later
+        #
+        #agents = self.find_instrument_agent_by_instrument_model(models[0])
+        #
+        #if 1 != len(agents):
+        #    raise Inconsistent("The instrument model had %d associated agents, expected 1" % len(agents))
+        #stream_definition_ids = self.find_stream_definition_by_instrument_agent(agents[0])
 
-        if 1 != len(agents):
-            raise Inconsistent("The instrument model had %d associated agents, expected 1" % len(agents))
-
-
-        stream_definition_ids = self.find_stream_definition_by_instrument_agent(agents[0])
+        stream_definition_ids = self.find_stream_definition_by_instrument_model(models[0])
 
         for stream_definition_id in stream_definition_ids:
             log.debug("Getting name of stream with id='%s'" % stream_definition_id)
@@ -886,14 +888,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
-        agents = self.find_instrument_agent_by_instrument_model(instrument_model_id)
-        if 0 == len(agents):
-            raise BadRequest("Tried to assign a model to an instrument, but the model didn't have an agent")
+        #todo: for when instrument agents are the owners of stream def associations
+        #agents = self.find_instrument_agent_by_instrument_model(instrument_model_id)
+        #if 0 == len(agents):
+        #    raise BadRequest("Tried to assign a model to an instrument, but the model didn't have an agent")
+
         self.instrument_device.link_model(instrument_device_id, instrument_model_id)
         self.setup_data_production_chain(instrument_device_id)
 
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         raise Inconsistent("Unassigning an instrument model from an instrument device (cleanly) has not been defined")
+        #todo
+        #self.retire_data_production_chain(instrument_device_id)
         self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
 
     def assign_instrument_model_to_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
@@ -902,6 +908,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_model_from_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
+    def assign_stream_definition_to_instrument_model(self, stream_definition_id='', instrument_model_id=''):
+        self.instrument_model.link_stream_definition(instrument_model_id, stream_definition_id)
+
+    def unassign_stream_definition_from_instrument_model(self, stream_definition_id='', instrument_model_id=''):
+        self.instrument_model.unlink_stream_definition(instrument_model_id, stream_definition_id)
 
     def assign_sensor_model_to_sensor_device(self, sensor_model_id='', sensor_device_id=''):
         self.sensor_device.link_model(sensor_device_id, sensor_model_id)
@@ -1099,6 +1110,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def find_instrument_agent_by_instrument_model(self, instrument_model_id=''):
         return self.instrument_agent.find_having_model(instrument_model_id)
 
+    def find_stream_definition_by_instrument_model(self, instrument_model_id=''):
+        return self.instrument_model.find_stemming_stream_definition(instrument_model_id)
+
+    def find_instrument_model_by_stream_definition(self, stream_definition_id=''):
+        return self.instrument_model.find_having_stream_definition(stream_definition_id)
+
     def find_instrument_device_by_instrument_agent_instance(self, instrument_agent_instance_id=''):
         return self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)
 
@@ -1124,82 +1141,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.platform_device.find_stemming_assignment(platform_device_id)
 
 
+    def find_data_product_by_instrument_device(self, instrument_device_id=''):
+        return self.instrument_device.find_stemming_output_product(instrument_device_id)
+
+    def find_instrument_device_by_data_product(self, data_product_id=''):
+        return self.instrument_device.find_having_output_product(data_product_id)
+
 
     ############################
     #
     #  SPECIALIZED FIND METHODS
     #
     ############################
-
-    def find_data_product_by_instrument_device(self, instrument_device_id=''):
-        log.debug("FIND DATA PRODUCT BY INSTRUMENT DEVICE")
-        #init return value, a list of data products
-        data_products = []
-        seen_data_producers = []
-
-        #init working set of data producers to walk
-        data_producers = []
-        pducers = self.instrument_device.find_stemming_data_producer(instrument_device_id)
-        data_producers += pducers
-
-
-        #iterate through all un-processed data producers (could also do recursively)
-        while 0 < len(data_producers):
-           producer_id = data_producers.pop()
-           if producer_id in seen_data_producers:
-               raise Inconsistent("There is a cycle in data producers that includes '%s'" % producer_id)
-           seen_data_producers.append(producer_id)
-
-           log.debug("Analyzing data producer '%s'" % producer_id)
-           #get any products that are associated with this data producer and return them
-           #TODO: this belongs in DPMS
-           new_data_products = self.data_product.find_having_data_producer(producer_id)
-           #get any producers that receive input from this data producer
-           #TODO: this belongs in DAMS
-           new_data_producers = self.data_producer.find_having_input_data_producer(producer_id)
-
-           log.debug("Got %d new products, %d new producers" % (len(new_data_products), 
-                                                                len(new_data_producers)))
-
-           data_products  += new_data_products
-           data_producers += new_data_producers
-
-        return data_products
-
-    def find_instrument_device_by_data_product(self, data_product_id=''):
-        log.debug("FIND INSTRUMENT DEVICE BY DATA PRODUCT")
-        #init return value, a list of instrument devices
-        instrument_devices = []
-        seen_data_producers = []
-
-        #init working set of data producers to walk
-        data_producers = []
-        #TODO: this belongs in DPMS
-        pducers = self.data_product.find_stemming_data_producer(data_product_id)
-        data_producers += pducers
-
-        #iterate through all un-processed data producers (could also do recursively)
-        while 0 < len(data_producers):
-           producer_id = data_producers.pop()
-           if producer_id in seen_data_producers:
-               raise Inconsistent("There is a cycle in data producers that includes '%s'" % producer_id)
-           seen_data_producers.append(producer_id)
-
-           log.debug("Analyzing data producer '%s'" % producer_id)
-           #get any devices that are associated with this data producer and return them
-           new_instrument_devices = self.instrument_device.find_having_data_producer(producer_id)
-           #get any producers that give input to this data producer
-           #TODO: this belongs in DPMS
-           new_data_producers = self.data_producer.find_stemming_input_data_producer(producer_id)
-
-           log.debug("Got %d new devices, %d new producers" % (len(new_instrument_devices), 
-                                                                len(new_data_producers)))
-
-           instrument_devices  += new_instrument_devices
-           data_producers      += new_data_producers
-
-        return instrument_devices
-
 
     def find_data_product_by_platform_device(self, platform_device_id=''):
         ret = []
