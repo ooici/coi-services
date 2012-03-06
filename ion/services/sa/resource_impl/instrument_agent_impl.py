@@ -29,16 +29,10 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
         return self._unlink_resources(instrument_agent_id, PRED.hasInstance, instrument_agent_instance_id)
 
     def link_model(self, instrument_agent_id='', instrument_model_id=''):
-        return self._link_resources_exclusive(instrument_agent_id, PRED.hasModel, instrument_model_id)
+        return self._link_resources_single_subject(instrument_agent_id, PRED.hasModel, instrument_model_id)
 
     def unlink_model(self, instrument_agent_id='', instrument_model_id=''):
         return self._unlink_resources(instrument_agent_id, PRED.hasModel, instrument_model_id)
-
-    def link_stream_definition(self, instrument_agent_id='', stream_definition_id=''):
-        return self._link_resources(instrument_agent_id, PRED.hasStreamDefinition, stream_definition_id)
-
-    def unlink_stream_definition(self, instrument_agent_id='', stream_definition_id=''):
-        return self._unlink_resources(instrument_agent_id, PRED.hasStreamDefinition, stream_definition_id)
 
     def find_having_instance(self, instrument_agent_instance_id):
         return self._find_having(PRED.hasInstance, instrument_agent_instance_id)
@@ -47,14 +41,8 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
         return self._find_stemming(instrument_agent_id, PRED.hasInstance, RT.InstrumentAgentInstance)
 
     def find_having_model(self, instrument_model_id):
-        return self._find_having_exclusive(PRED.hasModel, instrument_model_id)
+        return self._find_having_single(PRED.hasModel, instrument_model_id)
 
     def find_stemming_model(self, instrument_agent_id):
         return self._find_stemming(instrument_agent_id, PRED.hasModel, RT.InstrumentModel)
-
-    def find_having_stream_definition(self, stream_definition_id):
-        return self._find_having(PRED.hasStreamDefinition, stream_definition_id)
-
-    def find_stemming_stream_definition(self, instrument_agent_id):
-        return self._find_stemming(instrument_agent_id, PRED.hasStreamDefinition, RT.StreamDefinition)
 

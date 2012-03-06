@@ -416,7 +416,7 @@ class ResourceImpl(object):
         return ret
 
 
-    def _find_having_exclusive(self, association_predicate, some_object):
+    def _find_having_single(self, association_predicate, some_object):
         """
         enforces exclusivity: 0 or 1 association allowed
         """
@@ -428,7 +428,7 @@ class ResourceImpl(object):
                                                                       some_object))
         return ret
 
-    def _find_stemming_exclusive(self, primary_object_id, association_predicate, some_object_type):
+    def _find_stemming_single(self, primary_object_id, association_predicate, some_object_type):
         """
         enforces exclusivity: 0 or 1 association allowed
         """
@@ -493,9 +493,9 @@ class ResourceImpl(object):
         return associate_success
 
 
-    def _link_resources_exclusive(self, subject_id='', association_type='', object_id='', raise_exn=True):
+    def _link_resources_single_object(self, subject_id='', association_type='', object_id='', raise_exn=True):
         """
-        create an association where only one at a time can exist
+        create an association where only one object at a time can exist
          if there is an existing association, the choice is left to the user whether to raise exception
          or quietly remove/replace the existing one.
 
@@ -520,14 +520,39 @@ class ResourceImpl(object):
             else:
                 self._unlink_resources(self, subject_id, association_type, existing_links[0])
 
-        associate_success = self.RR.create_association(subject_id,
-                                                       association_type,
-                                                       object_id)
 
-        log.debug("Create %s Association: %s"
-                  % (self._assn_name(association_type),
-                     str(associate_success)))
-        return associate_success
+        return self._link_resources(subject_id, association_type, object_id)
+
+ 
+    def _link_resources_single_subject(self, subject_id='', association_type='', object_id='', raise_exn=True):
+        """
+        create an association where only one subject at a time can exist
+         if there is an existing association, the choice is left to the user whether to raise exception
+         or quietly remove/replace the existing one.
+
+        @param subject_id the resource ID of the predefined type
+        @param association_type the predicate
+        @param object_id the resource ID of the type to be joined
+        @param raise_exn whether a BadRequest error should be raised if a duplicate is attempted
+        @todo check for errors: does RR check for bogus ids?
+        """
+
+        # see if there are any other objects of this type and pred on this subject
+        obj_type = self._get_resource_type_by_id(object_id)
+        existing_links = self._find_having(association_type, object_id)
+        
+        if len(existing_links) > 1:
+            raise Inconsistent("Multiple %s-%s subjects found on the same %s object with id='%s'" %
+                               (self.iontype, association_type, obj_type, object_id))
+        elif len(existing_links) > 0:
+            if raise_exn:
+                raise BadRequest("Attempted to add a duplicate %s-%s association on a %s object with id='%s'" %
+                                 (self.iontype, association_type, obj_type, subject_id))
+            else:
+                self._unlink_resources(self, subject_id, association_type, existing_links[0])
+
+
+        return self._link_resources(subject_id, association_type, object_id)
 
 
     def _unlink_resources(self, subject_id='', association_type='', object_id=''):

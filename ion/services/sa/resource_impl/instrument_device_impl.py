@@ -57,7 +57,7 @@ class InstrumentDeviceImpl(ResourceImpl):
         return self._unlink_resources(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
 
     def link_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        return self._link_resources_exclusive(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
+        return self._link_resources_single_object(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
 
     def unlink_assignment(self, instrument_device_id='', logical_instrument_id=''):
         return self._unlink_resources(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
@@ -75,7 +75,7 @@ class InstrumentDeviceImpl(ResourceImpl):
         return self._unlink_resources(instrument_device_id, PRED.hasOutputProduct, data_product_id)
 
     def link_model(self, instrument_device_id='', instrument_model_id=''):
-        return self._link_resources_exclusive(instrument_device_id, PRED.hasModel, instrument_model_id)
+        return self._link_resources_single_object(instrument_device_id, PRED.hasModel, instrument_model_id)
 
     def unlink_model(self, instrument_device_id='', instrument_model_id=''):
         return self._unlink_resources(instrument_device_id, PRED.hasModel, instrument_model_id)
@@ -96,10 +96,10 @@ class InstrumentDeviceImpl(ResourceImpl):
         return self._find_stemming(instrument_device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
 
     def find_having_assignment(self, logical_instrument_id):
-        return self._find_having_exclusive(PRED.hasAssignment, logical_instrument_id)
+        return self._find_having_single(PRED.hasAssignment, logical_instrument_id)
 
     def find_stemming_assignment(self, instrument_device_id):
-        return self._find_stemming_exclusive(instrument_device_id, PRED.hasAssignment, RT.LogicalInstrument)
+        return self._find_stemming(instrument_device_id, PRED.hasAssignment, RT.LogicalInstrument)
 
     def find_having_data_producer(self, data_producer_id):
         return self._find_having(PRED.hasDataProducer, data_producer_id)
@@ -114,10 +114,10 @@ class InstrumentDeviceImpl(ResourceImpl):
         return self._find_stemming(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct)
 
     def find_having_model(self, instrument_model_id):
-        return self._find_having_exclusive(PRED.hasModel, instrument_model_id)
+        return self._find_having(PRED.hasModel, instrument_model_id)
 
     def find_stemming_model(self, instrument_device_id):
-        return self._find_stemming_exclusive(instrument_device_id, PRED.hasModel, RT.InstrumentModel)
+        return self._find_stemming_single(instrument_device_id, PRED.hasModel, RT.InstrumentModel)
 
     def find_having_sensor(self, sensor_device_id):
         return self._find_having(PRED.hasSensor, sensor_device_id)
