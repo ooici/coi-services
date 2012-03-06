@@ -565,10 +565,11 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def test_bind_stream_subscription(self):
 
-        ar = gevent.event.AsyncResult()
-        self.first = True
+        q = gevent.queue.Queue()
+
         def message_received(message, headers):
-            ar.set(message)
+            q.put(message)
+
 
         subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
         subscriber.start()
@@ -576,22 +577,23 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
         self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(ar.get(timeout=30), 'message1')
-
-        ar = gevent.event.AsyncResult()
+        self.assertEqual(q.get(timeout=5), 'message1')
+        self.assertTrue(q.empty())
 
         self.ctd_stream2_publisher.publish('message2')
-        self.assertEqual(ar.get(timeout=10), 'message2')
+        self.assertEqual(q.get(timeout=5), 'message2')
+        self.assertTrue(q.empty())
 
         subscriber.stop()
 
 
     def test_bind_exchange_subscription(self):
 
-        ar = gevent.event.AsyncResult()
-        self.first = True
+        q = gevent.queue.Queue()
+
         def message_received(message, headers):
-            ar.set(message)
+            q.put(message)
+
 
         subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
         subscriber.start()
@@ -599,21 +601,23 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
 
         self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(ar.get(timeout=10), 'message1')
+        self.assertEqual(q.get(timeout=5), 'message1')
+        self.assertTrue(q.empty())
 
-        ar = gevent.event.AsyncResult()
 
         self.ctd_stream2_publisher.publish('message2')
-        self.assertEqual(ar.get(timeout=10), 'message2')
+        self.assertEqual(q.get(timeout=5), 'message2')
+        self.assertTrue(q.empty())
 
         subscriber.stop()
 
 
     def test_unbind_stream_subscription(self):
-        ar = gevent.event.AsyncResult()
-        self.first = True
+
+        q = gevent.queue.Queue()
+
         def message_received(message, headers):
-            ar.set(message)
+            q.put(message)
 
         subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
         subscriber.start()
@@ -621,28 +625,29 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
         self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(ar.get(timeout=10), 'message1')
+        self.assertEqual(q.get(timeout=5), 'message1')
+        self.assertTrue(q.empty())
 
         self.pubsub_cli.deactivate_subscription(self.ctd_subscription_id)
 
-        ar = gevent.event.AsyncResult()
 
         self.ctd_stream2_publisher.publish('message2')
         p = None
-        with self.assertRaises(gevent.Timeout) as cm:
-            p = ar.get(timeout=2)
+        with self.assertRaises(gevent.queue.Empty) as cm:
+            p = q.get(timeout=1)
 
         subscriber.stop()
         ex = cm.exception
-        self.assertEqual(str(ex), '2 seconds')
+        self.assertEqual(str(ex), '')
         self.assertEqual(p, None)
 
 
     def test_unbind_exchange_subscription(self):
-        ar = gevent.event.AsyncResult()
-        self.first = True
+
+        q = gevent.queue.Queue()
+
         def message_received(message, headers):
-            ar.set(message)
+            q.put(message)
 
 
         subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
@@ -651,20 +656,21 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
 
         self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(ar.get(timeout=10), 'message1')
+        self.assertEqual(q.get(timeout=5), 'message1')
+        self.assertTrue(q.empty())
+
 
         self.pubsub_cli.deactivate_subscription(self.exchange_subscription_id)
 
-        ar = gevent.event.AsyncResult()
 
         self.ctd_stream2_publisher.publish('message2')
         p = None
-        with self.assertRaises(gevent.Timeout) as cm:
-            p = ar.get(timeout=2)
+        with self.assertRaises(gevent.queue.Empty) as cm:
+            p = q.get(timeout=1)
 
         subscriber.stop()
         ex = cm.exception
-        self.assertEqual(str(ex), '2 seconds')
+        self.assertEqual(str(ex), '')
         self.assertEqual(p, None)
 
 
