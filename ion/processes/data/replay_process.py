@@ -66,6 +66,14 @@ class ReplayProcess(BaseReplayProcess):
         if not (self.stream_id and hasattr(self, 'output')):
             raise RuntimeError('The replay agent requires an output stream publisher named output. Invalid configuration!')
 
+        self.data_stream_id = self.definition.data_stream_id
+        self.encoding_id = self.definition.identifiables[self.data_stream_id].encoding_id
+        self.element_type_id = self.definition.identifiables[self.data_stream_id].element_type_id
+        self.element_count_id = self.definition.identifiables[self.data_stream_id].element_count_id
+        self.data_record_id = self.definition.identifiables[self.element_type_id].data_record_id
+        self.field_ids = self.definition.identifiables[self.data_record_id].field_ids
+        self.domain_ids = self.definition.identifiables[self.data_record_id].domain_ids
+
     def execute_replay(self):
         '''
         Spawns a greenlet to take care of the query and work
@@ -113,8 +121,8 @@ class ReplayProcess(BaseReplayProcess):
         if self.delivery_format.has_key('fields'):
             granule = self.subset(granule,self.delivery_format['fields'])
 
-        element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
-        encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
+        element_count_id = self.element_count_id
+        encoding_id = self.encoding_id
         record_count = granule.identifiables[element_count_id].value
         sha1 = granule.identifiables[encoding_id].sha1
         # regardless of what anyone wants at first the entire dataset is going
@@ -186,8 +194,8 @@ class ReplayProcess(BaseReplayProcess):
 
         granule.stream_resource_id = self.stream_id
 
-        element_count_id = DefinitionTree.get(self.definition,'%s.element_count_id' % self.definition.data_stream_id)
-        encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
+        element_count_id = self.element_count_id
+        encoding_id = self.encoding_id
 
         record_count = granule.identifiables[element_count_id].value
         sha1 = granule.identifiables[encoding_id].sha1 or None
@@ -231,7 +239,21 @@ class ReplayProcess(BaseReplayProcess):
         assert isinstance(granule1, StreamGranuleContainer), 'object is not a granule.'
         assert isinstance(granule2, StreamGranuleContainer), 'object is not a granule.'
 
+        assert granule1.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
+        assert granule2.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
         encoding_id = DefinitionTree.get(definition,'%s.encoding_id' % definition.data_stream_id)
+        pair1 = (
+            granule1.identifiables['time_bounds'].value_pair[0],
+            '%s.hdf5' % granule1.identifiables[encoding_id].sha1
+        )
+
+        pair2 = (
+            granule2.identifiables['time_bounds'].value_pair[0],
+            '%s.hdf5' % granule2.identifiables[encoding_id].sha1
+        )
+
+
+
 
         files = []
         if encoding_id in granule1.identifiables:
@@ -241,7 +263,7 @@ class ReplayProcess(BaseReplayProcess):
             if granule2.identifiables[encoding_id].sha1:
                 files.append('%s.hdf5' % granule2.identifiables[encoding_id].sha1)
 
-        element_count_id = DefinitionTree.get(definition, '%s.element_count_id' % definition.data_stream_id)
+        element_count_id = DefinitionTree.get(definition,'%s.element_count_id' % definition.data_stream_id)
         record_count = 0
         if element_count_id in granule1.identifiables:
             record_count += granule1.identifiables[element_count_id].value
@@ -295,20 +317,12 @@ class ReplayProcess(BaseReplayProcess):
         for item in del_list:
             del granule1.identifiables[item]
 
-        # generator = acquire_data(files, merged_paths.values(), record_count)
-        # genset = generator.next()['arrays_out_dict']
-        codec = HDFEncoder()
-        dataset = {}
-        for field in merged_paths.values():
 
-            # codec.add_hdf_dataset(field, genset[field])
-            codec.add_hdf_dataset(field, np.arange(0,record_count,dtype='float32'))
 
-        hdf_string = codec.encoder_close()
-        granule1.identifiables[definition.data_stream_id].values = hdf_string
-        granule1.identifiables[encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-
-        return granule1
+        return {
+            'granule':granule1,
+            'files':[pair1, pair2]
+            }
 
 
 
@@ -342,12 +356,27 @@ class ReplayProcess(BaseReplayProcess):
             i=0
         '''
         granule = None
+        file_list = list()
         count = len(msgs)
         for i in xrange(count):
             if i==0:
                 granule = msgs[0]['granule']
                 continue
-            granule = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=msgs[i]['granule'])
+            res = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=msgs[i]['granule'])
+            granule = res['granule']
+            file_list += res['files']
+            log.debug('File list is : %s' % file_list)
+
+        file_list.sort()
+        file_list = list(i[1] for i in file_list)
+        log.debug('Ultimate file_list: %s', file_list)
+
+        fields = self._list_data(self.definition,granule)
+        fields = list([i.split('/').pop() for i in fields.values()])
+
+        log.debug('Ultimate Fields: %s', fields)
+
+        data = acquire_data(file_list, fields, )
 
         return granule
 
@@ -358,15 +387,25 @@ class ReplayProcess(BaseReplayProcess):
 #            'sha1':sha1,
 #            }
 
+    def record_limit(self, granule, record_count):
+        '''
+        Yields a granule of at most n records
+        '''
+        element_count_id = self.element_count_id
+        records = granule.identifiables[element_count_id].value
+        start, stop = 0,0
+
+
+
     def subset(self,granule,coverages):
         '''
         returns a dataset subset based on the fields
 
         '''
         assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
-        field_ids = DefinitionTree.get(self.definition,'%s.element_type_id.data_record_id.field_ids' % self.definition.data_stream_id)
-        element_count_id = DefinitionTree.get(self.definition, '%s.element_count_id' % self.definition.data_stream_id)
-        encoding_id = DefinitionTree.get(self.definition,'%s.encoding_id' % self.definition.data_stream_id)
+        field_ids = self.field_ids
+        element_count_id = self.element_count_id
+        encoding_id = self.element_count_id
 
 
         values_path = list()
@@ -425,9 +464,6 @@ class ReplayProcess(BaseReplayProcess):
 
         assert os.path.exists(file_path), 'file didn\'t persist.'
         full_coverage = list(domain_ids + coverage_ids)
-
-
-
 
 
         log.debug('Full coverage: %s' % full_coverage)

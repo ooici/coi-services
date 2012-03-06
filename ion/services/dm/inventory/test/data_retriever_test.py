@@ -176,11 +176,11 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         # Second one is going to have 5 records
         psc = PointSupplementConstructor(point_definition=definition, stream_id=stream_id)
-        for i in xrange(5):
-            psc.add_point(time=i+1, location=(0,0,0))
-            psc.add_scalar_point_coverage(point_id=i, coverage_id='temperature', value=np.random.normal(loc=48.0,scale=4.0, size=1)[0])
-            psc.add_scalar_point_coverage(point_id=i, coverage_id='pressure', value=np.float32(1.0))
-            psc.add_scalar_point_coverage(point_id=i, coverage_id='conductivity', value=np.float32(2.0))
+        for i in xrange(5,11):
+            point_id = psc.add_point(time=i+1, location=(0,0,0))
+            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=np.random.normal(loc=48.0,scale=4.0, size=1)[0])
+            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=np.float32(1.0))
+            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=np.float32(2.0))
         granule = psc.close_stream_granule()
 
 
