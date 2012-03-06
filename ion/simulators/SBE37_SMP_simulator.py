@@ -114,7 +114,7 @@ class sbe37(asyncore.dispatcher_with_send):
 
             while True:
                 c = self.read_a_char()
-                print "GOT " + str(c)
+                #print "GOT " + str(c)
                 if c == None:
                     break
                 if c == '\n' or c == '':
