@@ -3,6 +3,7 @@
 @file ion/processes/data/replay_process.py
 @description Replay Process handling set manipulations for the DataModel
 '''
+import copy
 import hashlib
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.public import log
@@ -183,14 +184,53 @@ class ReplayProcess(BaseReplayProcess):
         records = dataset['records']
         segments = records / n
         for i in xrange(segments+1):
-            granule = PointSupplementConstructor(point_definition=self.definition, stream_id=self.stream_id)
-            for field in self.fields:
-                data = np.arange(i*segments,(i+1)*segments,dtype='float32')
-                for i in data:
-                    point_id = granule.add_point(time=i, location=(0,0,i))
-                    granule.add_scalar_point_coverage(point_id=point_id, coverage_id=field,value=data[i])
-            granule = granule.close_stream_granule()
-            yield granule
+            pass
+
+    def _slice(self,granule,slice_):
+        retval = copy.deepcopy(granule)
+        fields = self._list_data(self.definition,granule)
+        record_count = slice_.stop - slice_.start
+        assert record_count > 0, 'slice is malformed'
+        pairs = list()
+        for i in fields.values():
+            pairs.append((i.split('/').pop(),i))
+        var_names = list([i[0] for i in pairs])
+        log.debug('var_names: %s',var_names)
+        f = FileSystem.mktemp()
+        f.write(granule.identifiables[self.data_stream_id].values)
+        file_path = f.name
+        f.close()
+        codec = HDFEncoder()
+        vectors = acquire_data([file_path],var_names,record_count,slice_ ).next()
+
+        for row, value in vectors.iteritems():
+            vp = None
+            rang_id = ''
+            for pair in pairs:
+                if row == pair[0]:
+                    vp = pair[1]
+                    break
+            for field,path in fields.iteritems():
+                if vp==path:
+                    range_id = field
+                    break
+            bounds_id = retval.identifiables[range_id].bounds_id
+            log.debug('slice- row: %s', row)
+            log.debug('slice- value_path: %s', vp)
+            log.debug('slice- range_id: %s', range_id)
+            log.debug('slice- bounds_id: %s', bounds_id)
+            range = value['range']
+            retval.identifiables[bounds_id].value_pair[0] = float(range[0])
+            retval.identifiables[bounds_id].value_pair[1] = float(range[1])
+            log.debug('slice- limits: %s', value['range'])
+            codec.add_hdf_dataset(vp, value['values'])
+
+        retval.identifiables[self.element_count_id].value = record_count
+        hdf_string = codec.encoder_close()
+        retval.identifiables[self.data_stream_id].values = hdf_string
+        retval.identifiables[self.encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
+        return retval
 
 
     def _parse_granule(self, granule):
@@ -450,35 +490,8 @@ class ReplayProcess(BaseReplayProcess):
         log.debug('time_subset upper: %s', upper_index)
         fields = self._list_data(self.definition, granule)
         log.debug('time_subset fields: %s', fields)
-        codec = HDFEncoder()
-
-        pairs = list()
-        for i in fields.values():
-            pairs.append((i.split('/').pop(),i))
-        log.debug('Pairs: %s', pairs)
-
-        var_names = list([i[0] for i in pairs])
-        log.debug('var_names: %s', var_names)
-
-        f = FileSystem.mktemp()
-        f.write(granule.identifiables[self.data_stream_id].values)
-        file_path = f.name
-        f.close()
-
-        vector = acquire_data([file_path], var_names, (upper_index - lower_index), slice(lower_index, upper_index)).next()
-        for row,value in vector.iteritems():
-            vp = None
-            for pair in pairs:
-                if pair[0] == row:
-                    vp = pair[1]
-                    break
-            codec.add_hdf_dataset(vp, value['values'])
-            log.debug('field: %s', vp)
-            log.debug('values: %s', value['values'])
-        hdf_string = codec.encoder_close()
-        granule.identifiables[self.data_stream_id].values = hdf_string
-        granule.identifiables[self.encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-
+        granule = self._slice(granule, slice(lower,upper))
+        log.debug('time_subset identifiables: %s', granule.identifiables.keys())
         return granule
 
 

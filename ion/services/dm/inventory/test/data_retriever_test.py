@@ -158,7 +158,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.couch.create(definition)
 
-        total = 200
+        total = 40
         n = 10 # at most n records per granule
         i = 0
 
