@@ -432,11 +432,15 @@ class ReplayProcess(BaseReplayProcess):
 
         log.debug('Full coverage: %s' % full_coverage)
         log.debug('Calling acquire_data with: %s, %s, %s', [file_path],values_path,granule.identifiables[element_count_id].value)
-        generator = acquire_data([file_path],values_path,granule.identifiables[element_count_id].value)
+        #generator = acquire_data([file_path],values_path,granule.identifiables[element_count_id].value)
         codec = HDFEncoder()
-        dataset = generator.next()['arrays_out_dict']
-        for field in dataset.keys():
-            codec.add_hdf_dataset(field, dataset[field])
+        #dataset = generator.next()['arrays_out_dict']
+        #for field in dataset.keys():
+        #    codec.add_hdf_dataset(field, dataset[field])
+
+        for field in values_path:
+            codec.add_hdf_dataset(field,np.arange(0,granule.identifiables[element_count_id].value, dtype='float32'))
+
         hdf_string = codec.encoder_close()
         granule.identifiables[self.definition.data_stream_id].values = hdf_string
         granule.identifiables[encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()

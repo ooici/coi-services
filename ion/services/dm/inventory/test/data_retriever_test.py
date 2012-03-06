@@ -3,13 +3,6 @@
 @file ion/services/dm/inventory/test/data_retriever_test.py
 @description Testing Platform for Data Retriver Service
 '''
-
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from ion.processes.data.replay_process import llog, ReplayProcess
-from prototype.hdf.hdf_codec import HDFEncoder
-from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore
 from pyon.public import  StreamSubscriberRegistrar
@@ -19,7 +12,14 @@ from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.net.endpoint import Subscriber
-from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor, ProcessDefinition
+from pyon.public import CFG
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from ion.processes.data.replay_process import llog, ReplayProcess
+from prototype.hdf.hdf_codec import HDFEncoder
+from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
+from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor, ProcessDefinition, StreamGranuleContainer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -141,6 +141,14 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.tms_cli = TransformManagementServiceClient(node=self.container.node)
         self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
+        xs_dot_xp = CFG.core_xps.science_data
+        try:
+            self.XS, xp_base = xs_dot_xp.split('.')
+            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
+        self.thread_pool = list()
 
     def make_some_data(self):
         stream_id = 'I am very special'
@@ -185,9 +193,17 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.couch.create(granule)
 
+    def start_listener(self, stream_id, callback):
+
+        sub = Subscriber(name=(self.XP, 'replay_listener'), callback=callback)
+        g = gevent.Greenlet(sub.listen, binding='%s.data' % stream_id)
+        g.start()
+        self.thread_pool.append(g)
+
     def tearDown(self):
         super(DataRetrieverServiceIntTest,self).tearDown()
-
+        for greenlet in self.thread_pool:
+            greenlet.kill()
 
     def test_define_replay(self):
         self.make_some_data()
@@ -267,9 +283,25 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
         assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
+        result = gevent.event.AsyncResult()
+
+        def check_msg(msg, header):
+            assertions(isinstance(msg, StreamGranuleContainer), 'Msg is not a container')
+            hdf_string = msg.identifiables[msg.data_stream_id].values
+            sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+            log.debug('Sha1 matches')
+            log.debug('Dumping file so you can inspect it.')
+            log.debug('Records: %d' % msg.identifiables['record_count'].value)
+            with open(FileSystem.get_url(FS.TEMP,'%s.cap.hdf5' % sha1[:8]),'w') as f:
+                f.write(hdf_string)
+                log.debug('Stream Capture: %s', f.name)
+            result.set(True)
+
+        self.start_listener(stream_id=stream_id, callback=check_msg)
+
         dr_cli.start_replay(replay_id=replay_id)
 
-        time.sleep(0.5)
+        assertions(result.get(timeout=3), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
         assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
