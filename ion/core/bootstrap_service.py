@@ -19,6 +19,8 @@ class BootstrapService(BaseBootstrapService):
     This service is triggered for each boot level.
     """
 
+    process_type = "immediate"      # bootstrap inits/starts only, not a running process/service
+
     def on_init(self):
         log.info("Bootstrap service INIT: System init")
         self.system_actor_id = None
