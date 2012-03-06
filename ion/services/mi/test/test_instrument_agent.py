@@ -28,6 +28,7 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 from pyon.public import CFG
+from mock import patch
 
 import time
 import unittest
@@ -48,6 +49,7 @@ class FakeProcess(LocalContextMixin):
     
 #@unittest.skip('Do not run hardware test.')
 @attr('HARDWARE', group='mi')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
     Test cases for instrument agent class. Functions in this class provide
