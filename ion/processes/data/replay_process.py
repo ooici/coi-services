@@ -429,7 +429,7 @@ class ReplayProcess(BaseReplayProcess):
         assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
         field_ids = self.field_ids
         element_count_id = self.element_count_id
-        encoding_id = self.element_count_id
+        encoding_id = self.encoding_id
 
 
         values_path = list()
@@ -498,8 +498,26 @@ class ReplayProcess(BaseReplayProcess):
         #for field in dataset.keys():
         #    codec.add_hdf_dataset(field, dataset[field])
 
+        path_obj = list()
         for field in values_path:
-            codec.add_hdf_dataset(field,np.arange(0,granule.identifiables[element_count_id].value, dtype='float32'))
+            path_obj.append((field.split('/').pop(),field))
+        # now path_obj is a list of tupple pairs [0] is the var_name [1] is the values path
+
+        var_names = list(i[0] for i in path_obj)
+        log.debug('subset var_names: %s', var_names)
+        record_count = granule.identifiables[self.element_count_id].value
+        data = acquire_data([file_path], var_names, record_count).next()
+        for row,value in data.iteritems():
+            log.debug('subset row: %s', row)
+            vp = None
+            for pair in path_obj:
+                if pair[0] == row:
+                    vp = pair[1]
+                    break
+            codec.add_hdf_dataset(vp, value['values'])
+            log.debug('values: %s', value['values'])
+
+
 
         hdf_string = codec.encoder_close()
         granule.identifiables[self.definition.data_stream_id].values = hdf_string
