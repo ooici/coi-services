@@ -7,7 +7,7 @@ __license__ = 'Apache 2.0'
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, Container
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 
@@ -197,8 +197,7 @@ class PolicyManagementService(BasePolicyManagementService):
 
     def _get_policy_template(self):
 
-        policy_template = '''
-        <?xml version="1.0" encoding="UTF-8"?>
+        policy_template = '''<?xml version="1.0" encoding="UTF-8"?>
         <Policy xmlns="urn:oasis:names:tc:xacml:2.0:policy:schema:os"
             xmlns:xacml-context="urn:oasis:names:tc:xacml:2.0:context:schema:os"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -212,8 +211,8 @@ class PolicyManagementService(BasePolicyManagementService):
             </PolicyDefaults>
 
             %s
-        </Policy>
-        '''
+        </Policy>'''
+
         return policy_template
 
 
@@ -258,7 +257,8 @@ class PolicyManagementService(BasePolicyManagementService):
             raise BadRequest("The name parameter is missing")
 
         service_resource = self._find_service_resource_by_name(service_name)
-        return self.add_resource_policy(service_resource._id,policy_id )
+        aid = self.add_resource_policy(service_resource._id,policy_id )
+        return aid
 
 
     def remove_service_policy(self, service_name='', policy_id=''):
