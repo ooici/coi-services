@@ -27,7 +27,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
 
     def on_quit(self):
-        self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
+        #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
 
     def define_replay(self, dataset_id='', query=None, delivery_format=None):
