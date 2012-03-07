@@ -27,8 +27,8 @@ import unittest
 class FakeProcess(LocalContextMixin):
     name = ''
 
-@attr('INT', group='sa')
-@unittest.skip('not working')
+@attr('INT', group='mmm')
+#@unittest.skip('not working')
 class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -112,7 +112,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestIntDataProcessManagementService: create_data_process start")
         try:
-            dproc_id = self.Processclient.create_data_process(dprocdef_id, input_dp_id, output_dp_id)
+            dproc_id = self.Processclient.create_data_process(dprocdef_id, input_dp_id, {"out":output_dp_id})
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -130,27 +130,27 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         #self.ctd_stream1_publisher = StreamPublisher(node=self.container.node, name=('science_data',stream_route.routing_key), process=self.container)
 
 
-        pid = self.container.spawn_process(name='dummy_process_for_test',
-            module='pyon.ion.process',
-            cls='SimpleProcess',
-            config={})
-        dummy_process = self.container.proc_manager.procs[pid]
-
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
-        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.in_stream_id)
-
-        msg = {'num':'3'}
-        self.ctd_stream1_publisher.publish(msg)
-
-        time.sleep(1)
-
-        msg = {'num':'5'}
-        self.ctd_stream1_publisher.publish(msg)
-
-        time.sleep(1)
-
-        msg = {'num':'9'}
-        self.ctd_stream1_publisher.publish(msg)
+#        pid = self.container.spawn_process(name='dummy_process_for_test',
+#            module='pyon.ion.process',
+#            cls='SimpleProcess',
+#            config={})
+#        dummy_process = self.container.proc_manager.procs[pid]
+#
+#        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
+#        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.in_stream_id)
+#
+#        msg = {'num':'3'}
+#        self.ctd_stream1_publisher.publish(msg)
+#
+#        time.sleep(1)
+#
+#        msg = {'num':'5'}
+#        self.ctd_stream1_publisher.publish(msg)
+#
+#        time.sleep(1)
+#
+#        msg = {'num':'9'}
+#        self.ctd_stream1_publisher.publish(msg)
 
         # See /tmp/transform_output for results.....
 

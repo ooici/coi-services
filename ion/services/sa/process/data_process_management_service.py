@@ -86,7 +86,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_def_list , _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, None, True)
         return data_process_def_list
 
-    def create_data_process(self, data_process_definition_id='', in_data_product_id='', out_data_product_id=''):
+
+
+    def create_data_process(self, data_process_definition_id='', in_data_product_id='', out_data_products=None):
         """
         @param  data_process_definition_id: Object with definition of the
                     transform to apply to the input data product
@@ -95,16 +97,16 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval data_process_id: ID of the newly created data process object
         """
 
+    #
         #
         #
-        #
-        #todo: break this method up into: 1. create data process, 2. assign in/out products, 3. activate data proces
+        #todo: break this method up into: 1. create data process, 2. assign in/out products, 3. activate data process
         #
         #
         #
         inform = "Input Data Product:       "+str(in_data_product_id)+\
                  "Transformed by:           "+str(data_process_definition_id)+\
-                 "To create output Product: "+str(out_data_product_id)
+                 "To create output Product: "+str(out_data_products)
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
 
@@ -113,8 +115,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
 
         data_process_name = "process_" + data_process_def_obj.name \
-                            + " - calculates " + \
-                            str(out_data_product_id) + time.ctime()
+                             + time.ctime()
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
@@ -124,28 +125,40 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
         log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s", str(data_producer_id) )
 
-        #Assign the output Data Product to this producer resource
-        #todo: check that the product is not already associated with a producer
+
+        self.output_stream_dict = {}
         #TODO: should this be outside this method? Called by orchastration?
-        self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
+        for name, out_data_product_id in out_data_products.iteritems():
+
+            # check that the product is not already associated with a producer
+            producer_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+            if producer_ids:
+                raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDtaProducer %s", str(data_process_id), str(producer_ids[0]))
+
+            #Assign each output Data Product to this producer resource
+            out_data_product_obj = self.clients.resource_registry.read(out_data_product_id)
+            if not out_data_product_obj:
+                raise NotFound("Output Data Product %s does not exist" % out_data_product_id)
+            # register as an output product for this process
+            self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
+
+            # Retrieve the id of the OUTPUT stream from the out Data Product
+            stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
+
+            log.debug("DataProcessManagementService:create_data_process retrieve out data prod streams: %s", str(stream_ids))
+            if not stream_ids:
+                raise NotFound("No Stream created for output Data Product " + str(out_data_product_id))
+            if len(stream_ids) != 1:
+                raise BadRequest("Data Product should only have ONE stream at this time" + str(out_data_product_id))
+            self.output_stream_dict[name] = stream_ids[0]
+            log.debug("DataProcessManagementService:create_data_process -Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream  out_stream_id: " +  str(self.output_stream_dict[name]))
+
 
         # Associate with dataProcess
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
 
         #Todo: currently this is handled explicitly after creating the dat product, that code then calls DMAS:assign_data_product
         self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
-
-        # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
-
-        log.debug("DataProcessManagementService:create_data_process retrieve out data prod streams: %s", str(stream_ids))
-        if not stream_ids:
-            raise NotFound("No Stream created for output Data Product " + str(out_data_product_id))
-        if len(stream_ids) != 1:
-            raise BadRequest("Data Product should only have ONE stream at this time" + str(out_data_product_id))
-        out_stream_id = stream_ids[0]
-        log.debug("DataProcessManagementService:create_data_process -Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream  out_stream_id: " +  str(out_stream_id))
-
 
         #-------------------------------
         # Create subscription from in_data_product, which should already be associated with a stream via the Data Producer
@@ -180,7 +193,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # add the subscription id to the resource for clean up later
         data_process_obj = self.clients.resource_registry.read(data_process_id)
-        data_process_obj.input_subscription_id = self.input_subscription_id;
+        data_process_obj.input_subscription_id = self.input_subscription_id
         self.clients.resource_registry.update(data_process_obj)
 
 
@@ -195,13 +208,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Launch the first transform process
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process: ")
         log.debug("DataProcessManagementService:create_data_process - input_subscription_id: "   +  str(self.input_subscription_id) )
-        log.debug("DataProcessManagementService:create_data_process - out_stream_id: "   +  str(out_stream_id) )
+        log.debug("DataProcessManagementService:create_data_process - out_stream_id: "   +  str(self.output_stream_dict) )
         log.debug("DataProcessManagementService:create_data_process - transform_definition_id: "   +  str(transform_definition_id) )
         log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
 
+
+
         transform_id = self.clients.transform_management.create_transform( name=data_process_id, description=data_process_id,
                            in_subscription_id=self.input_subscription_id,
-                           out_streams={'output':out_stream_id},
+                           out_streams=self.output_stream_dict,
                            process_definition_id=transform_definition_id,
                            configuration={})
 
@@ -219,6 +234,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.transform_management.activate_transform(transform_id)
 
         return data_process_id
+
 
     def update_data_process(self,):
         #todo: What are valid ways to update a data process?.
