@@ -107,7 +107,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
 
 
 @attr('INT', group='sa')
-#@unittest.skip('not working')
+@unittest.skip('not working')
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):

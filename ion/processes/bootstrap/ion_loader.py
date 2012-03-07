@@ -175,7 +175,11 @@ class IONLoader(ImmediateProcess):
         self._register_id(row[self.COL_ID], site_id)
 
         mf_id = row["marine_facility_id"]
-        mfms.assign_site_to_marine_facility(site_id, self.resource_ids[mf_id])
+        psite_id = row["parent_site_id"]
+        if mf_id:
+            mfms.assign_site_to_marine_facility(site_id, self.resource_ids[mf_id])
+        elif psite_id:
+            mfms.assign_site_to_site(site_id, self.resource_ids[psite_id])
 
     def _load_logical_platform(self, row):
         log.info("Loading LogicalPlatform")
