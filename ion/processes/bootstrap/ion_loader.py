@@ -45,12 +45,12 @@ class IONLoader(ImmediateProcess):
 
         log.info("Start preloading from path=%s" % path)
         categories = ['User',
-#                      'MarineFacility',
-#                      'Site',
-#                      'LogicalPlatform',
-#                      'LogicalInstrument',
-#                      'PlatformModel',
-#                      'InstrumentModel',
+                      'MarineFacility',
+                      'Site',
+                      'LogicalPlatform',
+                      'LogicalInstrument',
+                      'PlatformModel',
+                      'InstrumentModel',
                       'StreamDefinition',
                       'DataProcessDefinition',
                       'DataProduct',
@@ -149,8 +149,8 @@ class IONLoader(ImmediateProcess):
         self.obj_classes[objtype] = obj_class
         return obj_class
 
-    def _get_typed_value(self, value, schema_entry):
-        targettype = schema_entry["type"]
+    def _get_typed_value(self, value, schema_entry=None, targettype=None):
+        targettype = targettype or schema_entry["type"]
         if targettype is 'str':
             return str(value)
         if value.lower() == 'false':
@@ -161,7 +161,7 @@ class IONLoader(ImmediateProcess):
             if value.startswith('[') and value.endswith(']'):
                 value = value[1:len(value)-1]
             return list(value.split(','))
-        elif 'enum_type' in schema_entry:
+        elif schema_entry and 'enum_type' in schema_entry:
             enum_clzz = getattr(objects, schema_entry['enum_type'])
             return enum_clzz._value_map[value]
 #        elif targettype is 'dicteval':
@@ -296,14 +296,13 @@ class IONLoader(ImmediateProcess):
         res_id = svc_client.create_data_process_definition(res_obj)
         self._register_id(row[self.COL_ID], res_id)
 
-        # TODO: Do something with stream defs
         input_strdef = row["input_stream_defs"]
         if input_strdef:
-            input_strdef = self._get_typed_value(input_strdef, "list")
+            input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
 
         output_strdef = row["output_stream_defs"]
         if output_strdef:
-            output_strdef = self._get_typed_value(output_strdef, "list")
+            output_strdef = self._get_typed_value(output_strdef, targettype="simplelist")
 
         # TODO: How to assign stream defs?
 
@@ -327,67 +326,11 @@ class IONLoader(ImmediateProcess):
         in_data_product_id = self.resource_ids[row["in_data_product_id"]]
         out_data_products = row["out_data_products"]
         if out_data_products:
-            outprodids = []
-            for out_prod in self._get_typed_value(out_data_products, "list"):
-                outprodids.append(self.resource_ids[out_prod])
-            out_data_products = outprodids
+            out_data_products = self._get_typed_value(out_data_products, targettype="dict")
+            for name, dp_id in out_data_products.iteritems():
+                out_data_products[name] = self.resource_ids[dp_id]
 
         svc_client = self._get_service_client("data_process_management")
 
         res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products)
         self._register_id(row[self.COL_ID], res_id)
-
-    def preload_data_processes(self, resource_ids, data_process_csv, tag):
-
-        with open(data_process_csv, "rb") as csvfile:
-            reader = self._get_csv_reader(csvfile)
-
-            resource_ids[RT.DataProcess] = {}
-            for row in reader:
-                for x in [PR_DEF, PR_INPUT]:
-                    if not x in row:
-                        raise BadRequest("%s not defined for DataProcess row" % x)
-
-                friendly_id = self._get_id(row, RT.DataProcess, resource_ids)
-
-                row, tag_matched = self._check_tag(row, tag)
-                if not tag_matched:
-                    resource_ids[RT.DataProcess][friendly_id] = None
-                    continue
-
-                # get any matching data products
-                out_products = []
-                for f in sorted(row.keys()):
-                    if f[:len(PR_OUTPUT)] == PR_OUTPUT:
-                        v = row[f]
-                        real_id = resource_ids[RT.DataProduct][v]
-                        out_products.append(real_id)
-
-                if None in out_products:
-                    continue
-
-                if False: #"service gateway disabled because container can't be jsonified":
-                    #response = self.pubsub_client.create_stream_definition(container=container,
-                    #                                                       name=row["name"],
-                    #                                                       description=row["description"])
-                    #resource_ids[RT.DataProcess][friendly_id] = response
-                    pass
-                else:
-                    #build payload
-                    post_data = self._service_request_template()
-                    post_data['serviceRequest']['serviceName'] = "data_process_management"
-                    post_data['serviceRequest']['serviceOp'] = "create_data_process"
-                    post_data['serviceRequest']['params']["data_process_definition_id"] = resource_ids[RT.DataProcessDefinition][row[PR_DEF]]
-                    post_data['serviceRequest']['params']["in_data_product_id"] = resource_ids[RT.DataProduct][row[PR_INPUT]]
-                    post_data['serviceRequest']['params']["out_data_products"] = out_products
-
-
-                    self.log.debug("posting this:\n%s\n" % str(post_data))
-                    response = self._do_service_call("data_process_management",
-                        "create_data_process",
-                        post_data)
-
-
-                    resource_ids[RT.DataProcess][friendly_id] = response
-
-        return resource_ids
