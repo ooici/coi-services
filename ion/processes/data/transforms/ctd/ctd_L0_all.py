@@ -84,35 +84,33 @@ class ctd_L0_all(TransformDataProcess):
         log.warn('Got pressure: %s' % str(pressure))
         log.warn('Got temperature: %s' % str(temperature))
 
+    
+
         # do L0 scaling here.....
 
 
         # Use the constructor to put data into a granule
 
-        #point_def = ctd_stream_definition(stream_id=stream_id)
-        #point_constructor = PointSupplementConstructor(point_definition=point_def)
+        psc_conductivity = PointSupplementConstructor(point_definition=self.outgoing_stream_conductivity)
 
+        psc_pressure = PointSupplementConstructor(point_definition=self.outgoing_stream_pressure)
 
-#        psc_conductivity = PointSupplementConstructor(stream_id="stream_id_conduct", point_definition=self.outgoing_stream_conductivity)
-#
-#        psc_pressure = PointSupplementConstructor(stream_id="stream_id_pressure", point_definition=self.outgoing_stream_pressure)
-#
-#        psc_temperature = PointSupplementConstructor(stream_id="stream_id_temperature", point_definition=self.outgoing_stream_temperature)
-#
-#        for i in xrange(len(conductivity)):
-#            point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-#            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=Decimal(conductivity[i]))
-#        self.outgoing_stream_conductivity.publish(psc_conductivity.close_stream_granule())
-#
-#        for i in xrange(len(pressure)):
-#            point_id = psc_pressure.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-#            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=Decimal(pressure[i]))
-#        self.outgoing_stream_pressure.publish(psc_pressure.close_stream_granule())
-#
-#        for i in xrange(len(temperature)):
-#            point_id = psc_temperature.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-#            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=Decimal(temperature[i]))
-#        self.outgoing_stream_temperature.publish(psc_temperature.close_stream_granule())
+        psc_temperature = PointSupplementConstructor(point_definition=self.outgoing_stream_temperature)
+
+        for i in xrange(len(conductivity)):
+            point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=Decimal(conductivity[i]))
+        self.conductivity.publish(psc_conductivity.close_stream_granule())
+
+        for i in xrange(len(pressure)):
+            point_id = psc_pressure.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=Decimal(pressure[i]))
+        self.pressure.publish(psc_pressure.close_stream_granule())
+
+        for i in xrange(len(temperature)):
+            point_id = psc_temperature.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=Decimal(temperature[i]))
+        self.temperature.publish(psc_temperature.close_stream_granule())
 
         return
 

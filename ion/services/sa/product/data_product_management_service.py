@@ -175,6 +175,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
         #todo: does DPMS need to save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
+
+
         return
 
     def suspend_data_product_persistence(self, data_product_id=''):
@@ -191,10 +193,21 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise NotFound("Data Product %s does not exist" % data_product_id)
         if data_product_obj.ingestion_configuration_id is None:
             raise NotFound("Data Product %s ingestion configuration does not exist" % data_product_id)
+        if data_product_obj.dataset_configuration_id is None:
+            raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
-        # Change the stream policy to stop ingestion
-        log.debug("suspend_data_product_persistence: calling deactivate with ingestion_configuration_id %s"  % str(data_product_obj.ingestion_configuration_id))
-        ret = self.clients.ingestion_management.deactivate_ingestion_configuration(data_product_obj.ingestion_configuration_id)
+
+        #retrieve the dataset configuation object so that attrs can be changed
+        dataset_configuration_obj = self.clients.resource_registry.read(data_product_obj.dataset_configuration_id)
+        if dataset_configuration_obj is None:
+            raise NotFound("Dataset Configuration %s does not exist" % data_product_obj.dataset_configuration_id)
+
+        #Set the dataset config archive data/metadata attrs to false
+        dataset_configuration_obj.archive_data = False
+        dataset_configuration_obj.archive_metadata = False
+
+        ret = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
+
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
 
         return
