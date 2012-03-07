@@ -89,7 +89,9 @@ class TestLCASA(IonIntegrationTestCase):
     def test_lca_step_1_to_6(self):
         c = self.client
 
-        inst_model_impl = InstrumentModelImpl({"resource_registry": self.client.RR})
+        c2 = DotDict()
+        c2.resource_registry = self.client.RR
+        inst_model_impl = InstrumentModelImpl(c2)
         
         def find_instrument_model_by_stream_definition(stream_definition_id):
             return inst_model_impl.find_having_stream_definition(stream_definition_id)
