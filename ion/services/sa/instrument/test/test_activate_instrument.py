@@ -53,8 +53,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='mmm')
-#@unittest.skip('not working')
+@attr('INT', group='HARDWARE')
+@unittest.skip('requires SBE37 simulator which is not working in buildbot env, run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -150,7 +150,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         print 'Creating new data product with a stream definition'
-        dp_obj = IonObject(RT.DataProduct,name='ctd parsed stream',description='ctd stream test')
+        dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
         try:
             data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
         except BadRequest as ex:
@@ -167,7 +167,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         print 'Creating new data product with a stream definition'
-        dp_obj = IonObject(RT.DataProduct,name='raw stream',description='raw stream test')
+        dp_obj = IonObject(RT.DataProduct,name='ctd_raw',description='raw stream test')
         try:
             data_product_id2 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
         except BadRequest as ex:

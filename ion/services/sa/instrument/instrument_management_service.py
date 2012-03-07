@@ -368,15 +368,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
 
-        out_streams = []
+        out_streams = {}
         #retrieve the output products
         data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
         if not data_product_ids:
             raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
 
         for product_id in data_product_ids:
-            stream_ids = self.data_product.find_stemming_stream(product_id)
+            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
 
+            log.debug("activate_instrument:output stream ids: %s"  +  str(stream_ids))
             #One stream per product ...for now.
             if not stream_ids:
                 raise NotFound("No Stream  attached to this Data Product " + str(product_id))
@@ -389,11 +390,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise NotFound("Stream %s does not exist" % stream_ids[0])
 
             log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
-            out_streams.append(stream_ids[0])
+            out_streams[stream_obj.name] = stream_ids[0]
 
 
         #todo: how to tell which prod is raw and which is parsed? Check the name?
-        stream_config = {"ctd_raw":out_streams[1], "ctd_parsed":out_streams[0]}
+        stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
         # Driver configuration.
         driver_config = {
             'svr_addr': instrument_agent_instance.svr_addr, 
