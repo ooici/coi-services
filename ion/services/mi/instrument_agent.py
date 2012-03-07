@@ -236,18 +236,20 @@ class InstrumentAgent(ResourceAgent):
     ###############################################################################
     
     def telnet_input_processor(self, data):
-        # callback passed to DA Server for receiving input server       
+        # callback passed to DA Server for receiving input from server       
         if isinstance(data, int):
             # not character data, so check for lost connection
             if data == -1:
-                print ("InstAgent.telnetInputProcessor: connection lost")
-                self.lost_connection = True
+                log.info("InstAgent.telnetInputProcessor: connection lost")
+                self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
             else:
-                print ("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
+                log.error("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
             return
-        print ("InstAgent.telnetInputProcessor: data = " + str(data) + " len=" + str(len(data)))
-        self.da_server.send("InstAgent.telnetInputProcessor() rcvd: " + data + chr(10))
+        log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
+        # send the data to the driver
+        self._dvr_client.cmd_dvr('execute_direct_access', data + chr(13) + chr(10))
             
+
     ###############################################################################
     # Event callback and handling.
     ###############################################################################
@@ -272,6 +274,8 @@ class InstrumentAgent(ResourceAgent):
                     self._data_publishers[name].publish(packet)        
                     log.info('Instrument agent %s published data packet.',
                              self._proc_name)
+            if evt['type'] == 'direct_access':
+                self.da_server.send(evt['value'])
                     
         except (KeyError, TypeError) as e:
             pass
@@ -823,13 +827,17 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_observatory_go_direct_access(self,  *args, **kwargs):
         """
-        Handler for go_direct_access agent ommand in observatory state.
+        Handler for go_direct_access agent command in observatory state.
         """
         result = None
         next_state = None
         
         log.info("Instrument agent requested to go to direct access mode")
+        # tell driver to start direct access mode
+        result = self._dvr_client.cmd_dvr('start_direct_access')
+        # create a DA server instance (TODO: just telnet for now) and pass in callback method
         self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor)
+        # get the connection info from the DA server
         addr, port, name, password = self.da_server.get_connection_info()
         result = {'ip_address':addr, 'port':port, 'username':name, 'password':password}
         next_state = InstrumentAgentState.DIRECT_ACCESS
@@ -958,6 +966,9 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
+        # tell driver to stop direct access mode
+        result = self._dvr_client.cmd_dvr('stop_direct_access')
+        # stop and delete DA server
         self.da_server.stop()
         del self.da_server
         next_state = InstrumentAgentState.OBSERVATORY

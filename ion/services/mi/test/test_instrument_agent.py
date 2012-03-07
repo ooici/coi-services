@@ -271,7 +271,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='go_direct_access')
         retval = self._ia_client.execute_agent(cmd) 
         print("retval=" + str(retval))       
-        time.sleep(20)
+        time.sleep(2)
 
         print("test go_ob")
         cmd = AgentCommand(command='go_observatory')
