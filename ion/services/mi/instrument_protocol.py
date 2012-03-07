@@ -421,6 +421,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             count += 1
             self._send_wakeup()
             time.sleep(1.5)
+            
 
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
