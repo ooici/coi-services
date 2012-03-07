@@ -204,14 +204,17 @@ class PreloadCSV(object):
                     continue
 
                 # get any matching data products
-                out_products = []
+                out_products = {}
                 for f in sorted(row.keys()):
                     if f[:len(PR_OUTPUT)] == PR_OUTPUT:
                         v = row[f]
-                        real_id = resource_ids[RT.DataProduct][v]
-                        out_products.append(real_id)
+                        if "" != v:
+                            self.log.debug("fake id for %s is %s" % (f, v))
+                            real_id = resource_ids[RT.DataProduct][v]
+                            out_products[f] = real_id
 
-                if None in out_products:
+                        
+                if None in out_products.values():
                     continue
 
                 if False: #"service gateway disabled because container can't be jsonified":
