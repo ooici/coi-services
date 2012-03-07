@@ -93,7 +93,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @param  data_process_definition_id: Object with definition of the
                     transform to apply to the input data product
         @param  in_data_product_id: ID of the input data product
-        @param  out_data_product_id: ID of the output data product
+        @param  out_data_products: list of IDs of the output data products
         @retval data_process_id: ID of the newly created data process object
         """
 

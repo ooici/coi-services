@@ -27,7 +27,7 @@ from ion.services.sa.preload.preload_csv import PreloadCSV
 import sys
 log = DotDict()
 printout = sys.stderr.write
-printout = lambda x: None
+#printout = lambda x: None
 
 log.debug = lambda x: printout("DEBUG: %s\n" % x)
 log.info = lambda x: printout("INFO: %s\n" % x)

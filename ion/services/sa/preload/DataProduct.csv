@@ -3,3 +3,4 @@ LCA,prod1,CTDBP-1012-REC1 Raw Endurance OR Offshore Benthic Pkg ,Raw stream from
 LCA,prod2,CTDBP-1012-REC1 Parsed Endurance OR Offshore Benthic Pkg ,Parsed Stream from SBE37 simulator,,,<calculated>,,OOI,,<calculated>,,,Parsed_Canonical,,0,,,,,,Public,,,,,,StreamDef2
 DEBUG,prod3,Sea_water_electrical_conductivity L0 Endurance OR Offshore Benthic Pkg,OOI Core L0 Conductivity Data Product from the Endurance OR Offshore Benthic Pkg Site,,,,,OOI,,<calculated>,,,L0,,0,,,,,,Public,,,,,,StreamDef3
 DEBUG,prod4,Sea_water_conservative_temperature L0 Endurance OR Offshore Benthic Pkg,OOI Core L0 Temperature Data Product from the Endurance OR Offshore Benthic Pkg Site,,,,,OOI,,<calculated>,,,L0,,0,,,,,,Public,,,,,,StreamDef4
+DEBUG,prod5,Sea_water_conservative_temperature L0 Endurance OR Offshore Benthic Pkg 2,duplicate OOI Core L0 Temperature Data Product from the Endurance OR Offshore Benthic Pkg Site,,,,,OOI,,<calculated>,,,L0,,0,,,,,,Public,,,,,,StreamDef4

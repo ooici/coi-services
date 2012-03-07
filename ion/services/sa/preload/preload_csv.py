@@ -21,7 +21,7 @@ DP_KEYWORDS_DELIM = ";"
 
 PR_DEF = "data_process_definition_id"
 PR_INPUT = "input_data_product_id"
-PR_OUTPUT = "output_data_product_id1"
+PR_OUTPUT = "output_data_product_id"
 
 class PreloadCSV(object):
     
@@ -192,7 +192,7 @@ class PreloadCSV(object):
 
             resource_ids[RT.DataProcess] = {}
             for row in reader:
-                for x in [PR_DEF, PR_INPUT, PR_OUTPUT]:
+                for x in [PR_DEF, PR_INPUT]:
                     if not x in row:
                         raise BadRequest("%s not defined for DataProcess row" % x)
 
@@ -201,6 +201,17 @@ class PreloadCSV(object):
                 row, tag_matched = self._check_tag(row, tag)
                 if not tag_matched:
                     resource_ids[RT.DataProcess][friendly_id] = None
+                    continue
+
+                # get any matching data products
+                out_products = []
+                for f in sorted(row.keys()):
+                    if f[:len(PR_OUTPUT)] == PR_OUTPUT:
+                        v = row[f]
+                        real_id = resource_ids[RT.DataProduct][v]
+                        out_products.append(real_id)
+
+                if None in out_products:
                     continue
 
                 if False: #"service gateway disabled because container can't be jsonified":
@@ -216,12 +227,14 @@ class PreloadCSV(object):
                     post_data['serviceRequest']['serviceOp'] = "create_data_process"
                     post_data['serviceRequest']['params']["data_process_definition_id"] = resource_ids[RT.DataProcessDefinition][row[PR_DEF]]
                     post_data['serviceRequest']['params']["in_data_product_id"] = resource_ids[RT.DataProduct][row[PR_INPUT]]
-                    post_data['serviceRequest']['params']["out_data_product_id"] = resource_ids[RT.DataProduct][row[PR_OUTPUT]]
+                    post_data['serviceRequest']['params']["out_data_products"] = out_products
 
-
+                    
+                    self.log.debug("posting this:\n%s\n" % str(post_data))
                     response = self._do_service_call("data_process_management", 
                                                      "create_data_process",
                                                      post_data)
+
 
                     resource_ids[RT.DataProcess][friendly_id] = response
                     

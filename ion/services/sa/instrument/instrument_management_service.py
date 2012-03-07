@@ -346,14 +346,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not agent_ids:
             raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
 
-        instrument_agent_id = agent_ids[0]
-        log.debug("activate_instrument:instrument_agent %s"  +  str(instrument_agent_id))
+        log.debug("Getting instrument agent '%s'" % agent_ids[0])
 
         # retrieve the instrument agent information
-        instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
-        if not instrument_agent_obj:
-            raise NotFound("InstrumentAgent %s does not exist" % instrument_agent_id)
-
+        instrument_agent_obj = self.clients.resource_registry.read(agent_ids[0])
 
         #retrieve the asssociated proces definition
         process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
@@ -464,6 +460,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
         instrument_device_id = self.instrument_device.create_one(instrument_device)
+
+        #register the instrument as a data producer
+        self.DAMS.register_instrument(instrument_device_id)
 
         return instrument_device_id
 
