@@ -21,6 +21,7 @@ import os.path
 
 from pyon.public import CFG, log, ImmediateProcess, iex, sys_name
 from pyon.datastore.datastore import DatastoreManager
+from pyon.core.bootstrap import get_sys_name
 
 class DatastoreAdmin(ImmediateProcess):
     """
@@ -36,7 +37,7 @@ class DatastoreAdmin(ImmediateProcess):
         op = self.CFG.get("op", None)
         datastore = self.CFG.get("datastore", None)
         path = self.CFG.get("path", None)
-        prefix = self.CFG.get("prefix", sys_name)
+        prefix = self.CFG.get("prefix", get_sys_name())
         log.info("DatastoreLoader: {op=%s, datastore=%s, path=%s, prefix=%s}" % (op, datastore, path, prefix))
         if op:
             if op == "load":
