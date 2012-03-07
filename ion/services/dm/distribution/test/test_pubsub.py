@@ -18,6 +18,7 @@ from nose.plugins.attrib import attr
 import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum, StreamDefinition, StreamDefinitionContainer
 from pyon.util.containers import DotDict
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 
 @attr('UNIT', group='dm1')
@@ -671,6 +672,36 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.assertEqual(str(ex), '2 seconds')
         self.assertEqual(p, None)
 
+    def test_find_stream_definition(self):
+        definition = SBE37_CDM_stream_definition()
+        definition_id = self.pubsub_cli.create_stream_definition(container=definition)
+        stream_id = self.pubsub_cli.create_stream(stream_definition_id=definition_id)
+
+        res_id = self.pubsub_cli.find_stream_definition(stream_id=stream_id, id_only=True)
+        self.assertTrue(res_id==definition_id, 'The returned id did not match the definition_id')
+
+        res_obj = self.pubsub_cli.find_stream_definition(stream_id=stream_id, id_only=False)
+        self.assertTrue(isinstance(res_obj.container, StreamDefinitionContainer),
+            'The container object is not a stream definition.')
+
+    def test_strem_def_not_found(self):
+
+        with self.assertRaises(NotFound):
+            self.pubsub_cli.find_stream_definition(stream_id='nonexistent')
+
+        definition = SBE37_CDM_stream_definition()
+        definition_id = self.pubsub_cli.create_stream_definition(container=definition)
+
+        with self.assertRaises(NotFound):
+            self.pubsub_cli.find_stream_definition(stream_id='nonexistent')
+
+        stream_id = self.pubsub_cli.create_stream()
+
+        with self.assertRaises(NotFound):
+            self.pubsub_cli.find_stream_definition(stream_id=stream_id)
+
+
+        
 
     @unittest.skip("Nothing to test")
     def test_bind_already_bound_subscription(self):
