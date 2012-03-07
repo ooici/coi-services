@@ -158,7 +158,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.couch.create(definition)
 
-        total = 40
+        total = 100
         n = 10 # at most n records per granule
         i = 0
 
@@ -304,7 +304,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         cc = self.container
 
         dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
-        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature'], 'time':(1,4)})
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature'], 'time':(1,71),'records':10})
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id

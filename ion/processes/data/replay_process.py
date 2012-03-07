@@ -127,17 +127,15 @@ class ReplayProcess(BaseReplayProcess):
         if self.delivery_format.has_key('time'):
             granule = self.time_subset(granule, self.delivery_format['time'])
 
+        if self.delivery_format.has_key('records'):
+            assert isinstance(self.delivery_format['records'], int), 'delivery format is incorrectly formatted.'
 
-        element_count_id = self.element_count_id
-        encoding_id = self.encoding_id
-        record_count = granule.identifiables[element_count_id].value
-        sha1 = granule.identifiables[encoding_id].sha1
-        # regardless of what anyone wants at first the entire dataset is going
+            for chunk in self._records(granule,self.delivery_format['records']):
+                self.lock.acquire()
+                self.output.publish(chunk)
+                self.lock.release()
+            return
 
-        llog('outgoing: ')
-        llog('\tGranule: %s' % granule.identifiables.keys())
-        llog('\tRecords: %s' % record_count)
-        llog('\tSHA1: %s' % sha1)
 
         self.lock.acquire()
         self.output.publish(granule)
@@ -177,14 +175,22 @@ class ReplayProcess(BaseReplayProcess):
 
         return publish_queue
 
-    def _records(self, dataset, n):
+    def _records(self, granule, n):
         '''
         Returns a packet of at most n records
         '''
-        records = dataset['records']
-        segments = records / n
-        for i in xrange(segments+1):
-            pass
+        bin_size = n
+        record_count = granule.identifiables[self.element_count_id].value
+
+        i=0
+        while (i+bin_size) < record_count:
+            log.debug('Yielding %d to %d', i, i+bin_size)
+            yield self._slice(granule,slice(i,i+bin_size))
+            i+=bin_size
+        if i < record_count:
+            yield self._slice(granule, slice(i,i+bin_size))
+        return
+
 
     def _slice(self,granule,slice_):
         retval = copy.deepcopy(granule)
@@ -470,18 +476,9 @@ class ReplayProcess(BaseReplayProcess):
         return granule
 
 
-    def record_limit(self, granule, record_count):
-        '''
-        Yields a granule of at most n records
-        '''
-        element_count_id = self.element_count_id
-        records = granule.identifiables[element_count_id].value
-        start, stop = 0,0
-
-
     def time_subset(self, granule, time_bounds):
         assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
-        lower = time_bounds[0]
+        lower = time_bounds[0]-1
         upper = time_bounds[1]
 
         lower_index = self._get_time_index(granule,lower)
