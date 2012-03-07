@@ -10,7 +10,7 @@ from pyon.core.exception import IonException
 from pyon.util.file_sys import FS, FileSystem
 from prototype.hdf.hdf_array_iterator import acquire_data
 from prototype.hdf.hdf_codec import HDFEncoder
-from prototype.sci_data.constructor_apis import DefinitionTree
+from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
 from interface.objects import BlogBase, StreamGranuleContainer, StreamDefinitionContainer, CoordinateAxis, QuantityRangeElement, CountElement, RangeSet
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from gevent.greenlet import Greenlet
@@ -113,6 +113,8 @@ class ReplayProcess(BaseReplayProcess):
         for item in publish_queue:
             log.debug('Item in queue: %s' % type(item))
         granule = self._merge(publish_queue)
+        if not granule:
+            return # no dataset
 
         if self.delivery_format.has_key('fields'):
             res = self.subset(granule,self.delivery_format['fields'])
@@ -319,12 +321,23 @@ class ReplayProcess(BaseReplayProcess):
 
         assert isinstance(definition,StreamDefinitionContainer), 'object is not a definition.'
         assert isinstance(granule1, StreamGranuleContainer), 'object is not a granule.'
+        encoding_id = DefinitionTree.get(definition,'%s.encoding_id' % definition.data_stream_id)
+
+        if not granule2:
+            pair = (
+                granule1.identifiables['time_bounds'].value_pair[0],
+                '%s.hdf5' % granule1.identifiables[encoding_id].sha1
+                )
+            return {
+                'granule':granule1,
+                'files':[pair]
+            }
+
         assert isinstance(granule2, StreamGranuleContainer), 'object is not a granule.'
 
         assert granule1.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
-        assert granule2.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
-        encoding_id = DefinitionTree.get(definition,'%s.encoding_id' % definition.data_stream_id)
 
+        assert granule2.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
 
         #-------------------------------------------------------------------------------------
         # First step is figure out where each granule belongs on the timeline
@@ -423,12 +436,15 @@ class ReplayProcess(BaseReplayProcess):
         '''
         from interface.objects import StreamDefinitionContainer, StreamGranuleContainer, RangeSet, CoordinateAxis
         assert isinstance(definition, StreamDefinitionContainer), 'object is not a definition.'
-        assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
+        assert isinstance(granule, StreamGranuleContainer), 'object is not a granule. its a %s' % type(granule)
         retval = {}
         for key, value in granule.identifiables.iteritems():
             if isinstance(value, RangeSet):
-                values_path = value.values_path or definition.identifiables[key].values_path
-                retval[key] = values_path
+                try:
+                    values_path = value.values_path or definition.identifiables[key].values_path
+                    retval[key] = values_path
+                except AttributeError:
+                    raise Exception(' the name is %s' % key)
             elif isinstance(value, CoordinateAxis):
                 values_path = value.values_path or definition.identifiables[key].values_path
                 retval[key] = values_path
@@ -461,19 +477,35 @@ class ReplayProcess(BaseReplayProcess):
         for i in xrange(count):
             if i==0:
                 granule = msgs[0]['granule']
-                continue
-            res = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=msgs[i]['granule'])
+                psc = PointSupplementConstructor(point_definition=self.definition)
 
-            granule = res['granule']
-            file_pair = res['files']
+                res = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=None)
+                granule = res['granule']
+                file_pair = res['files']
+                log.debug('file_pair: %s', file_pair)
 
-            if file_pair[0] not in file_list and file_pair[0][0] not in used_vals:
-                file_list.append( tuple(file_pair[0]))
-                used_vals.append(file_pair[0][0])
-            if file_pair[1] not in file_list and file_pair[1][0] not in used_vals:
-                file_list.append(tuple(file_pair[1]))
-                used_vals.append(file_pair[1][0])
+                if file_pair[0] not in file_list and file_pair[0][0] not in used_vals:
+                    file_list.append( tuple(file_pair[0]))
+                    used_vals.append(file_pair[0][0])
 
+
+            else:
+                res = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=msgs[i]['granule'])
+
+                granule = res['granule']
+                file_pair = res['files']
+                log.debug('file_pair: %s', file_pair)
+
+                if file_pair[0] not in file_list and file_pair[0][0] not in used_vals:
+                    file_list.append( tuple(file_pair[0]))
+                    used_vals.append(file_pair[0][0])
+                if file_pair[1] not in file_list and file_pair[1][0] not in used_vals:
+                    file_list.append(tuple(file_pair[1]))
+                    used_vals.append(file_pair[1][0])
+
+        if not granule:
+            return
+        log.debug('file_list: %s', file_list)
         #-------------------------------------------------------------------------------------
         # Order the lists using a stable sort from python (by the first value in the tuples
         # Then peel off just the file names
@@ -494,6 +526,7 @@ class ReplayProcess(BaseReplayProcess):
         log.debug('\trecords: %s', record_count)
 
         data = acquire_data(file_list, var_names, record_count).next()
+
         for row,value in data.iteritems():
             value_path = self._find_vp(pairs,row)
             codec.add_hdf_dataset(value_path,nparray=value['values'])

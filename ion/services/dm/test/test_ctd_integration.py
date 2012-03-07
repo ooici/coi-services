@@ -30,8 +30,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
     def test_dm_integration(self):
         '''
-        test_dm_integration
-        Test full DM Services Integration
+        test_ctd_integration
         '''
         cc = self.container
         assertions = self.assertTrue
