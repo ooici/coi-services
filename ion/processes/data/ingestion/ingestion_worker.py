@@ -132,6 +132,7 @@ class IngestionWorker(TransformDataProcess):
 
         try:
             self.db.create_doc(doc, object_id=sha1)
+            log.debug('Persisted document %s', type(obj))
         except BadRequest:
             # Deduplication in action!
             #@TODO why are we getting so many duplicate comments?
