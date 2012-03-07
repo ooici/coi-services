@@ -9,14 +9,13 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from prototype.sci_data.ctd_stream import ctd_stream_definition
 from interface.objects import HdfStorage, CouchStorage
 
 from pyon.public import log
 from nose.plugins.attrib import attr
 
 from pyon.public import StreamSubscriberRegistrar
-from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
