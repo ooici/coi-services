@@ -80,6 +80,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = ctd_stream_definition()
         ctd_stream_def_id = self.PubSubClient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        self.Processclient.assign_input_stream_definition_to_data_process_definition(ctd_stream_def_id, dprocdef_id )
 
         #-------------------------------
         # Input Data Product
@@ -157,6 +158,9 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
         # See /tmp/transform_output for results.....
 
         # clean up the data process
+        self.Processclient.unassign_input_stream_definition_from_data_process_definition(ctd_stream_def_id, dprocdef_id )
+        log.debug('TestIntDataProcessMgmtServiceMultiOut: stream definition unassign  complete' )
+
         try:
             self.Processclient.delete_data_process(dproc_id)
         except BadRequest as ex:
@@ -230,6 +234,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         ctd_stream_def = ctd_stream_definition()
         ctd_stream_def_id = self.PubSubClient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
 
+        self.Processclient.assign_input_stream_definition_to_data_process_definition(ctd_stream_def_id, dprocdef_id )
+
+
         #-------------------------------
         # Input Data Product
         #-------------------------------
@@ -254,26 +261,32 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_conductivity = L0_conductivity_stream_definition()
+        outgoing_stream_conductivity_id = self.PubSubClient.create_stream_definition(container=outgoing_stream_conductivity, name='conductivity')
+        self.Processclient.assign_stream_definition_to_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id )
 
         outgoing_stream_pressure = L0_pressure_stream_definition()
+        outgoing_stream_pressure_id = self.PubSubClient.create_stream_definition(container=outgoing_stream_pressure, name='pressure')
+        self.Processclient.assign_stream_definition_to_data_process_definition(outgoing_stream_pressure_id, dprocdef_id )
 
         outgoing_stream_temperature = L0_temperature_stream_definition()
+        outgoing_stream_temperature_id = self.PubSubClient.create_stream_definition(container=outgoing_stream_temperature, name='temperature')
+        self.Processclient.assign_stream_definition_to_data_process_definition(outgoing_stream_temperature_id, dprocdef_id )
 
 
         self.output_products={}
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product conductivity")
         output_dp_obj = IonObject(RT.DataProduct, name='conductivity',description='transform output conductivity')
-        output_dp_id_1 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_conductivity)
+        output_dp_id_1 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
         self.output_products['conductivity'] = output_dp_id_1
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product pressure")
         output_dp_obj = IonObject(RT.DataProduct, name='pressure',description='transform output pressure')
-        output_dp_id_2 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_pressure)
+        output_dp_id_2 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
         self.output_products['pressure'] = output_dp_id_2
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product temperature")
         output_dp_obj = IonObject(RT.DataProduct, name='temperature',description='transform output ')
-        output_dp_id_3 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_temperature)
+        output_dp_id_3 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id)
         self.output_products['temperature'] = output_dp_id_3
         # this will NOT create a stream for the product becuase the data process (source) resource has not been created yet.
 
@@ -321,9 +334,18 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.ProcessDispatchClient.cancel_process(pid)
 
+        log.debug('TestIntDataProcessMgmtServiceMultiOut: ProcessDispatchClient.cancel_process complete' )
+
         # See /tmp/transform_output for results.....
 
         # clean up the data process
+
+        self.Processclient.unassign_input_stream_definition_from_data_process_definition(ctd_stream_def_id, dprocdef_id )
+        self.Processclient.unassign_stream_definition_from_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id )
+        self.Processclient.uassign_stream_definition_from_data_process_definition(outgoing_stream_pressure_id, dprocdef_id )
+        self.Processclient.assign_stream_definition_from_data_process_definition(outgoing_stream_temperature_id, dprocdef_id )
+        log.debug('TestIntDataProcessMgmtServiceMultiOut: stream definition unassign  complete' )
+
         try:
             self.Processclient.delete_data_process(dproc_id)
         except BadRequest as ex:

@@ -412,20 +412,34 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         # Grab time for timeout.
         starttime = time.time()
-
+        count = 0
+        
+        
         while True:
             # Send a line return and wait a sec.
             mi_logger.debug('Sending wakeup.')
+            count += 1
             self._send_wakeup()
-            time.sleep(1)
+            time.sleep(1.5)
+            
 
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.debug('Got prompt: %s', repr(item))
                     return item
-            
+                    """
+                    mi_logger.debug('Got prompt: %s', repr(self._promptbuf))
+                    if count > 1:
+                        while True:                            
+                            old_promptbuf = self._promptbuf                            
+                            time.sleep(2)
+                            if old_promptbuf == self._promptbuf:
+                                break
+                    mi_logger.debug('Finished wakeup promptbuf: %s', repr(self._promptbuf))                    
+                    return item
+                    """
             if time.time() > starttime + timeout:
                 raise InstrumentTimeoutException()
+            
 
     ########################################################################
     # Command-response helpers.

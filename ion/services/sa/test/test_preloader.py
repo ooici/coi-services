@@ -63,7 +63,7 @@ class TestPreloader(IonIntegrationTestCase):
     def test_just_the_setup(self):
         return
 
-    #@unittest.skip('temporarily')
+    @unittest.skip('temporarily')
     def test_csv_loader_all(self):
         self._generic_loader()
 
@@ -77,7 +77,7 @@ class TestPreloader(IonIntegrationTestCase):
         self.assertEqual(1, len(associated_ids))
 
 
-    #@unittest.skip('temporarily')
+    @unittest.skip('temporarily')
     def test_csv_loader_tagged(self):
         self._generic_loader("LCA")
 
