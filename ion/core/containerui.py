@@ -85,6 +85,7 @@ def process_list_resource_types():
     try:
         type_list = set(getextends('Resource'))
         fragments = [
+            "<p><a href='/'>[Home]</a></p>",
             "<h1>List of Resource Types</h1>",
             "<p>",
         ]
@@ -107,6 +108,7 @@ def process_list_resources(resource_type):
         res_list,_ = Container.instance.resource_registry.find_resources(restype=restype)
 
         fragments = [
+            "<p><a href='/'>[Home]</a></p>",
             "<h1>List of '%s' Resources</h1>" % restype,
             "<p>",
             "<table border='1' cellspacing='0'>",
@@ -143,6 +145,7 @@ def process_view_resource(resource_id):
         restype = res._get_type()
 
         fragments = [
+            "<p><a href='/'>[Home]</a></p>",
             "<h1>View %s '%s'</h1>" % (build_type_link(restype), res.name),
             "<h2>Fields</h2>",
             "<p>",
@@ -184,6 +187,7 @@ def process_dir_path(path):
         de_list = Container.instance.directory.find_child_entries(path)
         entry = Container.instance.directory.lookup(path)
         fragments = [
+            "<p><a href='/'>[Home]</a></p>",
             "<h1>Directory %s</h1>" % (build_dir_path(path)),
             "<h2>Attributes</h2>",
             "<p><table border='1' cellspacing='0'><tr><th>Name</th><th>Value</th></tr>"
