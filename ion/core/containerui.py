@@ -114,14 +114,15 @@ def process_list_resources(resource_type):
         ]
 
         fragments.extend(build_table_header(restype))
-        fragments.append("<th>Associations</th></tr>")
+        #fragments.append("<th>Associations</th>")
+        fragments.append("</tr>")
 
         for res in res_list:
             fragments.append("<tr>")
             fragments.extend(build_table_row(res))
-            fragments.append("<td>")
-            fragments.extend(build_associations(res._id))
-            fragments.append("</td>")
+            #fragments.append("<td>")
+            #fragments.extend(build_associations(res._id))
+            #fragments.append("</td>")
             fragments.append("</tr>")
 
         fragments.append("</table></p>")
@@ -160,8 +161,10 @@ def process_view_resource(resource_id):
         fragments.append("</p></table>")
 
         fragments.append("<h2>Associations</h2><p>")
+        fragments.append("<p1><table border='1' cellspacing='0'>")
+        fragments.append("<tr><th>Direction</th><th>Predicate</th><th>Type</th><th>Name</th><th>ID</th></tr>")
         fragments.extend(build_associations(res._id))
-        fragments.append("</p>")
+        fragments.append("</table></p>")
 
         content = "\n".join(fragments)
         return build_page(content)
@@ -237,11 +240,13 @@ def build_associations(resid):
     fragments = []
     obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
-        fragments.append("TO: %s <a href='/view/%s'>&apos;%s&apos;</a> (%s)<br>" % (assoc.p, assoc.o, obj.name, build_type_link(obj._get_type())))
+        fragments.append("<tr><td>TO</td>")
+        fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (assoc.p, build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o)))
 
-    obj_list, assoc_list = rr_client.find_subjects(object=resid, id_only=False)
+    obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
-        fragments.append("FROM: %s <a href='/view/%s'>&apos;%s&apos;</a> (%s)<br>" % (assoc.p, assoc.s, obj.name, build_type_link(obj._get_type())))
+        fragments.append("<tr><td>FROM</td>")
+        fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (assoc.p, build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s)))
 
     return fragments
 
