@@ -137,14 +137,16 @@ class sbe37(asyncore.dispatcher_with_send):
         if data:
             data = data.lower()
             print "IN  [" + repr(data) + "]"
-            log_file.write("IN  [" + repr(data) + "]\n")
+            if log_file.closed == False:
+                log_file.write("IN  [" + repr(data) + "]\n")
         return data
  
     def send_data(self, data, debug):
 
         try:
             print "OUT [" + repr(data) + "]"
-            log_file.write("OUT  [" + repr(data) + "]\n")
+            if log_file.closed == False:
+                log_file.write("OUT  [" + repr(data) + "]\n")
             self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
