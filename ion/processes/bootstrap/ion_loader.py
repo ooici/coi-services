@@ -6,9 +6,7 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
 import csv
-import datetime
-import os
-import os.path
+import re
 
 from interface import objects
 
@@ -46,7 +44,18 @@ class IONLoader(ImmediateProcess):
             raise iex.BadRequest("Must provide path")
 
         log.info("Start preloading from path=%s" % path)
-        categories = ['User', 'MarineFacility', 'Site', 'LogicalPlatform', 'LogicalInstrument', 'PlatformModel', 'InstrumentModel']
+        categories = ['User',
+#                      'MarineFacility',
+#                      'Site',
+#                      'LogicalPlatform',
+#                      'LogicalInstrument',
+#                      'PlatformModel',
+#                      'InstrumentModel',
+                      'StreamDefinition',
+                      'DataProcessDefinition',
+                      'DataProduct',
+                      'DataProcess',
+                      ]
 
         self.obj_classes = {}
         self.resource_ids = {}
@@ -81,6 +90,14 @@ class IONLoader(ImmediateProcess):
                         self._load_platform_model(row)
                     elif category == "InstrumentModel":
                         self._load_instrument_model(row)
+                    elif category == "StreamDefinition":
+                        self._load_stream_definition(row)
+                    elif category == "DataProcessDefinition":
+                        self._load_data_process_definition(row)
+                    elif category == "DataProduct":
+                        self._load_data_product(row)
+                    elif category == "DataProcess":
+                        self._load_data_process(row)
                     else:
                         raise iex.BadRequest("Unknown category: %s" % category)
 
@@ -140,9 +157,15 @@ class IONLoader(ImmediateProcess):
             return False
         elif value.lower() == 'true':
             return True
+        elif targettype is 'simplelist':
+            if value.startswith('[') and value.endswith(']'):
+                value = value[1:len(value)-1]
+            return list(value.split(','))
         elif 'enum_type' in schema_entry:
             enum_clzz = getattr(objects, schema_entry['enum_type'])
             return enum_clzz._value_map[value]
+#        elif targettype is 'dicteval':
+#            return eval(value)
         else:
             return ast.literal_eval(value)
 
@@ -246,3 +269,125 @@ class IONLoader(ImmediateProcess):
         ims = self._get_service_client("instrument_management")
         im_id = ims.create_instrument_model(im)
         self._register_id(row[self.COL_ID], im_id)
+
+    def _load_stream_definition(self, row):
+        log.info("Loading StreamDefinition")
+        res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
+        log.info("StreamDefinition: %s" % res_obj)
+
+        sd_module = row["StreamContainer_module"]
+        sd_method = row["StreamContainer_method"]
+        creator_func = named_any("%s.%s" % (sd_module, sd_method))
+        sd_container = creator_func()
+
+        svc_client = self._get_service_client("pubsub_management")
+        res_id = svc_client.create_stream_definition(container=sd_container,
+                                        name=res_obj.name,
+                                        description=res_obj.description)
+
+        self._register_id(row[self.COL_ID], res_id)
+
+    def _load_data_process_definition(self, row):
+        log.info("Loading DataProcessDefinition")
+        res_obj = self._create_object_from_row("DataProcessDefinition", row, "dpd/")
+        log.info("DataProcessDefinition: %s" % res_obj)
+
+        svc_client = self._get_service_client("data_process_management")
+        res_id = svc_client.create_data_process_definition(res_obj)
+        self._register_id(row[self.COL_ID], res_id)
+
+        # TODO: Do something with stream defs
+        input_strdef = row["input_stream_defs"]
+        if input_strdef:
+            input_strdef = self._get_typed_value(input_strdef, "list")
+
+        output_strdef = row["output_stream_defs"]
+        if output_strdef:
+            output_strdef = self._get_typed_value(output_strdef, "list")
+
+        # TODO: How to assign stream defs?
+
+    def _load_data_product(self, row):
+        log.info("Loading DataProduct")
+        res_obj = self._create_object_from_row("DataProduct", row, "dp/")
+        log.info("DataProduct: %s" % res_obj)
+
+        svc_client = self._get_service_client("data_product_management")
+        res_id = svc_client.create_data_product(data_product=res_obj)
+        self._register_id(row[self.COL_ID], res_id)
+
+        # TODO: What to do with streamdef?
+        strdef = row["stream_def_id"]
+
+
+    def _load_data_process(self, row):
+        log.info("Loading DataProcess")
+
+        dpd_id = self.resource_ids[row["data_process_definition_id"]]
+        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
+        out_data_products = row["out_data_products"]
+        if out_data_products:
+            outprodids = []
+            for out_prod in self._get_typed_value(out_data_products, "list"):
+                outprodids.append(self.resource_ids[out_prod])
+            out_data_products = outprodids
+
+        svc_client = self._get_service_client("data_process_management")
+
+        res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products)
+        self._register_id(row[self.COL_ID], res_id)
+
+    def preload_data_processes(self, resource_ids, data_process_csv, tag):
+
+        with open(data_process_csv, "rb") as csvfile:
+            reader = self._get_csv_reader(csvfile)
+
+            resource_ids[RT.DataProcess] = {}
+            for row in reader:
+                for x in [PR_DEF, PR_INPUT]:
+                    if not x in row:
+                        raise BadRequest("%s not defined for DataProcess row" % x)
+
+                friendly_id = self._get_id(row, RT.DataProcess, resource_ids)
+
+                row, tag_matched = self._check_tag(row, tag)
+                if not tag_matched:
+                    resource_ids[RT.DataProcess][friendly_id] = None
+                    continue
+
+                # get any matching data products
+                out_products = []
+                for f in sorted(row.keys()):
+                    if f[:len(PR_OUTPUT)] == PR_OUTPUT:
+                        v = row[f]
+                        real_id = resource_ids[RT.DataProduct][v]
+                        out_products.append(real_id)
+
+                if None in out_products:
+                    continue
+
+                if False: #"service gateway disabled because container can't be jsonified":
+                    #response = self.pubsub_client.create_stream_definition(container=container,
+                    #                                                       name=row["name"],
+                    #                                                       description=row["description"])
+                    #resource_ids[RT.DataProcess][friendly_id] = response
+                    pass
+                else:
+                    #build payload
+                    post_data = self._service_request_template()
+                    post_data['serviceRequest']['serviceName'] = "data_process_management"
+                    post_data['serviceRequest']['serviceOp'] = "create_data_process"
+                    post_data['serviceRequest']['params']["data_process_definition_id"] = resource_ids[RT.DataProcessDefinition][row[PR_DEF]]
+                    post_data['serviceRequest']['params']["in_data_product_id"] = resource_ids[RT.DataProduct][row[PR_INPUT]]
+                    post_data['serviceRequest']['params']["out_data_products"] = out_products
+
+
+                    self.log.debug("posting this:\n%s\n" % str(post_data))
+                    response = self._do_service_call("data_process_management",
+                        "create_data_process",
+                        post_data)
+
+
+                    resource_ids[RT.DataProcess][friendly_id] = response
+
+        return resource_ids
