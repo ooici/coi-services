@@ -12,9 +12,11 @@ import asyncore
 import thread
 import getopt
 import select
+import os
 
 port = 4001  # Default port to run on.
 connection_count = 0
+log_file = "unassigned"
 
 class sbe37(asyncore.dispatcher_with_send):
     buf = ""
@@ -126,6 +128,7 @@ class sbe37(asyncore.dispatcher_with_send):
             data = ret
         except AttributeError:
             print "CLOSING"
+            log_file.close()
             self.socket.close()
             self.thread.exit()
         except:
@@ -134,13 +137,14 @@ class sbe37(asyncore.dispatcher_with_send):
         if data:
             data = data.lower()
             print "IN  [" + repr(data) + "]"
-
+            log_file.write("IN  [" + repr(data) + "]\n")
         return data
  
     def send_data(self, data, debug):
 
         try:
             print "OUT [" + repr(data) + "]"
+            log_file.write("OUT  [" + repr(data) + "]\n")
             self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
@@ -821,6 +825,12 @@ class sbe37_server(asyncore.dispatcher):
         else:
             sock, addr = pair
             global connection_count
+            global log_file
+            try:
+                name = str(os.getppid()) + "." +repr(addr).replace('(','').replace(')','').replace(' ','').replace("'",'')
+                log_file = open("/tmp/" + name, 'w')
+            except:
+                print "could not open log file " + repr(addr)
             connection_count += 1
             print str(connection_count) + ' Incoming connection from %s' % repr(addr)
             try:
