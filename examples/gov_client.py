@@ -21,48 +21,6 @@ def seed_gov(container, process=FakeProcess()):
     system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
     log.info('system actor:' + system_actor._id)
 
-    dp_client = DataProductManagementServiceProcessClient(node=container.node, process=process)
-
-    dp_obj = IonObject(RT.DataProduct, name='DataProd1', description='some new dp')
-
-    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
-
-
-    dp_obj = IonObject(RT.DataProduct,
-        name='DataProd2',
-        description='and of course another new dp')
-
-    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
-
-    dp_obj = IonObject(RT.DataProduct,
-        name='DataProd3',
-        description='yet another new dp')
-
-    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
-
-    log.debug('Data Products')
-    dp_list = dp_client.find_data_products()
-    for dp_obj in dp_list:
-        log.debug( str(dp_obj))
-
-
-    results = find_data_products(system_actor._id)
-    log.info(results)
-
-    ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
-
-    ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent1', description='The first Instrument Agent')
-
-    ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': system_actor._id})
-
-    ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent2', description='The second Instrument Agent')
-
-    ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': system_actor._id})
-
-    log.debug( 'Instrument Agents')
-    ia_list = ims_client.find_instrument_agents()
-    for ia_obj in ia_list:
-        log.debug( str(ia_obj))
 
 
     org_client = OrgManagementServiceProcessClient(node=container.node, process=process)
@@ -70,7 +28,7 @@ def seed_gov(container, process=FakeProcess()):
 
 
 
-    operator_role = IonObject(RT.UserRole, name='Operator',label='Instrument Operator', description='Instrument Operator')
+    operator_role = IonObject(RT.UserRole, name='INSTRUMENT_OPERATOR',label='Instrument Operator', description='Instrument Operator')
     org_client.add_user_role(ion_org._id, operator_role, headers={'ion-actor-id': system_actor._id})
 
     try:
@@ -120,7 +78,6 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     users = org_client.find_enrolled_users(ion_org._id)
     for u in users:
         log.info( str(u))
-        log.info('User is enrolled in Root ION Org: %s' % str(org_client.is_enrolled(ion_org._id, user_id)))
 
     roles = org_client.find_roles_by_user(ion_org._id, user_id)
     for r in roles:
@@ -133,10 +90,9 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     results = find_instrument_agents(user_id)
     log.info(results)
 
-    roles = org_client.find_all_roles_by_user(system_actor._id)
-    header_roles = get_role_message_headers(roles)
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
 
-    org_client.grant_role(ion_org._id, user_id, 'Operator', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
+    org_client.grant_role(ion_org._id, user_id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
     roles = org_client.find_roles_by_user(ion_org._id, user_id)
     for r in roles:
         log.info('User UserRole: ' +str(r))
@@ -232,7 +188,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 #    org_client.remove_user_role(ion_org._id,role_obj._id,True)
 
 
-def seed_policy(container, process=FakeProcess()):
+def test_policy(container, process=FakeProcess()):
 
     org_client = OrgManagementServiceProcessClient(node=container.node, process=process)
     ion_org = org_client.find_org()
@@ -244,414 +200,111 @@ def seed_policy(container, process=FakeProcess()):
 
     policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
 
-    policy_text = '''
-    <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
-        <Description>
-            %s
-        </Description>
-
-        <Target>
-
-            <Subjects>
-                <Subject>
-                    <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                        <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </SubjectMatch>
-                </Subject>
-            </Subjects>
-
-
-            <Actions>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">update</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">delete</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">activate</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">deactivate</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">add</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">remove</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">assign</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">unassign</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">register</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">unregister</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">execute</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">set</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-
-                </Action>
-            </Actions>
-
-        </Target>
-
-
-    </Rule>
-    '''
-
-
-    policy_obj = IonObject(RT.Policy, name='Anonymous_No_Create_Update', definition_type="global", rule=policy_text,
-        description='A global rule which specifies that an anonymous user can access most services except create/update operations')
-
-    policy_id = policy_client.create_policy(policy_obj, headers={'ion-actor-id': system_actor._id})
-    policy_client.add_resource_policy(ion_org._id, policy_id, headers={'ion-actor-id': system_actor._id})
-
+    users = org_client.find_enrolled_users(ion_org._id)
+    for u in users:
+        log.info( str(u))
 
-    policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-        <Description>
-            %s
-        </Description>
-
-        <Target>
-
-            <Subjects>
-                <Subject>
-                    <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                        <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </SubjectMatch>
-                </Subject>
-            </Subjects>
-
-            <Resources>
-                <Resource>
-                    <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">datastore</AttributeValue>
-                        <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ResourceMatch>
-                </Resource>
-            </Resources>
-
-            <Actions>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_doc</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-                </Action>
-            </Actions>
-
-        </Target>
-
-        <Condition>
-
-            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
-                    <SubjectAttributeDesignator
-                            AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id-sender"
-                            DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                </Apply>
-                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">bootstrap</AttributeValue>
-            </Apply>
-
-        </Condition>
-
-    </Rule>
-    '''
-
-    policy_obj = IonObject(RT.Policy, name='DataStore_Anonymous_Bootstrap', definition_type="service", rule=policy_text,
-        description='An anonymous user can only access datastore.create_doc during bootstrap')
-
-    policy_id = policy_client.create_policy(policy_obj)
-    policy_client.add_service_policy('datastore', policy_id)
-
-
-
-    policy_text = '''
-    <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-        <Description>
-            %s
-
-        </Description>
-
-        <Target>
-
-            <Subjects>
-                <Subject>
-                    <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                        <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </SubjectMatch>
-                </Subject>
-            </Subjects>
-
-            <Resources>
-                <Resource>
-                    <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">identity_management</AttributeValue>
-                        <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ResourceMatch>
-                </Resource>
-            </Resources>
-
-            <Actions>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_user_identity</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-                </Action>
-            </Actions>
-
-        </Target>
-
-        <Condition>
-
-            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
-                    <SubjectAttributeDesignator
-                            AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id-sender"
-                            DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                </Apply>
-                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">bootstrap</AttributeValue>
-            </Apply>
-
-        </Condition>
-    </Rule>
-    '''
-
-    policy_obj = IonObject(RT.Policy, name='Identity_Management_Anonymous_Bootstrap', definition_type="service", rule=policy_text,
-        description='An anonymous user can onbly access identity_management.create_user_identity during bootstrap')
-
-    policy_id = policy_client.create_policy(policy_obj)
-    policy_client.add_service_policy('identity_management', policy_id)
-
-
-    policy_text = '''
-       <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-        <Description>
-            %s
-
-        </Description>
-
-        <Target>
-
-            <Subjects>
-                <Subject>
-                    <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                        <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </SubjectMatch>
-                </Subject>
-            </Subjects>
-
-            <Resources>
-                <Resource>
-                    <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">resource_registry</AttributeValue>
-                        <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ResourceMatch>
-                </Resource>
-            </Resources>
-
-
-            <Actions>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create</AttributeValue>
-                    </ActionMatch>
-                </Action>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_association</AttributeValue>
-                    </ActionMatch>
-                </Action>
-            </Actions>
-
-        </Target>
-        <Condition>
-
-            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
-                    <SubjectAttributeDesignator
-                            AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id-sender"
-                            DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                </Apply>
-                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">identity_management</AttributeValue>
-            </Apply>
-
-        </Condition>
-
-    </Rule>
-    '''
-
-
-    policy_obj = IonObject(RT.Policy, name='Resource_Registry_Anonymous_Bootstrap', definition_type="service", rule=policy_text,
-        description='An anonymous user can only access resource_registry.create and resource_registry.create_association from the identity_management service during bootstrap')
-
-    policy_id = policy_client.create_policy(policy_obj)
-    policy_client.add_service_policy('resource_registry', policy_id)
-
-
-    policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-        <Description>
-            %s
-        </Description>
-
-        <Target>
-
-            <Subjects>
-                <Subject>
-                    <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">True</AttributeValue>
-                        <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-Manager" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </SubjectMatch>
-                </Subject>
-            </Subjects>
-
-            <Resources>
-                <Resource>
-                    <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">org_management</AttributeValue>
-                        <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ResourceMatch>
-                </Resource>
-            </Resources>
-
-            <Actions>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">grant_role</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-                </Action>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">revoke_role</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-                </Action>
-            </Actions>
-
-        </Target>
-
-
-    </Rule> '''
-
-    policy_obj = IonObject(RT.Policy, name='Org_Management_Manager_Role_Permitted', definition_type="service", rule=policy_text,
-        description='Specific operations in the Org Management are only allowed for users that are assigned the User Role of Manager')
-
-    policy_id = policy_client.create_policy(policy_obj)
-    policy_client.add_service_policy('org_management', policy_id)
-
-    policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
-        <Description>
-            %s
-        </Description>
-
-        <Target>
-
-            <Subjects>
-                <Subject>
-                    <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">True</AttributeValue>
-                        <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-Member" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </SubjectMatch>
-                </Subject>
-                <Subject>
-                    <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                        <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </SubjectMatch>
-                </Subject>
-            </Subjects>
-
-            <Resources>
-                <Resource>
-                    <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">org_management</AttributeValue>
-                        <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ResourceMatch>
-                </Resource>
-            </Resources>
-
-            <Actions>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">grant_role</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-                </Action>
-                <Action>
-                    <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">revoke_role</AttributeValue>
-                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </ActionMatch>
-                </Action>
-            </Actions>
-
-        </Target>
-
-
-    </Rule>
-    '''
-    policy_obj = IonObject(RT.Policy, name='Org_Management_Member_Role_Denied', definition_type="service", rule=policy_text,
-        description='Specific operations in the Org Management are not allowed for users that are only assigned the User Role of Member')
-
-    policy_id = policy_client.create_policy(policy_obj)
-    policy_client.add_service_policy('org_management', policy_id)
-
-    ion_org_policy = policy_client.get_active_resource_policy_rules(ion_org._id)
-    print ion_org_policy
-
-
-    org_mgmt_policy = policy_client.get_active_service_policy_rules(ion_org._id,'org_management' )
-    print org_mgmt_policy
+    user = id_client.find_user_identity_by_name('/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254')
+    log.debug('user_id: ' + user._id)
 
+    roles = org_client.find_roles_by_user(ion_org._id, user._id)
+    for r in roles:
+        log.info('User UserRole: ' +str(r))
+
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(user._id))
+
+    try:
+        org_client.grant_role(ion_org._id, user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': header_roles })
+    except Exception, e:
+        log.info('This grant role should be denied:' + e.message)
+
+    roles = org_client.find_roles_by_user(ion_org._id, user._id)
+    for r in roles:
+        log.info('User UserRole: ' +str(r))
+
+
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+
+    try:
+        org_client.grant_role(ion_org._id, user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
+    except Exception, e:
+        log.info('This grant role should be fail as duplicate:' + e.message)
+
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(user._id))
+
+    try:
+        org_client.revoke_role(ion_org._id, user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': header_roles })
+    except Exception, e:
+        log.info('This revoke role should be denied:' + e.message)
+
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+
+    org_client.revoke_role(ion_org._id, user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
+
+    roles = org_client.find_roles_by_user(ion_org._id, user._id)
+    for r in roles:
+        log.info('User UserRole: ' +str(r))
+
+
+    dp_client = DataProductManagementServiceProcessClient(node=container.node, process=process)
+
+    dp_obj = IonObject(RT.DataProduct, name='DataProd1', description='some new dp')
+
+    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
+
+
+    dp_obj = IonObject(RT.DataProduct,
+        name='DataProd2',
+        description='and of course another new dp')
+
+    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
+
+    dp_obj = IonObject(RT.DataProduct,
+        name='DataProd3',
+        description='yet another new dp')
+
+    dp_client.create_data_product(dp_obj, headers={'ion-actor-id': system_actor._id})
+
+    log.info('Data Products')
+    dp_list = dp_client.find_data_products()
+    for dp_obj in dp_list:
+        log.debug( str(dp_obj))
+
+
+    results = find_data_products()
+    log.info(results)
+
+    ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
+
+    try:
+        ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent1', description='The first Instrument Agent')
+
+        ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': system_actor._id})
+    except Exception, e:
+        log.info('This operation should be denied: ' + e.message)
+
+
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+
+    org_client.grant_role(ion_org._id, user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
+
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(user._id))
+
+    ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent1', description='The first Instrument Agent')
+
+    ims_client.create_instrument_agent(ia_obj,  headers={'ion-actor-id': user._id, 'ion-actor-roles': header_roles })
+
+    ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent2', description='The second Instrument Agent')
+
+    ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': user._id, 'ion-actor-roles': header_roles })
+
+    log.info( 'Instrument Agents')
+    ia_list = ims_client.find_instrument_agents()
+    for ia_obj in ia_list:
+        log.info( str(ia_obj))
+
+    results = find_instrument_agents()
+    log.info(results)
 
 def gateway_request(uri, payload):
 

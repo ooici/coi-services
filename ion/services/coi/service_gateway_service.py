@@ -490,10 +490,10 @@ def seed_gov():
     return json_response("")
 
 
-@app.route('/ion-service/seed_policy')
-def seed_policy():
-    from examples.gov_client import seed_policy
-    seed_policy(Container.instance)
+@app.route('/ion-service/test_policy')
+def test_policy():
+    from examples.gov_client import test_policy
+    test_policy(Container.instance)
     return json_response("")
 
 

@@ -852,7 +852,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, resource)
+        aid = self.clients.resource_registry.get_association(org, PRED.hasResource, resource)
         if not aid:
             raise NotFound("The shared association between the specified resource and Org is not found")
 

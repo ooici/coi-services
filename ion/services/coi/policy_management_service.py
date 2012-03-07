@@ -11,8 +11,8 @@ from pyon.public import PRED, RT, Container
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 
-MANAGER_ROLE = 'Manager'
-MEMBER_ROLE = 'Member'
+MANAGER_ROLE = 'ORG_MANAGER'
+MEMBER_ROLE = 'ORG_MEMBER'
 
 
 class PolicyManagementService(BasePolicyManagementService):
