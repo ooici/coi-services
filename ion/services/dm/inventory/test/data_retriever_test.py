@@ -317,13 +317,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             assertions(isinstance(msg, StreamGranuleContainer), 'Msg is not a container')
             hdf_string = msg.identifiables[msg.data_stream_id].values
             sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-            log.debug('Sha1 matches')
-            log.debug('Dumping file so you can inspect it.')
-            log.debug('Records: %d' % msg.identifiables['record_count'].value)
-            with open(FileSystem.get_url(FS.TEMP,'%s.cap.hdf5' % sha1[:8]),'w') as f:
-                f.write(hdf_string)
-                log.debug('Stream Capture: %s', f.name)
-            result.set(True)
+            # Make sure that the granule contains no more than 10 records
+            
 
         self.start_listener(stream_id=stream_id, callback=check_msg)
 
