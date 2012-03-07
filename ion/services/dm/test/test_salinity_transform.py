@@ -36,7 +36,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
     def test_dm_integration(self):
         '''
-        test_dm_integration
+        test_salinity_transform
         Test full DM Services Integration
         '''
         cc = self.container

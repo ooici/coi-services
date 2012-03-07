@@ -42,7 +42,7 @@ class SimpleCtdPublisher(StandaloneProcess):
         '''
 
         # Get the stream(s)
-        stream_id = self.CFG.get('process',{}).get('stream_id','')
+        stream_id = self.CFG.get_safe('process.stream_id',{})
 
         self.greenlet_queue = []
 
