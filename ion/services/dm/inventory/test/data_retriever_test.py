@@ -338,10 +338,6 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             assertions(record_count>0 and record_count<=10, 'record count size is incorrect.')
             # Make sure that the granule contains no more than 10 records
 
-            f = FileSystem.mktemp()
-            f.write(msg.identifiables[data_stream_id].values)
-            f.close()
-
 
             incr_lock.acquire()
             if not records_rcvd.empty():
