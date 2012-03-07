@@ -73,6 +73,10 @@ class PubsubManagementService(BasePubsubManagementService):
         """
 
         retval = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=id_only)
+        if len(retval) != 2:
+            raise NotFound('Desired stream definition not found.')
+        if len(retval[0]) < 1:
+            raise NotFound('Desired stream definition not found.')
         return retval[0][0]
 
     def update_stream_definition(self, stream_definition=None):

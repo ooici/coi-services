@@ -684,6 +684,23 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.assertTrue(isinstance(res_obj.container, StreamDefinitionContainer),
             'The container object is not a stream definition.')
 
+    def test_strem_def_not_found(self):
+
+        with self.assertRaises(NotFound):
+            self.pubsub_cli.find_stream_definition(stream_id='nonexistent')
+
+        definition = SBE37_CDM_stream_definition()
+        definition_id = self.pubsub_cli.create_stream_definition(container=definition)
+
+        with self.assertRaises(NotFound):
+            self.pubsub_cli.find_stream_definition(stream_id='nonexistent')
+
+        stream_id = self.pubsub_cli.create_stream()
+
+        with self.assertRaises(NotFound):
+            self.pubsub_cli.find_stream_definition(stream_id=stream_id)
+
+
         
 
     @unittest.skip("Nothing to test")
