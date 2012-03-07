@@ -6,6 +6,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -78,6 +79,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
+        self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
 
     def test_activateInstrument(self):
 
@@ -246,7 +248,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         time.sleep(2)
 
 
+        #get the dataset id of the ctd_parsed product from the dataproduct  data_product_id1
+        ctd_parsed_data_product_obj = self.dpclient.read_data_product(data_product_id1)
+        log.debug("test_activateInstrument: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
 
-
-
+        # ask for the dataset bounds from the datasetmgmtsvc
+        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
+        log.debug("test_activateInstrument: ctd_parsed_data_product dataset bounds %s", str(bounds))
+        print 'activate_instrument: got dataset bounds %s', str(bounds)
 

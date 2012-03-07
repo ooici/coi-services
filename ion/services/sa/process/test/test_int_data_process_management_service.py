@@ -260,6 +260,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
             field_range = [0.1, 40.0]
         )
+        outgoing_stream_conductivity_id = self.PubSubClient.create_stream_definition(container=outgoing_stream_conductivity, name='conductivity')
 
         outgoing_stream_pressure = scalar_point_stream_definition(
             description='Pressure data from science transform',
@@ -268,6 +269,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
             field_range = [0.1, 40.0]
         )
+        outgoing_stream_pressure_id = self.PubSubClient.create_stream_definition(container=outgoing_stream_pressure, name='pressure')
 
         outgoing_stream_temperature = scalar_point_stream_definition(
             description='Temperature data from science transform',
@@ -276,22 +278,23 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
             field_range = [0.1, 40.0]
         )
+        outgoing_stream_temperature_id = self.PubSubClient.create_stream_definition(container=outgoing_stream_temperature, name='temperature')
 
 
         self.output_products={}
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product conductivity")
         output_dp_obj = IonObject(RT.DataProduct, name='conductivity',description='transform output conductivity')
-        output_dp_id_1 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_conductivity)
+        output_dp_id_1 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
         self.output_products['conductivity'] = output_dp_id_1
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product pressure")
         output_dp_obj = IonObject(RT.DataProduct, name='pressure',description='transform output pressure')
-        output_dp_id_2 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_pressure)
+        output_dp_id_2 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
         self.output_products['pressure'] = output_dp_id_2
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product temperature")
         output_dp_obj = IonObject(RT.DataProduct, name='temperature',description='transform output ')
-        output_dp_id_3 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_temperature)
+        output_dp_id_3 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id)
         self.output_products['temperature'] = output_dp_id_3
         # this will NOT create a stream for the product becuase the data process (source) resource has not been created yet.
 
@@ -338,6 +341,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         time.sleep(4)
 
         self.ProcessDispatchClient.cancel_process(pid)
+
+        log.debug('TestIntDataProcessMgmtServiceMultiOut: ProcessDispatchClient.cancel_process complete', )
 
         # See /tmp/transform_output for results.....
 

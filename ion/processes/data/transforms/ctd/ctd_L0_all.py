@@ -25,29 +25,29 @@ class ctd_L0_all(TransformDataProcess):
 
     # Make the stream definitions of the transform class attributes
 
-#    outgoing_stream_conductivity = scalar_point_stream_definition(
-#        description='Conductivity data from science transform',
-#        field_name = 'conductivity',
-#        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanConductivity.owl#Conductivity',
-#        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-#        field_range = [0.1, 40.0]
-#    )
-#
-#    outgoing_stream_pressure = scalar_point_stream_definition(
-#        description='Pressure data from science transform',
-#        field_name = 'pressure',
-#        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanPressure.owl#Pressure',
-#        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-#        field_range = [0.1, 40.0]
-#    )
-#
-#    outgoing_stream_temperature = scalar_point_stream_definition(
-#        description='Temperature data from science transform',
-#        field_name = 'temperature',
-#        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanTemperature.owl#Temperature', # Does not exist - what to use?
-#        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-#        field_range = [0.1, 40.0]
-#    )
+    outgoing_stream_conductivity = scalar_point_stream_definition(
+        description='Conductivity data from science transform',
+        field_name = 'conductivity',
+        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanConductivity.owl#Conductivity',
+        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
+        field_range = [0.1, 40.0]
+    )
+
+    outgoing_stream_pressure = scalar_point_stream_definition(
+        description='Pressure data from science transform',
+        field_name = 'pressure',
+        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanPressure.owl#Pressure',
+        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
+        field_range = [0.1, 40.0]
+    )
+
+    outgoing_stream_temperature = scalar_point_stream_definition(
+        description='Temperature data from science transform',
+        field_name = 'temperature',
+        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanTemperature.owl#Temperature', # Does not exist - what to use?
+        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
+        field_range = [0.1, 40.0]
+    )
 
     incoming_stream_def = ctd_stream_definition()
 
