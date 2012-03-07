@@ -108,11 +108,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, RT.DataProducer, id_only=True)
-        if associations is None:
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=False)
+        if not associations or len(associations) == 0:
             raise NotFound("No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association)
+            self.clients.resource_registry.delete_association(association._id)
 
         return
 
@@ -137,11 +137,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, RT.DataProducer, id_only=True)
-        if associations is None:
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=False)
+        if not associations or len(associations) == 0:
             raise NotFound("No Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association)
+            self.clients.resource_registry.delete_association(association._id)
 
         return
 
