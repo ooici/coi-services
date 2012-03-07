@@ -84,18 +84,18 @@ class ctd_L0_all(TransformDataProcess):
 
         for i in xrange(len(conductivity)):
             point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=Decimal(conductivity[i]))
-        self.conductivity.publish(psc_conductivity.close_stream_granule())
+            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=Decimal(conductivity[i]))
+        self.outgoing_stream_conductivity.publish(psc_conductivity.close_stream_granule())
 
         for i in xrange(len(pressure)):
             point_id = psc_pressure.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=Decimal(pressure[i]))
-        self.conductivity.publish(psc_pressure.close_stream_granule())
+            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=Decimal(pressure[i]))
+        self.outgoing_stream_pressure.publish(psc_pressure.close_stream_granule())
 
         for i in xrange(len(temperature)):
             point_id = psc_temperature.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=Decimal(temperature[i]))
-        self.conductivity.publish(psc_temperature.close_stream_granule())
+            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=Decimal(temperature[i]))
+        self.outgoing_stream_temperature.publish(psc_temperature.close_stream_granule())
 
         return
 
