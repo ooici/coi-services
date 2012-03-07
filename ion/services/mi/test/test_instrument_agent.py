@@ -56,6 +56,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     instrument agent integration tests and provide a tutorial on use of
     the agent setup and interface.
     """
+ 
+    def customCleanUp(self):
+        log.info('CUSTOM CLEAN UP ******************************************************************************')
 
     def setUp(self):
         """
@@ -69,6 +72,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         * add cleanup functions to cause subscribers to get stopped.
         """
         
+        self.addCleanup(self.customCleanUp)
         # Names of agent data streams to be configured.
         parsed_stream_name = 'ctd_parsed'        
         raw_stream_name = 'ctd_raw'        

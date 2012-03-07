@@ -101,7 +101,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         self.clients.resource_registry.delete(org_id)
 
-    def find_org(self, name=ROOT_ION_ORG_NAME):
+    def find_org(self, name=''):
         """Finds an Org object with the specified name. Defaults to the
         root ION object. Throws a NotFound exception if the object
         does not exist.
@@ -110,6 +110,11 @@ class OrgManagementService(BaseOrgManagementService):
         @retval org    Org
         @throws NotFound    Org with name does not exist
         """
+
+        #Default to the root ION Org if not specified
+        if not name:
+            name = ROOT_ION_ORG_NAME
+
         res_list,_  = self.clients.resource_registry.find_resources(restype=RT.Org, name=name)
         if not res_list:
             raise NotFound('The Org with name %s does not exist' % name )

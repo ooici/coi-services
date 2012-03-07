@@ -10,6 +10,7 @@ from pyon.ion.exchange import ION_ROOT_XS
 
 from interface.services.ibootstrap_service import BaseBootstrapService
 from ion.services.coi.policy_management_service import MANAGER_ROLE
+from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 
 
 class BootstrapService(BaseBootstrapService):
@@ -17,6 +18,8 @@ class BootstrapService(BaseBootstrapService):
     Bootstrap service: This service will initialize the ION system environment.
     This service is triggered for each boot level.
     """
+
+    process_type = "immediate"      # bootstrap inits/starts only, not a running process/service
 
     def on_init(self):
         log.info("Bootstrap service INIT: System init")
@@ -39,10 +42,15 @@ class BootstrapService(BaseBootstrapService):
             self.post_resource_registry(config)
         elif level == "identity_management":
             self.post_identity_management(config)
+        elif level == "policy_management":
+            self.post_policy_management(config)
         elif level == "org_management":
             self.post_org_management(config)
         elif level == "exchange_management":
             self.post_exchange_management(config)
+        elif level == "load_system_policy":
+            self.load_system_policy(config)
+
 
             self.post_startup()
 
@@ -79,6 +87,10 @@ class BootstrapService(BaseBootstrapService):
             rt = IonObject("ResourceType", name=res)
             #self.clients.datastore.create(rt)
 
+    def post_policy_management(self, config):
+
+        pass
+
     def post_identity_management(self, config):
 
         #Create the ION System Agent user which should be passed in subsequent bootstraping calls
@@ -96,6 +108,12 @@ class BootstrapService(BaseBootstrapService):
         self.org_id = self.clients.org_management.create_org(org, headers={'ion-actor-id': system_actor._id})
         #TODO - May not want to make the system agent a manager if a real manager user will be seeded for the ION Org
         self.clients.org_management.grant_role(self.org_id,system_actor._id,MANAGER_ROLE, headers={'ion-actor-id': system_actor._id} )
+
+    #This operation must happen after the root ION Org has been created.
+    def load_system_policy(self, config):
+
+        LoadSystemPolicy.op_load_system_policies(self)
+
 
     def post_exchange_management(self, config):
 

@@ -199,7 +199,8 @@ class sbe37(asyncore.dispatcher_with_send):
             if data:
                 handled = True
                 if data.rstrip('\r').rstrip('\n') != "":
-                    self.send_data(data.replace('\r','').replace('\n','') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
+                    if (data.replace('\r','').replace('\n','') != ""):
+                        self.send_data(data.replace('\r','').replace('\n','') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
                 if command_args[0] == 'baud':
@@ -379,6 +380,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.logging = True
                     self.locked = True
                     self.knock_count = 0
+                    handled = False
 
                 elif data[0] == '\r':
                     #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
@@ -444,6 +446,8 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.start_later = False
                     self.logging = False
                     print "really got stop command\r\n"
+                    self.send_data('S>\r\n', 'SPECIAL STOP PROMPT')
+                    handled = False
 
                 elif command_args[0] == 'ts':
                     self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(680, 710), random.uniform(-0.001, -0.01), random.uniform(-300, -350), random.uniform(0.01, 0.02), random.uniform(268000, 270000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
