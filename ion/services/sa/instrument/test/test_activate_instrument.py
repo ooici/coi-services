@@ -54,7 +54,8 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='HARDWARE')
-@unittest.skip('requires SBE37 simulator which is not working in buildbot env, run locally only')
+@unittest.skip('requires SBE37 simulator which is not working in buildbot env, run locally only')\
+
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):

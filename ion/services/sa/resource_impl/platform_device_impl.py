@@ -33,6 +33,12 @@ class PlatformDeviceImpl(ResourceImpl):
     def unlink_assignment(self, platform_device_id='', logical_platform_id=''):
         return self._unlink_resources(platform_device_id, PRED.hasAssignment, logical_platform_id)
 
+    def link_deployment(self, platform_device_id='', logical_platform_id=''):
+        return self._link_resources(platform_device_id, PRED.hasDeployment, logical_platform_id)
+
+    def unlink_deployment(self, platform_device_id='', logical_platform_id=''):
+        return self._unlink_resources(platform_device_id, PRED.hasDeployment, logical_platform_id)
+
     def link_model(self, platform_device_id='', platform_model_id=''):
         return self._link_resources(platform_device_id, PRED.hasModel, platform_model_id)
 
@@ -59,6 +65,12 @@ class PlatformDeviceImpl(ResourceImpl):
 
     def find_stemming_assignment(self, platform_device_id):
         return self._find_stemming(platform_device_id, PRED.hasAssignment, RT.LogicalPlatform)
+
+    def find_having_deployment(self, logical_platform_id):
+        return self._find_having(PRED.hasDeployment, logical_platform_id)
+
+    def find_stemming_deployment(self, platform_device_id):
+        return self._find_stemming(platform_device_id, PRED.hasDeployment, RT.LogicalPlatform)
 
     def find_having_model(self, platform_model_id):
         return self._find_having(PRED.hasModel, platform_model_id)

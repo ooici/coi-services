@@ -62,6 +62,12 @@ class InstrumentDeviceImpl(ResourceImpl):
     def unlink_assignment(self, instrument_device_id='', logical_instrument_id=''):
         return self._unlink_resources(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
 
+    def link_deployment(self, instrument_device_id='', logical_instrument_id=''):
+        return self._link_resources_single_object(instrument_device_id, PRED.hasDeployment, logical_instrument_id)
+
+    def unlink_deployment(self, instrument_device_id='', logical_instrument_id=''):
+        return self._unlink_resources(instrument_device_id, PRED.hasDeployment, logical_instrument_id)
+
     def link_data_producer(self, instrument_device_id='', data_producer_id=''):
         return self._link_resources(instrument_device_id, PRED.hasDataProducer, data_producer_id)
 
@@ -100,6 +106,12 @@ class InstrumentDeviceImpl(ResourceImpl):
 
     def find_stemming_assignment(self, instrument_device_id):
         return self._find_stemming(instrument_device_id, PRED.hasAssignment, RT.LogicalInstrument)
+
+    def find_having_deployment(self, logical_instrument_id):
+        return self._find_having_single(PRED.hasDeployment, logical_instrument_id)
+
+    def find_stemming_deployment(self, instrument_device_id):
+        return self._find_stemming(instrument_device_id, PRED.hasDeployment, RT.LogicalInstrument)
 
     def find_having_data_producer(self, data_producer_id):
         return self._find_having(PRED.hasDataProducer, data_producer_id)
