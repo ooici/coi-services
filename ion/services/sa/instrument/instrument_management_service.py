@@ -166,7 +166,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.instrument_agent.create_one(instrument_agent)
+        instrument_agent_id = self.instrument_agent.create_one(instrument_agent)
+
+        # Create the process definition to launch the agent
+        process_definition = ProcessDefinition()
+        process_definition.executable['module']='ion.services.mi.instrument_agent'
+        process_definition.executable['class'] = 'InstrumentAgent'
+        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+        log.debug("create_instrument_agent: create_process_definition id %s"  +  str(process_definition_id))
+
+        #associate the agent and the proicess def
+        self.clients.resource_registry.create_association(instrument_agent_id,  PRED.hasProcessDefinition, process_definition_id)
+
+        return instrument_agent_id
 
     def update_instrument_agent(self, instrument_agent=None):
         """
@@ -366,6 +378,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("InstrumentAgent %s does not exist" % instrument_agent_id)
 
 
+        #retrieve the asssociated proces definition
+        process_def_ids, _ = self.clients.resource_registry.find_subjects(instrument_agent_id, predicate=PRED.hasProcessDefinition, object=RT.ProcessDefinition,  id_only=True)
+        if not process_def_ids:
+            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
+        if len(process_def_ids) > 1:
+            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
+
+        process_definition_id = process_def_ids[0]
+        log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
+
+        # retrieve the process definition information
+        process_def_obj = self.clients.resource_registry.read(process_definition_id)
+        if not process_def_obj:
+            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
+
+
         self.out_streams = []
         #retrieve the output products
         data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
@@ -406,16 +434,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create agent config.
         self.agent_config = {
             'driver_config' : self.driver_config,
-            'stream_config' : self.stream_config
+            'stream_config' : self.stream_config,
+            'resource_id': instrument_device_id   #id of instrument or platform device
         }
         log.debug("activate_instrument: agent_config %s ", str(self.agent_config))
 
         # Create the process definition to launch the agent
-        process_definition = ProcessDefinition()
-        process_definition.executable['module']='ion.services.mi.instrument_agent'
-        process_definition.executable['class'] = 'InstrumentAgent'
-        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
-        log.debug("activate_instrument: create_process_definition id %s"  +  str(process_definition_id))
+#        process_definition = ProcessDefinition()
+#        process_definition.executable['module']='ion.services.mi.instrument_agent'
+#        process_definition.executable['class'] = 'InstrumentAgent'
+#        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+#        log.debug("activate_instrument: create_process_definition id %s"  +  str(process_definition_id))
 
         pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, schedule=None, configuration=self.agent_config)
         log.debug("activate_instrument: schedule_process %s", pid)

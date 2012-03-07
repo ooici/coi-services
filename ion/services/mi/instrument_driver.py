@@ -58,6 +58,7 @@ class DriverState(BaseEnum):
     CALIBRATE = 'DRIVER_STATE_CALIBRATE'
     DETACHED = 'DRIVER_STATE_DETACHED'
     COMMAND = 'DRIVER_STATE_COMMAND'
+    DIRECT = 'DRIVER_STATE_DIRECT'
 
 class DriverEvent(BaseEnum):
     """Common driver event enum
@@ -93,7 +94,9 @@ class DriverEvent(BaseEnum):
     ATTACH = 'DRIVER_EVENT_ATTACH'
     DETACH = 'DRIVER_EVENT_DETACH'
     UPDATE_PARAMS = 'DRIVER_EVENT_UPDATE_PARAMS'
-    
+    EXECUTE_DIRECT = 'EXECUTE_DIRECT'    
+    START_DIRECT = 'DRIVER_EVENT_START_DIRECT'
+    STOP_DIRECT = 'DRIVER_EVENT_STOP_DIRECT'
 
 class DriverStatus(BaseEnum):
     """Common driver status enum"""
@@ -353,6 +356,21 @@ class InstrumentDriver(object):
         pass
     
     def execute_direct(self, channels, *args, **kwargs):
+        """
+        """
+        pass
+
+    def execute_direct_access(self, channels, *args, **kwargs):
+        """
+        """
+        pass
+
+    def execute_start_direct_access(self, channels):
+        """
+        """
+        pass
+        
+    def execute_stop_direct_access(self, channels):
         """
         """
         pass

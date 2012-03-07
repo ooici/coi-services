@@ -353,6 +353,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._linebuf = ''
         self._promptbuf = ''
         self._datalines = []
+        self._sent_cmds = []
 
         self._build_handlers = {}
         self._response_handlers = {}
@@ -531,6 +532,22 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Send command.
         mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
         self._logger_client.send(cmd_line)        
+
+        return InstErrorCode.OK
+
+    def _do_cmd_direct(self, cmd):
+        """
+        Issue an untranslated command to the instrument. No response is handled 
+        as a result of the command.
+        
+        @param cmd The high level command to issue
+        """
+
+        # Send command.
+        mi_logger.debug('_do_cmd_direct: <%s>', cmd)
+        self._logger_client.send(cmd)
+        # add sent command to list for 'echo' filtering in callback
+        self._sent_cmds.append(cmd)        
 
         return InstErrorCode.OK
 

@@ -84,8 +84,9 @@ class TelnetServer(object):
 			self.writeline("login failed")
 			self.exit_handler("login failed")
 			return
+		self.writeline("connected")   # let telnet client user know they are connected
 		while True:
-			self.write(self.TELNET_PROMPT)
+			#self.write(self.TELNET_PROMPT)
 			try:
 				input_line = self.fileobj.readline()
 			except EOFError:
