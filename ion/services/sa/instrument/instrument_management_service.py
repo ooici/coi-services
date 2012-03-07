@@ -346,10 +346,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not agent_ids:
             raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
 
-        log.debug("Getting instrument agent '%s'" % agent_ids[0])
+        instrument_agent_id = agent_ids[0]
+        log.debug("Getting instrument agent '%s'" % instrument_agent_id)
 
         # retrieve the instrument agent information
-        instrument_agent_obj = self.clients.resource_registry.read(agent_ids[0])
+        instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
 
         #retrieve the asssociated proces definition
         process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
@@ -367,7 +368,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
 
-        self.out_streams = []
+        out_streams = []
         #retrieve the output products
         data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
         if not data_product_ids:
@@ -388,29 +389,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise NotFound("Stream %s does not exist" % stream_ids[0])
 
             log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
-            self.out_streams.append(stream_ids[0])
+            out_streams.append(stream_ids[0])
 
 
         #todo: how to tell which prod is raw and which is parsed? Check the name?
-        self.stream_config = {"ctd_raw":self.out_streams[1], "ctd_parsed":self.out_streams[0]}
+        stream_config = {"ctd_raw":out_streams[1], "ctd_parsed":out_streams[0]}
         # Driver configuration.
-        self.driver_config = {
-            'svr_addr': instrument_agent_instance.svr_addr, 'cmd_port':instrument_agent_instance.cmd_port, 'evt_port':instrument_agent_instance.evt_port,
-            'dvr_mod': instrument_agent_instance.driver_module, 'dvr_cls': instrument_agent_instance.driver_class,
+        driver_config = {
+            'svr_addr': instrument_agent_instance.svr_addr, 
+            'cmd_port':instrument_agent_instance.cmd_port, 
+            'evt_port':instrument_agent_instance.evt_port,
+            'dvr_mod': instrument_agent_instance.driver_module, 
+            'dvr_cls': instrument_agent_instance.driver_class,
             'comms_config': {
-                SBE37Channel.CTD: { 'method':instrument_agent_instance.comms_method, 'device_addr': instrument_agent_instance.comms_device_address, 'device_port': instrument_agent_instance.comms_device_port,
-                    'server_addr': instrument_agent_instance.comms_server_address, 'server_port': instrument_agent_instance.comms_server_port
+                SBE37Channel.CTD: { 
+                    'method':instrument_agent_instance.comms_method, 
+                    'device_addr': instrument_agent_instance.comms_device_address, 
+                    'device_port': instrument_agent_instance.comms_device_port,
+                    'server_addr': instrument_agent_instance.comms_server_address, 
+                    'server_port': instrument_agent_instance.comms_server_port
+                    }
                 }
             }
-        }
 
         # Create agent config.
-        self.agent_config = {
-            'driver_config' : self.driver_config,
-            'stream_config' : self.stream_config,
+        agent_config = {
+            'driver_config' : driver_config,
+            'stream_config' : stream_config,
             'resource_id': instrument_device_id   #id of instrument or platform device
         }
-        log.debug("activate_instrument: agent_config %s ", str(self.agent_config))
+        log.debug("activate_instrument: agent_config %s ", str(agent_config))
 
         # Create the process definition to launch the agent
 #        process_definition = ProcessDefinition()
@@ -419,7 +427,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 #        log.debug("activate_instrument: create_process_definition id %s"  +  str(process_definition_id))
 
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, schedule=None, configuration=self.agent_config)
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, 
+                                                               schedule=None, 
+                                                               configuration=agent_config)
         log.debug("activate_instrument: schedule_process %s", pid)
 
         # Launch an instrument agent process.
