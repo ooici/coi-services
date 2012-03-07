@@ -44,6 +44,7 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 
+from pyon.core.exception import BadRequest, NotFound, Conflict
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -175,7 +176,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         log.debug("create_instrument_agent: create_process_definition id %s"  +  str(process_definition_id))
 
-        #associate the agent and the proicess def
+        #associate the agent and the process def
         self.clients.resource_registry.create_association(instrument_agent_id,  PRED.hasProcessDefinition, process_definition_id)
 
         return instrument_agent_id
@@ -379,7 +380,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the asssociated proces definition
-        process_def_ids, _ = self.clients.resource_registry.find_subjects(instrument_agent_id, predicate=PRED.hasProcessDefinition, object=RT.ProcessDefinition,  id_only=True)
+        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
         if not process_def_ids:
             raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
         if len(process_def_ids) > 1:
