@@ -87,6 +87,64 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_process_def_list
 
 
+    def assign_input_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
+        """Connect the input  stream with a data process definition
+        """
+        # Verify that both ids are valid, RR will throw if not found
+        stream_definition_obj = self.clients.resource_registry.read(stream_definition_id)
+        data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
+
+        self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInputStreamDefinition,  stream_definition_id)
+
+        return
+
+
+    def unassign_input_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
+        """
+        Disconnect the Data Product from the Data Producer
+
+        @param data_product_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        # Remove the link between the Stream Definition resource and the Data Process Definition resource
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, RT.DataProducer, id_only=True)
+        if associations is None:
+            raise NotFound("No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+        return
+
+
+    def assign_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
+        """Connect the output  stream with a data process definition
+        """
+        # Verify that both ids are valid, RR will throw if not found
+        stream_definition_obj = self.clients.resource_registry.read(stream_definition_id)
+        data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
+
+        self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
+
+        return
+
+    def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
+        """
+        Disconnect the Data Product from the Data Producer
+
+        @param data_product_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        # Remove the link between the Stream Definition resource and the Data Process Definition resource
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, RT.DataProducer, id_only=True)
+        if associations is None:
+            raise NotFound("No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+        return
+
 
     def create_data_process(self, data_process_definition_id='', in_data_product_id='', out_data_products=None):
         """
