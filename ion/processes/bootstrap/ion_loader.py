@@ -4,10 +4,13 @@
 
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
+import ast
 import csv
 import datetime
 import os
 import os.path
+
+from interface import objects
 
 from pyon.core.bootstrap import service_registry
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject
@@ -47,6 +50,7 @@ class IONLoader(ImmediateProcess):
 
         self.obj_classes = {}
         self.resource_ids = {}
+        self.user_ids = {}
 
         for category in categories:
             row_do, row_skip = 0, 0
@@ -109,7 +113,7 @@ class IONLoader(ImmediateProcess):
                 elif fieldname in schema:
                     try:
                         if value:
-                            fieldvalue = self._get_typed_value(value, schema[fieldname]['type'])
+                            fieldvalue = self._get_typed_value(value, schema[fieldname])
                             obj_fields[fieldname] = fieldvalue
                     except Exception:
                         log.warn("Object type=%s, prefix=%s, field=%s cannot be converted to type=%s. Value=%s" % (objtype, prefix, fieldname, schema[fieldname]['type'], value))
@@ -128,17 +132,19 @@ class IONLoader(ImmediateProcess):
         self.obj_classes[objtype] = obj_class
         return obj_class
 
-    def _get_typed_value(self, value, targettype):
+    def _get_typed_value(self, value, schema_entry):
+        targettype = schema_entry["type"]
         if targettype is 'str':
             return str(value)
-        elif targettype is 'bool':
-            return bool(value)
-        elif targettype is 'int':
-            return int(value)
-        elif targettype is 'list':
-            return list(value.split('[,]'))
+        if value.lower() == 'false':
+            return False
+        elif value.lower() == 'true':
+            return True
+        elif 'enum_type' in schema_entry:
+            enum_clzz = getattr(objects, schema_entry['enum_type'])
+            return enum_clzz._value_map[value]
         else:
-            raise Exception("Unknown type: %s" % targettype)
+            return ast.literal_eval(value)
 
     def _get_service_client(self, service):
         return service_registry.services[service].client(process=self)
@@ -149,12 +155,30 @@ class IONLoader(ImmediateProcess):
         self.resource_ids[alias] = resid
         log.info("Added resource alias=%s to id=%s" % (alias, resid))
 
+    def _register_user_id(self, name, id):
+        self.user_ids[name] = id
+        log.info("Added user name|id=%s|%s" % (name, id))
+
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
 
     def _load_user(self, row):
         log.info("Loading user")
-        #user_obj = self._create_object_from_row("UserInfo", row)
+        subject = row["subject"]
+        name = row["name"]
+        email = row["email"]
+
+        ims = self._get_service_client("identity_management")
+
+        user_identity_obj = IonObject("UserIdentity", {"name": subject})
+        user_id = ims.create_user_identity(user_identity_obj)
+        self._register_user_id(name, user_id)
+
+        user_credentials_obj = IonObject("UserCredentials", {"name": subject})
+        ims.register_user_credentials(user_id, user_credentials_obj)
+
+        user_info_obj = IonObject("UserInfo", {"contact": {"name": name, "email": email}})
+        ims.create_user_info(user_id, user_info_obj)
 
     def _load_marine_facility(self, row):
         log.info("Loading MarineFacility")
