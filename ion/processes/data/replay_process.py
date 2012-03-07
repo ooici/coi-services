@@ -440,11 +440,9 @@ class ReplayProcess(BaseReplayProcess):
         retval = {}
         for key, value in granule.identifiables.iteritems():
             if isinstance(value, RangeSet):
-                try:
                     values_path = value.values_path or definition.identifiables[key].values_path
                     retval[key] = values_path
-                except AttributeError:
-                    raise Exception(' the name is %s' % key)
+
             elif isinstance(value, CoordinateAxis):
                 values_path = value.values_path or definition.identifiables[key].values_path
                 retval[key] = values_path
