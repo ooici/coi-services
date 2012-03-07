@@ -96,7 +96,7 @@ class IONLoader(ImmediateProcess):
         for col,value in row.iteritems():
             if col.startswith(prefix):
                 fieldname = col[len(prefix):]
-                if fieldname.find('/') > 0:
+                if '/' in fieldname:
                     slidx = fieldname.find('/')
                     nested_obj_field = fieldname[:slidx]
                     if not nested_obj_field in exclude_prefix:
@@ -135,6 +135,8 @@ class IONLoader(ImmediateProcess):
             return bool(value)
         elif targettype is 'int':
             return int(value)
+        elif targettype is 'list':
+            return list(value.split('[,]'))
         else:
             raise Exception("Unknown type: %s" % targettype)
 
@@ -142,6 +144,8 @@ class IONLoader(ImmediateProcess):
         return service_registry.services[service].client(process=self)
 
     def _register_id(self, alias, resid):
+        if alias in self.resource_ids:
+            raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         log.info("Added resource alias=%s to id=%s" % (alias, resid))
 
