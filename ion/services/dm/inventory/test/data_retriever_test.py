@@ -3,6 +3,7 @@
 @file ion/services/dm/inventory/test/data_retriever_test.py
 @description Testing Platform for Data Retriver Service
 '''
+from gevent.coros import RLock
 from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DataStore
 from pyon.public import  StreamSubscriberRegistrar
@@ -15,7 +16,7 @@ from pyon.net.endpoint import Subscriber
 from pyon.public import CFG
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from ion.processes.data.replay_process import llog, ReplayProcess
+from ion.processes.data.replay_process import ReplayProcess
 from prototype.hdf.hdf_codec import HDFEncoder
 from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
@@ -158,7 +159,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         self.couch.create(definition)
 
-        total = 100
+        total = 200
         n = 10 # at most n records per granule
         i = 0
 
@@ -300,11 +301,22 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         dsm_cli = self.dsm_cli
         dr_cli = self.dr_cli
         rr_cli = self.rr_cli
+        pubsub_cli = self.ps_cli
         assertions = self.assertTrue
         cc = self.container
-
+        incr_lock = RLock()
         dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
-        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature'], 'time':(1,71),'records':10})
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature'], 'time':(101,171),'records':10})
+
+        definition = pubsub_cli.find_stream_definition(stream_id=stream_id,id_only=False).container
+        data_stream_id = definition.data_stream_id
+        encoding_id = definition.identifiables[data_stream_id].encoding_id
+        element_type_id = definition.identifiables[data_stream_id].element_type_id
+        element_count_id = definition.identifiables[data_stream_id].element_count_id
+        data_record_id = definition.identifiables[element_type_id].data_record_id
+
+
+
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
@@ -312,19 +324,43 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         result = gevent.event.AsyncResult()
+        records_rcvd = gevent.queue.Queue()
 
         def check_msg(msg, header):
             assertions(isinstance(msg, StreamGranuleContainer), 'Msg is not a container')
             hdf_string = msg.identifiables[msg.data_stream_id].values
             sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
+            assertions(sha1 == msg.identifiables[encoding_id].sha1, 'Checksum doesn\'t match.')
+            record_count = msg.identifiables[element_count_id].value
+            log.debug('Record Count: %d', record_count)
+            assertions(record_count>0 and record_count<=10, 'record count size is incorrect.')
             # Make sure that the granule contains no more than 10 records
+
+            f = FileSystem.mktemp()
+            f.write(msg.identifiables[data_stream_id].values)
+            f.close()
+
+
+            incr_lock.acquire()
+            if not records_rcvd.empty():
+                initial_value = records_rcvd.get()
+            else:
+                initial_value = 0
+            total = initial_value + record_count
+            records_rcvd.put(total)
+            log.debug('initial value: %d', initial_value)
+            log.debug('recvd: %d', total)
+            if total == 71:
+                result.set(True)
+            incr_lock.release()
             
 
         self.start_listener(stream_id=stream_id, callback=check_msg)
 
         dr_cli.start_replay(replay_id=replay_id)
 
-        assertions(result.get(timeout=3), 'Did not receive a msg from replay')
+        assertions(result.get(timeout=10), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
         assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')

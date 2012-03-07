@@ -3,32 +3,22 @@
 @file ion/processes/data/replay_process.py
 @description Replay Process handling set manipulations for the DataModel
 '''
-import copy
-import hashlib
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
+
 from pyon.public import log
 from pyon.datastore.datastore import DataStore
 from pyon.core.exception import IonException
 from pyon.util.file_sys import FS, FileSystem
 from prototype.hdf.hdf_array_iterator import acquire_data
 from prototype.hdf.hdf_codec import HDFEncoder
-
-from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
+from prototype.sci_data.constructor_apis import DefinitionTree
 from interface.objects import BlogBase, StreamGranuleContainer, StreamDefinitionContainer, CoordinateAxis, QuantityRangeElement, CountElement, RangeSet
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
 import os
 import time
-import numpy as np
-
-
-#@todo: Remove this debugging stuff
-def llog(msg):
-    with open(FileSystem.get_url(FS.CACHE,'debug'),'a') as f:
-        f.write('%s ' % time.strftime('%Y-%m-%dT%H:%M:%S'))
-        f.write(msg)
-        f.write('\n')
+import copy
+import hashlib
 
 
 class ReplayProcessException(IonException):
@@ -45,8 +35,8 @@ class ReplayProcess(BaseReplayProcess):
     process_type = 'standalone'
 
     def __init__(self, *args, **kwargs):
-        super(ReplayProcess,self).__init__(*args,**kwargs)
 
+        super(ReplayProcess,self).__init__(*args,**kwargs)
         self.lock = RLock()
 
     def on_start(self):
@@ -78,7 +68,7 @@ class ReplayProcess(BaseReplayProcess):
 
     def execute_replay(self):
         '''
-        Spawns a greenlet to take care of the query and work
+        @brief Spawns a greenlet to take care of the query and work
         '''
         datastore_name = self.datastore_name
         key_id = self.key_id
@@ -97,7 +87,11 @@ class ReplayProcess(BaseReplayProcess):
 
     def _query(self,datastore_name='dm_datastore', view_name='posts/posts_by_id', opts={}, callback=None):
         '''
-        Makes the couch query and then callsback to publish
+        @brief Makes the couch query and then callsback to publish
+        @param datastore_name Name of the datastore
+        @param view_name The name of the design view where the data is organized
+        @param opts options to pass
+        @param callback the content handler
         '''
         db = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA, self.CFG)
 
@@ -107,8 +101,8 @@ class ReplayProcess(BaseReplayProcess):
 
     def _publish_query(self, results):
         '''
-        Merges the results into one dataset
-        Manages the publishing rules
+        @brief Publishes the appropriate data based on the delivery format and data returned from query
+        @param results The query results from the couch query
         '''
 
         if results is None:
@@ -143,7 +137,9 @@ class ReplayProcess(BaseReplayProcess):
 
     def _parse_results(self, results):
         '''
-        Switch-case logic for what packet types replay can handle and how to handle
+        @brief Switch-case logic for what packet types replay can handle and how to handle
+        @param results List of results returned from couch view
+        @return A queue of msgs parsed and formatted to be iterated through and published.
         '''
         log.debug('called _parse_results')
         publish_queue = []
@@ -177,7 +173,9 @@ class ReplayProcess(BaseReplayProcess):
 
     def _records(self, granule, n):
         '''
-        Returns a packet of at most n records
+        @brief Yields n records from a granule per iteration
+        @param granule consisting of dataset
+        @param n number of records to yield
         '''
         bin_size = n
         record_count = granule.identifiables[self.element_count_id].value
@@ -191,57 +189,84 @@ class ReplayProcess(BaseReplayProcess):
             yield self._slice(granule, slice(i,i+bin_size))
         return
 
+    def _pair_up(self, granule):
+        '''
+        @brief Creates a list of tuples consisting of acquire_data friendly var_names and full values_paths
+        @param granule consisting of full dataset.
+        @return list of tuples
+        '''
+        fields = self._list_data(self.definition, granule)
+        pairs = list()
+        for i in fields.values():
+            pairs.append((i.split('/').pop(),i))
+        return pairs
+
+    def _find_vp(self, pairs, var_name):
+        '''
+        @brief Determines the value path based on the acquire_data friendly var_name
+        @param pairs List of tuples consisting of pair-wise var_name/value_path
+        @param var_name Desired var_name
+        @return Associated value_path
+        '''
+        for pair in pairs:
+            if var_name == pair[0]:
+                return pair[1]
+        return
 
     def _slice(self,granule,slice_):
+        '''
+        @brief Creates a granule which is a slice of the granule parameter
+        @param granule the superset
+        @param slice_ The slice values for which to create the granule
+        @return Crafted subset granule of the parameter granule.
+        '''
         retval = copy.deepcopy(granule)
         fields = self._list_data(self.definition,granule)
         record_count = slice_.stop - slice_.start
         assert record_count > 0, 'slice is malformed'
-        pairs = list()
-        for i in fields.values():
-            pairs.append((i.split('/').pop(),i))
-        var_names = list([i[0] for i in pairs])
+        pairs = self._pair_up(granule)
+        var_names = list([i[0] for i in pairs]) # Get the var_names from the pairs
         log.debug('var_names: %s',var_names)
-        f = FileSystem.mktemp()
-        f.write(granule.identifiables[self.data_stream_id].values)
-        file_path = f.name
-        f.close()
+        file_path = self._get_hdf_from_string(granule.identifiables[self.data_stream_id].values)
         codec = HDFEncoder()
         vectors = acquire_data([file_path],var_names,record_count,slice_ ).next()
 
         for row, value in vectors.iteritems():
-            vp = None
-            rang_id = ''
-            for pair in pairs:
-                if row == pair[0]:
-                    vp = pair[1]
-                    break
+            vp = self._find_vp(pairs, row)
+            # Determine the range_id reverse dictionary lookup
+            #@todo: improve this pattern
             for field,path in fields.iteritems():
                 if vp==path:
                     range_id = field
                     break
             bounds_id = retval.identifiables[range_id].bounds_id
+            # Recalculate the bounds for this fields and update the granule
+            range = value['range']
+            retval.identifiables[bounds_id].value_pair[0] = float(range[0])
+            retval.identifiables[bounds_id].value_pair[1] = float(range[1])
+            codec.add_hdf_dataset(vp, value['values'])
+            record_count = len(value['values'])
+            #----- DEBUGGING ---------
             log.debug('slice- row: %s', row)
             log.debug('slice- value_path: %s', vp)
             log.debug('slice- range_id: %s', range_id)
             log.debug('slice- bounds_id: %s', bounds_id)
-            range = value['range']
-            retval.identifiables[bounds_id].value_pair[0] = float(range[0])
-            retval.identifiables[bounds_id].value_pair[1] = float(range[1])
             log.debug('slice- limits: %s', value['range'])
-            codec.add_hdf_dataset(vp, value['values'])
+            #-------------------------
+
 
         retval.identifiables[self.element_count_id].value = record_count
         hdf_string = codec.encoder_close()
-        retval.identifiables[self.data_stream_id].values = hdf_string
-        retval.identifiables[self.encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-
+        self._patch_granule(retval, hdf_string)
+        FileSystem.unlink(file_path)
         return retval
 
 
     def _parse_granule(self, granule):
         '''
-        Ensures the granule is valid and gets some metadata from the granule for building the dataset
+        @brief Ensures the granule is valid and gets some metadata from the granule for building the dataset
+        @param granule raw granule straight from couch
+        @return metadata in the granule as well as the granule itself if valid.
         '''
 
         granule.stream_resource_id = self.stream_id
@@ -282,11 +307,16 @@ class ReplayProcess(BaseReplayProcess):
     @staticmethod
     def merge_granule(definition, granule1, granule2):
         '''
+        @brief Merges two granules based on the definition
+        @param definition Stream Definition
+        @param granule1 First Granule
+        @param granule2 Second Granule
+        @return Returns granule1 which is then merged with granule2 and the file pair for indexing
 
-        returns the union of these two granules
-
-        granule1 := granule1 U granule2
+        @description granule1 := granule1 U granule2
         '''
+        import numpy as np
+
         assert isinstance(definition,StreamDefinitionContainer), 'object is not a definition.'
         assert isinstance(granule1, StreamGranuleContainer), 'object is not a granule.'
         assert isinstance(granule2, StreamGranuleContainer), 'object is not a granule.'
@@ -294,6 +324,13 @@ class ReplayProcess(BaseReplayProcess):
         assert granule1.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
         assert granule2.identifiables.has_key('time_bounds'), 'object has no time bounds and therefore is invalid.'
         encoding_id = DefinitionTree.get(definition,'%s.encoding_id' % definition.data_stream_id)
+
+
+        #-------------------------------------------------------------------------------------
+        # First step is figure out where each granule belongs on the timeline
+        # We do this with a tuple consisting of the point in the timeline and the filename
+        # These will get stable sorted later
+        #-------------------------------------------------------------------------------------
 
         pair1 = (
             granule1.identifiables['time_bounds'].value_pair[0],
@@ -305,11 +342,8 @@ class ReplayProcess(BaseReplayProcess):
             '%s.hdf5' % granule2.identifiables[encoding_id].sha1
         )
 
-        log.debug('pair1: %d',pair1[0])
-        log.debug('pair2: %d',pair2[0])
-
-
         files = []
+
         if encoding_id in granule1.identifiables:
             if granule1.identifiables[encoding_id].sha1:
                 files.append('%s.hdf5' % granule1.identifiables[encoding_id].sha1)
@@ -347,10 +381,8 @@ class ReplayProcess(BaseReplayProcess):
             if isinstance(v, QuantityRangeElement):
                 # If its not in granule1 just throw it in there
                 if k not in granule1.identifiables:
-                    llog('%s was not in first granule, appending...' % k)
                     granule1.identifiables[k] = v
                 else:
-                    llog('%s was in the first one calculating upper and lower bounds.' % k)
                     bounds1 = granule1.identifiables[k].value_pair
                     bounds2 = granule2.identifiables[k].value_pair
                     bounds = np.append(bounds1,bounds2)
@@ -384,7 +416,10 @@ class ReplayProcess(BaseReplayProcess):
     @staticmethod
     def _list_data(definition, granule):
         '''
-        Lists all the fields in the granule
+        @brief Lists all the fields in the granule based on the Stream Definition
+        @param definition Stream Definition
+        @param granule Stream Granule
+        @return dict of field_id : values_path for each field_id that exists
         '''
         from interface.objects import StreamDefinitionContainer, StreamGranuleContainer, RangeSet, CoordinateAxis
         assert isinstance(definition, StreamDefinitionContainer), 'object is not a definition.'
@@ -404,7 +439,10 @@ class ReplayProcess(BaseReplayProcess):
 
     def _merge(self, msgs):
         '''
-        Merges all the granules and datasets into one large dataset (Union)
+        @brief Merges all the granules and datasets into one large dataset (Union)
+        @param msgs raw granules from couch
+        @return complete dataset
+        @description
              n
         D := U [ msgs_i ]
             i=0
@@ -413,48 +451,41 @@ class ReplayProcess(BaseReplayProcess):
         file_list = list()
         count = len(msgs)
         used_vals = list()
+
+        #-------------------------------------------------------------------------------------
+        # Merge each granule to another granule one by one.
+        # After each merge operation keep track of what files belong where on the timeline
+        #-------------------------------------------------------------------------------------
+
+
         for i in xrange(count):
             if i==0:
                 granule = msgs[0]['granule']
                 continue
             res = ReplayProcess.merge_granule(definition=self.definition, granule1=granule, granule2=msgs[i]['granule'])
+
             granule = res['granule']
             file_pair = res['files']
-            if file_pair[0] not in file_list and file_pair[0][0] not in used_vals:
 
+            if file_pair[0] not in file_list and file_pair[0][0] not in used_vals:
                 file_list.append( tuple(file_pair[0]))
                 used_vals.append(file_pair[0][0])
             if file_pair[1] not in file_list and file_pair[1][0] not in used_vals:
-
                 file_list.append(tuple(file_pair[1]))
                 used_vals.append(file_pair[1][0])
 
-
-
+        #-------------------------------------------------------------------------------------
+        # Order the lists using a stable sort from python (by the first value in the tuples
+        # Then peel off just the file names
+        # Then get the appropriate URL for the file using FileSystem
+        #-------------------------------------------------------------------------------------
         file_list.sort()
-        log.debug('Ordered pairs: %s', file_list)
         file_list = list(i[1] for i in file_list)
         file_list = list([FileSystem.get_url(FS.CACHE, '%s' % i) for i in file_list])
 
-        def find_value_path(path_obj, field):
-            pairs = path_obj.values()
-            for pair in pairs:
-                if pair[0] == field:
-                    return pair[1]
-            return None
+        pairs = self._pair_up(granule)
+        var_names = list([i[0] for i in pairs])
 
-        log.debug('Ultimate file_list: %s', file_list)
-
-        fields = self._list_data(self.definition,granule)
-        path_obj = dict()
-        for field,path in fields.iteritems():
-            path_obj[field] = (path.split('/').pop(),path)
-
-
-        var_names = list([path_obj.values()[i][0] for i in xrange(len(path_obj))])
-
-
-        log.debug('Path Obj: %s', path_obj)
         record_count = granule.identifiables[self.element_count_id].value
         codec = HDFEncoder()
         log.debug('acquire_data:')
@@ -464,83 +495,114 @@ class ReplayProcess(BaseReplayProcess):
 
         data = acquire_data(file_list, var_names, record_count).next()
         for row,value in data.iteritems():
+            value_path = self._find_vp(pairs,row)
+            codec.add_hdf_dataset(value_path,nparray=value['values'])
+            #-------------------------------------------------------------------------------------
+            # Debugging
+            #-------------------------------------------------------------------------------------
             log.debug('row: %s', row)
-            value_path = find_value_path(path_obj, row)
             log.debug('value path: %s', value_path)
             log.debug('value: %s', value['values'])
-            codec.add_hdf_dataset(value_path,nparray=value['values'])
+
         hdf_string = codec.encoder_close()
+        self._patch_granule(granule,hdf_string)
+        return granule
+
+    def _patch_granule(self, granule, hdf_string):
+        '''
+        @brief Adds the hdf_string and sha1 to the granule
+        @param granule Stream Granule
+        @param hdf_string string consisting of raw bytes from an hdf5 file
+        '''
         granule.identifiables[self.data_stream_id].values = hdf_string
         granule.identifiables[self.encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
 
-        return granule
-
 
     def time_subset(self, granule, time_bounds):
+        '''
+        @brief Obtains a subset of the granule dataset based on the specified time_bounds
+        @param granule Dataset
+        @param time_bounds tuple consisting of a lower and upper bound
+        @return A subset of the granule's dataset based on the time boundaries.
+        '''
         assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
         lower = time_bounds[0]-1
         upper = time_bounds[1]
-
-        lower_index = self._get_time_index(granule,lower)
-        log.debug('time_subset lower: %s', lower_index)
-        upper_index = self._get_time_index(granule,upper)
-        log.debug('time_subset upper: %s', upper_index)
-        fields = self._list_data(self.definition, granule)
-        log.debug('time_subset fields: %s', fields)
         granule = self._slice(granule, slice(lower,upper))
-        log.debug('time_subset identifiables: %s', granule.identifiables.keys())
         return granule
 
 
 
     def _get_time_index(self, granule, timeval):
         '''
+        @brief Obtains the index where a time's value is
         @param granule must be a complete dataset (hdf_string provided)
+        @param timeval the vector value
+        @return Index value for timeval or closest approx such that timeval is IN the subset
         '''
         assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
         assert granule.identifiables[self.data_stream_id].values, 'hdf_string is not provided.'
 
         hdf_string = granule.identifiables[self.data_stream_id].values
+        file_path = self._get_hdf_from_string(hdf_string)
 
-        f = FileSystem.mktemp()
-        f.write(hdf_string)
-        file_path = f.name
-        f.close()
+        #-------------------------------------------------------------------------------------
+        # Determine the field_id for the temporal coordinate vector (aka time)
+        #-------------------------------------------------------------------------------------
 
-        # Get the time field, temporal coordinate vector id
         time_field = self.definition.identifiables[self.time_id].coordinate_ids[0]
         value_path = granule.identifiables[time_field].values_path or self.definition.identifiables[time_field].values_path
-        log.debug('time_field: %s', time_field)
-        log.debug('value_path: %s', value_path)
         record_count = granule.identifiables[self.element_count_id].value
+
+        #-------------------------------------------------------------------------------------
+        # Go through the time vector and get the indexes that correspond to the timeval
+        # It will find a value such that
+        # t_n <= i < t_(n+1), where i is the index
+        #-------------------------------------------------------------------------------------
+
+
         var_name = value_path.split('/').pop()
         res = acquire_data([file_path], [var_name], record_count).next()
         time_vector = res[var_name]['values']
-        log.debug('time_vector: %s', res[var_name]['values'])
-        log.debug('check: %s', type(time_vector))
+        retval = 0
         for i in xrange(len(time_vector)):
             if time_vector[i] == timeval:
-                return i
+                retval = i
+                break
             elif i==0 and time_vector[i] > timeval:
-                return i
+                retval = i
+                break
             elif (i+1) < len(time_vector): # not last val
                 if time_vector[i] < timeval and time_vector[i+1] > timeval:
-                    return i
+                    retval = i
+                    break
             else: # last val
-                return i
+                retval = i
+                break
+        FileSystem.unlink(file_path)
+        return retval
 
-
+    def _get_hdf_from_string(self, hdf_string):
+        '''
+        @param hdf_string binary string consisting of an HDF5 file.
+        @return temporary file (full path) where the string was written to.
+        @note client's responsible to unlink when finished.
+        '''
+        f = FileSystem.mktemp()
+        f.write(hdf_string)
+        retval = f.name
+        f.close()
+        return retval
 
 
     def subset(self,granule,coverages):
         '''
-        returns a dataset subset based on the fields
-
+        @param granule
+        @return dataset subset based on the fields
         '''
         assert isinstance(granule, StreamGranuleContainer), 'object is not a granule.'
         field_ids = self.field_ids
         element_count_id = self.element_count_id
-        encoding_id = self.encoding_id
 
 
         values_path = list()
@@ -548,8 +610,23 @@ class ReplayProcess(BaseReplayProcess):
         coverage_ids = list()
         coverages = list(coverages)
         log.debug('Coverages include %s of type %s', coverages, type(coverages))
+        #-----------------------------------------------------------------------------------------------------------
+        # Iterate through the fields IAW stream definition and check for rangesets and coordinate axises
+        #  - If its a coordinate axis, it belongs regardless of what the client desires. (It's part of the domain)
+        #  - If its a rangeset make sure that it's part of what the client asked for, if not discard it
+        #-----------------------------------------------------------------------------------------------------------
+
+
         for field_id in field_ids:
+
             range_id = self.definition.identifiables[field_id].range_id
+
+            #-------------------------------------------------------------------------------------
+            # Coordinate Axis
+            # - Keep track of this in our domains
+            # - Add it to the paths we need to grab from the file(s)
+            #-------------------------------------------------------------------------------------
+
             if isinstance(self.definition.identifiables[range_id], CoordinateAxis):
                 log.debug('got a domain: %s' % range_id)
                 domain_ids.append(field_id)
@@ -560,6 +637,14 @@ class ReplayProcess(BaseReplayProcess):
                     value_path = self.definition.identifiables[range_id].values_path
                     values_path.append(value_path)
                 continue
+
+            #-------------------------------------------------------------------------------------
+            # Range Set
+            # - If it's part of the coverages we want to keep
+            #   - Add it to the list of ranges we're tracking
+            #   - Add the value path to the paths we're tracking.
+            #-------------------------------------------------------------------------------------
+
 
             if isinstance(self.definition.identifiables[range_id], RangeSet):
                 # If its a rangeset, a specified coverage and the granule has it, add it to the list
@@ -575,10 +660,18 @@ class ReplayProcess(BaseReplayProcess):
                             values_path.append(value_path)
                         continue
 
+                # ----
+                # We need to track the range and bounds because,
+                # you guessed it, we need to update the bounds
+                # ----
+
                 range_id = self.definition.identifiables[field_id].range_id
                 bounds_id = self.definition.identifiables[range_id].bounds_id
 
 
+                #---
+                # Lastly, if the field is there and we don't want it, we need to strip it
+                #---
 
                 if not (field_id in coverages):
                     log.debug('%s doesn\'t belong in %s.', field_id, coverages)
@@ -589,49 +682,31 @@ class ReplayProcess(BaseReplayProcess):
                     if granule.identifiables.has_key(bounds_id):
                         log.debug('Removing %s from granule', bounds_id)
                         del granule.identifiables[bounds_id]
+
         log.debug('Domains: %s', domain_ids)
         log.debug('Ranges: %s', coverage_ids)
         log.debug('Values_paths: %s', values_path)
-        f = FileSystem.mktemp()
-        f.write(granule.identifiables[self.definition.data_stream_id].values)
-        file_path = f.name
-        f.close()
 
-        assert os.path.exists(file_path), 'file didn\'t persist.'
+        file_path = self._get_hdf_from_string(granule.identifiables[self.data_stream_id].values)
         full_coverage = list(domain_ids + coverage_ids)
-
 
         log.debug('Full coverage: %s' % full_coverage)
         log.debug('Calling acquire_data with: %s, %s, %s', [file_path],values_path,granule.identifiables[element_count_id].value)
-        #generator = acquire_data([file_path],values_path,granule.identifiables[element_count_id].value)
+
         codec = HDFEncoder()
-        #dataset = generator.next()['arrays_out_dict']
-        #for field in dataset.keys():
-        #    codec.add_hdf_dataset(field, dataset[field])
 
-        path_obj = list()
-        for field in values_path:
-            path_obj.append((field.split('/').pop(),field))
-        # now path_obj is a list of tupple pairs [0] is the var_name [1] is the values path
+        pairs = self._pair_up(granule)
+        var_names = list([i[0] for i in pairs])
 
-        var_names = list(i[0] for i in path_obj)
-        log.debug('subset var_names: %s', var_names)
         record_count = granule.identifiables[self.element_count_id].value
         data = acquire_data([file_path], var_names, record_count).next()
         for row,value in data.iteritems():
-            log.debug('subset row: %s', row)
-            vp = None
-            for pair in path_obj:
-                if pair[0] == row:
-                    vp = pair[1]
-                    break
+            vp = self._find_vp(pairs, row)
             codec.add_hdf_dataset(vp, value['values'])
-            log.debug('values: %s', value['values'])
-
-
 
         hdf_string = codec.encoder_close()
-        granule.identifiables[self.definition.data_stream_id].values = hdf_string
-        granule.identifiables[encoding_id].sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+        self._patch_granule(granule,hdf_string)
+
+        FileSystem.unlink(file_path)
 
         return granule

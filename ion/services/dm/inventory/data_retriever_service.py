@@ -7,7 +7,6 @@
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
-from ion.processes.data.replay_process import llog
 from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED
