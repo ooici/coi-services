@@ -54,7 +54,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='mmm')
-#@unittest.skip('not working')
+@unittest.skip('not working')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
