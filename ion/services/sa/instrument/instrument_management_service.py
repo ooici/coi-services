@@ -896,6 +896,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
+    def deploy_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        self.instrument_device.link_deployment(instrument_device_id, logical_instrument_id)
+
+    def undeploy_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        self.instrument_device.unlink_deployment(instrument_device_id, logical_instrument_id)
+
+    def deploy_platform_device_to_logical_platform(self, platform_device_id='', logical_platform_id=''):
+        self.platform_device.link_deployment(platform_device_id, logical_platform_id)
+
+    def undeploy_platform_device_from_logical_platform(self, platform_device_id='', logical_platform_id=''):
+        self.platform_device.unlink_deployment(platform_device_id, logical_platform_id)
+
+
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         #todo: for when instrument agents are the owners of stream def associations
         #agents = self.find_instrument_agent_by_instrument_model(instrument_model_id)
