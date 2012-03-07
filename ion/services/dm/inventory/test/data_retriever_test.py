@@ -32,7 +32,6 @@ from mock import Mock
 import unittest, time
 import random
 import hashlib
-import numpy as np
 import pyon.core.bootstrap as bootstrap
 import gevent
 import unittest
@@ -153,6 +152,8 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self.thread_pool = list()
 
     def make_some_data(self):
+        import numpy as np
+
         stream_id = 'I am very special'
         definition = SBE37_CDM_stream_definition()
         definition.stream_resource_id = stream_id
