@@ -145,6 +145,7 @@ class BaseLoggerProcess(DaemonProcess):
             
         if sock:        
             self.driver_sock = sock
+            self.driver_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                            
             self.driver_addr = addr
             self.statusfile.write('_accept_driver_comms: driver connected at %s, %i.\n' % self.driver_addr)
             self.statusfile.flush()
@@ -624,6 +625,7 @@ class LoggerClient(object):
         # This can be thrown here.
         # error: [Errno 61] Connection refused
         self.sock.connect((self.host, self.port))
+        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                        
         self.sock.setblocking(0)        
         self.listener_thread = Listener(self.sock, self.delim, callback)
         self.listener_thread.start()
@@ -714,7 +716,7 @@ class Listener(threading.Thread):
             try:
                 data = self.sock.recv(4069)
                 if self.callback:
-                    mi_logger.debug('logger got data: %s', repr(data))
+                    #mi_logger.debug('logger got data: %s', repr(data))
                     self.callback(data)
                 else:
                     if not self.delim:

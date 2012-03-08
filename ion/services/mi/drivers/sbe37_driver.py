@@ -893,7 +893,31 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         
         mi_logger.info('start updating params')
+
+        prompt = self._wakeup(15)
         
+        self._linebuf = ''
+        self._promptbuf = ''
+        
+        self._logger_client.send('\r\n'*3)
+        time.sleep(3)
+        self._logger_client.send('ds\r\n')
+        time.sleep(3)
+        self._logger_client.send('\r\n'*3)
+        time.sleep(3)
+        
+        """
+        mi_logger.info('sending ds')
+        self._logger_client.send('ds\r\n')
+        time.sleep(3)
+        mi_logger.info('sending return')
+        self._logger_client.send('\r\n')
+        time.sleep(3)
+        mi_logger.info('sending return')
+        self._logger_client.send('\r\n')
+        """        
+        
+        """
         timeout = kwargs.get('timeout', 10)
         old_config = self._get_config_param_dict()
         self._do_cmd_resp('ds',timeout=timeout)
@@ -906,7 +930,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     'value' : new_config
                 }
                 self.send_event(event)
-                
+        """     
         mi_logger.info('done updating params')
         
     def _build_simple_command(self, cmd):

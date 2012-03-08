@@ -474,7 +474,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
         
-        """
+        
         while True:
             
             for item in self.prompts.list():
@@ -486,9 +486,9 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     time.sleep(.1)
             if time.time() > starttime + timeout:
                 raise InstrumentTimeoutException()
-        """
-        time.sleep(3)
-        return (None, self._linebuf)
+        
+        #time.sleep(3)
+        #return (None, self._linebuf)
         
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """
