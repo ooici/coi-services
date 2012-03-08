@@ -894,17 +894,28 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         
         mi_logger.info('start updating params')
 
-        prompt = self._wakeup(15)
+        #prompt = self._wakeup(15)
         
         self._linebuf = ''
         self._promptbuf = ''
         
-        self._logger_client.send('\r\n'*3)
-        time.sleep(3)
+        self._logger_client.send('\r\n')
+        time.sleep(2)
+        self._logger_client.send('sdf\r\n')
+        time.sleep(2)
+        self._logger_client.send('\r\n')
+        time.sleep(2)
+        self._logger_client.send('xxx\r\n')
+        time.sleep(2)
+        self._logger_client.send('\r\n')
+        time.sleep(2)
         self._logger_client.send('ds\r\n')
-        time.sleep(3)
-        self._logger_client.send('\r\n'*3)
-        time.sleep(3)
+        time.sleep(2)
+        self._logger_client.send('\r\n')
+        time.sleep(2)
+        self._logger_client.send('\r\n')
+        time.sleep(2)
+
         
         """
         mi_logger.info('sending ds')
