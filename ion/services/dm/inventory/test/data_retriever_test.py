@@ -278,12 +278,15 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         dr_cli.cancel_replay(replay_id=replay_id)
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
 
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
     def test_start_replay(self):
         self.make_some_data()
@@ -298,15 +301,19 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         dr_cli.start_replay(replay_id=replay_id)
 
         time.sleep(0.5)
 
         dr_cli.cancel_replay(replay_id=replay_id)
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
 
     def test_fields_replay(self):
@@ -322,8 +329,10 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         result = gevent.event.AsyncResult()
 
@@ -346,7 +355,9 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions(result.get(timeout=3), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
     def test_advanced_replay(self):
         self.make_some_data()
@@ -372,8 +383,10 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         result = gevent.event.AsyncResult()
         records_rcvd = gevent.queue.Queue()
@@ -411,5 +424,6 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions(result.get(timeout=10), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
