@@ -422,9 +422,13 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             self._send_wakeup()
             time.sleep(1.5)
             
-
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
+                    mi_logger.info('Got prompt: %s', repr(self._promptbuf))
+                    if count > 1:
+                        mi_logger.debug('Waiting in wakeup...')
+                        time.sleep(2)
+                    mi_logger.debug('Finished wakeup promptbuf: %s', repr(self._promptbuf))                        
                     return item
                     """
                     mi_logger.debug('Got prompt: %s', repr(self._promptbuf))
