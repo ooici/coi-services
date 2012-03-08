@@ -157,6 +157,7 @@ class InstrumentProtocol(object):
         mi_logger.info('Disconnecting from device xx.')
         mi_logger.info('Detaching from device.')
         self._logger_client.stop_comms()
+        time.sleep(2)
         mi_logger.debug('STOPPING LOGGER')
         self._logger.stop()
         time.sleep(2)
