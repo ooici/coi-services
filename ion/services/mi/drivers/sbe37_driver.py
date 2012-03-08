@@ -863,15 +863,16 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     # TODO: what about logging this as an event?
             return
         """
-        CommandResponseInstrumentProtocol._got_data(self, data)
-        mi_logger.debug('got data: linebuf: %s', self._linebuf)
-        # Only keep the latest characters in the prompt buffer.
-        if len(self._promptbuf)>7:
-            self._promptbuf = self._promptbuf[-7:]
-            
-        # If we are streaming, process the line buffer for samples.
-        if self._fsm.get_current_state() == SBE37State.AUTOSAMPLE:
-            self._process_streaming_data()
+        if len(data)>0:
+            CommandResponseInstrumentProtocol._got_data(self, data)
+            mi_logger.debug('got data: linebuf: %s', data)
+            # Only keep the latest characters in the prompt buffer.
+            if len(self._promptbuf)>7:
+                self._promptbuf = self._promptbuf[-7:]
+                
+            # If we are streaming, process the line buffer for samples.
+            if self._fsm.get_current_state() == SBE37State.AUTOSAMPLE:
+                self._process_streaming_data()
         
     def _process_streaming_data(self):
         """
