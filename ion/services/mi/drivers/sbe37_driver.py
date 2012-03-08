@@ -842,7 +842,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         # callback from logger
         """
         """
-        """
+        
         if self._fsm.get_current_state() == SBE37State.DIRECT:
             # direct access mode
             if len(data) > 0:
@@ -862,7 +862,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     self.send_event(event)
                     # TODO: what about logging this as an event?
             return
-        """
+        
         if len(data)>0:
             CommandResponseInstrumentProtocol._got_data(self, data)
             mi_logger.debug('got data: linebuf: %s', data)
@@ -891,10 +891,13 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _update_params(self, *args, **kwargs):
         """
         """
+        
+        mi_logger.info('start updating params')
+        
         timeout = kwargs.get('timeout', 10)
         old_config = self._get_config_param_dict()
         self._do_cmd_resp('ds',timeout=timeout)
-        self._do_cmd_resp('dc',timeout=timeout)
+        #self._do_cmd_resp('dc',timeout=timeout)
         new_config = self._get_config_param_dict()            
         if new_config != old_config:
             if self.send_event:
@@ -903,6 +906,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     'value' : new_config
                 }
                 self.send_event(event)
+                
+        mi_logger.info('done updating params')
         
     def _build_simple_command(self, cmd):
         """
