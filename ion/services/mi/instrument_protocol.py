@@ -142,6 +142,7 @@ class InstrumentProtocol(object):
             mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
             time.sleep(1)         
             self.attach()
+            time.sleep(2)
         else:
             # There was a pidfile for the device.
             raise InstrumentConnectionException()
@@ -158,7 +159,8 @@ class InstrumentProtocol(object):
         self._logger_client.stop_comms()
         mi_logger.debug('STOPPING LOGGER')
         self._logger.stop()
-    
+        time.sleep(2)
+        
     def attach(self, *args, **kwargs):
         """
         """
