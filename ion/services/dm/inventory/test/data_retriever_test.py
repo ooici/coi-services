@@ -52,7 +52,21 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.mock_rr_find_assoc = self.data_retriever_service.clients.resource_registry.find_associations
         self.mock_ps_create_stream = self.data_retriever_service.clients.pubsub_management.create_stream
         self.mock_ps_create_stream_definition = self.data_retriever_service.clients.pubsub_management.create_stream_definition
-        self.data_retriever_service.container = DotDict({'id':'123','spawn_process':Mock(),'proc_manager':DotDict({'terminate_process':Mock(),'procs':[]})})
+        self.data_retriever_service.container = DotDict({
+            'id':'123',
+            'spawn_process':Mock(),
+            'proc_manager':DotDict({
+                'terminate_process':Mock(),
+                'procs':[]
+            }),
+            'datastore_manager':DotDict({
+                'get_datastore':Mock()
+            })
+        })
+        self.datastore = DotDict({
+            'query_view':Mock()
+        })
+        self.data_retriever_service.container.datastore_manager.get_datastore.return_value = self.datastore
         self.mock_cc_spawn = self.data_retriever_service.container.spawn_process
         self.mock_cc_terminate = self.data_retriever_service.container.proc_manager.terminate_process
         self.mock_pd_schedule = self.data_retriever_service.clients.process_dispatcher.schedule_process
@@ -74,7 +88,10 @@ class DataRetrieverServiceTest(PyonTestCase):
             'view_name':'garbage',
             'primary_view_key':'primary key'})
 
+        document = DotDict({'stream_resource_id':'0'})
         self.mock_pd_schedule.return_value = 'process_id'
+
+        self.datastore.query_view.return_value = [{'doc':document}]
 
         config = {'process':{
             'query':'myquery',
