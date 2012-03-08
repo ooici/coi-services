@@ -37,7 +37,7 @@ class DatastoreAdmin(ImmediateProcess):
         op = self.CFG.get("op", None)
         datastore = self.CFG.get("datastore", None)
         path = self.CFG.get("path", None)
-        prefix = self.CFG.get("prefix", get_sys_name())
+        prefix = self.CFG.get("prefix", get_sys_name()).lower()
         log.info("DatastoreLoader: {op=%s, datastore=%s, path=%s, prefix=%s}" % (op, datastore, path, prefix))
         if op:
             if op == "load":
