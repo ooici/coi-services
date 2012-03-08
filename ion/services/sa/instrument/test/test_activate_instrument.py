@@ -104,6 +104,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         ret = self.ingestclient.activate_ingestion_configuration(ingestion_configuration_id)
         log.debug("test_activateInstrument: activate = %s"  % str(ret))
 
+        # Create InstrumentAgentInstance to hold configuration information
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
+                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
+                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
+                                          comms_server_address="localhost", comms_server_port=8888)
+        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj)
+
+
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model_label="SBE37IMModel" )
         try:
@@ -120,7 +128,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             self.fail("failed to create new InstrumentAgent: %s" %ex)
         print 'new InstrumentAgent id = ', instAgent_id
 
-        self.rrclient.create_association(instAgent_id,  PRED.hasModel, instModel_id)
+
 
         # Create InstrumentDevice
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
@@ -129,21 +137,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
         print 'new InstrumentDevice id = ', instDevice_id
-        #self.rrclient.create_association(instDevice_id,  PRED.hasModel, instModel_id)
-        #register this instrument as a Producer
-        #self.damsclient.register_instrument(instDevice_id)
+        self.rrclient.create_association(instDevice_id,  PRED.hasModel, instModel_id)
+        self.rrclient.create_association(instAgent_id,  PRED.hasAgentInstance, instAgentInstance_id)
 
-        # Create InstrumentAgentInstance to hold configuration information
-        # TODO: !!!!!!!!!!!!! change to use the CFG from pyon!!!!!!
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="sbe37-simulator.oceanobservatories.org", comms_device_port=4001,
-                                          comms_server_address="localhost", comms_server_port=8888)
-
-#        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-#                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-#                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4001,
-#                                          comms_server_address="localhost", comms_server_port=8888)
 
 
         # create a stream definition for the data from the ctd simulator
@@ -185,10 +181,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print 'Data product streams2 = ', stream_ids
 
 
-        inst_agent_instance_id = self.imsclient.activate_instrument(instrument_device_id=instDevice_id, instrument_agent_instance=instAgentInstance_obj)
-        print 'Instrument agent instance id: = ', inst_agent_instance_id
+        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
-        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(inst_agent_instance_id)
+
+        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         print 'Instrument agent instance obj: = ', inst_agent_instance_obj
 
         # Start a resource agent client to talk with the instrument agent.
@@ -246,6 +242,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrument: return from reset %s", str(reply))
         time.sleep(2)
 
+
+        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
         #get the dataset id of the ctd_parsed product from the dataproduct  data_product_id1
         ctd_parsed_data_product_obj = self.dpclient.read_data_product(data_product_id1)
