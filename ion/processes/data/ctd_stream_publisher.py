@@ -7,7 +7,12 @@
 
 To Run:
 bin/pycc --rel res/deploy/r2dm.yml
-pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher')
+### In the shell...
+
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+pmsc = PubsubManagementServiceClient(node=cc.node)
+stream_id = pmsc.create_stream(name='pfoo')
+pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher',config={'process':{'stream_id':stream_id}})
 
 '''
 from gevent.greenlet import Greenlet
@@ -26,26 +31,22 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 class SimpleCtdPublisher(StandaloneProcess):
     def __init__(self, *args, **kwargs):
-        super(StandaloneProcess, self).__init__(*args,**kwargs)
+        super(SimpleCtdPublisher, self).__init__(*args,**kwargs)
         #@todo Init stuff
 
     outgoing_stream_def = SBE37_CDM_stream_definition()
 
 
     def on_start(self):
-        '''
-        Creates a publisher for each stream_id passed in as publish_streams
-        Creates an attribute with the name matching the stream name which corresponds to the publisher
-        ex: say we have publish_streams:{'output': my_output_stream_id }
-          then the instance has an attribute output which corresponds to the publisher for the stream
-          in my_output_stream_id
-        '''
+
 
         # Get the stream(s)
         stream_id = self.CFG.get_safe('process.stream_id',{})
 
         self.greenlet_queue = []
 
+        """
+        Deprecated!
         # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
         if not stream_id:
 
@@ -56,6 +57,7 @@ class SimpleCtdPublisher(StandaloneProcess):
                 stream_definition=ctd_def,
                 original=True,
                 encoding='ION R2')
+        """
 
         self.stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
         # Needed to get the originator's stream_id
