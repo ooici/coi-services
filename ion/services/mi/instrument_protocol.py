@@ -475,7 +475,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.debug('Got prompt: %s', repr(item))
+                    mi_logger.debug('Got response prompt: %s', repr(item))
+                    mi_logger.debug('Got response linebuf: %s', repr(self._linebuf))
                     return (item, self._linebuf)
                 else:
                     time.sleep(.1)
@@ -505,6 +506,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         # Wakeup the device, pass up exeception if timeout
         prompt = self._wakeup(timeout)
+        
+        time.sleep(3)
             
         # Clear line and prompt buffers for result.
         self._linebuf = ''
@@ -514,13 +517,16 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         mi_logger.debug('_do_cmd_resp: %s', repr(cmd_line))
         self._logger_client.send(cmd_line)
 
+        time.sleep(3)
+
         # Wait for the prompt, prepare result and return, timeout exception
         (prompt, result) = self._get_response(timeout)
                 
         resp_handler = self._response_handlers.get(cmd, None)
-        resp_result = None
         if resp_handler:
             resp_result = resp_handler(result, prompt)
+        else:
+            mi_logger.info('No response handler.')
 
         return resp_result
             
