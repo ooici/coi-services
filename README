@@ -42,7 +42,7 @@ For Mac, use homebrew
     Be sure to read the pyon README for platform specific guidance to installing
     dependent libraries and packages.
     Linux: Note that many installs have much older versions installed by default.
-    (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update' 
+    (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update'
     and try the install again)
 
 
@@ -140,6 +140,25 @@ Use integration tests:
 
     > bin/nosetests -a INT
 
+TROUBLESHOOTING
+===============
+
+bin/generate_interfaces can leave outdated stuff behind that causes your
+tests to fail unexpectedly.  Do an ant clean and try again.
+    > ant clean
+
+bin/generate_interfaces still has import errors after ant clean.  Then, you
+might have an outdated pyon repo
+    > cd ../pyon
+    > git pull
+    > cd -
+
+If your tests fail unexpectedly when you have tried everything else, your build
+might be corrupted.  Do an ant clean buildout and try again with a new
+virtualenv and build from scratch.
+
+    > ant clean-buildout
+
 DEBUG
 =====
 
@@ -226,4 +245,4 @@ if it notices a change to the commit that your supermodule points to.
 The pre-commit script is so you don't forget to push changes to the submodule *BEFORE* you push changes
 to the supermodule.
 
-    
+
