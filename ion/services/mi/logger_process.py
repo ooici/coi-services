@@ -662,7 +662,9 @@ class LoggerClient(object):
             while len(data)>0:
                 try:
                     sent = self.sock.send(data)
+                    gone = data[:sent]
                     data = data[sent:]
+                    mi_logger.info('logger sent: %s',repr(gone))   
                 except socket.error:
                     time.sleep(.1)
                 
