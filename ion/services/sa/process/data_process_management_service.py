@@ -46,8 +46,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if result:
             raise BadRequest("A data process definition named '%s' already exists" % data_process_definition.name)
 
-        if not data_process_definition.process_source:
-            raise BadRequest("Data process definition has invalid process source.")
+        #todo: determine validation checks for a data process def
 
         data_process_definition_id, version = self.clients.resource_registry.create(data_process_definition)
 

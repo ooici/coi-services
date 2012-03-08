@@ -39,11 +39,23 @@ class PlatformDeviceImpl(ResourceImpl):
     def unlink_deployment(self, platform_device_id='', logical_platform_id=''):
         return self._unlink_resources(platform_device_id, PRED.hasDeployment, logical_platform_id)
 
+    def link_primary_deployment(self, platform_device_id='', logical_platform_id=''):
+        return self._link_resources(platform_device_id, PRED.hasPrimaryDeployment, logical_platform_id)
+
+    def unlink_primary_deployment(self, platform_device_id='', logical_platform_id=''):
+        return self._unlink_resources(platform_device_id, PRED.hasPrimaryDeployment, logical_platform_id)
+
     def link_model(self, platform_device_id='', platform_model_id=''):
         return self._link_resources(platform_device_id, PRED.hasModel, platform_model_id)
 
     def unlink_model(self, platform_device_id='', platform_model_id=''):
         return self._unlink_resources(platform_device_id, PRED.hasModel, platform_model_id)
+
+    def link_logicalmodel(self, logical_platform_id='', platform_model_id=''):
+        return self._link_resources(logical_platform_id, PRED.hasModel, platform_model_id)
+
+    def unlink_logicalmodel(self, logical_platform_id='', platform_model_id=''):
+        return self._unlink_resources(logical_platform_id, PRED.hasModel, platform_model_id)
 
     def link_instrument(self, platform_device_id='', instrument_device_id=''):
         return self._link_resources(platform_device_id, PRED.hasInstrument, instrument_device_id)

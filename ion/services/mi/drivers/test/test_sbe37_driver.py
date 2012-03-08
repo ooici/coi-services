@@ -32,7 +32,6 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Command
 from ion.services.mi.drivers.sbe37_driver import SBE37Driver
 from ion.services.mi.common import InstErrorCode
 import ion.services.mi.mi_logger
-from mock import patch
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -48,7 +47,6 @@ mi_logger = logging.getLogger('mi_logger')
 
 #@unittest.skip('Do not run hardware test.')
 @attr('HARDWARE', group='mi')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
@@ -436,3 +434,4 @@ class TestSBE37Driver(PyonTestCase):
 
 
     
+

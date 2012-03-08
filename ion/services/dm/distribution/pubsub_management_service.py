@@ -61,6 +61,25 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return stream_def_id
 
+    def find_stream_definition(self, stream_id='', id_only=True):
+        """@brief Retrieves a stream definition from an existing stream_id
+        @param stream_id Stream ID
+        @param id_only True if you only want the stream definition id
+        @return stream definition object
+
+        @param stream_id    str
+        @param id_only    bool
+        @retval stream_definition    str
+        @throws NotFound    if there is no association
+        """
+
+        retval = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=id_only)
+        if len(retval) != 2:
+            raise NotFound('Desired stream definition not found.')
+        if len(retval[0]) < 1:
+            raise NotFound('Desired stream definition not found.')
+        return retval[0][0]
+
     def update_stream_definition(self, stream_definition=None):
         """Update an existing stream definition
 

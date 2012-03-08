@@ -11,12 +11,12 @@ from pyon.public import IonObject, RT, log
 
 #from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
-from prototype.sci_data.ctd_stream import scalar_point_stream_definition, ctd_stream_definition
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_density_stream_definition
 
-from prototype.sci_data.deconstructor_apis import PointSupplementDeconstructor
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
-from seawater.gibbs import SP_from_cndr
+from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
 class DensityTransform(TransformFunction):
@@ -29,15 +29,9 @@ class DensityTransform(TransformFunction):
 
 
     # Make the stream definitions of the transform class attributes... best available option I can think of?
-    outgoing_stream_def = scalar_point_stream_definition(
-        description='Density Scale data from science transform',
-        field_name = 'density',
-        field_definition = 'http://sweet.jpl.nasa.gov/2.0/...', # Does not exist - what to use?
-        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-        field_range = [0.1, 40.0]
-    )
+    incoming_stream_def = SBE37_CDM_stream_definition()
+    outgoing_stream_def = L2_density_stream_definition()
 
-    incoming_stream_def = ctd_stream_definition()
 
 
     def execute(self, granule):
@@ -45,7 +39,7 @@ class DensityTransform(TransformFunction):
         """
 
         # Use the deconstructor to pull data from a granule
-        psd = PointSupplementDeconstructor(stream_definition=self.incoming_stream_def, stream_granule=granule)
+        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
 
 
         conductivity = psd.get_values('conductivity')
@@ -54,6 +48,7 @@ class DensityTransform(TransformFunction):
 
         longitude = psd.get_values('longitude')
         latitude = psd.get_values('latitude')
+        height = psd.get_values('height')
         time = psd.get_values('time')
 
 
@@ -63,17 +58,19 @@ class DensityTransform(TransformFunction):
         log.warn('Got temperature: %s' % str(temperature))
 
 
-        #todo: switch to correct function
-        density = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
+        sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
 
-        log.warn('Got density: %s' % str(density))
+        sa = SA_from_SP(sp, pressure, lon, lat)
 
+        dens = rho(sa, temperature, pressure)
+
+        log.warn('Got density: %s' % str(dens))
 
         # Use the constructor to put data into a granule
         psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)
 
         for i in xrange(len(density)):
-            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
             psc.add_scalar_point_coverage(point_id=point_id, coverage_id='density', value=density[i])
 
         return psc.close_stream_granule()
