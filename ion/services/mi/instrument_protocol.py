@@ -474,6 +474,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
         
+        """
         while True:
             
             for item in self.prompts.list():
@@ -485,7 +486,10 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     time.sleep(.1)
             if time.time() > starttime + timeout:
                 raise InstrumentTimeoutException()
-
+        """
+        time.sleep(3)
+        return (None, self._linebuf)
+        
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """
         Issue a command to the instrument after a wake up and clearing of
@@ -499,7 +503,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @throw InstrumentTimeoutException Timeout
         """
         timeout = kwargs.get('timeout', 10)
-        retval = None
+        resp_result = None
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
@@ -510,7 +514,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Wakeup the device, pass up exeception if timeout
         prompt = self._wakeup(timeout)
         
-        time.sleep(6)
+        time.sleep(2)
             
         # Clear line and prompt buffers for result.
         self._linebuf = ''
@@ -528,11 +532,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         mi_logger.info('got response: %s', repr(result))
                 
                 
-        resp_handler = self._response_handlers.get(cmd, None)
-        if resp_handler:
-            resp_result = resp_handler(result, prompt)
-        else:
-            mi_logger.info('No response handler.')
+        #resp_handler = self._response_handlers.get(cmd, None)
+        #if resp_handler:
+        #    resp_result = resp_handler(result, prompt)
+        #else:
+        #    mi_logger.info('No response handler.')
 
         return resp_result
             

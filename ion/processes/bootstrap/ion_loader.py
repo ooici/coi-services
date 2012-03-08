@@ -16,6 +16,7 @@ from pyon.util.containers import named_any
 
 class IONLoader(ImmediateProcess):
     """
+    @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE
     """
 
