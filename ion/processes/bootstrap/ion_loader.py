@@ -45,16 +45,22 @@ class IONLoader(ImmediateProcess):
 
         log.info("Start preloading from path=%s" % path)
         categories = ['User',
+                      'PlatformModel',
+                      'InstrumentModel',
                       'MarineFacility',
+                      'UserRole',
                       'Site',
                       'LogicalPlatform',
                       'LogicalInstrument',
-                      'PlatformModel',
-                      'InstrumentModel',
                       'StreamDefinition',
+                      'PlatformDevice',
+                      'InstrumentDevice',
+                      'InstrumentAgent',
+                      'InstrumentAgentInstance',
                       'DataProcessDefinition',
                       'DataProduct',
                       'DataProcess',
+                      'DataProductLink',
                       ]
 
         self.obj_classes = {}
@@ -64,6 +70,8 @@ class IONLoader(ImmediateProcess):
         for category in categories:
             row_do, row_skip = 0, 0
 
+            funcname = "_load_%s" % category
+            catfunc = getattr(self, funcname)
             filename = "%s/%s.csv" % (path, category)
             log.info("Loading category %s from file %s" % (category, filename))
             with open(filename, "rb") as csvfile:
@@ -76,30 +84,7 @@ class IONLoader(ImmediateProcess):
                         continue
                     row_do += 1
 
-                    if category == "User":
-                        self._load_user(row)
-                    elif category == "MarineFacility":
-                        self._load_marine_facility(row)
-                    elif category == "Site":
-                        self._load_site(row)
-                    elif category == "LogicalPlatform":
-                        self._load_logical_platform(row)
-                    elif category == "LogicalInstrument":
-                        self._load_logical_instrument(row)
-                    elif category == "PlatformModel":
-                        self._load_platform_model(row)
-                    elif category == "InstrumentModel":
-                        self._load_instrument_model(row)
-                    elif category == "StreamDefinition":
-                        self._load_stream_definition(row)
-                    elif category == "DataProcessDefinition":
-                        self._load_data_process_definition(row)
-                    elif category == "DataProduct":
-                        self._load_data_product(row)
-                    elif category == "DataProcess":
-                        self._load_data_process(row)
-                    else:
-                        raise iex.BadRequest("Unknown category: %s" % category)
+                    catfunc(row)
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
@@ -164,8 +149,6 @@ class IONLoader(ImmediateProcess):
         elif schema_entry and 'enum_type' in schema_entry:
             enum_clzz = getattr(objects, schema_entry['enum_type'])
             return enum_clzz._value_map[value]
-#        elif targettype is 'dicteval':
-#            return eval(value)
         else:
             return ast.literal_eval(value)
 
@@ -182,10 +165,20 @@ class IONLoader(ImmediateProcess):
         self.user_ids[name] = id
         log.info("Added user name|id=%s|%s" % (name, id))
 
+    def _basic_resource_create(self, row, restype, prefix, svcname, svcop, **kwargs):
+        log.info("Loading %s" % restype)
+        res_obj = self._create_object_from_row(restype, row, prefix)
+        log.info("%s: %s" % (restype,res_obj))
+
+        svc_client = self._get_service_client(svcname)
+        res_id = getattr(svc_client, svcop)(res_obj, **kwargs)
+        self._register_id(row[self.COL_ID], res_id)
+        return res_id
+
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
 
-    def _load_user(self, row):
+    def _load_User(self, row):
         log.info("Loading user")
         subject = row["subject"]
         name = row["name"]
@@ -203,74 +196,51 @@ class IONLoader(ImmediateProcess):
         user_info_obj = IonObject("UserInfo", {"contact": {"name": name, "email": email}})
         ims.create_user_info(user_id, user_info_obj)
 
-    def _load_marine_facility(self, row):
-        log.info("Loading MarineFacility")
-        mf = self._create_object_from_row("MarineFacility", row, "mf/")
-        log.info("MarineFacility: %s" % mf)
+    def _load_PlatformModel(self, row):
+        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
+                                            "instrument_management", "create_platform_model")
 
-        mfms = self._get_service_client("marine_facility_management")
-        mf_id = mfms.create_marine_facility(mf)
-        self._register_id(row[self.COL_ID], mf_id)
+    def _load_InstrumentModel(self, row):
+        res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
+                                            "instrument_management", "create_instrument_model")
 
-    def _load_site(self, row):
-        log.info("Loading Site")
-        site = self._create_object_from_row("Site", row, "site/")
-        log.info("Site: %s" % site)
+    def _load_MarineFacility(self, row):
+        res_id = self._basic_resource_create(row, "MarineFacility", "mf/",
+                                            "marine_facility_management", "create_marine_facility")
 
-        mfms = self._get_service_client("marine_facility_management")
-        site_id = mfms.create_site(site)
-        self._register_id(row[self.COL_ID], site_id)
+    def _load_UserRole(self, row):
+        log.info("Loading UserRole")
 
+    def _load_Site(self, row):
+        res_id = self._basic_resource_create(row, "Site", "site/",
+                                            "marine_facility_management", "create_site")
+
+        svc_client = self._get_service_client("marine_facility_management")
         mf_id = row["marine_facility_id"]
         psite_id = row["parent_site_id"]
         if mf_id:
-            mfms.assign_site_to_marine_facility(site_id, self.resource_ids[mf_id])
+            svc_client.assign_site_to_marine_facility(res_id, self.resource_ids[mf_id])
         elif psite_id:
-            mfms.assign_site_to_site(site_id, self.resource_ids[psite_id])
+            svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
 
-    def _load_logical_platform(self, row):
-        log.info("Loading LogicalPlatform")
-        lp = self._create_object_from_row("LogicalPlatform", row, "lp/")
-        log.info("LogicalPlatform: %s" % lp)
+    def _load_LogicalPlatform(self, row):
+        res_id = self._basic_resource_create(row, "LogicalPlatform", "lp/",
+                                            "marine_facility_management", "create_logical_platform")
 
-        mfms = self._get_service_client("marine_facility_management")
-        lp_id = mfms.create_logical_platform(lp)
-        self._register_id(row[self.COL_ID], lp_id)
-
+        svc_client = self._get_service_client("marine_facility_management")
         site_id = row["site_id"]
-        mfms.assign_logical_platform_to_site(lp_id, self.resource_ids[site_id])
+        svc_client.assign_logical_platform_to_site(res_id, self.resource_ids[site_id])
 
-    def _load_logical_instrument(self, row):
-        log.info("Loading LogicalInstrument")
-        li = self._create_object_from_row("LogicalInstrument", row, "li/")
-        log.info("LogicalInstrument: %s" % li)
+    def _load_LogicalInstrument(self, row):
+        res_id = self._basic_resource_create(row, "LogicalInstrument", "li/",
+                                            "marine_facility_management", "create_logical_instrument")
 
-        mfms = self._get_service_client("marine_facility_management")
-        li_id = mfms.create_logical_instrument(li)
-        self._register_id(row[self.COL_ID], li_id)
-
+        svc_client = self._get_service_client("marine_facility_management")
         lp_id = row["logical_platform_id"]
-        mfms.assign_logical_instrument_to_logical_platform(li_id, self.resource_ids[lp_id])
+        svc_client.assign_logical_instrument_to_logical_platform(res_id, self.resource_ids[lp_id])
 
-    def _load_platform_model(self, row):
-        log.info("Loading PlatformModel")
-        pm = self._create_object_from_row("PlatformModel", row, "pm/")
-        log.info("PlatformModel: %s" % pm)
 
-        ims = self._get_service_client("instrument_management")
-        pm_id = ims.create_platform_model(pm)
-        self._register_id(row[self.COL_ID], pm_id)
-
-    def _load_instrument_model(self, row):
-        log.info("Loading InstrumentModel")
-        im = self._create_object_from_row("InstrumentModel", row, "im/")
-        log.info("InstrumentModel: %s" % im)
-
-        ims = self._get_service_client("instrument_management")
-        im_id = ims.create_instrument_model(im)
-        self._register_id(row[self.COL_ID], im_id)
-
-    def _load_stream_definition(self, row):
+    def _load_StreamDefinition(self, row):
         log.info("Loading StreamDefinition")
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
         log.info("StreamDefinition: %s" % res_obj)
@@ -287,39 +257,55 @@ class IONLoader(ImmediateProcess):
 
         self._register_id(row[self.COL_ID], res_id)
 
-    def _load_data_process_definition(self, row):
-        log.info("Loading DataProcessDefinition")
-        res_obj = self._create_object_from_row("DataProcessDefinition", row, "dpd/")
-        log.info("DataProcessDefinition: %s" % res_obj)
+    def _load_PlatformDevice(self, row):
+        res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
+                                            "instrument_management", "create_platform_device")
+
+    def _load_InstrumentDevice(self, row):
+        res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
+                                            "instrument_management", "create_instrument_device")
+
+    def _load_InstrumentAgent(self, row):
+        res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
+                                            "instrument_management", "create_instrument_agent")
+
+    def _load_InstrumentAgentInstance(self, row):
+        res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
+                                            "instrument_management", "create_instrument_agent_instance")
+
+    def _load_DataProcessDefinition(self, row):
+        res_id = self._basic_resource_create(row, "DataProcessDefinition", "dpd/",
+                                            "data_process_management", "create_data_process_definition")
 
         svc_client = self._get_service_client("data_process_management")
-        res_id = svc_client.create_data_process_definition(res_obj)
-        self._register_id(row[self.COL_ID], res_id)
 
         input_strdef = row["input_stream_defs"]
         if input_strdef:
             input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
+        log.info("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
+        for insd in input_strdef:
+            svc_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], res_id)
 
         output_strdef = row["output_stream_defs"]
         if output_strdef:
             output_strdef = self._get_typed_value(output_strdef, targettype="simplelist")
+        for outsd in output_strdef:
+            svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[outsd], res_id)
 
-        # TODO: How to assign stream defs?
-
-    def _load_data_product(self, row):
-        log.info("Loading DataProduct")
-        res_obj = self._create_object_from_row("DataProduct", row, "dp/")
-        log.info("DataProduct: %s" % res_obj)
-
-        svc_client = self._get_service_client("data_product_management")
-        res_id = svc_client.create_data_product(data_product=res_obj)
-        self._register_id(row[self.COL_ID], res_id)
-
-        # TODO: What to do with streamdef?
+    def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]
 
+        res_id = self._basic_resource_create(row, "DataProduct", "dp/",
+                                            "data_product_management", "create_data_product",
+                                            stream_definition_id=self.resource_ids[strdef])
 
-    def _load_data_process(self, row):
+        svc_client = self._get_service_client("data_product_management")
+        persist_metadata = row["persist_metadata"] is True
+        persist_data = row["persist_data"] is True
+        if persist_metadata or persist_data:
+            svc_client.activate_data_product_persistence(res_id, persist_data, persist_metadata)
+
+    def _load_DataProcess(self, row):
         log.info("Loading DataProcess")
 
         dpd_id = self.resource_ids[row["data_process_definition_id"]]
@@ -334,3 +320,12 @@ class IONLoader(ImmediateProcess):
 
         res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products)
         self._register_id(row[self.COL_ID], res_id)
+
+    def _load_DataProductLink(self, row):
+        log.info("Loading DataProductLink")
+
+        dp_id = self.resource_ids[row["data_product_id"]]
+        res_id = self.resource_ids[row["input_resource_id"]]
+
+        svc_client = self._get_service_client("data_acquisition_management")
+        svc_client.assign_data_product(res_id, dp_id, False)
