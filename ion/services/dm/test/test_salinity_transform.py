@@ -16,11 +16,11 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from nose.plugins.attrib import attr
-from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from pyon.public import log
 import os
 import time
-from prototype.sci_data.deconstructor_apis import PointSupplementDeconstructor
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
 import gevent
 
@@ -36,7 +36,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
     def test_dm_integration(self):
         '''
-        test_dm_integration
+        test_salinity_transform
         Test full DM Services Integration
         '''
         cc = self.container
@@ -66,7 +66,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         ### In the beginning there were two stream definitions...
         ###
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = pubsub_management_service.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
 
         # create a stream definition for the data from the salinity Transform
@@ -234,7 +234,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
         for message in results:
 
-            psd = PointSupplementDeconstructor(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
+            psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
 
             # Test the handy info method for the names of fields in the stream def
             assertions('salinity' in psd.list_field_names())

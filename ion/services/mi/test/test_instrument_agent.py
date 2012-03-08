@@ -19,7 +19,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.public import StreamSubscriberRegistrar
-from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase

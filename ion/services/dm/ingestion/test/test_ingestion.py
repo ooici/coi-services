@@ -9,6 +9,7 @@
 import gevent
 from gevent.timeout import Timeout
 from mock import Mock
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, ctd_stream_packet
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
@@ -24,7 +25,6 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.public import RT, PRED, log, IonObject
 
 from pyon.datastore.datastore import DataStore
-from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
 from interface.objects import BlogPost, BlogComment, ExchangeQuery, DatasetIngestionConfiguration
 from pyon.ion.process import StandaloneProcess
 
@@ -364,7 +364,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         # Stream publisher for testing round robin handling
         #----------------------------------------------------------------------
 
-        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def = SBE37_CDM_stream_definition()
 
         stream_def_id = self.pubsub_cli.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 
