@@ -65,7 +65,7 @@ class TestLCASA(IonIntegrationTestCase):
         resource_ids[RT.StreamDefinition] = {}
 
         # get module and function by name specified in strings
-        sc_module = "prototype.sci_data.ctd_stream" 
+        sc_module = "prototype.sci_data.stream_defs"
         sc_method = "ctd_stream_definition"
         module = __import__(sc_module, fromlist=[sc_method])
         creator_func = getattr(module, sc_method)
