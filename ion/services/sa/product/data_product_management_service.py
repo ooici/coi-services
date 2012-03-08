@@ -162,7 +162,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # create the dataset for the data
         # !!!!!!!! (Currently) The Datastore name MUST MATCH the ingestion configuration name!!!
-        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream, datastore_name=ingestion_configuration_obj.name, description=data_product_obj.description)
+        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream, datastore_name=ingestion_configuration_obj.couch_storage.datastore_name, description=data_product_obj.description)
         log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
 
         self.update_data_product(data_product_obj)
