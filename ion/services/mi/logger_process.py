@@ -367,6 +367,10 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.write(repr(device_data))
                 self.logfile.write('\n')
                 self.logfile.flush()
+                #self.write_driver('[[logger]]')
+                #self.logfile.write(repr('[[logger]]'))
+                #self.logfile.write('\n')
+                #self.logfile.flush()
             if not driver_data and not device_data:
                 time.sleep(.1)
 
@@ -712,8 +716,13 @@ class Listener(threading.Thread):
         """
         mi_logger.info('Logger client listener started.')
         #logging.info('listener started')
+        oldtime = 0
         while not self._done:
             try:
+                #newtime = time.time()
+                #if newtime > oldtime:
+                    #mi_logger('logger client listening')
+                    #oldtime = newtime
                 data = self.sock.recv(4069)
                 if self.callback:
                     #mi_logger.debug('logger got data: %s', repr(data))
