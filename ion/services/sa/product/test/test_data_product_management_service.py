@@ -8,7 +8,7 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.stream_defs import ctd_stream_definition
 from interface.objects import HdfStorage, CouchStorage
 from pyon.ion.endpoint import StreamPublisherRegistrar
 

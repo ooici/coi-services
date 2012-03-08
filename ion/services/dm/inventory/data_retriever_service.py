@@ -6,9 +6,9 @@
 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.services.dm.ireplay_process import ReplayProcessClient
-from interface.objects import Replay, ProcessDefinition
-from prototype.sci_data.ctd_stream import ctd_stream_definition
-from pyon.core.exception import BadRequest
+from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
+from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
+from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED
 
 
@@ -17,6 +17,24 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def __init__(self, *args, **kwargs):
         super(DataRetrieverService,self).__init__(*args,**kwargs)
+
+    @staticmethod
+    def traverse(identifiables,node):
+        '''
+        Recursively traverse the definition for keys with _id and return all the values in a list to append later
+        '''
+        retval = []
+        for key in dir(node):
+            if key.endswith('_id'):
+                val = getattr(node,key)
+                retval.append(val)
+                if val in identifiables:
+                    r = DataRetrieverService.traverse(identifiables,identifiables[getattr(node,key)])
+                    for i in r:
+                        if i:
+                            retval.append(i)
+
+        return retval
 
     def on_start(self):
         super(DataRetrieverService,self).on_start()
@@ -30,21 +48,44 @@ class DataRetrieverService(BaseDataRetrieverService):
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
 
+
+
+
+
     def define_replay(self, dataset_id='', query=None, delivery_format=None):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
+
         '''
         # Get the datastore name from the dataset object, use dm_datastore by default.
-
+        """
+        delivery_format
+            - fields
+        """
         if not dataset_id:
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
 
         dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
         datastore_name = dataset.datastore_name
+        datastore = self.container.datastore_manager.get_datastore(datastore_name)
         delivery_format = delivery_format or {}
+
         view_name = dataset.view_name
         key_id = dataset.primary_view_key
         # Make a new definition container
-        definition_container = ctd_stream_definition()
+
+
+
+        # Make a definition
+        try:
+            definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
+        except IndexError:
+            raise NotFound('The requested document was not located.')
+        definition_container = definition
+
+
+
+
+
         # Tell pubsub about our definition that we want to use and setup the association so clients can figure out
         # What belongs on the stream
         definition_id = self.clients.pubsub_management.create_stream_definition(container=definition_container)
@@ -53,9 +94,11 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay = Replay()
         replay.delivery_format = delivery_format
 
-        #-----------------------------
-        #@todo: Add in CEI integration
-        #-----------------------------
+        definition_container.stream_resource_id = replay_stream_id
+
+
+
+
         replay.process_id = 0
 
         replay_id, rev = self.clients.resource_registry.create(replay)
