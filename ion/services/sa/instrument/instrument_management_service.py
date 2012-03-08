@@ -910,6 +910,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_device.unlink_deployment(platform_device_id, logical_platform_id)
 
 
+    def deploy_as_primary_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        self.instrument_device.link_primary_deployment(instrument_device_id, logical_instrument_id)
+
+    def undeploy_primary_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        self.instrument_device.unlink_primary_deployment(instrument_device_id, logical_instrument_id)
+
+    def deploy_as_primary_platform_device_to_logical_platform(self, platform_device_id='', logical_platform_id=''):
+        self.platform_device.link_primary_deployment(platform_device_id, logical_platform_id)
+
+    def undeploy_primary_platform_device_from_logical_platform(self, platform_device_id='', logical_platform_id=''):
+        self.platform_device.unlink_primary_deployment(platform_device_id, logical_platform_id)
+
+
+
+
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         #todo: for when instrument agents are the owners of stream def associations
         #agents = self.find_instrument_agent_by_instrument_model(instrument_model_id)
@@ -931,6 +946,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_model_from_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
+    def assign_instrument_model_to_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
+        self.instrument_agent.link_logicalmodel(logical_instrument_id, instrument_model_id)
+
+    def unassign_instrument_model_from_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
+        self.instrument_agent.unlink_logicalmodel(logical_instrument_id, instrument_model_id)
+
+
     def assign_stream_definition_to_instrument_model(self, stream_definition_id='', instrument_model_id=''):
         self.instrument_model.link_stream_definition(instrument_model_id, stream_definition_id)
 
@@ -948,6 +970,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def unassign_platform_model_from_platform_device(self, platform_model_id='', platform_device_id=''):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
+
+    def assign_platform_model_to_logical_platform(self, platform_model_id='', logical_platform_id=''):
+        self.platform_device.link_logicalmodel(logical_platform_id, platform_model_id)
+
+    def unassign_platform_model_from_logical_platform(self, platform_model_id='', logical_platform_id=''):
+        self.platform_device.unlink_logicalmodel(logical_platform_id, platform_model_id)
 
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
         self.platform_device.link_instrument(platform_device_id, instrument_device_id)
