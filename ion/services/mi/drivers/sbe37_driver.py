@@ -842,6 +842,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         # callback from logger
         """
         """
+        """
         if self._fsm.get_current_state() == SBE37State.DIRECT:
             # direct access mode
             if len(data) > 0:
@@ -861,7 +862,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     self.send_event(event)
                     # TODO: what about logging this as an event?
             return
-        
+        """
         CommandResponseInstrumentProtocol._got_data(self, data)
         
         # Only keep the latest characters in the prompt buffer.
