@@ -174,7 +174,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         data_retriever_service.start_replay(replay_id)
 
-        ar.get(timeout=4)
+        ar.get(timeout=10)
 
         FileSystem.unlink(input_file_path)
 
