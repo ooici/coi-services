@@ -155,7 +155,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
         #retrieve the associated instrument device
-        inst_device_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasAgentInstance, RT.instrument_agent_instance_id, True)
+        inst_device_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasAgentInstance, instrument_agent_instance_id, True)
         if not inst_device_ids:
             raise NotFound("No Instrument Device attached to this Instrument Agent Instance " + str(instrument_agent_instance_id))
         if len(inst_device_ids) > 1:
@@ -261,9 +261,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # add the process id and update the resource
         instrument_agent_instance_obj.agent_process_id = pid
         self.update_instrument_agent_instance(instrument_agent_instance_obj)
-
-        # associate the InstAgentInstance and InstAgent
-        self.clients.resource_registry.create_association(instrument_agent_id,  PRED.hasInstance, instrument_agent_instance_id)
 
         return
 
@@ -1136,6 +1133,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_agent_instance_from_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
 
+    def assign_instrument_agent_instance_to_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
+        self.instrument_agent.link_device_instance(instrument_device_id, instrument_agent_instance_id)
+
+    def unassign_instrument_agent_instance_from_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
+        self.instrument_agent.unlink_device_instance(instrument_device_id, instrument_agent_instance_id)
 
     # reassigning a logical instrument to an instrument device is a little bit special
     # TODO: someday we may be able to dig up the correct data products automatically,

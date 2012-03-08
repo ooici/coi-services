@@ -17,6 +17,7 @@ from nose.plugins.attrib import attr
 
 from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
@@ -54,7 +55,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='HARDWARE')
-@unittest.skip('requires SBE37 simulator which is not working in buildbot env, run locally only')\
+#@unittest.skip('requires SBE37 simulator which is not working in buildbot env, run locally only')\
 
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
@@ -128,7 +129,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             self.fail("failed to create new InstrumentAgent: %s" %ex)
         print 'new InstrumentAgent id = ', instAgent_id
 
-
+        self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
@@ -137,17 +138,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
         print 'new InstrumentDevice id = ', instDevice_id
-        self.rrclient.create_association(instDevice_id,  PRED.hasModel, instModel_id)
-        self.rrclient.create_association(instAgent_id,  PRED.hasAgentInstance, instAgentInstance_id)
+        self.imsclient.assign_instrument_agent_instance_to_instrument_agent(instAgentInstance_id, instAgent_id)
+
+        self.imsclient.assign_instrument_agent_instance_to_instrument_device(instAgentInstance_id, instDevice_id)
 
 
 
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = ctd_stream_definition()
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def = SBE37_CDM_stream_definition()
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
 
+        print 'new Stream Definition id = ', instDevice_id
 
-        print 'Creating new data product with a stream definition'
+        print 'Creating new CDM data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
         try:
             data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
@@ -164,10 +167,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print 'Data product streams1 = ', stream_ids
 
 
-        print 'Creating new data product with a stream definition'
+        print 'Creating new RAW data product with a stream definition'
+        raw_stream_def = SBE37_RAW_stream_definition()
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
+
         dp_obj = IonObject(RT.DataProduct,name='ctd_raw',description='raw stream test')
         try:
-            data_product_id2 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
+            data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', data_product_id2
