@@ -716,7 +716,7 @@ class Listener(threading.Thread):
             try:
                 data = self.sock.recv(4069)
                 if self.callback:
-                    mi_logger.debug('logger got data: %s', repr(data))
+                    #mi_logger.debug('logger got data: %s', repr(data))
                     self.callback(data)
                 else:
                     if not self.delim:
