@@ -25,7 +25,7 @@ from prototype.sci_data.stream_parser import PointSupplementStreamParser
 import gevent
 
 
-from ion.processes.data.transforms.ion_seawater import SalinityTransform
+from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 
 @attr('INT',group='dm')
 class CTDIntegrationTest(IonIntegrationTestCase):
@@ -89,7 +89,7 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         # one for the salinity transform
         producer_definition = ProcessDefinition()
         producer_definition.executable = {
-            'module':'ion.processes.data.transforms.ion_seawater',
+            'module':'ion.processes.data.transforms.ctd.ctd_L2_salinity',
             'class':'SalinityTransform'
         }
 
