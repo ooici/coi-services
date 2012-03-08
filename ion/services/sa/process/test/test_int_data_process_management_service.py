@@ -23,6 +23,7 @@ from pyon.util.context import LocalContextMixin
 import time
 from pyon.util.int_test import IonIntegrationTestCase
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
+from interface.objects import StreamQuery, ExchangeQuery
 
 import unittest
 
@@ -181,7 +182,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
 
 
 
-@attr('INT', group='sa')
+@attr('INT', group='mmm')
 @unittest.skip('not working')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
@@ -299,19 +300,11 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-        #self.DAMSclient.assign_data_product(dproc_id, output_dp_id, False)
-
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process return")
 
         #-------------------------------
-        # Producer (Sample Input)
+        # ProcessDefinition
         #-------------------------------
-        # Create a producing example process
-        # cheat to make a publisher object to send messages in the test.
-        # it is really hokey to pass process=self.cc but it works
-        #stream_route = self.PubSubClient.register_producer(exchange_name='producer_doesnt_have_a_name1', stream_id=self.in_stream_id)
-        #self.ctd_stream1_publisher = StreamPublisher(node=self.container.node, name=('science_data',stream_route.routing_key), process=self.container)
-
 
         producer_definition = ProcessDefinition()
         producer_definition.executable = {
@@ -323,6 +316,34 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
                 'stream_id':self.in_stream_id,
             }
         }
+
+        #-------------------------------
+        # Set up listeners to the output streams
+        #-------------------------------
+        #find stream for data products
+        stream_ids, _ = self.clients.resource_registry.find_objects(output_dp_id_1, PRED.hasStream, None, True)
+        stream_dp1_id = stream_ids[0]
+
+        # Make a subscription to two input streams
+        exchange_name = "a_queue"
+        query = StreamQuery([stream_dp1_id])
+        self.ctd_subscription_id = self.pubsub_cli.create_subscription(query,  exchange_name, "SampleSubscription","Sample Subscription Description")
+
+        q = gevent.queue.Queue()
+
+        def message_received(message, headers):
+            q.put(message)
+
+        # Cheat and use the cc as the process - I don't think it is used for anything...
+        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.container.node)
+
+        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
+        subscriber.start()
+
+        self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
+
+
+
         procdef_id = self.ProcessDispatchClient.create_process_definition(process_definition=producer_definition)
         log.debug('TestIntDataProcessMgmtServiceMultiOut: procdef_id: %s', procdef_id)
         #begin sending ctd packets
@@ -342,8 +363,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.Processclient.unassign_input_stream_definition_from_data_process_definition(ctd_stream_def_id, dprocdef_id )
         self.Processclient.unassign_stream_definition_from_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id )
-        self.Processclient.uassign_stream_definition_from_data_process_definition(outgoing_stream_pressure_id, dprocdef_id )
-        self.Processclient.assign_stream_definition_from_data_process_definition(outgoing_stream_temperature_id, dprocdef_id )
+        self.Processclient.unassign_stream_definition_from_data_process_definition(outgoing_stream_pressure_id, dprocdef_id )
+        self.Processclient.unassign_stream_definition_from_data_process_definition(outgoing_stream_temperature_id, dprocdef_id )
         log.debug('TestIntDataProcessMgmtServiceMultiOut: stream definition unassign  complete' )
 
         try:
