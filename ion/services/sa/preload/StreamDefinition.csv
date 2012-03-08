@@ -1,3 +1,0 @@
-Scenarios,ID,name,description,StreamContainer_module,StreamContainer_method
-LCA,StreamDef1,SeabirdSim_raw,,prototype.sci_data.stream_defs,ctd_stream_definition
-DEBUG,StreamDef2,SeabirdSim_parsed,,prototype.sci_data.stream_defs,ctd_stream_definition
