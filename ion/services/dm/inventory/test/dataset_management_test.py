@@ -7,7 +7,7 @@ import unittest
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from prototype.sci_data.ctd_stream import ctd_stream_packet
+from prototype.sci_data.stream_defs import ctd_stream_packet
 from pyon.datastore.datastore import DataStore
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase

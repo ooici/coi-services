@@ -20,7 +20,7 @@ import time
 
 import random
 
-from prototype.sci_data.ctd_stream import ctd_stream_packet, ctd_stream_definition
+from prototype.sci_data.stream_defs import ctd_stream_packet, ctd_stream_definition
 
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 
