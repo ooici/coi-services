@@ -3,17 +3,16 @@
 __author__ = 'Michael Meisinger'
 __license__ = 'Apache 2.0'
 
-import collections, traceback
+import collections, traceback, datetime, time, yaml
 import flask
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
-from pyon.public import Container, StandaloneProcess, log
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
-from pyon.core.registry import getextends
-
+from pyon.core.object import IonObjectBase
+from pyon.core.registry import getextends, model_classes
+from pyon.public import Container, StandaloneProcess, log
 from pyon.util.containers import named_any
-
 
 #Initialize the flask app
 app = Flask(__name__)
@@ -193,13 +192,17 @@ def build_table_row(obj):
     fragments.append("<td><a href='/view/%s'>%s</a></td>" % (obj._id,obj._id))
     for field in standard_resattrs:
         if field in schema:
-            fragments.append("<td>%s&nbsp;</td>" % (getattr(obj, field)))
+            value = get_formatted_value(getattr(obj, field), fieldname=field)
+            fragments.append("<td>%s</td>" % (value))
     for field in sorted(schema.keys()):
         if field not in standard_resattrs:
-            fragments.append("<td>%s&nbsp;</td>" % (getattr(obj, field)))
+            value = get_formatted_value(getattr(obj, field), fieldname=field, fieldtype=schema[field]["type"], brief=True)
+            fragments.append("<td>%s</td>" % (value))
     return fragments
 
 # ----------------------------------------------------------------------------------------
+
+standard_types = ['str', 'int', 'bool', 'float', 'list', 'dict']
 
 @app.route('/view/<resource_id>', methods=['GET','POST'])
 def process_view_resource(resource_id):
@@ -217,18 +220,11 @@ def process_view_resource(resource_id):
             "<tr><th>Field</th><th>Type</th><th>Value</th></tr>"
             ]
 
-        schema = res._schema
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("type", "str", restype))
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("_id", "str", res._id))
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("_rev", "str", res._rev))
 
-
-        for field in standard_resattrs:
-            if field in schema:
-                fragments.append("<tr><td>%s</td><td>%s</td><td>%s&nbsp;</td>" % (field, schema[field]["type"], getattr(res, field)))
-        for field in sorted(schema.keys()):
-            if field not in standard_resattrs:
-                fragments.append("<tr><td>%s</td><td>%s</td><td>%s&nbsp;</td>" % (field, schema[field]["type"], getattr(res, field)))
+        fragments.extend(build_nested_obj(res, ""))
 
         fragments.append("</p></table>")
 
@@ -242,6 +238,24 @@ def process_view_resource(resource_id):
     except Exception, e:
         return build_simple_page("Error: %s" % traceback.format_exc())
 
+def build_nested_obj(obj, prefix):
+    fragments = []
+    schema = obj._schema
+    for field in standard_resattrs:
+        if field in schema:
+            value = get_formatted_value(getattr(obj, field), fieldname=field)
+            fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
+    for field in sorted(schema.keys()):
+        if field not in standard_resattrs:
+            value = getattr(obj, field)
+            if schema[field]["type"] in model_classes or isinstance(value, IonObjectBase):
+                fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], "[%s]" % value._get_type()))
+                fragments.extend(build_nested_obj(value, "%s%s." % (prefix,field)))
+            else:
+                value = get_formatted_value(value, fieldname=field, fieldtype=schema[field]["type"])
+                fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
+    return fragments
+
 def build_associations(resid):
     fragments = []
     fragments.append("<h2>Associations</h2>")
@@ -251,7 +265,7 @@ def build_associations(resid):
     obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
                 build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
 
     fragments.append("</table></p>")
@@ -262,7 +276,7 @@ def build_associations(resid):
     obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+        fragments.append("<td>%s</td><td>%s</td><td>%s&nbsp;</td><td>%s</td></tr>" % (
                 build_link(assoc.p, "/assoc?predicate=%s" % assoc.p), build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s)))
 
     fragments.append("</table></p>")
@@ -442,3 +456,25 @@ def _get_object_class(objtype):
     obj_classes[objtype] = obj_class
     return obj_class
 
+date_fieldnames = ['ts_created', 'ts_updated']
+def get_formatted_value(value, fieldname=None, fieldtype=None, brief=False):
+    if isinstance(value, IonObjectBase):
+        if brief:
+            value = "[%s]" % value._get_type()
+    elif fieldtype in ("list","dict"):
+        value = yaml.dump(value, default_flow_style=False)
+        value = value.replace("\n", "<br>")
+        if value.endswith("<br>"):
+            value = value[:-4]
+        value = "<pre>%s</pre>" % value
+    elif fieldname:
+        if fieldname in date_fieldnames:
+            value = get_datetime(value)
+    if value == "":
+        return "&nbsp;"
+    return value
+
+def get_datetime(ts):
+    ts = float(ts) / 1000
+    dts = datetime.datetime.fromtimestamp(time.mktime(time.localtime(ts)))
+    return str(dts)
