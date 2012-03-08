@@ -9,11 +9,17 @@ To Run:
 bin/pycc --rel res/deploy/r2dm.yml
 ### In the shell...
 
+# create a stream id and pass it in...
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 pmsc = PubsubManagementServiceClient(node=cc.node)
 stream_id = pmsc.create_stream(name='pfoo')
 pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher',config={'process':{'stream_id':stream_id}})
 
+
+OR...
+
+# just let the simple ctd publisher create it on its own for simple cases...
+cc.spawn_process(name="viz_data_realtime", module="ion.processes.data.ctd_stream_publisher", cls="SimpleCtdPublisher")
 '''
 from gevent.greenlet import Greenlet
 from pyon.ion.endpoint import StreamPublisherRegistrar
@@ -21,7 +27,7 @@ from pyon.ion.process import StandaloneProcess
 from pyon.public import log
 
 import time
-
+from uuid import uuid4
 import random
 
 from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
@@ -45,19 +51,20 @@ class SimpleCtdPublisher(StandaloneProcess):
 
         self.greenlet_queue = []
 
-        """
-        Deprecated!
+
         # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
         if not stream_id:
 
-            ctd_def = SBE37_CDM_stream_definition(stream_id=stream_id)
             pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
+
+            stream_def_id = pubsub_cli.create_stream_definition(name='Producer stream %s' % str(uuid4()),container=self.outgoing_stream_def)
+
+
             stream_id = pubsub_cli.create_stream(
                 name='Example CTD Data',
-                stream_definition=ctd_def,
+                stream_definition_id = stream_def_id,
                 original=True,
                 encoding='ION R2')
-        """
 
         self.stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
         # Needed to get the originator's stream_id
