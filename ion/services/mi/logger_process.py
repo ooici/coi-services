@@ -636,6 +636,7 @@ class LoggerClient(object):
         Stop the listener thread and close client comms with the device
         logger. This is called by the done function.
         """
+        mi_logger.info('Got Stop COMMS')
         self.listener_thread.done()
         self.listener_thread.join()
         #-self.sock.shutdown(socket.SHUT_RDWR)
@@ -711,6 +712,7 @@ class Listener(threading.Thread):
             try:
                 data = self.sock.recv(4069)
                 if self.callback:
+                    mi_logger.debug('logger got data: %s', repr(data))
                     self.callback(data)
                 else:
                     if not self.delim:

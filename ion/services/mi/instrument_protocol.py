@@ -153,8 +153,10 @@ class InstrumentProtocol(object):
         
         @throws InstrumentConnectionException
         """
-        mi_logger.info('Disconnecting from device.')
-        self.detach()
+        mi_logger.info('Disconnecting from device xx.')
+        mi_logger.info('Detaching from device.')
+        self._logger_client.stop_comms()
+        mi_logger.debug('STOPPING LOGGER')
         self._logger.stop()
     
     def attach(self, *args, **kwargs):
@@ -424,7 +426,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.info('Got prompt: %s', repr(self._promptbuf))
+                    mi_logger.info('Got wakeup Fprompt: %s', repr(self._promptbuf))
                     if count > 1:
                         mi_logger.debug('Waiting in wakeup...')
                         time.sleep(2)
