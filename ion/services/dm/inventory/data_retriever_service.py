@@ -18,23 +18,6 @@ class DataRetrieverService(BaseDataRetrieverService):
     def __init__(self, *args, **kwargs):
         super(DataRetrieverService,self).__init__(*args,**kwargs)
 
-    @staticmethod
-    def traverse(identifiables,node):
-        '''
-        Recursively traverse the definition for keys with _id and return all the values in a list to append later
-        '''
-        retval = []
-        for key in dir(node):
-            if key.endswith('_id'):
-                val = getattr(node,key)
-                retval.append(val)
-                if val in identifiables:
-                    r = DataRetrieverService.traverse(identifiables,identifiables[getattr(node,key)])
-                    for i in r:
-                        if i:
-                            retval.append(i)
-
-        return retval
 
     def on_start(self):
         super(DataRetrieverService,self).on_start()
