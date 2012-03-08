@@ -510,7 +510,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Wakeup the device, pass up exeception if timeout
         prompt = self._wakeup(timeout)
         
-        time.sleep(3)
+        time.sleep(6)
             
         # Clear line and prompt buffers for result.
         self._linebuf = ''
