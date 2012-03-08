@@ -523,7 +523,10 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         time.sleep(3)
 
         # Wait for the prompt, prepare result and return, timeout exception
+        mi_logger.info('getting response')
         (prompt, result) = self._get_response(timeout)
+        mi_logger.info('got response: %s', repr(result))
+                
                 
         resp_handler = self._response_handlers.get(cmd, None)
         if resp_handler:
