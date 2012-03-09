@@ -605,6 +605,12 @@ def test_policy():
     return json_response("")
 
 
+@app.route('/ion-service/test_enrollment_request')
+def test_enrollment_request():
+    from examples.gov_client import test_enrollment_request
+    test_enrollment_request(Container.instance)
+    return json_response("")
+
 
 
 
