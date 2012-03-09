@@ -78,7 +78,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         raw_stream_name = 'ctd_raw'        
 
         # Driver configuration.
-        """
+        
         self.driver_config = {
             'svr_addr': 'localhost',
             'cmd_port': 5556,
@@ -112,7 +112,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 }                
             }
         }
-        
+        """
         # Start container.
         self._start_container()
 
