@@ -145,6 +145,7 @@ class BaseLoggerProcess(DaemonProcess):
             
         if sock:        
             self.driver_sock = sock
+            self.driver_sock.setblocking(0)            
             self.driver_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                            
             self.driver_addr = addr
             self.statusfile.write('_accept_driver_comms: driver connected at %s, %i.\n' % self.driver_addr)
@@ -363,9 +364,6 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.flush()
             device_data = self.read_device()
             if device_data:
-                ddlen = len(device_data)
-                if ddlen < 256:
-                    device_data += '\x00'*(256-ddlen)
                 self.write_driver(device_data)
                 self.logfile.write(repr(device_data))
                 self.logfile.write('\n')
@@ -448,6 +446,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         try:
             self.device_sock.connect((self.device_host, self.device_port))
             self.device_sock.setblocking(0)
+            self.device_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                            
             
         except Exception as e:
             # This could be a timeout.
@@ -624,6 +623,7 @@ class LoggerClient(object):
         Initialize client comms with the logger process and start a
         listener thread.
         """
+        mi_logger.info('Logger initializing comms.')
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # This can be thrown here.
         # error: [Errno 61] Connection refused
@@ -641,13 +641,13 @@ class LoggerClient(object):
         Stop the listener thread and close client comms with the device
         logger. This is called by the done function.
         """
-        mi_logger.info('Got Stop COMMS')
+        mi_logger.info('Logger shutting down comms.')
         self.listener_thread.done()
         self.listener_thread.join()
         #-self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
         self.sock = None
-        mi_logger.info('Loggerr client comms stopped.')
+        mi_logger.info('Logger client comms stopped.')
         #print 'stopped client comms'
         #logging.info('stopped client comms')
 
@@ -669,7 +669,6 @@ class LoggerClient(object):
                     sent = self.sock.send(data)
                     gone = data[:sent]
                     data = data[sent:]
-                    mi_logger.info('logger sent: %s',repr(gone))   
                 except socket.error:
                     time.sleep(.1)
                 
@@ -714,32 +713,22 @@ class Listener(threading.Thread):
         available and report it to the logger.
         """
         mi_logger.info('Logger client listener started.')
-        #logging.info('listener started')
-        oldtime = 0
         while not self._done:
             try:
-                #newtime = time.time()
-                #if newtime > oldtime:
-                    #mi_logger('logger client listening')
-                    #oldtime = newtime
                 data = self.sock.recv(4069)
                 if self.callback:
-                    #mi_logger.debug('logger got data: %s', repr(data))
                     self.callback(data)
                 else:
                     if not self.delim:
-                        #logging.info('from device:%s' % repr(data))
                         print 'from device:%s' % repr(data)
                     else:
                         self.linebuf += data
                         lines = str.split(self.linebuf, self.delim)
                         self.linebuf = lines[-1]
                         lines = lines[:-1]
-                        #[logging.info('from device:%s' % item) for item in lines]
                         for item in lines:
                             print 'from device:%s' % item
                 
             except socket.error:
                 time.sleep(.1)
-        #logging.info('listener done')
         mi_logger.info('Logger client done listening.')
