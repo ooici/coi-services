@@ -320,6 +320,17 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     def unassign_platform_from_logical_platform(self, platform_id='', logical_platform_id=''):
         self.logical_platform.unlink_platform(logical_platform_id, platform_id)
 
+    def assign_platform_model_to_logical_platform(self, platform_model_id='', logical_platform_id=''):
+        self.platform_device.link_logicalmodel(logical_platform_id, platform_model_id)
+
+    def unassign_platform_model_from_logical_platform(self, platform_model_id='', logical_platform_id=''):
+        self.platform_device.unlink_logicalmodel(logical_platform_id, platform_model_id)
+
+    def assign_instrument_model_to_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
+        self.logical_instrument.link_logicalmodel(logical_instrument_id, instrument_model_id)
+
+    def unassign_instrument_model_from_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
+        self.logical_instrument.unlink_logicalmodel(logical_instrument_id, instrument_model_id)
 
     def assign_logical_instrument_to_logical_platform(self, logical_instrument_id='', logical_platform_id=''):
         self.logical_platform.link_instrument(logical_platform_id, logical_instrument_id)
@@ -354,6 +365,27 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #     self.logical_instrument.unlink_data_product(logical_instrument_id, data_product_id)
 
 
+    # reassigning a logical instrument to an instrument device is a little bit special
+    # TODO: someday we may be able to dig up the correct data products automatically,
+    #       but once we have them this is the function that does all the work.
+    def reassign_instrument_device_to_logical_instrument(self, logical_instrument_id='',
+                                                         old_instrument_device_id='',
+                                                         new_instrument_device_id='',
+                                                         logical_data_product_ids=None,
+                                                         old_instrument_data_product_ids=None,
+                                                         new_instrument_data_product_ids=None):
+        """
+        associate a logical instrument with a physical one.  this involves linking the
+        physical instrument's data product(s) to the logical one(s).
+
+        the 2 lists of data products must be of equal length, and will map 1-1
+
+        @param logical_instrument_id
+        @param instrument_device_id
+        @param logical_data_product_ids a list of data products associated to a logical instrument
+        @param instrument_data_product_ids a list of data products coming from an instrument device
+        """
+
 
     def define_observatory_policy(self):
         """method docstring
@@ -364,8 +396,6 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         # ...
         #
         pass
-
-
 
 
 

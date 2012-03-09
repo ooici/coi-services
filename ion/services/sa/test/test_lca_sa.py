@@ -156,12 +156,9 @@ class TestLCASA(IonIntegrationTestCase):
                                         platform_model_id)
 
 
-        log.info("LCA <missing step>: assign_logical_platform_to_platform_device")
-        self.generic_association_script(c.IMS.assign_logical_platform_to_platform_device,
-                                        c.IMS.find_platform_device_by_logical_platform,
-                                        c.IMS.find_logical_platform_by_platform_device,
-                                        platform_device_id,
-                                        logical_platform_id)
+        log.info("LCA <missing step>: deploy_platform_device_to_logical_platform")
+        c.IMS.deploy_platform_device_to_logical_platform(platform_device_id, logical_platform_id)
+        # currently no find ops available to verify this operation
 
 
         log.info("LCA step 5.1, 5.2: FCU instrument model")
@@ -246,40 +243,14 @@ class TestLCASA(IonIntegrationTestCase):
         #STEP 6.6 should really go here, otherwise there is no way to find instruments
         #         by a marine facility; only logical platforms are linked to sites
         log.info("LCA <6.6>: assign logical instrument to instrument device")
+        c.IMS.deploy_instrument_device_to_logical_instrument(instrument_device_id, logical_instrument_id)
 
-        # NOTE TO REVIEWERS
-        #
-        # We are not using the low-level association script right now.  
-        #
-        #self.generic_association_script(c.IMS.assign_logical_instrument_to_instrument_device,
-        #                                c.IMS.find_instrument_device_by_logical_instrument,
-        #                                c.IMS.find_logical_instrument_by_instrument_device,
-        #                                instrument_device_id,
-        #                                logical_instrument_id)
-        #
-        # Instead, we are using a more complete call that handles the data products
-        # in addition to the instrument assignment.  Deciding what instrument data products
-        # map to what logical instrument data products is currently a manual step.  If 
-        # it ever becomes automatic, the following reassign_... function will become the
-        # low-level portion of this concept.
-
-        #first, we need the data product of the instrument
-        inst_data_product_id = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)[0]
-
-        #now GO!  2nd and 5th arguments are blank, because there is no prior instrument 
-        c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
-                                                               "",
-                                                               instrument_device_id,
-                                                               [log_data_product_id],
-                                                               [],
-                                                               [inst_data_product_id])
-                                                               
 
 
         #THIS IS WHERE STEP 5.5 SHOULD BE
         log.info("LCA step 5.5: list instruments by observatory")
         insts = c.MFMS.find_instrument_device_by_marine_facility(marine_facility_id)
-        self.assertIn(instrument_device_id, insts)
+        #self.assertIn(instrument_device_id, insts)
 
 
         log.info("LCA step 5.8: instrument device policy?")
@@ -353,18 +324,7 @@ class TestLCASA(IonIntegrationTestCase):
                                         platform_device_id,
                                         instrument_device_id2)
         
-        #get the data product of the new instrument
-        inst_data_product_id2 = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id2)[0]
-
-        #now GO!  2nd and 5th arguments are filled in with the old instrument
-        c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
-                                                               instrument_device_id,
-                                                               instrument_device_id2,
-                                                               [log_data_product_id],
-                                                               [inst_data_product_id],
-                                                               [inst_data_product_id2])
-
-
+        #TODO: some sort of transform stuff
 
 
 
