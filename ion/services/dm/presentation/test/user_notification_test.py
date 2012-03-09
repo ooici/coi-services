@@ -66,7 +66,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
         
-    def Xtest_find_event_types_for_resource(self):
+    def test_find_event_types_for_resource(self):
         # create a dataset object in the RR to pass into the UNS method
         dataset_object = IonObject(RT.DataSet, name="dataset1")
         dataset_id, version = self.rrc.create(dataset_object)
@@ -84,7 +84,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         except:
             pass
         
-    def Xtest_create_two_user_notifications(self):
+    def test_create_two_user_notifications(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
@@ -114,7 +114,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
            n2.events_list != notification_object2.events_list:
             self.fail("notification was not correct")
 
-    def Xtest_delete_user_notifications(self):
+    def test_delete_user_notifications(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
@@ -146,7 +146,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 return
         self.fail("failed to delete notifications")      
         
-    def Xtest_find_user_notifications(self):
+    def test_find_user_notifications(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
@@ -170,7 +170,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         if len(notifications) != 2:
             self.fail("failed to find all notifications")  
 
-    def Xtest_update_user_notification(self):
+    def test_update_user_notification(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
@@ -194,7 +194,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         if notification.origin_list != ['Some_Resource_Agent_ID5']:
             self.fail("failed to change notification")          
 
-    def Xtest_send_notification_emails(self):
+    def test_send_notification_emails(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
