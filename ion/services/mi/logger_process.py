@@ -145,6 +145,7 @@ class BaseLoggerProcess(DaemonProcess):
             
         if sock:        
             self.driver_sock = sock
+            self.driver_sock.setblocking(0)            
             self.driver_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                            
             self.driver_addr = addr
             self.statusfile.write('_accept_driver_comms: driver connected at %s, %i.\n' % self.driver_addr)
