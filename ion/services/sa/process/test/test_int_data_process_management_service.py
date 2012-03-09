@@ -179,9 +179,7 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
             self.Processclient.read_data_process_definition(dprocdef_id)
 
 
-
-
-@attr('INT', group='mmm')
+@attr('INT', group='sa')
 @unittest.skip('not working')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
@@ -278,7 +276,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         output_dp_obj = IonObject(RT.DataProduct, name='conductivity',description='transform output conductivity')
         output_dp_id_1 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
         self.output_products['conductivity'] = output_dp_id_1
-        #self.DPMSclient.activate_data_product_persistence(data_product_id=output_dp_id_1, persist_data=True, persist_metadata=True)
+        self.DPMSclient.activate_data_product_persistence(data_product_id=output_dp_id_1, persist_data=True, persist_metadata=True)
 
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product pressure")

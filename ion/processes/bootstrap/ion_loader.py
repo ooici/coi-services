@@ -6,12 +6,12 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
 import csv
-import re
 
 from interface import objects
 
 from pyon.core.bootstrap import service_registry
-from pyon.public import CFG, log, ImmediateProcess, iex, IonObject
+from pyon.ion.resource import get_restype_lcsm
+from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any
 
 DEBUG = True
@@ -25,6 +25,8 @@ class IONLoader(ImmediateProcess):
     COL_SCENARIO = "Scenario"
     COL_ID = "ID"
     COL_OWNER = "owner_id"
+    COL_LCSTATE = "lcstate"
+    COL_MF = "mf_ids"
 
     def on_start(self):
 
@@ -56,10 +58,10 @@ class IONLoader(ImmediateProcess):
 
         log.info("Start preloading from path=%s" % path)
         categories = ['User',
-                      'PlatformModel',
-                      'InstrumentModel',
                       'MarineFacility',
                       'UserRole',
+                      'PlatformModel',
+                      'InstrumentModel',
                       'Site',
                       'LogicalPlatform',
                       'LogicalInstrument',
@@ -164,7 +166,7 @@ class IONLoader(ImmediateProcess):
                 raise iex.BadRequest("Value %s is no bool" % value)
         elif targettype is 'simplelist':
             if value.startswith('[') and value.endswith(']'):
-                value = value[1:len(value)-1]
+                value = value[1:len(value)-1].strip()
             return list(value.split(','))
         elif schema_entry and 'enum_type' in schema_entry:
             enum_clzz = getattr(objects, schema_entry['enum_type'])
@@ -201,6 +203,31 @@ class IONLoader(ImmediateProcess):
         self._register_id(row[self.COL_ID], res_id)
         return res_id
 
+    def _resource_advance_lcs(self, row, res_id, restype=None):
+        lcsm = get_restype_lcsm(restype)
+        initial_lcstate = lcsm.initial_state if lcsm else "DEPLOYED_AVAILABLE"
+
+        svc_client = self._get_service_client("resource_registry")
+
+        lcstate = row.get(self.COL_LCSTATE, None)
+        if lcstate:
+            imat, ivis = initial_lcstate.split("_")
+            mat, vis = lcstate.split("_")
+            if mat != imat:
+                svc_client.set_lifecycle_state(res_id, "%s_PRIVATE" % mat)
+            if vis != ivis:
+                svc_client.set_lifecycle_state(res_id, "%s_%s" % (mat, vis))
+
+    def _resource_assign_mf(self, row, res_id):
+        svc_client = self._get_service_client("marine_facility_management")
+
+        mf_ids = row.get(self.COL_MF, None)
+        if mf_ids:
+            mf_ids = self._get_typed_value(mf_ids, targettype="simplelist")
+            for mf_id in mf_ids:
+                svc_client.assign_resource_to_marine_facility(res_id, self.resource_ids[mf_id])
+
+
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
 
@@ -223,6 +250,37 @@ class IONLoader(ImmediateProcess):
         user_info_obj = IonObject("UserInfo", {"contact": {"name": name, "email": email}})
         ims.create_user_info(user_id, user_info_obj)
 
+    def _load_MarineFacility(self, row):
+        res_id = self._basic_resource_create(row, "MarineFacility", "mf/",
+                                            "marine_facility_management", "create_marine_facility")
+
+    def _load_UserRole(self, row):
+        log.info("Loading UserRole")
+
+        rr_client = self._get_service_client("resource_registry")
+
+        org_id = row["org_id"]
+        mf_id = row["marine_facility_id"]
+        if mf_id:
+            mf_id = self.resource_ids[mf_id]
+            org_ids, _ = rr_client.find_subjects(RT.Org, PRED.hasObservatory, mf_id, id_only=True)
+            if len(org_ids) == 1:
+                org_id = org_ids[0]
+            else:
+                raise iex.BadRequest("Org for MarineFacility %s not found" % mf_id)
+
+        user_id = self.resource_ids[row["user_id"]]
+        role_name = row["role_name"]
+
+        svc_client = self._get_service_client("org_management")
+
+        auto_enroll = self._get_typed_value(row["auto_enroll"], targettype="bool")
+        if auto_enroll:
+            svc_client.enroll_member(org_id, user_id)
+
+        if role_name != "ORG_MEMBER":
+            svc_client.grant_role(org_id, user_id, role_name)
+
     def _load_PlatformModel(self, row):
         res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
                                             "instrument_management", "create_platform_model")
@@ -230,13 +288,6 @@ class IONLoader(ImmediateProcess):
     def _load_InstrumentModel(self, row):
         res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
                                             "instrument_management", "create_instrument_model")
-
-    def _load_MarineFacility(self, row):
-        res_id = self._basic_resource_create(row, "MarineFacility", "mf/",
-                                            "marine_facility_management", "create_marine_facility")
-
-    def _load_UserRole(self, row):
-        log.info("Loading UserRole")
 
     def _load_Site(self, row):
         res_id = self._basic_resource_create(row, "Site", "site/",
@@ -316,6 +367,8 @@ class IONLoader(ImmediateProcess):
         if ass_id:
             ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
 
+        self._resource_advance_lcs(row, res_id)
+
     def _load_InstrumentDevice(self, row):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
                                             "instrument_management", "create_instrument_device")
@@ -335,9 +388,13 @@ class IONLoader(ImmediateProcess):
         if ass_id:
             ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
 
+        self._resource_advance_lcs(row, res_id)
+
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
                                             "instrument_management", "create_instrument_agent")
+
+        self._resource_advance_lcs(row, res_id)
 
     def _load_InstrumentAgentInstance(self, row):
         ia_id = row["instrument_agent_id"]
@@ -391,11 +448,11 @@ class IONLoader(ImmediateProcess):
         svc_client = self._get_service_client("data_product_management")
         persist_metadata = self._get_typed_value(row["persist_metadata"], targettype="bool")
         persist_data = self._get_typed_value(row["persist_data"], targettype="bool")
-        if DEBUG:
-            return
         if persist_metadata or persist_data:
-            svc_client.activate_data_product_persistence(res_id, persist_data, persist_metadata)
-            pass
+            if not DEBUG:
+                svc_client.activate_data_product_persistence(res_id, persist_data, persist_metadata)
+
+        self._resource_advance_lcs(row, res_id, "DataProduct")
 
     def _load_DataProcess(self, row):
         log.info("Loading DataProcess")

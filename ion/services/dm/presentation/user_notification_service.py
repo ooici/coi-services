@@ -242,6 +242,11 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
+        # Read existing Notification object and see if it exists
+        old_notification = self.clients.resource_registry.read(notification._id)
+        if not old_notification:
+            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
+
         # get the user that this notification is associated with 
         subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasNotification, notification._id)
         if not subjects:
@@ -250,13 +255,18 @@ class UserNotificationService(BaseUserNotificationService):
             raise BadRequest("UserNotificationService.delete_notification(): there should be only ONE user for " + notification._id)
         user_id = subjects[0]._id
         
-        # delete old notification
-        self.delete_notification(notification._id)
+        #remove the old notification from the user's entry in the self.user_event_processors list
+        if user_id not in self.user_event_processors:
+            log.warning("UserNotificationService.delete_notification(): user %s not found in user_event_processors list" % user_id)
+        user_event_processor = self.user_event_processors[user_id]
+        user_event_processor.remove_notification(notification._id)
         
-        # add new notification after 'deleting' the id and rev
-        del notification._id
-        del notification._rev
-        self.create_notification(notification, user_id)
+        # add updated notification to user's event processor
+        Notification = user_event_processor.add_notification(notification)
+        Notification.set_notification_id(notification._id)
+        
+        # finally update the notification in the RR
+        self.clients.resource_registry.update(notification)
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
