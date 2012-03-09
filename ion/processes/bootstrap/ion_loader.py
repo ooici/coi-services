@@ -14,6 +14,8 @@ from pyon.core.bootstrap import service_registry
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject
 from pyon.util.containers import named_any
 
+DEBUG = True
+
 class IONLoader(ImmediateProcess):
     """
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
@@ -26,14 +28,15 @@ class IONLoader(ImmediateProcess):
 
     def on_start(self):
 
-        if self.CFG.system.force_clean and not self.CFG.system.testing:
+        if self.CFG.system.force_clean and not self.CFG.system.testing and not DEBUG:
             text = "system.force_clean=True. ION Preload does not support this"
-            #log.warn(text)
             log.error(text)
             raise iex.BadRequest(text)
         op = self.CFG.get("op", None)
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)
+        global DEBUG
+        DEBUG = self.CFG.get("debug", False)
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
         if op:
@@ -70,6 +73,7 @@ class IONLoader(ImmediateProcess):
                       'DataProduct',
                       'DataProcess',
                       'DataProductLink',
+                      'Attachment',
                       ]
 
         self.obj_classes = {}
@@ -83,17 +87,20 @@ class IONLoader(ImmediateProcess):
             catfunc = getattr(self, funcname)
             filename = "%s/%s.csv" % (path, category)
             log.info("Loading category %s from file %s" % (category, filename))
-            with open(filename, "rb") as csvfile:
-                reader = self._get_csv_reader(csvfile)
-                for row in reader:
-                    # Check if scenario applies
-                    rowsc = row[self.COL_SCENARIO]
-                    if not scenario in rowsc:
-                        row_skip += 1
-                        continue
-                    row_do += 1
+            try:
+                with open(filename, "rb") as csvfile:
+                    reader = self._get_csv_reader(csvfile)
+                    for row in reader:
+                        # Check if scenario applies
+                        rowsc = row[self.COL_SCENARIO]
+                        if not scenario in rowsc:
+                            row_skip += 1
+                            continue
+                        row_do += 1
 
-                    catfunc(row)
+                        catfunc(row)
+            except IOError, ioe:
+                log.warn("Resource category file %s error: %s" % (filename, str(ioe)))
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
@@ -179,7 +186,7 @@ class IONLoader(ImmediateProcess):
         log.info("Added user name|id=%s|%s" % (name, id))
 
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop, **kwargs):
-        log.info("Loading %s" % restype)
+        log.info("Loading %s (ID=%s)" % (restype, row[self.COL_ID]))
         res_obj = self._create_object_from_row(restype, row, prefix)
         log.info("%s: %s" % (restype,res_obj))
 
@@ -251,12 +258,12 @@ class IONLoader(ImmediateProcess):
         site_id = row["site_id"]
         svc_client.assign_logical_platform_to_site(res_id, self.resource_ids[site_id])
 
-        ims_client = self._get_service_client("instrument_management")
+        #ims_client = self._get_service_client("instrument_management")
         pm_ids = row["platform_model_ids"]
         if pm_ids:
             pm_ids = self._get_typed_value(pm_ids, targettype="simplelist")
             for pm_id in pm_ids:
-                ims_client.assign_platform_model_to_logical_platform(self.resource_ids[pm_id], res_id)
+                svc_client.assign_platform_model_to_logical_platform(self.resource_ids[pm_id], res_id)
 
     def _load_LogicalInstrument(self, row):
         res_id = self._basic_resource_create(row, "LogicalInstrument", "li/",
@@ -266,12 +273,12 @@ class IONLoader(ImmediateProcess):
         lp_id = row["logical_platform_id"]
         svc_client.assign_logical_instrument_to_logical_platform(res_id, self.resource_ids[lp_id])
 
-        ims_client = self._get_service_client("instrument_management")
+        #ims_client = self._get_service_client("instrument_management")
         im_ids = row["instrument_model_ids"]
         if im_ids:
             im_ids = self._get_typed_value(im_ids, targettype="simplelist")
             for im_id in im_ids:
-                ims_client.assign_instrument_model_to_logical_instrument(self.resource_ids[im_id], res_id)
+                svc_client.assign_instrument_model_to_logical_instrument(self.resource_ids[im_id], res_id)
 
     def _load_StreamDefinition(self, row):
         log.info("Loading StreamDefinition")
@@ -325,13 +332,12 @@ class IONLoader(ImmediateProcess):
                                             "instrument_management", "create_instrument_agent")
 
     def _load_InstrumentAgentInstance(self, row):
+        ia_id = row["instrument_agent_id"]
+        id_id = row["instrument_device_id"]
         res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
-                                            "instrument_management", "create_instrument_agent_instance")
-
-        ims_client = self._get_service_client("instrument_management")
-        ass_id = row["instrument_agent_id"]
-        if ass_id:
-            ims_client.assign_instrument_agent_instance_to_instrument_agent(res_id, self.resource_ids[ass_id])
+                                            "instrument_management", "create_instrument_agent_instance",
+                                            instrument_agent_id=self.resource_ids[ia_id],
+                                            instrument_device_id=self.resource_ids[id_id])
 
     def _load_DataProcessDefinition(self, row):
         res_id = self._basic_resource_create(row, "DataProcessDefinition", "dpd/",
@@ -354,6 +360,8 @@ class IONLoader(ImmediateProcess):
 
     def _load_IngestionConfiguration(self, row):
         log.info("Loading IngestionConfiguration")
+        if DEBUG:
+            return
 
         xp = row["exchange_point_id"]
         couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
@@ -375,6 +383,8 @@ class IONLoader(ImmediateProcess):
         svc_client = self._get_service_client("data_product_management")
         persist_metadata = self._get_typed_value(row["persist_metadata"], targettype="bool")
         persist_data = self._get_typed_value(row["persist_data"], targettype="bool")
+        if DEBUG:
+            return
         if persist_metadata or persist_data:
             svc_client.activate_data_product_persistence(res_id, persist_data, persist_metadata)
             pass
@@ -403,3 +413,6 @@ class IONLoader(ImmediateProcess):
 
         svc_client = self._get_service_client("data_acquisition_management")
         svc_client.assign_data_product(res_id, dp_id, False)
+
+    def _load_Attachment(self, row):
+        pass
