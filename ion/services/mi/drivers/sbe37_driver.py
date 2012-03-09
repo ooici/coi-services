@@ -899,28 +899,34 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._linebuf = ''
         self._promptbuf = ''
         
+        """
         self._logger_client.send('\r\n')
         time.sleep(5)
         self._logger_client.send('ds\r\n')
         #self._logger_client.send('\r\n')
         time.sleep(5)
-
         """
-        self._logger_client.send('sdf\r\n')
+        mi_logger.info('sending one')
+        self._logger_client.send('one\r\n')
         time.sleep(2)
+        mi_logger.info('sending two')
+        self._logger_client.send('two\r\n')
+        time.sleep(2)
+        mi_logger.info('sending three')
+        self._logger_client.send('three\r\n')
+        time.sleep(2)
+        mi_logger.info('sending four')
+        self._logger_client.send('four\r\n')
+        time.sleep(2)
+        mi_logger.info('sending five')
+        self._logger_client.send('five\r\n')
+        time.sleep(2)
+        mi_logger.info('sending ret')
         self._logger_client.send('\r\n')
         time.sleep(2)
-        self._logger_client.send('xxx\r\n')
-        time.sleep(2)
+        mi_logger.info('sending ret')
         self._logger_client.send('\r\n')
         time.sleep(2)
-        self._logger_client.send('ds\r\n')
-        time.sleep(2)
-        self._logger_client.send('\r\n')
-        time.sleep(2)
-        self._logger_client.send('\r\n')
-        time.sleep(2)
-        """
         
         """
         mi_logger.info('sending ds')

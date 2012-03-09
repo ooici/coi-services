@@ -364,6 +364,7 @@ class BaseLoggerProcess(DaemonProcess):
             device_data = self.read_device()
             if device_data:
                 self.write_driver(device_data)
+                self.write_driver('')
                 self.logfile.write(repr(device_data))
                 self.logfile.write('\n')
                 self.logfile.flush()
