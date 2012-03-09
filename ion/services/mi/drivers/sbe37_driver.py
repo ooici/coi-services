@@ -870,7 +870,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                         
                         
             mi_logger.info('got data: %s', repr(data))
-            data = string.strip(data, '\x00')
+            data = data.replace('\x00','')
             self._linebuf += data
             self._promptbuf += data            
             mi_logger.info('got data linebuf: %s', repr(self._linebuf))
