@@ -146,7 +146,7 @@ class InstrumentProtocol(object):
             # There was a pidfile for the device.
             raise InstrumentConnectionException()
 
-        return logger_pid
+        return self._logger.get_pid()
         
     def disconnect(self, *args, **kwargs):
         """Disconnect via the instrument connection object
