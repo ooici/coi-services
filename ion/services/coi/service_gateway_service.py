@@ -228,10 +228,12 @@ def process_gateway_request(service_name, operation):
 
         #For service operations that add or remove user roles, remove the cached roles so that
         #the next request will get the latest set of user roles
+        #TODO - this will only work while there is a single Service Gateway running - need to replace with Event
+        #framework to evict from the cache when a user roles get updated.
         if operation == 'grant_role' or operation == 'revoke_role':
             #Look for a user_id in the set of parameters and remove it from the user role cache
             if param_list.has_key('user_id'):
-                service_gateway_instance.user_data_cache.erase(param_list['user_id'])
+                service_gateway_instance.user_data_cache.evict(param_list['user_id'])
 
 
         return response
