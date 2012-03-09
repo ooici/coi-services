@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
@@ -10,7 +11,7 @@ from werkzeug.exceptions import Forbidden
 
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
-from pyon.core.registry import get_message_class_in_parm_type, getextends
+from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
@@ -18,6 +19,8 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from pyon.util.log import log
 
+from pyon.agent.agent import ResourceAgentClient
+from interface.services.iresource_agent import ResourceAgentProcessClient
 
 #Initialize the flask app
 app = Flask(__name__)
@@ -169,7 +172,7 @@ def process_gateway_request(service_name, operation):
 
         #Find the concrete client class for making the RPC calls.
         if not target_service.client:
-            raise BadRequest("Cannot find a client class for the specified service: %s" % service_name )
+            raise Inconsistent("Cannot find a client class for the specified service: %s" % service_name )
 
         target_client = target_service.client
 
@@ -196,10 +199,10 @@ def process_gateway_request(service_name, operation):
             if json_params['serviceRequest']['serviceOp'] != operation:
                 raise Inconsistent("Target service operation in the JSON request (%s) does not match service name in URL (%s)" % ( str(json_params['serviceRequest']['serviceOp']), operation ) )
 
-        param_list = create_parameter_list(service_name, target_client,operation, json_params)
+        param_list = create_parameter_list('serviceRequest', service_name, target_client,operation, json_params)
 
         #Add governance headers
-        ion_actor_id, expiry = get_governance_info_from_request(json_params)
+        ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
         param_list['headers'] = build_message_headers(ion_actor_id, expiry)
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
@@ -212,6 +215,64 @@ def process_gateway_request(service_name, operation):
     except Exception, e:
         return build_error_response(e)
 
+
+#This service method is used to communicate with a resource agent within the system from an
+#external entity using HTTP requests. A resource_id of a running agent is required as is the operation
+#that is being called and a JSON request block which specifies the data being sent to the agent.
+#Example:
+# curl -d 'payload={"agentRequest": { "agentId": "121ab46344cb3b30112", "agentOp": "execute",
+# "params": { "command": ["AgentCommand",  {"command": "reset"}]  } }' http://localhost:5000/ion-agent/121ab46344cb3b30112/execute
+@app.route('/ion-agent/<resource_id>/<operation>', methods=['POST'])
+def process_gateway_agent_request(resource_id, operation):
+
+    try:
+
+        if not resource_id:
+            raise BadRequest("Am agent resource_id was not found in the URL")
+
+        if operation == '':
+            raise BadRequest("An agent operation was not specified in the URL")
+
+        #Retrieve json data from HTTP Post payload
+        json_params = None
+        if request.method == "POST":
+            payload = request.form['payload']
+
+            json_params = json.loads(payload)
+
+            if not json_params.has_key('agentRequest'):
+                raise Inconsistent("The JSON request is missing the 'agentRequest' key in the request")
+
+            if not json_params['agentRequest'].has_key('agentId'):
+                raise Inconsistent("The JSON request is missing the 'agentRequest' key in the request")
+
+            if not json_params['agentRequest'].has_key('agentOp'):
+                raise Inconsistent("The JSON request is missing the 'agentOp' key in the request")
+
+            if json_params['agentRequest']['agentId'] != resource_id:
+                raise Inconsistent("Target agent id in the JSON request (%s) does not match agent id in URL (%s)" % (str(json_params['agentRequest']['agentId']), resource_id) )
+
+            if json_params['agentRequest']['agentOp'] != operation:
+                raise Inconsistent("Target agent operation in the JSON request (%s) does not match agent operation in URL (%s)" % ( str(json_params['agentRequest']['agentOp']), operation ) )
+
+        resource_agent = ResourceAgentClient(convert_unicode(resource_id), node=Container.instance.node, process=service_gateway_instance)
+        if resource_agent is None:
+            raise NotFound('The agent instance for id %s is not found.' % resource_id)
+
+
+        param_list = create_parameter_list('agentRequest', 'resource_agent', ResourceAgentProcessClient, operation, json_params)
+
+        #Add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request('agentRequest', json_params)
+        param_list['headers'] = build_message_headers(ion_actor_id, expiry)
+
+        methodToCall = getattr(resource_agent, operation)
+        result = methodToCall(**param_list)
+
+        return json_response({GATEWAY_RESPONSE: result})
+
+    except Exception, e:
+        return build_error_response(e)
 
 
 #Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
@@ -230,7 +291,7 @@ def build_error_response(e):
 
     return json_response({ GATEWAY_ERROR :result } )
 
-def get_governance_info_from_request(json_params):
+def get_governance_info_from_request(request_type, json_params):
 
     #Default values for governance headers.
     actor_id = DEFAULT_ACTOR_ID
@@ -244,11 +305,11 @@ def get_governance_info_from_request(json_params):
             expiry = convert_unicode(request.args['expiry'])
     else:
 
-        if json_params['serviceRequest'].has_key('requester'):
-            actor_id = convert_unicode(json_params['serviceRequest']['requester'])
+        if json_params[request_type].has_key('requester'):
+            actor_id = convert_unicode(json_params[request_type]['requester'])
 
-        if json_params['serviceRequest'].has_key('expiry'):
-            expiry = convert_unicode(json_params['serviceRequest']['expiry'])
+        if json_params[request_type].has_key('expiry'):
+            expiry = convert_unicode(json_params[request_type]['expiry'])
 
     return actor_id, expiry
 
@@ -261,7 +322,7 @@ def build_message_headers( ion_actor_id, expiry):
     try:
         user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
     except NotFound, e:
-        ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous  #TODO - Find out if this is acceptable
+        ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
 
     headers['ion-actor-id'] = ion_actor_id
     headers['expiry'] = expiry
@@ -271,6 +332,7 @@ def build_message_headers( ion_actor_id, expiry):
         headers['ion-actor-roles'] = dict()
         return headers
 
+    #TODO - Build in caching for this
     try:
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
@@ -296,7 +358,7 @@ def get_role_message_headers(org_roles):
     return role_header
 
 #Build parameter list dynamically from
-def create_parameter_list(service_name, target_client,operation, json_params):
+def create_parameter_list(request_type, service_name, target_client,operation, json_params):
     param_list = {}
     method_args = inspect.getargspec(getattr(target_client,operation))
     for arg in method_args[0]:
@@ -310,20 +372,24 @@ def create_parameter_list(service_name, target_client,operation, json_params):
                 else:
                     param_list[arg] = ast.literal_eval(convert_unicode(request.args[arg]))
         else:
-            if json_params['serviceRequest']['params'].has_key(arg):
+            if json_params[request_type]['params'].has_key(arg):
 
                 #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
-                if isinstance(json_params['serviceRequest']['params'][arg], list):
+                if isinstance(json_params[request_type]['params'][arg], list):
 
                     #TODO - Potentially remove these conversions whenever ION objects support unicode
                     # UNICODE strings are not supported with ION objects
-                    ion_object_name = convert_unicode(json_params['serviceRequest']['params'][arg][0])
-                    object_params = convert_unicode(json_params['serviceRequest']['params'][arg][1])
+                    ion_object_name = convert_unicode(json_params[request_type]['params'][arg][0])
+                    object_params = convert_unicode(json_params[request_type]['params'][arg][1])
 
-                    param_list[arg] = create_ion_object(ion_object_name, object_params)
+                    if is_ion_object(ion_object_name):
+                        param_list[arg] = create_ion_object(ion_object_name, object_params)
+                    else:
+                        #Not an ION object so handle as a simple type then.
+                        param_list[arg] = convert_unicode(json_params[request_type]['params'][arg])
 
                 else:  # The else branch is for simple types ( non-ION objects )
-                    param_list[arg] = convert_unicode(json_params['serviceRequest']['params'][arg])
+                    param_list[arg] = convert_unicode(json_params[request_type]['params'][arg])
 
     return param_list
 
@@ -364,6 +430,9 @@ def convert_unicode(data):
         return type(data)(map(convert_unicode, data))
     else:
         return data
+
+
+
 
 # This service method returns the list of registered resource objects sorted alphabetically. Optional query
 # string parameter will filter by extended type  i.e. type=InformationResource. All registered objects
