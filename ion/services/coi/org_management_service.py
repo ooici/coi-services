@@ -307,14 +307,14 @@ class OrgManagementService(BaseOrgManagementService):
 
         return req_id
 
-    def request_role(self, org_id='', user_id='', user_role_id=''):
+    def request_role(self, org_id='', user_id='', role_name=''):
         """Requests for an role within an Org which must be accepted or denied as a separate process.
-         A role of Member is automatically implied with successfull enrollment.  Throws a
-         NotFound exception if neither id is found.
+        A role of Member is automatically implied with successfull enrollment.  Throws a
+        NotFound exception if neither id is found.
 
         @param org_id    str
         @param user_id    str
-        @param user_role_id    str
+        @param role_name    str
         @retval request_id    str
         @throws NotFound    object with specified id does not exist
         """
@@ -325,15 +325,15 @@ class OrgManagementService(BaseOrgManagementService):
         if not org:
             raise NotFound("Org %s does not exist" % org_id)
 
-        if not user_role_id:
-            raise BadRequest("The user_role_id parameter is missing")
+        if not role_name:
+            raise BadRequest("The role_name parameter is missing")
 
-        user_role = self.clients.policy_management.read_role(user_role_id)
-        if not user_role:
-            raise NotFound("User Role %s does not exist" % user_role_id)
-
-        if user_role.name == MEMBER_ROLE:
+        if role_name == MEMBER_ROLE:
             raise BadRequest("The Member User Role is already assigned with an enrollment to an Org")
+
+        user_role = self._find_role(org_id, role_name)
+        if user_role is None:
+            raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
 
         if not user_id:
             raise BadRequest("The user_id parameter is missing")
@@ -347,9 +347,9 @@ class OrgManagementService(BaseOrgManagementService):
 
         #First make sure the user is enrolled with the Org  TODO - replace with commitment checks?
         if not self.is_enrolled(org_id, user_id):
-            raise BadRequest("The user id %s is already enrolled in the specified Org %s" % (user_id, org_id))
+            raise BadRequest("The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
-        request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, RT.EnrollmentRequest)
+        request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, RT.RoleRequest)
         if len(request_list) > 0:
             if request_list[0].status == REQUEST_ACCEPTED or request_list[0].status == REQUEST_DENIED\
             or request_list[0].status == REQUEST_REJECTED:
@@ -367,7 +367,7 @@ class OrgManagementService(BaseOrgManagementService):
             self.deny_request(org_id, req_id, "The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
         #TODO - Send request_initiated notification
-        
+
         return req_id
 
     def _create_request(self, org, user, request):
@@ -388,13 +388,15 @@ class OrgManagementService(BaseOrgManagementService):
         except Exception, e:
             log.debug("Error: " + e.message)
 
-    def find_requests(self, org_id='', request_type=''):
+    def find_requests(self, org_id='', request_type='', request_status=''):
         """Returns a list of open requests for an Org. An optional request_type can be supplied
-        or else all types will be returned. Will throw a not NotFound exception
+        or else all types will be returned. An optional request_status can be supplied
+        or else requests will be returned. Will throw a not NotFound exception
         if none of the specified ids do not exist.
 
         @param org_id    str
         @param request_type    str
+        @param request_status    str
         @retval requests    list
         @throws NotFound    object with specified id does not exist
         """
@@ -410,7 +412,15 @@ class OrgManagementService(BaseOrgManagementService):
         else:
              request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest)
 
-        return request_list
+        if not request_status:
+            return request_list
+
+        return_list = []
+        for req in request_list:
+            if req.status == request_status:
+                return_list.append(req)
+
+        return return_list
 
     def approve_request(self, org_id='', request_id=''):
         """Approves a request made to an Org. Will throw a not NotFound exception
@@ -436,6 +446,7 @@ class OrgManagementService(BaseOrgManagementService):
             raise NotFound("User Request %s does not exist" % request_id)
 
         request.status = REQUEST_APPROVED
+        request.status_description = "The request was approved"
         self.clients.resource_registry.update(request)
 
         #TODO - Send request_accepted notification
@@ -472,20 +483,20 @@ class OrgManagementService(BaseOrgManagementService):
         #TODO - Send request_denied notification
 
 
+    def find_user_requests(self, user_id='', org_id='', request_type='', request_status=''):
+        """Returns a list of requests for a specified User. All requests for all Orgs will be returned
+        unless an org_id is specified. An optional request_type can be supplied
+        or else all types will be returned. An optional request_status can be supplied
+        or else requests will be returned. Will throw a not NotFound exception
+        if none of the specified ids do not exist.
 
-    def find_user_requests(self, user_id='', org_id='', request_type=''):
-        def find_user_requests(self, user_id='', org_id='', request_type=''):
-            """Returns a list of requests for a specified User. All requests for all Orgs will be returned
-            unless an org_id is specified. An optional request_type can be supplied
-            or else all types will be returned. Will throw a not NotFound exception
-            if none of the specified ids do not exist.
-
-            @param user_id    str
-            @param org_id    str
-            @param request_type    str
-            @retval requests    list
-            @throws NotFound    object with specified id does not exist
-            """
+        @param user_id    str
+        @param org_id    str
+        @param request_type    str
+        @param request_status    str
+        @retval requests    list
+        @throws NotFound    object with specified id does not exist
+        """
         if not user_id:
             raise BadRequest("The user_id parameter is missing")
 
@@ -496,7 +507,6 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-
         ret_list = []
 
         if org_id:
@@ -504,15 +514,41 @@ class OrgManagementService(BaseOrgManagementService):
             if not org:
                 raise NotFound("Org %s does not exist" % org_id)
 
-            request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest, RT.UserRequest)
+            if request_type != '':
+                request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest, request_type)
+            else:
+                request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest)
+
             for req in request_list:
                 if req.user_id == user_id:
                     ret_list.append(req)
 
-            return ret_list
+            if not request_status:
+                return ret_list
 
-        request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, RT.UserRequest)
-        return request_list
+            return_req_list = []
+            for req in ret_list:
+                if req.status == request_status:
+                    return_req_list.append(req)
+
+            return return_req_list
+
+
+        if request_type != '':
+            request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, request_type)
+        else:
+            request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest)
+
+        if not request_status:
+            return request_list
+
+        return_list = []
+        for req in request_list:
+            if req.status == request_status:
+                return_list.append(req)
+
+        return return_list
+
 
     def accept_request(self, org_id='', request_id=''):
         """Accepts and invitation for a request made to an Org.  Will throw a not NotFound exception
@@ -538,6 +574,7 @@ class OrgManagementService(BaseOrgManagementService):
             raise NotFound("User Request %s does not exist" % request_id)
 
         request.status = REQUEST_ACCEPTED
+        request.status_description = "The request was accepted"
         self.clients.resource_registry.update(request)
 
         #Since the request was accepted by the user, proceed with the enrollment
