@@ -18,6 +18,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from pyon.util.log import log
+from pyon.util.lru_cache import LRUCache
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
@@ -30,6 +31,7 @@ service_gateway_instance = None
 
 DEFAULT_WEB_SERVER_HOSTNAME = ""
 DEFAULT_WEB_SERVER_PORT = 5000
+DEFAULT_USER_CACHE_SIZE = 2000
 
 GATEWAY_RESPONSE = 'GatewayResponse'
 GATEWAY_ERROR = 'GatewayError'
@@ -55,6 +57,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.server_port = DEFAULT_WEB_SERVER_PORT
         self.web_server_enabled = True
         self.logging = None
+        self.user_cache_size = DEFAULT_USER_CACHE_SIZE
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
@@ -86,9 +89,21 @@ class ServiceGatewayService(BaseServiceGatewayService):
         if self.trusted_originators is None:
             log.info("Service Gateway will not check requests against trusted originators since none are configured.")
 
+        try:
+            #Get the user_cache_size
+            self.user_cache_size = self.CFG['container']['service_gateway']['user_cache_size']
+        except Exception, e:
+            self.user_cache_size = DEFAULT_USER_CACHE_SIZE
+
+
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
             self.start_service(self.server_hostname,self.server_port)
+
+        #Initialize an LRU Cache to keep user roles cached for performance reasons
+        #maxSize = maximum number of elements to keep in cache
+        #maxAgeMs = oldest entry to keep
+        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
 
     def on_quit(self):
         self.stop_service()
@@ -209,7 +224,17 @@ def process_gateway_request(service_name, operation):
         methodToCall = getattr(client, operation)
         result = methodToCall(**param_list)
 
-        return json_response({GATEWAY_RESPONSE: result})
+        response = json_response({GATEWAY_RESPONSE: result})
+
+        #For service operations that add or remove user roles, remove the cached roles so that
+        #the next request will get the latest set of user roles
+        if operation == 'grant_role' or operation == 'revoke_role':
+            #Look for a user_id in the set of parameters and remove it from the user role cache
+            if param_list.has_key('user_id'):
+                service_gateway_instance.user_data_cache.erase(param_list['user_id'])
+
+
+        return response
 
 
     except Exception, e:
@@ -332,12 +357,24 @@ def build_message_headers( ion_actor_id, expiry):
         headers['ion-actor-roles'] = dict()
         return headers
 
-    #TODO - Build in caching for this
     try:
+        #Check to see if the user's roles are cached already - keyed by user id
+        #TODO - May need to synchronize this if there are "threading" issues
+        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
+            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+            if role_header is not None:
+                headers['ion-actor-roles'] = role_header
+                return headers
+
+
+        #The user's roles were not cached so hit the datastore to find it.
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
 
         role_header = get_role_message_headers(org_roles)
+
+        #Cache the roles by user id
+        service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
 
     except Exception, e:
         role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
