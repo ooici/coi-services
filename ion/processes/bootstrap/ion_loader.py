@@ -25,6 +25,12 @@ class IONLoader(ImmediateProcess):
     COL_OWNER = "owner_id"
 
     def on_start(self):
+
+        if self.CFG.system.force_clean and not self.CFG.system.testing:
+            text = "system.force_clean=True. ION Preload does not support this"
+            #log.warn(text)
+            log.error(text)
+            raise iex.BadRequest(text)
         op = self.CFG.get("op", None)
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)
@@ -60,6 +66,7 @@ class IONLoader(ImmediateProcess):
                       'InstrumentAgent',
                       'InstrumentAgentInstance',
                       'DataProcessDefinition',
+                      'IngestionConfiguration',
                       'DataProduct',
                       'DataProcess',
                       'DataProductLink',
@@ -140,10 +147,14 @@ class IONLoader(ImmediateProcess):
         targettype = targettype or schema_entry["type"]
         if targettype is 'str':
             return str(value)
-        if value.lower() == 'false':
-            return False
-        elif value.lower() == 'true':
-            return True
+        elif targettype is 'bool':
+            lvalue = value.lower()
+            if lvalue == 'true':
+               return True
+            elif lvalue == 'false' or lvalue == '':
+                return False
+            else:
+                raise iex.BadRequest("Value %s is no bool" % value)
         elif targettype is 'simplelist':
             if value.startswith('[') and value.endswith(']'):
                 value = value[1:len(value)-1]
@@ -341,6 +352,19 @@ class IONLoader(ImmediateProcess):
         for outsd in output_strdef:
             svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[outsd], res_id)
 
+    def _load_IngestionConfiguration(self, row):
+        log.info("Loading IngestionConfiguration")
+
+        xp = row["exchange_point_id"]
+        couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
+        hdf_cfg = self._create_object_from_row("HdfStorage", row, "hdf_storage/")
+        numw = int(row["number_of_workers"])
+
+        svc_client = self._get_service_client("ingestion_management")
+        ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, None, numw)
+
+        ic_id = svc_client.activate_ingestion_configuration(ic_id)
+
     def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]
 
@@ -349,10 +373,11 @@ class IONLoader(ImmediateProcess):
                                             stream_definition_id=self.resource_ids[strdef])
 
         svc_client = self._get_service_client("data_product_management")
-        persist_metadata = row["persist_metadata"] is True
-        persist_data = row["persist_data"] is True
+        persist_metadata = self._get_typed_value(row["persist_metadata"], targettype="bool")
+        persist_data = self._get_typed_value(row["persist_data"], targettype="bool")
         if persist_metadata or persist_data:
             svc_client.activate_data_product_persistence(res_id, persist_data, persist_metadata)
+            pass
 
     def _load_DataProcess(self, row):
         log.info("Loading DataProcess")
