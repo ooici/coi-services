@@ -55,7 +55,8 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-#@unittest.skip('requires SBE37 simulator which is not working in buildbot env, run locally only')
+@unittest.skip('requires SBE37 simulator which is not working in buildbot env, run locally only')
+#@attr('INT', group='mmm')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -125,9 +126,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Create InstrumentDevice
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
         try:
-            instDevice_id = self.imsclient.register_instrument(instrument_device=instDevice_obj, instrument_model_id=instModel_id)
+            instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+            self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
+            
         print 'new InstrumentDevice id = ', instDevice_id
 
         # Create InstrumentAgentInstance to hold configuration information
@@ -202,45 +205,45 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         time.sleep(2)
 
-#        cmd = AgentCommand(command='go_active')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: go_active %s", str(reply))
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='run')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: run %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample ")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 2")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 3")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling go_inactive ")
-#        cmd = AgentCommand(command='go_inactive')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling reset ")
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from reset %s", str(reply))
-#        time.sleep(2)
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: go_active %s", str(reply))
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: run %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample ")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample 2")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample 3")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling go_inactive ")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: return from reset %s", str(reply))
+        time.sleep(2)
 
 
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
