@@ -623,6 +623,7 @@ class LoggerClient(object):
         Initialize client comms with the logger process and start a
         listener thread.
         """
+        mi_logger.info('Logger initializing comms.')
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # This can be thrown here.
         # error: [Errno 61] Connection refused
@@ -640,13 +641,13 @@ class LoggerClient(object):
         Stop the listener thread and close client comms with the device
         logger. This is called by the done function.
         """
-        mi_logger.info('Got Stop COMMS')
+        mi_logger.info('Logger shutting down comms.')
         self.listener_thread.done()
         self.listener_thread.join()
         #-self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
         self.sock = None
-        mi_logger.info('Loggerr client comms stopped.')
+        mi_logger.info('Logger client comms stopped.')
         #print 'stopped client comms'
         #logging.info('stopped client comms')
 
