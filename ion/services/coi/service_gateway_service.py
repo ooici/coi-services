@@ -40,6 +40,11 @@ GATEWAY_ERROR_MESSAGE = 'Message'
 DEFAULT_ACTOR_ID = 'anonymous'
 DEFAULT_EXPIRY = '0'
 
+#Stuff for specifying other return types
+RETURN_FORMAT_PARAM = 'return_format'
+RETURN_FORMAT_RAW = 'raw'
+
+
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
 
@@ -225,7 +230,6 @@ def process_gateway_request(service_name, operation):
         methodToCall = getattr(client, operation)
         result = methodToCall(**param_list)
 
-        response = json_response({GATEWAY_RESPONSE: result})
 
         #For service operations that add or remove user roles, remove the cached roles so that
         #the next request will get the latest set of user roles
@@ -237,7 +241,7 @@ def process_gateway_request(service_name, operation):
                 service_gateway_instance.user_data_cache.evict(param_list['user_id'])
 
 
-        return response
+        return gateway_json_response(result)
 
 
     except Exception, e:
@@ -298,7 +302,7 @@ def process_gateway_agent_request(resource_id, operation):
         methodToCall = getattr(resource_agent, operation)
         result = methodToCall(**param_list)
 
-        return json_response({GATEWAY_RESPONSE: result})
+        return gateway_json_response(result)
 
     except Exception, e:
         return build_error_response(e)
@@ -307,8 +311,19 @@ def process_gateway_agent_request(resource_id, operation):
 #Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
 def json_response(response_data):
 
-    return app.response_class(simplejson.dumps({'data': response_data}, default=ion_object_encoder,
+    return app.response_class(simplejson.dumps(response_data, default=ion_object_encoder,
         indent=None if request.is_xhr else 2), mimetype='application/json')
+
+def gateway_json_response(response_data):
+
+    return_format = None
+    if request.args.has_key(RETURN_FORMAT_PARAM):
+        return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
+
+    if return_format == RETURN_FORMAT_RAW:
+        return json_response(response_data)
+
+    return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
 def build_error_response(e):
 
@@ -318,7 +333,14 @@ def build_error_response(e):
         GATEWAY_ERROR_MESSAGE : str(e.message)
     }
 
-    return json_response({ GATEWAY_ERROR :result } )
+    return_format = None
+    if request.args.has_key(RETURN_FORMAT_PARAM):
+        return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
+
+    if return_format == RETURN_FORMAT_RAW:
+        return json_response(result)
+
+    return json_response({'data': {GATEWAY_ERROR:result }} )
 
 def get_governance_info_from_request(request_type = '', json_params = None):
 
@@ -525,7 +547,7 @@ def list_resource_types():
             ret_list.append(res)
 
 
-        return json_response({ GATEWAY_RESPONSE :ret_list } )
+        return gateway_json_response(ret_list)
 
 
     except Exception, e:
@@ -563,7 +585,7 @@ def get_resource_schema(resource_type):
                     setattr(ret_obj, field, value)
 
 
-        return json_response({ GATEWAY_RESPONSE :ret_obj } )
+        return gateway_json_response(ret_obj)
 
     except Exception, e:
         return build_error_response(e)
@@ -590,7 +612,7 @@ def get_resource(resource_id):
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
-            return json_response({ GATEWAY_RESPONSE :result } )
+            return gateway_json_response(result)
 
         except Exception, e:
             return build_error_response(e)
@@ -614,7 +636,7 @@ def list_resources_by_type(resource_type):
         #Resource Types are not in unicode
         res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
 
-        return json_response({ GATEWAY_RESPONSE :res_list } )
+        return gateway_json_response(res_list)
 
     except Exception, e:
         return build_error_response(e)
