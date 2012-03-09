@@ -4,13 +4,12 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, collections, ast, simplejson, json, sys
+import inspect, collections, ast, simplejson, json, sys, time
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
-from werkzeug.exceptions import Forbidden
 
 from pyon.public import IonObject, Container, ProcessRPCClient
-from pyon.core.exception import NotFound, Inconsistent, BadRequest
+from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -216,8 +215,10 @@ def process_gateway_request(service_name, operation):
 
         param_list = create_parameter_list('serviceRequest', service_name, target_client,operation, json_params)
 
-        #Add governance headers
+
+        #Validate requesting user and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
         param_list['headers'] = build_message_headers(ion_actor_id, expiry)
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
@@ -289,8 +290,9 @@ def process_gateway_agent_request(resource_id, operation):
 
         param_list = create_parameter_list('agentRequest', 'resource_agent', ResourceAgentProcessClient, operation, json_params)
 
-        #Add governance headers
+        #Validate requesting user and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request('agentRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
         param_list['headers'] = build_message_headers(ion_actor_id, expiry)
 
         methodToCall = getattr(resource_agent, operation)
@@ -318,7 +320,7 @@ def build_error_response(e):
 
     return json_response({ GATEWAY_ERROR :result } )
 
-def get_governance_info_from_request(request_type, json_params):
+def get_governance_info_from_request(request_type = '', json_params = None):
 
     #Default values for governance headers.
     actor_id = DEFAULT_ACTOR_ID
@@ -340,9 +342,7 @@ def get_governance_info_from_request(request_type, json_params):
 
     return actor_id, expiry
 
-def build_message_headers( ion_actor_id, expiry):
-
-    headers = dict()
+def validate_request(ion_actor_id, expiry):
 
     idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
@@ -350,6 +350,26 @@ def build_message_headers( ion_actor_id, expiry):
         user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
     except NotFound, e:
         ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
+        expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
+        return ion_actor_id, expiry
+
+    #need to convert to a float first in order to compare against current time.
+    try:
+        float_expiry = float(expiry)
+    except Exception, e:
+        raise Inconsistent('Unable to read the expiry value in the request "%s" as a floating point number' % expiry)
+
+    #The user has been validated as being known in the system, so not check the expiry and raise exception if
+    # the expiry is not set to 0 and less than the current time.
+    if float_expiry > 0 and float_expiry < time.time():
+        raise Unauthorized('The certificate associated with the user and expiry time in the request has expired.')
+
+    return ion_actor_id, expiry
+
+def build_message_headers( ion_actor_id, expiry):
+
+    headers = dict()
+
 
     headers['ion-actor-id'] = ion_actor_id
     headers['expiry'] = expiry
@@ -487,6 +507,12 @@ def list_resource_types():
 
 
     try:
+
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request()
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
         #Look to see if a specific resource type has been specified - if not default to all
         if request.args.has_key('type'):
             resultSet = set(getextends(request.args['type'])) if getextends(request.args['type']) is not None else set()
@@ -513,6 +539,11 @@ def get_resource_schema(resource_type):
 
 
     try:
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request()
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
         #ION Objects are not registered as UNICODE names
         ion_object_name = convert_unicode(resource_type)
         ret_obj = IonObject(ion_object_name, {})
@@ -546,10 +577,14 @@ def get_resource_schema(resource_type):
 @app.route('/ion-service/rest/resource/<resource_id>')
 def get_resource(resource_id):
 
-    result = None
-    client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-    if resource_id != '':
         try:
+
+            client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+
+            #Validate requesting user and expiry and add governance headers
+            ion_actor_id, expiry = get_governance_info_from_request()
+            ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
             #Database object IDs are not unicode
             result = client.read(convert_unicode(resource_id))
             if not result:
@@ -568,10 +603,14 @@ def get_resource(resource_id):
 @app.route('/ion-service/rest/find_resources/<resource_type>')
 def list_resources_by_type(resource_type):
 
-    result = None
-
-    client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
+
+        client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request()
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
         #Resource Types are not in unicode
         res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
 
@@ -582,7 +621,8 @@ def list_resources_by_type(resource_type):
 
 
 
-#Example restful call to a client function for another service like
+#Below are example restful calls to stuff for testing... all should be removed at some point
+
 #http://hostname:port/ion-service/run_bank_client
 @app.route('/ion-service/run_bank_client')
 def create_accounts():

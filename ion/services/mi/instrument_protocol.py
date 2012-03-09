@@ -127,7 +127,6 @@ class InstrumentProtocol(object):
         @throws InstrumentConnectionException
         """
         mi_logger.info('Connecting to device.')
-        
         logger_pid = self._logger.get_pid()
         mi_logger.info('Found logger pid: %s.', str(logger_pid))
         if not logger_pid:
@@ -142,7 +141,7 @@ class InstrumentProtocol(object):
             mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
             time.sleep(1)         
             self.attach()
-            time.sleep(2)
+            time.sleep(1)
         else:
             # There was a pidfile for the device.
             raise InstrumentConnectionException()
@@ -154,13 +153,11 @@ class InstrumentProtocol(object):
         
         @throws InstrumentConnectionException
         """
-        mi_logger.info('Disconnecting from device xx.')
-        mi_logger.info('Detaching from device.')
+        mi_logger.info('Disconnecting from device.')
         self._logger_client.stop_comms()
-        time.sleep(2)
-        mi_logger.debug('STOPPING LOGGER')
+        time.sleep(1)
         self._logger.stop()
-        time.sleep(2)
+        time.sleep(1)
         
     def attach(self, *args, **kwargs):
         """
@@ -390,6 +387,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         """
         # Update the line and prompt buffers.
+        self._promptbuf += data
         self._linebuf += data        
 
     ########################################################################
@@ -416,19 +414,16 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         # Grab time for timeout.
         starttime = time.time()
-        count = 0
         
         while True:
             # Send a line return and wait a sec.
             mi_logger.debug('Sending wakeup.')
-            count += 1
             self._send_wakeup()
             time.sleep(1)
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    if count > 1:
-                        time.sleep(2)
+                    mi_logger.debug('wakeup got prompt: %s', repr(item))
                     return item
 
             if time.time() > starttime + timeout:
@@ -464,8 +459,6 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.debug('Got response prompt: %s', repr(item))
-                    mi_logger.debug('Got response linebuf: %s', repr(self._linebuf))
                     return (item, self._linebuf)
                 else:
                     time.sleep(.1)

@@ -48,7 +48,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
     
 #@unittest.skip('Do not run hardware test.')
-@attr('HARDWARE', group='sa')
+@attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
@@ -78,7 +78,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         raw_stream_name = 'ctd_raw'        
 
         # Driver configuration.
-        """
+        
         self.driver_config = {
             'svr_addr': 'localhost',
             'cmd_port': 5556,
@@ -112,7 +112,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 }                
             }
         }
-        
+        """
         # Start container.
         self._start_container()
 
