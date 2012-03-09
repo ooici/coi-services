@@ -364,9 +364,6 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.flush()
             device_data = self.read_device()
             if device_data:
-                #ddlen = len(device_data)
-                #if ddlen < 1024:
-                #    device_data += '\x00'*(1024-ddlen)
                 self.write_driver(device_data)
                 self.logfile.write(repr(device_data))
                 self.logfile.write('\n')
@@ -671,7 +668,6 @@ class LoggerClient(object):
                     sent = self.sock.send(data)
                     gone = data[:sent]
                     data = data[sent:]
-                    mi_logger.info('logger sent: %s',repr(gone))   
                 except socket.error:
                     time.sleep(.1)
                 
@@ -716,32 +712,22 @@ class Listener(threading.Thread):
         available and report it to the logger.
         """
         mi_logger.info('Logger client listener started.')
-        #logging.info('listener started')
-        oldtime = 0
         while not self._done:
             try:
-                #newtime = time.time()
-                #if newtime > oldtime:
-                    #mi_logger('logger client listening')
-                    #oldtime = newtime
                 data = self.sock.recv(4069)
                 if self.callback:
-                    #mi_logger.debug('logger got data: %s', repr(data))
                     self.callback(data)
                 else:
                     if not self.delim:
-                        #logging.info('from device:%s' % repr(data))
                         print 'from device:%s' % repr(data)
                     else:
                         self.linebuf += data
                         lines = str.split(self.linebuf, self.delim)
                         self.linebuf = lines[-1]
                         lines = lines[:-1]
-                        #[logging.info('from device:%s' % item) for item in lines]
                         for item in lines:
                             print 'from device:%s' % item
                 
             except socket.error:
                 time.sleep(.1)
-        #logging.info('listener done')
         mi_logger.info('Logger client done listening.')
