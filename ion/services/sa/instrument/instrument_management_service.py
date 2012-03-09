@@ -957,11 +957,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
     def assign_instrument_model_to_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
-        self.instrument_agent.link_logicalmodel(logical_instrument_id, instrument_model_id)
+        self.logical_instrument.link_logicalmodel(logical_instrument_id, instrument_model_id)
 
     def unassign_instrument_model_from_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
-        self.instrument_agent.unlink_logicalmodel(logical_instrument_id, instrument_model_id)
-
+        self.logical_instrument.unlink_logicalmodel(logical_instrument_id, instrument_model_id)
 
     def assign_stream_definition_to_instrument_model(self, stream_definition_id='', instrument_model_id=''):
         self.instrument_model.link_stream_definition(instrument_model_id, stream_definition_id)
