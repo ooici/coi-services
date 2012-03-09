@@ -52,7 +52,21 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.mock_rr_find_assoc = self.data_retriever_service.clients.resource_registry.find_associations
         self.mock_ps_create_stream = self.data_retriever_service.clients.pubsub_management.create_stream
         self.mock_ps_create_stream_definition = self.data_retriever_service.clients.pubsub_management.create_stream_definition
-        self.data_retriever_service.container = DotDict({'id':'123','spawn_process':Mock(),'proc_manager':DotDict({'terminate_process':Mock(),'procs':[]})})
+        self.data_retriever_service.container = DotDict({
+            'id':'123',
+            'spawn_process':Mock(),
+            'proc_manager':DotDict({
+                'terminate_process':Mock(),
+                'procs':[]
+            }),
+            'datastore_manager':DotDict({
+                'get_datastore':Mock()
+            })
+        })
+        self.datastore = DotDict({
+            'query_view':Mock()
+        })
+        self.data_retriever_service.container.datastore_manager.get_datastore.return_value = self.datastore
         self.mock_cc_spawn = self.data_retriever_service.container.spawn_process
         self.mock_cc_terminate = self.data_retriever_service.container.proc_manager.terminate_process
         self.mock_pd_schedule = self.data_retriever_service.clients.process_dispatcher.schedule_process
@@ -74,7 +88,10 @@ class DataRetrieverServiceTest(PyonTestCase):
             'view_name':'garbage',
             'primary_view_key':'primary key'})
 
+        document = DotDict({'stream_resource_id':'0'})
         self.mock_pd_schedule.return_value = 'process_id'
+
+        self.datastore.query_view.return_value = [{'doc':document}]
 
         config = {'process':{
             'query':'myquery',
@@ -99,6 +116,32 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.assertEquals(r,'replay_id')
         self.assertEquals(s,'12345')
 
+    def test_define_replay_no_data(self):
+        #mocks
+        self.mock_ps_create_stream.return_value = '12345'
+        self.mock_rr_create.return_value = ('replay_id','garbage')
+        self.mock_ds_read.return_value = DotDict({
+            'datastore_name':'unittest',
+            'view_name':'garbage',
+            'primary_view_key':'primary key'})
+
+        document = DotDict({'stream_resource_id':'0'})
+        self.mock_pd_schedule.return_value = 'process_id'
+
+        self.datastore.query_view.return_value = [] # Raises index error
+
+        config = {'process':{
+            'query':'myquery',
+            'datastore_name':'unittest',
+            'view_name':'garbage',
+            'key_id':'primary key',
+            'delivery_format':None,
+            'publish_streams':{'output':'12345'}
+        }}
+
+
+        with self.assertRaises(NotFound):
+            self.data_retriever_service.define_replay(dataset_id='dataset_id', query='myquery')
 
 
     @unittest.skip('Can\'t do unit test here')
@@ -210,9 +253,16 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
+
+    def test_define_replay_no_data(self):
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        assertRaises = self.assertRaises
+
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        with assertRaises(NotFound):
+            dr_cli.define_replay(dataset_id=dataset_id)
 
 
     def test_cancel_replay(self):
@@ -228,12 +278,15 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         dr_cli.cancel_replay(replay_id=replay_id)
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
 
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
     def test_start_replay(self):
         self.make_some_data()
@@ -248,15 +301,19 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         dr_cli.start_replay(replay_id=replay_id)
 
         time.sleep(0.5)
 
         dr_cli.cancel_replay(replay_id=replay_id)
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
 
     def test_fields_replay(self):
@@ -272,8 +329,10 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         result = gevent.event.AsyncResult()
 
@@ -296,7 +355,9 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions(result.get(timeout=3), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
     def test_advanced_replay(self):
         self.make_some_data()
@@ -322,8 +383,10 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         replay = rr_cli.read(replay_id)
         pid = replay.process_id
-        assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
-        assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
         result = gevent.event.AsyncResult()
         records_rcvd = gevent.queue.Queue()
@@ -361,5 +424,6 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         assertions(result.get(timeout=10), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
-        assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
