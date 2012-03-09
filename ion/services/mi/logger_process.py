@@ -363,9 +363,9 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.flush()
             device_data = self.read_device()
             if device_data:
-                ddlen = len(device_data)
-                if ddlen < 1024:
-                    device_data += '\x00'*(1024-ddlen)
+                #ddlen = len(device_data)
+                #if ddlen < 1024:
+                #    device_data += '\x00'*(1024-ddlen)
                 self.write_driver(device_data)
                 self.logfile.write(repr(device_data))
                 self.logfile.write('\n')
