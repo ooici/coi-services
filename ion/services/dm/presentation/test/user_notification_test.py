@@ -66,11 +66,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
         
-    def xtest_find_event_types_for_resource(self):
+    def test_find_event_types_for_resource(self):
+        # create a dataset object in the RR to pass into the UNS method
         dataset_object = IonObject(RT.DataSet, name="dataset1")
         dataset_id, version = self.rrc.create(dataset_object)
+        
+        # get the list of event types for the dataset
         events = self.unsc.find_event_types_for_resource(dataset_id)
         log.debug("dataset events = " + str(events))
+        if not events == ['dataset_supplement_added', 'dataset_change']:
+            self.fail("failed to return correct list of event types")
+            
+        # try to pass in an id of a resource that doesn't exist (should fail)
         try:
             events = self.unsc.find_event_types_for_resource("bogus_id")
             self.fail("failed to detect non-existant resource")
@@ -78,18 +85,34 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             pass
         
     def test_create_two_user_notifications(self):
+        # create user with email address in RR
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
         user_id = self.imc.create_user_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
-        notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
+        
+        # create first notification
+        notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
                                                                  "events_list":['resource_lifecycle']})
-        self.unsc.create_notification(notification_object, user_id)
-        notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
+        notification_id1 = self.unsc.create_notification(notification_object1, user_id)
+        # create second notification
+        notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
                                                                  "events_list":['data']})
-        self.unsc.create_notification(notification_object, user_id)
+        notification_id2 = self.unsc.create_notification(notification_object2, user_id)
+        
+        # read the notifications back and check that they are correct
+        n1 = self.unsc.read_notification(notification_id1)
+        if n1.name != notification_object1.name or \
+           n1.origin_list != notification_object1.origin_list or \
+           n1.events_list != notification_object1.events_list:
+            self.fail("notification was not correct")
+        n2 = self.unsc.read_notification(notification_id2)
+        if n2.name != notification_object2.name or \
+           n2.origin_list != notification_object2.origin_list or \
+           n2.events_list != notification_object2.events_list:
+            self.fail("notification was not correct")
 
     def test_delete_user_notifications(self):
         user_identty_object = IonObject(RT.UserIdentity, name="user1")
@@ -158,14 +181,22 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     def test_find_events(self):
         rle_publisher = ResourceLifecycleEventPublisher(event_repo=self.container.event_repository)
+        de_publisher = DataEventPublisher(event_repo=self.container.event_repository)
         rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event1")
         rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event2")
-        de_publisher = DataEventPublisher(event_repo=self.container.event_repository)
+        rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event3")
         de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event1")
         de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event2")
+        de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event3")
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1')
         for event in events:
             log.debug("event=" + str(event))
         events = self.unsc.find_events(type='DataEvent')
+        for event in events:
+            log.debug("event=" + str(event))
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID2', limit=2)
+        for event in events:
+            log.debug("event=" + str(event))
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', descending=True)
         for event in events:
             log.debug("event=" + str(event))
