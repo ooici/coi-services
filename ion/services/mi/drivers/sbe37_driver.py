@@ -580,7 +580,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         result = None
 
         try:
-            InstrumentProtocol.connect(self, *args, **kwargs)
+            result = InstrumentProtocol.connect(self, *args, **kwargs)
             timeout = kwargs.get('timeout', 10)
             prompt = self._wakeup(timeout)
             if prompt == SBE37Prompt.COMMAND:
