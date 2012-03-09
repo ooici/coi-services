@@ -27,12 +27,6 @@ class PlatformDeviceImpl(ResourceImpl):
     def unlink_agent_instance(self, platform_device_id='', platform_agent_instance_id=''):
         return self._unlink_resources(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
 
-    def link_assignment(self, platform_device_id='', logical_platform_id=''):
-        return self._link_resources(platform_device_id, PRED.hasAssignment, logical_platform_id)
-
-    def unlink_assignment(self, platform_device_id='', logical_platform_id=''):
-        return self._unlink_resources(platform_device_id, PRED.hasAssignment, logical_platform_id)
-
     def link_deployment(self, platform_device_id='', logical_platform_id=''):
         return self._link_resources(platform_device_id, PRED.hasDeployment, logical_platform_id)
 
