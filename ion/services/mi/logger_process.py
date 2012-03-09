@@ -448,6 +448,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         try:
             self.device_sock.connect((self.device_host, self.device_port))
             self.device_sock.setblocking(0)
+            self.device_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                            
             
         except Exception as e:
             # This could be a timeout.
