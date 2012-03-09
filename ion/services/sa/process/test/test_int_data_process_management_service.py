@@ -17,7 +17,7 @@ from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
-from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar
+from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
 import time
@@ -279,16 +279,20 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         output_dp_obj = IonObject(RT.DataProduct, name='conductivity',description='transform output conductivity')
         output_dp_id_1 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
         self.output_products['conductivity'] = output_dp_id_1
+        #self.DPMSclient.activate_data_product_persistence(data_product_id=output_dp_id_1, persist_data=True, persist_metadata=True)
+
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product pressure")
         output_dp_obj = IonObject(RT.DataProduct, name='pressure',description='transform output pressure')
         output_dp_id_2 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
         self.output_products['pressure'] = output_dp_id_2
+        #self.DPMSclient.activate_data_product_persistence(data_product_id=output_dp_id_2, persist_data=True, persist_metadata=True)
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product temperature")
         output_dp_obj = IonObject(RT.DataProduct, name='temperature',description='transform output ')
         output_dp_id_3 = self.DPMSclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id)
         self.output_products['temperature'] = output_dp_id_3
+        #self.DPMSclient.activate_data_product_persistence(data_product_id=output_dp_id_3, persist_data=True, persist_metadata=True)
         # this will NOT create a stream for the product becuase the data process (source) resource has not been created yet.
 
         #-------------------------------
@@ -301,6 +305,11 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             self.fail("failed to create new data process: %s" %ex)
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process return")
+
+        # these assigns happen inside create_data_process
+        #self.DAMSclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_1)
+        #self.DAMSclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_2)
+        #self.DAMSclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_3)
 
         #-------------------------------
         # ProcessDefinition
@@ -321,27 +330,42 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Set up listeners to the output streams
         #-------------------------------
         #find stream for data products
-        stream_ids, _ = self.clients.resource_registry.find_objects(output_dp_id_1, PRED.hasStream, None, True)
-        stream_dp1_id = stream_ids[0]
+        all_streams= {}
+        stream_ids, _ = self.RRclient.find_objects(output_dp_id_1, PRED.hasStream, None, True)
+        all_streams['conductivity'] = stream_ids[0]
+        stream_ids, _ = self.RRclient.find_objects(output_dp_id_2, PRED.hasStream, None, True)
+        all_streams['pressure'] = stream_ids[0]
+        stream_ids, _ = self.RRclient.find_objects(output_dp_id_3, PRED.hasStream, None, True)
+        all_streams['temperature'] = stream_ids[0]
+        log.debug("TestIntDataProcessMgmtServiceMultiOut: all_streams %s", str(all_streams))
 
-        # Make a subscription to two input streams
-        exchange_name = "a_queue"
-        query = StreamQuery([stream_dp1_id])
-        self.ctd_subscription_id = self.pubsub_cli.create_subscription(query,  exchange_name, "SampleSubscription","Sample Subscription Description")
+        # A callback for processing subscribed-to data.
+        def consume(message, headers):
+            log.info('TestIntDataProcessMgmtServiceMultiOut: consume received message: %s', str(message))
+            print 'TestIntDataProcessMgmtServiceMultiOut: consume received message: ', str(message)
 
-        q = gevent.queue.Queue()
+        # Create a stream subscriber registrar to create subscribers.
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
 
-        def message_received(message, headers):
-            q.put(message)
+        self.subs = []
 
-        # Cheat and use the cc as the process - I don't think it is used for anything...
-        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.container.node)
+        # Create streams for each stream named in driver.
+        self.stream_config = {}
+        for (stream_name, val) in all_streams.iteritems():
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
-        subscriber.start()
+            # Create subscriptions for each stream.
+            exchange_name = '%s_queue' % stream_name
+            sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name, callback=consume)
+            sub.start()
+            query = StreamQuery(stream_ids=[val])
+            sub_id = self.PubSubClient.create_subscription( query=query, exchange_name=exchange_name)
+            self.PubSubClient.activate_subscription(sub_id)
+            self.subs.append(sub)
 
-        self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
-
+        # Add cleanup function to stop subscribers.
+        def stop_subscriber(sub_list):
+            for sub in sub_list:
+                sub.stop()
 
 
         procdef_id = self.ProcessDispatchClient.create_process_definition(process_definition=producer_definition)
@@ -382,6 +406,4 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound) as e:
             self.Processclient.read_data_process_definition(dprocdef_id)
-
-
 
