@@ -391,7 +391,6 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         # Update the line and prompt buffers.
         self._linebuf += data        
-        self._promptbuf += data
 
     ########################################################################
     # Wakeup helpers.

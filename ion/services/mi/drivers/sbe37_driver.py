@@ -864,9 +864,17 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             return
         
         if len(data)>0:
-            CommandResponseInstrumentProtocol._got_data(self, data)
+            #CommandResponseInstrumentProtocol._got_data(self, data)
             #mi_logger.debug('got data: linebuf: %s', repr(self._linebuf))
             # Only keep the latest characters in the prompt buffer.
+                        
+                        
+            mi_logger.info('got data: %s', repr(data))
+            data = string.strip(data, '\x00')
+            self._linebuf += data
+            self._promptbuf += data            
+            mi_logger.info('got data linebuf: %s', repr(self._linebuf))
+            
             if len(self._promptbuf)>7:
                 self._promptbuf = self._promptbuf[-7:]
                 
