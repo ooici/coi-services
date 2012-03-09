@@ -105,7 +105,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_agent_instance(self, instrument_agent_instance=None):
+    def create_instrument_agent_instance(self, instrument_agent_instance=None, instrument_agent_id="", instrument_device_id=""):
         """
         create a new instance
         @param instrument_agent_instance the object to be created as a resource
@@ -114,9 +114,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
+        instrument_agent_obj = self.read_instrument_agent(instrument_agent_id)
 
+        instrument_device_obj = self.read_instrument_device(instrument_device_id)
 
-        return self.instrument_agent_instance.create_one(instrument_agent_instance)
+        instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
+
+        self.assign_instrument_agent_instance_to_instrument_agent(instrument_agent_instance_id, instrument_agent_id)
+
+        self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
+
+        return instrument_agent_instance_id
 
     def update_instrument_agent_instance(self, instrument_agent_instance=None):
         """
@@ -144,7 +152,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+
+        associations, _ = self.clients.resource_registry.find_associations(RT.InstrumentAgent, PRED.hasInstance, instrument_agent_instance_id, True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+        associations, _ = self.clients.resource_registry.find_associations(RT.InstrumentDevice, PRED.hasAgentInstance, RT.instrument_agent_instance_id, True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+        self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+
+        return
 
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
@@ -463,14 +482,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             log.debug("Associating data product's producers with instrument via DAMS")
             self.DAMS.assign_data_product(instrument_device_id, data_product_id)
 
-
-    #shortcut register method
-    def register_instrument(self, instrument_device=None, instrument_model_id=""):
-        instrument_device_id = self.create_instrument_device(instrument_device)
-        
-        self.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
-        
-        return instrument_device_id
 
     def create_instrument_device(self, instrument_device=None):
         """
@@ -956,12 +967,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_model_from_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
-    def assign_instrument_model_to_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
-        self.logical_instrument.link_logicalmodel(logical_instrument_id, instrument_model_id)
-
-    def unassign_instrument_model_from_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
-        self.logical_instrument.unlink_logicalmodel(logical_instrument_id, instrument_model_id)
-
     def assign_stream_definition_to_instrument_model(self, stream_definition_id='', instrument_model_id=''):
         self.instrument_model.link_stream_definition(instrument_model_id, stream_definition_id)
 
@@ -980,29 +985,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_platform_model_from_platform_device(self, platform_model_id='', platform_device_id=''):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
-    def assign_platform_model_to_logical_platform(self, platform_model_id='', logical_platform_id=''):
-        self.platform_device.link_logicalmodel(logical_platform_id, platform_model_id)
-
-    def unassign_platform_model_from_logical_platform(self, platform_model_id='', logical_platform_id=''):
-        self.platform_device.unlink_logicalmodel(logical_platform_id, platform_model_id)
-
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
         self.platform_device.link_instrument(platform_device_id, instrument_device_id)
 
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
         self.platform_device.unlink_instrument(platform_device_id, instrument_device_id)
-
-    def assign_logical_instrument_to_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
-        self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
-
-    def unassign_logical_instrument_from_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
-        self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
-
-    def assign_logical_platform_to_platform_device(self, logical_platform_id='', platform_device_id=''):
-        self.platform_device.link_assignment(platform_device_id, logical_platform_id)
-
-    def unassign_logical_platform_from_platform_device(self, logical_platform_id='', platform_device_id=''):
-        self.platform_device.unlink_assignment(platform_device_id, logical_platform_id)
 
     def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
         self.platform_agent.link_instance(platform_agent_id, platform_agent_instance_id)
@@ -1022,27 +1009,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_agent_instance_from_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
         self.instrument_agent.unlink_device_instance(instrument_device_id, instrument_agent_instance_id)
 
-    # reassigning a logical instrument to an instrument device is a little bit special
-    # TODO: someday we may be able to dig up the correct data products automatically,
-    #       but once we have them this is the function that does all the work.
-    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='', 
-                                                         old_instrument_device_id='', 
-                                                         new_instrument_device_id='',
-                                                         logical_data_product_ids=[],
-                                                         old_instrument_data_product_ids=[],
-                                                         new_instrument_data_product_ids=[]):
-        """
-        associate a logical instrument with a physical one.  this involves linking the
-        physical instrument's data product(s) to the logical one(s).
-        
-        the 2 lists of data products must be of equal length, and will map 1-1
-
-        @param logical_instrument_id
-        @param instrument_device_id
-        @param logical_data_product_ids a list of data products associated to a logical instrument
-        @param instrument_data_product_ids a list of data products coming from an instrument device
-        """
- 
         
         def verify_dp_origin(supplied_dps, assigned_dps, instrument_id, instrument_label):
             """
