@@ -80,7 +80,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         raw_stream_name = 'ctd_raw'        
 
         # Driver configuration.
-        """
+        
         self.driver_config = {
             'svr_addr': 'localhost',
             'cmd_port': 5556,
@@ -114,7 +114,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 }                
             }
         }
-        
+        """
         # Start container.
         self._start_container()
 
@@ -194,15 +194,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         def cleanup_procs(agttest):
             dvr_proc_pid = agttest.dvr_proc_pid
+            dvr_proc_path = '/proc/%i' %  dvr_proc_pid
             lgr_proc_pid = agttest.lgr_proc_pid
+            lgr_proc_path = '/proc/%i' %  lgr_proc_pid
             lgr_pidfile_path = agttest.lgr_pidfile_path
-            if isinstance(dvr_proc_pid, int):
+            if isinstance(dvr_proc_pid, int) and os.path.exists(dvr_proc_path):
+                proc_path = '/proc/%i' % dvr_proc_pid
                 log.info('CLEANING UP DVR PID %s', str(dvr_proc_pid))
                 os.kill(dvr_proc_pid, signal.SIGTERM)
-            if isinstance(lgr_proc_pid, int):
+            if isinstance(lgr_proc_pid, int) and os.path.exists(lgr_proc_path):
                 log.info('CLEANING UP LGR PID %s', str(lgr_proc_pid))
                 os.kill(lgr_proc_pid, signal.SIGTERM)
-            if lgr_pidfile_path:
+            if lgr_pidfile_path and os.path.exists(lgr_pidfile_path):
                 log.info('REMOVING PIDFILE %s', lgr_pidfile_path)
                 os.remove(lgr_pidfile_path)
             
@@ -216,13 +219,19 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         print("test initing")
         cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)        
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('initialize retval %s', str(retval))
+        if isinstance(retval.result, int):             
+            self.dvr_proc_pid = retval.result
+            log.info('DRIVER PROCESS PID: %s', str(retval.result))
         time.sleep(2)
 
-        print("test go_active")
         cmd = AgentCommand(command='go_active')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
+        retval = self._ia_client.execute_agent(cmd)
+        if isinstance(retval.result['CHANNEL_CTD'], int):
+            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
+            log.info('LOGGER PID: %s', str(retval.result))
+            log.info('PIDFILE %s', self.lgr_pidfile_path)
 
         print("test run")
         cmd = AgentCommand(command='run')
@@ -256,7 +265,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         driver process and transition to inactive.
         """
         cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)        
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('initialize retval %s', str(retval))
+        if isinstance(retval.result, int):             
+            self.dvr_proc_pid = retval.result
+            log.info('DRIVER PROCESS PID: %s', str(retval.result))
         time.sleep(2)
         
         caps = self._ia_client.get_capabilities()
@@ -307,12 +320,19 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         validates results including persistence on device hardware.
         """
         cmd = AgentCommand(command='initialize')
-        reply = self._ia_client.execute_agent(cmd)        
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('initialize retval %s', str(retval))
+        if isinstance(retval.result, int):             
+            self.dvr_proc_pid = retval.result
+            log.info('DRIVER PROCESS PID: %s', str(retval.result))
         time.sleep(2)
         
         cmd = AgentCommand(command='go_active')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
+        retval = self._ia_client.execute_agent(cmd)
+        if isinstance(retval.result['CHANNEL_CTD'], int):
+            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
+            log.info('LOGGER PID: %s', str(retval.result))
+            log.info('PIDFILE %s', self.lgr_pidfile_path)
 
         cmd = AgentCommand(command='run')
         reply = self._ia_client.execute_agent(cmd)
@@ -411,12 +431,19 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         sampling.
         """
         cmd = AgentCommand(command='initialize')
-        reply = self._ia_client.execute_agent(cmd)        
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('initialize retval %s', str(retval))
+        if isinstance(retval.result, int):             
+            self.dvr_proc_pid = retval.result
+            log.info('DRIVER PROCESS PID: %s', str(retval.result))
         time.sleep(2)
         
         cmd = AgentCommand(command='go_active')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
+        retval = self._ia_client.execute_agent(cmd)
+        if isinstance(retval.result['CHANNEL_CTD'], int):
+            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
+            log.info('LOGGER PID: %s', str(retval.result))
+            log.info('PIDFILE %s', self.lgr_pidfile_path)
 
         cmd = AgentCommand(command='run')
         reply = self._ia_client.execute_agent(cmd)
@@ -449,12 +476,19 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         mode.
         """
         cmd = AgentCommand(command='initialize')
-        reply = self._ia_client.execute_agent(cmd)        
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('initialize retval %s', str(retval))
+        if isinstance(retval.result, int):             
+            self.dvr_proc_pid = retval.result
+            log.info('DRIVER PROCESS PID: %s', str(retval.result))
         time.sleep(2)
         
         cmd = AgentCommand(command='go_active')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
+        retval = self._ia_client.execute_agent(cmd)
+        if isinstance(retval.result['CHANNEL_CTD'], int):
+            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
+            log.info('LOGGER PID: %s', str(retval.result))
+            log.info('PIDFILE %s', self.lgr_pidfile_path)
 
         cmd = AgentCommand(command='run')
         reply = self._ia_client.execute_agent(cmd)
