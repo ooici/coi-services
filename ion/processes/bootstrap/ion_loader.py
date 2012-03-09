@@ -361,7 +361,7 @@ class IONLoader(ImmediateProcess):
         numw = int(row["number_of_workers"])
 
         svc_client = self._get_service_client("ingestion_management")
-        ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, None, numw)
+        ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, hdf_cfg, numw)
 
         ic_id = svc_client.activate_ingestion_configuration(ic_id)
 
