@@ -391,7 +391,6 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         # Update the line and prompt buffers.
         self._linebuf += data        
-        self._promptbuf += data
 
     ########################################################################
     # Wakeup helpers.
@@ -419,33 +418,19 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         starttime = time.time()
         count = 0
         
-        
         while True:
             # Send a line return and wait a sec.
             mi_logger.debug('Sending wakeup.')
             count += 1
             self._send_wakeup()
-            time.sleep(1.5)
+            time.sleep(1)
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.info('Got wakeup Fprompt: %s', repr(self._promptbuf))
                     if count > 1:
-                        mi_logger.debug('Waiting in wakeup...')
                         time.sleep(2)
-                    mi_logger.debug('Finished wakeup promptbuf: %s', repr(self._promptbuf))                        
                     return item
-                    """
-                    mi_logger.debug('Got prompt: %s', repr(self._promptbuf))
-                    if count > 1:
-                        while True:                            
-                            old_promptbuf = self._promptbuf                            
-                            time.sleep(2)
-                            if old_promptbuf == self._promptbuf:
-                                break
-                    mi_logger.debug('Finished wakeup promptbuf: %s', repr(self._promptbuf))                    
-                    return item
-                    """
+
             if time.time() > starttime + timeout:
                 raise InstrumentTimeoutException()
             
@@ -513,9 +498,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         # Wakeup the device, pass up exeception if timeout
         prompt = self._wakeup(timeout)
-        
-        time.sleep(2)
-            
+                    
         # Clear line and prompt buffers for result.
         self._linebuf = ''
         self._promptbuf = ''
@@ -524,19 +507,17 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         mi_logger.debug('_do_cmd_resp: %s', repr(cmd_line))
         self._logger_client.send(cmd_line)
 
-        time.sleep(3)
-
         # Wait for the prompt, prepare result and return, timeout exception
         mi_logger.info('getting response')
         (prompt, result) = self._get_response(timeout)
         mi_logger.info('got response: %s', repr(result))
                 
                 
-        #resp_handler = self._response_handlers.get(cmd, None)
-        #if resp_handler:
-        #    resp_result = resp_handler(result, prompt)
-        #else:
-        #    mi_logger.info('No response handler.')
+        resp_handler = self._response_handlers.get(cmd, None)
+        if resp_handler:
+            resp_result = resp_handler(result, prompt)
+        else:
+            mi_logger.info('No response handler.')
 
         return resp_result
             

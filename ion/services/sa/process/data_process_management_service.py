@@ -199,6 +199,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             # register as an output product for this process
             self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
 
+            # Associate with dataProcess
+            # todo: COI needs to allow multi hasOutputProduct links
+            # self.clients.resource_registry.create_association(data_process_id,  PRED.hasOutputProduct, out_data_product_id)
+
             # Retrieve the id of the OUTPUT stream from the out Data Product
             stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
 

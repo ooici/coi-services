@@ -864,9 +864,17 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             return
         
         if len(data)>0:
-            CommandResponseInstrumentProtocol._got_data(self, data)
-            mi_logger.debug('got data: linebuf: %s', repr(self._linebuf))
+            #CommandResponseInstrumentProtocol._got_data(self, data)
+            #mi_logger.debug('got data: linebuf: %s', repr(self._linebuf))
             # Only keep the latest characters in the prompt buffer.
+                        
+                        
+            mi_logger.info('got data: %s', repr(data))
+            data = string.strip(data, '\x00')
+            self._linebuf += data
+            self._promptbuf += data            
+            mi_logger.info('got data linebuf: %s', repr(self._linebuf))
+            
             if len(self._promptbuf)>7:
                 self._promptbuf = self._promptbuf[-7:]
                 
@@ -892,47 +900,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         """
         
-        mi_logger.info('start updating params')
-
-        #prompt = self._wakeup(15)
-        
-        self._linebuf = ''
-        self._promptbuf = ''
-        
-        self._logger_client.send('\r\n')
-        time.sleep(2)
-        self._logger_client.send('sdf\r\n')
-        time.sleep(2)
-        self._logger_client.send('\r\n')
-        time.sleep(2)
-        self._logger_client.send('xxx\r\n')
-        time.sleep(2)
-        self._logger_client.send('\r\n')
-        time.sleep(2)
-        self._logger_client.send('ds\r\n')
-        time.sleep(2)
-        self._logger_client.send('\r\n')
-        time.sleep(2)
-        self._logger_client.send('\r\n')
-        time.sleep(2)
-
-        
-        """
-        mi_logger.info('sending ds')
-        self._logger_client.send('ds\r\n')
-        time.sleep(3)
-        mi_logger.info('sending return')
-        self._logger_client.send('\r\n')
-        time.sleep(3)
-        mi_logger.info('sending return')
-        self._logger_client.send('\r\n')
-        """        
-        
-        """
         timeout = kwargs.get('timeout', 10)
         old_config = self._get_config_param_dict()
         self._do_cmd_resp('ds',timeout=timeout)
-        #self._do_cmd_resp('dc',timeout=timeout)
+        self._do_cmd_resp('dc',timeout=timeout)
         new_config = self._get_config_param_dict()            
         if new_config != old_config:
             if self.send_event:
@@ -941,7 +912,6 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     'value' : new_config
                 }
                 self.send_event(event)
-        """     
         mi_logger.info('done updating params')
         
     def _build_simple_command(self, cmd):

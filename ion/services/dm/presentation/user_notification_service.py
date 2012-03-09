@@ -324,18 +324,25 @@ class UserNotificationService(BaseUserNotificationService):
         # return the list
         return objects
 
-    def find_events(self, origin='', type='', min_datetime='', max_datetime=''):
+    def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=0, descending=False):
         """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
 
-        @param origin    str
-        @param type    str
-        @param min_datetime    str
-        @param max_datetime    str
+        @param origin         str
+        @param type           str
+        @param min_datetime   str
+        @param max_datetime   str
+        @param limit          int         (integer limiting the number of results (0 means unlimited))
+        @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
         @retval event_list    []
         @throws NotFound    object with specified paramteres does not exist
         """
-        return self.event_repo.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime)
+        return self.event_repo.find_events(event_type=type, 
+                                           origin=origin, 
+                                           start_ts=min_datetime, 
+                                           end_ts=max_datetime,
+                                           reverse_order=descending,
+                                           max_results=limit)
 
     def find_event_types_for_resource(self, resource_id=''):
         resource_object = self.clients.resource_registry.read(resource_id)

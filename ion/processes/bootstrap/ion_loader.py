@@ -22,8 +22,15 @@ class IONLoader(ImmediateProcess):
 
     COL_SCENARIO = "Scenario"
     COL_ID = "ID"
+    COL_OWNER = "owner_id"
 
     def on_start(self):
+
+        if self.CFG.system.force_clean and not self.CFG.system.testing:
+            text = "system.force_clean=True. ION Preload does not support this"
+            #log.warn(text)
+            log.error(text)
+            raise iex.BadRequest(text)
         op = self.CFG.get("op", None)
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)
@@ -59,6 +66,7 @@ class IONLoader(ImmediateProcess):
                       'InstrumentAgent',
                       'InstrumentAgentInstance',
                       'DataProcessDefinition',
+                      'IngestionConfiguration',
                       'DataProduct',
                       'DataProcess',
                       'DataProductLink',
@@ -139,10 +147,14 @@ class IONLoader(ImmediateProcess):
         targettype = targettype or schema_entry["type"]
         if targettype is 'str':
             return str(value)
-        if value.lower() == 'false':
-            return False
-        elif value.lower() == 'true':
-            return True
+        elif targettype is 'bool':
+            lvalue = value.lower()
+            if lvalue == 'true':
+               return True
+            elif lvalue == 'false' or lvalue == '':
+                return False
+            else:
+                raise iex.BadRequest("Value %s is no bool" % value)
         elif targettype is 'simplelist':
             if value.startswith('[') and value.endswith(']'):
                 value = value[1:len(value)-1]
@@ -171,8 +183,14 @@ class IONLoader(ImmediateProcess):
         res_obj = self._create_object_from_row(restype, row, prefix)
         log.info("%s: %s" % (restype,res_obj))
 
+        headers = {}
+        owner_id = row.get(self.COL_OWNER, None)
+        if owner_id:
+            owner_id = self.resource_ids[owner_id]
+            headers['ion-actor-id'] = owner_id
+
         svc_client = self._get_service_client(svcname)
-        res_id = getattr(svc_client, svcop)(res_obj, **kwargs)
+        res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
         self._register_id(row[self.COL_ID], res_id)
         return res_id
 
@@ -190,6 +208,7 @@ class IONLoader(ImmediateProcess):
         user_identity_obj = IonObject("UserIdentity", {"name": subject})
         user_id = ims.create_user_identity(user_identity_obj)
         self._register_user_id(name, user_id)
+        self._register_id(row[self.COL_ID], user_id)
 
         user_credentials_obj = IonObject("UserCredentials", {"name": subject})
         ims.register_user_credentials(user_id, user_credentials_obj)
@@ -232,6 +251,13 @@ class IONLoader(ImmediateProcess):
         site_id = row["site_id"]
         svc_client.assign_logical_platform_to_site(res_id, self.resource_ids[site_id])
 
+        ims_client = self._get_service_client("instrument_management")
+        pm_ids = row["platform_model_ids"]
+        if pm_ids:
+            pm_ids = self._get_typed_value(pm_ids, targettype="simplelist")
+            for pm_id in pm_ids:
+                ims_client.assign_platform_model_to_logical_platform(self.resource_ids[pm_id], res_id)
+
     def _load_LogicalInstrument(self, row):
         res_id = self._basic_resource_create(row, "LogicalInstrument", "li/",
                                             "marine_facility_management", "create_logical_instrument")
@@ -240,6 +266,12 @@ class IONLoader(ImmediateProcess):
         lp_id = row["logical_platform_id"]
         svc_client.assign_logical_instrument_to_logical_platform(res_id, self.resource_ids[lp_id])
 
+        ims_client = self._get_service_client("instrument_management")
+        im_ids = row["instrument_model_ids"]
+        if im_ids:
+            im_ids = self._get_typed_value(im_ids, targettype="simplelist")
+            for im_id in im_ids:
+                ims_client.assign_instrument_model_to_logical_instrument(self.resource_ids[im_id], res_id)
 
     def _load_StreamDefinition(self, row):
         log.info("Loading StreamDefinition")
@@ -262,9 +294,31 @@ class IONLoader(ImmediateProcess):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
                                             "instrument_management", "create_platform_device")
 
+        ims_client = self._get_service_client("instrument_management")
+        ass_ids = row["deployment_lp_ids"]
+        if ass_ids:
+            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
+            for ass_id in ass_ids:
+                ims_client.deploy_platform_device_to_logical_platform(res_id, self.resource_ids[ass_id])
+
+        ass_id = row["primary_deployment_lp_id"]
+        if ass_id:
+            ims_client.deploy_as_primary_platform_device_to_logical_platform(res_id, self.resource_ids[ass_id])
+
     def _load_InstrumentDevice(self, row):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
                                             "instrument_management", "create_instrument_device")
+
+        ims_client = self._get_service_client("instrument_management")
+        ass_ids = row["deployment_li_ids"]
+        if ass_ids:
+            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
+            for ass_id in ass_ids:
+                ims_client.deploy_instrument_device_to_logical_instrument(res_id, self.resource_ids[ass_id])
+
+        ass_id = row["primary_deployment_li_id"]
+        if ass_id:
+            ims_client.deploy_as_primary_instrument_device_to_logical_instrument(res_id, self.resource_ids[ass_id])
 
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
@@ -273,6 +327,11 @@ class IONLoader(ImmediateProcess):
     def _load_InstrumentAgentInstance(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
                                             "instrument_management", "create_instrument_agent_instance")
+
+        ims_client = self._get_service_client("instrument_management")
+        ass_id = row["instrument_agent_id"]
+        if ass_id:
+            ims_client.assign_instrument_agent_instance_to_instrument_agent(res_id, self.resource_ids[ass_id])
 
     def _load_DataProcessDefinition(self, row):
         res_id = self._basic_resource_create(row, "DataProcessDefinition", "dpd/",
@@ -293,6 +352,19 @@ class IONLoader(ImmediateProcess):
         for outsd in output_strdef:
             svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[outsd], res_id)
 
+    def _load_IngestionConfiguration(self, row):
+        log.info("Loading IngestionConfiguration")
+
+        xp = row["exchange_point_id"]
+        couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
+        hdf_cfg = self._create_object_from_row("HdfStorage", row, "hdf_storage/")
+        numw = int(row["number_of_workers"])
+
+        svc_client = self._get_service_client("ingestion_management")
+        ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, None, numw)
+
+        ic_id = svc_client.activate_ingestion_configuration(ic_id)
+
     def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]
 
@@ -301,10 +373,11 @@ class IONLoader(ImmediateProcess):
                                             stream_definition_id=self.resource_ids[strdef])
 
         svc_client = self._get_service_client("data_product_management")
-        persist_metadata = row["persist_metadata"] is True
-        persist_data = row["persist_data"] is True
+        persist_metadata = self._get_typed_value(row["persist_metadata"], targettype="bool")
+        persist_data = self._get_typed_value(row["persist_data"], targettype="bool")
         if persist_metadata or persist_data:
             svc_client.activate_data_product_persistence(res_id, persist_data, persist_metadata)
+            pass
 
     def _load_DataProcess(self, row):
         log.info("Loading DataProcess")

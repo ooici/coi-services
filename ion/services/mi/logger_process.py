@@ -363,6 +363,9 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.flush()
             device_data = self.read_device()
             if device_data:
+                ddlen = len(device_data)
+                if ddlen < 256:
+                    device_data += '\x00'*(256-ddlen)
                 self.write_driver(device_data)
                 self.logfile.write(repr(device_data))
                 self.logfile.write('\n')
@@ -712,8 +715,13 @@ class Listener(threading.Thread):
         """
         mi_logger.info('Logger client listener started.')
         #logging.info('listener started')
+        oldtime = 0
         while not self._done:
             try:
+                #newtime = time.time()
+                #if newtime > oldtime:
+                    #mi_logger('logger client listening')
+                    #oldtime = newtime
                 data = self.sock.recv(4069)
                 if self.callback:
                     #mi_logger.debug('logger got data: %s', repr(data))

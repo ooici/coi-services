@@ -262,22 +262,23 @@ def build_associations(resid):
     fragments.append("<h3>FROM</h3>")
     fragments.append("<p><table border='1' cellspacing='0'>")
     fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
-    obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
-    for obj,assoc in zip(obj_list,assoc_list):
-        fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
-                build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
-
-    fragments.append("</table></p>")
-    fragments.append("<h3>TO</h3>")
-    fragments.append("<p><table border='1' cellspacing='0'>")
-    fragments.append("<tr><th>Predicate</th><th>Type</th><th>Name</th><th>ID</th></tr>")
 
     obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s</td><td>%s&nbsp;</td><td>%s</td></tr>" % (
-                build_link(assoc.p, "/assoc?predicate=%s" % assoc.p), build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s)))
+        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
+            build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
+
+    fragments.append("</table></p>")
+    fragments.append("<h3>TO</h3>")
+    fragments.append("<p><table border='1' cellspacing='0'>")
+    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
+
+    obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
+    for obj,assoc in zip(obj_list,assoc_list):
+        fragments.append("<tr>")
+        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
+            build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
 
     fragments.append("</table></p>")
     return fragments

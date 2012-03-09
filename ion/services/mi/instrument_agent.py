@@ -240,7 +240,7 @@ class InstrumentAgent(ResourceAgent):
         if isinstance(data, int):
             # not character data, so check for lost connection
             if data == -1:
-                log.info("InstAgent.telnetInputProcessor: connection lost")
+                log.warning("InstAgent.telnetInputProcessor: connection lost")
                 self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
             else:
                 log.error("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
