@@ -163,10 +163,12 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadReqeust if the incoming name already exists
         """
         site_id = self.site.create_one(site)
-        parent_obj = self.clients.resource_registry.read(parent_id)
 
-        # connect to the parent
-        assoc_id, _ = self.clients.resource_registry.create_association(parent_id,  PRED.hasSite, site_id)
+        if parent_id:
+            parent_obj = self.clients.resource_registry.read(parent_id)
+
+            # connect to the parent
+            assoc_id, _ = self.clients.resource_registry.create_association(parent_id,  PRED.hasSite, site_id)
 
         return site_id
 
@@ -227,11 +229,12 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        parent_logical_platform = self.clients.resource_registry.read(parent_logical_platform_id)
         logical_instrument_id = self.logical_instrument.create_one(logical_instrument)
 
-        # connect to the parent
-        self.assign_logical_instrument_to_logical_platform(logical_instrument_id, parent_logical_platform_id)
+        if parent_logical_platform_id:
+            parent_logical_platform = self.clients.resource_registry.read(parent_logical_platform_id)
+            # connect to the parent
+            self.assign_logical_instrument_to_logical_platform(logical_instrument_id, parent_logical_platform_id)
 
         return logical_instrument_id
 
@@ -293,10 +296,11 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        parent_site_obj = self.clients.resource_registry.read(parent_site_id)
         logical_platform_id = self.logical_platform.create_one(logical_platform)
 
-        self.assign_logical_platform_to_site(logical_platform_id, parent_site_id)
+        if parent_site_id:
+            parent_site_obj = self.clients.resource_registry.read(parent_site_id)
+            self.assign_logical_platform_to_site(logical_platform_id, parent_site_id)
 
         return logical_platform_id
 
@@ -355,8 +359,8 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         resource_obj = self.clients.resource_registry.read(resource_id)
         marine_facility_obj = self.clients.resource_registry.read(marine_facility_id)
 
-        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id)
-        if org_ids is None or len(org_ids) > 0:
+        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
+        if not org_ids:
             raise NotFound ("Marine Facility is not associated with an Org: %s ", marine_facility_id)
 
         self.clients.org_management.share_resource(org_ids[0], resource_id)
