@@ -155,3 +155,40 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
         # verify that LogicalInstrument is linked to Org
         org_li_assoc = self.RR.get_association(org_id, PRED.hasResource, logical_instrument_id)
         self.assertIsNotNone(org_li_assoc, "LogicalInstrument not connected as resource to Org.")
+
+
+        # remove the LogicalInstrument as a resource of this MF
+        self.client.unassign_resource_from_marine_facility(logical_instrument_id, marine_facility_id)
+        # verify that LogicalInstrument is linked to Org
+        assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.LogicalInstrument, id_only=True )
+        self.assertEqual(len(assocs), 0)
+
+        # remove the LogicalInstrument
+        self.client.delete_logical_instrument(logical_instrument_id)
+        assocs, _ = self.RR.find_objects(logical_platform_id, PRED.hasInstrument, RT.LogicalInstrument, id_only=True )
+        self.assertEqual(len(assocs), 0)
+
+
+        # remove the LogicalPlatform as a resource of this MF
+        self.client.unassign_resource_from_marine_facility(logical_platform_id, marine_facility_id)
+        # verify that LogicalPlatform is linked to Org
+        assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.LogicalPlatform, id_only=True )
+        self.assertEqual(len(assocs), 0)
+
+        # remove the LogicalPlatform
+        self.client.delete_logical_platform(logical_platform_id)
+        assocs, _ = self.RR.find_objects(site_id, PRED.hasPlatform, RT.LogicalPlatform, id_only=True )
+        self.assertEqual(len(assocs), 0)
+
+
+
+        # remove the Site as a resource of this MF
+        self.client.unassign_resource_from_marine_facility(site_id, marine_facility_id)
+        # verify that Site is linked to Org
+        assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.Site, id_only=True )
+        self.assertEqual(len(assocs), 0)
+
+        # remove the Site
+        self.client.delete_site(site_id)
+        assocs, _ = self.RR.find_objects(marine_facility_id, PRED.hasSite, RT.Site, id_only=True )
+        self.assertEqual(len(assocs), 0)

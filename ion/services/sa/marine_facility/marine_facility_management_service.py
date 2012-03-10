@@ -199,9 +199,14 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @retval success whether it succeeded
 
         """
-        associations, _ = self.clients.resource_registry.find_associations( None, PRED.hasSite, site_id, True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+
+        sites, _ = self.clients.resource_registry.find_subjects( RT.Site, PRED.hasSite, site_id, id_only=True )
+        for parent_site in sites:
+            self.unassign_site_from_site(site_id, parent_site)
+
+        facilities, _ = self.clients.resource_registry.find_subjects( RT.MarineFacility, PRED.hasSite, site_id, id_only=True )
+        for facility in facilities:
+            self.unassign_site_from_marine_facility(site_id, facility)
 
         self.site.delete_one(site_id)
 
@@ -363,6 +368,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         if not org_ids:
             raise NotFound ("Marine Facility is not associated with an Org: %s ", marine_facility_id)
 
+        log.debug("MarineFacilityManagementService:assign_resource_to_marine_facility org id: %s     resource id:  %s ", str(org_ids[0]), str(resource_id))
         self.clients.org_management.share_resource(org_ids[0], resource_id)
 
         return
@@ -371,12 +377,11 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         resource_obj = self.clients.resource_registry.read(resource_id)
         marine_facility_obj = self.clients.resource_registry.read(marine_facility_id)
 
-        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id)
-        if org_ids is None or len(org_ids) > 0:
+        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
+        if not org_ids:
             raise NotFound ("Marine Facility is not associated with an Org: %s ", marine_facility_id)
 
         self.clients.org_management.unshare_resource(org_ids[0], resource_id)
-
         return
 
     def assign_platform_to_logical_platform(self, platform_id='', logical_platform_id=''):
