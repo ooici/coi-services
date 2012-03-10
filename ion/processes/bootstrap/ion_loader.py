@@ -312,6 +312,8 @@ class IONLoader(ImmediateProcess):
             fakerow['pm/name'] = "%s (%s)" % (pm_def['code'], pm_def['name'])
             fakerow['pm/description'] = pm_def['name']
             fakerow['pm/OOI_node_type'] = pm_def['code']
+            mf_id = 'MF_RSN' if pm_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['mf_ids'] = mf_id
 
             self._load_PlatformModel(fakerow)
 
@@ -328,6 +330,7 @@ class IONLoader(ImmediateProcess):
             fakerow['im/description'] = im_def['name']
             fakerow['im/instrument_family'] = im_def['family']
             fakerow['im/instrument_class'] = im_def['code']
+            fakerow['mf_ids'] = 'MF_RSN,MF_CGSN'
 
             self._load_InstrumentModel(fakerow)
 
@@ -350,7 +353,9 @@ class IONLoader(ImmediateProcess):
             fakerow[self.COL_ID] = site_def['code']
             fakerow['site/name'] = site_def['name']
             fakerow['site/description'] = site_def['name']
-            fakerow['marine_facility_id'] = 'MF_RSN'
+            mf_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['marine_facility_id'] = mf_id
+            fakerow['mf_ids'] = mf_id
 
             self._load_Site(fakerow)
 
@@ -360,6 +365,8 @@ class IONLoader(ImmediateProcess):
             fakerow['site/name'] = site_def['name']
             fakerow['site/description'] = site_def['name']
             fakerow['parent_site_id'] = site_def['parent_site']
+            mf_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['mf_ids'] = mf_id
 
             self._load_Site(fakerow)
 
@@ -383,15 +390,14 @@ class IONLoader(ImmediateProcess):
         for i, lp_def in enumerate(self.logical_platforms.values()):
             fakerow = {}
             fakerow[self.COL_ID] = lp_def['code']
-            fakerow['lp/name'] = "OOI:"+lp_def['name']+str(i)
+            fakerow['lp/name'] = lp_def['name']+" "+str(i)
             fakerow['lp/description'] = lp_def['name']
             fakerow['site_id'] = lp_def['site']
             fakerow['platform_model_ids'] = lp_def['platform_model']
+            mf_id = 'MF_RSN' if lp_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['mf_ids'] = mf_id
 
             self._load_LogicalPlatform(fakerow)
-
-            #if DEBUG and i>20:
-            #    break
 
     def _load_LogicalInstrument(self, row):
         res_id = self._basic_resource_create(row, "LogicalInstrument", "li/",
@@ -413,10 +419,12 @@ class IONLoader(ImmediateProcess):
         for i, li_def in enumerate(self.logical_instruments.values()):
             fakerow = {}
             fakerow[self.COL_ID] = li_def['code']
-            fakerow['li/name'] = "OOI:"+li_def['name']+str(i)
+            fakerow['li/name'] = li_def['name']+" "+str(i)
             fakerow['li/description'] = li_def['name']
             fakerow['logical_platform_id'] = li_def['logical_platform']
             fakerow['instrument_model_ids'] = li_def['instrument_model']
+            mf_id = 'MF_RSN' if li_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['mf_ids'] = mf_id
 
             self._load_LogicalInstrument(fakerow)
 
