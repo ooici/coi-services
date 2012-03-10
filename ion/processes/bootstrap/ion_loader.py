@@ -30,6 +30,7 @@ class IONLoader(ImmediateProcess):
 
     def on_start(self):
 
+        global DEBUG
         if self.CFG.system.force_clean and not self.CFG.system.testing and not DEBUG:
             text = "system.force_clean=True. ION Preload does not support this"
             log.error(text)
@@ -37,7 +38,6 @@ class IONLoader(ImmediateProcess):
         op = self.CFG.get("op", None)
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)
-        global DEBUG
         DEBUG = self.CFG.get("debug", False)
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
