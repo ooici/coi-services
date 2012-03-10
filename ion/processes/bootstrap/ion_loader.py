@@ -28,6 +28,8 @@ class IONLoader(ImmediateProcess):
     COL_LCSTATE = "lcstate"
     COL_MF = "mf_ids"
 
+    ID_OOI_ASSETS = "X_OOI"
+
     def on_start(self):
 
         global DEBUG
@@ -39,11 +41,14 @@ class IONLoader(ImmediateProcess):
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)
         DEBUG = self.CFG.get("debug", False)
+        self.loadooi = self.CFG.get("loadooi", False)
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
         if op:
             if op == "load":
                 self.load_ion(path, scenario)
+            elif op == "loadooi":
+                self.extract_ooi_assets(path)
             else:
                 raise iex.BadRequest("Operation unknown")
         else:
@@ -83,11 +88,17 @@ class IONLoader(ImmediateProcess):
         self.resource_ids = {}
         self.user_ids = {}
 
+        if self.loadooi:
+            self.extract_ooi_assets(path)
+
         for category in categories:
             row_do, row_skip = 0, 0
 
-            funcname = "_load_%s" % category
-            catfunc = getattr(self, funcname)
+            catfunc_ooi = getattr(self, "_load_%s_OOI" % category, None)
+            if self.loadooi and catfunc_ooi:
+                catfunc_ooi()
+
+            catfunc = getattr(self, "_load_%s" % category)
             filename = "%s/%s.csv" % (path, category)
             log.info("Loading category %s from file %s" % (category, filename))
             try:
@@ -293,21 +304,64 @@ class IONLoader(ImmediateProcess):
         res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
                                             "instrument_management", "create_platform_model")
 
+    def _load_PlatformModel_OOI(self):
+        log.info("Loading OOI PlatformModel assets")
+        for pm_def in self.platform_models.values():
+            fakerow = {}
+            fakerow[self.COL_ID] = pm_def['code']
+            fakerow['pm/name'] = "%s (%s)" % (pm_def['code'], pm_def['name'])
+            fakerow['pm/description'] = pm_def['name']
+            fakerow['pm/OOI_node_type'] = pm_def['code']
+
+            self._load_PlatformModel(fakerow)
+
     def _load_InstrumentModel(self, row):
         res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
                                             "instrument_management", "create_instrument_model")
+
+    def _load_InstrumentModel_OOI(self):
+        log.info("Loading OOI InstrumentModel assets")
+        for im_def in self.instrument_models.values():
+            fakerow = {}
+            fakerow[self.COL_ID] = im_def['code']
+            fakerow['im/name'] = im_def['name']
+            fakerow['im/description'] = im_def['name']
+            fakerow['im/instrument_family'] = im_def['family']
+            fakerow['im/instrument_class'] = im_def['code']
+
+            self._load_InstrumentModel(fakerow)
 
     def _load_Site(self, row):
         res_id = self._basic_resource_create(row, "Site", "site/",
                                             "marine_facility_management", "create_site")
 
         svc_client = self._get_service_client("marine_facility_management")
-        mf_id = row["marine_facility_id"]
-        psite_id = row["parent_site_id"]
+        mf_id = row.get("marine_facility_id", None)
+        psite_id = row.get("parent_site_id", None)
         if mf_id:
             svc_client.assign_site_to_marine_facility(res_id, self.resource_ids[mf_id])
         elif psite_id:
             svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
+
+    def _load_Site_OOI(self):
+        log.info("Loading OOI Site assets")
+        for site_def in self.obs_sites.values():
+            fakerow = {}
+            fakerow[self.COL_ID] = site_def['code']
+            fakerow['site/name'] = site_def['name']
+            fakerow['site/description'] = site_def['name']
+            fakerow['marine_facility_id'] = 'MF_RSN'
+
+            self._load_Site(fakerow)
+
+        for site_def in self.sub_sites.values():
+            fakerow = {}
+            fakerow[self.COL_ID] = site_def['code']
+            fakerow['site/name'] = site_def['name']
+            fakerow['site/description'] = site_def['name']
+            fakerow['parent_site_id'] = site_def['parent_site']
+
+            self._load_Site(fakerow)
 
     def _load_LogicalPlatform(self, row):
         res_id = self._basic_resource_create(row, "LogicalPlatform", "lp/",
@@ -324,6 +378,21 @@ class IONLoader(ImmediateProcess):
             for pm_id in pm_ids:
                 svc_client.assign_platform_model_to_logical_platform(self.resource_ids[pm_id], res_id)
 
+    def _load_LogicalPlatform_OOI(self):
+        log.info("Loading OOI LogicalPlatform assets")
+        for i, lp_def in enumerate(self.logical_platforms.values()):
+            fakerow = {}
+            fakerow[self.COL_ID] = lp_def['code']
+            fakerow['lp/name'] = "OOI:"+lp_def['name']+str(i)
+            fakerow['lp/description'] = lp_def['name']
+            fakerow['site_id'] = lp_def['site']
+            fakerow['platform_model_ids'] = lp_def['platform_model']
+
+            self._load_LogicalPlatform(fakerow)
+
+            #if DEBUG and i>20:
+            #    break
+
     def _load_LogicalInstrument(self, row):
         res_id = self._basic_resource_create(row, "LogicalInstrument", "li/",
                                             "marine_facility_management", "create_logical_instrument")
@@ -338,6 +407,21 @@ class IONLoader(ImmediateProcess):
             im_ids = self._get_typed_value(im_ids, targettype="simplelist")
             for im_id in im_ids:
                 svc_client.assign_instrument_model_to_logical_instrument(self.resource_ids[im_id], res_id)
+
+    def _load_LogicalInstrument_OOI(self):
+        log.info("Loading OOI LogicalInstrument assets")
+        for i, li_def in enumerate(self.logical_instruments.values()):
+            fakerow = {}
+            fakerow[self.COL_ID] = li_def['code']
+            fakerow['li/name'] = "OOI:"+li_def['name']+str(i)
+            fakerow['li/description'] = li_def['name']
+            fakerow['logical_platform_id'] = li_def['logical_platform']
+            fakerow['instrument_model_ids'] = li_def['instrument_model']
+
+            self._load_LogicalInstrument(fakerow)
+
+            if DEBUG and i>20:
+                break
 
     def _load_StreamDefinition(self, row):
         log.info("Loading StreamDefinition")
@@ -513,3 +597,147 @@ class IONLoader(ImmediateProcess):
 
         att_id = rr_client.create_attachment(res_id, att_obj, headers=headers)
         self._register_id(row[self.COL_ID], att_id)
+
+    # ---------------------------------------------------------------------------
+
+    def extract_ooi_assets(self, path):
+        if not path:
+            raise iex.BadRequest("Must provide path")
+
+        path = path + "/ooi_assets"
+        log.info("Start parsing OOI assets from path=%s" % path)
+        categories = [
+                      'Report2_InstrumentTypes',
+                      'Report4_InstrumentsPerSite',
+                      'Report1_InstrumentLocations',
+                      'Report3_InstrumentTypeByLocation',
+                      'Report6_ReferenceDesignatorListWithDepth',
+                      ]
+
+        self.obs_sites = {}
+        self.sub_sites = {}
+        self.platform_models = {}
+        self.instrument_models = {}
+        self.logical_platforms = {}
+        self.logical_instruments = {}
+
+        for category in categories:
+            row_do, row_skip = 0, 0
+
+            funcname = "_parse_%s" % category
+            catfunc = getattr(self, funcname)
+            filename = "%s/%s.csv" % (path, category)
+            log.info("Loading category %s from file %s" % (category, filename))
+            try:
+                with open(filename, "rb") as csvfile:
+                    for i in xrange(9):
+                        # Skip the first rows, because they are garbage
+                        csvfile.readline()
+                    reader = self._get_csv_reader(csvfile)
+                    for row in reader:
+                        row_do += 1
+
+                        catfunc(row)
+            except IOError, ioe:
+                log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
+
+            log.info("Loaded assets %s: %d rows read" % (category, row_do))
+
+    def _parse_Report2_InstrumentTypes(self, row):
+        """
+        Extract instrument models
+        """
+        im = dict(name=row["InstrumentTypes"],
+                  family=row["Family"],
+                  code=row["Class"],
+                  instrument_count=row["Count"])
+
+        self.instrument_models[row["Class"]] = im
+
+    def _parse_Report4_InstrumentsPerSite(self, row):
+        """
+        Extract observatory sites and sub-sites
+        """
+        observatory = row["Observatory"]
+        site_code, site_name = observatory.split(" ", 1)
+
+        # Observatory site
+        if site_code not in self.obs_sites:
+            site_name = site_name.strip("()")
+            site = dict(code=site_code, name=site_name)
+            self.obs_sites[site_code] = site
+
+        # Subsite
+        subsite = dict(code=row["SubsiteCode"],
+            name=row["SubsiteName"],
+            instrument_count=row["InstrumentCount"],
+            parent_site=site_code)
+        self.sub_sites[row["SubsiteCode"]] = subsite
+
+    def _parse_Report1_InstrumentLocations(self, row):
+        """
+        Extract platform models and logical platforms
+        """
+        lp_code = row["LocationCode"]
+        lp_name = row["SiteName"]
+        platform_model = row["NodeType"]
+
+        # Platform model
+        pm_code, pm_name = platform_model.split(" ", 1)
+        if pm_code not in self.platform_models:
+            pm_name = pm_name.strip("()")
+            #pm_name = platform_model
+            pm = dict(code=pm_code, name=pm_name)
+            self.platform_models[pm_code] = pm
+
+        # Logical platform
+        site_code,lp_c = lp_code.split("-")
+        lp = dict(code=lp_code,
+                  name=lp_name,
+                  instrument_count=row["InstrumentCount"],
+                  platform_model=pm_code,
+                  site=site_code)
+
+        if site_code not in self.sub_sites:
+            log.warn("Site %s not registered" % site_code)
+            if self.sub_sites[site_code]['name'] != site_name:
+                log.warn("Registered site %s name %s does not match %s" % (site_code, self.sub_sites[site_code]['name'], site_name))
+
+        assert lp_code not in self.logical_platforms, "Double entry %s" % lp_code
+        self.logical_platforms[lp_code] = lp
+
+
+    def _parse_Report3_InstrumentTypeByLocation(self, row):
+        """
+        Extracts logical instrument
+        """
+        lp_code = row["LocationCode"]
+        im_code = row["SensorInstrumentClass"]
+
+        li_code = "%s-%s" % (lp_code, im_code)
+
+        # Logical instrument
+        li_name = "%s %s" % (row["SubsiteName"], row["SensorInstrumentName"])
+        li = dict(code=li_code,
+                  name=li_name,
+                  sensor_count=row["SensorCount"],
+                  instrument_model=im_code,
+                  logical_platform=lp_code)
+
+        assert li_code not in self.logical_instruments, "Double entry %s" % li_code
+        self.logical_instruments[li_code] = li
+
+    def _parse_Report6_ReferenceDesignatorListWithDepth(self, row):
+        """
+        Add port information to logical instrument
+        """
+        rd_code = row["ReferenceDesignator"]
+        osite_code, lp_part, port_part, li_part = rd_code.split("-")
+
+        # Logical Instrument
+        li_code = "%s-%s-%s" % (osite_code, lp_part, row["InstrumentClass"])
+        li = self.logical_instruments[li_code]
+        li['port_number'] = row["PortNumber"]
+        li['instrument_series'] = row["InstrumentSeries"]
+        li['port_min_depth'] = row["PortMinDepth"]
+        li['port_max_depth'] = row["PortMaxDepth"]
