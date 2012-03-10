@@ -30,6 +30,7 @@ class IONLoader(ImmediateProcess):
 
     def on_start(self):
 
+        global DEBUG
         if self.CFG.system.force_clean and not self.CFG.system.testing and not DEBUG:
             text = "system.force_clean=True. ION Preload does not support this"
             log.error(text)
@@ -37,7 +38,6 @@ class IONLoader(ImmediateProcess):
         op = self.CFG.get("op", None)
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)
-        global DEBUG
         DEBUG = self.CFG.get("debug", False)
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
@@ -78,6 +78,7 @@ class IONLoader(ImmediateProcess):
                       'Attachment',
                       ]
 
+        self.path = path
         self.obj_classes = {}
         self.resource_ids = {}
         self.user_ids = {}
@@ -187,20 +188,27 @@ class IONLoader(ImmediateProcess):
         self.user_ids[name] = id
         log.info("Added user name|id=%s|%s" % (name, id))
 
-    def _basic_resource_create(self, row, restype, prefix, svcname, svcop, **kwargs):
-        log.info("Loading %s (ID=%s)" % (restype, row[self.COL_ID]))
-        res_obj = self._create_object_from_row(restype, row, prefix)
-        log.info("%s: %s" % (restype,res_obj))
-
+    def _get_op_headers(self, row):
         headers = {}
         owner_id = row.get(self.COL_OWNER, None)
         if owner_id:
             owner_id = self.resource_ids[owner_id]
             headers['ion-actor-id'] = owner_id
+        return headers
+
+    def _basic_resource_create(self, row, restype, prefix, svcname, svcop, **kwargs):
+        log.info("Loading %s (ID=%s)" % (restype, row[self.COL_ID]))
+        res_obj = self._create_object_from_row(restype, row, prefix)
+        log.info("%s: %s" % (restype,res_obj))
+
+        headers = self._get_op_headers(row)
 
         svc_client = self._get_service_client(svcname)
         res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
         self._register_id(row[self.COL_ID], res_id)
+
+        self._resource_assign_mf(row, res_id)
+
         return res_id
 
     def _resource_advance_lcs(self, row, res_id, restype=None):
@@ -388,6 +396,10 @@ class IONLoader(ImmediateProcess):
         if ass_id:
             ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
 
+        ass_id = row["platform_device_id"]
+        if ass_id:
+            ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+
         self._resource_advance_lcs(row, res_id)
 
     def _load_InstrumentAgent(self, row):
@@ -467,8 +479,11 @@ class IONLoader(ImmediateProcess):
 
         svc_client = self._get_service_client("data_process_management")
 
-        res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products)
+        headers = self._get_op_headers(row)
+        res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products, headers=headers)
         self._register_id(row[self.COL_ID], res_id)
+
+        self._resource_assign_mf(row, res_id)
 
     def _load_DataProductLink(self, row):
         log.info("Loading DataProductLink")
@@ -480,4 +495,21 @@ class IONLoader(ImmediateProcess):
         svc_client.assign_data_product(res_id, dp_id, False)
 
     def _load_Attachment(self, row):
-        pass
+        log.info("Loading Attachment")
+
+        res_id = self.resource_ids[row["resource_id"]]
+        att_obj = self._create_object_from_row("Attachment", row, "att/")
+        file_path = row["file_path"]
+        if file_path:
+            file_path = "%s/attachments/%s" % (self.path, file_path)
+            try:
+                with open(file_path, "rb") as attfile:
+                    att_obj.content = attfile.read()
+            except IOError, ioe:
+                raise iex.BadRequest("Attachment file_path %s error: %s" % (file_path, str(ioe)))
+
+        rr_client = self._get_service_client("resource_registry")
+        headers = self._get_op_headers(row)
+
+        att_id = rr_client.create_attachment(res_id, att_obj, headers=headers)
+        self._register_id(row[self.COL_ID], att_id)
