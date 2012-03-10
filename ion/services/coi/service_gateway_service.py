@@ -42,8 +42,7 @@ DEFAULT_EXPIRY = '0'
 
 #Stuff for specifying other return types
 RETURN_FORMAT_PARAM = 'return_format'
-RETURN_FORMAT_RAW = 'raw'
-
+RETURN_FORMAT_RAW_JSON = 'raw_json'
 
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
@@ -316,12 +315,11 @@ def json_response(response_data):
 
 def gateway_json_response(response_data):
 
-    return_format = None
+
     if request.args.has_key(RETURN_FORMAT_PARAM):
         return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
-
-    if return_format == RETURN_FORMAT_RAW:
-        return json_response(response_data)
+        if return_format == RETURN_FORMAT_RAW_JSON:
+            return app.response_class(response_data, mimetype='application/json')
 
     return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
@@ -333,14 +331,12 @@ def build_error_response(e):
         GATEWAY_ERROR_MESSAGE : str(e.message)
     }
 
-    return_format = None
     if request.args.has_key(RETURN_FORMAT_PARAM):
         return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
+        if return_format == RETURN_FORMAT_RAW_JSON:
+            return app.response_class(result, mimetype='application/json')
 
-    if return_format == RETURN_FORMAT_RAW:
-        return json_response(result)
-
-    return json_response({'data': {GATEWAY_ERROR:result }} )
+    return json_response({'data': {GATEWAY_ERROR: result }} )
 
 def get_governance_info_from_request(request_type = '', json_params = None):
 
@@ -640,6 +636,17 @@ def list_resources_by_type(resource_type):
 
     except Exception, e:
         return build_error_response(e)
+
+
+#Gateway specific services are below
+
+# Get image for a specific data product
+#@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
+#def get_viz_image(data_product_id, img_name):
+
+#    # Create client to interface with the viz service
+#    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+#    return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
 
 
 
