@@ -507,6 +507,9 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ############################
 
+    def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=[]):
+        return {}
+
     def find_instrument_device_by_logical_platform(self, logical_platform_id=''):
         ret = []
         for l in self.logical_platform.find_stemming_instrument(logical_platform_id):
