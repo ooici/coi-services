@@ -95,4 +95,63 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
         org_id = self.client.find_marine_facility_org(marine_facility_id)
         print("org_id=<" + org_id + ">")
 
+        #create a site with parent MF
+        site_obj =  IonObject(RT.Site,
+                                name= 'TestSite',
+                                description = 'sample site')
+        site_id = self.client.create_site(site_obj, marine_facility_id)
+        self.assertIsNotNone(site_id, "Site not created.")
 
+
+        # verify that Site is linked to MF
+        mf_site_assoc = self.RR.get_association(marine_facility_id, PRED.hasSite, site_id)
+        self.assertIsNotNone(mf_site_assoc, "Site not connected to MarineFacility.")
+
+
+        # add the Site as a resource of this MF
+        self.client.assign_resource_to_marine_facility(resource_id=site_id, marine_facility_id=marine_facility_id)
+        # verify that Site is linked to Org
+        org_site_assoc = self.RR.get_association(org_id, PRED.hasResource, site_id)
+        self.assertIsNotNone(org_site_assoc, "Site not connected as resource to Org.")
+
+
+
+        #create a logical platform with parent Site
+        logical_platform_obj =  IonObject(RT.LogicalPlatform,
+                                name= 'TestLogicalPlatform',
+                                description = 'sample logical platform')
+        logical_platform_id = self.client.create_logical_platform(logical_platform_obj, site_id)
+        self.assertIsNotNone(logical_platform_id, "LogicalPlatform not created.")
+
+
+        # verify that LogicalPlatform is linked to Site
+        site_lp_assoc = self.RR.get_association(site_id, PRED.hasPlatform, logical_platform_id)
+        self.assertIsNotNone(site_lp_assoc, "LogicalPlatform not connected to Site.")
+
+
+        # add the LogicalPlatform as a resource of this MF
+        self.client.assign_resource_to_marine_facility(resource_id=logical_platform_id, marine_facility_id=marine_facility_id)
+        # verify that LogicalPlatform is linked to Org
+        org_lp_assoc = self.RR.get_association(org_id, PRED.hasResource, logical_platform_id)
+        self.assertIsNotNone(org_lp_assoc, "LogicalPlatform not connected as resource to Org.")
+
+
+
+        #create a logical instrument with parent logical platform
+        logical_instrument_obj =  IonObject(RT.LogicalInstrument,
+                                name= 'TestLogicalInstrument',
+                                description = 'sample logical instrument')
+        logical_instrument_id = self.client.create_logical_instrument(logical_instrument_obj, logical_platform_id)
+        self.assertIsNotNone(logical_instrument_id, "LogicalInstrument not created.")
+
+
+        # verify that LogicalInstrument is linked to LogicalPlatform
+        li_lp_assoc = self.RR.get_association(logical_platform_id, PRED.hasInstrument, logical_instrument_id)
+        self.assertIsNotNone(li_lp_assoc, "LogicalInstrument not connected to LogicalPlatform.")
+
+
+        # add the LogicalInstrument as a resource of this MF
+        self.client.assign_resource_to_marine_facility(resource_id=logical_instrument_id, marine_facility_id=marine_facility_id)
+        # verify that LogicalInstrument is linked to Org
+        org_li_assoc = self.RR.get_association(org_id, PRED.hasResource, logical_instrument_id)
+        self.assertIsNotNone(org_li_assoc, "LogicalInstrument not connected as resource to Org.")
