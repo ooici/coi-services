@@ -88,6 +88,7 @@ class IONLoader(ImmediateProcess):
         self.resource_ids = {}
         self.user_ids = {}
 
+        self._preload_ids()
         if self.loadooi:
             self.extract_ooi_assets(path)
 
@@ -246,6 +247,16 @@ class IONLoader(ImmediateProcess):
             for mf_id in mf_ids:
                 svc_client.assign_resource_to_marine_facility(res_id, self.resource_ids[mf_id])
 
+
+    def _preload_ids(self):
+        if not DEBUG:
+            rr_client = self._get_service_client("resource_registry")
+
+            org_ids,_ = rr_client.find_resources(name="ION", restype=RT.Org, id_only=True)
+            if not org_ids:
+                raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
+            ion_org_id = org_ids[0]
+            self._register_id("ORG_ION", ion_org_id)
 
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below

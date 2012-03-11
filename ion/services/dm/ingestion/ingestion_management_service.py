@@ -15,7 +15,7 @@ from pyon.public import CFG
 from pyon.core.exception import IonException
 from interface.objects import ExchangeQuery, IngestionConfiguration, ProcessDefinition
 from interface.objects import DatasetIngestionConfiguration, DatasetIngestionByStream, DatasetIngestionTypeEnum
-from pyon.event.event import DatasetIngestionConfigurationEventPublisher
+from pyon.event.event import EventPublisher
 from pyon.core.object import IonObjectSerializer, IonObjectBase
 
 
@@ -55,7 +55,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
     def on_start(self):
         super(IngestionManagementService,self).on_start()
-        self.event_publisher = DatasetIngestionConfigurationEventPublisher(node = self.container.node)
+        self.event_publisher = EventPublisher(event_type="DatasetIngestionConfigurationEvent")
 
 
         #########################################################################################################
@@ -315,7 +315,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         self.clients.resource_registry.create_association(dset_ingest_config_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
 
 
-        self.event_publisher.create_and_publish_event(
+        self.event_publisher.publish_event(
             origin=ingestion_configuration_id, # Use the ingestion configuration ID as the origin!
             description = dset_ingest_config.description,
             configuration = config,
@@ -347,7 +347,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         ingest_config_id = ingest_config_ids[0]
 
         #@todo - what is it okay to update?
-        self.event_publisher.create_and_publish_event(
+        self.event_publisher.publish_event(
             origin=ingest_config_id,
             description = dataset_ingestion_configuration.description,
             configuration = dataset_ingestion_configuration.configuration,
@@ -390,7 +390,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.clients.resource_registry.delete_association(association=association_ids[0])
 
-        self.event_publisher.create_and_publish_event(
+        self.event_publisher.publish_event(
             origin=ingest_config_id,
             configuration = dataset_ingestion_configuration.configuration,
             type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
