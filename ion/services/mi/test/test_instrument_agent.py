@@ -194,17 +194,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         def cleanup_procs(agttest):
             dvr_proc_pid = agttest.dvr_proc_pid
-            dvr_proc_path = '/proc/%i' %  dvr_proc_pid
             lgr_proc_pid = agttest.lgr_proc_pid
-            lgr_proc_path = '/proc/%i' %  lgr_proc_pid
             lgr_pidfile_path = agttest.lgr_pidfile_path
-            if isinstance(dvr_proc_pid, int) and os.path.exists(dvr_proc_path):
-                proc_path = '/proc/%i' % dvr_proc_pid
-                log.info('CLEANING UP DVR PID %s', str(dvr_proc_pid))
-                os.kill(dvr_proc_pid, signal.SIGTERM)
-            if isinstance(lgr_proc_pid, int) and os.path.exists(lgr_proc_path):
-                log.info('CLEANING UP LGR PID %s', str(lgr_proc_pid))
-                os.kill(lgr_proc_pid, signal.SIGTERM)
+            if isinstance(dvr_proc_pid, int):
+                dvr_proc_path = '/proc/%i' %  dvr_proc_pid
+                if os.path.exists(dvr_proc_path):
+                    log.info('CLEANING UP DVR PID %s', str(dvr_proc_pid))
+                    os.kill(dvr_proc_pid, signal.SIGTERM)
+            if isinstance(lgr_proc_pid, int):
+                lgr_proc_path = '/proc/%i' %  lgr_proc_pid
+                if os.path.exists(lgr_proc_path):
+                    log.info('CLEANING UP LGR PID %s', str(lgr_proc_pid))
+                    os.kill(lgr_proc_pid, signal.SIGTERM)
             if lgr_pidfile_path and os.path.exists(lgr_pidfile_path):
                 log.info('REMOVING PIDFILE %s', lgr_pidfile_path)
                 os.remove(lgr_pidfile_path)
