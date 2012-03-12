@@ -25,10 +25,10 @@ class NotificationEventSubscriber(EventSubscriber):
     # encapsulates the event subscriber and the event 'listen loop' greenlet
     # implements methods to start/stop the listener
     
-    def __init__(self, origin=None, event_name=None, callback=None):
+    def __init__(self, origin=None, event_type=None, callback=None):
         self.listener_greenlet = None
-        subscriber_event_name = event_name.upper() + "_EVENT"
-        self.subscriber = EventSubscriber(origin=origin, event_name=subscriber_event_name, callback=callback)
+        subscriber_event_type = event_type.upper() + "_EVENT"
+        self.subscriber = EventSubscriber(origin=origin, event_type=subscriber_event_type, callback=callback)
         
     def start_listening(self):
         self.listener_greenlet = spawn(self.subscriber.listen)
@@ -49,7 +49,7 @@ class Notification(object):
         # origin/event.  This will require a list to hold all the subscribers so they can
         # be started and killed
         self.subscriber = NotificationEventSubscriber(origin=notification.origin_list[0],
-                                                      event_name=notification.events_list[0], 
+                                                      event_type=notification.events_list[0],
                                                       callback=subscriber_callback)
         self.notification_id = None
         
@@ -85,7 +85,7 @@ class UserEventProcessor(object):
         origin = args[0].origin
         event = str(args[0]._get_type())
         description = args[0].description
-        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(args[0].ts_created))))
+        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(args[0].ts_created)/1000))))
 
         # build the email from the event content
         BODY = string.join(("Event: %s" %  event,
@@ -351,8 +351,8 @@ class UserNotificationService(BaseUserNotificationService):
                                            origin=origin, 
                                            start_ts=min_datetime, 
                                            end_ts=max_datetime,
-                                           reverse_order=descending,
-                                           max_results=limit)
+                                           descending=descending,
+                                           limit=limit)
 
     def find_event_types_for_resource(self, resource_id=''):
         resource_object = self.clients.resource_registry.read(resource_id)

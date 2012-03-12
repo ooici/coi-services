@@ -65,7 +65,8 @@ class ContainerUI(StandaloneProcess):
 @app.route('/', methods=['GET','POST'])
 def process_index():
     try:
-        from pyon.public import CFG, sys_name
+        from pyon.public import CFG
+        from pyon.core.bootstrap import get_sys_name
         fragments = [
             "<h1>Welcome to ContainerUI</h1>",
             "<p><ul>",
@@ -78,7 +79,7 @@ def process_index():
             "<p><table border='1' cellspacing='0'>",
             "<tr><th>Property</th><th>Value</th></tr>",
             "<tr><td>Container ID</td><td>%s</td></tr>" % Container.instance.id,
-            "<tr><td>Sys_name</td><td>%s</td></tr>" % sys_name,
+            "<tr><td>Sys_name</td><td>%s</td></tr>" % get_sys_name(),
             "<tr><td>Broker</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.amqp.host, CFG.server.amqp.port),
             "<tr><td>Datastore</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.couchdb.host, CFG.server.couchdb.port),
             "</table></p>"
@@ -230,6 +231,12 @@ def process_view_resource(resource_id):
 
         fragments.extend(build_associations(res._id))
 
+        fragments.append("<h2>Events</h2>")
+
+        events_list = Container.instance.event_repository.find_events(origin=resid,
+                        descending=True, limit=50)
+
+        fragments.extend(build_events_table(events_list))
         content = "\n".join(fragments)
         return build_page(content)
 
@@ -381,29 +388,25 @@ standard_eventattrs = ['origin', 'ts_created', 'description']
 @app.route('/events', methods=['GET','POST'])
 def process_events():
     try:
-        event_type = request.args.get('event_type', "Event")
+        event_type = request.args.get('event_type', None)
         origin = request.args.get('origin', None)
-        limit = request.args.get('limit', 100)
+        limit = int(request.args.get('limit', 100))
         descending = request.args.get('descending', True)
+        skip = int(request.args.get('skip', 0))
 
         events_list = Container.instance.event_repository.find_events(event_type=event_type, origin=origin,
-                                     reverse_order=descending, max_results=limit)
+                                     descending=descending, limit=limit, skip=skip)
 
         fragments = [
             build_standard_menu(),
             "<h1>List of Events</h1>",
-            "Restrictions: event_type=%s, origin=%s, limit=%s, descending=%s" % (event_type, origin, limit, descending),
-            "<p>",
-            "<table border='1' cellspacing='0'>",
-            "<tr><th>Timestamp</th><th>Event type</th><th>Origin</th><th>Description</th><th>Attributes</th></tr>"
+            "Restrictions: event_type=%s, origin=%s, limit=%s, descending=%s, skip=%s" % (event_type, origin, limit, descending, skip),
         ]
 
-        for event in events_list:
-            attrs = ""
-            fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-                        event._get_type(), event.origin, event.ts_created, event.description, attrs))
+        fragments.extend(build_events_table(events_list))
 
-        fragments.append("</table></p>")
+        if len(events_list) >= limit:
+            fragments.append("<p>%s</p>" % build_link("Next page", "/events?skip=%s" % (skip + limit)))
 
         content = "\n".join(fragments)
         return build_page(content)
@@ -412,6 +415,31 @@ def process_events():
         return flask.redirect("/")
     except Exception, e:
         return build_simple_page("Error: %s" % traceback.format_exc())
+
+def build_events_table(events_list):
+    fragments = [
+        "<p><table border='1' cellspacing='0'>",
+        "<tr><th>Timestamp</th><th>Event type</th><th>Origin</th><th>Origin type</th><th>Other Attributes</th><th>Description</th></tr>"
+    ]
+
+    for event_id, event_key, event in events_list:
+        event_fields = event.__dict__.copy()
+        event_fields.pop("_rev")
+        event_fields.pop("_id")
+        event_fields.pop("base_types")
+        origin = event_fields.pop("origin")
+        desc = event_fields.pop("description") or "&nbsp;"
+        fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            get_formatted_value(event_fields.pop("ts_created"), fieldname="ts_created", time_millis=True),
+            build_link(event._get_type(), "/events?event_type=%s" % event._get_type()),
+            build_link(origin, "/view/%s" % origin),
+            event_fields.pop("origin_type"),
+            get_formatted_value(event_fields, fieldtype="dict"),
+            desc))
+
+    fragments.append("</table></p>")
+
+    return fragments
 
 # ----------------------------------------------------------------------------------------
 
@@ -458,7 +486,7 @@ def _get_object_class(objtype):
     return obj_class
 
 date_fieldnames = ['ts_created', 'ts_updated']
-def get_formatted_value(value, fieldname=None, fieldtype=None, brief=False):
+def get_formatted_value(value, fieldname=None, fieldtype=None, brief=False, time_millis=False):
     if isinstance(value, IonObjectBase):
         if brief:
             value = "[%s]" % value._get_type()
@@ -470,12 +498,15 @@ def get_formatted_value(value, fieldname=None, fieldtype=None, brief=False):
         value = "<pre>%s</pre>" % value
     elif fieldname:
         if fieldname in date_fieldnames:
-            value = get_datetime(value)
+            value = get_datetime(value, time_millis)
     if value == "":
         return "&nbsp;"
     return value
 
-def get_datetime(ts):
-    ts = float(ts) / 1000
-    dts = datetime.datetime.fromtimestamp(time.mktime(time.localtime(ts)))
-    return str(dts)
+def get_datetime(ts, time_millis=False):
+    tsf = float(ts) / 1000
+    dt = datetime.datetime.fromtimestamp(time.mktime(time.localtime(tsf)))
+    dts = str(dt)
+    if time_millis:
+        dts += "." + ts[-3:]
+    return dts

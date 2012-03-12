@@ -13,7 +13,7 @@ from pyon.public import IonObject, RT, PRED
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
-from pyon.event.event import ResourceLifecycleEventPublisher, DataEventPublisher
+from pyon.event.event import EventPublisher
 import gevent
 
 @attr('UNIT',group='dm')
@@ -214,22 +214,22 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         
         # publish an event for each notification to generate the emails
         # this can't be easily check in SW so need to check for these at the myooici@gmail.com account
-        rle_publisher = ResourceLifecycleEventPublisher()
-        rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
-        de_publisher = DataEventPublisher()
-        de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event")
+        rle_publisher = EventPublisher("ResourceLifecycleEvent")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
+        de_publisher = EventPublisher("DataEvent")
+        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event")
         gevent.sleep(1)
 
     def test_find_events(self):
         # publish some events for the event repository
-        rle_publisher = ResourceLifecycleEventPublisher(event_repo=self.container.event_repository)
-        de_publisher = DataEventPublisher(event_repo=self.container.event_repository)
-        rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event1")
-        rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event2")
-        rle_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event3")
-        de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event1")
-        de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event2")
-        de_publisher.create_and_publish_event(origin='Some_Resource_Agent_ID2', description="DE test event3")
+        rle_publisher = EventPublisher("ResourceLifecycleEvent")
+        de_publisher = EventPublisher("DataEvent")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event1")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event2")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event3")
+        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event1")
+        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event2")
+        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event3")
         
         # find all events for the originator 'Some_Resource_Agent_ID1'
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1')
