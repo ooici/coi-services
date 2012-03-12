@@ -276,15 +276,28 @@ def test_enrollment_request(container, process=FakeProcess()):
 
 
     log.info(user._id)
-    org_roles = org_client.find_all_roles_by_user(user._id)
+    org_roles = org_client.find_all_roles_by_user(user._id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
     log.info("All Org Roles: " + str(org_roles))
 
 
-    requests = org_client.find_requests(org2_id)
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
     for r in requests:
         log.info('Org2 Request: ' +str(r))
 
+
+
+    operator_role = IonObject(RT.UserRole, name='INSTRUMENT_OPERATOR',label='Instrument Operator', description='Instrument Operator')
+    org_client.add_user_role(org2_id, operator_role, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+    log.info("First try to request a role without being a member - should be denied")
+    req_id = org_client.request_role(org2_id,user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
 
     req_id = None
     try:
@@ -293,12 +306,12 @@ def test_enrollment_request(container, process=FakeProcess()):
     except BadRequest, e:
         pass
 
-    requests = org_client.find_requests(org2_id)
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
     for r in requests:
         log.info('Org Request: ' +str(r))
 
-    requests = org_client.find_user_requests(user._id, org2_id)
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
     log.info("User Requests count: %d" % len(requests))
     for r in requests:
         log.info('User Request: ' +str(r))
@@ -306,7 +319,7 @@ def test_enrollment_request(container, process=FakeProcess()):
     if req_id is not None:
         org_client.deny_request(org2_id,req_id,'To test the deny process', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
 
-    requests = org_client.find_requests(org2_id)
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
     for r in requests:
         log.info('Org Request: ' +str(r))
@@ -324,12 +337,12 @@ def test_enrollment_request(container, process=FakeProcess()):
         org_client.approve_request(org2_id,req_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
 
 
-    requests = org_client.find_requests(org2_id)
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
     for r in requests:
         log.info('Org Request: ' +str(r))
 
-    users = org_client.find_enrolled_users(org2_id)
+    users = org_client.find_enrolled_users(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 members:")
     for u in users:
         log.info( str(u))
@@ -339,44 +352,40 @@ def test_enrollment_request(container, process=FakeProcess()):
         org_client.accept_request(org2_id,req_id,  headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
 
 
-    users = org_client.find_enrolled_users(org2_id)
+    users = org_client.find_enrolled_users(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 members:")
     for u in users:
         log.info( str(u))
 
-    requests = org_client.find_requests(org2_id)
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
     for r in requests:
         log.info('Org Request: ' +str(r))
 
-
-    operator_role = IonObject(RT.UserRole, name='INSTRUMENT_OPERATOR',label='Instrument Operator', description='Instrument Operator')
-    org_client.add_user_role(org2_id, operator_role, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
 
     req_id = org_client.request_role(org2_id,user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
 
-
-    requests = org_client.find_requests(org2_id)
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
     for r in requests:
         log.info('Org Request: ' +str(r))
 
-    requests = org_client.find_requests(org2_id,request_status='Open')
+    requests = org_client.find_requests(org2_id,request_status='Open', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Open Request count: %d" % len(requests))
     for r in requests:
         log.info('Org Open Request: ' +str(r))
 
-    requests = org_client.find_user_requests(user._id, org2_id)
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
     log.info("User Requests count: %d" % len(requests))
     for r in requests:
         log.info('User Request: ' +str(r))
 
-    requests = org_client.find_user_requests(user._id, org2_id, request_type=RT.RoleRequest)
+    requests = org_client.find_user_requests(user._id, org2_id, request_type=RT.RoleRequest, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
     log.info("User Role Requests count: %d" % len(requests))
     for r in requests:
         log.info('User Role Request: ' +str(r))
 
-    requests = org_client.find_user_requests(user._id, org2_id, request_status="Open")
+    requests = org_client.find_user_requests(user._id, org2_id, request_status="Open", headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
     log.info("User Open Requests count: %d" % len(requests))
     for r in requests:
         log.info('User Open Request: ' +str(r))

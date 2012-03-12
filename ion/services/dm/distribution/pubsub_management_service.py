@@ -26,9 +26,17 @@ from pyon.net.transport import NameTrio, TransportError
 
 
 class BindingChannel(SubscriberChannel):
+    """
+    The Pubsub Mgmt Svc should over ride _declare_queue in its BindingChannel object so that a binding a queue that does
+    not exist will fail. Unfortunately tests break in the CEI environment because the queue for a transform is created by
+    a process. That process may not have been spawned yet when activate transform is called.
 
-    def _declare_queue(self, queue):
-        self._recv_name = NameTrio(self._recv_name.exchange, '.'.join((self._recv_name.exchange, self._recv_name.queue)))
+    For now - as a patch we will allow pubsub to create queues where they do not exist yet. This could be replaced with
+    a call back on a process life cycle event, after which the transform (for the subscription) can be activated.
+    """
+    pass
+    #def _declare_queue(self, queue):
+    #    self._recv_name = NameTrio(self._recv_name.exchange, '.'.join((self._recv_name.exchange, self._recv_name.queue)))
 
 
 class PubsubManagementService(BasePubsubManagementService):
