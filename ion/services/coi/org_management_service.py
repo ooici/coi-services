@@ -2,8 +2,7 @@
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
 
-import datetime
-from pyon.public import CFG, IonObject, log, RT, PRED
+from pyon.public import CFG, IonObject, RT, PRED
 
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from ion.services.coi.policy_management_service import MEMBER_ROLE, MANAGER_ROLE
@@ -11,15 +10,9 @@ from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
+from pyon.core.governance.negotiate_request import NegotiateRequest, NegotiateRequestFactory
 
 ROOT_ION_ORG_NAME = CFG.system.root_org
-
-REQUEST_APPROVED = 'Approved'
-REQUEST_DENIED = 'Denied'
-REQUEST_ACCEPTED = 'Accepted'
-REQUEST_REJECTED = 'Reected'
-
-now = datetime.datetime.now()
 
 class OrgManagementService(BaseOrgManagementService):
 
@@ -28,6 +21,10 @@ class OrgManagementService(BaseOrgManagementService):
     access to the resources of an Org to enrolled or affiliated entities (identities). Contains contract
     and commitment repository
     """
+
+    def on_init(self):
+        self.request_handler = NegotiateRequest(self)
+
 
     def create_org(self, org=None):
         """Persists the provided Org object. The id string returned
@@ -266,6 +263,7 @@ class OrgManagementService(BaseOrgManagementService):
         @retval request_id    str
         @throws NotFound    object with specified id does not exist
         """
+
         if not org_id:
             raise BadRequest("The org_id parameter is missing")
 
@@ -283,29 +281,13 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        #TODO - Maybe Change to checking commitments to see if user is already enrolled and does not already have
-        #an existing request for enrollment
+        #Initiate request
+        req_obj = NegotiateRequestFactory.create_enrollment_request(org_id, user_id)
 
-        #First make sure the user is enrolled with the Org  TODO - replace with commitment checks
-        if self.is_enrolled(org_id, user_id):
-            raise BadRequest("The user id %s is already enrolled in the specified Org %s" % (user_id, org_id))
-
-        request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, RT.EnrollmentRequest)
-        if len(request_list) > 0:
-            if request_list[0].status == REQUEST_ACCEPTED or request_list[0].status == REQUEST_DENIED \
-                or request_list[0].status == REQUEST_REJECTED:
-                self._delete_request(org, user, request_list[0])
-            else:
-                raise BadRequest("The user id %s already has an outstanding request to enroll with Org %s" % (user_id, org_id))
-
-
-        req_obj = IonObject(RT.EnrollmentRequest,name='Enroll Request', org_id=org_id,
-            user_id=user_id, status="Open", description='%s Org Enrollment Request at %s' % (user_id, str(now)))
-        req_id = self._create_request(org, user, req_obj)
-
-        #TODO - Send request_initiated notification
+        req_id = self.request_handler.open_request(req_obj)
 
         return req_id
+
 
     def request_role(self, org_id='', user_id='', role_name=''):
         """Requests for an role within an Org which must be accepted or denied as a separate process.
@@ -318,6 +300,7 @@ class OrgManagementService(BaseOrgManagementService):
         @retval request_id    str
         @throws NotFound    object with specified id does not exist
         """
+
         if not org_id:
             raise BadRequest("The org_id parameter is missing")
 
@@ -342,51 +325,18 @@ class OrgManagementService(BaseOrgManagementService):
         if not user:
             raise NotFound("User %s does not exist" % user_id)
 
-        #TODO - Maybe Change to checking commitments to see if user is already enrolled and does not already have
-        #an existing request for a roll
+        #Initiate request
+        req_obj = NegotiateRequestFactory.create_role_request(org_id, user_id)
 
-        #First make sure the user is enrolled with the Org  TODO - replace with commitment checks?
-        if not self.is_enrolled(org_id, user_id):
-            raise BadRequest("The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
-
-        request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, RT.RoleRequest)
-        if len(request_list) > 0:
-            if request_list[0].status == REQUEST_ACCEPTED or request_list[0].status == REQUEST_DENIED\
-            or request_list[0].status == REQUEST_REJECTED:
-                self._delete_request(org, user, request_list[0])
-            else:
-                raise BadRequest("The user id %s already has an outstanding request for a role with Org %s" % (user_id, org_id))
-
-
-        req_obj = IonObject(RT.RoleRequest,name='Role Request', org_id=org_id,
-            user_id=user_id, status="Open", description='%s Role Request at %s' % (user_id, str(now)))
-        req_id = self._create_request(org, user, req_obj)
+        req_id = self.request_handler.open_request(req_obj)
 
         #If the user is not enrolled with the Org then immediately deny the request
         if not self.is_enrolled(org_id, user_id):
             self.deny_request(org_id, req_id, "The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
-        #TODO - Send request_initiated notification
 
         return req_id
 
-    def _create_request(self, org, user, request):
-        req_id, _ = self.clients.resource_registry.create(request)
-        req_obj = self.clients.resource_registry.read(req_id)
-        self.clients.resource_registry.create_association(org, PRED.hasRequest, req_obj)
-        self.clients.resource_registry.create_association(user, PRED.hasRequest, req_obj)
-        return req_id
-
-    def _delete_request(self, org, user, request):
-
-        aid = self.clients.resource_registry.find_associations(user, PRED.hasRequest, request)
-        self.clients.resource_registry.delete_association(aid[0])
-        aid = self.clients.resource_registry.find_associations(org, PRED.hasRequest, request)
-        self.clients.resource_registry.delete_association(aid[0])
-        try:
-            self.clients.resource_registry.delete(request._id)
-        except Exception, e:
-            log.debug("Error: " + e.message)
 
     def find_requests(self, org_id='', request_type='', request_status=''):
         """Returns a list of open requests for an Org. An optional request_type can be supplied
@@ -445,11 +395,9 @@ class OrgManagementService(BaseOrgManagementService):
         if not request:
             raise NotFound("User Request %s does not exist" % request_id)
 
-        request.status = REQUEST_APPROVED
-        request.status_description = "The request was approved"
-        self.clients.resource_registry.update(request)
+        self.request_handler.approve_request(request)
 
-        #TODO - Send request_accepted notification
+
 
 
     def deny_request(self, org_id='', request_id='', reason=''):
@@ -476,11 +424,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not request:
             raise NotFound("User Request %s does not exist" % request_id)
 
-        request.status = REQUEST_DENIED
-        request.status_description = reason
-        self.clients.resource_registry.update(request)
-
-        #TODO - Send request_denied notification
+        self.request_handler.deny_request(request, reason)
 
 
     def find_user_requests(self, user_id='', org_id='', request_type='', request_status=''):
@@ -573,16 +517,10 @@ class OrgManagementService(BaseOrgManagementService):
         if not request:
             raise NotFound("User Request %s does not exist" % request_id)
 
-        request.status = REQUEST_ACCEPTED
-        request.status_description = "The request was accepted"
-        self.clients.resource_registry.update(request)
+        self.request_handler.accept_request(request)
 
-        #Since the request was accepted by the user, proceed with the enrollment
-        #TODO - Replace with commitments?
-        #TODO - Find out what type this request is and do the appropriate operation
-        ret = self.enroll_member(org_id, request.user_id)
-
-        #TODO - Send request_granted notification
+        #Since the request was accepted by the user, proceed with the defined action of the negotiation
+        ret = self.request_handler.execute_accept_action(request)
 
         return ret
 
@@ -610,11 +548,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not request:
             raise NotFound("User Request %s does not exist" % request_id)
 
-        request.status = REQUEST_REJECTED
-        request.status_description = reason
-        self.clients.resource_registry.update(request)
-
-        #TODO - Send request_rejected notification
+        self.request_handler.reject_request(request)
 
         return True
 
