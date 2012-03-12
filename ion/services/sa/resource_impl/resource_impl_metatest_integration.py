@@ -8,7 +8,7 @@
 import hashlib
 
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import BadRequest, NotFound
+from pyon.core.exception import BadRequest, NotFound, Inconsistent
 
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
@@ -463,15 +463,22 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 sr = sample_resource()
                 sample_resource_id = myimpl.create_one(sr)
 
-                sr.name = "NOT A DUPE"
-                sample_resource_id2 = myimpl.create_one(sr)
+                sr2 = sample_resource()
+                sr2.name = "NOT A DUPE"
+                sample_resource_id2 = myimpl.create_one(sr2)
 
                 resources = myimpl.find_some({})
                 self.assertIsInstance(resources, list)
                 self.assertNotEqual(0, len(resources))
                 self.assertNotEqual(1, len(resources))
-                self.assertIn(sample_resource_id, resources)
-                self.assertIn(sample_resource_id2, resources)
+                
+                resource_ids = []
+                for r in resources:
+                    if not "_id" in r:
+                        raise Inconsistent("'_id' field not found in resource! got: %s" % str(r))
+                    resource_ids.append(r._id)
+                self.assertIn(sample_resource_id, resource_ids)
+                self.assertIn(sample_resource_id2, resource_ids)
 
                 
             name = make_name("resource_impl_find")

@@ -12,7 +12,7 @@ from interface.services.sa.imarine_facility_management_service import MarineFaci
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, LCS # , PRED
 from nose.plugins.attrib import attr
 import unittest
@@ -53,7 +53,7 @@ class TestLCASA(IonIntegrationTestCase):
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
 
-    #@unittest.skip('temporarily')
+    @unittest.skip('this test just for debugging setup')
     def test_just_the_setup(self):
         return
 
@@ -354,12 +354,22 @@ class TestLCASA(IonIntegrationTestCase):
         log.debug("Verifying find-subj-by-obj")
         subjects = find_subj_fn(obj_id)
         self.assertEqual(initial_subj_count + 1, len(subjects))
-        self.assertIn(subj_id, subjects)
+        subject_ids = []
+        for x in subjects:
+            if not "_id" in x:
+                raise Inconsistent("'_id' field not found in resource! got: %s" % str(x))
+            subject_ids.append(x._id)
+        self.assertIn(subj_id, subject_ids)
 
         log.debug("Verifying find-obj-by-subj")
         objects = find_obj_fn(subj_id)
         self.assertEqual(initial_obj_count + 1, len(objects))
-        self.assertIn(obj_id, objects)
+        object_ids = []
+        for x in objects:
+            if not "_id" in x:
+                raise Inconsistent("'_id' field not found in resource! got: %s" % str(x))
+            object_ids.append(x._id)
+        self.assertIn(obj_id, object_ids)
 
 
 

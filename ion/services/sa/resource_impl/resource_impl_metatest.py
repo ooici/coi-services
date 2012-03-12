@@ -478,7 +478,7 @@ class ResourceImplMetatest(object):
                 svc.clients.resource_registry.find_resources.assert_called_once_with(impl_instance.iontype,
                                                                                      None,
                                                                                      None,
-                                                                                     True)
+                                                                                     False)
 
                 
             name = make_name("resource_impl_find")
@@ -517,7 +517,7 @@ class ResourceImplMetatest(object):
 
                             #call the impl
                             response = myfind("111")
-                            self.assertEqual(response, ['333'])
+                            self.assertEqual(response, ['444'])
                         
                         name = make_name("resource_impl_find_having_%s_link" % assn_type)
                         doc  = make_doc("Checking find %s having %s" % (impl_instance.iontype, assn_type))
@@ -552,7 +552,7 @@ class ResourceImplMetatest(object):
 
                             #call the impl
                             response = myfind("111")
-                            self.assertEqual(response, ['333'])
+                            self.assertEqual(response, ['444'])
                         
                         name = make_name("resource_impl_find_stemming_%s_links" % assn_type)
                         doc  = make_doc("Checking find %s stemming from %s" % (assn_type, impl_instance.iontype))
@@ -707,4 +707,4 @@ class ResourceImplMetatest(object):
         gen_test_find()
         gen_tests_associations()
         gen_tests_associated_finds()
-        #gen_tests_advance_lcs()
+        gen_tests_advance_lcs()

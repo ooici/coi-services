@@ -382,7 +382,7 @@ class ResourceImpl(object):
         find method
         @todo receive definition of the filters object
         """
-        results, _ = self.RR.find_resources(self.iontype, None, None, True)
+        _, results = self.RR.find_resources(self.iontype, None, None, False)
         return self._return_find(results)
 
 
@@ -394,10 +394,10 @@ class ResourceImpl(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        ret, _ = self.RR.find_subjects(self.iontype,
+        _, ret = self.RR.find_subjects(self.iontype,
                                        association_predicate,
                                        some_object,
-                                       True)
+                                       False)
         return ret
 
     def _find_stemming(self, primary_object_id, association_predicate, some_object_type):
@@ -409,10 +409,10 @@ class ResourceImpl(object):
         @param association_prediate the association type
         @param some_object_type the type of associated object
         """
-        ret, _ = self.RR.find_objects(primary_object_id,
+        _, ret = self.RR.find_objects(primary_object_id,
                                       association_predicate,
                                       some_object_type,
-                                      True)
+                                      False)
         return ret
 
 
