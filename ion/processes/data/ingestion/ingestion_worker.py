@@ -208,12 +208,22 @@ class IngestionWorker(TransformDataProcess):
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
+
+        # close event subscriber safely
+        self.event_subscriber.close()
+        self.gl.join(timeout=5)
         self.gl.kill()
+
         self.db.close()
 
     def on_quit(self):
         TransformDataProcess.on_quit(self)
+
+        # close event subscriber safely
+        self.event_subscriber.close()
+        self.gl.join(timeout=5)
         self.gl.kill()
+
         self.db.close()
 
 
