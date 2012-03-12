@@ -8,7 +8,7 @@ from ion.services.sa.marine_facility.marine_facility_management_service import M
 from interface.services.sa.imarine_facility_management_service import IMarineFacilityManagementService, MarineFacilityManagementServiceClient
 
 from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, PRED
 #from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
@@ -23,7 +23,7 @@ from ion.services.sa.test.helpers import any_old
 class FakeProcess(LocalContextMixin):
     name = ''
 
-
+ 
 @attr('INT', group='sa')
 class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
 
@@ -41,6 +41,7 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
         self.client = MarineFacilityManagementServiceClient(node=self.container.node)
         #print 'TestMarineFacilityManagementServiceIntegration: started services'
 
+    @unittest.skip('temporarily')
     def test_just_the_setup(self):
         return
 

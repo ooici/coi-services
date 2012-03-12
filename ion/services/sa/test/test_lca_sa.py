@@ -225,6 +225,8 @@ class TestLCASA(IonIntegrationTestCase):
 
         log.info("LCA <missing step>: assign instrument model to instrument device")
         log.info("LCA <missing step>: create data products for instrument")
+
+
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
                                         c.IMS.find_instrument_device_by_instrument_model,
                                         c.IMS.find_instrument_model_by_instrument_device,
@@ -349,6 +351,12 @@ class TestLCASA(IonIntegrationTestCase):
         initial_obj_count  = len(find_obj_fn(subj_id))
         
         log.debug("Creating association")
+        if not ("str" == type(subj_id).__name__ == type(obj_id).__name__):
+            raise NotImplementedError("%s='%s' to %s='%s'" % 
+                                      (type(subj_id), str(subj_id), type(obj_id), str(obj_id)))
+        if not (subj_id and obj_id):
+            raise NotImplementedError("%s='%s' to %s='%s'" % 
+                                      (type(subj_id), str(subj_id), type(obj_id), str(obj_id)))
         assign_obj_to_subj_fn(obj_id, subj_id)
 
         log.debug("Verifying find-subj-by-obj")

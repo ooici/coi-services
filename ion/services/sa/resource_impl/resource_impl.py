@@ -145,7 +145,8 @@ class ResourceImpl(object):
         # get the workflow that we need
         restype_workflow = lcs_workflows.get(resource_type, None)
         if not restype_workflow:
-            raise BadRequest("Resource id=%s type=%s does not have a lifecycle" % (resource_id, resource_type))
+            raise BadRequest("Resource id=%s type=%s does not have a lifecycle workflow" 
+                             % (resource_id, resource_type))
             #restype_workflow = lcs_workflows['Resource']
 
         # check that the transition is possible
@@ -382,7 +383,7 @@ class ResourceImpl(object):
         find method
         @todo receive definition of the filters object
         """
-        _, results = self.RR.find_resources(self.iontype, None, None, False)
+        results, _ = self.RR.find_resources(self.iontype, None, None, False)
         return self._return_find(results)
 
 
@@ -394,7 +395,7 @@ class ResourceImpl(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        _, ret = self.RR.find_subjects(self.iontype,
+        ret, _ = self.RR.find_subjects(self.iontype,
                                        association_predicate,
                                        some_object,
                                        False)
@@ -409,7 +410,7 @@ class ResourceImpl(object):
         @param association_prediate the association type
         @param some_object_type the type of associated object
         """
-        _, ret = self.RR.find_objects(primary_object_id,
+        ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,
                                       some_object_type,
                                       False)
@@ -482,6 +483,8 @@ class ResourceImpl(object):
         @param object_id the resource ID of the type to be joined
         @todo check for errors: does RR check for bogus ids?
         """
+
+        assert(type("") == type(subject_id) == type(object_id))
 
         associate_success = self.RR.create_association(subject_id,
                                                        association_type,
@@ -563,6 +566,8 @@ class ResourceImpl(object):
         @param object_id the resource ID of the type to be joined
         @todo check for errors
         """
+
+        assert(type("") == type(subject_id) == type(object_id))
 
         assoc = self.RR.get_association(subject=subject_id,
                                         predicate=association_type,
