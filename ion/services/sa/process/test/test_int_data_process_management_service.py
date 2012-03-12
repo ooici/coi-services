@@ -184,8 +184,8 @@ class TestIntDataProcessManagementService(IonIntegrationTestCase):
 #            self.Processclient.read_data_process_definition(dprocdef_id)
 
 
-@attr('INT', group='foo')
-#@unittest.skip('not working')
+@attr('INT', group='sa')
+@unittest.skip('not working')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):
