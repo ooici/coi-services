@@ -134,7 +134,7 @@ class SBE37Parameter(DriverParameter):
         
         
 PACKET_CONFIG = {
-        'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
+        'ctd_parsed' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet'),
         'ctd_raw' : None            
 }
 
