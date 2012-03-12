@@ -351,8 +351,8 @@ class UserNotificationService(BaseUserNotificationService):
                                            origin=origin, 
                                            start_ts=min_datetime, 
                                            end_ts=max_datetime,
-                                           reverse_order=descending,
-                                           max_results=limit)
+                                           descending=descending,
+                                           limit=limit)
 
     def find_event_types_for_resource(self, resource_id=''):
         resource_object = self.clients.resource_registry.read(resource_id)

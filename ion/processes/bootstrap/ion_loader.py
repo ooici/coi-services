@@ -290,6 +290,8 @@ class IONLoader(ImmediateProcess):
         rr_client = self._get_service_client("resource_registry")
 
         org_id = row["org_id"]
+        if org_id:
+            org_id = self.resource_ids[org_id]
         mf_id = row["marine_facility_id"]
         if mf_id:
             mf_id = self.resource_ids[mf_id]
