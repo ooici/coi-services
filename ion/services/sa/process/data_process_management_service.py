@@ -107,11 +107,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=False)
-        if not associations or len(associations) == 0:
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=True)
+        if not associations:
             raise NotFound("No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association._id)
+            self.clients.resource_registry.delete_association(association)
 
         return
 
@@ -136,11 +136,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=False)
-        if not associations or len(associations) == 0:
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=True)
+        if not associations:
             raise NotFound("No Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association._id)
+            self.clients.resource_registry.delete_association(association)
 
         return
 
@@ -196,15 +196,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             out_data_product_obj = self.clients.resource_registry.read(out_data_product_id)
             if not out_data_product_obj:
                 raise NotFound("Output Data Product %s does not exist" % out_data_product_id)
-            # register as an output product for this process
+            # Associate with DataProcess: register as an output product for this process
+            log.debug("DataProcessManagementService:create_data_process link data process %s and output out data product: %s", str(data_process_id), str(out_data_product_id))
             self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
 
-            # Associate with dataProcess
-            # todo: COI needs to allow multi hasOutputProduct links
-            # self.clients.resource_registry.create_association(data_process_id,  PRED.hasOutputProduct, out_data_product_id)
-
             # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
+            stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, RT.Stream, True)
 
             log.debug("DataProcessManagementService:create_data_process retrieve out data prod streams: %s", str(stream_ids))
             if not stream_ids:
