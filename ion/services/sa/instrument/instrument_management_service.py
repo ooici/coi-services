@@ -177,7 +177,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_device_id = inst_device_ids[0]
 
         #retrieve the instrument model
-        model_ids = self.instrument_device.find_stemming_model(instrument_device_id)
+        model_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
         if not model_ids:
             raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
 
@@ -186,15 +186,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the associated instrument agent
-        agent_ids = self.instrument_agent.find_having_model(instrument_model_id)
+        agent_ids = self.RR.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
         if not agent_ids:
             raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
 
         instrument_agent_id = agent_ids[0]
-        log.debug("Getting instrument agent '%s'" % instrument_agent_id)
+        log.debug("Got instrument agent '%s'" % instrument_agent_id)
 
-        # retrieve the instrument agent information
-        instrument_agent_obj = self.RR.read(instrument_agent_id)
 
         #retrieve the associated process definition
         process_def_ids, _ = self.RR.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
