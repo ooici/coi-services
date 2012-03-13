@@ -74,6 +74,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         * add cleanup functions to cause subscribers to get stopped.
         """
         
+        self.cleanupprocs()
+        
         self.addCleanup(self.customCleanUp)
         # Names of agent data streams to be configured.
         parsed_stream_name = 'ctd_parsed'        
@@ -212,12 +214,29 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
         self.addCleanup(cleanup_procs, self)
 
+    def cleanupprocs(self):
+        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('rm /tmp/*.pid.txt')
 
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
         driver process and transition to direct access.
         """
+                
         print("test initing")
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
@@ -265,6 +284,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -285,6 +305,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         launch a connection broker, connect to device hardware, determine
         entry state of driver and intialize driver parameters.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -320,6 +341,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         getting and setting driver reousrce paramters in various syntaxes and
         validates results including persistence on device hardware.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -431,6 +453,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test instrument driver resource execute interface to do polled
         sampling.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -476,6 +499,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test instrument driver execute interface to start and stop streaming
         mode.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
