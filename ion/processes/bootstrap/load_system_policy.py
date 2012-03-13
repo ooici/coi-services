@@ -85,6 +85,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
 ##############
 
+
         policy_text = '''
         <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
             <Description>
@@ -137,6 +138,7 @@ class LoadSystemPolicy(ImmediateProcess):
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_requests</AttributeValue>
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_user_requests</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_enrolled_users</AttributeValue>
                         </Apply>
                         <ActionAttributeDesignator
                              AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
@@ -158,6 +160,41 @@ class LoadSystemPolicy(ImmediateProcess):
 
 ##############
 
+        policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
+
+        policy_text = '''
+        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+            </Target>
+
+            <Condition>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                        </Apply>
+                        <SubjectAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+            </Condition>
+
+        </Rule>
+        '''
+
+
+        policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="global", rule=policy_text,
+            description='A global policy rule that permits access to everything in the Org for a user with Org Manager role')
+
+        policy_id = policy_client.create_policy(policy_obj, headers={'ion-actor-id': system_actor._id})
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers={'ion-actor-id': system_actor._id})
+        log.debug('Policy created: ' + policy_obj.name)
+
+##############
 
         policy_text = '''
             <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">

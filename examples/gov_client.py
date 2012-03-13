@@ -35,7 +35,7 @@ def seed_gov(container, process=FakeProcess()):
     org_client.add_user_role(ion_org._id, operator_role,  headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
 
     try:
-        org_client.add_user_role(ion_org._id, operator_role)
+        org_client.add_user_role(ion_org._id, operator_role, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     except Exception, e:
         log.info("This should fail")
         log.info(e.message)
@@ -78,20 +78,10 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     for r in roles:
         log.info('Org UserRole: ' + str(r))
 
-    users = org_client.find_enrolled_users(ion_org._id)
+    users = org_client.find_enrolled_users(ion_org._id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     for u in users:
         log.info( str(u))
 
-    roles = org_client.find_roles_by_user(ion_org._id, user_id)
-    for r in roles:
-        log.info('User UserRole: ' + str(r))
-
-
-    results = find_data_products(user_id)
-    log.info(results)
-
-    results = find_instrument_agents(user_id)
-    log.info(results)
 
  #   header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
 
@@ -100,9 +90,13 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
  #   for r in roles:
  #       log.info('User UserRole: ' +str(r))
 
-    roles = org_client.find_roles_by_user(ion_org._id, system_actor._id)
+    roles = org_client.find_roles_by_user(ion_org._id, system_actor._id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     for r in roles:
         log.info('ION System UserRole: ' +str(r))
+
+    roles = org_client.find_roles_by_user(ion_org._id, user_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    for r in roles:
+        log.info('User UserRole: ' + str(r))
 
 
 #    log.info("Adding Instrument Operator Role")
@@ -133,7 +127,9 @@ def test_policy(container, process=FakeProcess()):
 
     policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
 
-    users = org_client.find_enrolled_users(ion_org._id)
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+
+    users = org_client.find_enrolled_users(ion_org._id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
     for u in users:
         log.info( str(u))
 
@@ -207,12 +203,14 @@ def test_policy(container, process=FakeProcess()):
     results = find_data_products()
     log.info(results)
 
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(user._id))
+
     ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
 
     try:
         ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent1', description='The first Instrument Agent')
 
-        ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': system_actor._id})
+        ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': user._id, 'ion-actor-roles': header_roles })
     except Exception, e:
         log.info('This operation should be denied: ' + e.message)
 
