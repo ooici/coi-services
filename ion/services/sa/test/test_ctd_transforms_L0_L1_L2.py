@@ -160,17 +160,17 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         print 'Creating new CDM data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
         try:
-            data_product_id1 = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
+            ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
-        print 'new dp_id = ', data_product_id1
+        print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
 
-        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product, persist_data=True, persist_metadata=True)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
+        stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
         print 'test_createTransformsThenActivateInstrument: Data product streams1 = ', stream_ids
 
         #-------------------------------
@@ -182,17 +182,17 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,name='ctd_raw',description='raw stream test')
         try:
-            data_product_id2 = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
+            ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
-        print 'new dp_id = ', data_product_id2
+        print 'new ctd_raw_data_product_id = ', ctd_raw_data_product
 
-        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product, persist_data=True, persist_metadata=True)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
+        stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
         print 'Data product streams2 = ', stream_ids
 
 
@@ -352,52 +352,114 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         self.output_products={}
         log.debug("test_createTransformsThenActivateInstrument: create output data product L1 conductivity")
-        ctd_l1_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L1_Conductivity',description='transform output conductivity')
+        ctd_l1_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L1_Conductivity',description='transform output L1 conductivity')
         ctd_l1_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_conductivity_output_dp_obj, outgoing_stream_l1_conductivity_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L1 pressure")
-        ctd_l1_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L1_Pressure',description='transform output pressure')
+        ctd_l1_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L1_Pressure',description='transform output L1 pressure')
         ctd_l1_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_pressure_output_dp_obj, outgoing_stream_l1_pressure_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_pressure_output_dp_id, persist_data=True, persist_metadata=True)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L1 temperature")
-        ctd_l1_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L1_Temperature',description='transform output ')
+        ctd_l1_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L1_Temperature',description='transform output L1 temperature')
         ctd_l1_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_temperature_output_dp_obj, outgoing_stream_l1_temperature_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_temperature_output_dp_id, persist_data=True, persist_metadata=True)
 
+
+        #-------------------------------
+        # L2 Salinity - Density: Output Data Products
+        #-------------------------------
+
+        outgoing_stream_l2_salinity = L2_practical_salinity_stream_definition()
+        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_salinity, name='L2_salinity')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id )
+
+        outgoing_stream_l2_density = L2_density_stream_definition()
+        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_density, name='L2_Density')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id )
+
+        log.debug("test_createTransformsThenActivateInstrument: create output data product L2 Salinity")
+        ctd_l2_salinity_output_dp_obj = IonObject(RT.DataProduct, name='L2_Salinity',description='transform output L2 salinity')
+        ctd_l2_salinity_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_salinity_output_dp_obj, outgoing_stream_l2_salinity_id)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_salinity_output_dp_id, persist_data=True, persist_metadata=True)
+
+        log.debug("test_createTransformsThenActivateInstrument: create output data product L2 Density")
+        ctd_l2_density_output_dp_obj = IonObject(RT.DataProduct, name='L1_Pressure',description='transform output pressure')
+        ctd_l2_density_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_density_output_dp_obj, outgoing_stream_l2_density_id)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_density_output_dp_id, persist_data=True, persist_metadata=True)
+        
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
-        log.debug("test_createTransformsThenActivateInstrument: create_data_process start")
+        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process start")
         try:
-            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, input_dp_id, self.output_products)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product, self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-        log.debug("test_createTransformsThenActivateInstrument: create_data_process return")
+        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
+
+
+        #-------------------------------
+        # L1 Conductivity: Create the data process
+        #-------------------------------
+        log.debug("test_createTransformsThenActivateInstrument: create L1 Conductivity data_process start")
+        try:
+            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, ctd_l0_conductivity_output_dp_id, {'L1_Conductivity':ctd_l1_conductivity_output_dp_id})
+        except BadRequest as ex:
+            self.fail("failed to create new data process: %s" %ex)
+
+        log.debug("test_createTransformsThenActivateInstrument: create L1 Conductivity data_process return")
+
+
+        #-------------------------------
+        # L1 Pressure: Create the data process
+        #-------------------------------
+        log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
+        try:
+            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, ctd_l0_pressure_output_dp_id, {'L1_Pressure':ctd_l1_pressure_output_dp_id})
+        except BadRequest as ex:
+            self.fail("failed to create new data process: %s" %ex)
+
+        log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process return")
 
 
 
+        #-------------------------------
+        # L1 Temperature: Create the data process
+        #-------------------------------
+        log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
+        try:
+            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, ctd_l0_temperature_output_dp_id, {'L1_Temperature':ctd_l1_temperature_output_dp_id})
+        except BadRequest as ex:
+            self.fail("failed to create new data process: %s" %ex)
+
+        log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process return")
 
 
 
+        #-------------------------------
+        # L2 Salinity: Create the data process
+        #-------------------------------
+        log.debug("test_createTransformsThenActivateInstrument: create L2_salinity data_process start")
+        try:
+            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, ctd_parsed_data_product, {'L2_salinity':ctd_l2_salinity_output_dp_id})
+        except BadRequest as ex:
+            self.fail("failed to create new data process: %s" %ex)
 
+        log.debug("test_createTransformsThenActivateInstrument: create L2_salinity data_process return")
 
+        #-------------------------------
+        # L2 Density: Create the data process
+        #-------------------------------
+        log.debug("test_createTransformsThenActivateInstrument: create L2_Density data_process start")
+        try:
+            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, ctd_parsed_data_product, {'L2_density':ctd_l2_density_output_dp_id})
+        except BadRequest as ex:
+            self.fail("failed to create new data process: %s" %ex)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+        log.debug("test_createTransformsThenActivateInstrument: create L2_Density data_process return")
 
 
 
@@ -411,10 +473,9 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('123xyz', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
+        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
         print 'activate_instrument: got ia client %s', self._ia_client
         log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
-
 
 
 
