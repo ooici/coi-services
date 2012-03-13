@@ -106,26 +106,6 @@ class TestSBE37Driver(PyonTestCase):
         
         self.events = None
         
-<<<<<<< HEAD
-    def cleanupprocs(self):
-        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
-        procs = stm.read()
-        if len(procs) > 0:
-            procs = procs.split()
-            if procs[0].isdigit():
-                pid = int(procs[0])
-                os.kill(pid,signal.SIGKILL)                
-        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
-        procs = stm.read()
-        if len(procs) > 0:
-            procs = procs.split()
-            if procs[0].isdigit():
-                pid = int(procs[0])
-                os.kill(pid,signal.SIGKILL)                
-        stm = os.popen('rm /tmp/*.pid.txt')                
-        time.sleep(2)
-        
-=======
         # Launch driver process.
         self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls) 
 
@@ -144,7 +124,23 @@ class TestSBE37Driver(PyonTestCase):
                 os.kill(self.driver_process.pid, signal.SIGKILL)
 
         self.addCleanup(cleanup_procs, self)
->>>>>>> 4de6c7213f0cfc54ce36440ccc98bafaf24d8af6
+
+    def cleanupprocs(self):
+        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('rm /tmp/*.pid.txt')
         
     def clear_events(self):
         """
