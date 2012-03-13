@@ -290,7 +290,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         couch_storage = ingestion_configuration.couch_storage
 
         log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
-        db = self.container.datastore_manager.get_datastore(couch_storage.datastore_name, self.CFG)
+        db = self.container.datastore_manager.get_datastore(ds_name = couch_storage.datastore_name, config = self.CFG)
 
         # put it in couch db!
         db.create(stream_def_container)
