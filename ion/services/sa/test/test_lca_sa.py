@@ -13,7 +13,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
-from pyon.public import RT, LCS # , PRED
+from pyon.public import RT, LCS, PRED
 from nose.plugins.attrib import attr
 import unittest
 
@@ -56,7 +56,7 @@ class TestLCASA(IonIntegrationTestCase):
     @unittest.skip('this test just for debugging setup')
     def test_just_the_setup(self):
         return
-
+    
 
     def _low_level_init(self):
         resource_ids = {}
