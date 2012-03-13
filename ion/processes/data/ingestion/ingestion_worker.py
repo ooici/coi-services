@@ -69,7 +69,7 @@ class IngestionWorker(TransformDataProcess):
 
             self.datastore_profile = DataStore.DS_PROFILE.SCIDATA
         log.debug('datastore_profile %s' % self.datastore_profile)
-        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, self.datastore_profile, self.CFG)
+        self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
