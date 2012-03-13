@@ -517,7 +517,8 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     ############################
 
     def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=[]):
-        
+        log.debug("Find subordinate entity")
+
         # the relative depth of each resource type in our tree
         depth = {RT.LogicalInstrument: 4,
                  RT.LogicalPlatform: 3,
@@ -527,7 +528,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
 
         # the possible parent types that a resource can have
         hierarchy_dependencies =  {
-            RT.LogicaInstrument: [RT.LogicalPlatform],
+            RT.LogicalInstrument: [RT.LogicalPlatform],
             RT.LogicalPlatform:  [RT.LogicalPlatform, RT.Site],
             RT.Site:             [RT.Site, RT.MarineFacility],
             }
@@ -543,6 +544,8 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         for child_type in child_resource_type_list:
             if depth[deepest_type] < depth[child_type]:
                 deepest_type = child_type
+
+        log.debug("Deepest level for search will be '%s'" % deepest_type)
 
         # generate function calls in order of dependencies -- reverse
         call_list = []
@@ -579,6 +582,8 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
             (RT.LogicalPlatform, RT.LogicalInstrument): self.logical_platform.find_stemming_instrument,
             }[(parent_type, child_type)]
         
+        log.debug("Subordinates: '%s'x%d->'%s'" % (parent_type, len(acc[parent_type]), child_type))
+
         #for all parents in the acc, add all their children
         for parent_obj in acc[parent_type]:
             parent_id = parent_obj._id
