@@ -67,7 +67,10 @@ class DensityTransform(TransformFunction):
         log.warn('Got density: %s' % str(dens))
 
         # Use the constructor to put data into a granule
-        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)
+        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
+        ### Assumes the config argument for output streams is known and there is only one 'output'.
+        ### the stream id is part of the metadata which much go in each stream granule - this is awkward to do at the
+        ### application level like this!
 
         for i in xrange(len(density)):
             point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))

@@ -517,7 +517,83 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     ############################
 
     def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=[]):
-        return {}
+        log.debug("Find subordinate entity")
+
+        # the relative depth of each resource type in our tree
+        depth = {RT.LogicalInstrument: 4,
+                 RT.LogicalPlatform: 3,
+                 RT.Site: 2,
+                 RT.MarineFacility: 1,
+                 }
+
+        # the possible parent types that a resource can have
+        hierarchy_dependencies =  {
+            RT.LogicalInstrument: [RT.LogicalPlatform],
+            RT.LogicalPlatform:  [RT.LogicalPlatform, RT.Site],
+            RT.Site:             [RT.Site, RT.MarineFacility],
+            }
+
+
+        parent_obj  = self.RR.read(parent_resource_id)
+        parent_type = type(parent_obj).__name__
+        acc = {}
+        acc[parent_type] = [parent_obj]
+
+        # figure out the actual depth we need to go
+        deepest_type = parent_type
+        for child_type in child_resource_type_list:
+            if depth[deepest_type] < depth[child_type]:
+                deepest_type = child_type
+
+        log.debug("Deepest level for search will be '%s'" % deepest_type)
+
+        # generate function calls in order of dependencies -- reverse
+        call_list = []
+        target_type = deepest_type
+        while target_type != parent_type:
+            for requisite_type in hierarchy_dependencies[target_type]:
+                #should cause errors if they stray
+                call_list.append((requisite_type, target_type))
+            #latest solved type is the latest result
+            target_type = requisite_type
+
+        # reverse the list and start calling functions
+        call_list.reverse()
+        for (p, c) in call_list:
+            acc = self._find_subordinate(acc, p, c)
+
+
+        return acc
+                    
+
+
+    def _find_subordinate(self, acc, parent_type, child_type):
+        """
+        acc is an accumulated dictionary
+        """
+        if not child_type in acc:
+            acc[child_type] = []
+            
+        find_fn = {
+            (RT.MarineFacility, RT.Site):               self.marine_facility.find_stemming_site,
+            (RT.Site, RT.Site):                         self.site.find_stemming_site,
+            (RT.Site, RT.LogicalPlatform):              self.site.find_stemming_platform,
+            (RT.LogicalPlatform, RT.LogicalPlatform):   self.logical_platform.find_stemming_platform,
+            (RT.LogicalPlatform, RT.LogicalInstrument): self.logical_platform.find_stemming_instrument,
+            }[(parent_type, child_type)]
+        
+        log.debug("Subordinates: '%s'x%d->'%s'" % (parent_type, len(acc[parent_type]), child_type))
+
+        #for all parents in the acc, add all their children
+        for parent_obj in acc[parent_type]:
+            parent_id = parent_obj._id
+            for child_obj in find_fn(parent_id):
+                acc[child_type].append(child_obj)
+
+        return acc
+
+
+
 
     def find_instrument_device_by_logical_platform(self, logical_platform_id=''):
         ret = []

@@ -330,13 +330,55 @@ class OrgManagementService(BaseOrgManagementService):
 
         req_id = self.request_handler.open_request(req_obj)
 
-        #If the user is not enrolled with the Org then immediately deny the request
+        #If the user is not enrolled with the Org then immediately deny the request  -TODO move to Neg object?
         if not self.is_enrolled(org_id, user_id):
             self.deny_request(org_id, req_id, "The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
 
         return req_id
 
+    def request_acquire_resource(self, org_id='', user_id='', resource_id=''):
+        """Requests to acquire a resource within an Org which must be accepted or denied as a separate process.
+        Throws a NotFound exception if neither id is found.
+
+        @param org_id    str
+        @param user_id    str
+        @param resource_id    str
+        @retval request_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+            raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        resource = self.clients.resource_registry.read(resource_id)
+        if not resource:
+            raise NotFound("Resource %s does not exist" % resource_id)
+
+        #Initiate request
+        req_obj = NegotiateRequestFactory.create_acquire_resource(org_id, user_id, resource_id)
+
+        req_id = self.request_handler.open_request(req_obj)
+
+        #If the user is not enrolled with the Org then immediately deny the request  -TODO move to Neg object?
+        if not self.is_enrolled(org_id, user_id):
+            self.deny_request(org_id, req_id, "The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
+
+        return req_id
 
     def find_requests(self, org_id='', request_type='', request_status=''):
         """Returns a list of open requests for an Org. An optional request_type can be supplied
@@ -936,6 +978,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         return True
 
+
     def unshare_resource(self, org_id='', resource_id=''):
         """Unshare a specified resource with the specified Org. Once unshared, the resource will be removed from a directory
         of available resources within the Org. Throws a NotFound exception if neither id is found.
@@ -967,6 +1010,95 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
         return True
 
+    def acquire_resource(self, org_id='', user_id='', resource_id=''):
+        """Acquire the specified resource for a specified user withing the specified Org. Once shared, the resource is
+        committed to the user. Throws a NotFound exception if none of the ids are found.
+
+        @param org_id    str
+        @param user_id    str
+        @param resource_id    str
+        @retval success    bool
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+            raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        resource = self.clients.resource_registry.read(resource_id)
+        if not resource:
+            raise NotFound("Resource %s does not exist" % resource_id)
+
+        com_obj = IonObject(RT.ResourceCommitment, name='', org_id=org_id, user_id=user_id, resource_id=resource_id,
+            description='Resource Commitment')
+
+        commitment_id, _ = self.clients.resource_registry.create(com_obj)
+        commitment = self.clients.resource_registry.read(commitment_id)
+        self.clients.resource_registry.create_association(org_id, PRED.hasCommitment, commitment)
+        self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment)
+
+        return True
+
+    def release_resource(self, org_id='', user_id='', resource_id=''):
+        """Release the specified resource from an existing commitment. Throws a NotFound exception if none of the ids are found.
+
+        @param org_id    str
+        @param user_id    str
+        @param resource_id    str
+        @retval success    bool
+        @throws NotFound    object with specified id does not exist
+        """
+        if not org_id:
+            raise BadRequest("The org_id parameter is missing")
+
+        org = self.clients.resource_registry.read(org_id)
+        if not org:
+            raise NotFound("Org %s does not exist" % org_id)
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        resource = self.clients.resource_registry.read(resource_id)
+        if not resource:
+            raise NotFound("Resource %s does not exist" % resource_id)
+
+        request_list,_ = self.clients.resource_registry.find_objects(resource_id, PRED.hasCommitment, RT.ResourceCommitment)
+        for req in request_list:
+            if req.org_id == org_id and req.user_id == user_id:
+                aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, req)
+                self.clients.resource_registry.delete_association(aid[0])
+
+        request_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasCommitment, RT.ResourceCommitment)
+        for req in request_list:
+            if req.resource_id == resource_id and req.user_id == user_id:
+                aid = self.clients.resource_registry.find_associations(org_id, PRED.hasCommitment, req)
+                self.clients.resource_registry.delete_association(aid[0])
+
+                try:
+                    self.clients.resource_registry.delete(req._id)
+                except Exception, e:
+                    log.debug("Error: " + e.message)
+
+        return True
 
     def affiliate_org(self, org_id='', affiliate_org_id=''):
         """Creates an association between multiple Orgs as an affiliation

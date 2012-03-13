@@ -182,7 +182,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
                                                                  "events_list":['resource_lifecycle']})
         notification_id = self.unsc.create_notification(notification_object, user_id)
-        print("n_id = " + notification_id)
         
         # read back the notification and change it
         notification = self.unsc.read_notification(notification_id)

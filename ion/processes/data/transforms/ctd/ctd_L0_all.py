@@ -70,11 +70,14 @@ class ctd_L0_all(TransformDataProcess):
 
         # Use the constructor to put data into a granule
 
-        psc_conductivity = PointSupplementConstructor(point_definition=self.outgoing_stream_conductivity)
+        psc_conductivity = PointSupplementConstructor(point_definition=self.outgoing_stream_conductivity, stream_id=self.streams['conductivity'])
 
-        psc_pressure = PointSupplementConstructor(point_definition=self.outgoing_stream_pressure)
+        psc_pressure = PointSupplementConstructor(point_definition=self.outgoing_stream_pressure, stream_id=self.streams['pressure'])
 
-        psc_temperature = PointSupplementConstructor(point_definition=self.outgoing_stream_temperature)
+        psc_temperature = PointSupplementConstructor(point_definition=self.outgoing_stream_temperature, stream_id=self.streams['temperature'])
+
+        ### The stream id is part of the metadata which much go in each stream granule - this is awkward to do at the
+        ### application level like this!
 
         for i in xrange(len(conductivity)):
             point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))

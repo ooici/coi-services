@@ -400,11 +400,11 @@ def build_message_headers( ion_actor_id, expiry):
     try:
         #Check to see if the user's roles are cached already - keyed by user id
         #TODO - May need to synchronize this if there are "threading" issues
-        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
-            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
-            if role_header is not None:
-                headers['ion-actor-roles'] = role_header
-                return headers
+#        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
+#            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+#            if role_header is not None:
+#                headers['ion-actor-roles'] = role_header
+#                return headers
 
 
         #The user's roles were not cached so hit the datastore to find it.
@@ -674,10 +674,10 @@ def test_policy():
     return json_response("")
 
 
-@app.route('/ion-service/test_enrollment_request')
-def test_enrollment_request():
-    from examples.gov_client import test_enrollment_request
-    test_enrollment_request(Container.instance)
+@app.route('/ion-service/test_requests')
+def test_requests():
+    from examples.gov_client import test_requests
+    test_requests(Container.instance)
     return json_response("")
 
 
