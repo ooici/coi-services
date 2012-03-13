@@ -674,10 +674,10 @@ def test_policy():
     return json_response("")
 
 
-@app.route('/ion-service/test_enrollment_request')
-def test_enrollment_request():
-    from examples.gov_client import test_enrollment_request
-    test_enrollment_request(Container.instance)
+@app.route('/ion-service/test_requests')
+def test_requests():
+    from examples.gov_client import test_requests
+    test_requests(Container.instance)
     return json_response("")
 
 

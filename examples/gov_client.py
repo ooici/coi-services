@@ -237,7 +237,7 @@ def test_policy(container, process=FakeProcess()):
     results = find_instrument_agents()
     log.info(results)
 
-def test_enrollment_request(container, process=FakeProcess()):
+def test_requests(container, process=FakeProcess()):
 
     org_client = OrgManagementServiceProcessClient(node=container.node, process=process)
     ion_org = org_client.find_org()
@@ -387,6 +387,45 @@ def test_enrollment_request(container, process=FakeProcess()):
     log.info("User Open Requests count: %d" % len(requests))
     for r in requests:
         log.info('User Open Request: ' +str(r))
+
+    ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
+
+    log.info( 'Request Instrument Agents')
+    ia_list = ims_client.find_instrument_agents()
+
+    req_id = org_client.request_acquire_resource(org2_id,user._id,ia_list[0] , headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+
+    log.info("Manager approves request")
+    if req_id is not None:
+        org_client.approve_request(org2_id,req_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+    log.info("User accepts request")
+    if req_id is not None:
+        org_client.accept_request(org2_id,req_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+
 
 
 #    org_client.approve_request(org2_id, req_id)
