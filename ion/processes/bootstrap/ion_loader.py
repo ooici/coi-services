@@ -28,7 +28,7 @@ class IONLoader(ImmediateProcess):
     COL_LCSTATE = "lcstate"
     COL_MF = "mf_ids"
 
-    ID_OOI_ASSETS = "X_OOI"
+    ID_ORG_ION = "ORG_ION"
 
     def on_start(self):
 
@@ -256,7 +256,7 @@ class IONLoader(ImmediateProcess):
             if not org_ids:
                 raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
             ion_org_id = org_ids[0]
-            self._register_id("ORG_ION", ion_org_id)
+            self._register_id(self.ID_ORG_ION, ion_org_id)
 
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
@@ -291,6 +291,8 @@ class IONLoader(ImmediateProcess):
 
         org_id = row["org_id"]
         if org_id:
+            if org_id == self.ID_ORG_ION and DEBUG:
+                return
             org_id = self.resource_ids[org_id]
         mf_id = row["marine_facility_id"]
         if mf_id:
@@ -510,6 +512,14 @@ class IONLoader(ImmediateProcess):
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
                                             "instrument_management", "create_instrument_agent")
+
+        svc_client = self._get_service_client("instrument_management")
+
+        im_ids = row["instrument_model_ids"]
+        if im_ids:
+            im_ids = self._get_typed_value(im_ids, targettype="simplelist")
+            for im_id in im_ids:
+                svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id)
 
         self._resource_advance_lcs(row, res_id)
 
