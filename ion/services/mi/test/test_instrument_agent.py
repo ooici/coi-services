@@ -74,6 +74,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         * add cleanup functions to cause subscribers to get stopped.
         """
         
+        self.cleanupprocs()
+        
         self.addCleanup(self.customCleanUp)
         # Names of agent data streams to be configured.
         parsed_stream_name = 'ctd_parsed'        
@@ -212,6 +214,22 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
         self.addCleanup(cleanup_procs, self)
 
+    def cleanupprocs(self):
+        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('rm /tmp/*.pid.txt')
 
     def test_direct_access(self):
         """

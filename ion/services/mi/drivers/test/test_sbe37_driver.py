@@ -56,6 +56,9 @@ class TestSBE37Driver(PyonTestCase):
         """
         Setup test cases.
         """
+        
+        self.cleanupprocs()
+        
         # Zmq parameters to configure communications with the driver process.
         self.server_addr = 'localhost'
         self.cmd_port = 5556
@@ -78,6 +81,25 @@ class TestSBE37Driver(PyonTestCase):
             }
         }
 
+        """
+        def cleanupprocs():
+        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('rm /tmp/*.pid.txt')                
+        """
+
         # Add cleanup handler functions.
         # Add functions to detect and kill processes and remove pidfiles
         # as necessary.
@@ -90,6 +112,25 @@ class TestSBE37Driver(PyonTestCase):
         # self.addCleanup()
         
         self.events = None
+        
+    def cleanupprocs(self):
+        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('rm /tmp/*.pid.txt')                
+        time.sleep(2)
+        
         
     def clear_events(self):
         """
