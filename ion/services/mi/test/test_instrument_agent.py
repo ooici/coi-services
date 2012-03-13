@@ -236,6 +236,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test agent direct_access command. This causes creation of
         driver process and transition to direct access.
         """
+                
         print("test initing")
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
@@ -283,6 +284,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -303,6 +305,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         launch a connection broker, connect to device hardware, determine
         entry state of driver and intialize driver parameters.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -338,6 +341,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         getting and setting driver reousrce paramters in various syntaxes and
         validates results including persistence on device hardware.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -449,6 +453,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test instrument driver resource execute interface to do polled
         sampling.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -494,6 +499,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test instrument driver execute interface to start and stop streaming
         mode.
         """
+                
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
