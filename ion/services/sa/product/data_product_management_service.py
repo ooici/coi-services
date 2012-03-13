@@ -171,9 +171,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
         dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration( dataset_id=data_product_obj.dataset_id, archive_data=persist_data, archive_metadata=persist_metadata, ingestion_configuration_id=ingest_config_ids[0])
         log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
-        #todo: does DPMS need to save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
+        # save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
+        data_product_obj.dataset_configuration_id = dataset_configuration_id
+        self.update_data_product(data_product_obj);
 
         return
 
