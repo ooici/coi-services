@@ -50,8 +50,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
-@unittest.skip("run locally only")
+@attr('INT', group='foo')
+#@unittest.skip("run locally only")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -416,7 +416,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
-            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, ctd_l0_pressure_output_dp_id, {'output':ctd_l1_pressure_output_dp_id})
+            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, ctd_l0_pressure_output_dp_id, {'output':ctd_l1_pressure_output_dp_id})
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -429,7 +429,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
-            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, ctd_l0_temperature_output_dp_id, {'output':ctd_l1_temperature_output_dp_id})
+            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, ctd_l0_temperature_output_dp_id, {'output':ctd_l1_temperature_output_dp_id})
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 

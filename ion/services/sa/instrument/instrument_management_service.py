@@ -232,6 +232,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise NotFound("Stream %s does not exist" % stream_ids[0])
 
             log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
+
+            #todo  - Replace this hack: look in the data product name for 'raw' or 'parsed'
+
+#            if (stream_obj.name.lower().find('parsed')):
+#                out_streams["ctd_parsed"] = stream_ids[0]
+#            elif (stream_obj.name.lower().find(raw')):
+#                out_streams["ctd_raw"] = stream_ids[0]
+
             out_streams[stream_obj.name] = stream_ids[0]
 
 
