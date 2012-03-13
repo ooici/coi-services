@@ -11,7 +11,7 @@ from gevent.wsgi import WSGIServer
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
 from pyon.core.object import IonObjectBase
 from pyon.core.registry import getextends, model_classes
-from pyon.public import Container, StandaloneProcess, log
+from pyon.public import Container, StandaloneProcess, log, PRED, RT
 from pyon.util.containers import named_any
 
 #Initialize the flask app
@@ -321,6 +321,59 @@ def process_assoc_list():
         return flask.redirect("/")
     except Exception, e:
         return build_simple_page("Error: %s" % traceback.format_exc())
+
+# ----------------------------------------------------------------------------------------
+
+@app.route('/nested/<rid>', methods=['GET','POST'])
+def process_nested(rid):
+    try:
+        rid = str(rid)
+        res = find_subordinate_entity(rid, None)
+
+        fragments = [
+            "<h1>Child entities</h1>",
+            "<p>%s</p>" % (res),
+
+            ]
+        content = "\n".join(fragments)
+        return build_page(content)
+
+    except Exception, e:
+        return build_simple_page("Error: %s" % traceback.format_exc())
+
+
+def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=None):
+    if not child_resource_type_list:
+        child_resource_type_list = set(["LogicalInstrument", "LogicalPlatform", "Site"])
+    matchlist = []
+    parents = _get_all_parents()
+    for rid in parents:
+        rt,pid = parents[rid]
+        if rt not in child_resource_type_list:
+            continue
+        while pid:
+            if pid == parent_resource_id:
+                matchlist.append(rid)
+                continue
+            _,pid = parents.get(pid, (None,None))
+
+    return matchlist
+
+def _get_all_parents():
+    parents = {}
+    assocs1 = Container.instance.resource_registry.find_associations(predicate=PRED.hasSite, id_only=False)
+    for assoc in assocs1:
+        if assoc.st == "MarineFacility" or assoc.st == "Site":
+            parents[assoc.o] = ("Site", assoc.s)
+    assocs2 = Container.instance.resource_registry.find_associations(predicate=PRED.hasPlatform, id_only=False)
+    for assoc in assocs2:
+        if assoc.st == "Site":
+            parents[assoc.o] = ("LogicalPlatform", assoc.s)
+    assocs3 = Container.instance.resource_registry.find_associations(predicate=PRED.hasInstrument, id_only=False)
+    for assoc in assocs3:
+        if assoc.st == "LogicalPlatform":
+            parents[assoc.o] = ("LogicalInstrument", assoc.s)
+    return parents
 
 # ----------------------------------------------------------------------------------------
 
