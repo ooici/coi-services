@@ -19,6 +19,7 @@ from pyon.util.containers import get_ion_ts
 from pyon.ion.endpoint import StreamPublisherRegistrar
 
 import time
+import socket
 
 from ion.services.mi.instrument_fsm_args import InstrumentFSM
 from ion.services.mi.common import BaseEnum
@@ -833,14 +834,29 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
         
         log.info("Instrument agent requested to go to direct access mode")
-        # tell driver to start direct access mode
-        result = self._dvr_client.cmd_dvr('start_direct_access')
+        
+        # get 'address' of host
+        hostname = socket.gethostname()
+        log.debug("hostname = " + hostname)        
+        ip_addresses = socket.gethostbyname_ex(hostname)
+        log.debug("ip_address=" + str(ip_addresses))
+        ip_address = ip_addresses[2][0]
+        ip_address = hostname
         # create a DA server instance (TODO: just telnet for now) and pass in callback method
-        self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor)
-        # get the connection info from the DA server
-        addr, port, name, password = self.da_server.get_connection_info()
-        result = {'ip_address':addr, 'port':port, 'username':name, 'password':password}
+        try:
+            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor, ip_address)
+        except Exception as ex:
+            log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
+            raise ex
+
+        # get the connection info from the DA server to return to the user
+        port, token = self.da_server.get_connection_info()
+        result = {'ip_address':ip_address, 'port':port, 'token':token}
         next_state = InstrumentAgentState.DIRECT_ACCESS
+
+        # tell driver to start direct access mode
+        self._dvr_client.cmd_dvr('start_direct_access')
+        
         return (next_state, result)
 
     def _handler_get_params(self, params, *args, **kwargs):
