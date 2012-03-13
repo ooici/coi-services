@@ -178,13 +178,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
-        #TODO: should this be outside this method? Called by orchastration?
+        #TODO: should this be outside this method? Called by orchestration?
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
         log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s", str(data_producer_id) )
 
 
         self.output_stream_dict = {}
-        #TODO: should this be outside this method? Called by orchastration?
+        #TODO: should this be outside this method? Called by orchestration?
+        if out_data_products is None:
+            raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
         for name, out_data_product_id in out_data_products.iteritems():
 
             # check that the product is not already associated with a producer
