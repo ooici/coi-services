@@ -14,6 +14,8 @@ from pyon.core.registry import getextends, model_classes
 from pyon.public import Container, StandaloneProcess, log, PRED, RT
 from pyon.util.containers import named_any
 
+from interface import objects
+
 #Initialize the flask app
 app = Flask(__name__)
 
@@ -331,6 +333,7 @@ def process_nested(rid):
         res = find_subordinate_entity(rid, None)
 
         fragments = [
+            build_standard_menu(),
             "<h1>Child entities</h1>",
             "<p>%s</p>" % (res),
 
@@ -405,7 +408,8 @@ def process_dir_path(path):
                 parent = "/"+parent
             else:
                 parent = ""
-            fragments.append("<tr><td>%s</td><td>%s</td><td>%s&nbsp;</td></tr>" % (build_dir_link(parent,de.key), "&nbsp;", str(de.attributes)))
+            fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+                build_dir_link(parent,de.key), "&nbsp;", get_formatted_value(get_value_dict(de.attributes), fieldtype="dict")))
 
         fragments.append("</table></p>")
 
@@ -472,23 +476,19 @@ def process_events():
 def build_events_table(events_list):
     fragments = [
         "<p><table border='1' cellspacing='0'>",
-        "<tr><th>Timestamp</th><th>Event type</th><th>Origin</th><th>Origin type</th><th>Other Attributes</th><th>Description</th></tr>"
+        "<tr><th>Timestamp</th><th>Event type</th><th>Sub-type</th><th>Origin</th><th>Origin type</th><th>Other Attributes</th><th>Description</th></tr>"
     ]
 
+    ignore_fields=["base_types", "origin", "description", "ts_created", "sub_type", "origin_type", "_rev", "_id"]
     for event_id, event_key, event in events_list:
-        event_fields = event.__dict__.copy()
-        event_fields.pop("_rev")
-        event_fields.pop("_id")
-        event_fields.pop("base_types")
-        origin = event_fields.pop("origin")
-        desc = event_fields.pop("description") or "&nbsp;"
-        fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-            get_formatted_value(event_fields.pop("ts_created"), fieldname="ts_created", time_millis=True),
+        fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            get_formatted_value(event.ts_created, fieldname="ts_created", time_millis=True),
             build_link(event._get_type(), "/events?event_type=%s" % event._get_type()),
-            build_link(origin, "/view/%s" % origin),
-            event_fields.pop("origin_type"),
-            get_formatted_value(event_fields, fieldtype="dict"),
-            desc))
+            event.sub_type or "&nbsp;",
+            build_link(event.origin, "/view/%s" % event.origin),
+            event.origin_type or "&nbsp;",
+            get_formatted_value(get_value_dict(event, ignore_fields=ignore_fields), fieldtype="dict"),
+            event.description  or "&nbsp;"))
 
     fragments.append("</table></p>")
 
@@ -538,8 +538,29 @@ def _get_object_class(objtype):
     obj_classes[objtype] = obj_class
     return obj_class
 
+def get_value_dict(obj, ignore_fields=None):
+    ignore_fields = ignore_fields or []
+    if isinstance(obj, IonObjectBase):
+        obj_dict = obj.__dict__
+    else:
+        obj_dict = obj
+    val_dict = {}
+    for k,val in obj_dict.iteritems():
+        if k in ignore_fields:
+            continue
+        if isinstance(val, IonObjectBase):
+            vdict = get_value_dict(val)
+            val_dict[k] = vdict
+        elif isinstance(obj, IonObjectBase):
+            val_dict[k] = get_formatted_value(val, fieldname=k, fieldschema=obj._schema.get(k, None))
+        else:
+            val_dict[k] = get_formatted_value(val, fieldname=k)
+    return val_dict
+
 date_fieldnames = ['ts_created', 'ts_updated']
-def get_formatted_value(value, fieldname=None, fieldtype=None, brief=False, time_millis=False):
+def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None, brief=False, time_millis=False):
+    if not fieldtype and fieldschema:
+        fieldtype = fieldschema['type']
     if isinstance(value, IonObjectBase):
         if brief:
             value = "[%s]" % value._get_type()
@@ -549,6 +570,9 @@ def get_formatted_value(value, fieldname=None, fieldtype=None, brief=False, time
         if value.endswith("<br>"):
             value = value[:-4]
         value = "<pre>%s</pre>" % value
+    elif fieldschema and 'enum_type' in fieldschema:
+        enum_clzz = getattr(objects, fieldschema['enum_type'])
+        return enum_clzz._str_map[int(value)]
     elif fieldname:
         if fieldname in date_fieldnames:
             value = get_datetime(value, time_millis)
