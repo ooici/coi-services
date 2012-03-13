@@ -262,7 +262,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='go_direct_access')
         retval = self._ia_client.execute_agent(cmd) 
         print("retval=" + str(retval))       
-        time.sleep(60)
+        time.sleep(2)
 
         print("test go_ob")
         cmd = AgentCommand(command='go_observatory')
@@ -279,7 +279,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         time.sleep(2)
 
-    def Xtest_initialize(self):
+    def test_initialize(self):
         """
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.
@@ -299,7 +299,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
 
-    def Xtest_go_active(self):
+    def test_go_active(self):
         """
         Test agent go_active command. This causes a driver process to
         launch a connection broker, connect to device hardware, determine
@@ -335,7 +335,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         time.sleep(2)
 
-    def Xtest_get_set(self):
+    def test_get_set(self):
         """
         Test instrument driver resource get/set interface. This tests
         getting and setting driver reousrce paramters in various syntaxes and
@@ -448,7 +448,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
 
-    def Xtest_poll(self):
+    def test_poll(self):
         """
         Test instrument driver resource execute interface to do polled
         sampling.
@@ -494,7 +494,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         time.sleep(2)
 
 
-    def Xtest_autosample(self):
+    def test_autosample(self):
         """
         Test instrument driver execute interface to start and stop streaming
         mode.
