@@ -186,7 +186,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the associated instrument agent
-        agent_ids = self.RR.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
+        agent_ids, _ = self.RR.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
         if not agent_ids:
             raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
 
