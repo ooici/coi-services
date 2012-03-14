@@ -50,6 +50,7 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
     def test_resources_associations(self):
         self._make_associations()
 
+
     def test_find_subordinate(self):
         # find_subordinates gives a dict of obj lists, convert objs to ids
         def idify(adict):
@@ -81,6 +82,35 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
         self.assertIn(stuff.site2_id, ids[RT.Site])
         self.assertNotIn(RT.LogicalInstrument, ids)
         
+    def test_find_superior(self):
+        # find_superiors gives a dict of obj lists, convert objs to ids
+        def idify(adict):
+            ids = {}
+            for k, v in adict.iteritems():
+                ids[k] = [obj._id for obj in v]
+
+            return ids
+
+        #set up associations first
+        stuff = self._make_associations()
+
+        #full traversal of tree down to instrument
+        ret = self.MFMS.find_subordinate_entity(stuff.logical_instrument_id, [RT.MarineFacility])
+        ids = idify(ret)
+        # self.assertIn(RT.MarineFacility, ids)
+        # self.assertIn(stuff.marine_facility_id, ids[RT.MarineFacility])
+
+        #partial traversal, only down to platform
+        ret = self.MFMS.find_subordinate_entity(stuff.logical_instrument_id, [RT.Site, RT.LogicalPlatform])
+        ids = idify(ret)
+        self.assertIn(RT.LogicalPlatform, ids)
+        self.assertIn(RT.Site, ids)
+        self.assertIn(stuff.logical_platform_id, ids[RT.LogicalPlatform])
+        #self.assertIn(stuff.logical_platform2_id, ids[RT.LogicalPlatform])
+        self.assertIn(stuff.site_id, ids[RT.Site])
+        self.assertIn(stuff.site2_id, ids[RT.Site])
+        self.assertNotIn(RT.MarineFacility, ids)
+        
 
     def _make_associations(self):
         """
@@ -111,6 +141,7 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(logical_platform_id, PRED.hasInstrument, logical_instrument_id)
         self.RR.create_association(logical_platform_id, PRED.hasAgent, platform_agent_id)
 
+
         #marine_facility
         self.RR.create_association(marine_facility_id, PRED.hasSite, site_id)
 
@@ -128,13 +159,15 @@ class TestMarineFacilityManagementServiceIntegration(IonIntegrationTestCase):
         ret.logical_instrument_id  = logical_instrument_id
         
         return ret
-        
+
+    #@unittest.skip('temporarily')        
     def test_create_marine_facility(self):
         marine_facility_obj = IonObject(RT.MarineFacility,
                                         name='TestFacility',
                                         description='some new mf')
         self.MFMS.create_marine_facility(marine_facility_obj)
 
+    #@unittest.skip('temporarily')
     def test_find_marine_facility_org(self):
         marine_facility_obj = IonObject(RT.MarineFacility,
                                         name='TestFacility',
