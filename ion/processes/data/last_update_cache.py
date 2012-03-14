@@ -17,9 +17,9 @@ from prototype.hdf.hdf_array_iterator import acquire_data
 
 CACHE_DATASTORE_NAME = 'last_update_datastore'
 
-class IngestionCache(TransformDataProcess):
+class LastUpdateCache(TransformDataProcess):
     def __init__(self, *args, **kwargs):
-        super(IngestionCache, self)
+        super(LastUpdateCache, self)
         self.def_cache = {}
 
 

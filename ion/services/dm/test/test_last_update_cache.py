@@ -14,9 +14,9 @@ from pyon.net.endpoint import Publisher
 from pyon.util.config import CFG
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
+from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 @attr('INT',group='dm')
-class IngestionCacheTest(IonIntegrationTestCase):
+class LastUpdateCacheTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.datastore_name = CACHE_DATASTORE_NAME
@@ -66,8 +66,8 @@ class IngestionCacheTest(IonIntegrationTestCase):
 
 
         proc_def = ProcessDefinition()
-        proc_def.executable['module'] = 'ion.processes.data.ingestion.ingestion_cache'
-        proc_def.executable['class'] = 'IngestionCache'
+        proc_def.executable['module'] = 'ion.processes.data.last_update_cache'
+        proc_def.executable['class'] = 'LastUpdateCache'
         proc_def_id = self.pd_cli.create_process_definition(process_definition=proc_def)
 
 
@@ -81,8 +81,8 @@ class IngestionCacheTest(IonIntegrationTestCase):
         }
 
         transform_id = self.tms_cli.create_transform(
-            name='ingestion_cache',
-            description='Ingestion that compiles an aggregate of metadata',
+            name='last_update_cache',
+            description='LastUpdate that compiles an aggregate of metadata',
             in_subscription_id=subscription_id,
             process_definition_id=proc_def_id,
             configuration=config
@@ -91,7 +91,7 @@ class IngestionCacheTest(IonIntegrationTestCase):
 
         self.tms_cli.activate_transform(transform_id=transform_id)
 
-    def test_ingestion_cache(self):
+    def test_last_update_cache(self):
         import time as tm
         self.start_worker()
 

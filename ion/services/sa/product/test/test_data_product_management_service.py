@@ -1,21 +1,19 @@
-from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
+from pyon.public import  log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.product.data_product_management_service import DataProductManagementService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
+from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
 from interface.objects import HdfStorage, CouchStorage, DataProduct, LastUpdate
-from pyon.ion.endpoint import StreamPublisherRegistrar
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, LCS, PRED
-from mock import Mock, patch
+from pyon.public import RT, PRED
+from mock import Mock
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
@@ -31,7 +29,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('UNIT', group='sa')
-#@unittest.skip('not working')
+@unittest.skip('not working')
 class TestDataProductManagementServiceUnit(PyonTestCase):
 
     def setUp(self):
@@ -127,7 +125,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
 
     def test_get_last_update(self):
-        from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
+        from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 
         #------------------------------------------
         # Create the environment

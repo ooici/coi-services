@@ -7,11 +7,8 @@ from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 
-from pyon.datastore.datastore import DataStore
-from interface.objects import HdfStorage, CouchStorage
-from pyon.core.bootstrap import IonObject
-from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, LCS, PRED
+from pyon.core.exception import BadRequest, NotFound
+from pyon.public import RT, PRED
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -224,7 +221,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         @retval last_update    LastUpdate
         @throws NotFound    Data product not found or cache for data product not found.
         """
-        from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
+        from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
         datastore_name = CACHE_DATASTORE_NAME
         db = self.container.datastore_manager.get_datastore(datastore_name)
         stream_ids,other = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)

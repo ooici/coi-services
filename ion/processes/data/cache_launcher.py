@@ -1,8 +1,8 @@
 
 """
 @author Luke Campbell
-@file ion/processes/data/ingestion/ingestion_launcher.py
-@description Ingestion Launcher
+@file ion/processes/data/cache_launcher.py
+@description Last Update Cache Process Launcher
 """
 from interface.objects import ProcessDefinition, ExchangeQuery
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -11,7 +11,7 @@ from pyon.core import bootstrap
 from pyon.service.service import BaseService
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from pyon.util.config import CFG
-from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
+from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 
 class CacheLauncher(BaseService):
     def on_start(self):
@@ -20,11 +20,11 @@ class CacheLauncher(BaseService):
         pubsub_cli = PubsubManagementServiceClient()
         pd_cli = ProcessDispatcherServiceClient()
         dname = CACHE_DATASTORE_NAME
-        number_of_workers = self.CFG.get_safe('process.number_of_workers')
+        number_of_workers = self.CFG.get_safe('process.number_of_workers',2)
 
         proc_def = ProcessDefinition()
-        proc_def.executable['module'] = 'ion.processes.data.ingestion.ingestion_cache'
-        proc_def.executable['class'] = 'IngestionCache'
+        proc_def.executable['module'] = 'ion.processes.data.last_update_cache'
+        proc_def.executable['class'] = 'LastUpdateCache'
         proc_def_id = pd_cli.create_process_definition(process_definition=proc_def)
 
         xs_dot_xp = CFG.core_xps.science_data
@@ -34,7 +34,7 @@ class CacheLauncher(BaseService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-        subscription_id = pubsub_cli.create_subscription(query=ExchangeQuery(), exchange_name='ingestion_cache')
+        subscription_id = pubsub_cli.create_subscription(query=ExchangeQuery(), exchange_name='last_update_cache')
 
         config = {
             'couch_storage' : {
@@ -46,8 +46,8 @@ class CacheLauncher(BaseService):
         for i in xrange(number_of_workers):
 
             transform_id = tms_cli.create_transform(
-                name='ingestion_cache%d' % i,
-                description='Ingestion that compiles an aggregate of metadata',
+                name='last_update_cache%d' % i,
+                description='last_update that compiles an aggregate of metadata',
                 in_subscription_id=subscription_id,
                 process_definition_id=proc_def_id,
                 configuration=config
