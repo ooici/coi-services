@@ -8,21 +8,20 @@ from interface.objects import ProcessDefinition, ExchangeQuery
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.core import bootstrap
-
 from pyon.service.service import BaseService
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from pyon.util.config import CFG
 
-class AggregateLauncher(BaseService):
+class CacheLauncher(BaseService):
     def on_start(self):
-        super(AggregateLauncher,self).on_start()
+        super(CacheLauncher,self).on_start()
         tms_cli = TransformManagementServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
         pd_cli = ProcessDispatcherServiceClient()
 
         proc_def = ProcessDefinition()
-        proc_def.executable['module'] = 'ion.processes.data.ingestion.ingestion_aggregation'
-        proc_def.executable['class'] = 'IngestionAggregation'
+        proc_def.executable['module'] = 'ion.processes.data.ingestion.ingestion_cache'
+        proc_def.executable['class'] = 'IngestionCache'
         proc_def_id = pd_cli.create_process_definition(process_definition=proc_def)
 
         xs_dot_xp = CFG.core_xps.science_data
@@ -36,13 +35,13 @@ class AggregateLauncher(BaseService):
 
         config = {
             'couch_storage' : {
-                'datastore_name' : self.CFG.get_safe('process.datastore_name','dm_aggregate'),
+                'datastore_name' : self.CFG.get_safe('process.datastore_name','dm_cache'),
                 'datastore_profile' : self.CFG.get_safe('process.datastore_profile','SCIDATA')
             }
         }
 
         transform_id = tms_cli.create_transform(
-            name='ingestion_aggregation',
+            name='ingestion_cache',
             description='Ingestion that compiles an aggregate of metadata',
             in_subscription_id=subscription_id,
             process_definition_id=proc_def_id,
