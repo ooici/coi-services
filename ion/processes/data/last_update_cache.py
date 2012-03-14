@@ -81,6 +81,7 @@ class LastUpdateCache(TransformDataProcess):
 
 
         lu = LastUpdate()
+        lu.timestamp = granule.identifiables[granule.stream_id].timestamp.value
         for field in fields:
             range_id = definition.identifiables[field].range_id
             lu.variables[field] = Variable()
