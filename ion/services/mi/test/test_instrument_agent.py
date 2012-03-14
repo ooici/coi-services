@@ -168,12 +168,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         def stop_subscriber(sub_list):
             for sub in sub_list:
                 sub.stop()            
-        self.addCleanup(stop_subscriber, self.subs)            
+        self.addCleanup(stop_subscriber, self.subs)
+
+        self.agent_resource_id = '123xyz'
 
         # Create agent config.
         self.agent_config = {
             'driver_config' : self.driver_config,
-            'stream_config' : self.stream_config
+            'stream_config' : self.stream_config,
+            'agent'         : {'resource_id': self.agent_resource_id}
         }
 
         # Launch an instrument agent process.
@@ -186,8 +189,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         log.info('got pid=%s', str(self._ia_pid))
         
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('123xyz', name=self._ia_pid,
-                                              process=FakeProcess())
+        self._ia_client = ResourceAgentClient(self.agent_resource_id, process=FakeProcess())
         log.info('got ia client %s', str(self._ia_client))        
         
         self.dvr_proc_pid = None
