@@ -1046,7 +1046,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         commitment_id, _ = self.clients.resource_registry.create(com_obj)
         commitment = self.clients.resource_registry.read(commitment_id)
-        self.clients.resource_registry.create_association(org_id, PRED.hasCommitment, commitment)
+        self.clients.resource_registry.create_association(user_id, PRED.hasCommitment, commitment)
         self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment)
 
         return True
@@ -1081,20 +1081,20 @@ class OrgManagementService(BaseOrgManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        request_list,_ = self.clients.resource_registry.find_objects(resource_id, PRED.hasCommitment, RT.ResourceCommitment)
-        for req in request_list:
-            if req.org_id == org_id and req.user_id == user_id:
-                aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, req)
+        commitment_list,_ = self.clients.resource_registry.find_objects(resource_id, PRED.hasCommitment, RT.ResourceCommitment)
+        for com in commitment_list:
+            if com.org_id == org_id and com.user_id == user_id:
+                aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, com)
                 self.clients.resource_registry.delete_association(aid[0])
 
-        request_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasCommitment, RT.ResourceCommitment)
-        for req in request_list:
-            if req.resource_id == resource_id and req.user_id == user_id:
-                aid = self.clients.resource_registry.find_associations(org_id, PRED.hasCommitment, req)
+        commitment_list,_ = self.clients.resource_registry.find_objects(user_id, PRED.hasCommitment, RT.ResourceCommitment)
+        for com in commitment_list:
+            if com.resource_id == resource_id and com.user_id == user_id:
+                aid = self.clients.resource_registry.find_associations(user_id, PRED.hasCommitment, com)
                 self.clients.resource_registry.delete_association(aid[0])
 
                 try:
-                    self.clients.resource_registry.delete(req._id)
+                    self.clients.resource_registry.delete(com._id)
                 except Exception, e:
                     log.debug("Error: " + e.message)
 
