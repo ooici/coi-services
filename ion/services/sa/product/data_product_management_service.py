@@ -216,3 +216,11 @@ class DataProductManagementService(BaseDataProductManagementService):
        @param data_product_id the resource id
        """
        return self.data_product.advance_lcs(data_product_id, lifecycle_state)
+
+    def get_last_update(self, data_product_id=''):
+        """@todo document this interface!!!
+
+        @param data_product_id    str
+        @retval last_update    LastUpdate
+        @throws NotFound    Data product not found or cache for data product not found.
+        """

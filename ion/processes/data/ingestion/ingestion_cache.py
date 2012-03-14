@@ -3,6 +3,7 @@
 @file ion/processes/data/ingestion/ingestion_aggregation
 @description Ingestion Process for aggregating data
 '''
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.core.exception import NotFound
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
@@ -14,12 +15,16 @@ from prototype.hdf.hdf_array_iterator import acquire_data
 
 
 
+CACHE_DATASTORE_NAME = 'last_update_datastore'
+
 class IngestionCache(TransformDataProcess):
     def on_start(self):
 
         self.couch_config = self.CFG.get('couch_storage')
 
-        self.datastore_name = self.couch_config.get('datastore_name','dm_cache')
+        #self.datastore_name = self.couch_config.get('datastore_name','dm_cache')
+        self.datastore_name = CACHE_DATASTORE_NAME
+
 
         try:
             self.datastore_profile = getattr(DataStore.DS_PROFILE,self.couch_config.get('datastore_profile','SCIDATA'))
@@ -31,7 +36,7 @@ class IngestionCache(TransformDataProcess):
 
         self.ps_cli = PubsubManagementServiceProcessClient(process=self)
 
-        self.fields = ['conductivity', 'temperature', 'pressure', 'latitude', 'longitude', 'height', 'time']
+
 
     def process(self, packet):
 
@@ -46,7 +51,7 @@ class IngestionCache(TransformDataProcess):
             except NotFound:
                 log.debug('Creating...')
                 doc_id, doc_rev = self.db.create_doc(lu,object_id=granule.stream_resource_id)
-            lu['_id'] = doc_id;
+            lu['_id'] = doc_id
             lu['_rev'] = doc_rev
 
             self.db.update_doc(lu)
@@ -59,26 +64,20 @@ class IngestionCache(TransformDataProcess):
 
     def get_last_value(self,granule):
 
-        hdf_string = granule.identifiables['data_stream'].values
         stream_resource_id = granule.stream_resource_id
         stream_def = self.ps_cli.find_stream_definition(stream_id=stream_resource_id, id_only=False)
         definition = stream_def.container
+        psp = PointSupplementStreamParser(stream_definition=definition, stream_granule=granule)
+        fields = psp.list_field_names()
 
-        f = FileSystem.mktemp()
-        f.write(hdf_string)
-        f.close()
-        records = granule.identifiables['record_count'].value
-        vector = acquire_data([f.name],self.fields,records).next()
-
-
-        FileSystem.unlink(f.name)
 
         lu = LastUpdate()
-        for field in self.fields:
+        for field in fields:
+            range_id = definition.identifiables[field].range_id
             lu.variables[field] = Variable()
             if definition.identifiables.has_key(field):
                 lu.variables[field].definition = definition.identifiables[field].definition
-            if definition.identifiables.has_key(field+'_data'):
-                lu.variables[field].units = definition.identifiables[field+'_data'].unit_of_measure.code
-            lu.variables[field].value = float(vector[field]['values'][-1])
+            if definition.identifiables.has_key(range_id):
+                lu.variables[field].units = definition.identifiables[range_id].unit_of_measure.code
+            lu.variables[field].value = psp.get_values(field_name=field)[-1]
         return lu
