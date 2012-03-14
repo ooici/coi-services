@@ -231,21 +231,25 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if not stream_obj:
                 raise NotFound("Stream %s does not exist" % stream_ids[0])
 
-            log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
+#            log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
+#            log.debug("activate_instrument:output stream name find parsed %s", str(stream_obj.name.lower().find('parsed')) )
+#            log.debug("activate_instrument:output stream name find raw %s", str(stream_obj.name.lower().find('raw')) )
 
             #todo  - Replace this hack: look in the data product name for 'raw' or 'parsed'
 
-#            if (stream_obj.name.lower().find('parsed')):
-#                out_streams["ctd_parsed"] = stream_ids[0]
-#            elif (stream_obj.name.lower().find(raw')):
-#                out_streams["ctd_raw"] = stream_ids[0]
-
-            out_streams[stream_obj.name] = stream_ids[0]
-
+            if stream_obj.name.lower().find('parsed') > -1 :
+                out_streams['ctd_parsed'] = stream_ids[0]
+                log.debug("activate_instrument:ctd_parsed %s ", str(stream_ids[0]) )
+            elif stream_obj.name.lower().find('raw') > -1:
+                out_streams['ctd_raw'] = stream_ids[0]
+                log.debug("activate_instrument:ctd_raw %s ", str(stream_ids[0]) )
+            else:
+                raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
 
         # todo: this is hardcoded to the SBE37 model; need to abstract the driver configuration when more instruments are coded
         # todo: how to tell which prod is raw and which is parsed? Check the name?
-        stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
+        #stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
+        log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
         # Driver configuration.
         driver_config = {
             'svr_addr': instrument_agent_instance_obj.svr_addr,
@@ -267,7 +271,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create agent config.
         agent_config = {
             'driver_config' : driver_config,
-            'stream_config' : stream_config,
+            'stream_config' : out_streams,
             'agent'         : {'resource_id': instrument_device_id}
         }
         log.debug("activate_instrument: agent_config %s ", str(agent_config))

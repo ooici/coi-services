@@ -148,7 +148,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print 'new Stream Definition id = ', instDevice_id
 
         print 'Creating new CDM data product with a stream definition'
-        dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
+        dp_obj = IonObject(RT.DataProduct,name='the parsed data',description='ctd stream test')
         try:
             data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
         except BadRequest as ex:
@@ -168,7 +168,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         raw_stream_def = SBE37_RAW_stream_definition()
         raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
 
-        dp_obj = IonObject(RT.DataProduct,name='ctd_raw',description='raw stream test')
+        dp_obj = IonObject(RT.DataProduct,name='the raw data',description='raw stream test')
         try:
             data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id)
         except BadRequest as ex:
