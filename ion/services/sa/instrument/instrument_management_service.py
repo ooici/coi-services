@@ -253,17 +253,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Driver configuration.
         driver_config = {
             'svr_addr': instrument_agent_instance_obj.svr_addr,
-            'cmd_port':instrument_agent_instance_obj.cmd_port,
-            'evt_port':instrument_agent_instance_obj.evt_port,
+            'cmd_port': int(instrument_agent_instance_obj.cmd_port),
+            'evt_port':int(instrument_agent_instance_obj.evt_port),
             'dvr_mod': instrument_agent_instance_obj.driver_module,
             'dvr_cls': instrument_agent_instance_obj.driver_class,
             'comms_config': {
                 SBE37Channel.CTD: {
                     'method':instrument_agent_instance_obj.comms_method,
                     'device_addr': instrument_agent_instance_obj.comms_device_address,
-                    'device_port': instrument_agent_instance_obj.comms_device_port,
+                    'device_port': int(instrument_agent_instance_obj.comms_device_port),
                     'server_addr': instrument_agent_instance_obj.comms_server_address,
-                    'server_port': instrument_agent_instance_obj.comms_server_port
+                    'server_port': int(instrument_agent_instance_obj.comms_server_port)
                     }
                 }
             }
