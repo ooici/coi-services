@@ -12,7 +12,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
-
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
 from pyon.public import log
 from nose.plugins.attrib import attr
@@ -25,12 +25,8 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG, RT, LCS, PRED
 from pyon.core.exception import BadRequest, NotFound, Conflict
 
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
-
 
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -50,8 +46,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='foo')
-#@unittest.skip("run locally only")
+@attr('HARDWARE', group='sa')
+@unittest.skip("run locally only")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def setUp(self):
