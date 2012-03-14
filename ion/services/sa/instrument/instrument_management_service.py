@@ -268,7 +268,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         agent_config = {
             'driver_config' : driver_config,
             'stream_config' : stream_config,
-            'resource_id': instrument_device_id   #id of instrument or platform device
+            'agent'         : {'resource_id': instrument_device_id}
         }
         log.debug("activate_instrument: agent_config %s ", str(agent_config))
 
