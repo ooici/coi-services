@@ -17,6 +17,7 @@ from pyon.agent.agent import ResourceAgent
 from pyon.core import exception as iex
 from pyon.util.containers import get_ion_ts
 from pyon.ion.endpoint import StreamPublisherRegistrar
+from pyon.event.event import EventPublisher
 
 import time
 import socket
@@ -80,6 +81,7 @@ class InstrumentAgent(ResourceAgent):
         Initialize instrument agent prior to pyon process initialization.
         Define state machine, initialize member variables.
         """
+        log.debug("InstrumentAgent.__init__: initial_state = <" + str(initial_state) + ">" )
         ResourceAgent.__init__(self)
                 
         # Instrument agent state machine.
@@ -294,78 +296,91 @@ class InstrumentAgent(ResourceAgent):
         """
         Agent power_up command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.POWER_UP)
         return self._fsm.on_event(InstrumentAgentEvent.POWER_UP, *args, **kwargs)
     
     def acmd_power_down(self, *args, **kwargs):
         """
         Agent power_down command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.POWER_DOWN)
         return self._fsm.on_event(InstrumentAgentEvent.POWER_DOWN, *args, **kwargs)
     
     def acmd_initialize(self, *args, **kwargs):
         """
         Agent initialize command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.INITIALIZE)
         return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
 
     def acmd_reset(self, *args, **kwargs):
         """
         Agent reset command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.RESET)
         return self._fsm.on_event(InstrumentAgentEvent.RESET, *args, **kwargs)
     
     def acmd_go_active(self, *args, **kwargs):
         """
         Agent go_active command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.GO_ACTIVE)
         return self._fsm.on_event(InstrumentAgentEvent.GO_ACTIVE, *args, **kwargs)
 
     def acmd_go_inactive(self, *args, **kwargs):
         """
         Agent go_inactive command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.GO_INACTIVE)
         return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
 
     def acmd_run(self, *args, **kwargs):
         """
         Agent run command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.RUN)
         return self._fsm.on_event(InstrumentAgentEvent.RUN, *args, **kwargs)
 
     def acmd_clear(self, *args, **kwargs):
         """
         Agent clear command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.CLEAR)
         return self._fsm.on_event(InstrumentAgentEvent.CLEAR, *args, **kwargs)
 
     def acmd_pause(self, *args, **kwargs):
         """
         Agent pause command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.PAUSE)
         return self._fsm.on_event(InstrumentAgentEvent.PAUSE, *args, **kwargs)
 
     def acmd_resume(self, *args, **kwargs):
         """
         Agent resume command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.RESUME)
         return self._fsm.on_event(InstrumentAgentEvent.RESUME, *args, **kwargs)
 
     def acmd_go_streaming(self, *args, **kwargs):
         """
         Agent go_streaming command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.GO_STREAMING)
         return self._fsm.on_event(InstrumentAgentEvent.GO_STREAMING, *args, **kwargs)
 
     def acmd_go_direct_access(self, *args, **kwargs):
         """
         Agent go_direct_access command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.GO_DIRECT_ACCESS)
         return self._fsm.on_event(InstrumentAgentEvent.GO_DIRECT_ACCESS, *args, **kwargs)
 
     def acmd_go_observatory(self, *args, **kwargs):
         """
         Agent go_observatory command. Forward with args to state machine.
         """
+        self._log_cmd_event(InstrumentAgentEvent.GO_OBSERVATORY)
         return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
     ###############################################################################
@@ -376,6 +391,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Query the agent current state.
         """
+        self._log_cmd_event("GET_CURRENT_STATE")
         return self._fsm.get_current_state()
 
     ###############################################################################
@@ -466,6 +482,7 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
+        self._log_state_change_event()
     
     def _handler_powered_down_exit(self, *args, **kwargs):
         """
@@ -485,6 +502,7 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
+        self._log_state_change_event()
     
     def _handler_uninitialized_exit(self,  *args, **kwargs):
         """
@@ -540,7 +558,7 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-
+        self._log_state_change_event()
     
     def _handler_inactive_exit(self,  *args, **kwargs):
         """
@@ -627,6 +645,7 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
+        self._log_state_change_event()
                 
     def _handler_idle_exit(self,  *args, **kwargs):
         """
@@ -692,6 +711,7 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
+        self._log_state_change_event()
     
     def _handler_stopped_exit(self,  *args, **kwargs):
         """
@@ -746,6 +766,7 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
+        self._log_state_change_event()
     
     def _handler_observatory_exit(self,  *args, **kwargs):
         """
@@ -914,6 +935,7 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
+        self._log_state_change_event()
     
     def _handler_streaming_exit(self,  *args, **kwargs):
         """
@@ -966,7 +988,8 @@ class InstrumentAgent(ResourceAgent):
         Handler upon direct access entry.
         """
         log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+            self._fsm.get_current_state())
+        self._log_state_change_event()
     
     def _handler_direct_access_exit(self,  *args, **kwargs):
         """
@@ -1150,6 +1173,21 @@ class InstrumentAgent(ResourceAgent):
         """
         self._packet_factories.clear()
         log.info('Instrument agent %s deleted packet factories.', self._proc_name)
+        
+    def _log_state_change_event(self):
+        event_description = 'Instrument agent ' + self._proc_name + ' entered state ' + self._fsm.get_current_state()
+        self._publish_instrument_agent_event(event_type='ResourceEvent',
+                                             description=event_description)
+        
+    def _log_cmd_event(self, cmd=None):
+        event_description = 'Instrument agent ' + self._proc_name + ' rcvd cmd ' + cmd
+        self._publish_instrument_agent_event(event_type='ResourceEvent',
+                                             description=event_description)
+
+    def _publish_instrument_agent_event(self, event_type=None, description=None):
+        log.debug('Instrument agent %s publishing event %s:%s.' %(self._proc_name, event_type, description))
+        pub = EventPublisher(event_type=event_type)
+        pub.publish_event(origin=self._proc_name, description=description)
             
     ###############################################################################
     # Misc and test.
