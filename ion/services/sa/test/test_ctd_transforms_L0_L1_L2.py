@@ -46,7 +46,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='sa')
+@attr('HARDWARE', group='mmm')
 @unittest.skip("run locally only")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
@@ -456,8 +456,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L2_Density data_process return")
 
 
-
-
         #-------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
         #-------------------------------
@@ -568,16 +566,15 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         time.sleep(2)
 
 
-
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
 
-#        #get the dataset id of the ctd_parsed product from the dataproduct  data_product_id1
-#        ctd_parsed_data_product_obj = self.dpclient.read_data_product(data_product_id1)
-#        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
-#
-#        # ask for the dataset bounds from the datasetmgmtsvc
-#        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
-#        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset bounds %s", str(bounds))
-#        print 'activate_instrument: got dataset bounds %s', str(bounds)
+        #get the dataset id of the ctd_parsed product from the dataproduct  ctd_parsed_data_product
+        ctd_parsed_data_product_obj = self.dataproductclient.read_data_product(ctd_parsed_data_product)
+        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
+
+        # ask for the dataset bounds from the datasetmgmtsvc
+        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
+        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset bounds %s", str(bounds))
+        print 'activate_instrument: got dataset bounds %s', str(bounds)
 
