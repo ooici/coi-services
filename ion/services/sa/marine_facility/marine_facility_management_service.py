@@ -8,7 +8,7 @@
 and the relationships between them
 '''
 
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS
 
 
@@ -516,8 +516,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ############################
 
-    def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=[]):
-        log.debug("Find subordinate entity")
+    def find_subordinate_entity(self, input_resource_id='', output_resource_type_list=[]):
 
         # the relative depth of each resource type in our tree
         depth = {RT.LogicalInstrument: 4,
@@ -526,6 +525,72 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
                  RT.MarineFacility: 1,
                  }
 
+
+        input_obj  = self.RR.read(input_resource_id)
+        input_type = type(input_obj).__name__
+
+        #input type checking
+        if not input_type in depth:
+            raise BadRequest("Input resource type (got %s) must be one of %s" % 
+                             (input_type, str(depth.keys())))
+        for t in output_resource_type_list:
+            if not t in depth:
+                raise BadRequest("Output resource types (got %s) must be one of %s" %
+                                 (str(output_resource_type_list), str(depth.keys())))
+
+                             
+
+        subordinates = [x for x in output_resource_type_list if depth[x] > depth[input_type]]
+        superiors    = [x for x in output_resource_type_list if depth[x] < depth[input_type]]
+
+        acc = {}
+        acc[input_type] = [input_obj]
+
+
+        if subordinates:
+            # figure out the actual depth we need to go
+            deepest_type = input_type #initial value
+            for output_type in output_resource_type_list:
+                if depth[deepest_type] < depth[output_type]:
+                    deepest_type = output_type
+
+            log.debug("Deepest level for search will be '%s'" % deepest_type)
+
+            acc = self._traverse_entity_tree(acc, input_type, deepest_type, True)
+
+
+        if superiors:
+            highest_type = input_type #initial value
+
+            for output_type in output_resource_type_list:
+                if depth[highest_type] > depth[output_type]:
+                    highest_type = output_type
+
+            log.debug("Highest level for search will be '%s'" % highest_type)
+
+            acc = self._traverse_entity_tree(acc, highest_type, input_type, False)
+            
+            
+        return acc
+                    
+
+    def _traverse_entity_tree(self, acc, top_type, bottom_type, downward):
+
+        call_list = self._build_call_list(top_type, bottom_type, downward)
+
+        # reverse the list and start calling functions
+        if downward:
+            call_list.reverse()
+            for (p, c) in call_list:
+                acc = self._find_subordinate(acc, p, c)
+        else:
+            for (p, c) in call_list:
+                acc = self._find_superior(acc, p, c)
+
+        return acc
+
+
+    def _build_call_list(self, top_type, bottom_type, downward):
         # the possible parent types that a resource can have
         hierarchy_dependencies =  {
             RT.LogicalInstrument: [RT.LogicalPlatform],
@@ -533,38 +598,29 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
             RT.Site:             [RT.Site, RT.MarineFacility],
             }
 
-
-        parent_obj  = self.RR.read(parent_resource_id)
-        parent_type = type(parent_obj).__name__
-        acc = {}
-        acc[parent_type] = [parent_obj]
-
-        # figure out the actual depth we need to go
-        deepest_type = parent_type
-        for child_type in child_resource_type_list:
-            if depth[deepest_type] < depth[child_type]:
-                deepest_type = child_type
-
-        log.debug("Deepest level for search will be '%s'" % deepest_type)
-
-        # generate function calls in order of dependencies -- reverse
         call_list = []
-        target_type = deepest_type
-        while target_type != parent_type:
+        target_type = bottom_type
+        while True:
+            if downward and (target_type == top_type):
+                return call_list
+
+            if (not downward) and (target_type == top_type):
+                if not (target_type in hierarchy_dependencies and
+                        target_type in hierarchy_dependencies[target_type]):
+                    return call_list
+
             for requisite_type in hierarchy_dependencies[target_type]:
-                #should cause errors if they stray
+                #should cause errors if they stray from allowed inputs
                 call_list.append((requisite_type, target_type))
+
+                if not downward and top_type == requisite_type == target_type:
+                    return call_list
+            
             #latest solved type is the latest result
             target_type = requisite_type
-
-        # reverse the list and start calling functions
-        call_list.reverse()
-        for (p, c) in call_list:
-            acc = self._find_subordinate(acc, p, c)
-
-
-        return acc
-                    
+        
+                
+            
 
 
     def _find_subordinate(self, acc, parent_type, child_type):
@@ -593,6 +649,36 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         return acc
 
 
+
+
+    def _find_superior(self, acc, parent_type, child_type):
+        """
+        acc is an accumulated dictionary
+        """
+        if not parent_type in acc:
+            acc[parent_type] = []
+
+        #log.debug("Superiors: '%s'->'%s'" % (parent_type, child_type))
+        #if True:
+        #    return acc
+            
+        find_fn = {
+            (RT.MarineFacility, RT.Site):               self.marine_facility.find_having_site,
+            (RT.Site, RT.Site):                         self.site.find_having_site,
+            (RT.Site, RT.LogicalPlatform):              self.site.find_having_platform,
+            (RT.LogicalPlatform, RT.LogicalPlatform):   self.logical_platform.find_having_platform,
+            (RT.LogicalPlatform, RT.LogicalInstrument): self.logical_platform.find_having_instrument,
+            }[(parent_type, child_type)]
+        
+        log.debug("Superiors: '%s'->'%s'x%d" % (parent_type, child_type, len(acc[child_type])))
+
+        #for all children in the acc, add all their parents
+        for child_obj in acc[child_type]:
+            child_id = child_obj._id
+            for parent_obj in find_fn(child_id):
+                acc[parent_type].append(parent_obj)
+
+        return acc
 
 
     def find_instrument_device_by_logical_platform(self, logical_platform_id=''):
