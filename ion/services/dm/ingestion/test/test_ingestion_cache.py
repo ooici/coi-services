@@ -14,13 +14,14 @@ from pyon.net.endpoint import Publisher
 from pyon.util.config import CFG
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-
+from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
 @attr('INT',group='dm')
 class IngestionCacheTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
+        self.datastore_name = CACHE_DATASTORE_NAME
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
-        self.db = self.container.datastore_manager.get_datastore('dm_cache',DataStore.DS_PROFILE.SCIDATA)
+        self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
         self.tms_cli = TransformManagementServiceClient()
         self.pubsub_cli = PubsubManagementServiceClient()
         self.pd_cli = ProcessDispatcherServiceClient()
@@ -74,7 +75,7 @@ class IngestionCacheTest(IonIntegrationTestCase):
 
         config = {
             'couch_storage' : {
-                'datastore_name' :'dm_cache',
+                'datastore_name' :self.datastore_name,
                 'datastore_profile' : 'SCIDATA'
             }
         }

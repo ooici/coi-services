@@ -224,3 +224,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         @retval last_update    LastUpdate
         @throws NotFound    Data product not found or cache for data product not found.
         """
+        from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
+        datastore_name = CACHE_DATASTORE_NAME
+        db = self.container.datastore_manager.get_datastore(datastore_name)
+        stream_ids,other = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        retval = {}
+        for stream_id in stream_ids:
+            try:
+                lu = db.read(stream_id)
+                retval[stream_id] = lu
+            except NotFound:
+                continue
+        return retval

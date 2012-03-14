@@ -8,8 +8,8 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from interface.objects import HdfStorage, CouchStorage
+from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
+from interface.objects import HdfStorage, CouchStorage, DataProduct, LastUpdate
 from pyon.ion.endpoint import StreamPublisherRegistrar
 
 from pyon.util.context import LocalContextMixin
@@ -125,6 +125,36 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
+
+    def test_get_last_update(self):
+        from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
+
+        #------------------------------------------
+        # Create the environment
+        #------------------------------------------
+
+        definition = SBE37_CDM_stream_definition()
+        datastore_name = CACHE_DATASTORE_NAME
+        db = self.container.datastore_manager.get_datastore(datastore_name)
+        stream_def_id = self.pubsubcli.create_stream_definition(container=definition)
+
+        dp = DataProduct(name='dp1')
+
+        data_product_id = self.client.create_data_product(data_product=dp, stream_definition_id=stream_def_id)
+        stream_ids, garbage = self.rrclient.find_objects(data_product_id, PRED.hasStream, id_only=True)
+        stream_id = stream_ids[0]
+
+        fake_lu = LastUpdate()
+        fake_lu_doc = db._ion_object_to_persistence_dict(fake_lu)
+        db.create_doc(fake_lu_doc, object_id=stream_id)
+
+        #------------------------------------------
+        # Now execute
+        #------------------------------------------
+        res = self.client.get_last_update(data_product_id=data_product_id)
+        self.assertTrue(isinstance(res[stream_id], LastUpdate), 'retrieving documents failed')
+
+
 
     def test_createDataProduct(self):
         client = self.client
@@ -294,6 +324,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         # Shut down container
         #container.stop()
+
+
 
  
 #dynamically add tests to the test classes. THIS MUST HAPPEN OUTSIDE THE CLASS

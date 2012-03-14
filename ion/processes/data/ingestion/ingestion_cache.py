@@ -79,5 +79,5 @@ class IngestionCache(TransformDataProcess):
                 lu.variables[field].definition = definition.identifiables[field].definition
             if definition.identifiables.has_key(range_id):
                 lu.variables[field].units = definition.identifiables[range_id].unit_of_measure.code
-            lu.variables[field].value = psp.get_values(field_name=field)[-1]
+            lu.variables[field].value = float(psp.get_values(field_name=field)[-1])
         return lu
