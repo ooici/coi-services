@@ -11,8 +11,9 @@ from pyon.public import PRED, RT, Container
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 
-MANAGER_ROLE = 'ORG_MANAGER'
-MEMBER_ROLE = 'ORG_MEMBER'
+MANAGER_ROLE = 'ORG_MANAGER'  # Can only act upon resource within the specific Org
+MEMBER_ROLE = 'ORG_MEMBER'    # Can only access resources within the specific Org
+ION_MANAGER = 'ION_MANAGER'   # Can act upon resources across all Orgs - like a Super User access
 
 
 class PolicyManagementService(BasePolicyManagementService):

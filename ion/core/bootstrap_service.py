@@ -9,7 +9,7 @@ from pyon.public import CFG, IonObject, log, get_sys_name, RT, LCS, PRED, iex
 from pyon.ion.exchange import ION_ROOT_XS
 
 from interface.services.ibootstrap_service import BaseBootstrapService
-from ion.services.coi.policy_management_service import MANAGER_ROLE
+from ion.services.coi.policy_management_service import MANAGER_ROLE, ION_MANAGER
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 
 
@@ -106,7 +106,12 @@ class BootstrapService(BaseBootstrapService):
         root_orgname = CFG.system.root_org
         org = IonObject(RT.Org, name=root_orgname, description="ION Root Org")
         self.org_id = self.clients.org_management.create_org(org, headers={'ion-actor-id': system_actor._id})
-        #TODO - May not want to make the system agent a manager if a real manager user will be seeded for the ION Org
+
+        #Instantiate initial set of User Roles for this Org
+        ion_manager = IonObject(RT.UserRole, name=ION_MANAGER,label='ION Manager', description='ION Manager')
+        self.clients.org_management.add_user_role(self.org_id, ion_manager)
+
+        #Make the ION system agent a manager for the ION Org
         self.clients.org_management.grant_role(self.org_id,system_actor._id,MANAGER_ROLE, headers={'ion-actor-id': system_actor._id} )
 
 
