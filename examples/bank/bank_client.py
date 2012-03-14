@@ -25,7 +25,7 @@ def run_client(container, process=FakeProcess()):
     print "Savings balance after withdrawal %s" % str(client.get_balances(savingsAcctNum))
 
     print "Buying 1000 savings bonds"
-    client.buy_bonds(savingsAcctNum, 1000)
+    client.buy_bonds(savingsAcctNum, 1000, headers = {'sender': 'client', 'initiating-conv-id': '2222'})
     print "Savings balance after bond purchase %s" % str(client.get_balances(savingsAcctNum))
 
     checkingAcctNum = client.new_account('kurt', 'Checking')

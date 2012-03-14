@@ -34,5 +34,6 @@ setup(  name = 'coi-services',
             'WebTest',
             'requests',
             'seawater',
+            'antlr_python_runtime == 3.1.3',
         ],
      )

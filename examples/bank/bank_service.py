@@ -87,15 +87,21 @@ class BankService(BaseBankService):
         Purchase the specified amount of bonds.  Check is first made
         that the cash account has sufficient funds.
         """
+        #get_monitor_conv_id =
         account_obj = self.clients.resource_registry.read(account_id)
         if not account_obj:
             raise NotFound("Account %s does not exist" % account_id)
         if account_obj.cash_balance < cash_amount:
             raise BadRequest("Insufficient funds")
 
-        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", PRED.hasAccount, account_obj, False)[0][0]
+        # Uncomment for correct
+        owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", PRED.hasAccount,
+                                                                account_obj, False)[0][0]
         # Create order object and call trade service
         order_obj = IonObject("Order", type="buy", on_behalf=owner_obj.name, cash_amount=cash_amount)
+
+        # Uncomment to simulate wrong protocol
+        #order_obj = IonObject("Order", type="buy", on_behalf='test', cash_amount=cash_amount)
 
         # Make the call to trade service
         confirmation_obj = self.clients.trade.exercise(order_obj)
@@ -120,7 +126,6 @@ class BankService(BaseBankService):
 
         owner_obj = self.clients.resource_registry.find_subjects("BankCustomer", PRED.hasAccount, account_obj, False)[0][0]
 
-        # Create order object and call trade service
         order_obj = IonObject("Order", type="sell", on_behalf=owner_obj.name, bond_amount=quantity)
 
         confirmation_obj = self.clients.trade.exercise(order_obj)
