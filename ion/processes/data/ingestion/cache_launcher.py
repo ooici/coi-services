@@ -11,6 +11,7 @@ from pyon.core import bootstrap
 from pyon.service.service import BaseService
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from pyon.util.config import CFG
+from ion.processes.data.ingestion.ingestion_cache import CACHE_DATASTORE_NAME
 
 class CacheLauncher(BaseService):
     def on_start(self):
@@ -18,6 +19,8 @@ class CacheLauncher(BaseService):
         tms_cli = TransformManagementServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
         pd_cli = ProcessDispatcherServiceClient()
+        dname = CACHE_DATASTORE_NAME
+        number_of_workers = self.CFG.get_safe('process.number_of_workers')
 
         proc_def = ProcessDefinition()
         proc_def.executable['module'] = 'ion.processes.data.ingestion.ingestion_cache'
@@ -31,22 +34,24 @@ class CacheLauncher(BaseService):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-        subscription_id = pubsub_cli.create_subscription(query=ExchangeQuery(), exchange_name='ingestion_aggregate')
+        subscription_id = pubsub_cli.create_subscription(query=ExchangeQuery(), exchange_name='ingestion_cache')
 
         config = {
             'couch_storage' : {
-                'datastore_name' : self.CFG.get_safe('process.datastore_name','dm_cache'),
-                'datastore_profile' : self.CFG.get_safe('process.datastore_profile','SCIDATA')
+                'datastore_name' : dname,
+                'datastore_profile' : 'SCIDATA'
             }
         }
 
-        transform_id = tms_cli.create_transform(
-            name='ingestion_cache',
-            description='Ingestion that compiles an aggregate of metadata',
-            in_subscription_id=subscription_id,
-            process_definition_id=proc_def_id,
-            configuration=config
-        )
+        for i in xrange(number_of_workers):
+
+            transform_id = tms_cli.create_transform(
+                name='ingestion_cache%d' % i,
+                description='Ingestion that compiles an aggregate of metadata',
+                in_subscription_id=subscription_id,
+                process_definition_id=proc_def_id,
+                configuration=config
+            )
 
 
-        tms_cli.activate_transform(transform_id=transform_id)
+            tms_cli.activate_transform(transform_id=transform_id)
