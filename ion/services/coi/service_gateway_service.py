@@ -362,6 +362,11 @@ def get_governance_info_from_request(request_type = '', json_params = None):
 
 def validate_request(ion_actor_id, expiry):
 
+    #There is no point in looking up an anonymous user - so return default values.
+    if ion_actor_id == DEFAULT_ACTOR_ID:
+        expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
+        return ion_actor_id, expiry
+
     idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
     try:
@@ -678,6 +683,12 @@ def test_policy():
 def test_requests():
     from examples.gov_client import test_requests
     test_requests(Container.instance)
+    return json_response("")
+
+@app.route('/ion-service/instrument_test_driver')
+def instrument_test_driver():
+    from examples.agent.instrument_driver import instrument_test_driver
+    instrument_test_driver(Container.instance)
     return json_response("")
 
 
