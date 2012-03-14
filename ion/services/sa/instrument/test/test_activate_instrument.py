@@ -191,7 +191,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print 'Instrument agent instance obj: = ', inst_agent_instance_obj
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('123xyz', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
+        #self._ia_client = ResourceAgentClient('123xyz', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
+        self._ia_client = ResourceAgentClient(instDevice_id,  process=FakeProcess())
         print 'activate_instrument: got ia client %s', self._ia_client
         log.debug("test_activateInstrument: got ia client %s", str(self._ia_client))
 
