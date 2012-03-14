@@ -53,10 +53,11 @@ class RawStreamPublisher(SimpleCtdPublisher):
 
             while True:
 
-                raw_constructor = RawSupplementConstructor(raw_definition= self.outgoing_stream_def, stream_id=self.stream_id)
+                raw_constructor = RawSupplementConstructor(raw_definition= self.outgoing_stream_def, stream_id=stream_id)
 
                 raw_constructor.set_samples(raw_samples=f.read(1000), num_of_samples=10)
 
+                log.info('Publishing raw message!')
                 self.publisher.publish(raw_constructor.close_stream_granule())
 
-                time.sleep(2.0)
+                time.sleep(1.0)
