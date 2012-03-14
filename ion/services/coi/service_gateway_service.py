@@ -11,6 +11,7 @@ from gevent.wsgi import WSGIServer
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object
+from pyon.core.object import IonObjectBase
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
@@ -18,6 +19,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from pyon.util.log import log
 from pyon.util.lru_cache import LRUCache
+from pyon.util.containers import current_time_millis
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
@@ -38,7 +40,7 @@ GATEWAY_ERROR_EXCEPTION = 'Exception'
 GATEWAY_ERROR_MESSAGE = 'Message'
 
 DEFAULT_ACTOR_ID = 'anonymous'
-DEFAULT_EXPIRY = 0
+DEFAULT_EXPIRY = '0'
 
 #Stuff for specifying other return types
 RETURN_FORMAT_PARAM = 'return_format'
@@ -378,13 +380,13 @@ def validate_request(ion_actor_id, expiry):
 
     #need to convert to a float first in order to compare against current time.
     try:
-        float_expiry = float(expiry)
+        int_expiry = int(expiry)
     except Exception, e:
-        raise Inconsistent("Unable to read the expiry value in the request '%s' as a floating point number" % expiry)
+        raise Inconsistent("Unable to read the expiry value in the request '%s' as an int" % expiry)
 
     #The user has been validated as being known in the system, so not check the expiry and raise exception if
     # the expiry is not set to 0 and less than the current time.
-    if float_expiry > 0 and float_expiry < time.time():
+    if int_expiry > 0 and int_expiry < current_time_millis():
         raise Unauthorized('The certificate associated with the user and expiry time in the request has expired.')
 
     return ion_actor_id, expiry
@@ -496,10 +498,13 @@ def set_object_field(obj, field, field_val):
         for sub_field in field_val:
             set_object_field(sub_obj, sub_field, field_val.get(sub_field))
     else:
-        setattr(obj, field, field_val)
+        if field != "type_":
+            setattr(obj, field, field_val)
 
 #Used by json encoder
 def ion_object_encoder(obj):
+    if isinstance(obj, IonObjectBase):
+        obj.__dict__["type_"] = obj._get_type()
     return obj.__dict__
 
 #Used to recursively convert unicode in JSON structures into proper data structures

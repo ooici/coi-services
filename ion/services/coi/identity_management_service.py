@@ -177,7 +177,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         valid_until_str = attributes["not_valid_after"]
         log.debug("Signon request for subject %s with string valid_until %s" % (subject, valid_until_str))
         valid_until_tuple = time.strptime(valid_until_str, "%b %d %H:%M:%S %Y %Z")
-        valid_until = int(time.mktime(valid_until_tuple)) * 1000
+        valid_until = str(int(time.mktime(valid_until_tuple)) * 1000)
 
         # Look for matching UserCredentials object
         objects, assocs = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, True)
@@ -200,7 +200,7 @@ class IdentityManagementService(BaseIdentityManagementService):
                 self.find_user_info_by_id(user_id)
             except NotFound:
                 registered = False
-            log.debug("Signon returning user_id, valid_until, registered: %s, %d, %s" % (user_id, valid_until, str(registered)))
+            log.debug("Signon returning user_id, valid_until, registered: %s, %s, %s" % (user_id, valid_until, str(registered)))
             return user_id, valid_until, registered
         else:
             log.debug("Signon new subject %s" % (subject))
@@ -210,7 +210,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
             user_credentials = IonObject("UserCredentials", {"name": subject})
             self.register_user_credentials(user_id, user_credentials)
-            log.debug("Signon returning user_id, valid_until, registered: %s, %d, False" % (user_id, valid_until))
+            log.debug("Signon returning user_id, valid_until, registered: %s, %s, False" % (user_id, valid_until))
             return user_id, valid_until, False
         
 
