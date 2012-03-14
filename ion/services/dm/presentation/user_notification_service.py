@@ -4,16 +4,18 @@ __author__ = 'Bill Bollenbacher'
 __license__ = 'Apache 2.0'
 
 
-from pyon.util.log import log
-from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from pyon.public import RT, PRED, sys_name, Container, CFG
-from pyon.core.exception import BadRequest, NotFound
-from pyon.event.event import EventError, EventSubscriber, EventRepository
-from pyon.util.async import spawn
-from gevent import Greenlet
 import string, smtplib, time
 from datetime import datetime
 from email.mime.text import MIMEText
+from gevent import Greenlet
+
+from pyon.core.exception import BadRequest, NotFound
+from pyon.event.event import EventError, EventSubscriber, EventPublisher
+from pyon.public import RT, PRED, sys_name, Container, CFG, IonObject
+from pyon.util.async import spawn
+from pyon.util.log import log
+
+from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
 # the 'from' email address for notification emails
 ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
@@ -365,5 +367,19 @@ class UserNotificationService(BaseUserNotificationService):
         log.debug("UserNotificationService.find_event_types_for_resource(): resource type %s not an event originator" %resource_type)
         return []
 
+    def generate_event(self, event_type='Event', origin='', origin_type='', event_fields=None, sub_type='', description=''):
+        try:
+            event_obj = IonObject(event_type)
+        except Exception:
+            raise NotFound("Event type %s unknown" % event_type)
 
-  
+        if not origin or type(origin) is not str:
+            raise BadRequest("Argument value of origin illegal")
+        if event_fields and type(event_fields) is not dict:
+            raise BadRequest("Argument value of event_fields illegal")
+
+        pub = EventPublisher()
+        event_fields = event_fields or {}
+        success = pub.publish_event(event_type=event_type, sub_type=sub_type, origin=origin, description=description, **event_fields)
+        if not success:
+            raise BadRequest("Cannot publish event")

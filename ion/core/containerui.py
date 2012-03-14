@@ -575,7 +575,10 @@ def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None,
         return enum_clzz._str_map[int(value)]
     elif fieldname:
         if fieldname in date_fieldnames:
-            value = get_datetime(value, time_millis)
+            try:
+                value = get_datetime(value, time_millis)
+            except Exception:
+                pass
     if value == "":
         return "&nbsp;"
     return value
