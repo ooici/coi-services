@@ -92,7 +92,7 @@ class DataRetrieverService(BaseDataRetrieverService):
             'datastore_name':datastore_name,
             'view_name':view_name,
             'key_id':key_id,
-            'delivery_format':dict({'container':definition_container}, **delivery_format),
+            'delivery_format':dict({'definition_id':definition_id}, **delivery_format),
             'publish_streams':{'output':replay_stream_id}
             }
         }

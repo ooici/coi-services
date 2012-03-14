@@ -8,6 +8,7 @@ from interface.services.coi.iorg_management_service import BaseOrgManagementServ
 from ion.services.coi.policy_management_service import MEMBER_ROLE, MANAGER_ROLE
 from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
+from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 from pyon.core.governance.negotiate_request import NegotiateRequest, NegotiateRequestFactory
@@ -24,6 +25,7 @@ class OrgManagementService(BaseOrgManagementService):
 
     def on_init(self):
         self.request_handler = NegotiateRequest(self)
+        self.event_pub = EventPublisher()
 
 
     def create_org(self, org=None):
@@ -562,6 +564,7 @@ class OrgManagementService(BaseOrgManagementService):
         self.request_handler.accept_request(request)
 
         #Since the request was accepted by the user, proceed with the defined action of the negotiation
+        request = self.clients.resource_registry.read(request_id)  # Pass in the most recent version
         ret = self.request_handler.execute_accept_action(request)
 
         return ret
