@@ -105,7 +105,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_instrument_agent_instance(self, instrument_agent_instance=None):
+    def create_instrument_agent_instance(self, instrument_agent_instance=None, instrument_agent_id="", instrument_device_id=""):
         """
         create a new instance
         @param instrument_agent_instance the object to be created as a resource
@@ -114,9 +114,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
+        instrument_agent_obj = self.read_instrument_agent(instrument_agent_id)
 
+        instrument_device_obj = self.read_instrument_device(instrument_device_id)
 
-        return self.instrument_agent_instance.create_one(instrument_agent_instance)
+        instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
+
+        self.assign_instrument_agent_instance_to_instrument_agent(instrument_agent_instance_id, instrument_agent_id)
+
+        self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
+
+        return instrument_agent_instance_id
 
     def update_instrument_agent_instance(self, instrument_agent_instance=None):
         """
@@ -144,7 +152,150 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+
+        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance, instrument_agent_instance_id)
+        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance, instrument_agent_instance_id)
+
+        self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+
+        return
+
+    def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
+        """
+        Agent instance must first be created and associated with a instrument device
+        Launch the instument agent instance and return the id
+        """
+
+        instrument_agent_instance_obj = self.RR.read(instrument_agent_instance_id)
+
+        #retrieve the associated instrument device
+        inst_device_ids, _ = self.RR.find_subjects(RT.InstrumentDevice, PRED.hasAgentInstance, instrument_agent_instance_id, True)
+        if not inst_device_ids:
+            raise NotFound("No Instrument Device attached to this Instrument Agent Instance " + str(instrument_agent_instance_id))
+        if len(inst_device_ids) > 1:
+            raise BadRequest("Instrument Agent Instance should only have ONE Instrument Device" + str(instrument_agent_instance_id))
+        instrument_device_id = inst_device_ids[0]
+
+        #retrieve the instrument model
+        model_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
+        if not model_ids:
+            raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
+
+        instrument_model_id = model_ids[0]
+        log.debug("activate_instrument:instrument_model %s"  +  str(instrument_model_id))
+
+
+        #retrieve the associated instrument agent
+        agent_ids, _ = self.RR.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
+        if not agent_ids:
+            raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
+
+        instrument_agent_id = agent_ids[0]
+        log.debug("Got instrument agent '%s'" % instrument_agent_id)
+
+
+        #retrieve the associated process definition
+        process_def_ids, _ = self.RR.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
+        if not process_def_ids:
+            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
+        if len(process_def_ids) > 1:
+            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
+
+        process_definition_id = process_def_ids[0]
+        log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
+
+        # retrieve the process definition information
+        process_def_obj = self.RR.read(process_definition_id)
+        if not process_def_obj:
+            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
+
+
+        out_streams = {}
+        #retrieve the output products
+        data_product_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        if not data_product_ids:
+            raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
+
+        for product_id in data_product_ids:
+            stream_ids, _ = self.RR.find_objects(product_id, PRED.hasStream, RT.Stream, True)
+
+            log.debug("activate_instrument:output stream ids: %s"  +  str(stream_ids))
+            #One stream per product ...for now.
+            if not stream_ids:
+                raise NotFound("No Stream  attached to this Data Product " + str(product_id))
+            if len(stream_ids) > 1:
+                raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
+
+            # retrieve the stream
+            stream_obj = self.RR.read(stream_ids[0])
+            if not stream_obj:
+                raise NotFound("Stream %s does not exist" % stream_ids[0])
+
+            log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
+
+            #todo  - Replace this hack: look in the data product name for 'raw' or 'parsed'
+
+#            if (stream_obj.name.lower().find('parsed')):
+#                out_streams["ctd_parsed"] = stream_ids[0]
+#            elif (stream_obj.name.lower().find(raw')):
+#                out_streams["ctd_raw"] = stream_ids[0]
+
+            out_streams[stream_obj.name] = stream_ids[0]
+
+
+        # todo: this is hardcoded to the SBE37 model; need to abstract the driver configuration when more instruments are coded
+        # todo: how to tell which prod is raw and which is parsed? Check the name?
+        stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
+        # Driver configuration.
+        driver_config = {
+            'svr_addr': instrument_agent_instance_obj.svr_addr,
+            'cmd_port':instrument_agent_instance_obj.cmd_port,
+            'evt_port':instrument_agent_instance_obj.evt_port,
+            'dvr_mod': instrument_agent_instance_obj.driver_module,
+            'dvr_cls': instrument_agent_instance_obj.driver_class,
+            'comms_config': {
+                SBE37Channel.CTD: {
+                    'method':instrument_agent_instance_obj.comms_method,
+                    'device_addr': instrument_agent_instance_obj.comms_device_address,
+                    'device_port': instrument_agent_instance_obj.comms_device_port,
+                    'server_addr': instrument_agent_instance_obj.comms_server_address,
+                    'server_port': instrument_agent_instance_obj.comms_server_port
+                    }
+                }
+            }
+
+        # Create agent config.
+        agent_config = {
+            'driver_config' : driver_config,
+            'stream_config' : stream_config,
+            'resource_id': instrument_device_id   #id of instrument or platform device
+        }
+        log.debug("activate_instrument: agent_config %s ", str(agent_config))
+
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
+                                                               schedule=None,
+                                                               configuration=agent_config)
+        log.debug("activate_instrument: schedule_process %s", pid)
+
+
+        # add the process id and update the resource
+        instrument_agent_instance_obj.agent_process_id = pid
+        self.update_instrument_agent_instance(instrument_agent_instance_obj)
+
+        return
+
+
+    def stop_instrument_agent_instance(self, instrument_agent_instance_id=''):
+        """
+        Deactivate the instrument agent instance
+        """
+        instrument_agent_instance_obj = self.RR.read(instrument_agent_instance_id)
+
+        # Cancels the execution of the given process id.
+        self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
+
+        return
+
 
     def find_instrument_agent_instances(self, filters=None):
         """
@@ -179,7 +330,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("create_instrument_agent: create_process_definition id %s"  +  str(process_definition_id))
 
         #associate the agent and the process def
-        self.clients.resource_registry.create_association(instrument_agent_id,  PRED.hasProcessDefinition, process_definition_id)
+        self.RR.create_association(instrument_agent_id,  PRED.hasProcessDefinition, process_definition_id)
 
         return instrument_agent_id
 
@@ -209,6 +360,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
+        #retrieve the associated process definition
+        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
+        if not process_def_ids:
+            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
+        if len(process_def_ids) > 1:
+            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
+
+        assoc_ids, _ = self.clients.resource_registry.find_associations(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
+        self.clients.resource_registry.delete_association(assoc_ids[0])
+
+        self.clients.process_dispatcher.delete_process_definition(process_def_ids[0])
+
         return self.instrument_agent.delete_one(instrument_agent_id)
 
     def find_instrument_agents(self, filters=None):
@@ -301,12 +464,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #    raise Inconsistent("The instrument model had %d associated agents, expected 1" % len(agents))
         #stream_definition_ids = self.find_stream_definition_by_instrument_agent(agents[0])
 
-        stream_definition_ids = self.find_stream_definition_by_instrument_model(models[0])
+        stream_definition_objs = self.find_stream_definition_by_instrument_model(models[0])
 
-        for stream_definition_id in stream_definition_ids:
-            log.debug("Getting name of stream with id='%s'" % stream_definition_id)
+        for streamdef_obj in stream_definition_objs:
 
-            streamdef_obj = self.PSMS.read_stream_definition(stream_definition_id)
             names = (streamdef_obj.name, inst_obj.name)
             log.debug("Creating data product named '%s for %s'" % names)
             data_product_obj = IonObject(RT.DataProduct,
@@ -314,153 +475,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                        description=str("Product for '%s' instrument's '%s' stream" % names))
 
             #create data product with specified stream definition
-            data_product_id = self.DPMS.create_data_product(data_product_obj, stream_definition_id)
+            data_product_id = self.DPMS.create_data_product(data_product_obj, streamdef_obj._id)
 
             #associate this data product with the instrument
             log.debug("Associating data product's producers with instrument via DAMS")
             self.DAMS.assign_data_product(instrument_device_id, data_product_id)
 
-
-    #shortcut register method
-    def register_instrument(self, instrument_device=None, instrument_model_id=""):
-        instrument_device_id = self.create_instrument_device(instrument_device)
-        
-        self.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
-        
-        return instrument_device_id
-
-
-    def activate_instrument(self, instrument_device_id='', instrument_agent_instance=None):
-
-        #retrieve the instrument model
-        model_ids = self.instrument_device.find_stemming_model(instrument_device_id)
-        if not model_ids:
-            raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
-
-        instrument_model_id = model_ids[0]
-        log.debug("activate_instrument:instrument_model %s"  +  str(instrument_model_id))
-
-
-        #retrieve the asssociated instrument agent
-        agent_ids = self.instrument_agent.find_having_model(instrument_model_id)
-        if not agent_ids:
-            raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
-
-        instrument_agent_id = agent_ids[0]
-        log.debug("Getting instrument agent '%s'" % instrument_agent_id)
-
-        # retrieve the instrument agent information
-        instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
-
-        #retrieve the asssociated proces definition
-        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
-        if not process_def_ids:
-            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
-        if len(process_def_ids) > 1:
-            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
-
-        process_definition_id = process_def_ids[0]
-        log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
-
-        # retrieve the process definition information
-        process_def_obj = self.clients.resource_registry.read(process_definition_id)
-        if not process_def_obj:
-            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
-
-
-        out_streams = {}
-        #retrieve the output products
-        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        if not data_product_ids:
-            raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
-
-        for product_id in data_product_ids:
-            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
-
-            log.debug("activate_instrument:output stream ids: %s"  +  str(stream_ids))
-            #One stream per product ...for now.
-            if not stream_ids:
-                raise NotFound("No Stream  attached to this Data Product " + str(product_id))
-            if len(stream_ids) > 1:
-                raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
-
-            # retrieve the stream
-            stream_obj = self.clients.resource_registry.read(stream_ids[0])
-            if not stream_obj:
-                raise NotFound("Stream %s does not exist" % stream_ids[0])
-
-            log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
-            out_streams[stream_obj.name] = stream_ids[0]
-
-
-        #todo: how to tell which prod is raw and which is parsed? Check the name?
-        stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
-        # Driver configuration.
-        driver_config = {
-            'svr_addr': instrument_agent_instance.svr_addr, 
-            'cmd_port':instrument_agent_instance.cmd_port, 
-            'evt_port':instrument_agent_instance.evt_port,
-            'dvr_mod': instrument_agent_instance.driver_module, 
-            'dvr_cls': instrument_agent_instance.driver_class,
-            'comms_config': {
-                SBE37Channel.CTD: { 
-                    'method':instrument_agent_instance.comms_method, 
-                    'device_addr': instrument_agent_instance.comms_device_address, 
-                    'device_port': instrument_agent_instance.comms_device_port,
-                    'server_addr': instrument_agent_instance.comms_server_address, 
-                    'server_port': instrument_agent_instance.comms_server_port
-                    }
-                }
-            }
-
-        # Create agent config.
-        agent_config = {
-            'driver_config' : driver_config,
-            'stream_config' : stream_config,
-            'resource_id': instrument_device_id   #id of instrument or platform device
-        }
-        log.debug("activate_instrument: agent_config %s ", str(agent_config))
-
-        # Create the process definition to launch the agent
-#        process_definition = ProcessDefinition()
-#        process_definition.executable['module']='ion.services.mi.instrument_agent'
-#        process_definition.executable['class'] = 'InstrumentAgent'
-#        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
-#        log.debug("activate_instrument: create_process_definition id %s"  +  str(process_definition_id))
-
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, 
-                                                               schedule=None, 
-                                                               configuration=agent_config)
-        log.debug("activate_instrument: schedule_process %s", pid)
-
-        # Launch an instrument agent process.
-#        self._ia_name = 'agent007'
-#        self._ia_mod = 'ion.services.mi.instrument_agent'
-#        self._ia_class = 'InstrumentAgent'
-#        pid = self.container.spawn_process(name=self._ia_name,
-#                                       module=self._ia_mod, cls=self._ia_class,
-#                                       config=self.agent_config)
-#        log.info('activate_instrument: got pid=%s', str(pid))
-#
-#
-#        # Launch an instrument agent process.
-#        self._ia_name = 'agent007'
-#        self._ia_mod = 'ion.services.mi.instrument_agent'
-#        self._ia_class = 'InstrumentAgent'
-#        pid = self.container.spawn_process(name=self._ia_name,
-#                                       module=self._ia_mod, cls=self._ia_class,
-#                                       config=self.agent_config)
-#        log.info('activate_instrument: got pid=%s', str(pid))
-
-
-        instrument_agent_instance.agent_process_id = pid
-        instrument_agent_instance_id = self.create_instrument_agent_instance(instrument_agent_instance)
-        log.debug("activate_instrument: instrument_agent_instance_id %s", instrument_agent_instance_id)
-
-        # associate the InstAgentInstance and InstAgent
-        self.clients.resource_registry.create_association(instrument_agent_id,  PRED.hasInstance, instrument_agent_instance_id)
-
-        return instrument_agent_instance_id
 
     def create_instrument_device(self, instrument_device=None):
         """
@@ -910,6 +930,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_device.unlink_deployment(platform_device_id, logical_platform_id)
 
 
+    def deploy_as_primary_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        self.instrument_device.link_primary_deployment(instrument_device_id, logical_instrument_id)
+
+    def undeploy_primary_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
+        self.instrument_device.unlink_primary_deployment(instrument_device_id, logical_instrument_id)
+
+    def deploy_as_primary_platform_device_to_logical_platform(self, platform_device_id='', logical_platform_id=''):
+        self.platform_device.link_primary_deployment(platform_device_id, logical_platform_id)
+
+    def undeploy_primary_platform_device_from_logical_platform(self, platform_device_id='', logical_platform_id=''):
+        self.platform_device.unlink_primary_deployment(platform_device_id, logical_platform_id)
+
+
+
+
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         #todo: for when instrument agents are the owners of stream def associations
         #agents = self.find_instrument_agent_by_instrument_model(instrument_model_id)
@@ -955,18 +990,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
         self.platform_device.unlink_instrument(platform_device_id, instrument_device_id)
 
-    def assign_logical_instrument_to_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
-        self.instrument_device.link_assignment(instrument_device_id, logical_instrument_id)
-
-    def unassign_logical_instrument_from_instrument_device(self, logical_instrument_id='', instrument_device_id=''):
-        self.instrument_device.unlink_assignment(instrument_device_id, logical_instrument_id)
-
-    def assign_logical_platform_to_platform_device(self, logical_platform_id='', platform_device_id=''):
-        self.platform_device.link_assignment(platform_device_id, logical_platform_id)
-
-    def unassign_logical_platform_from_platform_device(self, logical_platform_id='', platform_device_id=''):
-        self.platform_device.unlink_assignment(platform_device_id, logical_platform_id)
-
     def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
         self.platform_agent.link_instance(platform_agent_id, platform_agent_instance_id)
 
@@ -979,28 +1002,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_agent_instance_from_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
 
+    def assign_instrument_agent_instance_to_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
+        self.instrument_agent.link_device_instance(instrument_device_id, instrument_agent_instance_id)
 
-    # reassigning a logical instrument to an instrument device is a little bit special
-    # TODO: someday we may be able to dig up the correct data products automatically,
-    #       but once we have them this is the function that does all the work.
-    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='', 
-                                                         old_instrument_device_id='', 
-                                                         new_instrument_device_id='',
-                                                         logical_data_product_ids=[],
-                                                         old_instrument_data_product_ids=[],
-                                                         new_instrument_data_product_ids=[]):
-        """
-        associate a logical instrument with a physical one.  this involves linking the
-        physical instrument's data product(s) to the logical one(s).
-        
-        the 2 lists of data products must be of equal length, and will map 1-1
+    def unassign_instrument_agent_instance_from_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
+        self.instrument_agent.unlink_device_instance(instrument_device_id, instrument_agent_instance_id)
 
-        @param logical_instrument_id
-        @param instrument_device_id
-        @param logical_data_product_ids a list of data products associated to a logical instrument
-        @param instrument_data_product_ids a list of data products coming from an instrument device
-        """
- 
         
         def verify_dp_origin(supplied_dps, assigned_dps, instrument_id, instrument_label):
             """

@@ -478,7 +478,7 @@ class ResourceImplMetatest(object):
                 svc.clients.resource_registry.find_resources.assert_called_once_with(impl_instance.iontype,
                                                                                      None,
                                                                                      None,
-                                                                                     True)
+                                                                                     False)
 
                 
             name = make_name("resource_impl_find")

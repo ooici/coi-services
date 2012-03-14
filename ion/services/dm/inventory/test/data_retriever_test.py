@@ -3,26 +3,37 @@
 @file ion/services/dm/inventory/test/data_retriever_test.py
 @description Testing Platform for Data Retriver Service
 '''
-import gevent
-from mock import Mock
-from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor, ProcessDefinition
+from gevent.coros import RLock
+from pyon.core.exception import NotFound
+from pyon.datastore.datastore import DataStore
+from pyon.public import  StreamSubscriberRegistrar
+from pyon.public import PRED, log
+from pyon.util.containers import DotDict
+from pyon.util.file_sys import FS, FileSystem
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
+from pyon.net.endpoint import Subscriber
+from pyon.public import CFG
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from ion.processes.data.replay_process import ReplayProcess
+from prototype.hdf.hdf_codec import HDFEncoder
+from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
+from interface.objects import Replay, StreamQuery, BlogPost, BlogAuthor, ProcessDefinition, StreamGranuleContainer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
-from prototype.sci_data.ctd_stream import ctd_stream_packet
-from pyon.core.exception import NotFound
-from pyon.datastore.datastore import DataStore
-from pyon.public import  StreamSubscriberRegistrar
-from pyon.public import PRED
-from pyon.util.containers import DotDict
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.unit_test import PyonTestCase
-from nose.plugins.attrib import attr
-import unittest, time
-from pyon.public import log
 
+from nose.plugins.attrib import attr
+from mock import Mock
+import unittest, time
+import random
+import hashlib
+import pyon.core.bootstrap as bootstrap
+import gevent
 import unittest
 import os
 
@@ -41,7 +52,21 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.mock_rr_find_assoc = self.data_retriever_service.clients.resource_registry.find_associations
         self.mock_ps_create_stream = self.data_retriever_service.clients.pubsub_management.create_stream
         self.mock_ps_create_stream_definition = self.data_retriever_service.clients.pubsub_management.create_stream_definition
-        self.data_retriever_service.container = DotDict({'id':'123','spawn_process':Mock(),'proc_manager':DotDict({'terminate_process':Mock(),'procs':[]})})
+        self.data_retriever_service.container = DotDict({
+            'id':'123',
+            'spawn_process':Mock(),
+            'proc_manager':DotDict({
+                'terminate_process':Mock(),
+                'procs':[]
+            }),
+            'datastore_manager':DotDict({
+                'get_datastore':Mock()
+            })
+        })
+        self.datastore = DotDict({
+            'query_view':Mock()
+        })
+        self.data_retriever_service.container.datastore_manager.get_datastore.return_value = self.datastore
         self.mock_cc_spawn = self.data_retriever_service.container.spawn_process
         self.mock_cc_terminate = self.data_retriever_service.container.proc_manager.terminate_process
         self.mock_pd_schedule = self.data_retriever_service.clients.process_dispatcher.schedule_process
@@ -53,6 +78,7 @@ class DataRetrieverServiceTest(PyonTestCase):
 
         self.data_retriever_service.process_definition_id = 'mock_procdef_id'
 
+    @unittest.skip('Can we mock the datastore manager?')
     def test_define_replay(self):
         #mocks
         self.mock_ps_create_stream.return_value = '12345'
@@ -62,7 +88,10 @@ class DataRetrieverServiceTest(PyonTestCase):
             'view_name':'garbage',
             'primary_view_key':'primary key'})
 
+        document = DotDict({'stream_resource_id':'0'})
         self.mock_pd_schedule.return_value = 'process_id'
+
+        self.datastore.query_view.return_value = [{'doc':document}]
 
         config = {'process':{
             'query':'myquery',
@@ -87,6 +116,32 @@ class DataRetrieverServiceTest(PyonTestCase):
         self.assertEquals(r,'replay_id')
         self.assertEquals(s,'12345')
 
+    def test_define_replay_no_data(self):
+        #mocks
+        self.mock_ps_create_stream.return_value = '12345'
+        self.mock_rr_create.return_value = ('replay_id','garbage')
+        self.mock_ds_read.return_value = DotDict({
+            'datastore_name':'unittest',
+            'view_name':'garbage',
+            'primary_view_key':'primary key'})
+
+        document = DotDict({'stream_resource_id':'0'})
+        self.mock_pd_schedule.return_value = 'process_id'
+
+        self.datastore.query_view.return_value = [] # Raises index error
+
+        config = {'process':{
+            'query':'myquery',
+            'datastore_name':'unittest',
+            'view_name':'garbage',
+            'key_id':'primary key',
+            'delivery_format':None,
+            'publish_streams':{'output':'12345'}
+        }}
+
+
+        with self.assertRaises(NotFound):
+            self.data_retriever_service.define_replay(dataset_id='dataset_id', query='myquery')
 
 
     @unittest.skip('Can\'t do unit test here')
@@ -121,151 +176,254 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        self.couch = self.container.datastore_manager.get_datastore('test_data_retriever', profile=DataStore.DS_PROFILE.EXAMPLES)
+        self.couch = self.container.datastore_manager.get_datastore('test_data_retriever', profile=DataStore.DS_PROFILE.SCIDATA)
         self.datastore_name = 'test_data_retriever'
 
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.dsm_cli = DatasetManagementServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.ps_cli = PubsubManagementServiceClient(node=self.container.node)
+        self.tms_cli = TransformManagementServiceClient(node=self.container.node)
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
+        xs_dot_xp = CFG.core_xps.science_data
+        try:
+            self.XS, xp_base = xs_dot_xp.split('.')
+            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
+        self.thread_pool = list()
+
+    def make_some_data(self):
+        import numpy as np
+
+        stream_id = 'I am very special'
+        definition = SBE37_CDM_stream_definition()
+        definition.stream_resource_id = stream_id
+
+        self.couch.create(definition)
+
+        total = 200
+        n = 10 # at most n records per granule
+        i = 0
+
+        while i < total:
+            r = random.randint(1,n)
+
+            psc = PointSupplementConstructor(point_definition=definition, stream_id=stream_id)
+            for x in xrange(r):
+                i+=1
+                point_id = psc.add_point(time=i, location=(0,0,0))
+                psc.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=np.random.normal(loc=48.0,scale=4.0, size=1)[0])
+                psc.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=np.float32(1.0))
+                psc.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=np.float32(2.0))
+            granule = psc.close_stream_granule()
+            hdf_string = granule.identifiables[definition.data_stream_id].values
+            sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+            with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
+                f.write(hdf_string)
+            granule.identifiables[definition.data_stream_id].values = ''
+            self.couch.create(granule)
+
+
+
+    def start_listener(self, stream_id, callback):
+
+        sub = Subscriber(name=(self.XP, 'replay_listener'), callback=callback)
+        g = gevent.Greenlet(sub.listen, binding='%s.data' % stream_id)
+        g.start()
+        self.thread_pool.append(g)
 
     def tearDown(self):
         super(DataRetrieverServiceIntTest,self).tearDown()
+        for greenlet in self.thread_pool:
+            greenlet.kill()
 
-
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_define_replay(self):
-        dataset_id = self.dsm_cli.create_dataset(
-            stream_id='12345',
-            datastore_name=self.datastore_name,
-            view_name='posts/posts_join_comments',
-            name='test define replay'
-        )
-        replay_id, stream_id = self.dr_cli.define_replay(dataset_id=dataset_id)
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
 
-        replay = self.rr_cli.read(replay_id)
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id)
 
-        # Assert that the process was created
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
 
-        self.assertTrue(self.container.proc_manager.procs[replay.process_id])
 
-        self.dr_cli.cancel_replay(replay_id)
+    def test_define_replay_no_data(self):
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        assertRaises = self.assertRaises
 
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        with assertRaises(NotFound):
+            dr_cli.define_replay(dataset_id=dataset_id)
+
+
     def test_cancel_replay(self):
-        dataset_id = self.dsm_cli.create_dataset(
-            stream_id='12345',
-            datastore_name=self.datastore_name,
-            view_name='posts/posts_join_comments',
-            name='test define replay'
-        )
-        replay_id, stream_id = self.dr_cli.define_replay(dataset_id=dataset_id)
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
 
-        replay = self.rr_cli.read(replay_id)
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id)
 
-        # Assert that the process was created
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
 
-        self.assertTrue(self.container.proc_manager.procs[replay.process_id])
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
-        self.dr_cli.cancel_replay(replay_id)
+        dr_cli.cancel_replay(replay_id=replay_id)
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
 
-        # assert that the process is no more
-        self.assertFalse(replay.process_id in self.container.proc_manager.procs)
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
-        # assert that the resource no longer exists
-        with self.assertRaises(NotFound):
-            self.rr_cli.read(replay_id)
-
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_start_replay(self):
-        post = BlogPost(title='test blog post', post_id='12345', author=BlogAuthor(name='Jon Doe'), content='this is a blog post',
-        updated=time.strftime("%Y-%m-%dT%H:%M%S-05"))
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
 
-        dataset_id = self.dsm_cli.create_dataset(
-            stream_id='12345',
-            datastore_name=self.datastore_name,
-            view_name='posts/posts_join_comments',
-            name='blog posts test'
-        )
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id)
 
-        self.couch.create(post)
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
 
-        replay_id, stream_id = self.dr_cli.define_replay(dataset_id)
-        replay = self.rr_cli.read(replay_id)
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
 
+        dr_cli.start_replay(replay_id=replay_id)
 
-        # assert that the process was created
+        time.sleep(0.5)
 
-        self.assertTrue(self.container.proc_manager.procs[replay.process_id])
+        dr_cli.cancel_replay(replay_id=replay_id)
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
 
-        # pattern from Tim G
-        ar = gevent.event.AsyncResult()
-        def consume(message, headers):
-            ar.set(message)
-
-        stream_subscriber = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
-        subscriber = stream_subscriber.create_subscriber(exchange_name='test_queue', callback=consume)
-        subscriber.start()
-
-        query = StreamQuery(stream_ids=[stream_id])
-        subscription_id = self.ps_cli.create_subscription(query=query,exchange_name='test_queue')
-        self.ps_cli.activate_subscription(subscription_id)
-
-        self.dr_cli.start_replay(replay_id)
-        self.assertEqual(ar.get(timeout=10).post_id,post.post_id)
-
-        subscriber.stop()
-
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_chop_chop(self):
-        # Override couch
-
-        self.couch = self.container.datastore_manager.get_datastore(
-            ds_name='chopping_block',
-            profile=DataStore.DS_PROFILE.SCIDATA
-        )
-        self.datastore_name = 'chopping_block'
-        granule = ctd_stream_packet(
-            stream_id='this_is_only_a_test',
-            time='12345', #Same combo on my luggage
-            create_hdf=False
-        )
-
-        self.couch.create(granule)
-        log.debug("Granule: %s", granule)
-
-        dataset_id = self.dsm_cli.create_dataset(
-            stream_id='this_is_only_a_test',
-            datastore_name=self.datastore_name,
-            view_name='datasets/dataset_by_id',
-            name='sci_data_granule_chop'
-        )
-
-        replay_id, stream_id = self.dr_cli.define_replay(
-            dataset_id=dataset_id,
-            delivery_format={'chop':True}
-        )
-
-        replay = self.rr_cli.read(replay_id)
-        self.assertTrue(self.container.proc_manager.procs[replay.process_id])
-
-        async_result = gevent.event.AsyncResult()
-        def consume(message, headers):
-            async_result.set(message)
-
-        stream_subscriber = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
-        subscriber = stream_subscriber.create_subscriber(exchange_name = 'chopping_block', callback=consume)
-        subscriber.start()
-
-        query = StreamQuery(stream_ids=[stream_id])
-        subscription_id = self.ps_cli.create_subscription(query=query, exchange_name='chopping_block')
-        self.ps_cli.activate_subscription(subscription_id=subscription_id)
-        self.dr_cli.start_replay(replay_id)
-
-        for fields in xrange(4):
-            self.assertTrue(async_result.get(timeout=10))
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
 
 
-        subscriber.stop()
-        self.dr_cli.cancel_replay(replay_id=replay_id)
+    def test_fields_replay(self):
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        assertions = self.assertTrue
+        cc = self.container
+
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature']})
+
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+
+        result = gevent.event.AsyncResult()
+
+        def check_msg(msg, header):
+            assertions(isinstance(msg, StreamGranuleContainer), 'Msg is not a container')
+            hdf_string = msg.identifiables[msg.data_stream_id].values
+            sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+            log.debug('Sha1 matches')
+            log.debug('Dumping file so you can inspect it.')
+            log.debug('Records: %d' % msg.identifiables['record_count'].value)
+            with open(FileSystem.get_url(FS.TEMP,'%s.cap.hdf5' % sha1[:8]),'w') as f:
+                f.write(hdf_string)
+                log.debug('Stream Capture: %s', f.name)
+            result.set(True)
+
+        self.start_listener(stream_id=stream_id, callback=check_msg)
+
+        dr_cli.start_replay(replay_id=replay_id)
+
+        assertions(result.get(timeout=3), 'Did not receive a msg from replay')
+
+        dr_cli.cancel_replay(replay_id=replay_id)
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+
+    def test_advanced_replay(self):
+        self.make_some_data()
+        dsm_cli = self.dsm_cli
+        dr_cli = self.dr_cli
+        rr_cli = self.rr_cli
+        pubsub_cli = self.ps_cli
+        assertions = self.assertTrue
+        cc = self.container
+        incr_lock = RLock()
+        dataset_id = dsm_cli.create_dataset(stream_id='I am very special', datastore_name=self.datastore_name, view_name='datasets/dataset_by_id')
+        replay_id, stream_id = dr_cli.define_replay(dataset_id=dataset_id, delivery_format={'fields':['temperature'], 'time':(101,171),'records':10})
+
+        definition = pubsub_cli.find_stream_definition(stream_id=stream_id,id_only=False).container
+        data_stream_id = definition.data_stream_id
+        encoding_id = definition.identifiables[data_stream_id].encoding_id
+        element_type_id = definition.identifiables[data_stream_id].element_type_id
+        element_count_id = definition.identifiables[data_stream_id].element_count_id
+        data_record_id = definition.identifiables[element_type_id].data_record_id
+
+
+
+
+        replay = rr_cli.read(replay_id)
+        pid = replay.process_id
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+
+            assertions(cc.proc_manager.procs.has_key(pid), 'Process was not spawned correctly.')
+            assertions(isinstance(cc.proc_manager.procs[pid], ReplayProcess))
+
+        result = gevent.event.AsyncResult()
+        records_rcvd = gevent.queue.Queue()
+
+        def check_msg(msg, header):
+            assertions(isinstance(msg, StreamGranuleContainer), 'Msg is not a container')
+            hdf_string = msg.identifiables[msg.data_stream_id].values
+            sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
+
+            assertions(sha1 == msg.identifiables[encoding_id].sha1, 'Checksum doesn\'t match.')
+            record_count = msg.identifiables[element_count_id].value
+            log.debug('Record Count: %d', record_count)
+            assertions(record_count>0 and record_count<=10, 'record count size is incorrect.')
+            # Make sure that the granule contains no more than 10 records
+
+
+            incr_lock.acquire()
+            if not records_rcvd.empty():
+                initial_value = records_rcvd.get()
+            else:
+                initial_value = 0
+            total = initial_value + record_count
+            records_rcvd.put(total)
+            log.debug('initial value: %d', initial_value)
+            log.debug('recvd: %d', total)
+            if total == 71:
+                result.set(True)
+            incr_lock.release()
+            
+
+        self.start_listener(stream_id=stream_id, callback=check_msg)
+
+        dr_cli.start_replay(replay_id=replay_id)
+
+        assertions(result.get(timeout=10), 'Did not receive a msg from replay')
+
+        dr_cli.cancel_replay(replay_id=replay_id)
+        if not (os.getenv('CEI_LAUNCH_TEST', False)):
+            assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+

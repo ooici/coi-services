@@ -28,6 +28,12 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
     def unlink_instance(self, instrument_agent_id='', instrument_agent_instance_id=''):
         return self._unlink_resources(instrument_agent_id, PRED.hasInstance, instrument_agent_instance_id)
 
+    def link_device_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
+        return self._link_resources(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
+
+    def unlink_device_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
+        return self._unlink_resources(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
+
     def link_model(self, instrument_agent_id='', instrument_model_id=''):
         return self._link_resources_single_subject(instrument_agent_id, PRED.hasModel, instrument_model_id)
 

@@ -154,7 +154,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ##########################################################################
 
-    def create_site(self, site=None):
+    def create_site(self, site=None, parent_id=''):
         """
         create a new instance
         @param site the object to be created as a resource
@@ -162,7 +162,15 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.site.create_one(site)
+        site_id = self.site.create_one(site)
+
+        if parent_id:
+            parent_obj = self.clients.resource_registry.read(parent_id)
+
+            # connect to the parent
+            assoc_id, _ = self.clients.resource_registry.create_association(parent_id,  PRED.hasSite, site_id)
+
+        return site_id
 
     def update_site(self, site=None):
         """
@@ -191,7 +199,18 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @retval success whether it succeeded
 
         """
-        return self.site.delete_one(site_id)
+
+        sites, _ = self.clients.resource_registry.find_subjects( RT.Site, PRED.hasSite, site_id, id_only=True )
+        for parent_site in sites:
+            self.unassign_site_from_site(site_id, parent_site)
+
+        facilities, _ = self.clients.resource_registry.find_subjects( RT.MarineFacility, PRED.hasSite, site_id, id_only=True )
+        for facility in facilities:
+            self.unassign_site_from_marine_facility(site_id, facility)
+
+        self.site.delete_one(site_id)
+
+        return
 
     def find_sites(self, filters=None):
         """
@@ -206,7 +225,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ##########################################################################
 
-    def create_logical_instrument(self, logical_instrument=None):
+    def create_logical_instrument(self, logical_instrument=None, parent_logical_platform_id=''):
         """
         create a new instance
         @param logical_instrument the object to be created as a resource
@@ -214,7 +233,15 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.logical_instrument.create_one(logical_instrument)
+
+        logical_instrument_id = self.logical_instrument.create_one(logical_instrument)
+
+        if parent_logical_platform_id:
+            parent_logical_platform = self.clients.resource_registry.read(parent_logical_platform_id)
+            # connect to the parent
+            self.assign_logical_instrument_to_logical_platform(logical_instrument_id, parent_logical_platform_id)
+
+        return logical_instrument_id
 
     def update_logical_instrument(self, logical_instrument=None):
         """
@@ -243,7 +270,14 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @retval success whether it succeeded
 
         """
-        return self.logical_instrument.delete_one(logical_instrument_id)
+        # remove link to parent Logical Platform
+        logical_platforms, _ = self.clients.resource_registry.find_subjects( RT.LogicalPlatform, PRED.hasInstrument, logical_instrument_id, True)
+        for logical_platform in logical_platforms:
+            self.unassign_logical_instrument_from_logical_platform(logical_instrument_id, logical_platform)
+
+        self.logical_instrument.delete_one(logical_instrument_id)
+
+        return
 
     def find_logical_instruments(self, filters=None):
         """
@@ -259,7 +293,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ##########################################################################
 
-    def create_logical_platform(self, logical_platform=None):
+    def create_logical_platform(self, logical_platform=None, parent_site_id=''):
         """
         create a new instance
         @param logical_platform the object to be created as a resource
@@ -267,7 +301,13 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.logical_platform.create_one(logical_platform)
+        logical_platform_id = self.logical_platform.create_one(logical_platform)
+
+        if parent_site_id:
+            parent_site_obj = self.clients.resource_registry.read(parent_site_id)
+            self.assign_logical_platform_to_site(logical_platform_id, parent_site_id)
+
+        return logical_platform_id
 
     def update_logical_platform(self, logical_platform=None):
         """
@@ -296,7 +336,14 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @retval success whether it succeeded
 
         """
-        return self.logical_platform.delete_one(logical_platform_id)
+        # remove link to parent Site
+        sites, _ = self.clients.resource_registry.find_subjects( RT.Site, PRED.hasPlatform, logical_platform_id, True)
+        for site in sites:
+            self.unassign_logical_platform_from_site(logical_platform_id, site)
+
+        self.logical_platform.delete_one(logical_platform_id)
+
+        return
 
     def find_logical_platforms(self, filters=None):
         """
@@ -313,6 +360,30 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     ############################
 
 
+    def assign_resource_to_marine_facility(self, resource_id='', marine_facility_id=''):
+        resource_obj = self.clients.resource_registry.read(resource_id)
+        marine_facility_obj = self.clients.resource_registry.read(marine_facility_id)
+
+        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
+        if not org_ids:
+            raise NotFound ("Marine Facility is not associated with an Org: %s ", marine_facility_id)
+
+        log.debug("MarineFacilityManagementService:assign_resource_to_marine_facility org id: %s     resource id:  %s ", str(org_ids[0]), str(resource_id))
+        self.clients.org_management.share_resource(org_ids[0], resource_id)
+
+        return
+
+    def unassign_resource_from_marine_facility(self, resource_id='', marine_facility_id=''):
+        resource_obj = self.clients.resource_registry.read(resource_id)
+        marine_facility_obj = self.clients.resource_registry.read(marine_facility_id)
+
+        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
+        if not org_ids:
+            raise NotFound ("Marine Facility is not associated with an Org: %s ", marine_facility_id)
+
+        self.clients.org_management.unshare_resource(org_ids[0], resource_id)
+        return
+
     def assign_platform_to_logical_platform(self, platform_id='', logical_platform_id=''):
         self.logical_platform.link_platform(logical_platform_id, platform_id)
 
@@ -320,6 +391,17 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     def unassign_platform_from_logical_platform(self, platform_id='', logical_platform_id=''):
         self.logical_platform.unlink_platform(logical_platform_id, platform_id)
 
+    def assign_platform_model_to_logical_platform(self, platform_model_id='', logical_platform_id=''):
+        self.platform_device.link_logicalmodel(logical_platform_id, platform_model_id)
+
+    def unassign_platform_model_from_logical_platform(self, platform_model_id='', logical_platform_id=''):
+        self.platform_device.unlink_logicalmodel(logical_platform_id, platform_model_id)
+
+    def assign_instrument_model_to_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
+        self.logical_instrument.link_logicalmodel(logical_instrument_id, instrument_model_id)
+
+    def unassign_instrument_model_from_logical_instrument(self, instrument_model_id='', logical_instrument_id=''):
+        self.logical_instrument.unlink_logicalmodel(logical_instrument_id, instrument_model_id)
 
     def assign_logical_instrument_to_logical_platform(self, logical_instrument_id='', logical_platform_id=''):
         self.logical_platform.link_instrument(logical_platform_id, logical_instrument_id)
@@ -354,6 +436,27 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #     self.logical_instrument.unlink_data_product(logical_instrument_id, data_product_id)
 
 
+    # reassigning a logical instrument to an instrument device is a little bit special
+    # TODO: someday we may be able to dig up the correct data products automatically,
+    #       but once we have them this is the function that does all the work.
+    def reassign_instrument_device_to_logical_instrument(self, logical_instrument_id='',
+                                                         old_instrument_device_id='',
+                                                         new_instrument_device_id='',
+                                                         logical_data_product_ids=None,
+                                                         old_instrument_data_product_ids=None,
+                                                         new_instrument_data_product_ids=None):
+        """
+        associate a logical instrument with a physical one.  this involves linking the
+        physical instrument's data product(s) to the logical one(s).
+
+        the 2 lists of data products must be of equal length, and will map 1-1
+
+        @param logical_instrument_id
+        @param instrument_device_id
+        @param logical_data_product_ids a list of data products associated to a logical instrument
+        @param instrument_data_product_ids a list of data products coming from an instrument device
+        """
+
 
     def define_observatory_policy(self):
         """method docstring
@@ -364,8 +467,6 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         # ...
         #
         pass
-
-
 
 
 
@@ -414,6 +515,85 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #  SPECIALIZED FIND METHODS
     #
     ############################
+
+    def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=[]):
+        log.debug("Find subordinate entity")
+
+        # the relative depth of each resource type in our tree
+        depth = {RT.LogicalInstrument: 4,
+                 RT.LogicalPlatform: 3,
+                 RT.Site: 2,
+                 RT.MarineFacility: 1,
+                 }
+
+        # the possible parent types that a resource can have
+        hierarchy_dependencies =  {
+            RT.LogicalInstrument: [RT.LogicalPlatform],
+            RT.LogicalPlatform:  [RT.LogicalPlatform, RT.Site],
+            RT.Site:             [RT.Site, RT.MarineFacility],
+            }
+
+
+        parent_obj  = self.RR.read(parent_resource_id)
+        parent_type = type(parent_obj).__name__
+        acc = {}
+        acc[parent_type] = [parent_obj]
+
+        # figure out the actual depth we need to go
+        deepest_type = parent_type
+        for child_type in child_resource_type_list:
+            if depth[deepest_type] < depth[child_type]:
+                deepest_type = child_type
+
+        log.debug("Deepest level for search will be '%s'" % deepest_type)
+
+        # generate function calls in order of dependencies -- reverse
+        call_list = []
+        target_type = deepest_type
+        while target_type != parent_type:
+            for requisite_type in hierarchy_dependencies[target_type]:
+                #should cause errors if they stray
+                call_list.append((requisite_type, target_type))
+            #latest solved type is the latest result
+            target_type = requisite_type
+
+        # reverse the list and start calling functions
+        call_list.reverse()
+        for (p, c) in call_list:
+            acc = self._find_subordinate(acc, p, c)
+
+
+        return acc
+                    
+
+
+    def _find_subordinate(self, acc, parent_type, child_type):
+        """
+        acc is an accumulated dictionary
+        """
+        if not child_type in acc:
+            acc[child_type] = []
+            
+        find_fn = {
+            (RT.MarineFacility, RT.Site):               self.marine_facility.find_stemming_site,
+            (RT.Site, RT.Site):                         self.site.find_stemming_site,
+            (RT.Site, RT.LogicalPlatform):              self.site.find_stemming_platform,
+            (RT.LogicalPlatform, RT.LogicalPlatform):   self.logical_platform.find_stemming_platform,
+            (RT.LogicalPlatform, RT.LogicalInstrument): self.logical_platform.find_stemming_instrument,
+            }[(parent_type, child_type)]
+        
+        log.debug("Subordinates: '%s'x%d->'%s'" % (parent_type, len(acc[parent_type]), child_type))
+
+        #for all parents in the acc, add all their children
+        for parent_obj in acc[parent_type]:
+            parent_id = parent_obj._id
+            for child_obj in find_fn(parent_id):
+                acc[child_type].append(child_obj)
+
+        return acc
+
+
+
 
     def find_instrument_device_by_logical_platform(self, logical_platform_id=''):
         ret = []

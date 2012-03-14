@@ -1,3 +1,4 @@
+from pyon.core.exception import Inconsistent, NotFound, BadRequest
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
@@ -18,21 +19,23 @@ def seed_gov(container, process=FakeProcess()):
 
     id_client = IdentityManagementServiceProcessClient(node=container.node, process=process)
 
-    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
-    log.info('system actor:' + system_actor._id)
-
-
-
     org_client = OrgManagementServiceProcessClient(node=container.node, process=process)
     ion_org = org_client.find_org()
 
 
+    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+    log.info('system actor:' + system_actor._id)
+
+
+    sa_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+
+
 
     operator_role = IonObject(RT.UserRole, name='INSTRUMENT_OPERATOR',label='Instrument Operator', description='Instrument Operator')
-    org_client.add_user_role(ion_org._id, operator_role, headers={'ion-actor-id': system_actor._id})
+    org_client.add_user_role(ion_org._id, operator_role,  headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
 
     try:
-        org_client.add_user_role(ion_org._id, operator_role)
+        org_client.add_user_role(ion_org._id, operator_role, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     except Exception, e:
         log.info("This should fail")
         log.info(e.message)
@@ -75,31 +78,25 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     for r in roles:
         log.info('Org UserRole: ' + str(r))
 
-    users = org_client.find_enrolled_users(ion_org._id)
+    users = org_client.find_enrolled_users(ion_org._id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     for u in users:
         log.info( str(u))
 
-    roles = org_client.find_roles_by_user(ion_org._id, user_id)
-    for r in roles:
-        log.info('User UserRole: ' + str(r))
 
+ #   header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
 
-    results = find_data_products(user_id)
-    log.info(results)
+ #   org_client.grant_role(ion_org._id, user_id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
+ #   roles = org_client.find_roles_by_user(ion_org._id, user_id)
+ #   for r in roles:
+ #       log.info('User UserRole: ' +str(r))
 
-    results = find_instrument_agents(user_id)
-    log.info(results)
-
-    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
-
-    org_client.grant_role(ion_org._id, user_id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
-    roles = org_client.find_roles_by_user(ion_org._id, user_id)
-    for r in roles:
-        log.info('User UserRole: ' +str(r))
-
-    roles = org_client.find_roles_by_user(ion_org._id, system_actor._id)
+    roles = org_client.find_roles_by_user(ion_org._id, system_actor._id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     for r in roles:
         log.info('ION System UserRole: ' +str(r))
+
+    roles = org_client.find_roles_by_user(ion_org._id, user_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    for r in roles:
+        log.info('User UserRole: ' + str(r))
 
 
 #    log.info("Adding Instrument Operator Role")
@@ -115,77 +112,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 #    log.info("Request count: %d" % len(requests))
 ##    for r in requests:
 #        log.info('Org Request: ' +str(r))
-    '''
-    org2 = IonObject(RT.Org, name='Org2', description='A second Org')
-    org2_id = org_client.create_org(org2)
 
-    requests = org_client.find_requests(org2_id)
-    log.info("Org2 Request count: %d" % len(requests))
-    for r in requests:
-        log.info('Org2 Request: ' +str(r))
-
-    roles = org_client.find_org_roles(org2_id)
-    for r in roles:
-        log.info('Org2 UserRole: ' + str(r))
-
-
-    org_roles = org_client.find_all_roles_by_user(user_id)
-    log.info("All Org Roles: " + str(org_roles))
-
-    org_client.enroll_member(org2_id, user_id)
-
-
-    roles = org_client.find_roles_by_user(org2_id, user_id)
-
-    org_roles = org_client.find_all_roles_by_user(user_id)
-    log.info("All Org Roles for: " + str(org_roles))
-
-    log.info(user_id)
-    '''
-#    req_id = org_client.request_enroll(org2_id,user_id )
-
-#    requests = org_client.find_requests(org2_id)
-#    log.info("Org2 Request count: %d" % len(requests))
-#    for r in requests:
-#        log.info('Org Request: ' +str(r))
-
-#    org_client.approve_request(org2_id, req_id)
-
-#    requests = org_client.find_user_requests(user_id)
-#    log.info("User Request count: %d" % len(requests))
-#    for r in requests:
-#        log.info('User Request: ' +str(r))
-
-#    role = org_client.find_org_role_by_name(org2_id, MANAGER_ROLE)
-#    req_id = org_client.request_role(org2_id,user_id, role._id)
-#    requests = org_client.find_requests(org2_id)
-#    log.info("Org2 Request count: %d" % len(requests))
-#    for r in requests:
-#        log.info('Org Request: ' +str(r))
-
-#    marine_client = MarineFacilityManagementServiceProcessClient(node=container.node, process=process)
-#    mf_obj = IonObject(RT.MarineFacility, name='Marine Facility Org', description='a new marine facility')
-#    mf_id = marine_client.create_marine_facility(mf_obj)
-
-#    roles = org_client.find_org_roles(mf_id)
-#    for r in roles:
-#        log.info(str(r))
-
-
-#    role_obj = policy_client.find_role(MEMBER_ROLE)  # Not available anymore
-
-#   org_client.grant_role(ion_org._id,user_id,role_obj._id)
-
-#    members = org_client.find_enrolled_users(ion_org._id)
-#    log.info("Number of Org members: %d" % len(members))
-
-#    try:
-#        org_client.remove_user_role(ion_org._id,role_obj._id)
-#    except Exception, e:
-#        log.info("This should fail:")
-#        log.info(e.message)
-
-#    org_client.remove_user_role(ion_org._id,role_obj._id,True)
 
 
 def test_policy(container, process=FakeProcess()):
@@ -200,7 +127,9 @@ def test_policy(container, process=FakeProcess()):
 
     policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
 
-    users = org_client.find_enrolled_users(ion_org._id)
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+
+    users = org_client.find_enrolled_users(ion_org._id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': header_roles })
     for u in users:
         log.info( str(u))
 
@@ -274,12 +203,14 @@ def test_policy(container, process=FakeProcess()):
     results = find_data_products()
     log.info(results)
 
+    header_roles = get_role_message_headers(org_client.find_all_roles_by_user(user._id))
+
     ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
 
     try:
         ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent1', description='The first Instrument Agent')
 
-        ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': system_actor._id})
+        ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': user._id, 'ion-actor-roles': header_roles })
     except Exception, e:
         log.info('This operation should be denied: ' + e.message)
 
@@ -305,6 +236,236 @@ def test_policy(container, process=FakeProcess()):
 
     results = find_instrument_agents()
     log.info(results)
+
+def test_requests(container, process=FakeProcess()):
+
+    org_client = OrgManagementServiceProcessClient(node=container.node, process=process)
+    ion_org = org_client.find_org()
+
+    id_client = IdentityManagementServiceProcessClient(node=container.node, process=process)
+
+    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+    log.info('system actor:' + system_actor._id)
+
+    sa_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+
+
+    try:
+        user = id_client.find_user_identity_by_name('/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254')
+    except:
+        raise Inconsistent("The test user is not found; did you seed the data?")
+
+    log.debug('user_id: ' + user._id)
+    user_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(user._id))
+
+
+    try:
+        org2 = org_client.find_org('Org2')
+        org2_id = org2._id
+    except NotFound, e:
+
+        org2 = IonObject(RT.Org, name='Org2', description='A second Org')
+        org2_id = org_client.create_org(org2, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+
+    roles = org_client.find_org_roles(org2_id)
+    for r in roles:
+        log.info('Org2 UserRole: ' + str(r))
+
+
+    log.info(user._id)
+    org_roles = org_client.find_all_roles_by_user(user._id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("All Org Roles: " + str(org_roles))
+
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org2 Request: ' +str(r))
+
+
+
+    operator_role = IonObject(RT.UserRole, name='INSTRUMENT_OPERATOR',label='Instrument Operator', description='Instrument Operator')
+    org_client.add_user_role(org2_id, operator_role, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+    log.info("First try to request a role without being a member - should be denied")
+    req_id = org_client.request_role(org2_id,user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    req_id = None
+    try:
+        log.info("User requesting enrollment")
+        req_id = org_client.request_enroll(org2_id,user._id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+    except BadRequest, e:
+        pass
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+    if req_id is not None:
+        org_client.deny_request(org2_id,req_id,'To test the deny process', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+
+   # req_id = None
+  #  try:
+   #     log.info("User requesting enrollment")
+   #     req_id = org_client.request_enroll(org2_id,user._id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+    #except BadRequest, e:
+#        log.info(e.message)
+
+
+    if req_id is not None:
+        org_client.approve_request(org2_id,req_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    users = org_client.find_enrolled_users(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 members:")
+    for u in users:
+        log.info( str(u))
+
+    if req_id is not None:
+        log.info("User Accepts request:")
+        org_client.accept_request(org2_id,req_id,  headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+
+
+    users = org_client.find_enrolled_users(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 members:")
+    for u in users:
+        log.info( str(u))
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+
+    req_id = org_client.request_role(org2_id,user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    requests = org_client.find_requests(org2_id,request_status='Open', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Open Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Open Request: ' +str(r))
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+    requests = org_client.find_user_requests(user._id, org2_id, request_type=RT.RoleRequest, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Role Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Role Request: ' +str(r))
+
+    requests = org_client.find_user_requests(user._id, org2_id, request_status="Open", headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Open Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Open Request: ' +str(r))
+
+    ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
+
+    log.info( 'Request Instrument Agents')
+    ia_list = ims_client.find_instrument_agents()
+
+    req_id = org_client.request_acquire_resource(org2_id,user._id,ia_list[0] , headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+
+    requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+    log.info("Org2 Request count: %d" % len(requests))
+    for r in requests:
+        log.info('Org Request: ' +str(r))
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+
+    log.info("Manager approves request")
+    if req_id is not None:
+        org_client.approve_request(org2_id,req_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+    log.info("User accepts request")
+    if req_id is not None:
+        org_client.accept_request(org2_id,req_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+
+    requests = org_client.find_user_requests(user._id, org2_id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles })
+    log.info("User Requests count: %d" % len(requests))
+    for r in requests:
+        log.info('User Request: ' +str(r))
+
+
+
+
+#    org_client.approve_request(org2_id, req_id)
+
+#    requests = org_client.find_user_requests(user_id)
+#    log.info("User Request count: %d" % len(requests))
+#    for r in requests:
+#        log.info('User Request: ' +str(r))
+
+#    role = org_client.find_org_role_by_name(org2_id, MANAGER_ROLE)
+#    req_id = org_client.request_role(org2_id,user_id, role._id)
+#    requests = org_client.find_requests(org2_id)
+#    log.info("Org2 Request count: %d" % len(requests))
+#    for r in requests:
+#        log.info('Org Request: ' +str(r))
+
+#    marine_client = MarineFacilityManagementServiceProcessClient(node=container.node, process=process)
+#    mf_obj = IonObject(RT.MarineFacility, name='Marine Facility Org', description='a new marine facility')
+#    mf_id = marine_client.create_marine_facility(mf_obj)
+
+#    roles = org_client.find_org_roles(mf_id)
+#    for r in roles:
+#        log.info(str(r))
+
+
+#    role_obj = policy_client.find_role(MEMBER_ROLE)  # Not available anymore
+
+#   org_client.grant_role(ion_org._id,user_id,role_obj._id)
+
+#    members = org_client.find_enrolled_users(ion_org._id)
+#    log.info("Number of Org members: %d" % len(members))
+
+#    try:
+#        org_client.remove_user_role(ion_org._id,role_obj._id)
+#    except Exception, e:
+#        log.info("This should fail:")
+#        log.info(e.message)
+
+#    org_client.remove_user_role(ion_org._id,role_obj._id,True)
+
 
 def gateway_request(uri, payload):
 

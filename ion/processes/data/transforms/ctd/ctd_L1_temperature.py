@@ -12,9 +12,9 @@ from decimal import *
 
 #from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
-from prototype.sci_data.ctd_stream import scalar_point_stream_definition, ctd_stream_definition
+from prototype.sci_data.stream_defs import L1_temperature_stream_definition, L0_temperature_stream_definition
 
-from prototype.sci_data.deconstructor_apis import PointSupplementDeconstructor
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from seawater.gibbs import SP_from_cndr
@@ -30,17 +30,8 @@ class CTDL1TemperatureTransform(TransformFunction):
 
 
     # Make the stream definitions of the transform class attributes... best available option I can think of?
-    outgoing_stream_def = scalar_point_stream_definition(
-        description='L1 temperature Scale data from science transform',
-        field_name = 'L1_temperature',
-        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanTemperature.owl#Temperature',
-        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-        field_range = [0.1, 40.0]
-    )
-
-    incoming_stream_def = ctd_stream_definition()
-
-
+    incoming_stream_def = L0_temperature_stream_definition()
+    outgoing_stream_def = L1_temperature_stream_definition()
 
 
     def execute(self, granule):
@@ -48,7 +39,7 @@ class CTDL1TemperatureTransform(TransformFunction):
         """
 
         # Use the deconstructor to pull data from a granule
-        psd = PointSupplementDeconstructor(stream_definition=self.incoming_stream_def, stream_granule=granule)
+        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
 
 
         temperature = psd.get_values('temperature')
@@ -56,6 +47,7 @@ class CTDL1TemperatureTransform(TransformFunction):
 
         longitude = psd.get_values('longitude')
         latitude = psd.get_values('latitude')
+        height = psd.get_values('height')
         time = psd.get_values('time')
 
         log.warn('Got temperature: %s' % str(temperature))
@@ -71,11 +63,14 @@ class CTDL1TemperatureTransform(TransformFunction):
         #    2) Scaling: T [C] = (tdec / 10,000) - 10
 
         # Use the constructor to put data into a granule
-        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def)
+        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
+        ### Assumes the config argument for output streams is known and there is only one 'output'.
+        ### the stream id is part of the metadata which much go in each stream granule - this is awkward to do at the
+        ### application level like this!
 
         for i in xrange(len(temperature)):
-            scaled_temperature = ( Decimal(temperature[i])  / 10000) - 10
-            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
+            scaled_temperature = ( temperature[i] / 10000.0) - 10
+            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
             psc.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=scaled_temperature)
 
         return psc.close_stream_granule()

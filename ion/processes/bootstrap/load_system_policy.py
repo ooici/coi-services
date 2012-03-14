@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 """Process that loads the system policy"""
-
 __author__ = 'Stephen P. Henrie'
 
 """
@@ -11,6 +10,9 @@ from pyon.public import CFG, log, ImmediateProcess, iex, Container, IonObject, R
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
+
+
 
 from pyon.public import CFG, log, ImmediateProcess, iex, Container
 
@@ -51,6 +53,39 @@ class LoadSystemPolicy(ImmediateProcess):
         system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
         log.debug('system actor:' + system_actor._id)
 
+
+
+        #
+        # Now load the based set of negotiation definitions
+
+
+        res_reg = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=calling_process )
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.EnrollmentRequest,
+            description='Definition of Enrollment Request Negotiation',
+            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == True'],
+            accept_action = 'enroll_member(org_id,user_id)'
+        )
+
+        res_reg.create(neg_def)
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.RoleRequest,
+            description='Definition of Role Request Negotiation',
+            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            accept_action = 'grant_role(org_id,user_id,role_name)'
+        )
+
+        res_reg.create(neg_def)
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.ResourceRequest,
+            description='Definition of Role Request Negotiation',
+            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            accept_action = 'acquire_resource(org_id,user_id,resource_id)'
+        )
+
+        res_reg.create(neg_def)
+
+
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
 
         policy_text = '''
@@ -84,6 +119,7 @@ class LoadSystemPolicy(ImmediateProcess):
         log.debug('Policy created: ' + policy_obj.name)
 
 ##############
+
 
         policy_text = '''
         <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
@@ -120,16 +156,32 @@ class LoadSystemPolicy(ImmediateProcess):
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
 
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">signon</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
+
 
                     </Action>
                 </Actions>
 
             </Target>
 
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:ooi:function:not">
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_requests</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_user_requests</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_enrolled_users</AttributeValue>
+                        </Apply>
+                        <ActionAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                </Apply>
+            </Condition>
 
         </Rule>
         '''
@@ -144,6 +196,41 @@ class LoadSystemPolicy(ImmediateProcess):
 
 ##############
 
+        policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
+
+        policy_text = '''
+        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+            </Target>
+
+            <Condition>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                        </Apply>
+                        <SubjectAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+            </Condition>
+
+        </Rule>
+        '''
+
+
+        policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="global", rule=policy_text,
+            description='A global policy rule that permits access to everything in the Org for a user with Org Manager role')
+
+        policy_id = policy_client.create_policy(policy_obj, headers={'ion-actor-id': system_actor._id})
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers={'ion-actor-id': system_actor._id})
+        log.debug('Policy created: ' + policy_obj.name)
+
+##############
 
         policy_text = '''
             <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
@@ -357,6 +444,43 @@ class LoadSystemPolicy(ImmediateProcess):
                 </Resources>
 
                 <Actions>
+
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_requests</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_enrolled_users</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">approve_request</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">deny_request</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">enroll_member</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">cancel_member_enrollment</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">grant_role</AttributeValue>
@@ -366,6 +490,18 @@ class LoadSystemPolicy(ImmediateProcess):
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">revoke_role</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">add_user_role</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">remove_user_role</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
@@ -463,11 +599,9 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
 
-
-
         #TODO - replace with Event update framework
         from pyon.core.bootstrap import service_registry
         for service_name in service_registry.services:
             policy_rules = policy_client.get_active_service_policy_rules(ion_org._id, service_name)
-            Container.instance.governance_controller.load_policy_for_service(service_name, policy_rules)
+            Container.instance.governance_controller.update_resource_policy(service_name, policy_rules)
 

@@ -56,17 +56,17 @@ class InstrumentDeviceImpl(ResourceImpl):
     def unlink_agent_instance(self, instrument_device_id='', instrument_agent_instance_id=''):
         return self._unlink_resources(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
 
-    def link_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        return self._link_resources_single_object(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
-
-    def unlink_assignment(self, instrument_device_id='', logical_instrument_id=''):
-        return self._unlink_resources(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
-
     def link_deployment(self, instrument_device_id='', logical_instrument_id=''):
         return self._link_resources_single_object(instrument_device_id, PRED.hasDeployment, logical_instrument_id)
 
     def unlink_deployment(self, instrument_device_id='', logical_instrument_id=''):
         return self._unlink_resources(instrument_device_id, PRED.hasDeployment, logical_instrument_id)
+
+    def link_primary_deployment(self, instrument_device_id='', logical_instrument_id=''):
+        return self._link_resources_single_object(instrument_device_id, PRED.hasPrimaryDeployment, logical_instrument_id)
+
+    def unlink_primary_deployment(self, instrument_device_id='', logical_instrument_id=''):
+        return self._unlink_resources(instrument_device_id, PRED.hasPrimaryDeployment, logical_instrument_id)
 
     def link_data_producer(self, instrument_device_id='', data_producer_id=''):
         return self._link_resources(instrument_device_id, PRED.hasDataProducer, data_producer_id)

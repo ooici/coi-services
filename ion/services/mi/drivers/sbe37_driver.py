@@ -134,7 +134,7 @@ class SBE37Parameter(DriverParameter):
         
         
 PACKET_CONFIG = {
-        'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
+        'ctd_parsed' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet'),
         'ctd_raw' : None            
 }
 
@@ -580,7 +580,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         result = None
 
         try:
-            InstrumentProtocol.connect(self, *args, **kwargs)
+            result = InstrumentProtocol.connect(self, *args, **kwargs)
             timeout = kwargs.get('timeout', 10)
             prompt = self._wakeup(timeout)
             if prompt == SBE37Prompt.COMMAND:
@@ -626,9 +626,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         result = None
         
         try:
-            mi_logger.info('DISCONNECTING')
             InstrumentProtocol.disconnect(self, *args, **kwargs)
-            mi_logger.info('DONE DISCONNECTING')
             next_state = SBE37State.DISCONNECTED
 
         except InstrumentConnectionException:
@@ -802,7 +800,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                            SBE37State.DIRECT)
         self._publish_state_change(SBE37State.DIRECT)
         # get prompt from instrument
-        self._do_cmd_direct(SBE37_NEWLINE)                
+        #self._do_cmd_direct(SBE37_NEWLINE)                
             
     def _handler_direct_exit(self,  *args, **kwargs):
         """
@@ -842,7 +840,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         # callback from logger
         """
         """
-        """
+        
         if self._fsm.get_current_state() == SBE37State.DIRECT:
             # direct access mode
             if len(data) > 0:
@@ -862,16 +860,16 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     self.send_event(event)
                     # TODO: what about logging this as an event?
             return
-        """
-        CommandResponseInstrumentProtocol._got_data(self, data)
         
-        # Only keep the latest characters in the prompt buffer.
-        if len(self._promptbuf)>7:
-            self._promptbuf = self._promptbuf[-7:]
-            
-        # If we are streaming, process the line buffer for samples.
-        if self._fsm.get_current_state() == SBE37State.AUTOSAMPLE:
-            self._process_streaming_data()
+        if len(data)>0:
+            CommandResponseInstrumentProtocol._got_data(self, data)                        
+                        
+            if len(self._promptbuf)>7:
+                self._promptbuf = self._promptbuf[-7:]
+                
+            # If we are streaming, process the line buffer for samples.
+            if self._fsm.get_current_state() == SBE37State.AUTOSAMPLE:
+                self._process_streaming_data()
         
     def _process_streaming_data(self):
         """
@@ -890,6 +888,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
     def _update_params(self, *args, **kwargs):
         """
         """
+        
         timeout = kwargs.get('timeout', 10)
         old_config = self._get_config_param_dict()
         self._do_cmd_resp('ds',timeout=timeout)
@@ -902,6 +901,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                     'value' : new_config
                 }
                 self.send_event(event)
+        mi_logger.info('done updating params')
         
     def _build_simple_command(self, cmd):
         """

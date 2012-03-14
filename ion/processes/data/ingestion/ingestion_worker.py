@@ -19,7 +19,7 @@ from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import BlogPost, BlogComment, DatasetIngestionByStream, DatasetIngestionTypeEnum
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.event.event import DatasetIngestionConfigurationEventSubscriber
+from pyon.event.event import EventSubscriber
 
 from pyon.util.file_sys import FS, FileSystem
 import hashlib
@@ -69,7 +69,7 @@ class IngestionWorker(TransformDataProcess):
 
             self.datastore_profile = DataStore.DS_PROFILE.SCIDATA
         log.debug('datastore_profile %s' % self.datastore_profile)
-        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, self.datastore_profile, self.CFG)
+        self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
@@ -97,8 +97,8 @@ class IngestionWorker(TransformDataProcess):
 
 
         #Start the event subscriber - really - what a mess!
-        self.event_subscriber = DatasetIngestionConfigurationEventSubscriber(
-            node = self.container.node,
+        self.event_subscriber = EventSubscriber(
+            event_type="DatasetIngestionConfigurationEvent",
             origin=self.ingest_config_id,
             callback=receive_dataset_config_event
             )
@@ -132,6 +132,7 @@ class IngestionWorker(TransformDataProcess):
 
         try:
             self.db.create_doc(doc, object_id=sha1)
+            log.debug('Persisted document %s', type(obj))
         except BadRequest:
             # Deduplication in action!
             #@TODO why are we getting so many duplicate comments?
@@ -207,12 +208,22 @@ class IngestionWorker(TransformDataProcess):
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
+
+        # close event subscriber safely
+        self.event_subscriber.close()
+        self.gl.join(timeout=5)
         self.gl.kill()
+
         self.db.close()
 
     def on_quit(self):
         TransformDataProcess.on_quit(self)
+
+        # close event subscriber safely
+        self.event_subscriber.close()
+        self.gl.join(timeout=5)
         self.gl.kill()
+
         self.db.close()
 
 

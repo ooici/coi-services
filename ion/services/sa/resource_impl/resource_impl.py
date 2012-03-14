@@ -145,7 +145,8 @@ class ResourceImpl(object):
         # get the workflow that we need
         restype_workflow = lcs_workflows.get(resource_type, None)
         if not restype_workflow:
-            raise BadRequest("Resource id=%s type=%s does not have a lifecycle" % (resource_id, resource_type))
+            raise BadRequest("Resource id=%s type=%s does not have a lifecycle workflow" 
+                             % (resource_id, resource_type))
             #restype_workflow = lcs_workflows['Resource']
 
         # check that the transition is possible
@@ -261,6 +262,7 @@ class ResourceImpl(object):
         get the type of a resource by id
         @param resource_id a resource id
         """
+        assert(type("") == type(resource_id))
         return self._get_resource_type(self.RR.read(resource_id))
 
 
@@ -382,7 +384,7 @@ class ResourceImpl(object):
         find method
         @todo receive definition of the filters object
         """
-        results, _ = self.RR.find_resources(self.iontype, None, None, True)
+        results, _ = self.RR.find_resources(self.iontype, None, None, False)
         return self._return_find(results)
 
 
@@ -397,7 +399,7 @@ class ResourceImpl(object):
         ret, _ = self.RR.find_subjects(self.iontype,
                                        association_predicate,
                                        some_object,
-                                       True)
+                                       False)
         return ret
 
     def _find_stemming(self, primary_object_id, association_predicate, some_object_type):
@@ -412,7 +414,7 @@ class ResourceImpl(object):
         ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,
                                       some_object_type,
-                                      True)
+                                      False)
         return ret
 
 
@@ -483,6 +485,8 @@ class ResourceImpl(object):
         @todo check for errors: does RR check for bogus ids?
         """
 
+        assert(type("") == type(subject_id) == type(object_id))
+
         associate_success = self.RR.create_association(subject_id,
                                                        association_type,
                                                        object_id)
@@ -518,7 +522,7 @@ class ResourceImpl(object):
                 raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'" %
                                  (association_type, obj_type, self.iontype, subject_id))
             else:
-                self._unlink_resources(self, subject_id, association_type, existing_links[0])
+                self.unlink_all_objects_by_type(self, subject_id, association_type)
 
 
         return self._link_resources(subject_id, association_type, object_id)
@@ -564,6 +568,8 @@ class ResourceImpl(object):
         @todo check for errors
         """
 
+        assert(type("") == type(subject_id) == type(object_id))
+
         assoc = self.RR.get_association(subject=subject_id,
                                         predicate=association_type,
                                         object=object_id)
@@ -573,6 +579,31 @@ class ResourceImpl(object):
                   % (self._assn_name(association_type),
                      str(dessociate_success)))
         return dessociate_success
+
+    def _unlink_all_objects_by_association_type(self, subject_id='', association_type=''):
+        """
+        delete all assocations of a given type
+        """
+        log.debug("Deleting all %s object associations from subject with id='%s'" % 
+                  (association_type, subject_id))
+        associations = self.RR.find_associations(subject=subject_id, predicate=association_type)
+        
+        for a in associations:
+            self.RR.delete_association(a)
+
+        
+    def _unlink_all_subjects_by_assocation_type(self, association_type='', object_id=''):
+        """
+        delete all assocations of a given type
+        """
+        log.debug("Deleting all %s associations to object with id='%s'" % 
+                  (association_type, object_id))
+        associations = self.RR.find_associations(object=object_id, predicate=association_type)
+        
+        for a in associations:
+            self.RR.delete_association(a)
+
+        
 
 
     def link_attachment(self, resource_id='', attachment_id=''):

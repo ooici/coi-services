@@ -46,8 +46,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if result:
             raise BadRequest("A data process definition named '%s' already exists" % data_process_definition.name)
 
-        if not data_process_definition.process_source:
-            raise BadRequest("Data process definition has invalid process source.")
+        #todo: determine validation checks for a data process def
 
         data_process_definition_id, version = self.clients.resource_registry.create(data_process_definition)
 
@@ -108,11 +107,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=False)
-        if not associations or len(associations) == 0:
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=True)
+        if not associations:
             raise NotFound("No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association._id)
+            self.clients.resource_registry.delete_association(association)
 
         return
 
@@ -137,11 +136,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=False)
-        if not associations or len(associations) == 0:
+        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=True)
+        if not associations:
             raise NotFound("No Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association._id)
+            self.clients.resource_registry.delete_association(association)
 
         return
 
@@ -179,13 +178,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
-        #TODO: should this be outside this method? Called by orchastration?
+        #TODO: should this be outside this method? Called by orchestration?
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
         log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s", str(data_producer_id) )
 
 
         self.output_stream_dict = {}
-        #TODO: should this be outside this method? Called by orchastration?
+        #TODO: should this be outside this method? Called by orchestration?
+        if out_data_products is None:
+            raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
         for name, out_data_product_id in out_data_products.iteritems():
 
             # check that the product is not already associated with a producer
@@ -197,11 +198,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             out_data_product_obj = self.clients.resource_registry.read(out_data_product_id)
             if not out_data_product_obj:
                 raise NotFound("Output Data Product %s does not exist" % out_data_product_id)
-            # register as an output product for this process
+            # Associate with DataProcess: register as an output product for this process
+            log.debug("DataProcessManagementService:create_data_process link data process %s and output out data product: %s", str(data_process_id), str(out_data_product_id))
             self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
 
             # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, None, True)
+            stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, RT.Stream, True)
 
             log.debug("DataProcessManagementService:create_data_process retrieve out data prod streams: %s", str(stream_ids))
             if not stream_ids:

@@ -8,15 +8,13 @@ from pyon.ion.transform import TransformFunction, TransformDataProcess
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
-from decimal import *
 
-#from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 
-from prototype.sci_data.ctd_stream import scalar_point_stream_definition, ctd_stream_definition
-
-from prototype.sci_data.deconstructor_apis import PointSupplementDeconstructor
+from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
-from prototype.sci_data.ctd_stream import ctd_stream_definition
+from prototype.sci_data.stream_defs import ctd_stream_definition
+
 
 class ctd_L0_all(TransformDataProcess):
     """Model for a TransformDataProcess
@@ -24,32 +22,12 @@ class ctd_L0_all(TransformDataProcess):
     """
 
     # Make the stream definitions of the transform class attributes
+    incoming_stream_def = SBE37_CDM_stream_definition()
 
-    outgoing_stream_conductivity = scalar_point_stream_definition(
-        description='Conductivity data from science transform',
-        field_name = 'conductivity',
-        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanConductivity.owl#Conductivity',
-        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-        field_range = [0.1, 40.0]
-    )
+    outgoing_stream_pressure = L0_pressure_stream_definition()
+    outgoing_stream_temperature = L0_temperature_stream_definition()
+    outgoing_stream_conductivity = L0_conductivity_stream_definition()
 
-    outgoing_stream_pressure = scalar_point_stream_definition(
-        description='Pressure data from science transform',
-        field_name = 'pressure',
-        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanPressure.owl#Pressure',
-        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-        field_range = [0.1, 40.0]
-    )
-
-    outgoing_stream_temperature = scalar_point_stream_definition(
-        description='Temperature data from science transform',
-        field_name = 'temperature',
-        field_definition = 'http://http://sweet.jpl.nasa.gov/2.2/quanTemperature.owl#Temperature', # Does not exist - what to use?
-        field_units_code = '', # http://unitsofmeasure.org/ticket/27 Has no Units!
-        field_range = [0.1, 40.0]
-    )
-
-    incoming_stream_def = ctd_stream_definition()
 
 
     # Retrieve the id of the OUTPUT stream from the out Data Product for each of the three output streams
@@ -68,8 +46,8 @@ class ctd_L0_all(TransformDataProcess):
         """Processes incoming data!!!!
         """
 
-        # Use the deconstructor to pull data from a granule
-        psd = PointSupplementDeconstructor(stream_definition=self.incoming_stream_def, stream_granule=packet)
+        # Use the PointSupplementStreamParser to pull data from a granule
+        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=packet)
 
 
         conductivity = psd.get_values('conductivity')
@@ -78,6 +56,7 @@ class ctd_L0_all(TransformDataProcess):
 
         longitude = psd.get_values('longitude')
         latitude = psd.get_values('latitude')
+        height = psd.get_values('height')
         time = psd.get_values('time')
 
         log.warn('Got conductivity: %s' % str(conductivity))
@@ -91,30 +70,31 @@ class ctd_L0_all(TransformDataProcess):
 
         # Use the constructor to put data into a granule
 
-        psc_conductivity = PointSupplementConstructor(point_definition=self.outgoing_stream_conductivity)
+        psc_conductivity = PointSupplementConstructor(point_definition=self.outgoing_stream_conductivity, stream_id=self.streams['conductivity'])
 
-        psc_pressure = PointSupplementConstructor(point_definition=self.outgoing_stream_pressure)
+        psc_pressure = PointSupplementConstructor(point_definition=self.outgoing_stream_pressure, stream_id=self.streams['pressure'])
 
-        psc_temperature = PointSupplementConstructor(point_definition=self.outgoing_stream_temperature)
+        psc_temperature = PointSupplementConstructor(point_definition=self.outgoing_stream_temperature, stream_id=self.streams['temperature'])
+
+        ### The stream id is part of the metadata which much go in each stream granule - this is awkward to do at the
+        ### application level like this!
 
         for i in xrange(len(conductivity)):
-            point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=Decimal(conductivity[i]))
+            point_id = psc_conductivity.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
+            psc_conductivity.add_scalar_point_coverage(point_id=point_id, coverage_id='conductivity', value=conductivity[i])
         self.conductivity.publish(psc_conductivity.close_stream_granule())
 
         for i in xrange(len(pressure)):
-            point_id = psc_pressure.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=Decimal(pressure[i]))
+            point_id = psc_pressure.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
+            psc_pressure.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=pressure[i])
         self.pressure.publish(psc_pressure.close_stream_granule())
 
         for i in xrange(len(temperature)):
-            point_id = psc_temperature.add_point(time=time[i],location=(longitude[i],latitude[i],pressure[i]))
-            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=Decimal(temperature[i]))
+            point_id = psc_temperature.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
+            psc_temperature.add_scalar_point_coverage(point_id=point_id, coverage_id='temperature', value=temperature[i])
         self.temperature.publish(psc_temperature.close_stream_granule())
 
         return
-
-
 
 
 

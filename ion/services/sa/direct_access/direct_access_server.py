@@ -19,22 +19,26 @@ class DirectAccessServer(object):
     
     server = None
     
-    def __init__(self, direct_access_type=None, input_callback=None):
+    def __init__(self, direct_access_type=None, input_callback=None, ip_address=None):
         log.debug("DirectAccessServer.__init__()")
 
         if not direct_access_type:
             log.warning("DirectAccessServer.__init__(): direct access type not specified")
-            raise ServerError("direct access type not specified")
+            raise ServerError("DirectAccessServer.__init__(): direct access type not specified")
 
         if not input_callback:
             log.warning("DirectAccessServer.__init__(): callback not specified")
-            raise ServerError("callback not specified")
+            raise ServerError("DirectAccessServer.__init__(): callback not specified")
+               
+        if not ip_address:
+            log.warning("DirectAccessServer.__init__(): IP address not specified")
+            raise ServerError("DirectAccessServer.__init__(): IP address not specified")
                
         # start the correct server based on direct_access_type
         if direct_access_type == DirectAccessTypes.telnet:
-            self.server = TelnetServer(input_callback)
+            self.server = TelnetServer(input_callback, ip_address)
         else:
-            raise ServerError("Unsupported direct access type")
+            raise ServerError("DirectAccessServer.__init__(): Unsupported direct access type")
         
         
     def get_connection_info(self):

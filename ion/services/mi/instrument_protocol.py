@@ -127,7 +127,6 @@ class InstrumentProtocol(object):
         @throws InstrumentConnectionException
         """
         mi_logger.info('Connecting to device.')
-        
         logger_pid = self._logger.get_pid()
         mi_logger.info('Found logger pid: %s.', str(logger_pid))
         if not logger_pid:
@@ -142,11 +141,12 @@ class InstrumentProtocol(object):
             mi_logger.debug('popen wait returned %s', str(self._logger_popen.wait()))
             time.sleep(1)         
             self.attach()
+            time.sleep(1)
         else:
             # There was a pidfile for the device.
             raise InstrumentConnectionException()
 
-        return logger_pid
+        return self._logger.get_pid()
         
     def disconnect(self, *args, **kwargs):
         """Disconnect via the instrument connection object
@@ -154,9 +154,11 @@ class InstrumentProtocol(object):
         @throws InstrumentConnectionException
         """
         mi_logger.info('Disconnecting from device.')
-        self.detach()
+        self._logger_client.stop_comms()
+        time.sleep(1)
         self._logger.stop()
-    
+        time.sleep(1)
+        
     def attach(self, *args, **kwargs):
         """
         """
@@ -385,8 +387,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         """
         # Update the line and prompt buffers.
-        self._linebuf += data        
         self._promptbuf += data
+        self._linebuf += data        
 
     ########################################################################
     # Wakeup helpers.
@@ -412,35 +414,18 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         # Grab time for timeout.
         starttime = time.time()
-        count = 0
-        
         
         while True:
             # Send a line return and wait a sec.
             mi_logger.debug('Sending wakeup.')
-            count += 1
             self._send_wakeup()
-            time.sleep(1.5)
+            time.sleep(1)
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.info('Got prompt: %s', repr(self._promptbuf))
-                    if count > 1:
-                        mi_logger.debug('Waiting in wakeup...')
-                        time.sleep(2)
-                    mi_logger.debug('Finished wakeup promptbuf: %s', repr(self._promptbuf))                        
+                    mi_logger.debug('wakeup got prompt: %s', repr(item))
                     return item
-                    """
-                    mi_logger.debug('Got prompt: %s', repr(self._promptbuf))
-                    if count > 1:
-                        while True:                            
-                            old_promptbuf = self._promptbuf                            
-                            time.sleep(2)
-                            if old_promptbuf == self._promptbuf:
-                                break
-                    mi_logger.debug('Finished wakeup promptbuf: %s', repr(self._promptbuf))                    
-                    return item
-                    """
+
             if time.time() > starttime + timeout:
                 raise InstrumentTimeoutException()
             
@@ -469,17 +454,20 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
         
+        
         while True:
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.debug('Got prompt: %s', repr(item))
                     return (item, self._linebuf)
                 else:
                     time.sleep(.1)
             if time.time() > starttime + timeout:
                 raise InstrumentTimeoutException()
-
+        
+        #time.sleep(3)
+        #return (None, self._linebuf)
+        
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """
         Issue a command to the instrument after a wake up and clearing of
@@ -493,7 +481,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @throw InstrumentTimeoutException Timeout
         """
         timeout = kwargs.get('timeout', 10)
-        retval = None
+        resp_result = None
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
@@ -503,7 +491,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         # Wakeup the device, pass up exeception if timeout
         prompt = self._wakeup(timeout)
-            
+                    
         # Clear line and prompt buffers for result.
         self._linebuf = ''
         self._promptbuf = ''
@@ -513,12 +501,16 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._logger_client.send(cmd_line)
 
         # Wait for the prompt, prepare result and return, timeout exception
+        mi_logger.info('getting response')
         (prompt, result) = self._get_response(timeout)
+        mi_logger.info('got response: %s', repr(result))
+                
                 
         resp_handler = self._response_handlers.get(cmd, None)
-        resp_result = None
         if resp_handler:
             resp_result = resp_handler(result, prompt)
+        else:
+            mi_logger.info('No response handler.')
 
         return resp_result
             

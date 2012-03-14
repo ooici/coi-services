@@ -53,10 +53,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         #Create the stream if a stream definition is provided
         log.debug("DataProductManagementService:create_data_product: stream definition id = %s" % stream_definition_id)
 
-        stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,  description=data_product.description, stream_definition_id=stream_definition_id)
-        log.debug("create_data_product: create stream stream_id %s" % stream_id)
-        # Associate the Stream with the main Data Product
-        self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
+        if stream_definition_id:
+            stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,  description=data_product.description, stream_definition_id=stream_definition_id)
+            log.debug("create_data_product: create stream stream_id %s" % stream_id)
+            # Associate the Stream with the main Data Product
+            self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
 
         # Return a resource ref to the new data product
         return data_product_id
@@ -134,48 +135,47 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         # retrieve the data_process object
         data_product_obj = self.clients.resource_registry.read(data_product_id)
-        if data_product_obj is None:
-            raise NotFound("Data Product %s does not exist" % data_product_id)
 
         # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
         streams, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
-        if len(streams) > 1 or len(streams) == 0:
-            raise BadRequest('Data Product must have one stream associated%s' % str(data_product_id))
+        if not streams:
+            raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
 
         stream = streams[0]
         log.debug("activate_data_product_persistence: stream = %s"  % str(stream))
 
         # Find THE ingestion configuration in the RR to create a ingestion configuration
         # todo: how are multiple ingest configs for a site managed?
-        ingest_config_ids, _ = self.clients.resource_registry.find_resources(restype=RT.IngestionConfiguration, id_only=True)
-        if len(ingest_config_ids) > 1 or len(ingest_config_ids) == 0:
-            log.debug("activate_data_product_persistence: ERROR ingest_config_ids = %s"  % str(ingest_config_ids))
+        ingest_config_objs, _ = self.clients.resource_registry.find_resources(restype=RT.IngestionConfiguration, id_only=False)
+        if len(ingest_config_objs) != 1:
+            log.debug("activate_data_product_persistence: ERROR ingest_config_objs = %s"  % str(ingest_config_objs))
             raise BadRequest('Data Product must have one ingestion configuration %s' % str(data_product_id))
-        log.debug("activate_data_product_persistence: ingest_config_ids = %s"  % str(ingest_config_ids))
 
-        data_product_obj.ingestion_configuration_id = ingest_config_ids[0]
-        log.debug("activate_data_product_persistence: ingestion_configuration_id = %s"  % str(data_product_obj.ingestion_configuration_id))
-
-        #todo: does DPMS need to save the ingest _config_id in the product resource? Can this be found via the stream id?
-        ingestion_configuration_obj = self.clients.resource_registry.read(ingest_config_ids[0])
-        if ingestion_configuration_obj is None:
-            raise NotFound("Ingestion Configuration object does not exist %s" % ingest_config_ids[0])
+        ingestion_configuration_obj = ingest_config_objs[0]
         log.debug("activate_data_product_persistence: ingestion_configuration_obj = %s"  % str(ingestion_configuration_obj))
 
         # create the dataset for the data
+        # TODO: what if the Dataset already exists (activate-suspend-activate case???)
         # !!!!!!!! (Currently) The Datastore name MUST MATCH the ingestion configuration name!!!
-        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream, datastore_name=ingestion_configuration_obj.name, description=data_product_obj.description)
+        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream,
+                datastore_name=ingestion_configuration_obj.couch_storage.datastore_name, description=data_product_obj.description)
         log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
 
         self.update_data_product(data_product_obj)
+        # Need to read again, because the _rev has changed. Otherwise error on update later.
+        data_product_obj = self.clients.resource_registry.read(data_product_id)
 
         # call ingestion management to create a dataset configuration
         log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
-        dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration( dataset_id=data_product_obj.dataset_id, archive_data=persist_data, archive_metadata=persist_metadata, ingestion_configuration_id=data_product_obj.ingestion_configuration_id)
+        dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
+                    dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
+                    archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
         log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
-        #todo: does DPMS need to save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
+        # save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
+        data_product_obj.dataset_configuration_id = dataset_configuration_id
+        self.update_data_product(data_product_obj)
 
         return
 

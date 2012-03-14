@@ -32,11 +32,10 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Command
 from ion.services.mi.drivers.sbe37_driver import SBE37Driver
 from ion.services.mi.common import InstErrorCode
 import ion.services.mi.mi_logger
-from mock import patch
 
 mi_logger = logging.getLogger('mi_logger')
 
-#from pyon.public import log
+from pyon.public import log
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py
@@ -48,11 +47,7 @@ mi_logger = logging.getLogger('mi_logger')
 
 #@unittest.skip('Do not run hardware test.')
 @attr('HARDWARE', group='mi')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
-class TestSBE37Driver(PyonTestCase):
-    _driver_client = None
-    _driver_process = None
-    
+class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
     use patterns for the sbe37 driver as a zmq driver process.
@@ -61,6 +56,8 @@ class TestSBE37Driver(PyonTestCase):
         """
         Setup test cases.
         """
+        
+        
         # Zmq parameters to configure communications with the driver process.
         self.server_addr = 'localhost'
         self.cmd_port = 5556
@@ -83,46 +80,48 @@ class TestSBE37Driver(PyonTestCase):
             }
         }
 
+
         # Add cleanup handler functions.
         # Add functions to detect and kill processes and remove pidfiles
         # as necessary.
-        #psout = subprocess.check_output(['ps -e | grep python'], shell=True)
-        #1724 ??         0:00.01 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c import ion.services.mi.logger_process as lp; l = lp.EthernetD
-        #1721 ttys000    0:00.24 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c from ion.services.mi.zmq_driver_process import ZmqDriverProce
-        #
-        #1742 ??         0:00.01 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c import ion.services.mi.logger_process as lp; l = lp.EthernetDeviceLogger("137.110.112.119", 4001, 8888, "/", ["<<",">>"]); l.start()        
-        #1739 ttys000    0:02.66 /Users/edwardhunter/Documents/Dev/virtenvs/coi/bin/python bin/python -c from ion.services.mi.zmq_driver_process import ZmqDriverProcess; dp = ZmqDriverProcess(5556, 5557, "ion.services.mi.drivers.sbe37_driver", "SBE37Driver");dp.run()
-        # self.addCleanup()
         
         self.events = None
         
-    def init_comms(self):
+        # Launch driver process.
+        #self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls) 
+
+        # Create client and start messaging.
+        #self.driver_client = ZmqDriverClient(self.server_addr, self.cmd_port, self.evt_port)        
+
         """
-        Setup driver process and client
+        def cleanup_procs(agttest):
+            try:
+                os.kill(self.driver_process.pid, 0)
+            except OSError:
+                pass
+            else:
+                log.info("Driver process still esists, forcibly killing it")
+                os.kill(self.driver_process.pid, signal.SIGKILL)
+
+        self.addCleanup(cleanup_procs, self)
         """
-        if( not self._driver_client and not self._driver_process ):
-            # Launch driver process.
-            self._driver_process = ZmqDriverProcess.launch_process(self.cmd_port,
-                        self.evt_port, self.dvr_mod,  self.dvr_cls)
         
-            # Create client and start messaging.
-            self._driver_client = ZmqDriverClient(self.server_addr, self.cmd_port,
-                                                    self.evt_port)
-            self._driver_client.start_messaging()
-            time.sleep(2)
-        
-        self.clear_events()
-        return (self._driver_process, self._driver_client)
-        
-    def tearDown(self):
-        mi_logger.info("Tear down test case.")
-        if(self._driver_client and self._driver_process):
-            self._driver_client.done()
-            self._driver_process.wait()
-            
-        else:
-            raise Exception("No client")
-            
+    def cleanupprocs(self):
+        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
+        procs = stm.read()
+        if len(procs) > 0:
+            procs = procs.split()
+            if procs[0].isdigit():
+                pid = int(procs[0])
+                os.kill(pid,signal.SIGKILL)                
+        stm = os.popen('rm /tmp/*.pid.txt')
         
     def clear_events(self):
         """
@@ -136,22 +135,40 @@ class TestSBE37Driver(PyonTestCase):
         """
         self.events.append(evt)
     
+    @unittest.skip("DO NOT REMOVE")
+    def test_verify_service(self):
+        """
+        SKIP
+        """
+
     def test_process(self):
         """
         Test for correct launch of driver process and communications, including
         asynchronous driver events.
         """
+        
+        self.cleanupprocs()
+        
         # Launch driver process.
-        driver_process, driver_client = self.init_comms()
+        self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls) 
+
+        # Create client and start messaging.
+        self.driver_client = ZmqDriverClient(self.server_addr, self.cmd_port, self.evt_port)        
+
+        self.clear_events()
+        self.driver_client.start_messaging(self.evt_recd)
+        time.sleep(2)
+
+        # Add test to verify process exists.
 
         # Send a test message to the process interface, confirm result.
         msg = 'I am a ZMQ message going to the process.'
-        reply = driver_client.cmd_dvr('process_echo', msg)
+        reply = self.driver_client.cmd_dvr('process_echo', msg)
         self.assertEqual(reply,'process_echo: '+msg)
 
         # Send a test message to the driver interface, confirm result.
         msg = 'I am a ZMQ message going to the driver.'
-        reply = driver_client.cmd_dvr('driver_echo', msg)
+        reply = self.driver_client.cmd_dvr('driver_echo', msg)
         self.assertEqual(reply, 'driver_echo: '+msg)
         
         # Test the event thread publishes and client side picks up events.
@@ -159,53 +176,82 @@ class TestSBE37Driver(PyonTestCase):
             'I am important event #1!',
             'And I am important event #2!'
             ]
-        reply = driver_client.cmd_dvr('test_events', events=events)
+        reply = self.driver_client.cmd_dvr('test_events', events=events)
         time.sleep(2)
         
         # Confirm the events received are as expected.
         self.assertEqual(self.events, events)
-    
+        
+        # Terminate driver process and stop client messaging.
+        self.driver_client.done()
+        self.driver_process.wait()
+        
+        # Add test to verify process does not exist.
     
     def test_config(self):
         """
         Test to configure the driver process for device comms and transition
         to disconnected state.
         """
+        
+        self.cleanupprocs()
+        
         # Launch driver process.
-        driver_process, driver_client = self.init_comms()
+        self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls)
+        
+        # Create client and start messaging.
+        self.driver_client = ZmqDriverClient(self.server_addr, self.cmd_port, self.evt_port)
+
+        self.driver_client.start_messaging()
+        time.sleep(2)
 
         # Configure driver for comms and transition to disconnected.
-        reply = driver_client.cmd_dvr('configure', self.comms_config)
+        reply = self.driver_client.cmd_dvr('configure', self.comms_config)
         time.sleep(2)
 
         # Initialize the driver and transition to unconfigured.
-        reply = driver_client.cmd_dvr('initialize')
+        reply = self.driver_client.cmd_dvr('initialize')
         time.sleep(2)
         
+        # Terminate driver process and stop client messaging.
+        self.driver_client.done()
+        self.driver_process.wait()
     
     def test_connect(self):
         """
         Test to establish device comms and transition to command state.
         """
+        
+        self.cleanupprocs()
+        
         # Launch driver process.
-        driver_process, driver_client = self.init_comms()
+        self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls)
+        
+        # Create client and start messaging.
+        self.driver_client = ZmqDriverClient(self.server_addr, self.cmd_port, self.evt_port)
+
+        self.driver_client.start_messaging()
+        time.sleep(2)
 
         # Configure driver for comms and transition to disconnected.
-        reply = driver_client.cmd_dvr('configure', self.comms_config)
+        reply = self.driver_client.cmd_dvr('configure', self.comms_config)
         time.sleep(2)
 
         # Establish device comms and transition to command.
-        reply = driver_client.cmd_dvr('connect')
+        reply = self.driver_client.cmd_dvr('connect')
         time.sleep(2)
 
         # Disconnect devcie comms and transition to disconnected.                
-        reply = driver_client.cmd_dvr('disconnect')
+        reply = self.driver_client.cmd_dvr('disconnect')
         time.sleep(2)
         
         # Initialize driver and transition to unconfigured.
-        reply = driver_client.cmd_dvr('initialize')
+        reply = self.driver_client.cmd_dvr('initialize')
         time.sleep(2)
 
+        # Terminate driver process and stop client messaging.
+        self.driver_client.done()
+        self.driver_process.wait()        
         
     def test_get_set(self):
         """
@@ -215,22 +261,31 @@ class TestSBE37Driver(PyonTestCase):
         TCALDATE=(8, 11, 2005)        
         """
         
+        self.cleanupprocs()
+        
+        
         # Launch driver process.
-        driver_process, driver_client = self.init_comms()
+        self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls)
+
+        # Create client and start messaging.        
+        self.driver_client = ZmqDriverClient(self.server_addr, self.cmd_port, self.evt_port)
+
+        self.driver_client.start_messaging()
+        time.sleep(3)
 
         # Configure driver for comms and transition to disconnected.
-        reply = driver_client.cmd_dvr('configure', self.comms_config)
+        reply = self.driver_client.cmd_dvr('configure', self.comms_config)
         time.sleep(2)
 
         # Establish devcie comms and transition to command.
-        reply = driver_client.cmd_dvr('connect')
+        reply = self.driver_client.cmd_dvr('connect')
         time.sleep(2)
         
         # Get all parameters.
         get_params = [
             (SBE37Channel.CTD, SBE37Parameter.ALL)            
         ]
-        reply = driver_client.cmd_dvr('get', get_params)
+        reply = self.driver_client.cmd_dvr('get', get_params)
         time.sleep(2)
         
         # Check overall and individual parameter success. Check parameter types.
@@ -265,7 +320,7 @@ class TestSBE37Driver(PyonTestCase):
         }
         
         # Set the params to their new values.
-        reply = driver_client.cmd_dvr('set', new_params)
+        reply = self.driver_client.cmd_dvr('set', new_params)
         time.sleep(2)
         
         # Check overall success and success of the individual paramters.
@@ -278,7 +333,7 @@ class TestSBE37Driver(PyonTestCase):
             (SBE37Channel.CTD, SBE37Parameter.PTCA1),
             (SBE37Channel.CTD, SBE37Parameter.TCALDATE)
         ]
-        reply = driver_client.cmd_dvr('get', get_params)
+        reply = self.driver_client.cmd_dvr('get', get_params)
         time.sleep(2)
 
         # Check success, and check that the parameters were set to the
@@ -299,12 +354,12 @@ class TestSBE37Driver(PyonTestCase):
 
 
         # Set the paramters back to their original values.        
-        reply = driver_client.cmd_dvr('set', orig_params)
+        reply = self.driver_client.cmd_dvr('set', orig_params)
         self.assertIsInstance(reply, dict)
         mi_logger.debug('set result: %s', str(reply))
 
         # Get the parameters back from the driver.
-        reply = driver_client.cmd_dvr('get', get_params)
+        reply = self.driver_client.cmd_dvr('get', get_params)
 
         # Check overall and individual sucess, and that paramters were
         # returned to their original values.
@@ -323,84 +378,110 @@ class TestSBE37Driver(PyonTestCase):
                                         old_tcaldate)
         
         # Disconnect driver from the device and transition to disconnected.
-        reply = driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
+        reply = self.driver_client.cmd_dvr('disconnect', [SBE37Channel.CTD])
         time.sleep(2)
         
         # Deconfigure the driver and transition to unconfigured.
-        reply = driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
+        reply = self.driver_client.cmd_dvr('initialize', [SBE37Channel.CTD])
         time.sleep(2)
         
         # End driver process and client messaging.
-        driver_client.done()
-        driver_process.wait()
+        self.driver_client.done()
+        self.driver_process.wait()
 
     def test_poll(self):
         """
         Test sample polling commands and events.
         """
+        
+        self.cleanupprocs()
+        
         # Launch driver process.
-        driver_process, driver_client = self.init_comms()
+        self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls)
+        
+        # Create client and start messaging.
+        self.driver_client = ZmqDriverClient(self.server_addr, self.cmd_port, self.evt_port)
 
-        reply = driver_client.cmd_dvr('configure', self.comms_config)
-        time.sleep(2)
-
-        reply = driver_client.cmd_dvr('connect')
-        time.sleep(2)
-        
-        reply = driver_client.cmd_dvr('get_active_channels')
-        time.sleep(2)
-        
-        reply = driver_client.cmd_dvr('execute_acquire_sample')
-        time.sleep(2)
-        
-        reply = driver_client.cmd_dvr('execute_acquire_sample')
+        self.clear_events()
+        self.driver_client.start_messaging(self.evt_recd)
         time.sleep(2)
 
-        reply = driver_client.cmd_dvr('execute_acquire_sample')
+        reply = self.driver_client.cmd_dvr('configure', self.comms_config)
+        time.sleep(2)
+
+        reply = self.driver_client.cmd_dvr('connect')
+        time.sleep(2)
+        
+        reply = self.driver_client.cmd_dvr('get_active_channels')
+        time.sleep(2)
+        
+        reply = self.driver_client.cmd_dvr('execute_acquire_sample')
+        time.sleep(2)
+        
+        reply = self.driver_client.cmd_dvr('execute_acquire_sample')
+        time.sleep(2)
+
+        reply = self.driver_client.cmd_dvr('execute_acquire_sample')
         time.sleep(2)
 
         print 'EVENTS RECEIVED:'
         print str(self.events)
 
-        reply = driver_client.cmd_dvr('disconnect')
+        reply = self.driver_client.cmd_dvr('disconnect')
         time.sleep(2)
         
         # Deconfigure the driver.
-        reply = driver_client.cmd_dvr('initialize')
+        reply = self.driver_client.cmd_dvr('initialize')
         time.sleep(2)
         
+        # Terminate driver process and stop client messaging.
+        self.driver_client.done()
+        self.driver_process.wait()
     
     def test_autosample(self):
         """
         Test autosample command and state, including events.
         """
+        
+        self.cleanupprocs()
+        
         # Launch driver process.
-        driver_process, driver_client = self.init_comms()
+        self.driver_process = ZmqDriverProcess.launch_process(self.cmd_port, self.evt_port, self.dvr_mod,  self.dvr_cls)
+        
+        # Create client and start messaging.
+        self.driver_client = ZmqDriverClient(self.server_addr, self.cmd_port, self.evt_port)
 
-        reply = driver_client.cmd_dvr('configure', self.comms_config)
+        self.driver_client.start_messaging()
         time.sleep(2)
 
-        reply = driver_client.cmd_dvr('connect')
+        reply = self.driver_client.cmd_dvr('configure', self.comms_config)
+        time.sleep(2)
+
+        reply = self.driver_client.cmd_dvr('connect')
         time.sleep(2)
         
-        reply = driver_client.cmd_dvr('start_autosample')
+        reply = self.driver_client.cmd_dvr('start_autosample')
         time.sleep(30)
         
         while True:
-            reply = driver_client.cmd_dvr('stop_autosample')
+            reply = self.driver_client.cmd_dvr('stop_autosample')
             if not reply[SBE37Channel.CTD]:
                 break
             time.sleep(2)
         time.sleep(2)
 
-        reply = driver_client.cmd_dvr('disconnect')
+        reply = self.driver_client.cmd_dvr('disconnect')
         time.sleep(2)
         
         # Deconfigure the driver.
-        reply = driver_client.cmd_dvr('initialize')
+        reply = self.driver_client.cmd_dvr('initialize')
         time.sleep(2)
         
+        # Terminate driver process and stop client messaging.
+        self.driver_client.done()
+        self.driver_process.wait()
         
 
 
     
+
