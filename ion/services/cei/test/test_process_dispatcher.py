@@ -6,7 +6,7 @@ from nose.plugins.attrib import attr
 from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -198,6 +198,18 @@ class ProcessDispatcherServiceLocalIntTest(IonIntegrationTestCase):
         # matters since everything gets torn down between tests
         self.pd_cli.cancel_process(pid)
         self.assertNotIn(pid, self.container.proc_manager.procs)
+
+    def test_schedule_bad_config(self):
+
+        process_schedule = ProcessSchedule()
+
+        # a non-JSON-serializable IonObject
+        o = ProcessTarget()
+
+        with self.assertRaises(BadRequest) as ar:
+            self.pd_cli.schedule_process(self.process_definition_id,
+                process_schedule, configuration={"bad" : o})
+        self.assertTrue(ar.exception.message.startswith("bad configuration"))
 
 
 @attr('INT', group='cei')
