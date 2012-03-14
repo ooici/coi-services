@@ -38,7 +38,7 @@ GATEWAY_ERROR_EXCEPTION = 'Exception'
 GATEWAY_ERROR_MESSAGE = 'Message'
 
 DEFAULT_ACTOR_ID = 'anonymous'
-DEFAULT_EXPIRY = '0'
+DEFAULT_EXPIRY = 0
 
 #Stuff for specifying other return types
 RETURN_FORMAT_PARAM = 'return_format'
@@ -365,7 +365,7 @@ def validate_request(ion_actor_id, expiry):
     idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
     try:
-        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
+        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
     except NotFound, e:
         ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
         expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
@@ -375,7 +375,7 @@ def validate_request(ion_actor_id, expiry):
     try:
         float_expiry = float(expiry)
     except Exception, e:
-        raise Inconsistent('Unable to read the expiry value in the request "%s" as a floating point number' % expiry)
+        raise Inconsistent("Unable to read the expiry value in the request '%s' as a floating point number" % expiry)
 
     #The user has been validated as being known in the system, so not check the expiry and raise exception if
     # the expiry is not set to 0 and less than the current time.
@@ -409,7 +409,7 @@ def build_message_headers( ion_actor_id, expiry):
 
         #The user's roles were not cached so hit the datastore to find it.
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
+        org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
 
         role_header = get_role_message_headers(org_roles)
 
