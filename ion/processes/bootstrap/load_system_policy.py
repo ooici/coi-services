@@ -10,7 +10,7 @@ from pyon.public import CFG, log, ImmediateProcess, iex, Container, IonObject, R
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
+
 
 
 
@@ -53,37 +53,6 @@ class LoadSystemPolicy(ImmediateProcess):
         system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
         log.debug('system actor:' + system_actor._id)
 
-
-
-        #
-        # Now load the based set of negotiation definitions
-
-
-        res_reg = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=calling_process )
-
-        neg_def = IonObject(RT.NegotiationDefinition, name=RT.EnrollmentRequest,
-            description='Definition of Enrollment Request Negotiation',
-            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == True'],
-            accept_action = 'enroll_member(org_id,user_id)'
-        )
-
-        res_reg.create(neg_def)
-
-        neg_def = IonObject(RT.NegotiationDefinition, name=RT.RoleRequest,
-            description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id) == True'],
-            accept_action = 'grant_role(org_id,user_id,role_name)'
-        )
-
-        res_reg.create(neg_def)
-
-        neg_def = IonObject(RT.NegotiationDefinition, name=RT.ResourceRequest,
-            description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id) == True'],
-            accept_action = 'acquire_resource(org_id,user_id,resource_id)'
-        )
-
-        res_reg.create(neg_def)
 
 
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
@@ -502,6 +471,18 @@ class LoadSystemPolicy(ImmediateProcess):
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">remove_user_role</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">acquire_resource</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">release_resource</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
