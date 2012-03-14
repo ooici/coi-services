@@ -3,10 +3,11 @@ from interface.services.coi.iorg_management_service import OrgManagementServiceP
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
-from pyon.public import Container, RT, IonObject, CFG, log
+from pyon.public import Container, RT, IonObject, CFG, log, PRED
 from pyon.util.context import LocalContextMixin
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 import simplejson, urllib
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, get_role_message_headers
 from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE
@@ -244,6 +245,8 @@ def test_requests(container, process=FakeProcess()):
 
     id_client = IdentityManagementServiceProcessClient(node=container.node, process=process)
 
+    rr_client = ResourceRegistryServiceProcessClient(node=container.node, process=process)
+
     system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
     log.info('system actor:' + system_actor._id)
 
@@ -393,7 +396,11 @@ def test_requests(container, process=FakeProcess()):
     log.info( 'Request Instrument Agents')
     ia_list = ims_client.find_instrument_agents()
 
-    req_id = org_client.request_acquire_resource(org2_id,user._id,ia_list[0] , headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+    if len(ia_list) > 0:
+        req_id = org_client.request_acquire_resource(org2_id,user._id,ia_list[0]._id , headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+    else:
+        req_id = None
+        log.info("No instrument agents to request")
 
     requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
@@ -426,6 +433,22 @@ def test_requests(container, process=FakeProcess()):
         log.info('User Request: ' +str(r))
 
 
+
+    if req_id is not None:
+        commitments, _ = rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
+        log.info("Resource Commitments: %d" % len(commitments))
+
+        for c in commitments:
+            log.info('Commitments: ' +str(c))
+
+        log.info("Release resource commitment")
+        org_client.release_resource(org2_id,user._id,ia_list[0]._id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+
+
+        commitments, _ = rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
+        log.info("Resource Commitments: %d" % len(commitments))
+        for c in commitments:
+            log.info('Commitments: ' +str(c))
 
 
 #    org_client.approve_request(org2_id, req_id)

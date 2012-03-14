@@ -109,7 +109,39 @@ class BootstrapService(BaseBootstrapService):
         #TODO - May not want to make the system agent a manager if a real manager user will be seeded for the ION Org
         self.clients.org_management.grant_role(self.org_id,system_actor._id,MANAGER_ROLE, headers={'ion-actor-id': system_actor._id} )
 
-    #This operation must happen after the root ION Org has been created.
+
+        #
+        # Now load the base set of negotiation definitions used by the request operations (enroll/role/resource, etc)
+
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.EnrollmentRequest,
+            description='Definition of Enrollment Request Negotiation',
+            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == True'],
+            accept_action = 'enroll_member(org_id,user_id)'
+        )
+
+        self.clients.resource_registry.create(neg_def)
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.RoleRequest,
+            description='Definition of Role Request Negotiation',
+            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            accept_action = 'grant_role(org_id,user_id,role_name)'
+        )
+
+        self.clients.resource_registry.create(neg_def)
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.ResourceRequest,
+            description='Definition of Role Request Negotiation',
+            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            accept_action = 'acquire_resource(org_id,user_id,resource_id)'
+        )
+
+        self.clients.resource_registry.create(neg_def)
+
+
+
+
+    #This operation must happen after the root ION Org has been created. This is triggered by adding an entry to the deploy file.
     def load_system_policy(self, config):
 
         LoadSystemPolicy.op_load_system_policies(self)
