@@ -18,6 +18,11 @@ from prototype.hdf.hdf_array_iterator import acquire_data
 CACHE_DATASTORE_NAME = 'last_update_datastore'
 
 class IngestionCache(TransformDataProcess):
+    def __init__(self, *args, **kwargs):
+        super(IngestionCache, self)
+        self.def_cache = {}
+
+
     def on_start(self):
 
         self.couch_config = self.CFG.get('couch_storage')
@@ -65,8 +70,12 @@ class IngestionCache(TransformDataProcess):
     def get_last_value(self,granule):
 
         stream_resource_id = granule.stream_resource_id
-        stream_def = self.ps_cli.find_stream_definition(stream_id=stream_resource_id, id_only=False)
-        definition = stream_def.container
+        if not self.def_cache.has_key(stream_resource_id):
+            stream_def = self.ps_cli.find_stream_definition(stream_id=stream_resource_id, id_only=False)
+            self.def_cache[stream_resource_id] = stream_def.container
+
+        definition = self.def_cache[stream_resource_id]
+
         psp = PointSupplementStreamParser(stream_definition=definition, stream_granule=granule)
         fields = psp.list_field_names()
 
