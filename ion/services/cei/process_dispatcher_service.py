@@ -4,6 +4,7 @@ __author__ = 'Stephen P. Henrie, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 import uuid
+import json
 
 from pyon.public import log, PRED
 from pyon.core.exception import NotFound, BadRequest
@@ -181,6 +182,15 @@ class PDLocalBackend(object):
 
         module = definition.executable['module']
         cls = definition.executable['class']
+
+        # push the config through a JSON serializer to ensure that the same
+        # config would work with the bridge backend
+
+        try:
+            if configuration:
+                json.dumps(configuration)
+        except TypeError, e:
+            raise BadRequest("bad configuration: " + str(e))
 
         # Spawn the process
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
