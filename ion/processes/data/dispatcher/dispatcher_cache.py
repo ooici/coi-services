@@ -40,33 +40,19 @@ class DispatcherCache(TransformDataProcess):
     """
 
 
-    def dataset_configs_event_test_hook(self, msg, headers):
-        pass
-
-    def ingest_process_test_hook(self,msg, headers):
-        pass
 
     def on_start(self):
         super(DispatcherCache,self).on_start()
-        #----------------------------------------------
-        # Start up couch
-        #----------------------------------------------
 
-
-        self.couch_config = self.CFG.get('couch_storage')
-
-        self.number_of_workers = self.CFG.get('number_of_workers')
-        self.datastore_name = self.couch_config.get('datastore_name',None) or 'dm_datastore'
+        self.datastore_name = self.CFG.get_safe('process.datastore_name','dispatcher_cache')
         try:
-            self.datastore_profile = getattr(DataStore.DS_PROFILE, self.couch_config.get('datastore_profile','SCIDATA'))
+            self.datastore_profile = getattr(DataStore.DS_PROFILE, self.CFG.get_safe('datastore_profile','SCIDATA'))
         except AttributeError:
             log.exception('Invalid datastore profile passed to dispatcher cache. Defaulting to SCIDATA')
             self.datastore_profile = DataStore.DS_PROFILE.SCIDATA
 
         log.debug('datastore_profile %s' % self.datastore_profile)
-        self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
-
-        self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
+        self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile)
 
 
 
@@ -77,9 +63,6 @@ class DispatcherCache(TransformDataProcess):
         # Process the packet
         self.process_stream(packet)
 
-        headers = ''
-        # Hook to override just before processing is complete
-        self.ingest_process_test_hook(packet, headers)
 
 
     def persist_immutable(self, obj):
