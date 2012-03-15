@@ -3,8 +3,12 @@
 @file ion/services/dm/ingestion/test/test_aggregate_ingestion.py
 @description Integration Test for aggregate ingestion worker
 '''
+from gevent.queue import Queue
+from gevent.queue import Empty
+import os
 from interface.objects import ProcessDefinition, ExchangeQuery
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
@@ -15,6 +19,7 @@ from pyon.util.config import CFG
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
+import unittest
 @attr('INT',group='dm')
 class LastUpdateCacheTest(IonIntegrationTestCase):
     def setUp(self):
@@ -25,6 +30,7 @@ class LastUpdateCacheTest(IonIntegrationTestCase):
         self.tms_cli = TransformManagementServiceClient()
         self.pubsub_cli = PubsubManagementServiceClient()
         self.pd_cli = ProcessDispatcherServiceClient()
+        self.rr_cli = ResourceRegistryServiceClient()
         xs_dot_xp = CFG.core_xps.science_data
         try:
             self.XS, xp_base = xs_dot_xp.split('.')
@@ -90,10 +96,24 @@ class LastUpdateCacheTest(IonIntegrationTestCase):
 
 
         self.tms_cli.activate_transform(transform_id=transform_id)
+        transform = self.rr_cli.read(transform_id)
+        pid = transform.process_id
+        handle = self.container.proc_manager.procs[pid]
+        return handle
 
+
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_last_update_cache(self):
         import time as tm
-        self.start_worker()
+        handle = self.start_worker()
+        queue = Queue()
+        o_process = handle.process
+        def new_process(msg):
+            o_process(msg)
+            queue.put(True)
+        handle.process = new_process
+
+
 
         definition = SBE37_CDM_stream_definition()
         publisher = Publisher()
@@ -107,7 +127,11 @@ class LastUpdateCacheTest(IonIntegrationTestCase):
 
             publisher.publish(granule, to_name=(self.XP, stream_id+'.data'))
             # Determinism sucks
-            tm.sleep(0.5)
+            try:
+                queue.get(timeout=5)
+            except Empty:
+                self.assertTrue(False, 'Process never received the message.')
+
             doc = self.db.read(stream_id)
             ntime = doc.variables['time'].value
             self.assertTrue(ntime >= time, 'The documents did not sequentially get updated correctly.')
