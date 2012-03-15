@@ -53,7 +53,7 @@ class SimpleDispatcher(StandaloneProcess):
 
         stream_subscriber = StreamSubscriberRegistrar(process=self, node=self.container.node)
 
-        def message_received():
+        def message_received(m, h):
             log.info('Received a message from the stream')
 
 
