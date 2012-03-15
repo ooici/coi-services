@@ -9,7 +9,7 @@ and the relationships between them
 '''
 
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import CFG, IonObject, log, RT, PRED, LCS
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
 
 
 
@@ -456,6 +456,63 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         @param logical_data_product_ids a list of data products associated to a logical instrument
         @param instrument_data_product_ids a list of data products coming from an instrument device
         """
+
+        #verify that resources ids are valid, if not found RR will raise the error
+        old_instrument_device_obj = self.clients.instrument_management.read_instrument_device(old_instrument_device_id)
+        new_instrument_device_obj = self.clients.instrument_management.read_instrument_device(new_instrument_device_id)
+        logical_instrument_obj = self.read_logical_instrument(logical_instrument_id)
+
+        # Check that the InstrumentDevice is in DEPLOYED_* lifecycle state
+        #todo: check if there are other valid states
+        if new_instrument_device_obj.lcstate != LCS.DEPLOYED_AVAILABLE \
+            and new_instrument_device_obj.lcstate != LCS.DEPLOYED_PRIVATE \
+            and new_instrument_device_obj.lcstate != LCS.DEPLOYED_DISCOVERABLE:
+            raise BadRequest("This Instrument Device is in an invalid life cycle state  %s" %new_instrument_device_obj.name)
+
+        # Check that the InstrumentDevice has association hasDeployment to this LogicalInstrument
+        # Note: the device may also be deployed to other logical instruments, this is valid
+        lgl_platform_assocs = self.clients.resource_registry.get_association(new_instrument_device_id, PRED.hasDeployment, logical_instrument_id)
+        if not lgl_platform_assocs:
+            raise BadRequest("This Instrument Device is not deployed to the specified Logical Instrument  %s" %new_instrument_device_obj.name)
+
+
+        # Make sure InstrumentDevice and LogicalInstrument associations to InstrumentModel match (same type)
+        dev_model_ids, _ = self.clients.resource_registry.find_objects(new_instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
+        if not dev_model_ids or len(dev_model_ids) > 1:
+            raise BadRequest("This Instrument Device has invalid assignment to an Instrument Model  %s" %new_instrument_device_obj.name)
+
+        lgl_inst__model_ids, _ = self.clients.resource_registry.find_objects(logical_instrument_id, PRED.hasModel, RT.InstrumentModel, True)
+        if not lgl_inst__model_ids or len(lgl_inst__model_ids) > 1:
+            raise BadRequest("This Logical Instrument  has invalid assignment to an Instrument Model  %s" % logical_instrument_obj.name)
+
+        if  dev_model_ids[0] != lgl_inst__model_ids[0]:
+            raise BadRequest("The Instrument Device does not match the model type of the intended Logical Instrument  %s" %new_instrument_device_obj.name)
+
+        # Remove potential previous device hasPrimaryDeployment
+        primary_dev__ids, assocs = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasPrimaryDeployment, logical_instrument_id, True)
+        if len(primary_dev__ids) > 1:
+            raise BadRequest("The Logical Instrumenthas multiple primary devices assigned  %s" %logical_instrument_obj.name)
+        #check that the new device is not already linked as the primary device to this logical instrument
+        if primary_dev__ids[0] == new_instrument_device_id :
+            raise BadRequest("The Instrument Device is already the primary deployment to this Logical Instrument  %s" %new_instrument_device_obj.name)
+
+        self.clients.resource_registry.delete_association(assocs[0])
+
+
+        # Create association hasPrimaryDeployment
+        log.debug("mfms:reassign_instrument_device_to_logical_instrument: call deploy_as_primary_instrument_device_to_logical_instrument")
+        self.clients.instrument_management.deploy_as_primary_instrument_device_to_logical_instrument(new_instrument_device_id, logical_instrument_id)
+
+        # If no prior deployment existed for this LI, create a "logical merge transform" (see below)
+
+
+        # Create a subscription to the parsed stream of the instrument device for the logical merge transform
+
+
+        # If a prior device existed, remove the subscription to this device from the transform
+
+
+
 
 
     def define_observatory_policy(self):

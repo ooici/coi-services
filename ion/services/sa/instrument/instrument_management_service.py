@@ -960,7 +960,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #    raise BadRequest("Tried to assign a model to an instrument, but the model didn't have an agent")
 
         self.instrument_device.link_model(instrument_device_id, instrument_model_id)
-        self.setup_data_production_chain(instrument_device_id)
+        # todo: determine if data products are created from the instrument model info at this time
+        # todo: this is currently perfromed by preload - do not duplicate here
+        #self.setup_data_production_chain(instrument_device_id)
 
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         raise Inconsistent("Unassigning an instrument model from an instrument device (cleanly) has not been defined")
