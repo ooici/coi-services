@@ -17,6 +17,7 @@ from interface.services.coi.iservice_gateway_service import BaseServiceGatewaySe
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
 from pyon.util.log import log
 from pyon.util.lru_cache import LRUCache
 from pyon.util.containers import current_time_millis
@@ -651,12 +652,12 @@ def list_resources_by_type(resource_type):
 #Gateway specific services are below
 
 # Get image for a specific data product
-#@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
-#def get_viz_image(data_product_id, img_name):
+@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
+def get_viz_image(data_product_id, img_name):
 
-#    # Create client to interface with the viz service
-#    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-#    return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
+    # Create client to interface with the viz service
+    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+    return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
 
 
 
