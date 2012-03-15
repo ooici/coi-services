@@ -16,7 +16,7 @@ from pyon.util.async import spawn
 from pyon.core.exception import IonException
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
-from interface.objects import BlogPost, BlogComment, DatasetIngestionByStream, DatasetIngestionTypeEnum
+from interface.objects import DatasetIngestionTypeEnum
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.event.event import EventSubscriber
@@ -69,7 +69,7 @@ class IngestionWorker(TransformDataProcess):
 
             self.datastore_profile = DataStore.DS_PROFILE.SCIDATA
         log.debug('datastore_profile %s' % self.datastore_profile)
-        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, self.datastore_profile, self.CFG)
+        self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
@@ -156,19 +156,18 @@ class IngestionWorker(TransformDataProcess):
                 log.warn('No dataset config for this stream!')
                 return
 
-
-
-            hdfstring = ''
+            values_string = ''
             sha1 = ''
+            encoding_type = ''
 
             for key,value in packet.identifiables.iteritems():
                 if isinstance(value, DataStream):
-                    hdfstring = value.values
+                    values_string = value.values
                     value.values=''
 
                 elif isinstance(value, Encoding):
                     sha1 = value.sha1
-
+                    encoding_type = value.encoding_type
 
 
             if dset_config.archive_metadata is True:
@@ -178,11 +177,11 @@ class IngestionWorker(TransformDataProcess):
             if dset_config.archive_data is True:
                 #@todo - grab the filepath to save the hdf string somewhere..
 
-                if hdfstring:
+                if values_string:
 
-                    calculated_sha1 = hashlib.sha1(hdfstring).hexdigest().upper()
+                    calculated_sha1 = hashlib.sha1(values_string).hexdigest().upper()
 
-                    filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".hdf5")
+                    filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
 
                     if sha1 != calculated_sha1:
                         raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
@@ -190,20 +189,10 @@ class IngestionWorker(TransformDataProcess):
                     log.warn('writing to filename: %s' % filename)
 
                     with open(filename, mode='wb') as f:
-                        f.write(hdfstring)
+                        f.write(values_string)
                         f.close()
                 else:
                     log.warn("Nothing to write!")
-
-
-        elif isinstance(packet, BlogPost) and not packet.is_replay:
-            self.persist_immutable(packet )
-
-
-        elif isinstance(packet, BlogComment) and not packet.is_replay:
-            self.persist_immutable(packet)
-
-        # Create any events for about the receipt of an update on this stream
 
 
     def on_stop(self):
@@ -232,6 +221,8 @@ class IngestionWorker(TransformDataProcess):
         """
         Gets the dset_config for the data stream
         """
+
+        log.warn(incoming_packet)
 
         try:
             stream_id = incoming_packet.stream_resource_id

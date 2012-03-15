@@ -11,13 +11,16 @@ from gevent.wsgi import WSGIServer
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object
+from pyon.core.object import IonObjectBase
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
 from pyon.util.log import log
 from pyon.util.lru_cache import LRUCache
+from pyon.util.containers import current_time_millis
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
@@ -362,10 +365,15 @@ def get_governance_info_from_request(request_type = '', json_params = None):
 
 def validate_request(ion_actor_id, expiry):
 
+    #There is no point in looking up an anonymous user - so return default values.
+    if ion_actor_id == DEFAULT_ACTOR_ID:
+        expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
+        return ion_actor_id, expiry
+
     idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
     try:
-        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
+        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
     except NotFound, e:
         ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
         expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
@@ -373,13 +381,13 @@ def validate_request(ion_actor_id, expiry):
 
     #need to convert to a float first in order to compare against current time.
     try:
-        float_expiry = float(expiry)
+        int_expiry = int(expiry)
     except Exception, e:
-        raise Inconsistent('Unable to read the expiry value in the request "%s" as a floating point number' % expiry)
+        raise Inconsistent("Unable to read the expiry value in the request '%s' as an int" % expiry)
 
     #The user has been validated as being known in the system, so not check the expiry and raise exception if
     # the expiry is not set to 0 and less than the current time.
-    if float_expiry > 0 and float_expiry < time.time():
+    if int_expiry > 0 and int_expiry < current_time_millis():
         raise Unauthorized('The certificate associated with the user and expiry time in the request has expired.')
 
     return ion_actor_id, expiry
@@ -409,7 +417,7 @@ def build_message_headers( ion_actor_id, expiry):
 
         #The user's roles were not cached so hit the datastore to find it.
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry':'0' })
+        org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
 
         role_header = get_role_message_headers(org_roles)
 
@@ -491,10 +499,13 @@ def set_object_field(obj, field, field_val):
         for sub_field in field_val:
             set_object_field(sub_obj, sub_field, field_val.get(sub_field))
     else:
-        setattr(obj, field, field_val)
+        if field != "type_":
+            setattr(obj, field, field_val)
 
 #Used by json encoder
 def ion_object_encoder(obj):
+    if isinstance(obj, IonObjectBase):
+        obj.__dict__["type_"] = obj._get_type()
     return obj.__dict__
 
 #Used to recursively convert unicode in JSON structures into proper data structures
@@ -641,12 +652,12 @@ def list_resources_by_type(resource_type):
 #Gateway specific services are below
 
 # Get image for a specific data product
-#@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
-#def get_viz_image(data_product_id, img_name):
+@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
+def get_viz_image(data_product_id, img_name):
 
-#    # Create client to interface with the viz service
-#    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-#    return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
+    # Create client to interface with the viz service
+    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+    return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
 
 
 
@@ -678,6 +689,12 @@ def test_policy():
 def test_requests():
     from examples.gov_client import test_requests
     test_requests(Container.instance)
+    return json_response("")
+
+@app.route('/ion-service/instrument_test_driver')
+def instrument_test_driver():
+    from examples.agent.instrument_driver import instrument_test_driver
+    instrument_test_driver(Container.instance)
     return json_response("")
 
 

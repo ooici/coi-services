@@ -43,7 +43,6 @@ class CTDL1TemperatureTransform(TransformFunction):
 
 
         temperature = psd.get_values('temperature')
-        pressure = psd.get_values('pressure')
 
         longitude = psd.get_values('longitude')
         latitude = psd.get_values('latitude')
@@ -51,7 +50,6 @@ class CTDL1TemperatureTransform(TransformFunction):
         time = psd.get_values('time')
 
         log.warn('Got temperature: %s' % str(temperature))
-        log.warn('Got pressure: %s' % str(pressure))
 
 
         # The L1 temperature data product algorithm takes the L0 temperature data product and converts it into Celcius.

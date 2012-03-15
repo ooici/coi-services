@@ -15,6 +15,8 @@ from interface.objects import BlogBase, StreamGranuleContainer, StreamDefinition
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from gevent.greenlet import Greenlet
 from gevent.coros import RLock
+
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 import os
 import time
 import copy
@@ -46,7 +48,10 @@ class ReplayProcess(BaseReplayProcess):
         self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
         self.datastore_name = self.CFG.get_safe('process.datastore_name','dm_datastore')
 
-        self.definition = self.delivery_format.get('container')
+        definition_id = self.delivery_format.get('definition_id')
+        rrsc = ResourceRegistryServiceProcessClient(process=self, node=self.container.node)
+        definition = rrsc.read(definition_id)
+        self.definition = definition.container
 
         self.fields = self.delivery_format.get('fields',None)
 

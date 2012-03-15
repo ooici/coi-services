@@ -178,13 +178,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
-        #TODO: should this be outside this method? Called by orchastration?
+        #TODO: should this be outside this method? Called by orchestration?
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
         log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s", str(data_producer_id) )
 
 
         self.output_stream_dict = {}
-        #TODO: should this be outside this method? Called by orchastration?
+        #TODO: should this be outside this method? Called by orchestration?
+        if out_data_products is None:
+            raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
         for name, out_data_product_id in out_data_products.iteritems():
 
             # check that the product is not already associated with a producer
@@ -246,7 +248,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
         in_data_product_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
         query = StreamQuery(stream_ids=[in_stream_id])
-        self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
+        #self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
+        self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=data_process_name)
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(self.input_subscription_id))
 
         # add the subscription id to the resource for clean up later

@@ -800,7 +800,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                            SBE37State.DIRECT)
         self._publish_state_change(SBE37State.DIRECT)
         # get prompt from instrument
-        self._do_cmd_direct(SBE37_NEWLINE)                
+        #self._do_cmd_direct(SBE37_NEWLINE)                
             
     def _handler_direct_exit(self,  *args, **kwargs):
         """

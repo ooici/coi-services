@@ -31,9 +31,12 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 from pyon.public import CFG
 from mock import patch
+from pyon.event.event import EventSubscriber
+from gevent import spawn
 
 import time
 import unittest
+from datetime import datetime
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
@@ -168,26 +171,38 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         def stop_subscriber(sub_list):
             for sub in sub_list:
                 sub.stop()            
-        self.addCleanup(stop_subscriber, self.subs)            
+        self.addCleanup(stop_subscriber, self.subs)
+
+        self.agent_resource_id = '123xyz'
 
         # Create agent config.
         self.agent_config = {
             'driver_config' : self.driver_config,
-            'stream_config' : self.stream_config
+            'stream_config' : self.stream_config,
+            'agent'         : {'resource_id': self.agent_resource_id}
         }
 
         # Launch an instrument agent process.
         self._ia_name = 'agent007'
         self._ia_mod = 'ion.services.mi.instrument_agent'
         self._ia_class = 'InstrumentAgent'
+        
+        """
+        # use this block of code to find python errors in the IA, because they don't show up on stdout
+        # when the IA is started as a process for some reason, it just fails. (sigh)
+        log.debug("TestInstrumentAgent.setup(): instantiating IA")
+        from ion.services.mi.instrument_agent import InstrumentAgent
+        IA = InstrumentAgent()
+        """
+        
+        log.debug("TestInstrumentAgent.setup(): starting IA")
         self._ia_pid = self._container_client.spawn_process(name=self._ia_name,
                                        module=self._ia_mod, cls=self._ia_class,
                                        config=self.agent_config)      
         log.info('got pid=%s', str(self._ia_pid))
         
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('123xyz', name=self._ia_pid,
-                                              process=FakeProcess())
+        self._ia_client = ResourceAgentClient(self.agent_resource_id, process=FakeProcess())
         log.info('got ia client %s', str(self._ia_client))        
         
         self.dvr_proc_pid = None
@@ -229,7 +244,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             if procs[0].isdigit():
                 pid = int(procs[0])
                 os.kill(pid,signal.SIGKILL)                
-        stm = os.popen('rm /tmp/*.pid.txt')
+        stm = os.popen('rm -f /tmp/*.pid.txt')
+
+    def _listen(self, sub):
+        """
+        Pass in a subscriber here, this will make it listen in a background greenlet.
+        """
+        gl = spawn(sub.listen)
+        sub._ready_event.wait(timeout=5)
+        return gl
 
     def test_direct_access(self):
         """
@@ -285,6 +308,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         driver process and transition to inactive.
         """
                 
+        def cb(*args, **kwargs):
+            origin = args[0].origin
+            event = str(args[0]._get_type())
+            description = args[0].description
+            time_stamp = str(datetime.fromtimestamp(time.mktime(time.gmtime(float(args[0].ts_created)/1000))))
+            log.debug("got event: origin=%s, event=%s, description=%s, time stamp=%s"
+                      %(origin, event, description, time_stamp))
+            
+            
+        sub = EventSubscriber(event_type="ResourceEvent", callback=cb)
+        self._listen(sub)
+
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))

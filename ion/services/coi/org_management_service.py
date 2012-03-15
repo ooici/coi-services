@@ -8,6 +8,7 @@ from interface.services.coi.iorg_management_service import BaseOrgManagementServ
 from ion.services.coi.policy_management_service import MEMBER_ROLE, MANAGER_ROLE
 from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
+from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 from pyon.core.governance.negotiate_request import NegotiateRequest, NegotiateRequestFactory
@@ -24,6 +25,7 @@ class OrgManagementService(BaseOrgManagementService):
 
     def on_init(self):
         self.request_handler = NegotiateRequest(self)
+        self.event_pub = EventPublisher()
 
 
     def create_org(self, org=None):
@@ -562,6 +564,7 @@ class OrgManagementService(BaseOrgManagementService):
         self.request_handler.accept_request(request)
 
         #Since the request was accepted by the user, proceed with the defined action of the negotiation
+        request = self.clients.resource_registry.read(request_id)  # Pass in the most recent version
         ret = self.request_handler.execute_accept_action(request)
 
         return ret
@@ -1046,7 +1049,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         commitment_id, _ = self.clients.resource_registry.create(com_obj)
         commitment = self.clients.resource_registry.read(commitment_id)
-        self.clients.resource_registry.create_association(org_id, PRED.hasCommitment, commitment)
+        self.clients.resource_registry.create_association(user_id, PRED.hasCommitment, commitment)
         self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment)
 
         return True
@@ -1081,20 +1084,20 @@ class OrgManagementService(BaseOrgManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        request_list,_ = self.clients.resource_registry.find_objects(resource_id, PRED.hasCommitment, RT.ResourceCommitment)
-        for req in request_list:
-            if req.org_id == org_id and req.user_id == user_id:
-                aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, req)
+        commitment_list,_ = self.clients.resource_registry.find_objects(resource_id, PRED.hasCommitment, RT.ResourceCommitment)
+        for com in commitment_list:
+            if com.org_id == org_id and com.user_id == user_id:
+                aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, com)
                 self.clients.resource_registry.delete_association(aid[0])
 
-        request_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasCommitment, RT.ResourceCommitment)
-        for req in request_list:
-            if req.resource_id == resource_id and req.user_id == user_id:
-                aid = self.clients.resource_registry.find_associations(org_id, PRED.hasCommitment, req)
+        commitment_list,_ = self.clients.resource_registry.find_objects(user_id, PRED.hasCommitment, RT.ResourceCommitment)
+        for com in commitment_list:
+            if com.resource_id == resource_id and com.user_id == user_id:
+                aid = self.clients.resource_registry.find_associations(user_id, PRED.hasCommitment, com)
                 self.clients.resource_registry.delete_association(aid[0])
 
                 try:
-                    self.clients.resource_registry.delete(req._id)
+                    self.clients.resource_registry.delete(com._id)
                 except Exception, e:
                     log.debug("Error: " + e.message)
 

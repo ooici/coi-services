@@ -44,6 +44,10 @@ For Mac, use homebrew
     Linux: Note that many installs have much older versions installed by default.
     (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update'
     and try the install again)
+- Install matplotlib using pip:
+    pip install matplotlib
+
+- Install
 
 
 * python packages and environment management:
