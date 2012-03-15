@@ -475,7 +475,7 @@ def process_events():
 
 def build_events_table(events_list):
     fragments = [
-        "<p><table border='1' cellspacing='0'>",
+        "<p><table>",
         "<tr><th>Timestamp</th><th>Event type</th><th>Sub-type</th><th>Origin</th><th>Origin type</th><th>Other Attributes</th><th>Description</th></tr>"
     ]
 
@@ -510,7 +510,14 @@ def build_simple_page(content):
 
 def build_page(content, title=""):
     fragments = [
-        "<html><head></head><body>",
+        "<html><head>",
+        "<style type='text/css'>",
+        "body {font-family:Verdana,sans-serif;font-size:small;}",
+        "table,th,td {font-size:small;border: 1px solid black;border-collapse:collapse;padding-left:3px;padding-right:3px;vertical-align:top;}",
+        "th {background-color:lightgray;}",
+        ".preform {white-space:pre;font-family:monospace;font-size:120%;}",
+        "</style></head>",
+        "<body>",
         content,
         "</body></html>"
     ]
@@ -551,14 +558,16 @@ def get_value_dict(obj, ignore_fields=None):
         if isinstance(val, IonObjectBase):
             vdict = get_value_dict(val)
             val_dict[k] = vdict
-        elif isinstance(obj, IonObjectBase):
-            val_dict[k] = get_formatted_value(val, fieldname=k, fieldschema=obj._schema.get(k, None))
         else:
-            val_dict[k] = get_formatted_value(val, fieldname=k)
+            val_dict[k] = val
+#        elif isinstance(obj, IonObjectBase):
+#            val_dict[k] = get_formatted_value(val, fieldname=k, fieldschema=obj._schema.get(k, None), is_root=False)
+#        else:
+#            val_dict[k] = get_formatted_value(val, fieldname=k, is_root=False)
     return val_dict
 
 date_fieldnames = ['ts_created', 'ts_updated']
-def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None, brief=False, time_millis=False):
+def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None, brief=False, time_millis=False, is_root=True):
     if not fieldtype and fieldschema:
         fieldtype = fieldschema['type']
     if isinstance(value, IonObjectBase):
@@ -569,7 +578,8 @@ def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None,
         value = value.replace("\n", "<br>")
         if value.endswith("<br>"):
             value = value[:-4]
-        value = "<pre>%s</pre>" % value
+        if is_root:
+            value = "<span class='preform'>%s</span>" % value
     elif fieldschema and 'enum_type' in fieldschema:
         enum_clzz = getattr(objects, fieldschema['enum_type'])
         return enum_clzz._str_map[int(value)]
