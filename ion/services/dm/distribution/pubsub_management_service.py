@@ -279,6 +279,40 @@ class PubsubManagementService(BasePubsubManagementService):
         @retval success Boolean to indicate successful update.
         '''
         log.debug("Updating subscription object: %s", subscription.name)
+
+        current_subscription = self.clients.resource_registry.read(subscription._id)
+
+        if current_subscription.is_active:
+            log.info('Updating an active subscription!')
+            # At present, changing any of the following is an error!
+            assert current_subscription.name == subscription.name
+            assert current_subscription.description == subscription.description
+            assert current_subscription.exchange_name == subscription.exchange_name
+            assert current_subscription.subscription_type == subscription.subscription_type
+            assert current_subscription.is_active == subscription.is_active
+
+
+            if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+
+                current_streams = set(current_subscription.query.stream_ids)
+
+                updated_streams = set(subscription.query.stream_ids)
+
+                removed_streams = current_streams.difference(updated_streams)
+
+                added_streams = updated_streams.difference(current_streams)
+
+
+                for stream_id in added_streams:
+                    self._bind_subscription(self.XP, subscription.exchange_name, stream_id + '.data')
+
+                for stream_id in removed_streams:
+                    self._unbind_subscription(self.XP, subscription.exchange_name, stream_id + '.data')
+
+        else:
+            log.info('Updating an inactive subscription!')
+
+
         id, rev = self.clients.resource_registry.update(subscription)
         return True
 
@@ -333,6 +367,9 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
+        if subscription_obj.is_active:
+            raise BadRequest('Subscription is already active!')
+
         ids, _ = self.clients.resource_registry.find_objects(subscription_id, PRED.hasStream, RT.Stream, id_only=True)
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
@@ -340,6 +377,10 @@ class PubsubManagementService(BasePubsubManagementService):
                 self._bind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
             self._bind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+
+        subscription_obj.is_active = True
+
+        self.clients.resource_registry.update(object=subscription_obj)
 
         return True
 
@@ -356,6 +397,9 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
+        if not subscription_obj.is_active:
+            raise BadRequest('Subscription is not active!')
+
         ids, _ = self.clients.resource_registry.find_objects(subscription_id, PRED.hasStream, RT.Stream, id_only=True)
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
@@ -364,6 +408,10 @@ class PubsubManagementService(BasePubsubManagementService):
 
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
             self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+
+        subscription_obj.is_active = False
+
+        self.clients.resource_registry.update(object=subscription_obj)
 
         return True
 
