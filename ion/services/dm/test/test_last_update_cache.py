@@ -102,8 +102,7 @@ class LastUpdateCacheTest(IonIntegrationTestCase):
         return handle
 
 
-    #@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    @unittest.skip('Causes errors on buildbot, investingating-')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_last_update_cache(self):
         handle = self.start_worker()
         queue = Queue()
