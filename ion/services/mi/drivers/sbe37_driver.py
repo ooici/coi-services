@@ -121,9 +121,12 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
     def __init__(self, evt_callback):
         SingleConnectionInstrumentDriver.__init__(self, evt_callback)
 
-        # Construct the protocol.    
-        self._protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, self._driver_event)
 
+
+    def _build_protocol(self, connection):
+        """
+        """
+        self._protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, self._driver_event, connection)
 
 ###############################################################################
 # Seabird Electronics 37-SMP MicroCAT protocol.
@@ -132,18 +135,50 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
 class SBE37Protocol(CommandResponseInstrumentProtocol):
     """
     """
-    def __init__(self, prompts, newline, publsih_event):
+    def __init__(self, prompts, newline, driver_event, connection):
         """
         """
-        CommandResponseInstrumentProtocol.__init__(self, prompts, newline, publsih_event)
+        CommandResponseInstrumentProtocol.__init__(self, prompts, newline, driver_event, connection)
         
         # Build protocol state machine.
         self._protocol_fsm = InstrumentFSM(SBE37ProtocolState, SBE37ProtocolEvent,
                             SBE37ProtocolEvent.ENTER, SBE37ProtocolEvent.EXIT)
 
+        self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.ENTER, self._handler_unknown_enter)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.ENTER, self._handler_unknown_exit)
+        
+        
+        
+        self._protocol_fsm.start(SBE37ProtocolState.UNKNOWN)
+
+
         self._build_param_dict()
 
+    ########################################################################
+    # Unknown handlers.
+    ########################################################################
 
+    def _handler_unknown_enter(self, *args, **kwargs):
+        """
+        """
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+    
+    def _handler_unknown_exit(self, *args, **kwargs):
+        """
+        """
+        pass
+
+    ########################################################################
+    # Command handlers.
+    ########################################################################
+
+    ########################################################################
+    # Autosample handlers.
+    ########################################################################
+
+    ########################################################################
+    # Direct access handlers.
+    ########################################################################
 
     ########################################################################
     # Private helpers.

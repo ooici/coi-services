@@ -37,9 +37,9 @@ mi_logger = logging.getLogger('mi_logger')
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_process
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_config
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
@@ -53,7 +53,7 @@ DEV_ADDR = '137.110.112.119'
 DEV_PORT = 4001
 PAGENT_ADDR = 'localhost'
 PAGENT_PORT = 8888
-COMMS_CONFIG + {
+COMMS_CONFIG = {
     'addr': PAGENT_ADDR,
     'port': PAGENT_PORT
 }
@@ -208,7 +208,22 @@ class TestSBE37Driver(PyonTestCase):
         reply = self._dvr_client.cmd_dvr('initialize')
         
             
+    
+    def test_connect(self):
+        """
+        """
         
+        # Configure driver for comms and transition to disconnected.
+        reply = self._dvr_client.cmd_dvr('configure', COMMS_CONFIG)
+
+        # Configure driver for comms and transition to disconnected.
+        reply = self._dvr_client.cmd_dvr('connect')
+
+        # Configure driver for comms and transition to disconnected.
+        reply = self._dvr_client.cmd_dvr('disconnect')
+
+        # Initialize the driver and transition to unconfigured.
+        reply = self._dvr_client.cmd_dvr('initialize')
     
 
 

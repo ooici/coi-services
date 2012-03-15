@@ -42,6 +42,7 @@ class DriverEvent(BaseEnum):
     DISCONNECT = 'DRIVER_EVENT_DISCONNECT'
     SET = 'DRIVER_EVENT_SET'
     GET = 'DRIVER_EVENT_GET'
+    DISCOVER = 'DRIVER_EVENT_DISCOVER'
     EXECUTE = 'DRIVER_EVENT_EXECUTE'
     EXECUTE_DIRECT = 'DRIVER_EVENT_EXECUTE_DIRECT'
     ACQUIRE_SAMPLE = 'DRIVER_EVENT_ACQUIRE_SAMPLE'
@@ -104,6 +105,11 @@ class InstrumentDriver(object):
     #############################################################
     # Commande and control interface.
     #############################################################
+
+    def discover(self, *args, **kwargs):
+        """
+        """
+        raise NotImplementedError('discover() is not implemented.')
 
     def get(self, *args, **kwargs):
         """

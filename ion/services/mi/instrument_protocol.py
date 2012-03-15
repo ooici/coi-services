@@ -29,7 +29,7 @@ class InstrumentProtocol(object):
     Base instrument protocol class.
     """
     
-    def __init__(self, driver_event):
+    def __init__(self, driver_event, connection):
         """
         @param evt_callback A callback to send protocol events to the
         agent.
@@ -61,6 +61,11 @@ class InstrumentProtocol(object):
         Packag and send events.
         """
         pass
+    
+    def get_current_state(self):
+        """
+        """
+        return self._protocol_fsm.get_current_state()
     
 class BinaryInstrumentProtocol(InstrumentProtocol):
     """Instrument protocol description for a binary-based instrument
@@ -142,8 +147,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     """
     Base class for text-based command-response instruments.
     """
-    def __init__(self, prompts, newline, driver_event):
-        InstrumentProtocol.__init__(self, driver_event)
+    def __init__(self, prompts, newline, driver_event, connection):
+        InstrumentProtocol.__init__(self, driver_event, connection)
 
         # The end of line delimiter.                
         self.eoln = newline
