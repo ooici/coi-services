@@ -43,6 +43,7 @@ class DispatcherLauncher(BaseService):
 
 
         for i in xrange(number_of_processes):
+            config['process']['number']=i
             transform_id = tms_cli.create_transform(
                 name='dispatcher_cache_%d' % i,
                 in_subscription_id=subscription_id,

@@ -8,7 +8,8 @@
 to couchdb datastore and hdf datastore.
 '''
 
-from interface.objects import DataStream, StreamGranuleContainer, Encoding
+from interface.objects import DataStream, StreamGranuleContainer, Encoding, DatasetIngestionByStream, DatasetIngestionConfiguration
+from ion.processes.data.ingestion.ingestion_worker import IngestionWorker
 from pyon.datastore.datastore import DataStore
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
@@ -33,7 +34,7 @@ class DispatcherCacheException(IonException):
         return str(self.get_status_code()) + str(self.get_error_message())
 
 
-class DispatcherCache(TransformDataProcess):
+class DispatcherCache(IngestionWorker):
     """
     Instances of this class acts as Ingestion Workers. They receive packets and send them to couchdb datastore or
     hdf storage according to the policy in the data stream or the default policy of the dispatcher configuration
@@ -42,9 +43,10 @@ class DispatcherCache(TransformDataProcess):
 
 
     def on_start(self):
-        super(DispatcherCache,self).on_start()
+        super(IngestionWorker,self).on_start()
 
         self.datastore_name = self.CFG.get_safe('process.datastore_name','dispatcher_cache')
+        self.number = self.CFG.get_safe('process.number', 1)
         try:
             self.datastore_profile = getattr(DataStore.DS_PROFILE, self.CFG.get_safe('datastore_profile','SCIDATA'))
         except AttributeError:
@@ -54,83 +56,19 @@ class DispatcherCache(TransformDataProcess):
         log.debug('datastore_profile %s' % self.datastore_profile)
         self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile)
 
-
-
-    def process(self, packet):
-        """Process incoming data!!!!
-        """
-
-        # Process the packet
-        self.process_stream(packet)
-
-
-
-    def persist_immutable(self, obj):
-        """
-        This method is not functional yet - the doc object is python specific. The sha1 must be of a language independent form.
-        """
-        doc = self.db._ion_object_to_persistence_dict(obj)
-        sha1 = sha1hex(doc)
-
-        try:
-            self.db.create_doc(doc, object_id=sha1)
-            log.debug('Persisted document %s', type(obj))
-        except BadRequest:
-            # Deduplication in action!
-            #@TODO why are we getting so many duplicate comments?
-            log.exception('Failed to write packet!\n%s' % obj)
-
-        # Do the id or revision have a purpose? do we need a return value?
-
-
-    def process_stream(self, packet):
-        """
-        Accepts a stream. Also accepts instruction (a dset_config). According to the received dset_config it processes the
-        stream such as store in hfd_storage, couch_storage.
-        @param: packet The incoming data stream of type stream.
-        """
-
-        # Ignoring is_replay attribute now that we have a policy implementation
-        if isinstance(packet, StreamGranuleContainer):
-            values_string = ''
-            sha1 = ''
-            encoding_type = ''
-            # Check for a datastream and encoding
-            for value in packet.identifiables.values():
-                if isinstance(value, DataStream):
-                    values_string = value.values
-                    value.values=''
-                elif isinstance(value, Encoding):
-                    sha1 = value.sha1
-                    encoding_type = value.encoding_type
-
-            log.debug("Persisting data....")
-            self.persist_immutable(packet )
-
-            if values_string:
-                calculated_sha1 = hashlib.sha1(values_string).hexdigest().upper()
-                filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
-
-                if sha1 != calculated_sha1:
-                    raise  DispatcherCacheException('The sha1 stored is different than the calculated from the received hdf_string')
-
-                log.warn('writing to filename: %s' % filename)
-
-                with open(filename, mode='wb') as f:
-                    f.write(values_string)
-
-            else:
-                log.warn("Nothing to write!")
-
+    def on_quit(self):
+        self.db.close()
+        super(IngestionWorker,self).on_quit()
 
     def on_stop(self):
-        TransformDataProcess.on_stop(self)
-
         self.db.close()
+        super(IngestionWorker,self).on_start()
+    def get_dataset_config(self, incoming_packet):
 
-    def on_quit(self):
-        TransformDataProcess.on_quit(self)
+        config = DatasetIngestionByStream(
+            archive_data=True,
+            archive_metadata=True,
+            stream_id=incoming_packet.stream_resource_id
+        )
 
-        self.db.close()
-
-
+        return config
