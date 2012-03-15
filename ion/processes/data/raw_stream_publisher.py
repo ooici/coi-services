@@ -10,21 +10,12 @@ bin/pycc --rel res/deploy/r2dm.yml
 pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.raw_stream_publisher',cls='RawCtdPublisher')
 
 '''
-from gevent.greenlet import Greenlet
-from pyon.datastore.datastore import DataStore
-from pyon.ion.endpoint import StreamPublisherRegistrar
-from pyon.ion.process import StandaloneProcess
 from pyon.public import log
-
-import time
-
-import random
-
 from prototype.sci_data.stream_defs import SBE37_RAW_stream_definition
 from prototype.sci_data.constructor_apis import RawSupplementConstructor
 
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
-
+import gevent
 
 class RawStreamPublisher(SimpleCtdPublisher):
 
@@ -39,6 +30,7 @@ class RawStreamPublisher(SimpleCtdPublisher):
         # Do stuff before on start - before the process tries to start publishing...
 
         super(RawStreamPublisher, self).on_start()
+        self.iterations = self.CFG.get_safe('process.iteration',20)
 
 
         # Generally can't do stuff here - the process is already trying to publish...
@@ -48,10 +40,14 @@ class RawStreamPublisher(SimpleCtdPublisher):
         """
         Implement your own trigger func to load you netcdf data and publish it...
         """
-        with open('/dev/random','r') as f:
+        with open('/dev/urandom','r') as f:
 
-
-            while True:
+            i=0
+            infinite = False
+            if self.iterations < 0:
+                self.iterations = 1
+                infinite = True
+            while i < self.iterations:
 
                 raw_constructor = RawSupplementConstructor(raw_definition= self.outgoing_stream_def, stream_id=stream_id)
 
@@ -60,4 +56,6 @@ class RawStreamPublisher(SimpleCtdPublisher):
                 log.info('Publishing raw message!')
                 self.publisher.publish(raw_constructor.close_stream_granule())
 
-                time.sleep(1.0)
+                gevent.sleep(1.0)
+                if not infinite:
+                    i+=1
