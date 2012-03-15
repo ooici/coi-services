@@ -45,6 +45,12 @@ from pyon.public import log
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
 
+
+#
+# I am an edit in the mi remote branch.
+#
+
+
 #@unittest.skip('Do not run hardware test.')
 @attr('HARDWARE', group='mi')
 class TestSBE37Driver(PyonTestCase):    
