@@ -42,7 +42,7 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver_new.py:TestSBE37Driver.test_autosample
 
 @unittest.skip('Do not run hardware test.')
-@attr('INT', group='mi')
+@attr('HARDWARE', group='mi')
 class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows

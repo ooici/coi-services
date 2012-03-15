@@ -110,7 +110,6 @@ PACKET_CONFIG = {
         'ctd_raw' : None            
 }
 
-print 'HELLO HELLO HELLO'
 
 ###############################################################################
 # Seabird Electronics 37-SMP MicroCAT Driver.
