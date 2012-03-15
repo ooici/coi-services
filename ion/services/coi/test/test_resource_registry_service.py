@@ -11,7 +11,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.objects import Attachment, AttachmentType
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-@attr('INT', group='coirr')
+@attr('INT', group='coi')
 class TestResourceRegistry(IonIntegrationTestCase):
 
     def setUp(self):
@@ -97,8 +97,14 @@ class TestResourceRegistry(IonIntegrationTestCase):
         inst = IonObject("InstrumentDevice", name='instrument')
         iid,_ = self.resource_registry_service.create(inst, headers={'ion-actor-id':str(uid)})
 
-        ids = self.resource_registry_service.find_associations(iid, PRED.hasOwner)
+        ids,_ = self.resource_registry_service.find_objects(iid, PRED.hasOwner, RT.UserIdentity, id_only=True)
         self.assertEquals(len(ids), 1)
+
+        assoc = self.resource_registry_service.read(ids[0])
+        self.resource_registry_service.delete(iid)
+
+        with self.assertRaises(NotFound) as ex:
+            assoc = self.resource_registry_service.read(ids[0])
 
     def test_lifecycle(self):
         att = IonObject("InstrumentDevice", name='mine', description='desc')
