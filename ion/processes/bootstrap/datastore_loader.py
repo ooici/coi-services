@@ -19,7 +19,7 @@ import datetime
 import os
 import os.path
 
-from pyon.public import CFG, log, ImmediateProcess, iex, sys_name
+from pyon.public import CFG, log, ImmediateProcess, iex
 from pyon.datastore.datastore import DatastoreManager
 from pyon.core.bootstrap import get_sys_name
 

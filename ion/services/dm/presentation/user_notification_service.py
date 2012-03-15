@@ -11,7 +11,7 @@ from gevent import Greenlet
 
 from pyon.core.exception import BadRequest, NotFound
 from pyon.event.event import EventError, EventSubscriber, EventPublisher
-from pyon.public import RT, PRED, sys_name, Container, CFG, IonObject
+from pyon.public import RT, PRED, get_sys_name, Container, CFG, IonObject
 from pyon.util.async import spawn
 from pyon.util.log import log
 
@@ -102,7 +102,7 @@ class UserEventProcessor(object):
                             "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI.",
                             "Do not reply to this email.  This email address is not monitored and the emails will not be read."), 
                            "\r\n")
-        SUBJECT = "(SysName: " + sys_name + ") ION event " + event + " from " + origin
+        SUBJECT = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
         FROM = ION_NOTIFICATION_EMAIL_ADDRESS
         TO = self.user_email_addr
         msg = MIMEText(BODY)
