@@ -196,4 +196,10 @@ class InstrumentDriver(object):
             
         elif type == DriverAsyncEvent.ERROR:
             pass
-        
+
+
+    def driver_echo(self, msg):
+        """
+        """
+        reply = 'driver_echo: '+msg
+        return reply

@@ -122,9 +122,8 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
         SingleConnectionInstrumentDriver.__init__(self, evt_callback)
 
         # Construct the protocol.    
-        self._protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, self.publish_event)
+        self._protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, self._driver_event)
 
-        mi_logger.info('NEW DRIVER CONSTRUCTED!!')
 
 ###############################################################################
 # Seabird Electronics 37-SMP MicroCAT protocol.
