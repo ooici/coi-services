@@ -167,6 +167,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         oldInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, oldInstDevice_id)
 
 
+
         #-------------------------------
         # Create CTD Parsed as the Year 1 data product
         #-------------------------------
@@ -189,8 +190,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_year1, PRED.hasStream, None, True)
         print 'test_deployAsPrimaryDevice: Data product streams1 = ', stream_ids
-
-
 
 
 
@@ -255,6 +254,22 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
         #-------------------------------
+        # Logical Data Product: Data Process Definition
+        #-------------------------------
+        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition logical_transform")
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+                            name='logical_transform',
+                            description='send the packet from the in stream to the out stream unchanged',
+                            module='ion.processes.data.transforms.logical_transform',
+                            class_name='logical_transform',
+                            process_source='some_source_reference')
+        try:
+            logical_transform_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+        except BadRequest as ex:
+            self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
+
+
+        #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
         #-------------------------------
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition ctd_L0_all")
@@ -270,7 +285,17 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
 
 
+        #-------------------------------
+        # Logical Transform: Output Data Products
+        #-------------------------------
+        outgoing_logical_stream_def = SBE37_CDM_stream_definition()
+        outgoing_logical_stream_def_id = self.pubsubclient.create_stream_definition(container=outgoing_logical_stream_def)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_logical_stream_def_id, logical_transform_dprocdef_id )
 
+        log.debug("test_deployAsPrimaryDevice: create output parsed data product for Logical Instrument")
+        ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='ctd_parsed_logical',description='ctd parsed from the logical instrument')
+        logical_instrument_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_logical_stream_def_id)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=logical_instrument_output_dp_id, persist_data=True, persist_metadata=True)
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Output Data Products
