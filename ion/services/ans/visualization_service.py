@@ -6,7 +6,6 @@ __license__ = 'Apache 2.0'
 import os
 import time
 import math
-import gviz_api
 import string
 import random
 import StringIO
@@ -47,6 +46,8 @@ from netCDF4 import Dataset
 from datetime import datetime, timedelta
 from netCDF4 import num2date, date2num
 
+# Google viz library for google charts
+import ion.services.ans.gviz_api as gviz_api
 
 class VisualizationService(BaseVisualizationService):
     """
