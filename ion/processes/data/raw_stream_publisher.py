@@ -40,7 +40,7 @@ class RawStreamPublisher(SimpleCtdPublisher):
         """
         Implement your own trigger func to load you netcdf data and publish it...
         """
-        with open('/dev/random','r') as f:
+        with open('/dev/urandom','r') as f:
 
             i=0
             infinite = False
