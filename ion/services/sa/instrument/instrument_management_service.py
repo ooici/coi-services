@@ -298,7 +298,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
         
-        del instrument_agent_instance_obj.agent_process_id
+        instrument_agent_instance_obj.agent_process_id = None
 
         self.RR.update(instrument_agent_instance_obj)
 

@@ -70,7 +70,7 @@ def process_index():
         from pyon.public import CFG
         from pyon.core.bootstrap import get_sys_name
         fragments = [
-            "<h1>Welcome to ContainerUI</h1>",
+            "<h1>Welcome to Container Management UI</h1>",
             "<p><ul>",
             "<li><a href='/restypes'><b>Browse Resource Registry and Resource Objects</b></a></li>",
             "<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
@@ -294,6 +294,43 @@ def build_associations(resid):
 
 # ----------------------------------------------------------------------------------------
 
+@app.route('/cmd/<cmd>', methods=['GET','POST'])
+def process_command(cmd):
+    try:
+        cmd = str(cmd)
+        resource_id = request.args.get('resource_id', None)
+
+        Container.instance.resource_registry.read(resource_id)
+
+        cmd_func = getattr(globals(), "_process_cmd_%s" % cmd, None)
+        if not cmd_func:
+            raise Exception("Command %s unknown" % cmd)
+
+
+        fragments = [
+            build_standard_menu(),
+            "<h1>Command result</h1>",
+            "<p>",
+        ]
+
+        result = cmd_func(resource_id)
+        fragments.append(result)
+
+        fragments.append("</p>")
+
+        content = "\n".join(fragments)
+        return build_page(content)
+
+    except Exception, e:
+        return build_simple_page("Error: %s" % traceback.format_exc())
+
+def _process_cmd_delete(resource_id):
+    Container.instance.resource_registry.delete(resource_id)
+    return "OK"
+
+
+# ----------------------------------------------------------------------------------------
+
 @app.route('/assoc', methods=['GET','POST'])
 def process_assoc_list():
     try:
@@ -304,9 +341,9 @@ def process_assoc_list():
         fragments = [
             build_standard_menu(),
             "<h1>List of Associations</h1>",
-            "Restrictions: predicate=%s" % (predicate),
+            "<p>Restrictions: predicate=%s</p>" % (predicate),
             "<p>",
-            "<table border='1' cellspacing='0'>",
+            "<table>",
             "<tr><th>Subject</th><th>Subject type</th><th>Predicate</th><th>Object ID</th><th>Object type</th></tr>"
         ]
 
@@ -512,7 +549,7 @@ def build_page(content, title=""):
     fragments = [
         "<html><head>",
         "<style type='text/css'>",
-        "body {font-family:Verdana,sans-serif;font-size:small;}",
+        "body {font-family:Helvetica,Verdana,sans-serif;font-size:small;}",
         "table,th,td {font-size:small;border: 1px solid black;border-collapse:collapse;padding-left:3px;padding-right:3px;vertical-align:top;}",
         "th {background-color:lightgray;}",
         ".preform {white-space:pre;font-family:monospace;font-size:120%;}",
