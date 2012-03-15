@@ -78,7 +78,7 @@ def process_index():
             "<li><a href='http://localhost:5984/_utils'><b>CouchDB Futon UI (if running)</b></a></li>",
             "</ul></p>",
             "<h2>Container and System Properties</h2>",
-            "<p><table border='1' cellspacing='0'>",
+            "<p><table>",
             "<tr><th>Property</th><th>Value</th></tr>",
             "<tr><td>Container ID</td><td>%s</td></tr>" % Container.instance.id,
             "<tr><td>Sys_name</td><td>%s</td></tr>" % get_sys_name(),
@@ -131,7 +131,7 @@ def process_list_resources(resource_type):
             "<h1>List of '%s' Resources</h1>" % restype,
             build_res_extends(restype),
             "<p>",
-            "<table border='1' cellspacing='0'>",
+            "<table>",
             "<tr>"
         ]
 
@@ -217,9 +217,10 @@ def process_view_resource(resource_id):
         fragments = [
             build_standard_menu(),
             "<h1>View %s '%s'</h1>" % (build_type_link(restype), res.name),
+            build_commands(resid, restype),
             "<h2>Fields</h2>",
             "<p>",
-            "<table border='1' cellspacing='0'>",
+            "<table>",
             "<tr><th>Field</th><th>Type</th><th>Value</th></tr>"
             ]
 
@@ -269,7 +270,7 @@ def build_associations(resid):
     fragments = []
     fragments.append("<h2>Associations</h2>")
     fragments.append("<h3>FROM</h3>")
-    fragments.append("<p><table border='1' cellspacing='0'>")
+    fragments.append("<p><table>")
     fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
 
     obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
@@ -280,7 +281,7 @@ def build_associations(resid):
 
     fragments.append("</table></p>")
     fragments.append("<h3>TO</h3>")
-    fragments.append("<p><table border='1' cellspacing='0'>")
+    fragments.append("<p><table>")
     fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
 
     obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
@@ -292,20 +293,35 @@ def build_associations(resid):
     fragments.append("</table></p>")
     return fragments
 
+def build_commands(resource_id, restype):
+    fragments = ["<h2>Commands</h2>"]
+
+    fragments.append(build_command("Delete", "/cmd/delete?rid=%s" % resource_id))
+    if restype == "InstrumentAgentInstance":
+        fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Agent", "/cmd/start_agent?rid=%s" % resource_id))
+
+    fragments.append("</table>")
+    return "".join(fragments)
+
+def build_command(text, link, args=None):
+    return "<div>%s</div>" % build_link(text, link)
+
 # ----------------------------------------------------------------------------------------
 
 @app.route('/cmd/<cmd>', methods=['GET','POST'])
 def process_command(cmd):
     try:
         cmd = str(cmd)
-        resource_id = request.args.get('resource_id', None)
+        resource_id = request.args.get('rid', None)
+        resource_id = str(resource_id)
 
         Container.instance.resource_registry.read(resource_id)
 
-        cmd_func = getattr(globals(), "_process_cmd_%s" % cmd, None)
+        func_name = "_process_cmd_%s" % cmd
+        cmd_func = globals().get(func_name, None)
         if not cmd_func:
-            raise Exception("Command %s unknown" % cmd)
-
+            raise Exception("Command %s unknown" % (cmd))
 
         fragments = [
             build_standard_menu(),
@@ -430,7 +446,7 @@ def process_dir_path(path):
             build_standard_menu(),
             "<h1>Directory %s</h1>" % (build_dir_path(path)),
             "<h2>Attributes</h2>",
-            "<p><table border='1' cellspacing='0'><tr><th>Name</th><th>Value</th></tr>"
+            "<p><table><tr><th>Name</th><th>Value</th></tr>"
         ]
 
         for attr in sorted(entry.keys()):
@@ -438,7 +454,7 @@ def process_dir_path(path):
             fragments.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, attval))
         fragments.append("</table></p>")
 
-        fragments.append("</p><h2>Child Entries</h2><p><table border='1' cellspacing='0'><tr><th>Key</th><th>Timestamp</th><th>Attributes</th></tr>")
+        fragments.append("</p><h2>Child Entries</h2><p><table><tr><th>Key</th><th>Timestamp</th><th>Attributes</th></tr>")
         for de in de_list:
             if '/' in de.parent:
                 org, parent = de.parent.split("/", 1)
