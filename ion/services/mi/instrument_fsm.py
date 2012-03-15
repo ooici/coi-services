@@ -10,16 +10,13 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-import logging
-
-mi_logger = logging.getLogger('mi_logger')
 
 class InstrumentFSM():
     """
     Simple state mahcine for driver and agent classes.
     """
 
-    def __init__(self, states, events, enter_event, exit_event, err_unhandled):
+    def __init__(self, states, events, enter_event, exit_event):
         """
         Initialize states, events, handlers.
 
@@ -37,7 +34,6 @@ class InstrumentFSM():
         self.previous_state = None
         self.enter_event = enter_event
         self.exit_event = exit_event
-        self.err_unhandled = err_unhandled
 
     def get_current_state(self):
         """
@@ -57,7 +53,7 @@ class InstrumentFSM():
         self.state_handlers[(state,event)] = handler
         return True
         
-    def start(self,state,params=None):
+    def start(self, state, *args, **kwargs):
         """
         Start the state machine. Initializes current state and fires the
         EVENT_ENTER event.
@@ -75,10 +71,10 @@ class InstrumentFSM():
         self.current_state = state
         handler = self.state_handlers.get((state, self.enter_event), None)
         if handler:
-            handler(params)
+            handler(*args, **kwargs)
         return True
 
-    def on_event(self,event,params=None):
+    def on_event(self, event, *args, **kwargs):
         """
         Handle an event. Call the current state handler passing the event
         and paramters.
@@ -92,20 +88,17 @@ class InstrumentFSM():
         next_state = None
         result = None
         
-        mi_logger.debug('From current state %s, processing event %s...',
-                        self.current_state, event)
         if self.events.has(event):
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:
-                (next_state, result) = handler(params)
-
+                (next_state, result) = handler(*args, **kwargs)
         #if next_state in self.states:
         if self.states.has(next_state):
-            self._on_transition(next_state, params)
+            self._on_transition(next_state, *args, **kwargs)
                 
         return result
             
-    def _on_transition(self,next_state,params):
+    def _on_transition(self, next_state, *args, **kwargs):
         """
         Call the sequence of events to cause a state transition. Called from
         on_event if the handler causes a transition.
@@ -115,10 +108,10 @@ class InstrumentFSM():
         
         handler = self.state_handlers.get((self.current_state, self.exit_event), None)
         if handler:
-            handler(params)
+            handler(*args, **kwargs)
         self.previous_state = self.current_state
         self.current_state = next_state
         handler = self.state_handlers.get((self.current_state, self.enter_event), None)
         if handler:
-            handler(params)
+            handler(*args, **kwargs)
 
