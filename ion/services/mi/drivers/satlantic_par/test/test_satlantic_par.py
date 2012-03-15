@@ -5,6 +5,7 @@
 @author Steve Foley
 @test ion.services.mi.drivers.satlantic_par
 Unit test suite to test Satlantic PAR sensor
+@todo Find a way to test timeouts?
 '''
 
 import unittest
@@ -343,21 +344,25 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         #                  'bogus', [(Channel.INSTRUMENT, Parameter.TELBAUD)])
 
     def test_set(self):
+        config_key = (Channel.INSTRUMENT, Parameter.MAXRATE)
+        config_A = {config_key:12}
+        config_B = {config_key:1}
+        
         # Should defaults to command mode
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
         self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
         
-        reply = self.driver_client.cmd_dvr('set', {(Channel.INSTRUMENT, Parameter.MAXRATE):12})
-        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):12})
-         
-        reply = self.driver_client.cmd_dvr('get', [(Channel.INSTRUMENT, Parameter.MAXRATE)])
-        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):12})
+        reply = self.driver_client.cmd_dvr('set', config_A)
+        self.assertEquals(reply[config_key], True)
+                 
+        reply = self.driver_client.cmd_dvr('get', [config_key])
+        self.assertEquals(reply, config_A)
         
-        reply = self.driver_client.cmd_dvr('set', {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
-        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
+        reply = self.driver_client.cmd_dvr('set', config_B)
+        self.assertEquals(reply[config_key], True)
          
-        reply = self.driver_client.cmd_dvr('get', [(Channel.INSTRUMENT, Parameter.MAXRATE)])
-        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
+        reply = self.driver_client.cmd_dvr('get', [config_key])
+        self.assertEquals(reply, config_B)
         
     def test_get_from_wrong_state(self):
         """Test get() from wrong state"""

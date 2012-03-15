@@ -131,7 +131,7 @@ class InstrumentProtocol(object):
             server_addr = config['server_addr']
             server_port = config['server_port']
             self._logger = EthernetDeviceLogger(device_addr, device_port,
-                                            server_port, write_delay=0.1)
+                                            server_port, write_delay=0.5)
             self._logger_client = LoggerClient(server_addr, server_port)
 
         elif method == InterfaceType.SERIAL:

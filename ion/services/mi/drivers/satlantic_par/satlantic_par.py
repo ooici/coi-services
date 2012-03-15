@@ -119,6 +119,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                                   InstErrorCode.UNHANDLED_EVENT)
         self._fsm.add_handler(State.COMMAND_MODE, Event.COMMAND,
                               self._handler_command_command)
+        self._fsm.add_handler(State.COMMAND_MODE, Event.ENTER_STATE,
+                              self._handler_command_enter_state)
         self._fsm.add_handler(State.COMMAND_MODE, Event.GET,
                               self._handler_command_get)    
         self._fsm.add_handler(State.COMMAND_MODE, Event.SET,
@@ -432,6 +434,26 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
 
+    def _handler_command_enter_state(self, *args, **kwargs):
+        """Handle State.COMMAND_MODE Event.ENTER_STATE transition
+        
+        @param params Dict with "command" enum and "params" of the parameters to
+        pass to the state
+        @retval return (next state, result)
+        @throw InstrumentProtocolException For invalid parameter'
+        @todo Make this only active when we are connected.
+        """
+        # Just update parameters, no state change
+        
+        try:
+            pass # dont do anything for now
+            # self._update_params()
+        except InstrumentTimeoutException:
+            #squelch the error if we timeout...best effort update
+            pass
+        return (None, None)
+
+
     def _handler_command_command(self, *args, **kwargs):
         """Handle State.COMMAND_MODE Event.COMMAND transition
         
@@ -531,6 +553,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                 break
             result_vals[key] = self._do_cmd_resp(Command.SET, key, name_values[key],
                                                  expected_prompt=Prompt.COMMAND)
+            self._update_params()
         """@todo raise a parameter error if there was a bad value"""
         result = result_vals
             
@@ -629,7 +652,9 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         # Check to make sure all parameters are valid up front
         assert Parameter.has(param)
         assert cmd == Command.SET
-        return "%s %s %s%s" % (Command.SET, param, value, self.eoln)
+        return "%s %s %s%s" % (Command.SET, param,
+                               self._format_param_dict(param, value),
+                               self.eoln)
         
     def _build_param_fetch_command(self, cmd, param):
         """
@@ -674,7 +699,9 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         mi_logger.debug("Parsing SET response of %s with prompt %s",
                         response, prompt)
-        if ((prompt != Prompt.COMMAND) or (response == Error.INVALID_COMMAND)):
+        if prompt == Prompt.COMMAND:
+            return True
+        elif response == Error.INVALID_COMMAND:
             return InstErrorCode.SET_DEVICE_ERR
         else:
             return InstErrorCode.HARDWARE_ERROR
@@ -689,7 +716,9 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @todo Fill this in
         """
         # should only have one line with an eoln if this is really a get
-        assert (len(response.split(self.eoln)) == 2)
+        if len(response.split(self.eoln)) != 2:
+            return InstErrorCode.HARDWARE_ERROR
+        
         name_set = self._update_param_dict(response)
         if (name_set):
             return self._get_param_dict(name_set)
@@ -717,7 +746,23 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     def _wakeup(self, timeout):
         """There is no wakeup sequence for this instrument"""
         pass
-            
+    
+    def _update_params(self, *args, **kwargs):
+        """Fetch the parameters from the device, and update the param dict.
+        
+        @param args Unused
+        @param kwargs Takes timeout value
+        @throws InstrumentProtocolException
+        @throws InstrumentTimeoutException
+        """
+        timeout = kwargs.get('timeout', 10)
+        old_config = self._get_config_param_dict()
+        self.get_config()
+        new_config = self._get_config_param_dict()            
+        if new_config != old_config:
+            self.announce_to_driver(DriverAnnouncement.CONFIG_CHANGE,
+                                    msg="Device configuration changed")            
+                
     def _send_break(self, break_char, timeout=30):
         """Break out of autosample mode.
         
