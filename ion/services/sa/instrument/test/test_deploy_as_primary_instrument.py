@@ -48,8 +48,8 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-#@unittest.skip("run locally only")
-class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
+@unittest.skip("run locally only")
+class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
@@ -104,7 +104,7 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentModel: %s" %ex)
-        print 'test_reassignPrimaryDevice: new InstrumentModel id = ', instModel_id
+        print 'test_deployAsPrimaryDevice: new InstrumentModel id = ', instModel_id
 
 
         #-------------------------------
@@ -115,7 +115,7 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentAgent: %s" %ex)
-        print 'test_reassignPrimaryDevice: new InstrumentAgent id = ', instAgent_id
+        print 'test_deployAsPrimaryDevice: new InstrumentAgent id = ', instAgent_id
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
@@ -129,7 +129,7 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
             logicalInstrument_id = self.marinefacilityclient.create_logical_instrument(logical_instrument=logicalInstrument_obj, parent_logical_platform_id='')
         except BadRequest as ex:
             self.fail("failed to create new LogicalInstrument: %s" %ex)
-        print 'test_reassignPrimaryDevice: new InstrumentAgent id = ', logicalInstrument_id
+        print 'test_deployAsPrimaryDevice: new InstrumentAgent id = ', logicalInstrument_id
 
         self.marinefacilityclient.assign_instrument_model_to_logical_instrument(instModel_id, logicalInstrument_id)
 
@@ -144,16 +144,19 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
 
-        print 'test_reassignPrimaryDevice: new Year 1 InstrumentDevice id = ', oldInstDevice_id
+        print 'test_deployAsPrimaryDevice: new Year 1 InstrumentDevice id = ', oldInstDevice_id
 
-        # set this device as the current primary device
-        self.imsclient.deploy_as_primary_instrument_device_to_logical_instrument(oldInstDevice_id, logicalInstrument_id)
+        # deploy this device to the logical slot
+        self.imsclient.deploy_instrument_device_to_logical_instrument(oldInstDevice_id, logicalInstrument_id)
+
         #self.imsclient.set_instrument_device_lifecycle(oldInstDevice_id, 'DEPLOYED_AVAILABLE')
         self.rrclient.execute_lifecycle_transition(oldInstDevice_id, LCE.DEVELOP)
         self.rrclient.execute_lifecycle_transition(oldInstDevice_id, LCE.DEPLOY)
         self.rrclient.set_lifecycle_state(oldInstDevice_id, LCS.DEPLOYED_AVAILABLE)
 
-
+        # set this device as the current primary device
+        self.imsclient.deploy_as_primary_instrument_device_to_logical_instrument(oldInstDevice_id, logicalInstrument_id)
+        
         #-------------------------------
         # Create InstrumentAgentInstance for OldInstrumentDevice to hold configuration information
         #-------------------------------
@@ -171,7 +174,7 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
         ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
 
-        print 'test_reassignPrimaryDevice: new Stream Definition id = ', ctd_stream_def_id
+        print 'test_deployAsPrimaryDevice: new Stream Definition id = ', ctd_stream_def_id
 
         print 'Creating new CDM data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,name='ctd_parsed_year1',description='ctd stream test year 1')
@@ -185,7 +188,7 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_year1, PRED.hasStream, None, True)
-        print 'test_reassignPrimaryDevice: Data product streams1 = ', stream_ids
+        print 'test_deployAsPrimaryDevice: Data product streams1 = ', stream_ids
 
 
 
@@ -194,21 +197,26 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # Create New InstrumentDevice
         #-------------------------------
-        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDeviceYear2', description="SBE37IMDevice for the SECOND year of deployment", serial_number="67890" )
+        instDevice_obj_2 = IonObject(RT.InstrumentDevice, name='SBE37IMDeviceYear2', description="SBE37IMDevice for the SECOND year of deployment", serial_number="67890" )
         try:
-            newInstDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+            newInstDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj_2)
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, newInstDevice_id)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
 
-        print 'test_reassignPrimaryDevice: new  Year 2 InstrumentDevice id = ', newInstDevice_id
+        print 'test_deployAsPrimaryDevice: new  Year 2 InstrumentDevice id = ', newInstDevice_id
 
-        # deploy this device as the
+        # deploy this device to the logical slot
         self.imsclient.deploy_instrument_device_to_logical_instrument(newInstDevice_id, logicalInstrument_id)
-        #self.imsclient.set_instrument_device_lifecycle(newInstDevice_id, 'DEPLOYED_AVAILABLE')
+        #set the LCSTATE
         self.rrclient.execute_lifecycle_transition(newInstDevice_id, LCE.DEVELOP)
         self.rrclient.execute_lifecycle_transition(newInstDevice_id, LCE.DEPLOY)
         self.rrclient.set_lifecycle_state(newInstDevice_id, LCS.DEPLOYED_AVAILABLE)
+
+
+        instDevice_obj_2 = self.rrclient.read(newInstDevice_id)
+        log.debug("test_deployAsPrimaryDevice: Create New InstrumentDevice LCSTATE: %s ", str(instDevice_obj_2.lcstate))
+
 
 
         #-------------------------------
@@ -228,7 +236,7 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
         ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
 
-        print 'test_reassignPrimaryDevice: new Stream Definition id = ', newInstDevice_id
+        print 'test_deployAsPrimaryDevice: new Stream Definition id = ', newInstDevice_id
 
         print 'Creating new CDM data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,name='ctd_parsed_year2',description='ctd stream test year 2')
@@ -242,7 +250,7 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_year2, PRED.hasStream, None, True)
-        print 'test_reassignPrimaryDevice: Data product streams2 = ', stream_ids
+        print 'test_deployAsPrimaryDevice: Data product streams2 = ', stream_ids
 
 
 
@@ -282,20 +290,20 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
 
 
         self.output_products={}
-        log.debug("test_reassignPrimaryDevice: create output data product L0 conductivity")
+        log.debug("test_deployAsPrimaryDevice: create output data product L0 conductivity")
         ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L0_Conductivity',description='transform output conductivity')
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
 
 
-        log.debug("test_reassignPrimaryDevice: create output data product L0 pressure")
+        log.debug("test_deployAsPrimaryDevice: create output data product L0 pressure")
         ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
 
-        log.debug("test_reassignPrimaryDevice: create output data product L0 temperature")
+        log.debug("test_deployAsPrimaryDevice: create output data product L0 temperature")
         ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L0_Temperature',description='transform output temperature')
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
@@ -305,25 +313,20 @@ class TestMFMSReassignPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
-        log.debug("test_reassignPrimaryDevice: create L0 all data_process start")
+        log.debug("test_deployAsPrimaryDevice: create L0 all data_process start")
         try:
             ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product_year1, self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
-        log.debug("test_reassignPrimaryDevice: create L0 all data_process return")
+        log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
 
 
+        self.imsclient.deploy_as_primary_instrument_device_to_logical_instrument(newInstDevice_id, logicalInstrument_id)
 
-        self.marinefacilityclient.reassign_instrument_device_to_logical_instrument(logical_instrument_id=logicalInstrument_id,
-                                                         old_instrument_device_id=oldInstDevice_id,
-                                                         new_instrument_device_id=newInstDevice_id,
-                                                         logical_data_product_ids=None,
-                                                         old_instrument_data_product_ids=None,
-                                                         new_instrument_data_product_ids=None)
-
-        log.debug("test_reassignPrimaryDevice: reassign_instrument_device_to_logical_instrument return")
+        log.debug("test_deployAsPrimaryDevice: deploy_as_primary_instrument_device_to_logical_instrument return")
         # Make sure InstrumentDevice now has the primary assignment
         assoc = self.rrclient.get_association(newInstDevice_id, PRED.hasPrimaryDeployment, logicalInstrument_id)
         if not assoc:
             self.fail("Failed to reassign")
+  
   
