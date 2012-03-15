@@ -512,7 +512,7 @@ def build_page(content, title=""):
     fragments = [
         "<html><head>",
         "<style type='text/css'>",
-        "body {font-family:Verdana,sans-serif;font-size:small;}",
+        "body {font-family:Helvetica,Verdana,sans-serif;font-size:small;}",
         "table,th,td {font-size:small;border: 1px solid black;border-collapse:collapse;padding-left:3px;padding-right:3px;vertical-align:top;}",
         "th {background-color:lightgray;}",
         ".preform {white-space:pre;font-family:monospace;font-size:120%;}",
