@@ -16,7 +16,8 @@ from nose.plugins.attrib import attr
 from ion.services.mi.common import InstErrorCode
 #import ion.services.mi.drivers.satlantic_par.satlantic_par
 from ion.services.mi.data_decorator import ChecksumDecorator
-from ion.services.mi.instrument_driver import DriverState
+from ion.services.mi.instrument_driver import DriverState, ConnectionState
+from ion.services.mi.instrument_protocol import InterfaceType
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticPARInstrumentProtocol
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Parameter
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Command
@@ -44,7 +45,7 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
     def setUp(self):
         def response_side_effect(*args, **kwargs):
             if args[0] == Command.SAMPLE:
-                mi_logger.debug("*** side effecting!")
+                mi_logger.debug("Side effecting!")
                 return "SATPAR0229,10.01,2206748544,234"
             else:
                 return DEFAULT
@@ -54,7 +55,7 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         self.mock_logger_client = Mock(name='logger_client')
 #        self.mock_logger_client.send = Mock()
         self.par_proto = SatlanticPARInstrumentProtocol(self.mock_callback)
-        self.config_params = {'method':'ethernet',
+        self.config_params = {'method':InterfaceType.SLOW_ETHERNET,
                               'device_addr':'1.1.1.1',
                               'device_port':1,
                               'server_addr':'2.2.2.2',
@@ -180,6 +181,11 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         result = self.par_proto.execute_reset()
         self.mock_logger_client.send.assert_called_with(Command.RESET)
         self.assertEqual(self.mock_callback.call_count, 1)
+
+        self.mock_callback.reset_mock()
+        result = self.par_proto.execute_break()
+        self.mock_logger_client.send.assert_called_with(Command.BREAK)
+        self.assertEqual(self.mock_callback.call_count, 1)
   
     def test_got_data(self):
         # Cant trigger easily since the async command/response, so short circut
@@ -219,9 +225,9 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         self.driver_module = 'ion.services.mi.drivers.satlantic_par.satlantic_par'
         self.driver_class = 'SatlanticPARInstrumentDriver'
 
-        self.config_params = {'method':'ethernet',
+        self.config_params = {'method':InterfaceType.SLOW_ETHERNET,
                               'device_addr':'10.180.80.173',
-                              'device_port':2001,
+                              'device_port':2101,
                               'server_addr':'localhost',
                               'server_port':8888}
 
@@ -239,12 +245,17 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         self.driver_client.start_messaging()
         time.sleep(1)
         
+        self._connect()
         # self.events = None
         
         # self.par_proto.configure(self.config_params)
         # self.par_proto.initialize()
 
     def _clean_up(self):
+        # set back to command mode
+        reply = self.driver_client.cmd_dvr('execute_break', [Channel.INSTRUMENT])
+        self._disconnect()
+        
         if self.driver_process:
             try:
                 self.driver_client.done()
@@ -258,96 +269,198 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
 
     def _initialize(self):
         reply = self.driver_client.cmd_dvr('initialize', [Channel.INSTRUMENT])
-        mi_logger.debug("*** initialize reply=%s" % str(reply))
-        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
-        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
-        self.assertEqual({Channel.INSTRUMENT:DriverState.UNCONFIGURED}, reply)
         time.sleep(1)
 
     def _connect(self):
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
-        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
         self.assertEqual({Channel.INSTRUMENT:DriverState.UNCONFIGURED}, reply)
 
         self._initialize()
 
         configs = {Channel.INSTRUMENT: self.config_params}
         reply = self.driver_client.cmd_dvr('configure', configs)
-        mi_logger.debug("*** configure reply=%s" % str(reply))
-
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
-        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
-
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
         reply = self.driver_client.cmd_dvr('connect', [Channel.INSTRUMENT])
-        mi_logger.debug("** connect reply=%s" % str(reply))
-
-        time.sleep(1)
-
-        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
-        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
-        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
-
-        time.sleep(1)
-
-        reply = self.driver_client.cmd_dvr('get_status', [Channel.INSTRUMENT])
-        mi_logger.debug("** get_status reply=%s" % str(reply))
-        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
 
         time.sleep(1)
 
     def _disconnect(self):
         reply = self.driver_client.cmd_dvr('disconnect', [Channel.INSTRUMENT])
-        mi_logger.debug("*** disconnect reply=%s" % str(reply))
         reply = self.driver_client.cmd_dvr('get_current_state')
-        mi_logger.debug("*** get_current_state reply=%s" % str(reply))
-        self.assertEqual({Channel.INSTRUMENT:DriverState.DISCONNECTED}, reply)
+        self.assertEqual({Channel.INSTRUMENT:ConnectionState.DISCONNECTED}, reply)
         time.sleep(1)
 
         self._initialize()
 
     def test_connect_disconnect(self):
         """Instrument connect and disconnect"""
-        self._connect()
-        self._disconnect()
-        # assert something at some point!
-        self.assert_(False)
-
-####
-    def test_start_autosample(self):
-        pass
     
+        # Make sure we are connected
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+        
+
+    def test_bad_driver_command(self):
+        """Test a bad driver command being sent to the driver client"""
+        reply = self.driver_client.cmd_dvr('get_status', [Channel.INSTRUMENT])
+        self.assertEqual(reply, 'Unknown driver command') 
+        
+    def test_start_stop_autosample(self):
+        """
+        Test moving into and out of autosample, gathering some data, and
+        seeing it published
+        @todo check the publishing, integrate this with changes in march 2012
+        """
+        reply = self.driver_client.cmd_dvr('execute_start_autosample', [Channel.INSTRUMENT])
+        
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
+        
+        time.sleep(2)
+        
+        # @todo check samples arriving here
+        # @todo check publishing samples from here
+        
+        reply = self.driver_client.cmd_dvr('execute_stop_autosample', [Channel.INSTRUMENT])
+        
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+    
+    def test_get(self):
+        # Should default to command mode
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+        
+        reply = self.driver_client.cmd_dvr('get', [(Channel.INSTRUMENT, Parameter.TELBAUD),
+                                                   (Channel.INSTRUMENT, Parameter.MAXRATE)])
+        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.TELBAUD):19200,
+                                  (Channel.INSTRUMENT, Parameter.MAXRATE):1})
+        
+        """ @todo Probably need some better error handling...a code at least! """
+        #self.assertRaises(InstrumentProtocolException,
+        #                  self.driver_client.cmd_dvr,
+        #                  'bogus', [(Channel.INSTRUMENT, Parameter.TELBAUD)])
+
+    def test_set(self):
+        # Should defaults to command mode
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+        
+        reply = self.driver_client.cmd_dvr('set', {(Channel.INSTRUMENT, Parameter.MAXRATE):12})
+        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):12})
+         
+        reply = self.driver_client.cmd_dvr('get', [(Channel.INSTRUMENT, Parameter.MAXRATE)])
+        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):12})
+        
+        reply = self.driver_client.cmd_dvr('set', {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
+        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
+         
+        reply = self.driver_client.cmd_dvr('get', [(Channel.INSTRUMENT, Parameter.MAXRATE)])
+        self.assertEquals(reply, {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
+        
+    def test_get_from_wrong_state(self):
+        """Test get() from wrong state"""
+        reply = self.driver_client.cmd_drv('execute_start_autosample',
+                                           [Channel.INSTRUMENT])
+        self.assert_(reply)
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
+
+        self.assertRaises(InstrumentProtocolError,
+                          self.driver_client.cmd_drv,
+                          'get', [(Channel.INSTRUMENT, Parameter.MAXRATE)])
+        
+    def test_set_from_wrong_state(self):
+        """Test set() from wrong state"""
+        reply = self.driver_client.cmd_drv('execute_start_autosample',
+                                           [Channel.INSTRUMENT])
+        self.assert_(reply)
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
+
+        self.assertRaises(InstrumentProtocolError,
+                          self.driver_client.cmd_drv,
+                          'set', {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
+
+    def test_get_config(self):
+        # Should default to command mode
+        reply = self.driver_client.cmd_drv('get_config', [Channel.INSTRUMENT])
+        self.assertEquals(len(reply.items()), 2)
+        self.assertEquals(reply[(Channel.INSTRUMENT, Parameter.TELBAUD)], 19200)
+        self.assertEquals(reply[(Channel.INSTRUMENT, Parameter.MAXRATE)], 10)
+
+        # Put in the wrong mode, then try it
+        reply = self.driver_client.cmd_drv('execute_start_autosample',
+                                           [Channel.INSTRUMENT])
+        self.assert_(reply)
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
+
+        self.assertRaises(InstrumentProtocolError,
+                          self.driver_client.cmd_drv,
+                          'get_config', [Channel.INSTRUMENT])
+    
+    def test_restore_config(self):
+        config = self.driver_client.cmd_drv('get_config', [Channel.INSTRUMENT])
+        self.assertEquals(len(config.items()), 2)
+        self.assertEquals(config[(Channel.INSTRUMENT, Parameter.TELBAUD)], 19200)
+        self.assertEquals(config[(Channel.INSTRUMENT, Parameter.MAXRATE)], 10)
+
+        config[(Channel.INSTRUMENT, Parameter.MAXRATE)] = 13
+        config = self.driver_client.cmd_drv('restore_config', [Channel.INSTRUMENT], config)
+        self.assertEquals(config[(Channel.INSTRUMENT, Parameter.MAXRATE)], 13)
+        
+        config = self.driver_client.cmd_drv('get_config', [Channel.INSTRUMENT])
+        self.assertEquals(len(config.items()), 2)
+        self.assertEquals(config[(Channel.INSTRUMENT, Parameter.TELBAUD)], 19200)
+        self.assertEquals(config[(Channel.INSTRUMENT, Parameter.MAXRATE)], 13)
+
+        # test from wrong state
+        reply = self.driver_client.cmd_drv('execute_start_autosample',
+                                           [Channel.INSTRUMENT])
+        self.assert_(reply)
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
+
+        self.assertRaises(InstrumentProtocolError,
+                          self.driver_client.cmd_drv,
+                          'restore_config', config)
+
     def test_break_from_autosample(self):
         pass
         # test break from autosample at low data rates
         # test break from autosample at high data rates
     
     def test_state_changes(self):
-        pass
-    
-    def test_get(self):
-        # test get from wrong state (auto sample?)
-        pass
-    
-    def test_set(self):
-        # test set from wrong state (autosample?)
-        pass
-    
-    def test_get_config(self):
-        # test from wrong state
-        pass
-    
-    def test_restore_config(self):
-        # test from wrong state
+        # Cycle through them and verify with get state
         pass
     
     def test_reset(self):
         pass
     
     def test_commands(self):
+        # check all the exec commands that havent been tested already
         pass
     
-    def got_data(self):
-        pass
+    def test_get_data_sample(self):
+        """Mainly check the format of the manual sample that comes out
+        @todo Finish this out...is the transition right for getting into poll mode?
+        """
+        reply = self.driver_client.cmd_drv('execute_poll', [Channel.INSTRUMENT])
+        self.assert_(reply)
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.POLL_MODE}, reply)
+        
+        # Get data
+        reply = self.driver_client.cmd_drv('execute_sample',
+                                           [Channel.INSTRUMENT])
+        self.assertTrue(ion.services.mi.drivers.satlantic_par.sample_regex.match(reply))        
+    
+    def test_publish(self):
+        """Test publishing of data...somehow"""
+        
+        
     
 @attr('UNIT', group='mi')
 class SatlanticParDecoratorTest(PyonTestCase):

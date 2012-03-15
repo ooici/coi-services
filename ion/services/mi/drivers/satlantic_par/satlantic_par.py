@@ -77,7 +77,7 @@ class Event(BaseEnum):
     COMMAND = 'COMMAND'
     EXIT_STATE = 'EXIT'
     ENTER_STATE = 'ENTER'
-    INITIALIZE = 'INITIALIZE'
+    CONFIGURE = 'INITIALIZE'
     GET = 'GET'
     SET = 'SET'
 
@@ -90,6 +90,7 @@ class Prompt(BaseEnum):
     Command Prompt
     """
     COMMAND = '$'
+    NULL = ''
     
 class Error(BaseEnum):
     INVALID_COMMAND = "Invalid command"
@@ -111,7 +112,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     
     
     def __init__(self, callback=None):
-        CommandResponseInstrumentProtocol.__init__(self, callback, Prompt, "\n")
+        CommandResponseInstrumentProtocol.__init__(self, callback, Prompt, "\r\n")
         
         self._fsm = InstrumentFSM(State, Event, Event.ENTER_STATE,
                                   Event.EXIT_STATE,
@@ -134,12 +135,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                               self._handler_poll_autosample)
         self._fsm.add_handler(State.POLL_MODE, Event.RESET,
                               self._handler_reset)
+        self._fsm.add_handler(State.POLL_MODE, Event.BREAK,
+                              self._handler_poll_break)
         self._fsm.add_handler(State.POLL_MODE, Event.SAMPLE,
                               self._handler_poll_sample)
         self._fsm.add_handler(State.POLL_MODE, Event.COMMAND,
                               self._handler_poll_command)
-        self._fsm.add_handler(State.UNKNOWN, Event.INITIALIZE,
-                              self._handler_initialize)
+        self._fsm.add_handler(State.UNKNOWN, Event.CONFIGURE,
+                              self._handler_configure)
         self._fsm.start(State.UNKNOWN)
 
         self._add_build_handler(Command.SET, self._build_set_command)
@@ -153,8 +156,11 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         self._add_build_handler(Command.SAMPLE, self._build_control_command)
         self._add_build_handler(Command.STOP, self._build_control_command)
 
-        
+        self._add_response_handler(Command.GET, self._parse_get_response)
         self._add_response_handler(Command.SET, self._parse_set_response)
+        self._add_response_handler(Command.BREAK, self._parse_silent_response)
+        self._add_response_handler(Command.RESET, self._parse_silent_response)
+        self._add_response_handler(Command.STOP, self._parse_silent_response)
         # self._add_response_handler(Command.GET, self._parse_get_response)
 
         self._add_param_dict(Parameter.TELBAUD,
@@ -257,13 +263,21 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         return self._fsm.on_event(Event.STOP, *args, **kwargs)
     
-    def execute_autosample(self, *args, **kwargs):
+    def execute_start_autosample(self, *args, **kwargs):
         """ Execute the autosample command
 
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        return self._fsm.on_event(Event.AUTOSAMPLE, *args, **kwargs) 
+        return self.execute_exit(args, kwargs)
+        
+    def execute_stop_autosample(self, *args, **kwargs):
+        """ Execute the autosample command
+
+        @retval None if nothing was done, otherwise result of FSM event handle
+        @throws InstrumentProtocolException On invalid command or missing
+        """
+        return self._fsm.on_event(Event.BREAK, *args, **kwargs) 
     
     def execute_sample(self, *args, **kwargs):
         """ Execute the sample command
@@ -304,24 +318,16 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             self.set(config)
         else:
             raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
-        
-    def get_status(self):
-        """
-        Get the current state of the state machine as the instrument
-        doesnt maintain a status beyond its configuration and its active mode
-        
-        @retval Something from the State enum
-        """
-        return self._fsm.current_state()
     
-    def initialize(self, *args, **kwargs):
-        mi_logger.info('Initializing PAR sensor')
-        self._fsm.on_event(Event.INITIALIZE, *args, **kwargs)
+    def configure(self, config, *args, **kwargs):
+        mi_logger.info('Configuring PAR sensor')
+        CommandResponseInstrumentProtocol.configure(self, config, *args, **kwargs)
+        self._fsm.on_event(Event.CONFIGURE, *args, **kwargs)
         
     ################
     # State handlers
     ################
-    def _handler_initialize(self, *args, **kwargs):
+    def _handler_configure(self, *args, **kwargs):
         """Handle transition from UNKNOWN state to a known one.
         
         This method determines what state the device is in or gets it to a
@@ -331,11 +337,12 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         next_state = None
         result = None
-                
+        
         # Break to command mode, then set next state to command mode
+        # If we are doing this, we must be connected
         if self._send_break(Command.BREAK):
             self.announce_to_driver(DriverAnnouncement.STATE_CHANGE,
-                                    msg="Initialized, in command mode")            
+                                    msg="Configured fresh, in command mode")            
             next_state = State.COMMAND_MODE
             
         return (next_state, result)
@@ -431,12 +438,14 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @param params Dict with "command" enum and "params" of the parameters to
         pass to the state
         @retval return (next state, result)
-        @throw InstrumentProtocolException For invalid parameter
+        @throw InstrumentProtocolException For invalid parameter'
+        @todo Fix this funky on_event logic...should just feed one on_event call
         """
         next_state = None
         result = None
         cmd = kwargs.get(KwargsKey.COMMAND, None)
 
+        mi_logger.info("Handling command event [%s] in command mode...", cmd)
         if cmd == Command.EXIT:
             result = self._do_cmd_no_resp(Command.EXIT, None)
             if result:
@@ -495,7 +504,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             if not Parameter.has(param):
                 raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
                 break
-            result_vals[param] = self._do_cmd_resp(Command.GET, param)
+            result_vals[param] = self._do_cmd_resp(Command.GET, param,
+                                                   expected_prompt=Prompt.COMMAND)
         result = result_vals
             
         mi_logger.debug("next: %s, result: %s", next_state, result) 
@@ -519,7 +529,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             if not Parameter.has(key):
                 raise InstrumentProtocolException(InstErrorCode.INVALID_PARAMETER)
                 break
-            result_vals[key] = self._do_cmd_resp(Command.SET, key, name_values[key])
+            result_vals[key] = self._do_cmd_resp(Command.SET, key, name_values[key],
+                                                 expected_prompt=Prompt.COMMAND)
         """@todo raise a parameter error if there was a bad value"""
         result = result_vals
             
@@ -535,10 +546,30 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
         
-        result = self._do_cmd_resp(Command.SAMPLE, None)
+        result = self._do_cmd_resp(Command.SAMPLE, None,
+                                   expected_prompt=Prompt.NULL)
 
         self.announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
                                 msg=result)          
+        return (next_state, result)
+    
+    def _handler_poll_break(self, *args, **kwargs):
+        """Handle State.POLL_MODE, Event.BREAK
+        
+        @retval return (next state, result)
+        @throw InstrumentProtocolException For invalid command
+        """
+        next_state = None
+        result = None
+        
+        result = self._send_break(Command.BREAK)
+        
+        if (result == False):
+            raise InstrumentProtocolException(InstErrorCode.HARDWARE_ERROR,
+                                              "Could not interrupt hardware!")
+        else:
+            next_state = State.COMMAND_MODE
+            
         return (next_state, result)
 
     def _handler_poll_autosample(self, *args, **kwargs):
@@ -611,25 +642,26 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         assert Parameter.has(param)
         return "%s %s%s" % (Command.GET, param, self.eoln)
     
-    def _build_exec_command(self, cmd, param):
+    def _build_exec_command(self, cmd, *args):
         """
         Builder for simple commands
 
         @param cmd The command being used (Command.GET in this case)
-        @param param The name of the parameter to fetch
+        @param args Unused arguments
         @retval Returns string ready for sending to instrument        
         """
-        assert param == None
+        mi_logger.debug("*** building command with args: %s, cmd: %s", args, cmd)
+        assert args == (None,)
         return "%s%s" % (cmd, self.eoln)
     
-    def _build_control_command(self, cmd, param):
-        """ Send a quick control char command
+    def _build_control_command(self, cmd, *args):
+        """ Send a quick series of control char command
         
         @param cmd The control character to send
-        @param param Unused parameters
-        @retval The string wit the complete command (1 char)
+        @param args Unused arguments
+        @retval The string with the complete command (1 char)
         """
-        return cmd
+        return "%s%s%s" % (cmd, cmd, cmd)
     
     ##################################################################
     # Response parsers
@@ -644,6 +676,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                         response, prompt)
         if ((prompt != Prompt.COMMAND) or (response == Error.INVALID_COMMAND)):
             return InstErrorCode.SET_DEVICE_ERR
+        else:
+            return InstErrorCode.HARDWARE_ERROR
         
     def _parse_get_response(self, response, prompt):
         """ Parse the response from the instrument for a couple of different
@@ -654,8 +688,29 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval return The numerical value of the parameter in the known units
         @todo Fill this in
         """
-        pass
-    
+        # should only have one line with an eoln if this is really a get
+        assert (len(response.split(self.eoln)) == 2)
+        name_set = self._update_param_dict(response)
+        if (name_set):
+            return self._get_param_dict(name_set)
+        else:
+            return InstErrorCode.HARDWARE_ERROR
+        
+    def _parse_silent_response(self, response, prompt):
+        """Parse a silent response
+        
+        @param response What was sent back from the command that was sent
+        @param prompt The prompt that was returned from the device
+        @retval return An InstErrorCode value
+        """
+        mi_logger.debug("Parsing silent response of [%s] with prompt [%s]",
+                        response, prompt)
+        if (response == "") and \
+           ((prompt == Prompt.NULL) or (prompt == Prompt.COMMAND)):
+            return InstErrorCode.OK
+        else:
+            return InstErrorCode.HARDWARE_ERROR
+        
     ###################################################################
     # Helpers
     ###################################################################
@@ -674,6 +729,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval return True for success, Error for failure
         @throw InstrumentTimeoutException
         @throw InstrumentProtocolException
+        @todo handle errors correctly here, deal with repeats at high sample rate
         """
         if not ((break_char == Command.BREAK)
             or (break_char == Command.STOP)
@@ -684,17 +740,20 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         # do the magic sequence of sending lots of characters really fast
         starttime = time.time()
         while True:
-            self._do_cmd_no_resp(break_char, None)
-            (prompt, result) = self._get_response(timeout)
-            mi_logger.debug("Got prompt %s when trying to break",
-                            prompt)
-            if (prompt):                
+            #self._do_cmd_no_resp(break_char, None)
+            #(prompt, result) = self._get_response(timeout)
+            result_code = self._do_cmd_resp(break_char)
+            mi_logger.debug("Got result code %s when trying to break",
+                            result_code)
+            if (result_code == InstErrorCode.OK):                
                 return True
+            elif InstErrorCode.has(result_code):
+                return False
             else:
                 if time.time() > starttime + timeout:
                     raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
-                    
-        # catch all
+    
+        # Catch all    
         return False
     
     def _got_data(self, data):
@@ -702,12 +761,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         
         @param data The chunk of data that was received
         """
-        mi_logger.debug("*** Data received: %s, promptbuf: %s", data, self._promptbuf)
+        mi_logger.debug("*** Data received: %s", data)
         CommandResponseInstrumentProtocol._got_data(self, data)
-        
-        # Only keep the latest characters in the prompt buffer.
-        #if len(self._promptbuf)>7:
-        #    self._promptbuf = self._promptbuf[-7:]
             
         # If we are streaming, process the line buffer for samples.
         if self._fsm.get_current_state() == State.AUTOSAMPLE_MODE:
@@ -716,11 +771,21 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                 self._linebuf = lines[-1]
                 for line in lines:
                     self.announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
-                                            msg=line)    
+                                            msg=line)
+        else:
+            # yank out the command we sent, split at the self.eoln
+            self._linebuf = self._linebuf.split(self.eoln, 1)[1]
+            if self._linebuf.endswith(Prompt.COMMAND):
+                self._linebuf = self._linebuf[:-1]            
         
 
 class SatlanticPARInstrumentDriver(InstrumentDriver):
-    """The InstrumentDriver class for the Satlantic PAR sensor PARAD"""
+    """
+    The InstrumentDriver class for the Satlantic PAR sensor PARAD.
+    @note If using this via Ethernet, must use a SLOW Ethernet connection
+    or commands may not make it to the PAR successfully. A delay of 0.1
+    appears to be sufficient for 19200 operations, maybe more for 9600
+    """
 
     def __init__(self, evt_callback):
         """Instrument-specific enums
@@ -744,6 +809,15 @@ class SatlanticPARInstrumentDriver(InstrumentDriver):
                           State.COMMAND_MODE:DriverState.COMMAND,
                           State.POLL_MODE:DriverState.ACQUIRE_SAMPLE,
                           State.UNKNOWN:DriverState.UNCONFIGURED}
+        
+    def execute_acquire_sample(self, channels, *args, **kwargs):
+        self.protocol.execute_sample(args, kwargs)
+        
+    def execute_start_autosample(self, channels, *args, **kwargs):
+        self.protocol.execute_start_autosample(args, kwargs)
+        
+    def execute_stop_autosample(self, channels, *args, **kwargs):
+        self.protocol.execute_stop_autosample(args, kwargs)
         
 class SatlanticChecksumDecorator(ChecksumDecorator):
     """Checks the data checksum for the Satlantic PAR sensor"""

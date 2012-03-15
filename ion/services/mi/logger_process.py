@@ -374,7 +374,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
     connection status of device.
     """    
     def __init__(self, device_host, device_port, server_port, workdir='/tmp/',
-                 delim=['<<','>>'], sniffer_port=None):
+                 delim=['<<','>>'], sniffer_port=None, write_delay=None):
         """
         @param server_port The port to listen on for driver connections.
         @param pidfname The file name of the process ID file, used by
@@ -388,7 +388,9 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         @param delim A 2-element delimter list used to delimit traffic from
                 the driver in the logfile, thus demarking it from the device
                 output.
-        @param sniffer_port The port to listen on for sniffer connections.        
+        @param sniffer_port The port to listen on for sniffer connections.
+        @param write_delay The intentional delay to put between characters
+        transmitted to devices for slower units to keep up.
         """
         
         start_time = datetime.datetime.now()
@@ -404,24 +406,28 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         self.device_host = device_host
         self.device_port = device_port
         self.device_sock = None
+        self.write_delay = write_delay
         
         BaseLoggerProcess.__init__(self, server_port, pidfname, logfname,
                             statusfname, workdir, delim=['<<','>>'],
                             sniffer_port=None)
 
+        
     def launch_process(self):
         
         
         import_str = 'import ion.services.mi.logger_process as lp; '
         ctor_str = 'l = lp.EthernetDeviceLogger'
         if not self.sniffer_port:
-            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"]); ' \
+            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"], write_delay=%f); ' \
                         % (self.device_host, self.device_port, self.server_port,
-                           self.workdir, self.delim[0], self.delim[1])
+                           self.workdir, self.delim[0], self.delim[1],
+                           self.write_delay)
         else:
-            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"], %i); ' \
+            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"], %i, write_delay=%f); ' \
                         % (device_host, device_port, server_port,
-                           workdir, delim[0], delim[1], self.sniffer_port)
+                           workdir, delim[0], delim[1], self.sniffer_port,
+                           self.write_delay)
 
 
         cmd_str = import_str + ctor_str + 'l.start()'            
@@ -532,9 +538,20 @@ class EthernetDeviceLogger(BaseLoggerProcess):
             sent = 0
             while len(data)>0:
                 try:
-                    sent = self.device_sock.send(data)
-                    data = data[sent:]                    
-
+                    """@todo fix this slowing and debugging nonsense"""
+                    self.statusfile.write('write_device: write_delay: %s\n' % self.write_delay)
+                    self.statusfile.flush()
+                    self.statusfile.write('write_device: enet entity: %s\n' % self)
+                    self.statusfile.flush()
+                    if self.write_delay == None:
+                        sent = self.device_sock.send(data)
+                        data = data[sent:]                    
+                    else:
+                        for char in data:
+                            sent = self.device_sock.send(char)
+                            data = data[sent:]
+                            time.sleep(self.write_delay)
+                
                 except socket.error as e:                
                     # [Errno 35] Resource temporarily unavailable.
                     if e.errno == errno.EAGAIN:
@@ -568,6 +585,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
                         self.device_sock.close()
                         self.device_sock = None
                         break
+
                     
 class SerialDeviceLogger(BaseLoggerProcess):
     """

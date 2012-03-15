@@ -24,12 +24,16 @@ from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentStateException
 from ion.services.mi.exceptions import InstrumentConnectionException
 from ion.services.mi.instrument_connection import IInstrumentConnection
-from ion.services.mi.common import InstErrorCode, EventKey
+from ion.services.mi.common import InstErrorCode, EventKey, BaseEnum
 from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 
 mi_logger = logging.getLogger('mi_logger')
 
-
+class InterfaceType(BaseEnum):
+    """The methods of connecting to a device"""
+    ETHERNET = 'ethernet'
+    SLOW_ETHERNET = 'slow_ethernet'
+    SERIAL = 'serial'
 
 class ParameterDictVal(object):
     """
@@ -46,12 +50,13 @@ class ParameterDictVal(object):
 
     def update(self, input):
         """
+        @retval The name of the parameter set if one was set, False otherwise
         """
         match = self.regex.match(input)
         if match:
             self.value = self.f_getval(match)
             mi_logger.debug('Updated parameter %s=%s', self.name, str(self.value))
-            return True
+            return self.name
         else: return False
 
 
@@ -111,7 +116,7 @@ class InstrumentProtocol(object):
 
         method = config['method']
                 
-        if method == 'ethernet':
+        if method == InterfaceType.ETHERNET:
             device_addr = config['device_addr']
             device_port = config['device_port']
             server_addr = config['server_addr']
@@ -119,8 +124,17 @@ class InstrumentProtocol(object):
             self._logger = EthernetDeviceLogger(device_addr, device_port,
                                             server_port)
             self._logger_client = LoggerClient(server_addr, server_port)
+        
+        if method == InterfaceType.SLOW_ETHERNET:
+            device_addr = config['device_addr']
+            device_port = config['device_port']
+            server_addr = config['server_addr']
+            server_port = config['server_port']
+            self._logger = EthernetDeviceLogger(device_addr, device_port,
+                                            server_port, write_delay=0.1)
+            self._logger_client = LoggerClient(server_addr, server_port)
 
-        elif method == 'serial':
+        elif method == InterfaceType.SERIAL:
             # The config dict does not have a valid connection method.
             raise InstrumentConnectionException()
                 
@@ -492,19 +506,26 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         self._response_handlers[cmd] = func
 
-    def _get_response(self, timeout=10):
+    def _get_response(self, timeout=10, expected_prompt=None):
         """
         Get a response from the instrument
         @todo Consider cases with no prompt
         @param timeout The timeout in seconds
+        @param expected_prompt Only consider the specific expected prompt as
+        presented by this string
         @throw InstrumentProtocolExecption on timeout
         """
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
         
+        if expected_prompt == None:
+            prompt_list = self.prompts.list()
+        else:
+            assert isinstance(expected_prompt, str)
+            prompt_list = [expected_prompt]            
+        
         while True:
-            
-            for item in self.prompts.list():
+            for item in prompt_list:
                 if self._promptbuf.endswith(item):
                     mi_logger.debug('Got prompt: %s', repr(item))
                     return (item, self._linebuf)
@@ -520,12 +541,14 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         @param cmd The high level command to issue
         @param args Arguments for the command
-        @param kwargs timeout if one exists, defaults to 10
+        @param kwargs timeout if one exists, defaults to 10, expected_prompt
+        string to feed into _get_response 
         @retval resp_result The response handler's return value
         @throw InstrumentProtocolException Bad command
         @throw InstrumentTimeoutException Timeout
         """
         timeout = kwargs.get('timeout', 10)
+        expected_prompt = kwargs.get('expected_prompt', None)
         retval = None
         
         build_handler = self._build_handlers.get(cmd, None)
@@ -546,13 +569,15 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._logger_client.send(cmd_line)
 
         # Wait for the prompt, prepare result and return, timeout exception
-        (prompt, result) = self._get_response(timeout)
+        (prompt, result) = self._get_response(timeout,
+                                              expected_prompt=expected_prompt)
                 
         resp_handler = self._response_handlers.get(cmd, None)
         resp_result = None
         if resp_handler:
             resp_result = resp_handler(result, prompt)
 
+        mi_logger.debug("*** returning parsed bit: %s", resp_result)
         return resp_result
             
     def _do_cmd_no_resp(self, cmd, *args, **kwargs):
@@ -576,7 +601,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         # Wakeup the device, timeout exception as needed
         prompt = self._wakeup(timeout)
-       
+
         # Clear line and prompt buffers for result.
         self._linebuf = ''
 
@@ -623,8 +648,9 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         """
         for (name, val) in self._parameters.iteritems():
-            if val.update(input):
-                break
+            name_set = val.update(input)
+            if name_set:
+                return name_set
             
     def _format_param_dict(self, name, val):
         """
