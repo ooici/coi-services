@@ -174,19 +174,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
 
     def _add_build_handler(self, cmd, func):
         """
-        Insert a handler class responsible for building a command to send to
-        the instrument.
-        
-        @param cmd The high level key of the command to build for.
         """
         self._build_handlers[cmd] = func
         
     def _add_response_handler(self, cmd, func):
         """
-        Insert a handler class responsible for handling the response to a
-        command sent to the instrument.
-        
-        @param cmd The high level key of the command to responsd to.
         """
         self._response_handlers[cmd] = func
                 

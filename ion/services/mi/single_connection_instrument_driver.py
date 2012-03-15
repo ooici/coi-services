@@ -182,19 +182,28 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         
         return (next_state, result)
 
-    def _handler_unconfigured_initialize(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-        
-        return (next_state, result)
-
     def _handler_unconfigured_configure(self, *args, **kwargs):
         """
         """
         next_state = None
         result = None
+        
+        config = args[0]
+        try:
+            addr = config['addr']
+            port = config['port']
+            
+            if isinstance(addr, string) and isinstance(port, int):
+                
+            
+            else:
+                # Error bad config.
+                pass
+            
+        except (TypeError, KeyError):
+            # Error bad config.
+            pass
+        
         
         return (next_state, result)
 
