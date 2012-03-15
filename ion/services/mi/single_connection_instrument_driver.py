@@ -17,7 +17,9 @@ from ion.services.mi.exceptions import NotImplementedError
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.instrument_driver import DriverConnectionState
+from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_fsm import InstrumentFSM
+from ion.services.mi.logger_process import LoggerClient
 
 
 class SingleConnectionInstrumentDriver(InstrumentDriver):
@@ -61,6 +63,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.EXIT, self._handler_connected_exit)
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.DISCONNECT, self._handler_connected_disconnect)
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.CONNECTION_LOST, self._handler_connected_connection_lost)
+        self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.DISCOVER, self._handler_connected_protocol_event)
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.GET, self._handler_connected_protocol_event)
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.SET, self._handler_connected_protocol_event)
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.ACQUIRE_SAMPLE, self._handler_connected_protocol_event)
@@ -100,6 +103,11 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
     #############################################################
     # Commande and control interface.
     #############################################################
+
+    def discover(self, *args, **kwargs):
+        """
+        """
+        return self._connection_fsm.on_event(DriverEvent.DISCOVER, DriverEvent.DISCOVER, *args, **kwargs)
 
     def get(self, *args, **kwargs):
         """
@@ -167,7 +175,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
     def _handler_unconfigured_enter(self, *args, **kwargs):
         """
         """
-        self._driver_event('state_change')
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
     
     def _handler_unconfigured_exit(self, *args, **kwargs):
         """
@@ -193,9 +201,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
             addr = config['addr']
             port = config['port']
             
-            if isinstance(addr, string) and isinstance(port, int):
-                
-            
+            if isinstance(addr, str) and isinstance(port, int):                
+                self._connection = LoggerClient(addr, port)
+                next_state = DriverConnectionState.DISCONNECTED
+                            
             else:
                 # Error bad config.
                 pass
@@ -214,7 +223,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
     def _handler_disconnected_enter(self, *args, **kwargs):
         """
         """
-        self._driver_event('state_change')
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
 
     def _handler_disconnected_exit(self, *args, **kwargs):
         """
@@ -227,6 +236,9 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         next_state = None
         result = None
         
+        self._connection = None
+        next_state = DriverConnectionState.UNCONFIGURED
+        
         return (next_state, result)
 
     def _handler_disconnected_configure(self, *args, **kwargs):
@@ -234,6 +246,22 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         next_state = None
         result = None
+
+        config = args[0]
+        try:
+            addr = config['addr']
+            port = config['port']
+            
+            if isinstance(addr, str) and isinstance(port, int):                
+                self._connection = LoggerClient(addr, port)
+                            
+            else:
+                # Error bad config.
+                next_state = DriverConnectionState.UNCONFIGURED
+            
+        except (TypeError, KeyError):
+            # Error bad config.
+            next_state = DriverConnectionState.UNCONFIGURED
         
         return (next_state, result)
 
@@ -242,6 +270,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         next_state = None
         result = None
+        
+        self._build_protocol(self._connection)
+        self._connection.init_comms(self._protocol.got_data)
+        next_state = DriverConnectionState.CONNECTED
         
         return (next_state, result)
 
@@ -252,7 +284,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
     def _handler_connected_enter(self, *args, **kwargs):
         """
         """
-        self._driver_event('state_change')
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
         # Send protocol event to discover state.
 
     def _handler_connected_exit(self, *args, **kwargs):
@@ -265,6 +297,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         next_state = None
         result = None
+        
+        self._connection.stop_comms()
+        self._protocol = None
+        next_state = DriverConnectionState.DISCONNECTED
         
         return (next_state, result)
 
@@ -284,3 +320,13 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         
         return (next_state, result)
 
+
+    ########################################################################
+    # 
+    ########################################################################
+
+    def _build_protocol(self, connection):
+        """
+        """
+        pass
+    
