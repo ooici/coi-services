@@ -939,10 +939,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def deploy_as_primary_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.link_primary_deployment(instrument_device_id, logical_instrument_id)
+        self.instrument_device.assign_primary_deployment(instrument_device_id, logical_instrument_id)
 
     def undeploy_primary_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.unlink_primary_deployment(instrument_device_id, logical_instrument_id)
+        self.instrument_device.unassign_primary_deployment(instrument_device_id, logical_instrument_id)
 
     def deploy_as_primary_platform_device_to_logical_platform(self, platform_device_id='', logical_platform_id=''):
         self.platform_device.link_primary_deployment(platform_device_id, logical_platform_id)
