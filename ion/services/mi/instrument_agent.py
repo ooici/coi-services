@@ -76,6 +76,12 @@ class InstrumentAgent(ResourceAgent):
     common resource interface, point of publication) and creates
     a driver process to specialize for particular hardware.
     """
+
+    # Override to publish specific types of events
+    COMMAND_EVENT_TYPE = "DeviceCommandEvent"
+    # Override to set specific origin type
+    ORIGIN_TYPE = "InstrumentDevice"
+
     def __init__(self, initial_state=InstrumentAgentState.UNINITIALIZED):
         """
         Initialize instrument agent prior to pyon process initialization.
@@ -1058,7 +1064,7 @@ class InstrumentAgent(ResourceAgent):
             
         except (TypeError, KeyError):
             # Not a dict. or missing required parameter.
-            log.error('Insturment agent %s missing required parameter in start_driver.',
+            log.error('Instrument agent %s missing required parameter in start_driver.',
                       self._proc_name)            
             return InstErrorCode.REQUIRED_PARAMETER
                 
@@ -1069,22 +1075,22 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_proc.poll()
         if self._dvr_proc.returncode:
             # Error proc didn't start.
-            log.error('Insturment agent %s driver process did not launch.',
+            log.error('Instrument agent %s driver process did not launch.',
                       self._proc_name)
             return InstErrorCode.AGENT_INIT_FAILED
 
-        log.info('Insturment agent %s launched driver process.', self._proc_name)
+        log.info('Instrument agent %s launched driver process.', self._proc_name)
         
         # Create client and start messaging.
         self._dvr_client = ZmqDriverClient(svr_addr, cmd_port, evt_port)
         self._dvr_client.start_messaging(self.evt_recv)
-        log.info('Insturment agent %s driver process client started.',
+        log.info('Instrument agent %s driver process client started.',
                  self._proc_name)
         time.sleep(1)
 
         try:        
             retval = self._dvr_client.cmd_dvr('process_echo', 'Test.')
-            log.info('Insturment agent %s driver process echo test: %s.',
+            log.info('Instrument agent %s driver process echo test: %s.',
                      self._proc_name, str(retval))
             
         except Exception:
@@ -1092,12 +1098,12 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc.wait()
             self._dvr_proc = None
             self._dvr_client = None
-            log.error('Insturment agent %s error commanding driver process.',
+            log.error('Instrument agent %s error commanding driver process.',
                       self._proc_name)            
             return InstErrorCode.AGENT_INIT_FAILED
 
         else:
-            log.info('Insturment agent %s started its driver.', self._proc_name)
+            log.info('Instrument agent %s started its driver.', self._proc_name)
             self._construct_packet_factories(dvr_mod)
 
         return self._dvr_proc.pid
@@ -1113,7 +1119,7 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc = None
             self._dvr_client = None
             self._clear_packet_factories()
-            log.info('Insturment agent %s stopped its driver.', self._proc_name)
+            log.info('Instrument agent %s stopped its driver.', self._proc_name)
             
         time.sleep(1)
 

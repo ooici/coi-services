@@ -301,18 +301,40 @@ def build_commands(resource_id, restype):
     fragments.append(build_command("Delete", "/cmd/delete?rid=%s" % resource_id))
     if restype == "InstrumentAgentInstance":
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
-        fragments.append(build_command("Stop Agent", "/cmd/start_agent?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
 
     elif restype == "InstrumentDevice":
         res_list,_ = Container.instance.resource_registry.find_resources(RT.InstrumentModel, id_only=False)
-        options = [(res.name, res._id) for res in res_list]
-        args = [('select','model',options)]
-        fragments.append(build_command("Link Model", "/cmd/link_model?rid=%s" % resource_id, args))
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','model_link',options)]
+            fragments.append(build_command("Link Model", "/cmd/link_model?rid=%s" % resource_id, args))
 
         res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasModel, RT.InstrumentModel, id_only=False)
-        options = [(res.name, res._id) for res in res_list]
-        args = [('select','model1',options)]
-        fragments.append(build_command("Unlink Model", "/cmd/unlink_model?rid=%s" % resource_id, args))
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','model_unlink',options)]
+            fragments.append(build_command("Unlink Model", "/cmd/unlink_model?rid=%s" % resource_id, args))
+
+        fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
+
+        options = [('initialize','initialize'),
+            ('go_active','go_active'),
+            ('run','run'),
+            ('acquire_sample','acquire_sample'),
+            ('go_streaming','go_streaming'),
+            ('go_observatory','go_observatory'),
+            ('go_direct_access','go_direct_access'),
+            ('go_inactive','go_inactive'),
+            ('reset','reset'),
+        ]
+        args = [('select','agentcmd',options)]
+        fragments.append(build_command("Agent Command", "/cmd/agent_execute?rid=%s" % resource_id, args))
+
+    elif restype == "DataProcess":
+        fragments.append(build_command("Start Process", "/cmd/start_process?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Process", "/cmd/stop_process?rid=%s" % resource_id))
 
     fragments.append("</table>")
     return "".join(fragments)
@@ -329,7 +351,7 @@ def build_command(text, link, args=None):
             fragments.append("</select>")
         fragments.append("</div>")
     else:
-        fragments.append("<div>%s</div>" % build_link(text, link))
+        fragments.append("<div>%s</div>" % build_link(text, link, "return confirm('Are you sure to delete resource?');"))
     return "".join(fragments)
 
 # ----------------------------------------------------------------------------------------
@@ -340,23 +362,21 @@ def process_command(cmd):
         cmd = str(cmd)
         resource_id = get_arg('rid')
 
-        Container.instance.resource_registry.read(resource_id)
+        res_obj = Container.instance.resource_registry.read(resource_id)
 
         func_name = "_process_cmd_%s" % cmd
         cmd_func = globals().get(func_name, None)
         if not cmd_func:
             raise Exception("Command %s unknown" % (cmd))
 
+        result = cmd_func(resource_id, res_obj)
+
         fragments = [
             build_standard_menu(),
             "<h1>Command %s result</h1>" % cmd,
-            "<p>",
+            "<p><pre>%s</pre></p>" % result,
+            "<p>%s</p>" % build_link("Back to Resource Page", "/view/%s" % resource_id),
         ]
-
-        result = cmd_func(resource_id)
-        fragments.append(result)
-
-        fragments.append("</p>")
 
         content = "\n".join(fragments)
         return build_page(content)
@@ -364,25 +384,68 @@ def process_command(cmd):
     except Exception, e:
         return build_error_page(traceback.format_exc())
 
-def _process_cmd_delete(resource_id):
+def _process_cmd_delete(resource_id, res_obj=None):
     Container.instance.resource_registry.delete(resource_id)
     return "OK"
 
-def _process_cmd_link_model(resource_id):
-    model_id = get_arg('model')
+def _process_cmd_start_agent(resource_id, res_obj=None):
+    if res_obj._get_type() == "InstrumentDevice":
+        iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
+        if iai_ids:
+            resource_id = iai_ids[0]
+        else:
+            return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.start_instrument_agent_instance(resource_id)
+    return "OK"
+
+def _process_cmd_stop_agent(resource_id, res_obj=None):
+    if res_obj._get_type() == "InstrumentDevice":
+        iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
+        if iai_ids:
+            resource_id = iai_ids[0]
+        else:
+            return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.stop_instrument_agent_instance(resource_id)
+    return "OK"
+
+def _process_cmd_start_process(resource_id, res_obj=None):
+    from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+    dpms_cl = DataProcessManagementServiceClient()
+    return "OK"
+
+def _process_cmd_stop_process(resource_id, res_obj=None):
+    from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+    dpms_cl = DataProcessManagementServiceClient()
+    return "OK"
+
+def _process_cmd_link_model(resource_id, res_obj=None):
+    model_id = get_arg('model_link')
     from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
     ims_cl = InstrumentManagementServiceClient()
     ims_cl.assign_instrument_model_to_instrument_device(model_id, resource_id)
-    redir_link = flask.redirect("/")
     return "OK"
 
-def _process_cmd_unlink_model(resource_id):
-    model_id = get_arg('model')
+def _process_cmd_unlink_model(resource_id, res_obj=None):
+    model_id = get_arg('model_unlink')
     from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
     ims_cl = InstrumentManagementServiceClient()
     ims_cl.unassign_instrument_model_from_instrument_device(model_id, resource_id)
-    redir_link = flask.redirect("/")
     return "OK"
+
+def _process_cmd_agent_execute(resource_id, res_obj=None):
+    agent_cmd = get_arg('agentcmd')
+    from pyon.agent.agent import ResourceAgentClient
+    from interface.objects import AgentCommand
+    rac = ResourceAgentClient(process=containerui_instance, resource_id=resource_id)
+    ac = AgentCommand(command=agent_cmd)
+    res = rac.execute_agent(ac)
+    res_dict = get_value_dict(res)
+    res_str = get_formatted_value(res_dict, fieldtype="dict")
+    return res_str
 
 # ----------------------------------------------------------------------------------------
 
@@ -591,8 +654,11 @@ def build_events_table(events_list):
 def build_type_link(restype):
     return build_link(restype, "/list/%s" % restype)
 
-def build_link(text, link):
-    return "<a href='%s'>%s</a>" % (link, text)
+def build_link(text, link, onclick=None):
+    if onclick:
+        return "<a href='%s' onclick=\"%s\">%s</a>" % (link, onclick, text)
+    else:
+        return "<a href='%s'>%s</a>" % (link, text)
 
 def build_standard_menu():
     return "<p><a href='/'>[Home]</a></p>"
