@@ -522,10 +522,10 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
 
         # If code reached here, the graph data storage has been initialized. Just add values
         # to the list
-        self.lock.acquire()
-        for varname in psd.list_field_names():
-            self.graph_data[varname].extend(vardict[varname])
-        self.lock.release()
+        with self.lock:
+            for varname in psd.list_field_names():
+                self.graph_data[varname].extend(vardict[varname])
+
 
     def rendering_thread(self):
         from copy import deepcopy
@@ -545,12 +545,12 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
             # If there's no data, wait
             # Lock is used here to make sure the entire vector exists start to finish, this assures that the data won
             working_set=None
-            self.lock.acquire()
-            if len(self.graph_data) == 0:
-                continue
-            else:
-                working_set = deepcopy(working_set)
-            self.lock.release()
+            with self.lock:
+                if len(self.graph_data) == 0:
+                    continue
+                else:
+                    working_set = deepcopy(working_set)
+
 
             # For the simple case of testing, lets plot all time variant variables one at a time
             xAxisVar = 'time'
