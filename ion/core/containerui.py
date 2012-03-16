@@ -4,7 +4,7 @@ __author__ = 'Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 import collections, traceback, datetime, time, yaml
-import flask, ast
+import flask, ast, pprint
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
@@ -256,7 +256,7 @@ def build_nested_obj(obj, prefix, edit=False):
         if field in schema:
             value = get_formatted_value(getattr(obj, field), fieldname=field)
             if edit and field not in EDIT_IGNORE_FIELDS:
-                fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], field, getattr(obj, field)))
+                fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], prefix, field, getattr(obj, field)))
             else:
                 fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
     for field in sorted(schema.keys()):
@@ -269,8 +269,7 @@ def build_nested_obj(obj, prefix, edit=False):
             else:
                 value = get_formatted_value(value, fieldname=field, fieldtype=schema[field]["type"])
                 if edit and field not in EDIT_IGNORE_FIELDS and schema[field]["type"] not in EDIT_IGNORE_TYPES:
-                    # Todo: check enum, int, list, dict
-                    fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], field, getattr(obj, field)))
+                    fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], prefix, field, getattr(obj, field)))
                 else:
                     fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
     return fragments
@@ -428,25 +427,21 @@ def _process_cmd_update(resource_id, res_obj=None):
         local_field = nested_fields[0]
         if field in EDIT_IGNORE_FIELDS or local_field not in schema:
             continue
-        if field not in schema:
-            # TODO: Change
-            continue
         if len(nested_fields) > 1:
             obj = res_obj
             skip_field = False
             for sub_field in nested_fields:
                 local_obj = getattr(obj, sub_field, None)
-                log.warn("Field %s, sub %s, obj %s, local %s, schema %s" % (field, sub_field, obj,local_obj, obj._schema[sub_field]))
-                if skip_field or not local_obj:
+                if skip_field or local_obj is None:
                     skip_field = True
                     continue
-                elif not isinstance(local_obj, IonObjectBase):
+                elif isinstance(local_obj, IonObjectBase):
+                    obj = local_obj
+                else:
                     value = get_typed_value(value, obj._schema[sub_field])
                     setattr(obj, sub_field, value)
                     set_fields.append(field)
                     skip_field = True
-                else:
-                    obj = local_obj
 
         elif schema[field]['type'] in EDIT_IGNORE_TYPES:
             pass
@@ -455,14 +450,14 @@ def _process_cmd_update(resource_id, res_obj=None):
             setattr(res_obj, field, value)
             set_fields.append(field)
 
-    res_obj._validate()
+    #res_obj._validate()
 
     if resource_id == "NEW":
         Container.instance.resource_registry.create(res_obj)
     else:
         Container.instance.resource_registry.update(res_obj)
 
-    return "OK. Set fields: %s" % set_fields
+    return "OK. Set fields:\n%s" % pprint.pformat(sorted(set_fields))
 
 def _process_cmd_delete(resource_id, res_obj=None):
     Container.instance.resource_registry.delete(resource_id)
