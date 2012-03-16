@@ -122,7 +122,7 @@ standard_resattrs = ['name', 'description', 'lcstate', 'ts_created', 'ts_updated
 @app.route('/list/<resource_type>', methods=['GET','POST'])
 def process_list_resources(resource_type):
     try:
-        restype = convert_unicode(resource_type)
+        restype = str(resource_type)
         res_list,_ = Container.instance.resource_registry.find_resources(restype=restype)
 
 
@@ -210,7 +210,7 @@ standard_types = ['str', 'int', 'bool', 'float', 'list', 'dict']
 @app.route('/view/<resource_id>', methods=['GET','POST'])
 def process_view_resource(resource_id):
     try:
-        resid = convert_unicode(resource_id)
+        resid = str(resource_id)
         res = Container.instance.resource_registry.read(resid)
         restype = res._get_type()
 
@@ -227,13 +227,9 @@ def process_view_resource(resource_id):
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("type", "str", restype))
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("_id", "str", res._id))
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("_rev", "str", res._rev))
-
         fragments.extend(build_nested_obj(res, ""))
-
         fragments.append("</p></table>")
-
         fragments.extend(build_associations(res._id))
-
         fragments.append("<h2>Events</h2>")
 
         events_list = Container.instance.event_repository.find_events(origin=resid,
@@ -278,7 +274,8 @@ def build_associations(resid):
         fragments.append("<tr>")
         fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
             build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s),
-            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p), build_link("Delete", "/cmd/delete?rid=%s" % assoc._id)))
+            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p),
+            build_link("Delete", "/cmd/delete?rid=%s" % assoc._id, "return confirm('Are you sure to delete association?');")))
 
     fragments.append("</table></p>")
     fragments.append("<h3>TO</h3>")
@@ -290,7 +287,8 @@ def build_associations(resid):
         fragments.append("<tr>")
         fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
             build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o),
-            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p), build_link("Delete", "/cmd/delete?rid=%s" % assoc._id)))
+            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p),
+            build_link("Delete", "/cmd/delete?rid=%s" % assoc._id, "return confirm('Are you sure to delete association?');")))
 
     fragments.append("</table></p>")
     return fragments
@@ -299,6 +297,18 @@ def build_commands(resource_id, restype):
     fragments = ["<h2>Commands</h2>"]
 
     fragments.append(build_command("Delete", "/cmd/delete?rid=%s" % resource_id))
+
+    from pyon.ion.resource import CommonResourceLifeCycleSM
+    event_list = list(CommonResourceLifeCycleSM.MAT_EVENTS) + CommonResourceLifeCycleSM.VIS_EVENTS
+    options = zip(event_list, event_list)
+    args = [('select','lcevent',options)]
+    fragments.append(build_command("Execute Lifecycle Event", "/cmd/execute_lcs?rid=%s" % resource_id, args))
+
+    options = zip(CommonResourceLifeCycleSM.BASE_STATES, CommonResourceLifeCycleSM.BASE_STATES)
+    args = [('select','lcstate',options)]
+    fragments.append(build_command("Change Lifecycle State", "/cmd/set_lcs?rid=%s" % resource_id, args))
+
+
     if restype == "InstrumentAgentInstance":
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
@@ -388,6 +398,16 @@ def _process_cmd_delete(resource_id, res_obj=None):
     Container.instance.resource_registry.delete(resource_id)
     return "OK"
 
+def _process_cmd_set_lcs(resource_id, res_obj=None):
+    lcstate = get_arg('lcstate')
+    Container.instance.resource_registry.set_lifecycle_state(resource_id, lcstate)
+    return "OK"
+
+def _process_cmd_execute_lcs(resource_id, res_obj=None):
+    lcevent = get_arg('lcevent')
+    new_state = Container.instance.resource_registry.execute_lifecycle_transition(resource_id, lcevent)
+    return "OK. New state: %s" % new_state
+
 def _process_cmd_start_agent(resource_id, res_obj=None):
     if res_obj._get_type() == "InstrumentDevice":
         iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
@@ -452,7 +472,7 @@ def _process_cmd_agent_execute(resource_id, res_obj=None):
 @app.route('/assoc', methods=['GET','POST'])
 def process_assoc_list():
     try:
-        predicate = request.args.get('predicate', None)
+        predicate = get_arg('predicate')
 
         assoc_list = Container.instance.resource_registry.find_associations(predicate=predicate, id_only=False)
 
