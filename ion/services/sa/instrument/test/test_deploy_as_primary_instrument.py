@@ -47,15 +47,16 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
-@unittest.skip("run locally only")
+@attr('INT', group='bvr')
+#@unittest.skip("run locally only")
 class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
         self._start_container()
 
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        #self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         print 'started services'
 
@@ -293,8 +294,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_logical_stream_def_id, logical_transform_dprocdef_id )
 
         log.debug("test_deployAsPrimaryDevice: create output parsed data product for Logical Instrument")
-        ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='ctd_parsed_logical',description='ctd parsed from the logical instrument')
-        logical_instrument_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_logical_stream_def_id)
+        ctd_logical_output_dp_obj = IonObject(RT.DataProduct, name='ctd_parsed_logical',description='ctd parsed from the logical instrument')
+        logical_instrument_output_dp_id = self.dataproductclient.create_data_product(ctd_logical_output_dp_obj, outgoing_logical_stream_def_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=logical_instrument_output_dp_id, persist_data=True, persist_metadata=True)
 
         #-------------------------------
@@ -336,11 +337,21 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
         #-------------------------------
-        # L0 Conductivity - Temperature - Pressure: Create the data process
+        # CTD Logical: Create the data process
+        #-------------------------------
+        log.debug("test_deployAsPrimaryDevice: create ctd_parsed logical  data_process start")
+        try:
+            ctd_parsed_logical_data_process_id = self.dataprocessclient.create_data_process(logical_transform_dprocdef_id, ctd_parsed_data_product_year1, {'output':logical_instrument_output_dp_id})
+        except BadRequest as ex:
+            self.fail("failed to create new data process: %s" %ex)
+        log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
+
+        #-------------------------------
+        # L0 Conductivity - Temperature - Pressure: Create the data process, listening to logical instrument output product!
         #-------------------------------
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product_year1, self.output_products)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, logical_instrument_output_dp_id, self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
