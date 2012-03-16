@@ -474,15 +474,15 @@ class IONLoader(ImmediateProcess):
             for ass_id in ass_ids:
                 ims_client.deploy_platform_device_to_logical_platform(res_id, self.resource_ids[ass_id])
 
-        ass_id = row["primary_deployment_lp_id"]
-        if ass_id:
-            ims_client.deploy_as_primary_platform_device_to_logical_platform(res_id, self.resource_ids[ass_id])
-
         ass_id = row["platform_model_id"]
         if ass_id:
             ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
 
-        self._resource_advance_lcs(row, res_id)
+        self._resource_advance_lcs(row, res_id, "PlatformDevice")
+
+        ass_id = row["primary_deployment_lp_id"]
+        if ass_id:
+            ims_client.deploy_as_primary_platform_device_to_logical_platform(res_id, self.resource_ids[ass_id])
 
     def _load_InstrumentDevice(self, row):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
@@ -495,10 +495,6 @@ class IONLoader(ImmediateProcess):
             for ass_id in ass_ids:
                 ims_client.deploy_instrument_device_to_logical_instrument(res_id, self.resource_ids[ass_id])
 
-        ass_id = row["primary_deployment_li_id"]
-        if ass_id:
-            ims_client.deploy_as_primary_instrument_device_to_logical_instrument(res_id, self.resource_ids[ass_id])
-
         ass_id = row["instrument_model_id"]
         if ass_id:
             ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
@@ -507,7 +503,12 @@ class IONLoader(ImmediateProcess):
         if ass_id:
             ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
 
-        self._resource_advance_lcs(row, res_id)
+        self._resource_advance_lcs(row, res_id, "InstrumentDevice")
+
+        ass_id = row["primary_deployment_li_id"]
+        if ass_id:
+            ims_client.deploy_as_primary_instrument_device_to_logical_instrument(res_id, self.resource_ids[ass_id])
+
 
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
@@ -521,7 +522,7 @@ class IONLoader(ImmediateProcess):
             for im_id in im_ids:
                 svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id)
 
-        self._resource_advance_lcs(row, res_id)
+        self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
     def _load_InstrumentAgentInstance(self, row):
         ia_id = row["instrument_agent_id"]
