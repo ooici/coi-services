@@ -28,7 +28,7 @@ from ion.services.mi.common import InstErrorCode
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
-
+from pyon.util.containers import get_safe
 
 class InstrumentAgentState(BaseEnum):
     """
@@ -1172,13 +1172,13 @@ class InstrumentAgent(ResourceAgent):
         
     def _log_state_change_event(self):
         event_description = 'Instrument agent ' + self.resource_id + ' entered state ' + self._fsm.get_current_state()
-        self._publish_instrument_agent_event(event_type='DeviceCommonLifecycleEvent ',
+        self._publish_instrument_agent_event(event_type='DeviceCommonLifecycleEvent',
                                              description=event_description)
         
     def _publish_instrument_agent_event(self, event_type=None, description=None):
         log.debug('Instrument agent %s publishing event %s:%s.' %(self._proc_name, event_type, description))
         pub = EventPublisher(event_type=event_type)
-        pub.publish_event(origin=self._proc_name, description=description)
+        pub.publish_event(origin=self.resource_id, description=description)
             
     ###############################################################################
     # Misc and test.
