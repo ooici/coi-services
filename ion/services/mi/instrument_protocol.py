@@ -19,8 +19,9 @@ import signal
 import re
 
 from ion.services.mi.common import InstErrorCode, EventKey
-from ion.services.mi.logger_process import EthernetDeviceLogger, LoggerClient
 from ion.services.mi.protocol_param_dict import ProtocolParameterDict
+from ion.services.mi.exceptions import InstrumentTimeoutError
+from ion.services.mi.exceptions import InstrumentProtocolError
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -29,7 +30,7 @@ class InstrumentProtocol(object):
     Base instrument protocol class.
     """
     
-    def __init__(self, driver_event, connection):
+    def __init__(self, driver_event):
         """
         @param evt_callback A callback to send protocol events to the
         agent.
@@ -147,11 +148,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     """
     Base class for text-based command-response instruments.
     """
-    def __init__(self, prompts, newline, driver_event, connection):
-        InstrumentProtocol.__init__(self, driver_event, connection)
+    def __init__(self, prompts, newline, driver_event):
+        InstrumentProtocol.__init__(self, driver_event)
 
         # The end of line delimiter.                
-        self.eoln = newline
+        self._newline = newline
     
         # Class of prompts used by device.
         self._prompts = prompts
@@ -172,11 +173,10 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Handlers to parse responses.
         self._response_handlers = {}
         
-                   
     ########################################################################
-    # Incomming data callback.
+    # Command build and response parse handlers.
     ########################################################################            
-
+                   
     def _add_build_handler(self, cmd, func):
         """
         """
@@ -186,6 +186,87 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         """
         self._response_handlers[cmd] = func
+                   
+    def _get_response(self, timeout):
+        """
+        """
+        # Grab time for timeout and wait for prompt.
+        starttime = time.time()
+        
+        while True:
+            
+            for item in self._prompts.list():
+                if self._promptbuf.endswith(item):
+                    return (item, self._linebuf)
+                else:
+                    time.sleep(.1)
+            if time.time() > starttime + timeout:
+                raise InstrumentTimeoutError()
+               
+    def _do_cmd_resp(self, cmd, *args, **kwargs):
+        """
+        """
+        timeout = kwargs.get('timeout', 10)
+        resp_result = None
+        
+        build_handler = self._build_handlers.get(cmd, None)
+        if not build_handler:
+            raise InstrumentProtocolError()
+        
+        cmd_line = build_handler(cmd, *args)
+        
+        # Wakeup the device, pass up exeception if timeout
+        prompt = self._wakeup(timeout)
+                    
+        # Clear line and prompt buffers for result.
+        self._linebuf = ''
+        self._promptbuf = ''
+
+        # Send command.
+        mi_logger.debug('_do_cmd_resp: %s', repr(cmd_line))
+        self._connection.send(cmd_line)
+
+        # Wait for the prompt, prepare result and return, timeout exception
+        mi_logger.info('getting response')
+        (prompt, result) = self._get_response(timeout)
+        mi_logger.info('got response: %s', repr(result))
+                
+                
+        resp_handler = self._response_handlers.get(cmd, None)
+        if resp_handler:
+            resp_result = resp_handler(result, prompt)
+        else:
+            mi_logger.info('No response handler.')
+
+        return resp_result
+            
+    def _do_cmd_no_resp(self, cmd, *args, **kwargs):
+        """
+        """
+        timeout = kwargs.get('timeout', 10)        
+        
+        build_handler = self._build_handlers.get(cmd, None)
+        if not build_handler:
+            raise InstrumentProtocolException(InstErrorCode.BAD_DRIVER_COMMAND)
+        
+        cmd_line = build_handler(cmd, *args)
+        
+        # Wakeup the device, timeout exception as needed
+        prompt = self._wakeup(timeout)
+       
+        # Clear line and prompt buffers for result.
+        self._linebuf = ''
+
+        # Send command.
+        mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
+        self._logger_client.send(cmd_line)        
+
+        return InstErrorCode.OK
+    
+    ########################################################################
+    # Incomming data callback.
+    ########################################################################            
+
                 
     def got_data(self, data):
         """
@@ -194,4 +275,42 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._linebuf += data        
         self._promptbuf += data
 
+    ########################################################################
+    # Wakeup helpers.
+    ########################################################################            
+    
+    def _send_wakeup(self):
+        """
+        Use the logger to send what needs to be sent to wake up the device.
+        This is intended to be overridden if there is any wake up needed.
+        """
+        pass
+        
+    def  _wakeup(self, timeout):
+        """
+        Clear buffers and send a wakeup command to the instrument
+        @todo Consider the case where there is no prompt returned when the
+        instrument is awake.
+        @param timeout The timeout in seconds
+        @throw InstrumentProtocolExecption on timeout
+        """
+        # Clear the prompt buffer.
+        self._promptbuf = ''
+        
+        # Grab time for timeout.
+        starttime = time.time()
+        
+        while True:
+            # Send a line return and wait a sec.
+            mi_logger.debug('Sending wakeup.')
+            self._send_wakeup()
+            time.sleep(1)
+            
+            for item in self._prompts.list():
+                if self._promptbuf.endswith(item):
+                    mi_logger.debug('wakeup got prompt: %s', repr(item))
+                    return item
+
+            if time.time() > starttime + timeout:
+                raise InstrumentTimeoutError()
 

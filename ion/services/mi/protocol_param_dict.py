@@ -11,6 +11,9 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 import re
+import logging
+
+mi_logger = logging.getLogger('mi_logger')
 
 class ParameterDictVal(object):
     """

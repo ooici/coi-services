@@ -129,7 +129,7 @@ class TestSBE37Driver(PyonTestCase):
             
         # Create driver client.            
         self._dvr_client = ZmqDriverClient(DVR_SVR_ADDR, DVR_CMD_PORT,
-                                        DVR_EVT_PORT)
+            DVR_EVT_PORT)
         mi_logger.info('Created driver client for %d %d %s %s', DVR_CMD_PORT,
             DVR_EVT_PORT, DVR_MOD, DVR_CLS)
         
@@ -220,6 +220,9 @@ class TestSBE37Driver(PyonTestCase):
         reply = self._dvr_client.cmd_dvr('connect')
 
         # Configure driver for comms and transition to disconnected.
+        reply = self._dvr_client.cmd_dvr('discover')
+
+        # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('disconnect')
 
         # Initialize the driver and transition to unconfigured.
@@ -227,4 +230,28 @@ class TestSBE37Driver(PyonTestCase):
     
 
 
-    
+    def test_poll(self):
+        """
+        Test sample polling commands and events.
+        """
+
+        reply = self._dvr_client.cmd_dvr('configure', COMMS_CONFIG)
+
+        reply = self._dvr_client.cmd_dvr('connect')
+                
+        reply = self._dvr_client.cmd_dvr('discover')
+
+        reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
+        
+        reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
+
+        reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
+
+        #print 'EVENTS RECEIVED:'
+        #print str(self.events)
+
+        reply = self._dvr_client.cmd_dvr('disconnect')
+        
+        # Deconfigure the driver.
+        reply = self._dvr_client.cmd_dvr('initialize')
+        
