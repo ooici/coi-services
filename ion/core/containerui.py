@@ -90,7 +90,7 @@ def process_index():
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
 
@@ -113,7 +113,7 @@ def process_list_resource_types():
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
 
@@ -155,7 +155,7 @@ def process_list_resources(resource_type):
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_res_extends(restype):
     fragments = [
@@ -246,7 +246,7 @@ def process_view_resource(resource_id):
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_nested_obj(obj, prefix):
     fragments = []
@@ -271,24 +271,26 @@ def build_associations(resid):
     fragments.append("<h2>Associations</h2>")
     fragments.append("<h3>FROM</h3>")
     fragments.append("<p><table>")
-    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
+    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
 
     obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
-            build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
+        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s),
+            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p), build_link("Delete", "/cmd/delete?rid=%s" % assoc._id)))
 
     fragments.append("</table></p>")
     fragments.append("<h3>TO</h3>")
     fragments.append("<p><table>")
-    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
+    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
 
     obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
-            build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
+        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o),
+            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p), build_link("Delete", "/cmd/delete?rid=%s" % assoc._id)))
 
     fragments.append("</table></p>")
     return fragments
@@ -301,11 +303,34 @@ def build_commands(resource_id, restype):
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/start_agent?rid=%s" % resource_id))
 
+    elif restype == "InstrumentDevice":
+        res_list,_ = Container.instance.resource_registry.find_resources(RT.InstrumentModel, id_only=False)
+        options = [(res.name, res._id) for res in res_list]
+        args = [('select','model',options)]
+        fragments.append(build_command("Link Model", "/cmd/link_model?rid=%s" % resource_id, args))
+
+        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasModel, RT.InstrumentModel, id_only=False)
+        options = [(res.name, res._id) for res in res_list]
+        args = [('select','model1',options)]
+        fragments.append(build_command("Unlink Model", "/cmd/unlink_model?rid=%s" % resource_id, args))
+
     fragments.append("</table>")
     return "".join(fragments)
 
 def build_command(text, link, args=None):
-    return "<div>%s</div>" % build_link(text, link)
+    fragments = []
+    if args:
+        arg_type, arg_name, arg_more = args[0]
+        fragments.append("<div><a href='#' onclick=\"return linkto('%s','%s','%s');\">%s</a> " % (link, arg_name, arg_name, text))
+        if arg_type == "select":
+            fragments.append("<select id='%s'>" % arg_name)
+            for oname, oval in arg_more:
+                fragments.append("<option value='%s'>%s</option>" % (oval, oname))
+            fragments.append("</select>")
+        fragments.append("</div>")
+    else:
+        fragments.append("<div>%s</div>" % build_link(text, link))
+    return "".join(fragments)
 
 # ----------------------------------------------------------------------------------------
 
@@ -313,8 +338,7 @@ def build_command(text, link, args=None):
 def process_command(cmd):
     try:
         cmd = str(cmd)
-        resource_id = request.args.get('rid', None)
-        resource_id = str(resource_id)
+        resource_id = get_arg('rid')
 
         Container.instance.resource_registry.read(resource_id)
 
@@ -325,7 +349,7 @@ def process_command(cmd):
 
         fragments = [
             build_standard_menu(),
-            "<h1>Command result</h1>",
+            "<h1>Command %s result</h1>" % cmd,
             "<p>",
         ]
 
@@ -338,12 +362,27 @@ def process_command(cmd):
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def _process_cmd_delete(resource_id):
     Container.instance.resource_registry.delete(resource_id)
     return "OK"
 
+def _process_cmd_link_model(resource_id):
+    model_id = get_arg('model')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.assign_instrument_model_to_instrument_device(model_id, resource_id)
+    redir_link = flask.redirect("/")
+    return "OK"
+
+def _process_cmd_unlink_model(resource_id):
+    model_id = get_arg('model')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.unassign_instrument_model_from_instrument_device(model_id, resource_id)
+    redir_link = flask.redirect("/")
+    return "OK"
 
 # ----------------------------------------------------------------------------------------
 
@@ -375,7 +414,7 @@ def process_assoc_list():
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
 
@@ -395,7 +434,7 @@ def process_nested(rid):
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 
 def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=None):
@@ -472,7 +511,7 @@ def process_dir_path(path):
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_dir_path(path):
     if path.startswith('/'):
@@ -524,7 +563,7 @@ def process_events():
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_events_table(events_list):
     fragments = [
@@ -558,6 +597,15 @@ def build_link(text, link):
 def build_standard_menu():
     return "<p><a href='/'>[Home]</a></p>"
 
+def build_error_page(msg):
+    fragments = [
+        build_standard_menu(),
+        "<h1>Error</h1>",
+        "<p><pre>%s</pre></p>" % msg,
+    ]
+    content = "\n".join(fragments)
+    return build_page(content)
+
 def build_simple_page(content):
     return build_page("<p><pre>" + content + "</pre></p>")
 
@@ -569,12 +617,24 @@ def build_page(content, title=""):
         "table,th,td {font-size:small;border: 1px solid black;border-collapse:collapse;padding-left:3px;padding-right:3px;vertical-align:top;}",
         "th {background-color:lightgray;}",
         ".preform {white-space:pre;font-family:monospace;font-size:120%;}",
-        "</style></head>",
+        "</style>",
+        "<script type='text/javascript'>",
+        "function linkto(href, arg_name, arg_id) {",
+        "var aval = document.getElementById(arg_id).value;",
+        "href = href + '&' + arg_name + '=' + aval;",
+        "window.location.href = href;",
+        "return true;",
+        "}",
+        "</script></head>"
         "<body>",
         content,
         "</body></html>"
     ]
     return "\n".join(fragments)
+
+def get_arg(arg_name, default=None):
+    aval = request.args.get(arg_name, None)
+    return str(aval) if aval else default
 
 def convert_unicode(data):
     """
@@ -613,10 +673,6 @@ def get_value_dict(obj, ignore_fields=None):
             val_dict[k] = vdict
         else:
             val_dict[k] = val
-#        elif isinstance(obj, IonObjectBase):
-#            val_dict[k] = get_formatted_value(val, fieldname=k, fieldschema=obj._schema.get(k, None), is_root=False)
-#        else:
-#            val_dict[k] = get_formatted_value(val, fieldname=k, is_root=False)
     return val_dict
 
 date_fieldnames = ['ts_created', 'ts_updated']
