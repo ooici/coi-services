@@ -500,11 +500,13 @@ def _process_cmd_stop_agent(resource_id, res_obj=None):
 def _process_cmd_start_process(resource_id, res_obj=None):
     from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
     dpms_cl = DataProcessManagementServiceClient()
+    dpms_cl.activate_data_process(resource_id)
     return "OK"
 
 def _process_cmd_stop_process(resource_id, res_obj=None):
     from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
     dpms_cl = DataProcessManagementServiceClient()
+    dpms_cl.deactivate_data_process(resource_id)
     return "OK"
 
 def _process_cmd_link_model(resource_id, res_obj=None):
