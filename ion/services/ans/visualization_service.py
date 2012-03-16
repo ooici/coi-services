@@ -1,29 +1,29 @@
 #!/usr/bin/env python
+from gevent.coros import RLock
+from gevent.greenlet import Greenlet
 
 __author__ = 'Raj Singh'
 __license__ = 'Apache 2.0'
 
-import os
-import time
+# Pyon imports
+# Note pyon imports need to be first for monkey patching to occur
+from pyon.ion.transform import TransformDataProcess
+from pyon.public import IonObject, RT, log, PRED
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.objects import StreamQuery
+
 from datetime import datetime
 import string
 import random
 import StringIO
 import simplejson
 import gevent
-import threading
+from gevent.greenlet import Greenlet
 
-# Pyon imports
-from pyon.ion.streamproc import StreamProcess
-from pyon.ion.transform import TransformDataProcess
-from pyon.service.service import BaseService
 
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.objects import StreamQuery, ProcessDefinition
-from pyon.public import IonObject, RT, log, PRED, StreamPublisherRegistrar
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from interface.services.ans.ivisualization_service import VisualizationServiceClient
@@ -501,7 +501,7 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         self.graph_data = {} # Stores a dictionary of variables : [List of values]
 
         # Create client to interface with the viz service
-        self.vs_cli = VisualizationServiceClient(node=self.container.node)
+
         self.rr_cli = ResourceRegistryServiceProcessClient(process = self, node = self.container.node)
 
         # extract the data_product_id from the transform name. Should be appended with a '.'
@@ -509,17 +509,15 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         self.stream_def_id = self.CFG.get("stream_def_id")
         self.stream_def = self.rr_cli.read(self.stream_def_id)
 
-        # init Matplotlib
-        self.fig = Figure()
-        self.ax = self.fig.add_subplot(111)
-        self.canvas = FigureCanvas(self.fig)
-
         # Start the thread responsible for keeping track of time and generating graphs
-        self.rendering_proc = threading.Thread(target=self.rendering_thread)
+        # Mutex for ensuring proper concurrent communications between threads
+        self.lock = RLock()
+        self.rendering_proc = Greenlet(self.rendering_thread)
         self.rendering_proc.start()
 
-        # Create a stringIO object to hold image files in memory
-        self.imgInMem = StringIO.StringIO()
+
+
+
 
 
 
@@ -540,53 +538,70 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         if self.initDataFlag:
             # look at the incoming packet and store
             for varname in psd.list_field_names():
+                self.lock.acquire()
                 self.graph_data[varname] = []
+                self.lock.release()
 
             self.initDataFlag = False
 
         # If code reached here, the graph data storage has been initialized. Just add values
         # to the list
-        for varname in psd.list_field_names():
-            self.graph_data[varname].extend(vardict[varname])
+        with self.lock:
+            for varname in psd.list_field_names():
+                self.graph_data[varname].extend(vardict[varname])
 
 
     def rendering_thread(self):
+        from copy import deepcopy
+        # Service Client
+        vs_cli = VisualizationServiceClient()
 
+        # init Matplotlib
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        canvas = FigureCanvas(fig)
+        imgInMem = StringIO.StringIO()
         while True:
 
             # Sleep for a pre-decided interval. Should be specifiable in a YAML file
-            time.sleep(20)
+            gevent.sleep(20)
 
             # If there's no data, wait
-            if len(self.graph_data) == 0:
-                continue
+            # Lock is used here to make sure the entire vector exists start to finish, this assures that the data won
+            working_set=None
+            with self.lock:
+                if len(self.graph_data) == 0:
+                    continue
+                else:
+                    working_set = deepcopy(working_set)
+
 
             # For the simple case of testing, lets plot all time variant variables one at a time
-            self.xAxisVar = 'time'
-            self.xAxisFloatData = self.graph_data[self.xAxisVar]
+            xAxisVar = 'time'
+            xAxisFloatData = working_set[xAxisVar]
 
-            for varName, varData in self.graph_data.iteritems():
+            for varName, varData in working_set.iteritems():
                 if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
                     continue
 
-                self.yAxisVar = varName
-                self.yAxisFloatData = self.graph_data[varName]
+                yAxisVar = varName
+                yAxisFloatData = working_set[varName]
 
                 # Generate the plot
-                self.ax.plot(self.xAxisFloatData, self.yAxisFloatData, 'ro')
-                self.ax.set_xlabel(self.xAxisVar)
-                self.ax.set_ylabel(self.yAxisVar)
-                self.ax.set_title(self.yAxisVar + ' vs ' + self.xAxisVar)
-                self.ax.set_autoscale_on(False)
+                ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
+                ax.set_xlabel(xAxisVar)
+                ax.set_ylabel(yAxisVar)
+                ax.set_title(yAxisVar + ' vs ' + xAxisVar)
+                ax.set_autoscale_on(False)
 
                 # generate filename for the output image
-                fileName = self.yAxisVar + '_vs_' + self.xAxisVar + '.png'
+                fileName = yAxisVar + '_vs_' + xAxisVar + '.png'
                 # Save the figure to the in memory file
-                self.canvas.print_figure(self.imgInMem, format="png")
-                self.imgInMem.seek(0)
+                canvas.print_figure(imgInMem, format="png")
+                imgInMem.seek(0)
 
                 # submit the image object to the visualization service
-                self.vs_cli.submit_mpl_image(self.data_product_id, self.imgInMem.getvalue(), fileName)
+                vs_cli.submit_mpl_image(self.data_product_id, imgInMem.getvalue(), fileName)
 
                 #clear the canvas for the next image
-                self.ax.clear()
+                ax.clear()
