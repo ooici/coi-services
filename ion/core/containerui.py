@@ -90,7 +90,7 @@ def process_index():
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
 
@@ -113,7 +113,7 @@ def process_list_resource_types():
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
 
@@ -122,7 +122,7 @@ standard_resattrs = ['name', 'description', 'lcstate', 'ts_created', 'ts_updated
 @app.route('/list/<resource_type>', methods=['GET','POST'])
 def process_list_resources(resource_type):
     try:
-        restype = convert_unicode(resource_type)
+        restype = str(resource_type)
         res_list,_ = Container.instance.resource_registry.find_resources(restype=restype)
 
 
@@ -155,7 +155,7 @@ def process_list_resources(resource_type):
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_res_extends(restype):
     fragments = [
@@ -210,7 +210,7 @@ standard_types = ['str', 'int', 'bool', 'float', 'list', 'dict']
 @app.route('/view/<resource_id>', methods=['GET','POST'])
 def process_view_resource(resource_id):
     try:
-        resid = convert_unicode(resource_id)
+        resid = str(resource_id)
         res = Container.instance.resource_registry.read(resid)
         restype = res._get_type()
 
@@ -227,13 +227,9 @@ def process_view_resource(resource_id):
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("type", "str", restype))
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("_id", "str", res._id))
         fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("_rev", "str", res._rev))
-
         fragments.extend(build_nested_obj(res, ""))
-
         fragments.append("</p></table>")
-
         fragments.extend(build_associations(res._id))
-
         fragments.append("<h2>Events</h2>")
 
         events_list = Container.instance.event_repository.find_events(origin=resid,
@@ -246,7 +242,7 @@ def process_view_resource(resource_id):
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_nested_obj(obj, prefix):
     fragments = []
@@ -271,24 +267,28 @@ def build_associations(resid):
     fragments.append("<h2>Associations</h2>")
     fragments.append("<h3>FROM</h3>")
     fragments.append("<p><table>")
-    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
+    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
 
     obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
-            build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
+        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s),
+            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p),
+            build_link("Delete", "/cmd/delete?rid=%s" % assoc._id, "return confirm('Are you sure to delete association?');")))
 
     fragments.append("</table></p>")
     fragments.append("<h3>TO</h3>")
     fragments.append("<p><table>")
-    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th></tr>")
+    fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
 
     obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
-        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td></tr>" % (
-            build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o), build_link(assoc.p, "/assoc?predicate=%s" % assoc.p)))
+        fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o),
+            build_link(assoc.p, "/assoc?predicate=%s" % assoc.p),
+            build_link("Delete", "/cmd/delete?rid=%s" % assoc._id, "return confirm('Are you sure to delete association?');")))
 
     fragments.append("</table></p>")
     return fragments
@@ -297,15 +297,72 @@ def build_commands(resource_id, restype):
     fragments = ["<h2>Commands</h2>"]
 
     fragments.append(build_command("Delete", "/cmd/delete?rid=%s" % resource_id))
+
+    from pyon.ion.resource import CommonResourceLifeCycleSM
+    event_list = list(CommonResourceLifeCycleSM.MAT_EVENTS) + CommonResourceLifeCycleSM.VIS_EVENTS
+    options = zip(event_list, event_list)
+    args = [('select','lcevent',options)]
+    fragments.append(build_command("Execute Lifecycle Event", "/cmd/execute_lcs?rid=%s" % resource_id, args))
+
+    options = zip(CommonResourceLifeCycleSM.BASE_STATES, CommonResourceLifeCycleSM.BASE_STATES)
+    args = [('select','lcstate',options)]
+    fragments.append(build_command("Change Lifecycle State", "/cmd/set_lcs?rid=%s" % resource_id, args))
+
+
     if restype == "InstrumentAgentInstance":
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
-        fragments.append(build_command("Stop Agent", "/cmd/start_agent?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
+
+    elif restype == "InstrumentDevice":
+        res_list,_ = Container.instance.resource_registry.find_resources(RT.InstrumentModel, id_only=False)
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','model_link',options)]
+            fragments.append(build_command("Link Model", "/cmd/link_model?rid=%s" % resource_id, args))
+
+        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasModel, RT.InstrumentModel, id_only=False)
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','model_unlink',options)]
+            fragments.append(build_command("Unlink Model", "/cmd/unlink_model?rid=%s" % resource_id, args))
+
+        fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
+
+        options = [('initialize','initialize'),
+            ('go_active','go_active'),
+            ('run','run'),
+            ('acquire_sample','acquire_sample'),
+            ('go_streaming','go_streaming'),
+            ('go_observatory','go_observatory'),
+            ('go_direct_access','go_direct_access'),
+            ('go_inactive','go_inactive'),
+            ('reset','reset'),
+        ]
+        args = [('select','agentcmd',options)]
+        fragments.append(build_command("Agent Command", "/cmd/agent_execute?rid=%s" % resource_id, args))
+
+    elif restype == "DataProcess":
+        fragments.append(build_command("Start Process", "/cmd/start_process?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Process", "/cmd/stop_process?rid=%s" % resource_id))
 
     fragments.append("</table>")
     return "".join(fragments)
 
 def build_command(text, link, args=None):
-    return "<div>%s</div>" % build_link(text, link)
+    fragments = []
+    if args:
+        arg_type, arg_name, arg_more = args[0]
+        fragments.append("<div><a href='#' onclick=\"return linkto('%s','%s','%s');\">%s</a> " % (link, arg_name, arg_name, text))
+        if arg_type == "select":
+            fragments.append("<select id='%s'>" % arg_name)
+            for oname, oval in arg_more:
+                fragments.append("<option value='%s'>%s</option>" % (oval, oname))
+            fragments.append("</select>")
+        fragments.append("</div>")
+    else:
+        fragments.append("<div>%s</div>" % build_link(text, link, "return confirm('Are you sure to delete resource?');"))
+    return "".join(fragments)
 
 # ----------------------------------------------------------------------------------------
 
@@ -313,44 +370,109 @@ def build_command(text, link, args=None):
 def process_command(cmd):
     try:
         cmd = str(cmd)
-        resource_id = request.args.get('rid', None)
-        resource_id = str(resource_id)
+        resource_id = get_arg('rid')
 
-        Container.instance.resource_registry.read(resource_id)
+        res_obj = Container.instance.resource_registry.read(resource_id)
 
         func_name = "_process_cmd_%s" % cmd
         cmd_func = globals().get(func_name, None)
         if not cmd_func:
             raise Exception("Command %s unknown" % (cmd))
 
+        result = cmd_func(resource_id, res_obj)
+
         fragments = [
             build_standard_menu(),
-            "<h1>Command result</h1>",
-            "<p>",
+            "<h1>Command %s result</h1>" % cmd,
+            "<p><pre>%s</pre></p>" % result,
+            "<p>%s</p>" % build_link("Back to Resource Page", "/view/%s" % resource_id),
         ]
-
-        result = cmd_func(resource_id)
-        fragments.append(result)
-
-        fragments.append("</p>")
 
         content = "\n".join(fragments)
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
-def _process_cmd_delete(resource_id):
+def _process_cmd_delete(resource_id, res_obj=None):
     Container.instance.resource_registry.delete(resource_id)
     return "OK"
 
+def _process_cmd_set_lcs(resource_id, res_obj=None):
+    lcstate = get_arg('lcstate')
+    Container.instance.resource_registry.set_lifecycle_state(resource_id, lcstate)
+    return "OK"
+
+def _process_cmd_execute_lcs(resource_id, res_obj=None):
+    lcevent = get_arg('lcevent')
+    new_state = Container.instance.resource_registry.execute_lifecycle_transition(resource_id, lcevent)
+    return "OK. New state: %s" % new_state
+
+def _process_cmd_start_agent(resource_id, res_obj=None):
+    if res_obj._get_type() == "InstrumentDevice":
+        iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
+        if iai_ids:
+            resource_id = iai_ids[0]
+        else:
+            return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.start_instrument_agent_instance(resource_id)
+    return "OK"
+
+def _process_cmd_stop_agent(resource_id, res_obj=None):
+    if res_obj._get_type() == "InstrumentDevice":
+        iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
+        if iai_ids:
+            resource_id = iai_ids[0]
+        else:
+            return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.stop_instrument_agent_instance(resource_id)
+    return "OK"
+
+def _process_cmd_start_process(resource_id, res_obj=None):
+    from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+    dpms_cl = DataProcessManagementServiceClient()
+    return "OK"
+
+def _process_cmd_stop_process(resource_id, res_obj=None):
+    from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+    dpms_cl = DataProcessManagementServiceClient()
+    return "OK"
+
+def _process_cmd_link_model(resource_id, res_obj=None):
+    model_id = get_arg('model_link')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.assign_instrument_model_to_instrument_device(model_id, resource_id)
+    return "OK"
+
+def _process_cmd_unlink_model(resource_id, res_obj=None):
+    model_id = get_arg('model_unlink')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.unassign_instrument_model_from_instrument_device(model_id, resource_id)
+    return "OK"
+
+def _process_cmd_agent_execute(resource_id, res_obj=None):
+    agent_cmd = get_arg('agentcmd')
+    from pyon.agent.agent import ResourceAgentClient
+    from interface.objects import AgentCommand
+    rac = ResourceAgentClient(process=containerui_instance, resource_id=resource_id)
+    ac = AgentCommand(command=agent_cmd)
+    res = rac.execute_agent(ac)
+    res_dict = get_value_dict(res)
+    res_str = get_formatted_value(res_dict, fieldtype="dict")
+    return res_str
 
 # ----------------------------------------------------------------------------------------
 
 @app.route('/assoc', methods=['GET','POST'])
 def process_assoc_list():
     try:
-        predicate = request.args.get('predicate', None)
+        predicate = get_arg('predicate')
 
         assoc_list = Container.instance.resource_registry.find_associations(predicate=predicate, id_only=False)
 
@@ -375,7 +497,7 @@ def process_assoc_list():
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
 
@@ -395,7 +517,7 @@ def process_nested(rid):
         return build_page(content)
 
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 
 def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=None):
@@ -472,7 +594,7 @@ def process_dir_path(path):
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_dir_path(path):
     if path.startswith('/'):
@@ -524,7 +646,7 @@ def process_events():
     except NotFound:
         return flask.redirect("/")
     except Exception, e:
-        return build_simple_page("Error: %s" % traceback.format_exc())
+        return build_error_page(traceback.format_exc())
 
 def build_events_table(events_list):
     fragments = [
@@ -552,11 +674,23 @@ def build_events_table(events_list):
 def build_type_link(restype):
     return build_link(restype, "/list/%s" % restype)
 
-def build_link(text, link):
-    return "<a href='%s'>%s</a>" % (link, text)
+def build_link(text, link, onclick=None):
+    if onclick:
+        return "<a href='%s' onclick=\"%s\">%s</a>" % (link, onclick, text)
+    else:
+        return "<a href='%s'>%s</a>" % (link, text)
 
 def build_standard_menu():
     return "<p><a href='/'>[Home]</a></p>"
+
+def build_error_page(msg):
+    fragments = [
+        build_standard_menu(),
+        "<h1>Error</h1>",
+        "<p><pre>%s</pre></p>" % msg,
+    ]
+    content = "\n".join(fragments)
+    return build_page(content)
 
 def build_simple_page(content):
     return build_page("<p><pre>" + content + "</pre></p>")
@@ -569,12 +703,24 @@ def build_page(content, title=""):
         "table,th,td {font-size:small;border: 1px solid black;border-collapse:collapse;padding-left:3px;padding-right:3px;vertical-align:top;}",
         "th {background-color:lightgray;}",
         ".preform {white-space:pre;font-family:monospace;font-size:120%;}",
-        "</style></head>",
+        "</style>",
+        "<script type='text/javascript'>",
+        "function linkto(href, arg_name, arg_id) {",
+        "var aval = document.getElementById(arg_id).value;",
+        "href = href + '&' + arg_name + '=' + aval;",
+        "window.location.href = href;",
+        "return true;",
+        "}",
+        "</script></head>"
         "<body>",
         content,
         "</body></html>"
     ]
     return "\n".join(fragments)
+
+def get_arg(arg_name, default=None):
+    aval = request.args.get(arg_name, None)
+    return str(aval) if aval else default
 
 def convert_unicode(data):
     """
@@ -613,10 +759,6 @@ def get_value_dict(obj, ignore_fields=None):
             val_dict[k] = vdict
         else:
             val_dict[k] = val
-#        elif isinstance(obj, IonObjectBase):
-#            val_dict[k] = get_formatted_value(val, fieldname=k, fieldschema=obj._schema.get(k, None), is_root=False)
-#        else:
-#            val_dict[k] = get_formatted_value(val, fieldname=k, is_root=False)
     return val_dict
 
 date_fieldnames = ['ts_created', 'ts_updated']

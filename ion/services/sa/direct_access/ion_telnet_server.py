@@ -59,7 +59,7 @@ class TelnetServer(object):
 				self.server_socket.shutdown(socket.SHUT_RDWR)
 			except Exception as ex:
 				# can happen if telnet client closes session first
-				log.debug("exception caught for socket shutdown:" + str(ex))
+				log.debug("TelnetServer.close_connection(): exception caught for socket shutdown:" + str(ex))
 			self.server_socket.close()
 	
 
@@ -68,11 +68,11 @@ class TelnetServer(object):
 		log.debug("TelnetServer.handler(): stopping, " + reason)
 	
 
-	def handler(self, new_socket, address):
+	def handler(self):
 		"The actual service to which the user has connected."
 		log.debug("TelnetServer.handler(): starting")
 		
-		self.fileobj = new_socket.makefile()
+		self.fileobj = self.connection_socket.makefile()
 		username = None
 		token = None
 		self.write("Username: ")
@@ -113,16 +113,17 @@ class TelnetServer(object):
 
 	def server_greenlet(self):
 		log.debug("TelnetServer.server_greenlet(): started")
+		self.connection_socket = None
 		try:
 			self.server_socket.listen(1)
-			new_socket, address = self.server_socket.accept()
+			self.connection_socket, address = self.server_socket.accept()
 		except Exception as ex:
 			log.info("TelnetServer.server_greenlet(): exception caught <%s>" %str(ex))
 			if not self.parent_requested_close:
 				# indicate to parent that connection has been lost
 				self.parent_input_callback(-1)
 		else:
-			self.handler(new_socket, address)
+			self.handler()
 		log.debug("TelnetServer.server_greenlet(): stopping")
 		
 
@@ -162,7 +163,7 @@ class TelnetServer(object):
 		self.token = str(uuid.uuid4()).upper()
 		
 		log.debug("TelnetServer.__init__(): starting server greenlet")
-		gevent.spawn(self.server_greenlet)
+		self.server = gevent.spawn(self.server_greenlet)
 		
 
 	def get_connection_info(self):
@@ -172,14 +173,17 @@ class TelnetServer(object):
 	def stop(self):
 		log.debug("TelnetServer.stop()")
 		self.parent_requested_close = True
-		try:
-			self.server_socket.shutdown(socket.SHUT_RDWR)
-		except Exception as ex:
-			# can happen if telnet client closes session first
-			log.debug("exception caught for socket shutdown:" + str(ex))
-			return
-		gevent.sleep(.1)
-		self.server_socket.close()
+		if self.connection_socket:
+			# telnet connection has been made
+			try:
+				self.connection_socket.shutdown(socket.SHUT_RDWR)
+			except Exception as ex:
+				# can happen if telnet client closes session first
+				log.debug("TelnetServer.stop(): exception caught for socket shutdown:" + str(ex))
+			gevent.sleep(.2)
+			self.server.kill()
+		else:
+			self.server_socket.close()
 		del self.server_socket
 			
 
