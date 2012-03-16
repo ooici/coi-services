@@ -103,12 +103,14 @@ class InstrumentDeviceImpl(ResourceImpl):
             old_product_stream_def_id = ""
             old_product_stream_id = ""
             stream_def_map = {}
+            old_hasInputProduct_assoc = ""
             # for each data product from this instrument, find any data processes that are using it as input
             data_product_ids, prod_assocs = self.clients.resource_registry.find_objects(primary_dev__ids[0], PRED.hasOutputProduct, RT.DataProduct, True)
             if data_product_ids:
-                stream_def_map = self.find_stream_defs_for_output_products(primary_dev__ids[0])
+                stream_def_map = self.find_stream_defs_for_output_products(instrument_device_id)
 
                 for data_product_id in data_product_ids:
+
                     # look for data processes that use this product as input
                     data_process_ids, assocs = self.clients.resource_registry.find_subjects( RT.DataProcess, PRED.hasInputProduct, data_product_id, True)
                     log.debug("assign_primary_deployment: data_process_ids using the data product for input %s ", str(data_process_ids) )
@@ -119,7 +121,7 @@ class InstrumentDeviceImpl(ResourceImpl):
                         if stream_ids:
                             old_product_stream_id = stream_ids[0]
                             stream_def_ids, _ = self.clients.resource_registry.find_objects( stream_ids[0], PRED.hasStreamDefinition, RT.StreamDefinition, True)
-                            #Assume one streamdef-to-one streamfor now
+                            #Assume one streamdef-to-one stream for now
                             if stream_def_ids:
                                 old_product_stream_def_id = stream_def_ids[0]
 
@@ -151,9 +153,14 @@ class InstrumentDeviceImpl(ResourceImpl):
                                 self.clients.pubsub_management.update_subscription(subscription_obj)
                                 log.debug("assign_primary_deployment: updated subscription_obj %s ", str(subscription_obj))
 
-            # remove the previous primary device association
-            self.clients.resource_registry.delete_association(assocs[0])
+                                #change the hasInputProduct association for this DataProcess
+                                log.debug("assign_primary_deployment: switch hasInputProd data_process_id %s ", str(data_process_id))
+                                log.debug("assign_primary_deployment: switch hasInputProd data_product_id %s ", str(data_product_id))
 
+                                old_assoc = self.clients.resource_registry.get_association( data_process_id, PRED.hasInputProduct, data_product_id)
+                                self.clients.resource_registry.delete_association(old_assoc)
+                                log.debug("assign_primary_deployment: switch hasInputProd replacement_data_product %s ", str(replacement_data_product))
+                                self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, replacement_data_product)
 
         # Create association hasPrimaryDeployment
         self._link_resources(instrument_device_id, PRED.hasPrimaryDeployment, logical_instrument_id)
@@ -170,6 +177,60 @@ class InstrumentDeviceImpl(ResourceImpl):
 
 
     def unassign_primary_deployment(self, instrument_device_id='', logical_instrument_id=''):
+
+        #verify that resources ids are valid, if not found RR will raise the error
+        instrument_device_obj = self.clients.resource_registry.read(instrument_device_id)
+        logical_instrument_obj = self.clients.resource_registry.read(logical_instrument_id)
+
+        # Check that the InstrumentDevice has association hasDeployment to this LogicalInstrument
+        # Note: the device may also be deployed to other logical instruments, this is valid
+        lgl_platform_assocs = self.clients.resource_registry.get_association(instrument_device_id, PRED.hasDeployment, logical_instrument_id)
+        if not lgl_platform_assocs:
+            raise BadRequest("This Instrument Device is not deployed to the specified Logical Instrument  %s" %instrument_device_obj.name)
+
+        # Check that the InstrumentDevice has association hasDeployment to this LogicalInstrument
+        # Note: the device may also be deployed to other logical instruments, this is valid
+        lgl_platform_assoc = self.clients.resource_registry.get_association(instrument_device_id, PRED.hasPrimaryDeployment, logical_instrument_id)
+        if not lgl_platform_assoc:
+            raise BadRequest("This Instrument Device is not deployed as primary to the specified Logical Instrument  %s" %instrument_device_obj.name)
+
+        # remove the association
+        self.clients.resource_registry.delete_association(lgl_platform_assoc)
+
+        # remove the L0 subscription (keep the transform alive)
+        # for each data product from this instrument, find any data processes that are using it as input
+        data_product_ids, prod_assocs = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        log.debug("unassign_primary_deployment: data_product_ids for this instrument %s ", str(data_product_ids) )
+
+        product_stream_id = ''
+        for data_product_id in data_product_ids:
+            # look for data processes that use this product as input
+            data_process_ids, assocs = self.clients.resource_registry.find_subjects( RT.DataProcess, PRED.hasInputProduct, data_product_id, True)
+            log.debug("unassign_primary_deployment: data_process_ids using the data product for input %s ", str(data_process_ids) )
+            if data_process_ids:
+                #get the stream def of the data product
+                stream_ids, _ = self.clients.resource_registry.find_objects( data_product_id, PRED.hasStream, RT.Stream, True)
+                # assume one stream per data product for now
+                product_stream_id = stream_ids[0]
+            for data_process_id in data_process_ids:
+                log.debug("unassign_primary_deployment: data_process_id  %s ", str(data_process_id) )
+                transform_ids, _ = self.clients.resource_registry.find_objects( data_process_id, PRED.hasTransform, RT.Transform, True)
+                log.debug("unassign_primary_deployment: transform_ids  %s ", str(transform_ids) )
+
+                if transform_ids:
+                    #Assume one transform per data process for now
+                    subscription_ids, _ = self.clients.resource_registry.find_objects( transform_ids[0], PRED.hasSubscription, RT.Subscription, True)
+                    log.debug("unassign_primary_deployment: subscription_ids  %s ", str(subscription_ids) )
+                    if subscription_ids:
+                        #assume one subscription per transform for now
+                        #read the subscription object
+                        subscription_obj = self.clients.pubsub_management.read_subscription(subscription_ids[0])
+                        log.debug("unassign_primary_deployment: subscription_obj %s ", str(subscription_obj))
+                        #remove the old stream that is no longer primary
+                        subscription_obj.query.stream_ids.remove(product_stream_id)
+                        self.clients.pubsub_management.update_subscription(subscription_obj)
+                        log.debug("unassign_primary_deployment: updated subscription_obj %s ", str(subscription_obj))
+
         return
 
 

@@ -27,6 +27,7 @@ from pyon.public import IonObject, RT, log, PRED, StreamPublisherRegistrar
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from interface.services.ans.ivisualization_service import VisualizationServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.objects import HdfStorage, CouchStorage
 from pyon.event.event import EventSubscriber
 from pyon.util.async import spawn
@@ -65,18 +66,21 @@ class VisualizationService(BaseVisualizationService):
         self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
         self.tms_cli = TransformManagementServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
+        self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
 
+        """
         #The following code might go away in the future but check for an existing ingestion configuration in the system
         # and if it does not exist, create one. It will be used by the data producers to persist data
         self.IngestClient = IngestionManagementServiceClient(node=self.container.node)
         ingestion_cfgs, _ = self.rr_cli.find_resources(RT.IngestionConfiguration, None, None, True)
 
+        self.datastore_name = 'test_datastore'
         if len(ingestion_cfgs) == 0:
             # ingestion configuration parameters
             self.exchange_point_id = 'science_data'
             self.number_of_workers = 2
             self.hdf_storage = HdfStorage(relative_path='ingest')
-            self.couch_storage = CouchStorage(datastore_name='test_datastore')
+            self.couch_storage = CouchStorage(datastore_name=self.datastore_name)
             self.XP = 'science_data'
             self.exchange_name = 'ingestion_queue'
 
@@ -92,7 +96,7 @@ class VisualizationService(BaseVisualizationService):
             # activate an ingestion configuration
             ret = self.IngestClient.activate_ingestion_configuration(self.ingestion_configuration_id)
             log.debug("test_activateInstrument: activate = %s"  % str(ret))
-
+        """
 
         # Create process definitions which will used to spawn off the tranform processes
         self.process_definition1 = IonObject(RT.ProcessDefinition, name='viz_transform_process'+'.'+self.random_id_generator())
@@ -144,14 +148,33 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    object with specified id, query does not exist
         """
 
-        # extract the stream_id associated with the data_product_id
-        viz_stream_id,_ = self.rr_cli.find_objects(data_product_id, PRED.hasStream, None, True)
+        # Get object asssociated with data_product_id
+        dp_obj = self.rr_cli.read(data_product_id)
 
-        if viz_stream_id == []:
-            log.warn ("Visualization_service: get_google_dt(): viz_stream_id is empty")
-            return None
+        dataset_id = dp_obj.dataset_id
+        # define replay. If no filters are passed the entire ingested dataset is returned
+        replay_id, replay_stream_id = drclient.define_replay(dataset_id=dataset_id)
+        replay_stream_def_id = pubsub_cli.find_stream_definition(stream_id=replay_stream_id,id_only=True)
 
-        viz_stream_def_id = self.pubsub_cli.find_stream_definition(stream_id = viz_stream_id[0], id_only = True)
+        # setup the transform to handle the data coming back from the replay
+        # Init storage for the resulting data_table
+        self.viz_data_dictionary['google_dt'][data_product_id] = {'transform_proc': "", 'data_table': [], 'ready_flag': False}
+        # Create the subscription to the stream. This will be passed as parameter to the transform worker
+        query = StreamQuery(replay_stream_id)
+        replay_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='viz_data_exchange.'+self.random_id_generator())
+
+        # maybe this is a good place to pass the couch DB table to use and other parameters
+        configuration = {"stream_def_id": replay_stream_def_id, "data_product_id": data_product_id, "realtime_flag": "False"}
+
+        # Launch the viz transform process
+        viz_transform_id = self.tms_cli.create_transform( name='viz_transform_google_dt_' + self.random_id_generator()+'.'+data_product_id,
+            in_subscription_id=replay_subscription_id,
+            process_definition_id=self.process_definition_id2,
+            configuration=configuration)
+        self.tms_cli.activate_transform(viz_transform_id)
+
+        # Start the replay
+        dr_cli.start_replay(replay_id=replay_id)
 
         try:
             # send the resultant datatable back
@@ -171,6 +194,7 @@ class VisualizationService(BaseVisualizationService):
         @retval datatable    str
         @throws NotFound    object with specified id, query does not exist
         """
+
         try:
             if data_product_id in self.viz_data_dictionary['google_realtime_dt']:
                 return self.viz_data_dictionary['google_realtime_dt'][data_product_id]
