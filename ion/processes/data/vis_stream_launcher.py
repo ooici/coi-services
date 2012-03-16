@@ -109,13 +109,17 @@ class VisStreamLauncher(StandaloneProcess):
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
         self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
 
-        print '>>>>>> new dp_id = ', data_product_id1,  "  DP_OBJ : ", dp_obj
+        print '>>>>>> new dp_id = ', data_product_id1
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
 
-        pid = self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
-            module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher',config={'process':{'stream_id':stream_ids[0]}})
+        if self.dataset == 'sinusoidal':
+            pid = self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
+                module='ion.processes.data.sinusoidal_stream_publisher',cls='SinusoidalCtdPublisher',config={'process':{'stream_id':stream_ids[0]}})
+        else:
+            pid = self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
+                module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher',config={'process':{'stream_id':stream_ids[0]}})
 
 
 

@@ -9,7 +9,7 @@ and the relationships between them
 '''
 
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import CFG, IonObject, log, RT, PRED, LCS
+from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
 
 
 
@@ -436,27 +436,6 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #     self.logical_instrument.unlink_data_product(logical_instrument_id, data_product_id)
 
 
-    # reassigning a logical instrument to an instrument device is a little bit special
-    # TODO: someday we may be able to dig up the correct data products automatically,
-    #       but once we have them this is the function that does all the work.
-    def reassign_instrument_device_to_logical_instrument(self, logical_instrument_id='',
-                                                         old_instrument_device_id='',
-                                                         new_instrument_device_id='',
-                                                         logical_data_product_ids=None,
-                                                         old_instrument_data_product_ids=None,
-                                                         new_instrument_data_product_ids=None):
-        """
-        associate a logical instrument with a physical one.  this involves linking the
-        physical instrument's data product(s) to the logical one(s).
-
-        the 2 lists of data products must be of equal length, and will map 1-1
-
-        @param logical_instrument_id
-        @param instrument_device_id
-        @param logical_data_product_ids a list of data products associated to a logical instrument
-        @param instrument_data_product_ids a list of data products coming from an instrument device
-        """
-
 
     def define_observatory_policy(self):
         """method docstring
@@ -516,6 +495,33 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ############################
 
+    # Helper methods
+    def find_subordinate_frames_of_reference(self, input_resource_id=''):
+        allowed_types = [RT.MarineFacility, RT.LogicalInstrument, RT.LogicalPlatform, RT.Site]
+        subordinates = {
+            RT.MarineFacility: [RT.LogicalInstrument, RT.LogicalPlatform, RT.Site],
+            RT.Site: [RT.LogicalInstrument, RT.LogicalPlatform],
+            RT.LogicalPlatform: [RT.LogicalInstrument],
+            RT.LogicalInstrument: []
+            }
+        input_obj  = self.RR.read(input_resource_id)
+        if not input_obj._get_type() in allowed_types:
+            raise BadRequest("input_resource_id refers to unexpected type")
+        return self.find_subordinate_entity(input_resource_id, subordinates[input_obj._get_type()])
+
+    def find_superior_frames_of_reference(self, input_resource_id=''):
+        allowed_types = [RT.MarineFacility, RT.LogicalInstrument, RT.LogicalPlatform, RT.Site]
+        superiors = {
+            RT.MarineFacility: [],
+            RT.Site: [RT.MarineFacility],
+            RT.LogicalPlatform: [RT.MarineFacility, RT.Site],
+            RT.LogicalInstrument: [RT.MarineFacility, RT.Site, RT.LogicalPlatform]
+            }
+        input_obj  = self.RR.read(input_resource_id)
+        if not input_obj._get_type() in allowed_types:
+            raise BadRequest("input_resource_id refers to unexpected type")
+        return self.find_subordinate_entity(input_resource_id, superiors[input_obj._get_type()])
+
     def find_subordinate_entity(self, input_resource_id='', output_resource_type_list=[]):
 
         # the relative depth of each resource type in our tree
@@ -525,9 +531,8 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
                  RT.MarineFacility: 1,
                  }
 
-
         input_obj  = self.RR.read(input_resource_id)
-        input_type = type(input_obj).__name__
+        input_type = input_obj._get_type()
 
         #input type checking
         if not input_type in depth:
@@ -569,8 +574,10 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
             log.debug("Highest level for search will be '%s'" % highest_type)
 
             acc = self._traverse_entity_tree(acc, highest_type, input_type, False)
-            
-            
+
+        # Don't include input type in response            
+        if input_type in acc:
+            acc.pop(input_type)            
         return acc
                     
 

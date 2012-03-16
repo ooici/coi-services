@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 import os
 import time
-import math
+from datetime import datetime
 import string
 import random
 import StringIO
@@ -40,11 +40,6 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
-
-# NetCDF related imports
-from netCDF4 import Dataset
-from datetime import datetime, timedelta
-from netCDF4 import num2date, date2num
 
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
@@ -86,16 +81,16 @@ class VisualizationService(BaseVisualizationService):
             self.exchange_name = 'ingestion_queue'
 
             # Create ingestion configuration and activate it
-            ingestion_configuration_id =  self.IngestClient.create_ingestion_configuration(
+            self.ingestion_configuration_id =  self.IngestClient.create_ingestion_configuration(
                 exchange_point_id=self.exchange_point_id,
                 couch_storage=self.couch_storage,
                 hdf_storage=self.hdf_storage,
                 number_of_workers=self.number_of_workers
             )
-            print 'test_activateInstrument: ingestion_configuration_id', ingestion_configuration_id
+            print 'test_activateInstrument: ingestion_configuration_id', self.ingestion_configuration_id
 
             # activate an ingestion configuration
-            ret = self.IngestClient.activate_ingestion_configuration(ingestion_configuration_id)
+            ret = self.IngestClient.activate_ingestion_configuration(self.ingestion_configuration_id)
             log.debug("test_activateInstrument: activate = %s"  % str(ret))
 
 
@@ -134,6 +129,12 @@ class VisualizationService(BaseVisualizationService):
 
         return
 
+    def on_stop(self):
+        self.ingestion_service.deactivate_ingestion_configuration(self.ingestion_configuration_id)
+
+        super(VisualizationService, self).on_stop()
+        return
+
     def get_google_dt(self, data_product_id='', query=''):
         """Request to fetch the datatable for a data product as specified in the query. Query will also specify whether its a realtime view or one-shot
 
@@ -148,14 +149,18 @@ class VisualizationService(BaseVisualizationService):
 
         if viz_stream_id == []:
             log.warn ("Visualization_service: get_google_dt(): viz_stream_id is empty")
-            return
+            return None
 
         viz_stream_def_id = self.pubsub_cli.find_stream_definition(stream_id = viz_stream_id[0], id_only = True)
 
-        # send the resultant datatable back
-        if data_product_id in self.viz_data_dictionary['google_dt']:
-            return self.viz_data_dictionary['google_dt'][data_product_id]
-        else:
+        try:
+            # send the resultant datatable back
+            if data_product_id in self.viz_data_dictionary['google_dt']:
+                return self.viz_data_dictionary['google_dt'][data_product_id]
+            else:
+                return None
+
+        except AttributeError:
             return None
 
     def get_google_realtime_dt(self, data_product_id='', query=''):
@@ -166,9 +171,13 @@ class VisualizationService(BaseVisualizationService):
         @retval datatable    str
         @throws NotFound    object with specified id, query does not exist
         """
-        if data_product_id in self.viz_data_dictionary['google_realtime_dt']:
-            return self.viz_data_dictionary['google_realtime_dt'][data_product_id]
-        else:
+        try:
+            if data_product_id in self.viz_data_dictionary['google_realtime_dt']:
+                return self.viz_data_dictionary['google_realtime_dt'][data_product_id]
+            else:
+                return None
+
+        except AttributeError:
             return None
 
     def get_list_of_mpl_images(self, data_product_id=''):
@@ -180,10 +189,14 @@ class VisualizationService(BaseVisualizationService):
         """
 
         # return a json version of the array stored in the data_dict
-        if data_product_id in self.viz_data_dictionary['matplotlib_graphs']:
-            json_img_list = simplejson.dumps({'data': self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images']})
-            return "image_list_callback("+json_img_list+")"
-        else:
+        try:
+            if data_product_id in self.viz_data_dictionary['matplotlib_graphs']:
+                json_img_list = simplejson.dumps({'data': self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images']})
+                return "image_list_callback("+json_img_list+")"
+            else:
+                return None
+
+        except AttributeError:
             return None
 
     def get_image(self, data_product_id = '', image_name=''):
@@ -193,12 +206,16 @@ class VisualizationService(BaseVisualizationService):
         @retval file_obj    str
         @throws NotFound    object with specified id does not exist
         """
-        if data_product_id in self.viz_data_dictionary['matplotlib_graphs']:
-            if image_name in self.viz_data_dictionary['matplotlib_graphs'][data_product_id]:
-                return self.viz_data_dictionary['matplotlib_graphs'][data_product_id][image_name]
+        try:
+            if data_product_id in self.viz_data_dictionary['matplotlib_graphs']:
+                if image_name in self.viz_data_dictionary['matplotlib_graphs'][data_product_id]:
+                    return self.viz_data_dictionary['matplotlib_graphs'][data_product_id][image_name]
+                else:
+                    return None
             else:
                 return None
-        else:
+
+        except AttributeError:
             return None
 
 
@@ -421,7 +438,8 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
             for varname,_,_ in self.dataDescription:
                 val = float(vardict[varname][i])
                 if varname == 'time':
-                    varTuple.append(num2date(val,'days since 1970-01-01T00:00:00Z', 'standard'))
+                    #varTuple.append(num2date(val,'days since 1970-01-01T00:00:00Z', 'standard'))
+                    varTuple.append(datetime.fromtimestamp(val))
                 else:
                     varTuple.append(val)
 
