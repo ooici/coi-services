@@ -4,14 +4,14 @@ __author__ = 'Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 import collections, traceback, datetime, time, yaml
-import flask
+import flask, ast
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
 from pyon.core.object import IonObjectBase
 from pyon.core.registry import getextends, model_classes
-from pyon.public import Container, StandaloneProcess, log, PRED, RT
+from pyon.public import Container, StandaloneProcess, log, PRED, RT, IonObject
 from pyon.util.containers import named_any
 
 from interface import objects
@@ -23,6 +23,14 @@ DEFAULT_WEB_SERVER_HOSTNAME = ""
 DEFAULT_WEB_SERVER_PORT = 8080
 
 containerui_instance = None
+
+standard_types = ['str', 'int', 'bool', 'float', 'list', 'dict']
+standard_resattrs = ['name', 'description', 'lcstate', 'ts_created', 'ts_updated']
+EDIT_IGNORE_FIELDS = ['rid','restype','lcstate', 'ts_created', 'ts_updated']
+EDIT_IGNORE_TYPES = ['list','dict','bool']
+standard_eventattrs = ['origin', 'ts_created', 'description']
+date_fieldnames = ['ts_created', 'ts_updated']
+
 
 class ContainerUI(StandaloneProcess):
     """
@@ -117,8 +125,6 @@ def process_list_resource_types():
 
 # ----------------------------------------------------------------------------------------
 
-standard_resattrs = ['name', 'description', 'lcstate', 'ts_created', 'ts_updated']
-
 @app.route('/list/<resource_type>', methods=['GET','POST'])
 def process_list_resources(resource_type):
     try:
@@ -129,6 +135,7 @@ def process_list_resources(resource_type):
         fragments = [
             build_standard_menu(),
             "<h1>List of '%s' Resources</h1>" % restype,
+            build_command("New %s" % restype, "/new/%s" % restype),
             build_res_extends(restype),
             "<p>",
             "<table>",
@@ -205,8 +212,6 @@ def build_table_row(obj):
 
 # ----------------------------------------------------------------------------------------
 
-standard_types = ['str', 'int', 'bool', 'float', 'list', 'dict']
-
 @app.route('/view/<resource_id>', methods=['GET','POST'])
 def process_view_resource(resource_id):
     try:
@@ -244,22 +249,30 @@ def process_view_resource(resource_id):
     except Exception, e:
         return build_error_page(traceback.format_exc())
 
-def build_nested_obj(obj, prefix):
+def build_nested_obj(obj, prefix, edit=False):
     fragments = []
     schema = obj._schema
     for field in standard_resattrs:
         if field in schema:
             value = get_formatted_value(getattr(obj, field), fieldname=field)
-            fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
+            if edit and field not in EDIT_IGNORE_FIELDS:
+                fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], field, getattr(obj, field)))
+            else:
+                fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
     for field in sorted(schema.keys()):
         if field not in standard_resattrs:
             value = getattr(obj, field)
             if schema[field]["type"] in model_classes or isinstance(value, IonObjectBase):
+                # Nested object case
                 fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], "[%s]" % value._get_type()))
-                fragments.extend(build_nested_obj(value, "%s%s." % (prefix,field)))
+                fragments.extend(build_nested_obj(value, "%s%s." % (prefix,field), edit=edit))
             else:
                 value = get_formatted_value(value, fieldname=field, fieldtype=schema[field]["type"])
-                fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
+                if edit and field not in EDIT_IGNORE_FIELDS and schema[field]["type"] not in EDIT_IGNORE_TYPES:
+                    # Todo: check enum, int, list, dict
+                    fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], field, getattr(obj, field)))
+                else:
+                    fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
     return fragments
 
 def build_associations(resid):
@@ -296,7 +309,9 @@ def build_associations(resid):
 def build_commands(resource_id, restype):
     fragments = ["<h2>Commands</h2>"]
 
-    fragments.append(build_command("Delete", "/cmd/delete?rid=%s" % resource_id))
+    fragments.append(build_command("Edit", "/edit/%s" % resource_id))
+
+    fragments.append(build_command("Delete", "/cmd/delete?rid=%s" % resource_id, confirm="Are you sure to delete resource?"))
 
     from pyon.ion.resource import CommonResourceLifeCycleSM
     event_list = list(CommonResourceLifeCycleSM.MAT_EVENTS) + CommonResourceLifeCycleSM.VIS_EVENTS
@@ -349,7 +364,7 @@ def build_commands(resource_id, restype):
     fragments.append("</table>")
     return "".join(fragments)
 
-def build_command(text, link, args=None):
+def build_command(text, link, args=None, confirm=None):
     fragments = []
     if args:
         arg_type, arg_name, arg_more = args[0]
@@ -361,7 +376,9 @@ def build_command(text, link, args=None):
             fragments.append("</select>")
         fragments.append("</div>")
     else:
-        fragments.append("<div>%s</div>" % build_link(text, link, "return confirm('Are you sure to delete resource?');"))
+        if confirm:
+            confirm = "return confirm('%s');" % confirm
+        fragments.append("<div>%s</div>" % build_link(text, link, confirm))
     return "".join(fragments)
 
 # ----------------------------------------------------------------------------------------
@@ -372,7 +389,10 @@ def process_command(cmd):
         cmd = str(cmd)
         resource_id = get_arg('rid')
 
-        res_obj = Container.instance.resource_registry.read(resource_id)
+        if resource_id != "NEW":
+            res_obj = Container.instance.resource_registry.read(resource_id)
+        else:
+            res_obj = None
 
         func_name = "_process_cmd_%s" % cmd
         cmd_func = globals().get(func_name, None)
@@ -393,6 +413,56 @@ def process_command(cmd):
 
     except Exception, e:
         return build_error_page(traceback.format_exc())
+
+def _process_cmd_update(resource_id, res_obj=None):
+    if resource_id == "NEW":
+        restype = get_arg("restype")
+        res_obj = IonObject(restype)
+
+    schema = res_obj._schema
+    set_fields = []
+
+    for field,value in request.values.iteritems():
+        value = str(value)
+        nested_fields = field.split('.')
+        local_field = nested_fields[0]
+        if field in EDIT_IGNORE_FIELDS or local_field not in schema:
+            continue
+        if field not in schema:
+            # TODO: Change
+            continue
+        if len(nested_fields) > 1:
+            obj = res_obj
+            skip_field = False
+            for sub_field in nested_fields:
+                local_obj = getattr(obj, sub_field, None)
+                log.warn("Field %s, sub %s, obj %s, local %s, schema %s" % (field, sub_field, obj,local_obj, obj._schema[sub_field]))
+                if skip_field or not local_obj:
+                    skip_field = True
+                    continue
+                elif not isinstance(local_obj, IonObjectBase):
+                    value = get_typed_value(value, obj._schema[sub_field])
+                    setattr(obj, sub_field, value)
+                    set_fields.append(field)
+                    skip_field = True
+                else:
+                    obj = local_obj
+
+        elif schema[field]['type'] in EDIT_IGNORE_TYPES:
+            pass
+        else:
+            value = get_typed_value(value, res_obj._schema[field])
+            setattr(res_obj, field, value)
+            set_fields.append(field)
+
+    res_obj._validate()
+
+    if resource_id == "NEW":
+        Container.instance.resource_registry.create(res_obj)
+    else:
+        Container.instance.resource_registry.update(res_obj)
+
+    return "OK. Set fields: %s" % set_fields
 
 def _process_cmd_delete(resource_id, res_obj=None):
     Container.instance.resource_registry.delete(resource_id)
@@ -466,6 +536,73 @@ def _process_cmd_agent_execute(resource_id, res_obj=None):
     res_dict = get_value_dict(res)
     res_str = get_formatted_value(res_dict, fieldtype="dict")
     return res_str
+
+# ----------------------------------------------------------------------------------------
+
+@app.route('/edit/<resource_id>', methods=['GET','POST'])
+def process_edit_resource(resource_id):
+    try:
+        resid = str(resource_id)
+        res = Container.instance.resource_registry.read(resid)
+        restype = res._get_type()
+
+        fragments = [
+            build_standard_menu(),
+            "<h1>Edit %s '%s'</h1>" % (build_type_link(restype), res.name),
+            "<form name='edit' action='/cmd/update?rid=%s' method='post'>" % resid,
+        ]
+        fragments.extend(build_editable_resource(res, is_new=False))
+        fragments.append("<p><input type='reset'/> <input type='submit' value='Save'/></p>")
+        fragments.append("</form>")
+        fragments.append("<p>%s</p>" % build_link("Back to Resource Page", "/view/%s" % resid)),
+
+        content = "\n".join(fragments)
+        return build_page(content)
+
+    except NotFound:
+        return flask.redirect("/")
+    except Exception, e:
+        return build_error_page(traceback.format_exc())
+
+@app.route('/new/<restype>', methods=['GET','POST'])
+def process_new_resource(restype):
+    try:
+        restype = str(restype)
+        res = IonObject(restype)
+        res._id = "NEW"
+
+        fragments = [
+            build_standard_menu(),
+            "<h1>Create New %s</h1>" % (build_type_link(restype)),
+            "<form name='edit' action='/cmd/update?rid=NEW&restype=%s' method='post'>" % restype,
+        ]
+        fragments.extend(build_editable_resource(res, is_new=True))
+        fragments.append("<p><input type='reset'/> <input type='submit' value='Create'/></p>")
+        fragments.append("</form>")
+        fragments.append("<p>%s</p>" % build_link("Back to List Page", "/list/%s" % restype)),
+
+        content = "\n".join(fragments)
+        return build_page(content)
+
+    except NotFound:
+        return flask.redirect("/")
+    except Exception, e:
+        return build_error_page(traceback.format_exc())
+
+def build_editable_resource(res, is_new=False):
+    restype = res._get_type()
+    resid = res._id
+
+    fragments = [
+        "<p><table>",
+        "<tr><th>Field</th><th>Type</th><th>Value</th></tr>"
+    ]
+
+    fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td>" % ("type", "str", restype))
+    fragments.extend(build_nested_obj(res, "", edit=True))
+    fragments.append("</p></table>")
+
+    return fragments
 
 # ----------------------------------------------------------------------------------------
 
@@ -615,8 +752,6 @@ def build_dir_link(parent, key):
 
 # ----------------------------------------------------------------------------------------
 
-standard_eventattrs = ['origin', 'ts_created', 'description']
-
 @app.route('/events', methods=['GET','POST'])
 def process_events():
     try:
@@ -719,7 +854,7 @@ def build_page(content, title=""):
     return "\n".join(fragments)
 
 def get_arg(arg_name, default=None):
-    aval = request.args.get(arg_name, None)
+    aval = request.values.get(arg_name, None)
     return str(aval) if aval else default
 
 def convert_unicode(data):
@@ -744,6 +879,29 @@ def _get_object_class(objtype):
     obj_classes[objtype] = obj_class
     return obj_class
 
+def get_typed_value(value, schema_entry=None, targettype=None):
+    targettype = targettype or schema_entry["type"]
+    if targettype is 'str':
+        return str(value)
+    elif targettype is 'bool':
+        lvalue = value.lower()
+        if lvalue == 'true':
+            return True
+        elif lvalue == 'false' or lvalue == '':
+            return False
+        else:
+            raise BadRequest("Value %s is no bool" % value)
+    elif targettype is 'simplelist':
+        if value.startswith('[') and value.endswith(']'):
+            value = value[1:len(value)-1].strip()
+        return list(value.split(','))
+    elif schema_entry and 'enum_type' in schema_entry:
+        enum_clzz = getattr(objects, schema_entry['enum_type'])
+        return enum_clzz._value_map[value]
+    else:
+        return ast.literal_eval(value)
+
+
 def get_value_dict(obj, ignore_fields=None):
     ignore_fields = ignore_fields or []
     if isinstance(obj, IonObjectBase):
@@ -761,7 +919,6 @@ def get_value_dict(obj, ignore_fields=None):
             val_dict[k] = val
     return val_dict
 
-date_fieldnames = ['ts_created', 'ts_updated']
 def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None, brief=False, time_millis=False, is_root=True):
     if not fieldtype and fieldschema:
         fieldtype = fieldschema['type']
