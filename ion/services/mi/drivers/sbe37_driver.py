@@ -20,6 +20,7 @@ from ion.services.mi.single_connection_instrument_driver import SingleConnection
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.instrument_driver import DriverEvent
+from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_driver import DriverProtocolState
 from ion.services.mi.instrument_driver import DriverParameter
 
@@ -44,6 +45,7 @@ class SBE37ProtocolEvent(BaseEnum):
     EXIT = DriverEvent.EXIT
     GET = DriverEvent.GET
     SET = DriverEvent.SET
+    DISCOVER = DriverEvent.DISCOVER
     ACQUIRE_SAMPLE = DriverEvent.ACQUIRE_SAMPLE
     START_AUTOSAMPLE = DriverEvent.START_AUTOSAMPLE
     STOP_AUTOSAMPLE = DriverEvent.STOP_AUTOSAMPLE
@@ -122,11 +124,10 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
         SingleConnectionInstrumentDriver.__init__(self, evt_callback)
 
 
-
-    def _build_protocol(self, connection):
+    def _build_protocol(self):
         """
         """
-        self._protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, self._driver_event, connection)
+        self._protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, self._driver_event)
 
 ###############################################################################
 # Seabird Electronics 37-SMP MicroCAT protocol.
@@ -135,24 +136,37 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
 class SBE37Protocol(CommandResponseInstrumentProtocol):
     """
     """
-    def __init__(self, prompts, newline, driver_event, connection):
+    def __init__(self, prompts, newline, driver_event):
         """
         """
-        CommandResponseInstrumentProtocol.__init__(self, prompts, newline, driver_event, connection)
+        CommandResponseInstrumentProtocol.__init__(self, prompts, newline, driver_event)
         
         # Build protocol state machine.
         self._protocol_fsm = InstrumentFSM(SBE37ProtocolState, SBE37ProtocolEvent,
                             SBE37ProtocolEvent.ENTER, SBE37ProtocolEvent.EXIT)
 
         self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.ENTER, self._handler_unknown_enter)
-        self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.ENTER, self._handler_unknown_exit)
-        
-        
-        
-        self._protocol_fsm.start(SBE37ProtocolState.UNKNOWN)
-
+        self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.EXIT, self._handler_unknown_exit)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.DISCOVER, self._handler_unknown_discover)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.ENTER, self._handler_command_enter)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.EXIT, self._handler_command_exit)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.EXIT, self._handler_command_acquire_sample)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.ENTER, self._handler_autosample_enter)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.EXIT, self._handler_autosample_exit)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.ENTER, self._handler_direct_access_enter)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.EXIT, self._handler_direct_access_exit)
 
         self._build_param_dict()
+
+        self._add_build_handler('ds', self._build_simple_command)
+        self._add_build_handler('dc', self._build_simple_command)
+        self._add_build_handler('ts', self._build_simple_command)
+
+        self._add_response_handler('ds', self._parse_dsdc_response)
+        self._add_response_handler('dc', self._parse_dsdc_response)
+        self._add_response_handler('ts', self._parse_ts_response)
+
+        self._protocol_fsm.start(SBE37ProtocolState.UNKNOWN)
 
     ########################################################################
     # Unknown handlers.
@@ -168,21 +182,148 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         pass
 
+    def _handler_unknown_discover(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+                
+        
+        timeout = kwargs.get('timeout', 10)
+        prompt = self._wakeup(timeout)
+        
+        if prompt == SBE37Prompt.COMMAND:
+            next_state = SBE37ProtocolState.COMMAND
+        elif prompt == SBE37Prompt.AUTOSAMPLE:
+            next_state = SBE37ProtocolState.AUTOSAMPLE
+        else:
+            # Error discovering state.
+            pass
+        mi_logger.info('NEXT STATE IS %s', next_state)        
+        return (next_state, result)
+
     ########################################################################
     # Command handlers.
     ########################################################################
+
+    def _handler_command_enter(self, *args, **kwargs):
+        """
+        """
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+        self._update_params()
+    
+    def _handler_command_exit(self, *args, **kwargs):
+        """
+        """
+        pass
+
+    def _handler_command_acquire_sample(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+                
+        self._do_cmd_resp('ts', *args, **kwargs)
+
+        return (next_state, result)
 
     ########################################################################
     # Autosample handlers.
     ########################################################################
 
+    def _handler_autosample_enter(self, *args, **kwargs):
+        """
+        """
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+    
+    def _handler_autosample_exit(self, *args, **kwargs):
+        """
+        """
+        pass
+
     ########################################################################
     # Direct access handlers.
     ########################################################################
 
+    def _handler_direct_access_enter(self, *args, **kwargs):
+        """
+        """
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+    
+    def _handler_direct_access_exit(self, *args, **kwargs):
+        """
+        """
+        pass
+
     ########################################################################
     # Private helpers.
     ########################################################################
+        
+    def _send_wakeup(self):
+        """
+        """
+        self._connection.send(SBE37_NEWLINE)
+        
+    def _update_params(self):
+        """
+        """
+        
+        timeout = 10
+        old_config = self._param_dict.get_config()
+        self._do_cmd_resp('ds',timeout=timeout)
+        self._do_cmd_resp('dc',timeout=timeout)
+        new_config = self._param_dict.get_config()
+        if new_config != old_config:
+            self._driver_event(DriverAsyncEvent.CONFIG_CHANGE)
+        mi_logger.info('done updating params')
+        
+    def _build_simple_command(self, cmd):
+        """
+        """
+        return cmd+SBE37_NEWLINE
+    
+    def _build_set_command(self, cmd, param, val):
+        """
+        """
+        str_val = self._format_param_dict(param, val)
+        set_cmd = '%s=%s' % (param, str_val)
+        set_cmd = set_cmd + SBE37_NEWLINE
+        return set_cmd
+
+    def _parse_dsdc_response(self, response, prompt):
+        """
+        """
+        for line in response.split(SBE37_NEWLINE):
+            self._param_dict.update(line)
+        
+    def _parse_ts_response(self, response, prompt):
+        """
+        """
+        sample = None
+        for line in response.split(SBE37_NEWLINE):
+            sample = self._extract_sample(line, True)
+            if sample: break
+            
+        return sample
+        
+    def _extract_sample(self, line, publish=True):
+        """
+        """
+        sample = None
+        match = self._sample_regex.match(line)
+        if match:
+            sample = {}
+            sample['t'] = [float(match.group(1))]
+            sample['c'] = [float(match.group(2))]
+            sample['p'] = [float(match.group(3))]
+
+            # Driver timestamp.
+            sample['time'] = [time.time()]
+
+            if self._driver_event:
+                self._driver_event(DriverAsyncEvent.SAMPLE, sample)
+
+        return sample            
         
     def _build_param_dict(self):
         """

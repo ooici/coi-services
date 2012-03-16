@@ -26,4 +26,12 @@ class NotImplementedError(InstrumentException):
     pass
 
 
-    
+class InstrumentTimeoutError(InstrumentException):
+    """
+    """
+    pass
+
+class InstrumentProtocolError(InstrumentException):
+    """
+    """
+    pass

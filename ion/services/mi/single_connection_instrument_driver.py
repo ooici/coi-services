@@ -12,6 +12,8 @@ driver implementation classes.
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
+import logging
+
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.exceptions import NotImplementedError
 from ion.services.mi.instrument_driver import InstrumentDriver
@@ -21,6 +23,8 @@ from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.logger_process import LoggerClient
 
+#import ion.services.mi.mi_logger
+mi_logger = logging.getLogger('mi_logger')
 
 class SingleConnectionInstrumentDriver(InstrumentDriver):
     """
@@ -271,8 +275,11 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         next_state = None
         result = None
         
-        self._build_protocol(self._connection)
+        self._build_protocol()
         self._connection.init_comms(self._protocol.got_data)
+        self._protocol._connection = self._connection
+        mi_logger.info('PROTOCOL HAS THIS CONNECTION: %s', str(self._protocol._connection))
+        mi_logger.info('DRIVER HAS THIS CONNECTION: %s', str(self._connection))
         next_state = DriverConnectionState.CONNECTED
         
         return (next_state, result)
@@ -325,7 +332,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
     # 
     ########################################################################
 
-    def _build_protocol(self, connection):
+    def _build_protocol(self):
         """
         """
         pass

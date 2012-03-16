@@ -192,7 +192,7 @@ class InstrumentDriver(object):
             self._send_event(event)
             
         elif type == DriverAsyncEvent.CONFIG_CHANGE:
-            config = self.get('ALL')
+            config = self.get(DriverParameter.ALL)
             event['value'] = config
             self._send_event(event)
         
