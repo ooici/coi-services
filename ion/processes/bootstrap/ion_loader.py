@@ -76,7 +76,7 @@ class IONLoader(ImmediateProcess):
                       'InstrumentAgent',
                       'InstrumentAgentInstance',
                       'DataProcessDefinition',
-                      'IngestionConfiguration',
+                      #'IngestionConfiguration',
                       'DataProduct',
                       'DataProcess',
                       'DataProductLink',
