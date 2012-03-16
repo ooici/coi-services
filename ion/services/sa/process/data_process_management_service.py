@@ -290,10 +290,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 #        self.clients.transform_management_service.schedule_transform(transform_id)
 #        self.clients.transform_management_service.bind_transform(transform_id)
 
-        # TODO: Where should activate take place?
-        log.debug("DataProcessManagementService:create_data_process - transform_management.activate_transform")
-        self.clients.transform_management.activate_transform(transform_id)
-
         return data_process_id
 
 
@@ -366,6 +362,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #todo: add filter processing
         data_process_list , _ = self.clients.resource_registry.find_resources(RT.DataProcess, None, None, True)
         return data_process_list
+
+    def activate_data_process(self, data_process_id=""):
+
+        data_process_obj = self.read_data_process(data_process_id)
+
+        #find the Transform
+        log.debug("DataProcessManagementService:activate_data_process - get the transform associated with this data process")
+        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
+        if not transforms:
+            raise NotFound("No Transform created for this Data Process " + str(transforms))
+        if len(transforms) != 1:
+            raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
+
+        log.debug("DataProcessManagementService:activate_data_process - transform_management.activate_transform")
+        self.clients.transform_management.activate_transform(transforms[0])
+        return
+
 
     def attach_process(self, process=''):
         """

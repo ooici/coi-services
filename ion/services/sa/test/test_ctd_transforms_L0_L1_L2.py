@@ -59,7 +59,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         print 'started services'
 
@@ -389,6 +389,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process start")
         try:
             ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product, self.output_products)
+            self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -401,6 +402,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L1 Conductivity data_process start")
         try:
             l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, ctd_l0_conductivity_output_dp_id, {'output':ctd_l1_conductivity_output_dp_id})
+            self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -413,6 +415,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
             l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, ctd_l0_pressure_output_dp_id, {'output':ctd_l1_pressure_output_dp_id})
+            self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -426,6 +429,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
             l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, ctd_l0_temperature_output_dp_id, {'output':ctd_l1_temperature_output_dp_id})
+            self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -439,6 +443,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L2_salinity data_process start")
         try:
             l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, ctd_parsed_data_product, {'output':ctd_l2_salinity_output_dp_id})
+            self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -450,6 +455,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L2_Density data_process start")
         try:
             l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, ctd_parsed_data_product, {'output':ctd_l2_density_output_dp_id})
+            self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -470,100 +476,100 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
 
 
-        #-------------------------------
-        # Streaming
-        #-------------------------------
-
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        print retval
-        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
-
-        time.sleep(2)
-
-        cmd = AgentCommand(command='go_active')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_createTransformsThenActivateInstrument:: go_active %s", str(reply))
-        time.sleep(2)
-
-        cmd = AgentCommand(command='run')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_createTransformsThenActivateInstrument:: run %s", str(reply))
-        time.sleep(2)
-
-        log.debug("test_activateInstrument: calling go_streaming ")
-        cmd = AgentCommand(command='go_streaming')
-        reply = self._ia_client.execute(cmd)
-        log.debug("test_createTransformsThenActivateInstrument:: go_streaming %s", str(reply))
-        time.sleep(30)
-
-        log.debug("test_activateInstrument: calling go_observatory")
-        cmd = AgentCommand(command='go_observatory')
-        reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrument: return from go_observatory   %s", str(reply))
-        time.sleep(6)
-
-
-        log.debug("test_createTransformsThenActivateInstrument:: calling go_inactive ")
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_createTransformsThenActivateInstrument:: return from go_inactive %s", str(reply))
-        time.sleep(2)
-
-        log.debug("test_createTransformsThenActivateInstrument:: calling reset ")
-        cmd = AgentCommand(command='reset')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_createTransformsThenActivateInstrument:: return from reset %s", str(reply))
-        time.sleep(2)
-
 #        #-------------------------------
-#        # Sampling
+#        # Streaming
 #        #-------------------------------
+#
 #        cmd = AgentCommand(command='initialize')
 #        retval = self._ia_client.execute_agent(cmd)
 #        print retval
 #        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
+#
 #        time.sleep(2)
 #
 #        cmd = AgentCommand(command='go_active')
 #        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: go_active %s", str(reply))
+#        log.debug("test_createTransformsThenActivateInstrument:: go_active %s", str(reply))
 #        time.sleep(2)
 #
 #        cmd = AgentCommand(command='run')
 #        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: run %s", str(reply))
+#        log.debug("test_createTransformsThenActivateInstrument:: run %s", str(reply))
 #        time.sleep(2)
 #
-#        log.debug("test_activateInstrument: calling acquire_sample ")
-#        cmd = AgentCommand(command='acquire_sample')
+#        log.debug("test_activateInstrument: calling go_streaming ")
+#        cmd = AgentCommand(command='go_streaming')
 #        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
-#        time.sleep(2)
+#        log.debug("test_createTransformsThenActivateInstrument:: go_streaming %s", str(reply))
+#        time.sleep(30)
 #
-#        log.debug("test_activateInstrument: calling acquire_sample 2")
-#        cmd = AgentCommand(command='acquire_sample')
+#        log.debug("test_activateInstrument: calling go_observatory")
+#        cmd = AgentCommand(command='go_observatory')
 #        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
-#        time.sleep(2)
+#        log.debug("test_activateInstrument: return from go_observatory   %s", str(reply))
+#        time.sleep(6)
 #
-#        log.debug("test_activateInstrument: calling acquire_sample 3")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
-#        time.sleep(2)
 #
-#        log.debug("test_activateInstrument: calling go_inactive ")
+#        log.debug("test_createTransformsThenActivateInstrument:: calling go_inactive ")
 #        cmd = AgentCommand(command='go_inactive')
 #        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
+#        log.debug("test_createTransformsThenActivateInstrument:: return from go_inactive %s", str(reply))
 #        time.sleep(2)
 #
-#        log.debug("test_activateInstrument: calling reset ")
+#        log.debug("test_createTransformsThenActivateInstrument:: calling reset ")
 #        cmd = AgentCommand(command='reset')
 #        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from reset %s", str(reply))
+#        log.debug("test_createTransformsThenActivateInstrument:: return from reset %s", str(reply))
 #        time.sleep(2)
+
+        #-------------------------------
+        # Sampling
+        #-------------------------------
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        print retval
+        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
+        time.sleep(2)
+
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: go_active %s", str(reply))
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: run %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample ")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample 2")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling acquire_sample 3")
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling go_inactive ")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: return from reset %s", str(reply))
+        time.sleep(2)
 
 
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)

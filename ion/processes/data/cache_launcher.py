@@ -57,4 +57,4 @@ class CacheLauncher(StandaloneProcess):
             )
 
 
-            tms_cli.activate_transform(transform_id=transform_id)
+        tms_cli.activate_transform(transform_id=transform_id)
