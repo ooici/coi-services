@@ -486,14 +486,14 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         self.stream_def = self.rr_cli.read(self.stream_def_id)
 
         # Start the thread responsible for keeping track of time and generating graphs
+        # Mutex for ensuring proper concurrent communications between threads
+        self.lock = RLock()
         self.rendering_proc = Greenlet(self.rendering_thread)
         self.rendering_proc.start()
 
-        # Create a stringIO object to hold image files in memory
 
 
-        # Create a mutex for shared data
-        self.lock = RLock()
+
 
 
 
