@@ -297,6 +297,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
+        
+        instrument_agent_instance_obj.agent_process_id = None
+
+        self.RR.update(instrument_agent_instance_obj)
 
         return
 
@@ -935,10 +939,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def deploy_as_primary_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.link_primary_deployment(instrument_device_id, logical_instrument_id)
+        self.instrument_device.assign_primary_deployment(instrument_device_id, logical_instrument_id)
 
     def undeploy_primary_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.unlink_primary_deployment(instrument_device_id, logical_instrument_id)
+        self.instrument_device.unassign_primary_deployment(instrument_device_id, logical_instrument_id)
 
     def deploy_as_primary_platform_device_to_logical_platform(self, platform_device_id='', logical_platform_id=''):
         self.platform_device.link_primary_deployment(platform_device_id, logical_platform_id)
@@ -956,7 +960,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #    raise BadRequest("Tried to assign a model to an instrument, but the model didn't have an agent")
 
         self.instrument_device.link_model(instrument_device_id, instrument_model_id)
-        self.setup_data_production_chain(instrument_device_id)
+        # todo: determine if data products are created from the instrument model info at this time
+        # todo: this is currently perfromed by preload - do not duplicate here
+        #self.setup_data_production_chain(instrument_device_id)
 
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
         raise Inconsistent("Unassigning an instrument model from an instrument device (cleanly) has not been defined")
