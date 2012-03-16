@@ -47,8 +47,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='bvr')
-#@unittest.skip("run locally only")
+@attr('INT', group='sa')
+@unittest.skip("run locally only")
 class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
     def setUp(self):
@@ -342,6 +342,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         log.debug("test_deployAsPrimaryDevice: create ctd_parsed logical  data_process start")
         try:
             ctd_parsed_logical_data_process_id = self.dataprocessclient.create_data_process(logical_transform_dprocdef_id, ctd_parsed_data_product_year1, {'output':logical_instrument_output_dp_id})
+            self.dataprocessclient.activate_data_process(ctd_parsed_logical_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
@@ -352,6 +353,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process start")
         try:
             ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, logical_instrument_output_dp_id, self.output_products)
+            self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
