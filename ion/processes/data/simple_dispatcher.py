@@ -6,6 +6,8 @@
 @description A simple example process which publishes prototype ctd data
 
 
+$ bin/pycc --rel res/deploy/r2sa.yml
+
 ### To Create a data product and get some data on the stream copy this and use %paste
 """
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
@@ -36,9 +38,10 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_pub
 Get the data product id from the variable and use it to start a separate container running the dispatcher
 
 
-To Run:
-bin/pycc dispatcher.data_product_id='abc123'
-cc.spawn_process(name="dispatcher_process", module="ion.processes.data.simple_dispatcher", cls="SimpleDispatcher")
+To run the dispatcher:
+bin/pycc --rel res/deploy/examples/dispatcher.yml dispatcher.data_product_id=<data product id>
+
+
 '''
 
 
