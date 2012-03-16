@@ -168,7 +168,7 @@ class sbe37(asyncore.dispatcher_with_send):
             if self.logging == True:
                 self.count += 1
                 time.sleep(0.1)
-                if self.count > 80:
+                if self.count > 25:
                     self.count = 1
                     self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
                     #self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(10,30), random.uniform(0.03, 0.07), random.uniform(-5, -9), random.uniform(0.18, 0.36), random.uniform(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
