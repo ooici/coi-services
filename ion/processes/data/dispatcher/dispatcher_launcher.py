@@ -85,3 +85,5 @@ class DispatcherLauncher(BaseService):
             configuration=config
         )
         tms_cli.activate_transform(transform_id)
+
+        return visual_product_id
