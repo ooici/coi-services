@@ -128,6 +128,10 @@ class ReplayProcess(BaseReplayProcess):
         if self.delivery_format.has_key('time'):
             granule = self.time_subset(granule, self.delivery_format['time'])
 
+        total_records = granule.identifiables[self.element_count_id].value
+        granule.identifiables[self.element_count_id].constraint.intervals = [[0, total_records-1],]
+
+
         if self.delivery_format.has_key('records'):
             assert isinstance(self.delivery_format['records'], int), 'delivery format is incorrectly formatted.'
 

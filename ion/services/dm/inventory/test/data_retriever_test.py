@@ -402,6 +402,11 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             assertions(record_count>0 and record_count<=10, 'record count size is incorrect.')
             # Make sure that the granule contains no more than 10 records
 
+            expected_range = msg.identifiables[element_count_id].constraint.intervals[0]
+            assertions(expected_range[0] in xrange(71))
+            assertions(expected_range[1] in xrange(71))
+
+
 
             incr_lock.acquire()
             if not records_rcvd.empty():
@@ -426,4 +431,5 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         dr_cli.cancel_replay(replay_id=replay_id)
         if not (os.getenv('CEI_LAUNCH_TEST', False)):
             assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+
 
