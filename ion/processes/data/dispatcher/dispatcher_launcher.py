@@ -8,7 +8,8 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from pyon.service.service import BaseService
-
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
+from ion.processes.data.dispatcher.dispatcher_cache import DISPATCH_DATASTORE
 
 class DispatcherLauncher(BaseService):
     def on_start(self):
@@ -23,7 +24,7 @@ class DispatcherLauncher(BaseService):
         subscription_id = self.CFG.get_safe('process.subscription_id',None)
         if not subscription_id:
             # Exchange Subscription
-            subscription_id = pubsub_cli.create_subscription(query=ExchangeQuery(),exchange_name='dispatcher_cache')
+            subscription_id = pubsub_cli.create_subscription(query=ExchangeQuery(),exchange_name=DISPATCH_DATASTORE)
 
         number_of_processes = self.CFG.get_safe('process.number_of_processes',1)
 
@@ -36,12 +37,12 @@ class DispatcherLauncher(BaseService):
         proc_def_id = pd_cli.create_process_definition(process_definition=proc_def)
         config = {
             'process':{
-                'datastore_name':self.CFG.get_safe('process.datastore_name','dispatcher_cache'),
+                'datastore_name':self.CFG.get_safe('process.datastore_name',DISPATCH_DATASTORE),
                 'datastore_profile':'SCIDATA'
             }
         }
 
-
+        transform_id = ''
         for i in xrange(number_of_processes):
             config['process']['number']=i
             transform_id = tms_cli.create_transform(
@@ -50,10 +51,17 @@ class DispatcherLauncher(BaseService):
                 configuration=config,
                 process_definition_id=proc_def_id
             )
+        if transform_id:
             tms_cli.activate_transform(transform_id=transform_id)
 
-        #-------------------------------------------------
-        # Time now, N processes are running
-        # Need to start the visualizer
-        #-------------------------------------------------
+    @staticmethod
+    def visualize(stream_id):
+        pubsub_cli = PubsubManagementServiceClient()
+        pd_cli= ProcessDispatcherServiceClient()
+        stream_definition = SBE37_CDM_stream_definition()
+        stream_definition_id = pubsub_cli.create_stream_definition(container=stream_definition)
+        dispatch_stream_id = pubsub_cli.create_stream(stream_definition_id=stream_definition_id)
+
+        stream_definition.stream_resource_id = dispatch_stream_idstream_id
+
 

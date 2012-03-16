@@ -25,6 +25,8 @@ from pyon.event.event import EventSubscriber
 from pyon.util.file_sys import FS, FileSystem
 import hashlib
 
+DISPATCH_DATASTORE='dispatcher_cache'
+
 class DispatcherCacheException(IonException):
     """
     Exception class for IngestionManagementService exceptions. This class inherits from IonException
@@ -45,7 +47,7 @@ class DispatcherCache(IngestionWorker):
     def on_start(self):
         super(IngestionWorker,self).on_start()
 
-        self.datastore_name = self.CFG.get_safe('process.datastore_name','dispatcher_cache')
+        self.datastore_name = self.CFG.get_safe('process.datastore_name',DISPATCH_DATASTORE)
         self.number = self.CFG.get_safe('process.number', 1)
         try:
             self.datastore_profile = getattr(DataStore.DS_PROFILE, self.CFG.get_safe('datastore_profile','SCIDATA'))
