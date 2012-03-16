@@ -28,7 +28,7 @@ from ion.services.mi.common import InstErrorCode
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
-
+from pyon.util.containers import get_safe
 
 class InstrumentAgentState(BaseEnum):
     """
@@ -76,6 +76,12 @@ class InstrumentAgent(ResourceAgent):
     common resource interface, point of publication) and creates
     a driver process to specialize for particular hardware.
     """
+
+    # Override to publish specific types of events
+    COMMAND_EVENT_TYPE = "DeviceCommandEvent"
+    # Override to set specific origin type
+    ORIGIN_TYPE = "InstrumentDevice"
+
     def __init__(self, initial_state=InstrumentAgentState.UNINITIALIZED):
         """
         Initialize instrument agent prior to pyon process initialization.
@@ -220,6 +226,10 @@ class InstrumentAgent(ResourceAgent):
         Init objects that depend on the container services and start state
         machine.
         """
+        resource_id = get_safe(self.CFG, "agent.resource_id")
+        if not self.resource_id:
+            log.warn("InstrumentAgent.on_init(): agent has no resource_id in configuration")
+                
         # The registrar to create publishers.
         self._stream_registrar = StreamPublisherRegistrar(process=self,
                                                     node=self.container.node)
@@ -296,91 +306,78 @@ class InstrumentAgent(ResourceAgent):
         """
         Agent power_up command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.POWER_UP)
         return self._fsm.on_event(InstrumentAgentEvent.POWER_UP, *args, **kwargs)
     
     def acmd_power_down(self, *args, **kwargs):
         """
         Agent power_down command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.POWER_DOWN)
         return self._fsm.on_event(InstrumentAgentEvent.POWER_DOWN, *args, **kwargs)
     
     def acmd_initialize(self, *args, **kwargs):
         """
         Agent initialize command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.INITIALIZE)
         return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
 
     def acmd_reset(self, *args, **kwargs):
         """
         Agent reset command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.RESET)
         return self._fsm.on_event(InstrumentAgentEvent.RESET, *args, **kwargs)
     
     def acmd_go_active(self, *args, **kwargs):
         """
         Agent go_active command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.GO_ACTIVE)
         return self._fsm.on_event(InstrumentAgentEvent.GO_ACTIVE, *args, **kwargs)
 
     def acmd_go_inactive(self, *args, **kwargs):
         """
         Agent go_inactive command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.GO_INACTIVE)
         return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
 
     def acmd_run(self, *args, **kwargs):
         """
         Agent run command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.RUN)
         return self._fsm.on_event(InstrumentAgentEvent.RUN, *args, **kwargs)
 
     def acmd_clear(self, *args, **kwargs):
         """
         Agent clear command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.CLEAR)
         return self._fsm.on_event(InstrumentAgentEvent.CLEAR, *args, **kwargs)
 
     def acmd_pause(self, *args, **kwargs):
         """
         Agent pause command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.PAUSE)
         return self._fsm.on_event(InstrumentAgentEvent.PAUSE, *args, **kwargs)
 
     def acmd_resume(self, *args, **kwargs):
         """
         Agent resume command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.RESUME)
         return self._fsm.on_event(InstrumentAgentEvent.RESUME, *args, **kwargs)
 
     def acmd_go_streaming(self, *args, **kwargs):
         """
         Agent go_streaming command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.GO_STREAMING)
         return self._fsm.on_event(InstrumentAgentEvent.GO_STREAMING, *args, **kwargs)
 
     def acmd_go_direct_access(self, *args, **kwargs):
         """
         Agent go_direct_access command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.GO_DIRECT_ACCESS)
         return self._fsm.on_event(InstrumentAgentEvent.GO_DIRECT_ACCESS, *args, **kwargs)
 
     def acmd_go_observatory(self, *args, **kwargs):
         """
         Agent go_observatory command. Forward with args to state machine.
         """
-        self._log_cmd_event(InstrumentAgentEvent.GO_OBSERVATORY)
         return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
     ###############################################################################
@@ -391,7 +388,6 @@ class InstrumentAgent(ResourceAgent):
         """
         Query the agent current state.
         """
-        self._log_cmd_event("GET_CURRENT_STATE")
         return self._fsm.get_current_state()
 
     ###############################################################################
@@ -1058,7 +1054,7 @@ class InstrumentAgent(ResourceAgent):
             
         except (TypeError, KeyError):
             # Not a dict. or missing required parameter.
-            log.error('Insturment agent %s missing required parameter in start_driver.',
+            log.error('Instrument agent %s missing required parameter in start_driver.',
                       self._proc_name)            
             return InstErrorCode.REQUIRED_PARAMETER
                 
@@ -1069,22 +1065,22 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_proc.poll()
         if self._dvr_proc.returncode:
             # Error proc didn't start.
-            log.error('Insturment agent %s driver process did not launch.',
+            log.error('Instrument agent %s driver process did not launch.',
                       self._proc_name)
             return InstErrorCode.AGENT_INIT_FAILED
 
-        log.info('Insturment agent %s launched driver process.', self._proc_name)
+        log.info('Instrument agent %s launched driver process.', self._proc_name)
         
         # Create client and start messaging.
         self._dvr_client = ZmqDriverClient(svr_addr, cmd_port, evt_port)
         self._dvr_client.start_messaging(self.evt_recv)
-        log.info('Insturment agent %s driver process client started.',
+        log.info('Instrument agent %s driver process client started.',
                  self._proc_name)
         time.sleep(1)
 
         try:        
             retval = self._dvr_client.cmd_dvr('process_echo', 'Test.')
-            log.info('Insturment agent %s driver process echo test: %s.',
+            log.info('Instrument agent %s driver process echo test: %s.',
                      self._proc_name, str(retval))
             
         except Exception:
@@ -1092,12 +1088,12 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc.wait()
             self._dvr_proc = None
             self._dvr_client = None
-            log.error('Insturment agent %s error commanding driver process.',
+            log.error('Instrument agent %s error commanding driver process.',
                       self._proc_name)            
             return InstErrorCode.AGENT_INIT_FAILED
 
         else:
-            log.info('Insturment agent %s started its driver.', self._proc_name)
+            log.info('Instrument agent %s started its driver.', self._proc_name)
             self._construct_packet_factories(dvr_mod)
 
         return self._dvr_proc.pid
@@ -1113,7 +1109,7 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc = None
             self._dvr_client = None
             self._clear_packet_factories()
-            log.info('Insturment agent %s stopped its driver.', self._proc_name)
+            log.info('Instrument agent %s stopped its driver.', self._proc_name)
             
         time.sleep(1)
 
@@ -1175,19 +1171,14 @@ class InstrumentAgent(ResourceAgent):
         log.info('Instrument agent %s deleted packet factories.', self._proc_name)
         
     def _log_state_change_event(self):
-        event_description = 'Instrument agent ' + self._proc_name + ' entered state ' + self._fsm.get_current_state()
-        self._publish_instrument_agent_event(event_type='ResourceEvent',
+        event_description = 'Instrument agent ' + self.resource_id + ' entered state ' + self._fsm.get_current_state()
+        self._publish_instrument_agent_event(event_type='DeviceCommonLifecycleEvent',
                                              description=event_description)
         
-    def _log_cmd_event(self, cmd=None):
-        event_description = 'Instrument agent ' + self._proc_name + ' rcvd cmd ' + cmd
-        self._publish_instrument_agent_event(event_type='ResourceEvent',
-                                             description=event_description)
-
     def _publish_instrument_agent_event(self, event_type=None, description=None):
         log.debug('Instrument agent %s publishing event %s:%s.' %(self._proc_name, event_type, description))
         pub = EventPublisher(event_type=event_type)
-        pub.publish_event(origin=self._proc_name, description=description)
+        pub.publish_event(origin=self.resource_id, description=description)
             
     ###############################################################################
     # Misc and test.

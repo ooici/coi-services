@@ -495,6 +495,33 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ############################
 
+    # Helper methods
+    def find_subordinate_frames_of_reference(self, input_resource_id=''):
+        allowed_types = [RT.MarineFacility, RT.LogicalInstrument, RT.LogicalPlatform, RT.Site]
+        subordinates = {
+            RT.MarineFacility: [RT.LogicalInstrument, RT.LogicalPlatform, RT.Site],
+            RT.Site: [RT.LogicalInstrument, RT.LogicalPlatform],
+            RT.LogicalPlatform: [RT.LogicalInstrument],
+            RT.LogicalInstrument: []
+            }
+        input_obj  = self.RR.read(input_resource_id)
+        if not input_obj._get_type() in allowed_types:
+            raise BadRequest("input_resource_id refers to unexpected type")
+        return self.find_subordinate_entity(input_resource_id, subordinates[input_obj._get_type()])
+
+    def find_superior_frames_of_reference(self, input_resource_id=''):
+        allowed_types = [RT.MarineFacility, RT.LogicalInstrument, RT.LogicalPlatform, RT.Site]
+        superiors = {
+            RT.MarineFacility: [],
+            RT.Site: [RT.MarineFacility],
+            RT.LogicalPlatform: [RT.MarineFacility, RT.Site],
+            RT.LogicalInstrument: [RT.MarineFacility, RT.Site, RT.LogicalPlatform]
+            }
+        input_obj  = self.RR.read(input_resource_id)
+        if not input_obj._get_type() in allowed_types:
+            raise BadRequest("input_resource_id refers to unexpected type")
+        return self.find_subordinate_entity(input_resource_id, superiors[input_obj._get_type()])
+
     def find_subordinate_entity(self, input_resource_id='', output_resource_type_list=[]):
 
         # the relative depth of each resource type in our tree
@@ -504,9 +531,8 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
                  RT.MarineFacility: 1,
                  }
 
-
         input_obj  = self.RR.read(input_resource_id)
-        input_type = type(input_obj).__name__
+        input_type = input_obj._get_type()
 
         #input type checking
         if not input_type in depth:
@@ -548,8 +574,10 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
             log.debug("Highest level for search will be '%s'" % highest_type)
 
             acc = self._traverse_entity_tree(acc, highest_type, input_type, False)
-            
-            
+
+        # Don't include input type in response            
+        if input_type in acc:
+            acc.pop(input_type)            
         return acc
                     
 

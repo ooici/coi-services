@@ -356,6 +356,9 @@ def process_gateway_request(resource_id, operation, json_request, requester):
         log.error(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         raise BadRequest(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
 
+    if "type_" in response['data'][GATEWAY_RESPONSE]:
+        del response['data'][GATEWAY_RESPONSE]["type_"]
+
     return response['data'][GATEWAY_RESPONSE]
 
 
