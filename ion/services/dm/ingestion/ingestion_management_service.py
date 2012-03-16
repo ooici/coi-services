@@ -63,7 +63,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         #   far to preload the process definitions. This will later probably be part of a set of predefinitions
         #   for processes.
         #########################################################################################################
-        process_definition = ProcessDefinition()
+        process_definition = ProcessDefinition(name='ingestion_worker_process', description='Worker transform process for ingestion of datasets')
         process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
         process_definition.executable['class'] = 'IngestionWorker'
         self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
