@@ -870,6 +870,7 @@ def get_opts():
             sys.exit()
         elif o in ("-p", "--port"):
             try: 
+                global port
                 port = int(a)
             except:
                 port_usage()
