@@ -84,6 +84,8 @@ def process_index():
             "<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
             "<li><a href='/events'><b>Browse Events</b></a></li>",
             "<li><a href='http://localhost:5984/_utils'><b>CouchDB Futon UI (if running)</b></a></li>",
+            "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI(if running)</b></a></li>",
+            "<li><a href='http://localhost:9001/'><b>Supervisord UI(if running)</b></a></li>",
             "</ul></p>",
             "<h2>Container and System Properties</h2>",
             "<p><table>",

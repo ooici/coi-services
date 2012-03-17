@@ -314,6 +314,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.clients.resource_registry.create_association(dset_ingest_config_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
 
+        self.clients.resource_registry.create_association(dataset_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
 
         self.event_publisher.publish_event(
             origin=ingestion_configuration_id, # Use the ingestion configuration ID as the origin!
