@@ -625,8 +625,10 @@ class IONLoader(ImmediateProcess):
         dp_id = self.resource_ids[row["data_product_id"]]
         res_id = self.resource_ids[row["input_resource_id"]]
 
+        create_stream = self._get_typed_value(row["create_stream"], targettype="bool")
+
         svc_client = self._get_service_client("data_acquisition_management")
-        svc_client.assign_data_product(res_id, dp_id, False)
+        svc_client.assign_data_product(res_id, dp_id, create_stream)
 
     def _load_Attachment(self, row):
         log.info("Loading Attachment")

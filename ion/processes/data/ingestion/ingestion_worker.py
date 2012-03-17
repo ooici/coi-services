@@ -198,7 +198,8 @@ class IngestionWorker(TransformDataProcess):
                     log.warn("Nothing to write!")
 
             # HACK to get the dataset id. Use a better way to get this information
-            origin = dset_config.name.split(' ')[-1]
+            #origin = dset_config.name.split(' ')[-1]
+            origin = "TBD"
             ingest_attributes = {}   # Something telling about the granule
             self.event_pub.publish_event(event_type="GranuleIngestedEvent", origin=origin, status=200,
                 ingest_attributes=ingest_attributes, stream_id="TBD")
