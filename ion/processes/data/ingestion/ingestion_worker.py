@@ -201,7 +201,8 @@ class IngestionWorker(TransformDataProcess):
             #origin = dset_config.name.split(' ')[-1]
             origin = "TBD"
             ingest_attributes = {}   # Something telling about the granule
-            self.event_pub.publish_event(event_type="GranuleIngestedEvent", origin=origin, status=200,
+            self.event_pub.publish_event(event_type="GranuleIngestedEvent", sub_type="DatasetIngest",
+                origin=origin, status=200,
                 ingest_attributes=ingest_attributes, stream_id="TBD")
 
     def on_stop(self):

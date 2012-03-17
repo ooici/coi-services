@@ -367,6 +367,9 @@ def build_commands(resource_id, restype):
         fragments.append(build_command("Start Process", "/cmd/start_process?rid=%s" % resource_id))
         fragments.append(build_command("Stop Process", "/cmd/stop_process?rid=%s" % resource_id))
 
+    elif restype == "DataProduct":
+        fragments.append(build_command("Latest Ingest", "/cmd/last_granule?rid=%s" % resource_id))
+
     fragments.append("</table>")
     return "".join(fragments)
 
@@ -540,6 +543,12 @@ def _process_cmd_agent_execute(resource_id, res_obj=None):
     res_dict = get_value_dict(res)
     res_str = get_formatted_value(res_dict, fieldtype="dict")
     return res_str
+
+def _process_cmd_last_granule(resource_id, res_obj=None):
+    from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+    dpms_cl = DataProductManagementServiceClient()
+    response = dpms_cl.get_last_update(res_obj)
+    return "Last Update: " + str(response)
 
 # ----------------------------------------------------------------------------------------
 
