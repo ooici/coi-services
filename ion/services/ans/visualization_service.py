@@ -421,15 +421,24 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
         if self.CFG.get("realtime_flag") == "True":
             self.realtime_flag = True
 
+
+        # extract the stream_id associated with the DP. NEeded later
+        stream_ids,_ = self.rr_cli.find_objects(self.data_product_id, PRED.hasStream, None, True)
+        self.stream_id = stream_ids[0]
+
         self.dataDescription = []
         self.dataTableContent = []
         self.varTuple = []
+        self.total_num_of_records_recvd = 0
 
 
     def process(self, packet):
 
-        log.warn('(%s): Received Viz Data Packet' % (self.name) )
+        log.debug('(%s): Received Viz Data Packet' % (self.name) )
         #log.debug('(%s):   - Processing: %s' % (self.name,packet))
+
+        element_count_id = 0
+        expected_range = []
 
         psd = PointSupplementStreamParser(stream_definition=self.stream_def.container, stream_granule=packet)
         vardict = {}
@@ -456,6 +465,7 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
             self.initDataTableFlag = False
 
 
+        # Add the records to the datatable
         for i in xrange(arrLen):
             varTuple = []
 
@@ -469,18 +479,39 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
 
             self.dataTableContent.append (varTuple)
 
-            # Maintain a sliding window for realtime transform processes
-            realtime_window_size = 100
-            if self.realtime_flag and len(self.dataTableContent) > realtime_window_size:
-                #self.dataTableContent.pop(-(realtime_window_size + 1)) # always pop the first element
-                self.dataTableContent.pop(0)
+            if self.realtime_flag:
+                # Maintain a sliding window for realtime transform processes
+                realtime_window_size = 100
+                if len(self.dataTableContent) > realtime_window_size:
+                    # always pop the first element till window size is what we want
+                    while len(self.dataTableContent) > realtime_window_size:
+                        self.dataTableContent.pop(0)
 
-        # create the google viz data table
-        data_table = gviz_api.DataTable(self.dataDescription)
-        data_table.LoadData(self.dataTableContent)
+
+        if not self.realtime_flag:
+            # This is the historical view part. Make a note of now many records were received
+            element_count_id = self.stream_def.identifiables[self.stream_id].element_count_id
+            # From each granule you can check the constraint on the number of records
+            expected_range = packet.identifiables[element_count_id].constraint.intervals[0]
+
+            # The number of records in a given packet is:
+            self.total_num_of_records_recvd += packet.identifiables[element_count_id].value
+
 
         # submit the Json version of the datatable to the viz service
-        self.vs_cli.submit_google_realtime_dt(self.data_product_id, data_table.ToJSonResponse())
+        if self.realtime_flag:
+        # create the google viz data table
+            data_table = gviz_api.DataTable(self.dataDescription)
+            data_table.LoadData(self.dataTableContent)
+
+            self.vs_cli.submit_google_realtime_dt(self.data_product_id, data_table.ToJSonResponse())
+        else:
+            # Submit table back to the service if we received all the replay data
+            if self.total_num_of_records_recvd == (expected_range[1] - 1):
+                print "@@@@@@@@@@@@@@@@  RECEIVED ALL REPLAY RECORDS"
+                data_table = gviz_api.DataTable(self.dataDescription)
+                data_table.LoadData(self.dataTableContent)
+                self.vs_cli.submit_google_dt(self.data_product_id, data_table.ToJSonResponse())
 
         # clear the tuple for future use
         self.varTuple[:] = []
@@ -518,11 +549,8 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
 
 
 
-
-
-
     def process(self, packet):
-        log.warn('(%s): Received Viz Data Packet' % self.name )
+        log.debug('(%s): Received Viz Data Packet' % self.name )
         #log.debug('(%s):   - Processing: %s' % (self.name,packet))
 
         # parse the incoming data
@@ -573,7 +601,7 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
                 if len(self.graph_data) == 0:
                     continue
                 else:
-                    working_set = deepcopy(working_set)
+                    working_set = deepcopy(self.graph_data)
 
 
             # For the simple case of testing, lets plot all time variant variables one at a time
@@ -588,6 +616,7 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
                 yAxisFloatData = working_set[varName]
 
                 # Generate the plot
+
                 ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
                 ax.set_xlabel(xAxisVar)
                 ax.set_ylabel(yAxisVar)

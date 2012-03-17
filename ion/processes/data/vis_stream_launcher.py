@@ -69,7 +69,7 @@ class VisStreamLauncher(StandaloneProcess):
 
 
         # Additional code for creating a dummy instrument
-
+        """
         # Set up the preconditions. Look for an existing ingestion config
         while True:
             log.warn("VisStreamLauncher:on_start: Waiting for an ingestion configuration to be available.")
@@ -79,40 +79,47 @@ class VisStreamLauncher(StandaloneProcess):
                 break
             else:
                 gevent.sleep(1)
+        """
 
 
-        # Create InstrumentModel
-        instModel_obj = IonObject(RT.InstrumentModel, name=self.data_source_name, description=self.data_source_name, model_label=self.data_source_name)
-        instModel_id = self.imsclient.create_instrument_model(instModel_obj)
+        # Check to see if the data_product already exists in the system (for e.g re launching the code after a crash)
+        dp_ids,_ = self.rrclient.find_resources(RT.DataProduct, None, self.data_source_name, True)
+        if len(dp_ids) > 0:
+            data_product_id = dp_ids[0]
+            print '>>>>>> Found dp_id = ', data_product_id
+        else:
+            # Create InstrumentModel
+            instModel_obj = IonObject(RT.InstrumentModel, name=self.data_source_name, description=self.data_source_name, model_label=self.data_source_name)
+            instModel_id = self.imsclient.create_instrument_model(instModel_obj)
 
-        # Create InstrumentAgent. Maybe optional for the viz_data_producers
-        #instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
-        #instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
+            # Create InstrumentAgent. Maybe optional for the viz_data_producers
+            #instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
+            #instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
-        #assign instr model to agent
-        #self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
+            #assign instr model to agent
+            #self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
-        # Create InstrumentDevice
-        instDevice_obj = IonObject(RT.InstrumentDevice, name=self.data_source_name, description=self.data_source_name, serial_number="12345" )
+            # Create InstrumentDevice
+            instDevice_obj = IonObject(RT.InstrumentDevice, name=self.data_source_name, description=self.data_source_name, serial_number="12345" )
 
-        instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
-        self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
+            instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+            self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
-        # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+            # create a stream definition for the data from the ctd simulator
+            ctd_stream_def = SBE37_CDM_stream_definition()
+            ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
 
-        print 'Creating new CDM data product with a stream definition'
-        dp_obj = IonObject(RT.DataProduct,name=self.data_source_name,description='ctd stream test')
-        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
+            print 'Creating new CDM data product with a stream definition'
+            dp_obj = IonObject(RT.DataProduct,name=self.data_source_name,description='ctd stream test')
+            data_product_id = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
 
-        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+            self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id)
+            self.dpclient.activate_data_product_persistence(data_product_id=data_product_id, persist_data=True, persist_metadata=True)
 
-        print '>>>>>> new dp_id = ', data_product_id1
+            print '>>>>>>>>>>>> New dp_id = ', data_product_id
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
+        stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
 
         if self.dataset == 'sinusoidal':
             pid = self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
