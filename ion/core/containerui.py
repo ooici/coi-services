@@ -718,7 +718,7 @@ def process_dir_path(path):
             else:
                 parent = ""
             fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-                build_dir_link(parent,de.key), "&nbsp;", get_formatted_value(get_value_dict(de.attributes), fieldtype="dict")))
+                build_dir_link(parent,de.key), get_formatted_value(de.ts_updated, fieldname="ts_updated"), get_formatted_value(get_value_dict(de.attributes), fieldtype="dict")))
 
         fragments.append("</table></p>")
 

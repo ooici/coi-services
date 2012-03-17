@@ -19,7 +19,7 @@ from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import DatasetIngestionTypeEnum
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.event.event import EventSubscriber
+from pyon.event.event import EventSubscriber, EventPublisher
 
 from pyon.util.file_sys import FS, FileSystem
 import hashlib
@@ -45,6 +45,9 @@ class IngestionWorker(TransformDataProcess):
 
     def ingest_process_test_hook(self,msg, headers):
         pass
+
+    def on_init(self):
+        self.event_pub = EventPublisher()
 
     def on_start(self):
         super(IngestionWorker,self).on_start()
@@ -194,6 +197,11 @@ class IngestionWorker(TransformDataProcess):
                 else:
                     log.warn("Nothing to write!")
 
+            # HACK to get the dataset id. Use a better way to get this information
+            origin = dset_config.name.split(' ')[-1]
+            ingest_attributes = {}   # Something telling about the granule
+            self.event_pub.publish_event(event_type="GranuleIngestedEvent", origin=origin, status=200,
+                ingest_attributes=ingest_attributes, stream_id="TBD")
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
