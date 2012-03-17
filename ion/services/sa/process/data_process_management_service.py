@@ -50,9 +50,24 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         data_process_definition_id, version = self.clients.resource_registry.create(data_process_definition)
 
+        #-------------------------------
+        # Process Definition
+        #-------------------------------
+        # Create the underlying process definition
+        process_definition = ProcessDefinition()
+        process_definition.name = data_process_definition.name
+        process_definition.description = data_process_definition.description
+
+        process_definition.executable = {'module':data_process_definition.module, 'class':data_process_definition.class_name}
+        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasProcessDefinition, process_definition_id)
+
         return data_process_definition_id
 
     def update_data_process_definition(self, data_process_definition=None):
+        # TODO: If executable has changed, update underlying ProcessDefinition
+
         # Overwrite DataProcessDefinition object
         self.clients.resource_registry.update(data_process_definition)
 
@@ -60,20 +75,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Read DataProcessDefinition object with _id matching id
         log.debug("Reading DataProcessDefinition object id: %s" % data_process_definition_id)
         data_proc_def_obj = self.clients.resource_registry.read(data_process_definition_id)
-        if not data_proc_def_obj:
-            raise NotFound("DataProcessDefinition %s does not exist" % data_process_definition_id)
+
         return data_proc_def_obj
 
-
     def delete_data_process_definition(self, data_process_definition_id=''):
-        
-        data_proc_def_obj = self.clients.resource_registry.read(data_process_definition_id)
-        if data_proc_def_obj is None:
-            raise NotFound("DataProcessDefinition %s does not exist" % data_process_definition_id)
-
         # Delete the data process
         self.clients.resource_registry.delete(data_process_definition_id)
-        return
 
     def find_data_process_definitions(self, filters=None):
         """
@@ -85,7 +92,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_def_list , _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, None, True)
         return data_process_def_list
 
-
     def assign_input_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """Connect the input  stream with a data process definition
         """
@@ -94,9 +100,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInputStreamDefinition,  stream_definition_id)
-
-        return
-
 
     def unassign_input_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """
@@ -113,9 +116,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
-        return
-
-
     def assign_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """Connect the output  stream with a data process definition
         """
@@ -124,8 +124,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
-
-        return
 
     def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """
@@ -142,10 +140,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
-        return
 
+    # ------------------------------------------------------------------------------------------------
+    # Working with DataProcess
 
-    def create_data_process(self, data_process_definition_id='', in_data_product_id='', out_data_products=None):
+    def create_data_process(self, data_process_definition_id='', in_data_product_id='', out_data_products=None, configuration=None):
         """
         @param  data_process_definition_id: Object with definition of the
                     transform to apply to the input data product
@@ -154,13 +153,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval data_process_id: ID of the newly created data process object
         """
 
-    #
-        #
-        #
-        #todo: break this method up into: 1. create data process, 2. assign in/out products, 3. activate data process
-        #
-        #
-        #
         inform = "Input Data Product:       "+str(in_data_product_id)+\
                  "Transformed by:           "+str(data_process_definition_id)+\
                  "To create output Product: "+str(out_data_products)
@@ -257,29 +249,24 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_obj.input_subscription_id = self.input_subscription_id
         self.clients.resource_registry.update(data_process_obj)
 
+        procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id,
+                    PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
+        if not procdef_ids:
+            raise BadRequest("Cannot find associated ProcessDefinition for DataProcessDefinition id=%s" % data_process_definition_id)
+        process_definition_id = procdef_ids[0]
 
-        #-------------------------------
-        # Process Definition
-        #-------------------------------
-        # Create the process definition for the basic transform
-        transform_definition = ProcessDefinition()
-        transform_definition.executable = {  'module':data_process_def_obj.module, 'class':data_process_def_obj.class_name }
-        transform_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=transform_definition)
-
-        # Launch the first transform process
+        # Launch the transform process
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process: ")
         log.debug("DataProcessManagementService:create_data_process - input_subscription_id: "   +  str(self.input_subscription_id) )
         log.debug("DataProcessManagementService:create_data_process - out_stream_id: "   +  str(self.output_stream_dict) )
-        log.debug("DataProcessManagementService:create_data_process - transform_definition_id: "   +  str(transform_definition_id) )
+        log.debug("DataProcessManagementService:create_data_process - process_definition_id: "   +  str(process_definition_id) )
         log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
-
-
 
         transform_id = self.clients.transform_management.create_transform( name=data_process_id, description=data_process_id,
                            in_subscription_id=self.input_subscription_id,
                            out_streams=self.output_stream_dict,
-                           process_definition_id=transform_definition_id,
-                           configuration={})
+                           process_definition_id=process_definition_id,
+                           configuration=configuration)
 
         log.debug("DataProcessManagementService:create_data_process - transform_id: "   +  str(transform_id) )
 

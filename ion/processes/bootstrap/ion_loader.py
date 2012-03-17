@@ -599,6 +599,10 @@ class IONLoader(ImmediateProcess):
 
         dpd_id = self.resource_ids[row["data_process_definition_id"]]
         in_data_product_id = self.resource_ids[row["in_data_product_id"]]
+        configuration = row["configuration"]
+        if configuration:
+            configuration = self._get_typed_value(configuration, targettype="dict")
+
         out_data_products = row["out_data_products"]
         if out_data_products:
             out_data_products = self._get_typed_value(out_data_products, targettype="dict")
@@ -608,7 +612,7 @@ class IONLoader(ImmediateProcess):
         svc_client = self._get_service_client("data_process_management")
 
         headers = self._get_op_headers(row)
-        res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products, headers=headers)
+        res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products, configuration, headers=headers)
         self._register_id(row[self.COL_ID], res_id)
 
         self._resource_assign_mf(row, res_id)
