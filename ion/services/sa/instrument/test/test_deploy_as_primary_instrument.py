@@ -116,7 +116,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             hdf_storage=self.hdf_storage,
             number_of_workers=self.number_of_workers
         )
-        print 'test_createTransformsThenActivateInstrument: ingestion_configuration_id', ingestion_configuration_id
+        print 'test_deployAsPrimaryDevice: ingestion_configuration_id', ingestion_configuration_id
 
         # activate an ingestion configuration
         ret = self.ingestclient.activate_ingestion_configuration(ingestion_configuration_id)
@@ -174,20 +174,19 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # deploy this device to the logical slot
         self.imsclient.deploy_instrument_device_to_logical_instrument(oldInstDevice_id, logicalInstrument_id)
 
-        #self.imsclient.set_instrument_device_lifecycle(oldInstDevice_id, 'DEPLOYED_AVAILABLE')
-        self.rrclient.execute_lifecycle_transition(oldInstDevice_id, LCE.DEVELOP)
         self.rrclient.execute_lifecycle_transition(oldInstDevice_id, LCE.DEPLOY)
-        self.rrclient.set_lifecycle_state(oldInstDevice_id, LCS.DEPLOYED_AVAILABLE)
+        self.rrclient.execute_lifecycle_transition(oldInstDevice_id, LCE.ENABLE)
 
         # set this device as the current primary device
         self.imsclient.deploy_as_primary_instrument_device_to_logical_instrument(oldInstDevice_id, logicalInstrument_id)
         
         #-------------------------------
         # Create InstrumentAgentInstance for OldInstrumentDevice to hold configuration information
+        # cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
         #-------------------------------
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1', description="SBE37IMAgentInstance Year 1", svr_addr="localhost",
                                           driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
+                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4001,
                                           comms_server_address="localhost", comms_server_port=8888)
         oldInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, oldInstDevice_id)
 
@@ -232,11 +231,10 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         # deploy this device to the logical slot
         self.imsclient.deploy_instrument_device_to_logical_instrument(newInstDevice_id, logicalInstrument_id)
+
         #set the LCSTATE
-        #self.rrclient.execute_lifecycle_transition(newInstDevice_id, LCE.DEVELOP)
         self.rrclient.execute_lifecycle_transition(newInstDevice_id, LCE.DEPLOY)
         self.rrclient.execute_lifecycle_transition(newInstDevice_id, LCE.ENABLE)
-        #self.rrclient.set_lifecycle_state(newInstDevice_id, LCS.DEPLOYED_AVAILABLE)
 
 
         instDevice_obj_2 = self.rrclient.read(newInstDevice_id)
@@ -247,11 +245,11 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgentInstance for NewInstrumentDevice to hold configuration information
         #-------------------------------
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2', description="SBE37IMAgentInstance Year 2", svr_addr="localhost",
+        instAgentInstance_new__obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2', description="SBE37IMAgentInstance Year 2", svr_addr="localhost",
                                           driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
+                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4002,
                                           comms_server_address="localhost", comms_server_port=8888)
-        newInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, oldInstDevice_id)
+        newInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_new__obj, instAgent_id, newInstDevice_id)
 
 
         #-------------------------------
@@ -282,7 +280,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # Logical Data Product: Data Process Definition
         #-------------------------------
-#        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition logical_transform")
+#        log.debug(" test_deployAsPrimaryDevice: create data process definition logical_transform")
 #        dpd_obj = IonObject(RT.DataProcessDefinition,
 #                            name='logical_transform',
 #                            description='send the packet from the in stream to the out stream unchanged',
@@ -298,7 +296,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
         #-------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition ctd_L0_all")
+        log.debug("test_deployAsPrimaryDevice: create data process definition ctd_L0_all")
         dpd_obj = IonObject(RT.DataProcessDefinition,
                             name='ctd_L0_all',
                             description='transform ctd package into three separate L0 streams',
@@ -345,20 +343,20 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L0_Conductivity',description='transform output conductivity')
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
 
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 pressure")
         ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 temperature")
         ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L0_Temperature',description='transform output temperature')
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
 
 
         #-------------------------------
@@ -373,7 +371,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 #        log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
 
         #-------------------------------
-        # L0 Conductivity - Temperature - Pressure: Create the data process, listening to logical instrument output product!
+        # L0 Conductivity - Temperature - Pressure: Create the data process, listening to  Sim1   (later: logical instrument output product)
         #-------------------------------
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process start")
         try:
@@ -385,86 +383,166 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
         #-------------------------------
-        # Launch InstrumentAgentInstance, connect to the resource agent client
+        # Launch InstrumentAgentInstance Sim1, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
 
-        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
-        print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
+        inst_agent1_instance_obj= self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
+        print 'test_deployAsPrimaryDevice: Instrument agent instance obj: = ', inst_agent1_instance_obj
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-        print 'activate_instrument: got ia client %s', self._ia_client
-        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
+        self._ia_client_sim1 = ResourceAgentClient('iaclient Sim1', name=inst_agent1_instance_obj.agent_process_id,  process=FakeProcess())
+        print 'activate_instrument: got _ia_client_sim1 %s', self._ia_client_sim1
+        log.debug(" test_deployAsPrimaryDevice:: got _ia_client_sim1 %s", str(self._ia_client_sim1))
 
 
         #-------------------------------
-        # Sampling
+        # Launch InstrumentAgentInstance Sim2, connect to the resource agent client
         #-------------------------------
-#        cmd = AgentCommand(command='initialize')
-#        retval = self._ia_client.execute_agent(cmd)
-#        print retval
-#        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='go_active')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: go_active %s", str(reply))
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='run')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: run %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample ")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 2")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 3")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling go_inactive ")
-#        cmd = AgentCommand(command='go_inactive')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling reset ")
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from reset %s", str(reply))
-#        time.sleep(2)
-#
-#
-#        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
+        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
+
+        inst_agent2_instance_obj= self.imsclient.read_instrument_agent_instance(newInstAgentInstance_id)
+        print 'test_deployAsPrimaryDevice: Instrument agent instance obj: = ', inst_agent2_instance_obj
+
+        # Start a resource agent client to talk with the instrument agent.
+        self._ia_client_sim2 = ResourceAgentClient('iaclient Sim2', name=inst_agent2_instance_obj.agent_process_id,  process=FakeProcess())
+        print 'activate_instrument: got _ia_client_sim2 %s', self._ia_client_sim2
+        log.debug(" test_deployAsPrimaryDevice:: got _ia_client_sim2 %s", str(self._ia_client_sim2))
+
+
+        #-------------------------------
+        # Streaming Sim1 (old instrument)
+        #-------------------------------
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client_sim1.execute_agent(cmd)
+        print retval
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim1 initialize %s", str(retval))
+
+        time.sleep(2)
+
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client_sim1.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim1 go_active %s", str(reply))
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client_sim1.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim1 run %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling go_streaming ")
+        cmd = AgentCommand(command='go_streaming')
+        reply = self._ia_client_sim1.execute(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim1 go_streaming %s", str(reply))
 
 
 
-        self.imsclient.deploy_as_primary_instrument_device_to_logical_instrument(newInstDevice_id, logicalInstrument_id)
 
-        log.debug("test_deployAsPrimaryDevice: deploy_as_primary_instrument_device_to_logical_instrument return")
-        # Make sure InstrumentDevice now has the primary assignment
-        assoc = self.rrclient.get_association(newInstDevice_id, PRED.hasPrimaryDeployment, logicalInstrument_id)
-        if not assoc:
-            self.fail("Failed to reassign")
-  
+        #-------------------------------
+        # Streaming Sim 2 (new instrument)
+        #-------------------------------
 
-        self.imsclient.undeploy_primary_instrument_device_from_logical_instrument(newInstDevice_id, logicalInstrument_id)
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client_sim2.execute_agent(cmd)
+        print retval
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim2 initialize %s", str(retval))
 
-        log.debug("test_deployAsPrimaryDevice: UNdeploy_as_primary_instrument_device_to_logical_instrument return")
-        # Make sure InstrumentDevice now has the primary assignment
-        assoc = self.rrclient.find_associations(newInstDevice_id, PRED.hasPrimaryDeployment, logicalInstrument_id)
-        if  assoc:
-            self.fail("Failed to undeploy as primary")
+        time.sleep(2)
+
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client_sim2.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim2 go_active %s", str(reply))
+        time.sleep(2)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client_sim2.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim2 run %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrument: calling go_streaming ")
+        cmd = AgentCommand(command='go_streaming')
+        reply = self._ia_client_sim2.execute(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim2 go_streaming %s", str(reply))
+
+
+
+
+        time.sleep(20)
+
+
+        #-------------------------------
+        # Shutdown Sim1 (old instrument)
+        #-------------------------------
+        log.debug("test_activateInstrument: calling go_observatory")
+        cmd = AgentCommand(command='go_observatory')
+        reply = self._ia_client_sim1.execute(cmd)
+        log.debug("test_activateInstrument: _ia_client_sim1 return from go_observatory   %s", str(reply))
+        time.sleep(5)
+
+
+        log.debug("test_deployAsPrimaryDevice:: calling go_inactive ")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client_sim1.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim1 return from go_inactive %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_deployAsPrimaryDevice:: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client_sim1.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim1 return from reset %s", str(reply))
+        time.sleep(2)
+
+
+        #-------------------------------
+        # Shutdown Sim2 (old instrument)
+        #-------------------------------
+        log.debug("test_activateInstrument: calling go_observatory")
+        cmd = AgentCommand(command='go_observatory')
+        reply = self._ia_client_sim2.execute(cmd)
+        log.debug("test_activateInstrument: _ia_client_sim2 return from go_observatory   %s", str(reply))
+        time.sleep(8)
+
+
+        log.debug("test_deployAsPrimaryDevice:: calling go_inactive ")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client_sim2.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim2 return from go_inactive %s", str(reply))
+        time.sleep(2)
+
+
+
+
+        
+        log.debug("test_deployAsPrimaryDevice:: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client_sim1.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim1 return from reset %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_deployAsPrimaryDevice:: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client_sim2.execute_agent(cmd)
+        log.debug("test_deployAsPrimaryDevice:: _ia_client_sim2 return from reset %s", str(reply))
+        time.sleep(2)
+
+        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
+        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
+
+
+#        self.imsclient.deploy_as_primary_instrument_device_to_logical_instrument(newInstDevice_id, logicalInstrument_id)
+#
+#        log.debug("test_deployAsPrimaryDevice: deploy_as_primary_instrument_device_to_logical_instrument return")
+#        # Make sure InstrumentDevice now has the primary assignment
+#        assoc = self.rrclient.get_association(newInstDevice_id, PRED.hasPrimaryDeployment, logicalInstrument_id)
+#        if not assoc:
+#            self.fail("Failed to reassign")
+#
+#
+#        self.imsclient.undeploy_primary_instrument_device_from_logical_instrument(newInstDevice_id, logicalInstrument_id)
+#
+#        log.debug("test_deployAsPrimaryDevice: UNdeploy_as_primary_instrument_device_to_logical_instrument return")
+#        # Make sure InstrumentDevice now has the primary assignment
+#        assoc = self.rrclient.find_associations(newInstDevice_id, PRED.hasPrimaryDeployment, logicalInstrument_id)
+#        if  assoc:
+#            self.fail("Failed to undeploy as primary")
