@@ -100,6 +100,8 @@ class InstrumentDeviceImpl(ResourceImpl):
             if primary_dev__ids[0] == instrument_device_id :
                 raise BadRequest("The Instrument Device is already the primary deployment to this Logical Instrument  %s" %instrument_device_obj.name)
 
+            self.clients.resource_registry.delete_association(assocs[0])
+
             old_product_stream_def_id = ""
             old_product_stream_id = ""
             stream_def_map = {}
@@ -124,6 +126,9 @@ class InstrumentDeviceImpl(ResourceImpl):
                             #Assume one streamdef-to-one stream for now
                             if stream_def_ids:
                                 old_product_stream_def_id = stream_def_ids[0]
+
+                    if not old_product_stream_def_id:
+                        continue
 
                     #get the corresponding data product on the new device
                     replacement_data_product = stream_def_map[old_product_stream_def_id]

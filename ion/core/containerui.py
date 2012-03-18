@@ -347,6 +347,22 @@ def build_commands(resource_id, restype):
             args = [('select','model_unlink',options)]
             fragments.append(build_command("Unlink Model", "/cmd/unlink_model?rid=%s" % resource_id, args))
 
+        res_list,_ = Container.instance.resource_registry.find_resources(RT.LogicalInstrument, id_only=False)
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','deploy',options)]
+            fragments.append(build_command("Set Deployment", "/cmd/deploy?rid=%s" % resource_id, args))
+
+        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasDeployment, RT.LogicalInstrument, id_only=False)
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','deploy_prim',options)]
+            fragments.append(build_command("Deploy Primary", "/cmd/deploy_prim?rid=%s" % resource_id, args))
+
+        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasPrimaryDeployment, RT.LogicalInstrument, id_only=True)
+        if res_list:
+            fragments.append(build_command("Undeploy Primary", "/cmd/undeploy_prim?rid=%s&undeploy_prim=%s" % (resource_id, res_list[0])))
+
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
 
@@ -549,6 +565,27 @@ def _process_cmd_last_granule(resource_id, res_obj=None):
     dpms_cl = DataProductManagementServiceClient()
     response = dpms_cl.get_last_update(res_obj)
     return "Last Update: " + str(response)
+
+def _process_cmd_deploy(resource_id, res_obj=None):
+    li_id = get_arg('deploy')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.deploy_instrument_device_to_logical_instrument(resource_id, li_id)
+    return "OK"
+
+def _process_cmd_deploy_prim(resource_id, res_obj=None):
+    li_id = get_arg('deploy_prim')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.deploy_as_primary_instrument_device_to_logical_instrument(resource_id, li_id)
+    return "OK"
+
+def _process_cmd_undeploy_prim(resource_id, res_obj=None):
+    li_id = get_arg('undeploy_prim')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.undeploy_primary_instrument_device_from_logical_instrument(resource_id, li_id)
+    return "OK"
 
 # ----------------------------------------------------------------------------------------
 
@@ -910,7 +947,10 @@ def get_typed_value(value, schema_entry=None, targettype=None):
         return list(value.split(','))
     elif schema_entry and 'enum_type' in schema_entry:
         enum_clzz = getattr(objects, schema_entry['enum_type'])
-        return enum_clzz._value_map[value]
+        if type(value) is str and value in enum_clzz._value_map:
+            return enum_clzz._value_map[value]
+        else:
+            return int(value)
     else:
         return ast.literal_eval(value)
 
