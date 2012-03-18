@@ -171,10 +171,10 @@ class TransformEvenOdd(TransformDataProcess):
     '''
     def on_start(self):
         super(TransformEvenOdd,self).on_start()
-        assert hasattr(self,'even')
-        assert hasattr(self,'odd')
 
     def process(self, packet):
+        assert hasattr(self,'even')
+        assert hasattr(self,'odd')
         input = int(packet.get('num'))
 
         even = input * 2
