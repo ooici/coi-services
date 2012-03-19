@@ -22,6 +22,31 @@ class TransformManagementService(BaseTransformManagementService):
 
         self.serializer = IonObjectSerializer()
 
+    def on_start(self):
+        super(TransformManagementService,self).on_start()
+        restart_flag = self.CFG.get_safe('process.restart', False)
+        if restart_flag:
+            transform_ids, meta = self.clients.resource_registry.find_resources(restype=RT.Transform, id_only=True)
+            for transform_id in transform_ids:
+                self._restart_transform(transform_id)
+
+    def _restart_transform(self, transform_id):
+        transform = self.clients.resource_registry.read(transform_id)
+        configuration = transform.configuration
+        proc_def_ids,other = self.clients.resource_registry.find_objects(subject=transform_id,predicate=PRED.hasProcessDefinition,id_only=True)
+
+        if len(proc_def_ids) < 1:
+            log.warning('Transform did not have a correct process definition.')
+            return
+
+        self.clients.process_dispatcher.schedule_process(
+            process_definition_id=proc_def_ids[0],
+
+        )
+
+
+
+
     def _strip_types(self, obj):
         if not isinstance(obj, dict):
             return
@@ -85,11 +110,11 @@ class TransformManagementService(BaseTransformManagementService):
         listen_name = subscription.exchange_name
 
 
-        configuration['process'] = {
+        configuration['process'] = dict({
             'name':transform_name,
             'type':'stream_process',
             'listen_name':listen_name
-        }
+        }, **configuration)
         if out_streams:
             configuration['process']['publish_streams'] = out_streams
             stream_ids = list(v for k,v in out_streams.iteritems())
