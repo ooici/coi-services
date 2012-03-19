@@ -1104,6 +1104,46 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
 
 
+        #--------------------------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Check that the dataset id is passed properly in the GranuleIngestedEvent
+        #--------------------------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+
+
+        # Set up the gevent event AsyncResult queue
+
+        queue=gevent.queue.Queue()
+
+        def config_event_hook(packet, headers):
+            queue.put(packet)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Override the worker processes methods with the gevent event hooks
+        #--------------------------------------------------------------------------------------------------------
+
+        proc_1.dataset_configs_event_test_hook = config_event_hook
+        proc_2.dataset_configs_event_test_hook = config_event_hook
+
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
+        dataset_config.configuration.archive_metadata = True
+        self.ingestion_cli.update_dataset_config(dataset_config)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Create a new packet and publish it
+        #--------------------------------------------------------------------------------------------------------
+
+        ctd_packet = self._create_packet(self.input_stream_id)
+        self.ctd_stream1_publisher.publish(ctd_packet)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the dataset id got from the dataset_config event hook is what it should be
+        #--------------------------------------------------------------------------------------------------------
+
+        self.assertEquals(queue.get(timeout=10).configuration.dataset_id,self.input_dataset_id)
+
+
+
     def _create_packet(self, stream_id):
         
         length = random.randint(1,20)
