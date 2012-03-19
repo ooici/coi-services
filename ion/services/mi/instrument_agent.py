@@ -92,7 +92,7 @@ class InstrumentAgent(ResourceAgent):
                 
         # Instrument agent state machine.
         self._fsm = InstrumentFSM(InstrumentAgentState, InstrumentAgentEvent, InstrumentAgentEvent.ENTER,
-                            InstrumentAgentEvent.EXIT, InstErrorCode.UNHANDLED_EVENT)
+                                  InstrumentAgentEvent.EXIT, InstErrorCode.UNHANDLED_EVENT, self._log_state_change_event)
         
         # Populate state machine for all state-events.
         self._fsm.add_handler(InstrumentAgentState.POWERED_DOWN, InstrumentAgentEvent.ENTER, self._handler_powered_down_enter)
@@ -478,7 +478,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-        self._log_state_change_event()
     
     def _handler_powered_down_exit(self, *args, **kwargs):
         """
@@ -498,7 +497,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-        self._log_state_change_event()
     
     def _handler_uninitialized_exit(self,  *args, **kwargs):
         """
@@ -554,7 +552,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-        self._log_state_change_event()
     
     def _handler_inactive_exit(self,  *args, **kwargs):
         """
@@ -641,7 +638,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-        self._log_state_change_event()
                 
     def _handler_idle_exit(self,  *args, **kwargs):
         """
@@ -707,7 +703,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-        self._log_state_change_event()
     
     def _handler_stopped_exit(self,  *args, **kwargs):
         """
@@ -762,7 +757,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-        self._log_state_change_event()
     
     def _handler_observatory_exit(self,  *args, **kwargs):
         """
@@ -931,7 +925,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
                  self._fsm.get_current_state())
-        self._log_state_change_event()
     
     def _handler_streaming_exit(self,  *args, **kwargs):
         """
@@ -985,7 +978,6 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent entered state %s',
             self._fsm.get_current_state())
-        self._log_state_change_event()
     
     def _handler_direct_access_exit(self,  *args, **kwargs):
         """
@@ -1170,8 +1162,8 @@ class InstrumentAgent(ResourceAgent):
         self._packet_factories.clear()
         log.info('Instrument agent %s deleted packet factories.', self._proc_name)
         
-    def _log_state_change_event(self):
-        event_description = 'Instrument agent ' + self.resource_id + ' entered state ' + self._fsm.get_current_state()
+    def _log_state_change_event(self, state):
+        event_description = 'Instrument agent ' + self.resource_id + ' entered state ' + state
         self._publish_instrument_agent_event(event_type='DeviceCommonLifecycleEvent',
                                              description=event_description)
         

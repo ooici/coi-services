@@ -3,17 +3,13 @@
 @file ion/services/dm/transformation/test_transform_service.py
 @description Unit Test for Transform Management Service
 '''
-from Queue import Empty
-import os
-import time
-import gevent
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.core.exception import NotFound, BadRequest
+from pyon.ion.transform import TransformDataProcess
 from pyon.util.containers import DotDict
 from pyon.public import IonObject, RT, PRED
 from pyon.util.unit_test import PyonTestCase
@@ -24,8 +20,16 @@ from ion.services.dm.transformation.transform_management_service import Transfor
 from ion.processes.data.transforms.transform_example import TransformExample
 from interface.objects import ProcessDefinition, StreamQuery
 from pyon.public import   StreamSubscriberRegistrar, StreamPublisherRegistrar
+from Queue import Empty
+import os
+import time
+import gevent
 
 import unittest
+
+
+class TestTransform(TransformDataProcess):
+    pass
 
 @attr('UNIT',group='dm')
 class TransformManagementServiceTest(PyonTestCase):
@@ -101,7 +105,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -147,7 +150,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -188,7 +190,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -637,4 +638,46 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
                 msgs.get()
             except Empty:
                 assertions(False, "Failed to process all messages correctly.")
+
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST',False),'CEI incompatible')
+    def test_transform_restart(self):
+        tms_cli = self.tms_cli
+        rr_cli = self.rr_cli
+        pubsub_cli = self.pubsub_cli
+        cc = self.container
+        assertions = self.assertTrue
+
+        proc_def = ProcessDefinition(executable=
+            {
+            'module':'ion.services.dm.transformation.test.test_transform_service',
+            'class':'TestTransform'
+        })
+        proc_def_id, _ = rr_cli.create(proc_def)
+
+        stream_id = pubsub_cli.create_stream()
+        subscription_id = pubsub_cli.create_subscription(query=StreamQuery(stream_ids=[stream_id]),exchange_name='test_transform')
+
+        transform_id = tms_cli.create_transform(
+            name='test_transform',
+            in_subscription_id=subscription_id,
+            process_definition_id=proc_def_id
+        )
+        tms_cli.activate_transform(transform_id)
+
+        transform = rr_cli.read(transform_id)
+        pid = transform.process_id
+
+        assertions(cc.proc_manager.procs.has_key(pid), 'Transform process was never started.')
+        cc.proc_manager.terminate_process(pid)
+
+        assertions(not cc.proc_manager.procs.has_key(pid),'Transform process was never killed')
+
+        handle = cc.proc_manager.procs_by_name['transform_management']
+        handle._restart_transform(transform_id)
+
+        transform = rr_cli.read(transform_id)
+        pid = transform.process_id
+
+        assertions(cc.proc_manager.procs.has_key(pid), 'Transform process was never restarted.')
+        
 

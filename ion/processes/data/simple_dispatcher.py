@@ -71,7 +71,7 @@ class SimpleDispatcher(StandaloneProcess):
 
         stream_ids,_ = rr_cli.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
 
-        log.warn('Got Stream Ids: "%s"', stream_ids)
+        log.info('Got Stream Ids: "%s"', stream_ids)
         assert stream_ids, 'No streams found for this data product!'
 
         query = StreamQuery(stream_ids=stream_ids)
@@ -102,7 +102,7 @@ class SimpleDispatcher(StandaloneProcess):
             records = granule.identifiables['record_count'].value
             
 
-            log.warn('Received a message from stream %s with time stamp %s and %d records' % (stream_id, tstamp, records))
+            log.info('Received a message from stream %s with time stamp %s and %d records' % (stream_id, tstamp, records))
 
 
             if stream_id not in stream_defs:
@@ -115,7 +115,7 @@ class SimpleDispatcher(StandaloneProcess):
             for field in sp.list_field_names():
                 last_data[field] = sp.get_values(field)[-1]
 
-            log.warn('Last values in the message: %s' % str(last_data))
+            log.info('Last values in the message: %s' % str(last_data))
 
 
 

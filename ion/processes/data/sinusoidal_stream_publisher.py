@@ -64,7 +64,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             ctd_packet = ctd_stream_packet(stream_id=stream_id,
                 c=c, t=t, p = p, lat = lat, lon = lon, time=tvar)
 
-            log.warn('SinusoidalCtdPublisher sending 1 record!')
+            log.info('SinusoidalCtdPublisher sending 1 record!')
             self.publisher.publish(ctd_packet)
 
             time.sleep(2.0)
