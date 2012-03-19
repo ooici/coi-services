@@ -14,7 +14,6 @@ from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
 from pyon.core.exception import IonException
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import DatasetIngestionTypeEnum, Coverage
@@ -76,8 +75,6 @@ class IngestionWorker(TransformDataProcess):
         self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
-        self.dataset_management = DatasetManagementServiceClient(node=self.container.node)
-
 
         self.dataset_configs = {}
         # update the policy
@@ -119,15 +116,14 @@ class IngestionWorker(TransformDataProcess):
 
         # Ignoring any packet that is not a stream granule!
         if not isinstance(packet, StreamGranuleContainer):
-            return
+            raise IngestionWorkerException('Received invalid message type: "%s"', type(packet))
+
 
         # Get the dataset config for this stream
         dset_config = self.get_dataset_config(packet)
 
         # Process the packet
-        ingest_attributes = {}   # Something telling about the granule
 
-        #ingest_attributes.update(self.process_stream(packet, dset_config))
         ingest_attributes = self.process_stream(packet, dset_config)
 
 
@@ -194,6 +190,10 @@ class IngestionWorker(TransformDataProcess):
 
             elif isinstance(value, Coverage):
                 ingestion_attributes['variables'].append(key)
+
+        data_stream_id = packet.data_stream_id
+        element_count_id = packet.identifiables[data_stream_id].element_count_id
+        ingestion_attributes['number_of_records'] = packet.identifiables[element_count_id].value
 
         if dset_config.archive_metadata is True:
             log.debug("Persisting data....")
