@@ -94,12 +94,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # create first notification
         notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['resource_lifecycle']})
+                                                                 "events_list":['ResourceLifecycleEvent']})
         notification_id1 = self.unsc.create_notification(notification_object1, user_id)
         # create second notification
         notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['data']})
+                                                                 "events_list":['DataEvent']})
         notification_id2 = self.unsc.create_notification(notification_object2, user_id)
         
         # read the notifications back and check that they are correct
@@ -124,12 +124,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # create first notification
         notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['resource_lifecycle']})
+                                                                 "events_list":['ResourceLifecycleEvent']})
         notification1_id = self.unsc.create_notification(notification_object1, user_id)
         # create second notification
         notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['data']})
+                                                                 "events_list":['DataEvent']})
         notification2_id = self.unsc.create_notification(notification_object2, user_id)
         
         # delete both notifications
@@ -156,13 +156,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # create first notification
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['resource_lifecycle']})
+                                                                 "events_list":['ResourceLifecycleEvent']})
 
         self.unsc.create_notification(notification_object, user_id)
         # create second notification
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['data']})
+                                                                 "events_list":['DataEvent']})
         self.unsc.create_notification(notification_object, user_id)
         
         # try to find all notifications for user
@@ -180,7 +180,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # create a notification
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['resource_lifecycle']})
+                                                                 "events_list":['ResourceLifecycleEvent']})
         notification_id = self.unsc.create_notification(notification_object, user_id)
         
         # read back the notification and change it
@@ -203,12 +203,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # create first notification
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['resource_lifecycle']})
+                                                                 "events_list":['ResourceLifecycleEvent']})
         self.unsc.create_notification(notification_object, user_id)
         # create second notification
         notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['data']})
+                                                                 "events_list":['DataEvent']})
         self.unsc.create_notification(notification_object, user_id)
         
         # publish an event for each notification to generate the emails
