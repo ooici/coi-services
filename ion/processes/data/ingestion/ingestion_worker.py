@@ -16,7 +16,7 @@ from pyon.util.async import spawn
 from pyon.core.exception import IonException
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
-from interface.objects import DatasetIngestionTypeEnum, Coverage
+from interface.objects import DatasetIngestionTypeEnum, Coverage, CountElement
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.event.event import EventSubscriber, EventPublisher
@@ -191,9 +191,8 @@ class IngestionWorker(TransformDataProcess):
             elif isinstance(value, Coverage):
                 ingestion_attributes['variables'].append(key)
 
-        data_stream_id = packet.data_stream_id
-        element_count_id = packet.identifiables[data_stream_id].element_count_id
-        ingestion_attributes['number_of_records'] = packet.identifiables[element_count_id].value
+            elif isinstance(value, CountElement):
+                ingestion_attributes['number_of_records'] = value.value
 
         if dset_config.archive_metadata is True:
             log.debug("Persisting data....")

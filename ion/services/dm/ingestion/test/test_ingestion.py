@@ -370,6 +370,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ctd_stream_def = SBE37_CDM_stream_definition()
 
+        self.ctd_stream_def = ctd_stream_def
         stream_def_id = self.pubsub_cli.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 
 
@@ -1125,11 +1126,11 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         event_msg = ar.get(timeout=10)
         self.assertEquals(event_msg.origin, self.input_dataset_id)
 
-        data_stream_id = ctd_packet.data_stream_id
-        element_count_id = ctd_packet.identifiables[data_stream_id].element_count_id
+        data_stream_id = self.ctd_stream_def.data_stream_id
+        element_count_id = self.ctd_stream_def.identifiables[data_stream_id].element_count_id
         record_count = ctd_packet.identifiables[element_count_id].value
 
-        self.assertEquals(event_msg.ingest_attributes.number_of_records, record_count)
+        self.assertEquals(event_msg.ingest_attributes['number_of_records'], record_count)
 
 
 
