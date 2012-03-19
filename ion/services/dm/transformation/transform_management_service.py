@@ -24,7 +24,7 @@ class TransformManagementService(BaseTransformManagementService):
 
     def on_start(self):
         super(TransformManagementService,self).on_start()
-        restart_flag = self.CFG.get_safe('process.restart', False)
+        restart_flag = self.CFG.get_safe('service.transform_management.restart', False)
         if restart_flag:
             transform_ids, meta = self.clients.resource_registry.find_resources(restype=RT.Transform, id_only=True)
             for transform_id in transform_ids:
