@@ -3,6 +3,7 @@
 @file ion/processes/data/dispatcher_process.py
 @description Dispatcher Visualization handling set manipulations for the DataModel
 '''
+from pyon.public import log
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.processes.data.replay_process import ReplayProcess
 from ion.processes.data.dispatcher.dispatcher_cache import DISPATCH_DATASTORE
@@ -25,8 +26,7 @@ class DispatcherVisualization(ReplayProcess):
 
         self.view_name = self.CFG.get_safe('process.view_name','datasets/dataset_by_id')
         self.key_id = self.CFG.get_safe('process.key_id')
-        self.stream_id = self.CFG.get_safe('process.publish_streams.output')
-
+        self.stream_id = self.key_id
 
         self.data_stream_id = self.definition.data_stream_id
         self.encoding_id = self.definition.identifiables[self.data_stream_id].encoding_id
@@ -37,7 +37,9 @@ class DispatcherVisualization(ReplayProcess):
         self.domain_ids = self.definition.identifiables[self.data_record_id].domain_ids
         self.time_id = self.definition.identifiables[self.domain_ids[0]].temporal_coordinate_vector_id
         setattr(self, 'output', DotDict({'publish':self.send}))
+        self.callback = lambda x: x
+
 
     def send(self, msg):
-        with open('/tmp/blah','w') as f:
-            f.write('it worked\n')
+        log.debug('Calling callback')
+        self.callback(msg)

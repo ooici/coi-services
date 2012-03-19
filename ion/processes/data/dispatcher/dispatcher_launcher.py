@@ -3,14 +3,23 @@
 @file ion/processes/data/dispatcher/dispatcher_launcher.py
 @description Launcher for the dispatcher infrastructure
 '''
-from interface.objects import ExchangeQuery, ProcessDefinition, DataProduct, StreamQuery
+from interface.services.icontainer_agent import ContainerAgentClient
+from ion.services.ans.visualization_service import VizTransformProcForMatplotlibGraphs
+from pyon.public import log
+from interface.objects import ExchangeQuery, ProcessDefinition, DataProduct, StreamQuery, StreamGranuleContainer
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from pyon.core.bootstrap import get_sys_name
+from pyon.net.endpoint import Publisher
 from pyon.service.service import BaseService
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.dispatcher.dispatcher_cache import DISPATCH_DATASTORE
+from ion.processes.data.dispatcher.dispatcher_visualization import DispatcherVisualization
+from pyon.util.containers import DotDict
 
 class DispatcherLauncher(BaseService):
     def on_start(self):
@@ -56,14 +65,51 @@ class DispatcherLauncher(BaseService):
             tms_cli.activate_transform(transform_id=transform_id)
 
     @staticmethod
-    def visualize(stream_id):
+    def visualize(stream_id, container):
         import re
+
+        #---------------------------------------------------------------------------------------------------------
+        # Methods of madness
+        # Create service clients for DPMS, PUBSUB, TMS, PD
+        # Create an instance of DispatcherVisualization
+        # - Add on to the instance the necessary things to allow it to work well; container and CFG.
+        # Make direct method call to DispatcherVisualization instance to forge the granule prior to visualization
+        #---------------------------------------------------------------------------------------------------------
+
+
         dpms_cli = DataProductManagementServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
         tms_cli = TransformManagementServiceClient()
         pd_cli = ProcessDispatcherServiceClient()
-        stream_definition_id = pubsub_cli.find_stream_definition(stream_id=stream_id)
+        visual_transform = VizTransformProcForMatplotlibGraphs()
+        pub = Publisher()
+        # For the publisher
+        xp = '.'.join([get_sys_name(),'science_data'])
+
+        #--------------------------------------------------------
+        # Mangle the visualization flow
+        # Attempted to make it event-based in lieu of polling
+        #--------------------------------------------------------
+        stream_definition_id = pubsub_cli.find_stream_definition(stream_id=stream_id, id_only=True)
         en = re.sub('.data','.viz',stream_id)
+        visualizer_instance = DispatcherVisualization()
+        visualizer_config = DotDict({
+            'process':{
+                'datastore_name' : DISPATCH_DATASTORE,
+                'view_name' : 'datasets/dataset_by_id',
+                'key_id' : stream_id,
+                'delivery_format' : {'definition_id' : stream_definition_id },
+            }
+        })
+        setattr(visualizer_instance,'CFG', visualizer_config)
+
+        visualizer_instance.on_start()
+        def callback(msg):
+            log.debug('Call back called, publishing visual data')
+            pub.publish(msg, (xp,'%s.data' % stream_id))
+        visualizer_instance.callback = callback
+        visualizer_instance.container = container
+
         subscription_id = pubsub_cli.create_subscription(query=StreamQuery(stream_ids=[stream_id]), exchange_name=en)
         visual_product = DataProduct(name='visual product')
         visual_product_id = dpms_cli.create_data_product(data_product=visual_product, stream_definition_id=stream_definition_id)
@@ -85,5 +131,10 @@ class DispatcherLauncher(BaseService):
             configuration=config
         )
         tms_cli.activate_transform(transform_id)
+
+        visualizer_instance.execute_replay()
+
+
+
 
         return visual_product_id
