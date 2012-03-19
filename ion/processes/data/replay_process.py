@@ -118,7 +118,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
 
         if results is None:
-            log.warn('No Results')
+            log.info('No Results')
             return
 
         publish_queue = self._parse_results(results)
@@ -185,7 +185,7 @@ class ReplayProcess(BaseReplayProcess):
                     publish_queue.append(packet)
                 continue
 
-            log.warn('Unknown packet type in replay.')
+            log.info('Unknown packet type in replay.')
 
         return publish_queue
 
