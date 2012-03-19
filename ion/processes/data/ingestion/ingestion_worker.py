@@ -131,22 +131,19 @@ class IngestionWorker(TransformDataProcess):
         ingest_attributes = self.process_stream(packet, dset_config)
 
 
-
-
         #@todo - get this data from the dataset config...
-#        dataset_id = 'TBD'
-#        stream_id = 'TBD'
-        dataset_id = dset_config.dataset_id
-        stream_id = dset_config.stream_id
+        if dset_config:
+            dataset_id = dset_config.dataset_id
+            stream_id = dset_config.stream_id
 
-        self.event_pub.publish_event(event_type="GranuleIngestedEvent", sub_type="DatasetIngest",
-            origin=dataset_id, status=200,
-            ingest_attributes=ingest_attributes, stream_id=stream_id)
+            self.event_pub.publish_event(event_type="GranuleIngestedEvent", sub_type="DatasetIngest",
+                origin=dataset_id, status=200,
+                ingest_attributes=ingest_attributes, stream_id=stream_id)
 
 
-        headers = ''
-        # Hook to override just before processing is complete
-        self.ingest_process_test_hook(packet, headers)
+            headers = ''
+            # Hook to override just before processing is complete
+            self.ingest_process_test_hook(packet, headers)
 
 
     def persist_immutable(self, obj):
