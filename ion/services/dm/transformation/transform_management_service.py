@@ -104,7 +104,12 @@ class TransformManagementService(BaseTransformManagementService):
 
         # Transform Resource for association management and pid
         transform_res = Transform(name=name, description=description)
-        
+
+        transform_id, _ = self.clients.resource_registry.create(transform_res)
+
+        transform_res = self.clients.resource_registry.read(transform_id)
+
+
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
@@ -116,7 +121,8 @@ class TransformManagementService(BaseTransformManagementService):
         configuration['process'] = dict({
             'name':transform_name,
             'type':'stream_process',
-            'listen_name':listen_name
+            'listen_name':listen_name,
+            'transform_id':transform_id
         })
         if out_streams:
             configuration['process']['publish_streams'] = out_streams
@@ -135,12 +141,12 @@ class TransformManagementService(BaseTransformManagementService):
             configuration=configuration
         )
         transform_res.process_id =  pid
-        
+
         # ------------------------------------------------------------------------------------
         # Handle Resources
         # ------------------------------------------------------------------------------------
-        transform_id, _ = self.clients.resource_registry.create(transform_res)
 
+        self.clients.resource_registry.update(transform_res)
 
         self.clients.resource_registry.create_association(transform_id,PRED.hasProcessDefinition,process_definition_id)
         self.clients.resource_registry.create_association(transform_id,PRED.hasSubscription,in_subscription_id)
