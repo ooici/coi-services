@@ -250,13 +250,6 @@ class IngestionWorker(TransformDataProcess):
         """
         Gets the dset_config for the data stream
         """
-<<<<<<< HEAD
-        log.warn("incoming packet")
-        log.warn(incoming_packet)
-=======
-
-        log.info(incoming_packet)
->>>>>>> master
 
         try:
             stream_id = incoming_packet.stream_resource_id
