@@ -39,10 +39,13 @@ class TransformManagementService(BaseTransformManagementService):
             log.warning('Transform did not have a correct process definition.')
             return
 
-        self.clients.process_dispatcher.schedule_process(
+        pid = self.clients.process_dispatcher.schedule_process(
             process_definition_id=proc_def_ids[0],
             configuration=configuration
         )
+
+        transform.process_id = pid
+        self.clients.resource_registry.update(transform)
 
 
 
