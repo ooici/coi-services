@@ -96,7 +96,7 @@ class SimpleCtdPublisher(StandaloneProcess):
 
             ctd_packet = self._get_ctd_packet(stream_id, length)
 
-            log.warn('SimpleCtdPublisher sending %d values!' % length)
+            log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
 
             time.sleep(2.0)
@@ -155,7 +155,7 @@ class PointCtdPublisher(StandaloneProcess):
 
             ctd_packet = point_constructor.get_stream_granule()
 
-            log.warn('SimpleCtdPublisher sending %d values!' % length)
+            log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
 
             time.sleep(2.0)

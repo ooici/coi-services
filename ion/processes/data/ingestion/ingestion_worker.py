@@ -91,7 +91,7 @@ class IngestionWorker(TransformDataProcess):
                 try:
                     del self.dataset_configs[stream_id]
                 except KeyError:
-                    log.warn('Tried to remove dataset config that does not exist!')
+                    log.info('Tried to remove dataset config that does not exist!')
             else:
                 self.dataset_configs[stream_id] = event_msg
 
@@ -109,7 +109,7 @@ class IngestionWorker(TransformDataProcess):
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
 
-        log.warn(str(self.db))
+        log.info(str(self.db))
 
     def process(self, packet):
         """Process incoming data!!!!
@@ -156,7 +156,7 @@ class IngestionWorker(TransformDataProcess):
         if isinstance(packet, StreamGranuleContainer):
 
             if dset_config is None:
-                log.warn('No dataset config for this stream!')
+                log.info('No dataset config for this stream!')
                 return
 
             values_string = ''
@@ -189,13 +189,13 @@ class IngestionWorker(TransformDataProcess):
                     if sha1 != calculated_sha1:
                         raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
 
-                    log.warn('writing to filename: %s' % filename)
+                    log.info('writing to filename: %s' % filename)
 
                     with open(filename, mode='wb') as f:
                         f.write(values_string)
                         f.close()
                 else:
-                    log.warn("Nothing to write!")
+                    log.info("Nothing to write!")
 
             # HACK to get the dataset id. Use a better way to get this information
             #origin = dset_config.name.split(' ')[-1]
@@ -232,7 +232,7 @@ class IngestionWorker(TransformDataProcess):
         Gets the dset_config for the data stream
         """
 
-        log.warn(incoming_packet)
+        log.info(incoming_packet)
 
         try:
             stream_id = incoming_packet.stream_resource_id

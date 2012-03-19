@@ -63,7 +63,7 @@ class LastUpdateCache(TransformDataProcess):
 
 
         else:
-            log.warning('Unknown packet type %s' % str(type(packet)))
+            log.info('Unknown packet type %s' % str(type(packet)))
 
         return
 
