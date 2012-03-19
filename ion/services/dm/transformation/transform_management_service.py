@@ -117,7 +117,7 @@ class TransformManagementService(BaseTransformManagementService):
             'name':transform_name,
             'type':'stream_process',
             'listen_name':listen_name
-        }, **configuration)
+        })
         if out_streams:
             configuration['process']['publish_streams'] = out_streams
             stream_ids = list(v for k,v in out_streams.iteritems())

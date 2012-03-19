@@ -105,7 +105,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -151,7 +150,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -192,7 +190,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
