@@ -1,19 +1,15 @@
-#!/usr/bin/env python
-import gevent
 
-__license__ = 'Apache 2.0'
 '''
-@author Maurice Manning
 @author Luke Campbell
 @file ion/services/dm/transformation/transform_management_service.py
 @description Implementation for TransformManagementService
 '''
-import time
-import hashlib
-from pyon.public import log, IonObject, RT, PRED
+from pyon.public import log, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectSerializer, IonObjectBase
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
+import gevent
+from interface.objects import Transform
 
 class TransformManagementService(BaseTransformManagementService):
     """Provides the main orchestration for stream processing
@@ -59,7 +55,6 @@ class TransformManagementService(BaseTransformManagementService):
         # Determine Transform Name
 
         if isinstance(configuration, IonObjectBase):
-            #@todo Is this the right way to handle configs that come as IonObjects?
             configuration = self.serializer.serialize(configuration)
             # strip the type
             self._strip_types(configuration)
@@ -75,18 +70,12 @@ class TransformManagementService(BaseTransformManagementService):
 
         transform_name=name
 
-        #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
-        #@note: In the near future, Process Dispatcher will do all of this
-
         if not process_definition_id:
             raise NotFound('No process definition was provided')
 
-        process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
-        module = process_definition.executable.get('module','ion.processes.data.transforms.transform_example')
-        cls = process_definition.executable.get('class','TransformExample')
 
         # Transform Resource for association management and pid
-        transform_res = IonObject(RT.Transform,name=transform_name,description=description)
+        transform_res = Transform(name=name, description=description)
         
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
@@ -106,6 +95,7 @@ class TransformManagementService(BaseTransformManagementService):
             stream_ids = list(v for k,v in out_streams.iteritems())
         else:
             stream_ids = []
+        transform_res.configuration = configuration
 
 
         # ------------------------------------------------------------------------------------
