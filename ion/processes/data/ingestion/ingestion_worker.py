@@ -76,7 +76,7 @@ class IngestionWorker(TransformDataProcess):
         self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
-        self.dataset_management = DatasetManagementServiceClient(node=cc.node)
+        self.dataset_management = DatasetManagementServiceClient(node=self.container.node)
 
 
         self.dataset_configs = {}
@@ -127,10 +127,15 @@ class IngestionWorker(TransformDataProcess):
         # Process the packet
         ingest_attributes = {}   # Something telling about the granule
 
-        ingest_attributes.update(self.process_stream(packet, dset_config))
+        #ingest_attributes.update(self.process_stream(packet, dset_config))
+        ingest_attributes = self.process_stream(packet, dset_config)
+
+
 
 
         #@todo - get this data from the dataset config...
+#        dataset_id = 'TBD'
+#        stream_id = 'TBD'
         dataset_id = dset_config.dataset_id
         stream_id = dset_config.stream_id
 
@@ -248,7 +253,7 @@ class IngestionWorker(TransformDataProcess):
         """
         Gets the dset_config for the data stream
         """
-
+        log.warn("incoming packet")
         log.warn(incoming_packet)
 
         try:
