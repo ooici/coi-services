@@ -610,8 +610,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(dataset_config.configuration.archive_metadata, False)
 
 
-        self.assertEqual(ar_1.get(timeout=10).configuration.stream_id,self.input_stream_id)
-        self.assertEqual(ar_2.get(timeout=10).configuration.stream_id,self.input_stream_id)
+        self.assertEqual(ar_1.get(timeout=10).configuration.dataset_id,self.input_dataset_id)
+        self.assertEqual(ar_2.get(timeout=10).configuration.dataset_id,self.input_dataset_id)
 
 
     def test_create_dataset_configuration_not_found(self):
