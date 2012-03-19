@@ -14,6 +14,7 @@ from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
 from pyon.core.exception import IonException
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
 from interface.objects import DatasetIngestionTypeEnum, Coverage
@@ -75,6 +76,7 @@ class IngestionWorker(TransformDataProcess):
         self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
+        self.dataset_management = DatasetManagementServiceClient(node=cc.node)
 
 
         self.dataset_configs = {}
@@ -129,8 +131,9 @@ class IngestionWorker(TransformDataProcess):
 
 
         #@todo - get this data from the dataset config...
-        dataset_id = "TBD" # Get it from the dataset config
-        stream_id = "TBD"  # Get it from the dataset config
+        dataset_id = dset_config.dataset_id
+        stream_id = dset_config.stream_id
+
         self.event_pub.publish_event(event_type="GranuleIngestedEvent", sub_type="DatasetIngest",
             origin=dataset_id, status=200,
             ingest_attributes=ingest_attributes, stream_id=stream_id)
