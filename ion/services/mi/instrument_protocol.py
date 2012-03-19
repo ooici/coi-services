@@ -417,13 +417,13 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         while True:
             # Send a line return and wait a sec.
-            mi_logger.debug('Sending wakeup.')
+            mi_logger.debug('CommandResponseInstrumentProtocol._wakeup(): Sending wakeup, time = .' + str(time.time()))
             self._send_wakeup()
             time.sleep(1)
             
             for item in self.prompts.list():
                 if self._promptbuf.endswith(item):
-                    mi_logger.debug('wakeup got prompt: %s', repr(item))
+                    mi_logger.debug('CommandResponseInstrumentProtocol._wakeup(): got prompt: %s', repr(item))
                     return item
 
             if time.time() > starttime + timeout:

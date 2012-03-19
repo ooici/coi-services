@@ -19,7 +19,7 @@ class InstrumentFSM():
     Simple state mahcine for driver and agent classes.
     """
 
-    def __init__(self, states, events, enter_event, exit_event, err_unhandled):
+    def __init__(self, states, events, enter_event, exit_event, err_unhandled, callback=None):
         """
         Initialize states, events, handlers.
 
@@ -38,6 +38,7 @@ class InstrumentFSM():
         self.enter_event = enter_event
         self.exit_event = exit_event
         self.err_unhandled = err_unhandled
+        self.event_publisher_callback = callback
 
     def get_current_state(self):
         """
@@ -66,16 +67,16 @@ class InstrumentFSM():
         @retval return True
         """
         
-        #if state not in self.states:
-        #    return False
-        
         if not self.states.has(state):
+            mi_logger.error("InstrumentFSM.start(): Unknown state " + str(state))
             return False
                 
         self.current_state = state
         handler = self.state_handlers.get((state, self.enter_event), None)
         if handler:
             handler(*args, **kwargs)
+        else:
+            mi_logger.error("InstrumentFSM.start(): Unhandled 'enter' event for state " + str(state))
         return True
 
     def on_event(self, event, *args, **kwargs):
@@ -92,13 +93,24 @@ class InstrumentFSM():
         next_state = None
         result = None
         
+        mi_logger.debug('From current state %s, processing event %s...',
+                        self.current_state, event)
         if self.events.has(event):
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:
                 (next_state, result) = handler(*args, **kwargs)
+            else:
+                mi_logger.warn("InstrumentFSM.on_event(): Unhandled event %s for state %s" 
+                                %(str(event), str(self.current_state)))
+                return self.err_unhandled
+        else:
+            mi_logger.error("InstrumentFSM.on_event(): Unknown event " + str(event))
+
         #if next_state in self.states:
         if self.states.has(next_state):
             self._on_transition(next_state, *args, **kwargs)
+        else:
+            mi_logger.error("InstrumentFSM.on_event(): Unknown state " + str(next_state))
                 
         return result
             
@@ -113,9 +125,12 @@ class InstrumentFSM():
         handler = self.state_handlers.get((self.current_state, self.exit_event), None)
         if handler:
             handler(*args, **kwargs)
-        self.previous_state = self.current_state
         self.current_state = next_state
         handler = self.state_handlers.get((self.current_state, self.enter_event), None)
         if handler:
             handler(*args, **kwargs)
+            
+        # publish event if parent gives this instance an event publisher callback
+        if self.event_publisher_callback:
+            self.event_publisher_callback(self.current_state)
 
