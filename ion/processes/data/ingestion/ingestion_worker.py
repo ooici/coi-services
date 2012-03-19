@@ -193,14 +193,15 @@ class IngestionWorker(TransformDataProcess):
             elif isinstance(value, Coverage):
                 ingestion_attributes['variables'].append(key)
 
-
         if dset_config.archive_metadata is True:
             log.debug("Persisting data....")
+            ingestion_attributes['updated_metadata'] = True
             self.persist_immutable(packet )
 
         if dset_config.archive_data is True:
             #@todo - grab the filepath to save the hdf string somewhere..
 
+            ingestion_attributes['updated_data'] = True
             if values_string:
 
                 calculated_sha1 = hashlib.sha1(values_string).hexdigest().upper()
