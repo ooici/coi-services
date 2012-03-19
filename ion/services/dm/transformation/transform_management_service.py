@@ -41,7 +41,7 @@ class TransformManagementService(BaseTransformManagementService):
 
         self.clients.process_dispatcher.schedule_process(
             process_definition_id=proc_def_ids[0],
-
+            configuration=configuration
         )
 
 
