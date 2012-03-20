@@ -86,7 +86,7 @@ class VisStreamLauncher(StandaloneProcess):
         dp_ids,_ = self.rrclient.find_resources(RT.DataProduct, None, self.data_source_name, True)
         if len(dp_ids) > 0:
             data_product_id = dp_ids[0]
-            print '>>>>>> Found dp_id = ', data_product_id
+            print '>>>>>>>>>>>>> Found dp_id = ', data_product_id
         else:
             # Create InstrumentModel
             instModel_obj = IonObject(RT.InstrumentModel, name=self.data_source_name, description=self.data_source_name, model_label=self.data_source_name)

@@ -5,6 +5,13 @@ from gevent.greenlet import Greenlet
 __author__ = 'Raj Singh'
 __license__ = 'Apache 2.0'
 
+"""
+Note:
+[1] Currently for th case of replay data, the transform processes created libger on and need to be cleaned up.
+[2] Also need to clean up the storage used by the data tables in the case of replay. After they have been fetched by the
+    UI, the viz_data_dictionary should be cleaned up.
+"""
+
 # Pyon imports
 # Note pyon imports need to be first for monkey patching to occur
 from pyon.ion.transform import TransformDataProcess
@@ -23,11 +30,10 @@ import simplejson
 import gevent
 from gevent.greenlet import Greenlet
 
-
-
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from interface.services.ans.ivisualization_service import VisualizationServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import HdfStorage, CouchStorage
 from pyon.event.event import EventSubscriber
 from pyon.util.async import spawn
@@ -67,7 +73,9 @@ class VisualizationService(BaseVisualizationService):
         self.tms_cli = TransformManagementServiceClient(node=self.container.node)
         self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
+        self.dsm_cli = DatasetManagementServiceClient(node=self.container.node)
 
+        self.datastore_name = 'ingested_datasets' #'test_datastore'
         """
         #The following code might go away in the future but check for an existing ingestion configuration in the system
         # and if it does not exist, create one. It will be used by the data producers to persist data
@@ -139,7 +147,7 @@ class VisualizationService(BaseVisualizationService):
         super(VisualizationService, self).on_stop()
         return
 
-    def get_google_dt(self, data_product_id='', query=''):
+    def start_google_dt_transform(self, data_product_id='', query=''):
         """Request to fetch the datatable for a data product as specified in the query. Query will also specify whether its a realtime view or one-shot
 
         @param data_product_id    str
@@ -148,23 +156,34 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    object with specified id, query does not exist
         """
 
+        # generate a token unique for this request
+        data_product_id_token = data_product_id + "." + self.random_id_generator()
+
         # Get object asssociated with data_product_id
         dp_obj = self.rr_cli.read(data_product_id)
+        
+        if dp_obj.dataset_id == '':
+            return None
 
-        dataset_id = dp_obj.dataset_id
+        # Get the view_name associated with the dataset
+        dataset = self.dsm_cli.read_dataset(dataset_id=dp_obj.dataset_id)
+        print " >>>>>> DATASET VIEW_NAME : ", dataset.view_name
+
         # define replay. If no filters are passed the entire ingested dataset is returned
-        replay_id, replay_stream_id = drclient.define_replay(dataset_id=dataset_id)
-        replay_stream_def_id = pubsub_cli.find_stream_definition(stream_id=replay_stream_id,id_only=True)
+        replay_id, replay_stream_id = self.dr_cli.define_replay(dataset_id=dp_obj.dataset_id)
+
+        replay_stream_def_id = self.pubsub_cli.find_stream_definition(stream_id=replay_stream_id,id_only=True)
 
         # setup the transform to handle the data coming back from the replay
         # Init storage for the resulting data_table
-        self.viz_data_dictionary['google_dt'][data_product_id] = {'transform_proc': "", 'data_table': [], 'ready_flag': False}
+        self.viz_data_dictionary['google_dt'][data_product_id_token] = {'transform_proc': "", 'data_table': [], 'ready_flag': False}
+
         # Create the subscription to the stream. This will be passed as parameter to the transform worker
-        query = StreamQuery(replay_stream_id)
+        query = StreamQuery(stream_ids=[replay_stream_id,])
         replay_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='viz_data_exchange.'+self.random_id_generator())
 
         # maybe this is a good place to pass the couch DB table to use and other parameters
-        configuration = {"stream_def_id": replay_stream_def_id, "data_product_id": data_product_id, "realtime_flag": "False"}
+        configuration = {"stream_def_id": replay_stream_def_id, "data_product_id": data_product_id, "realtime_flag": "False", "data_product_id_token": data_product_id_token}
 
         # Launch the viz transform process
         viz_transform_id = self.tms_cli.create_transform( name='viz_transform_google_dt_' + self.random_id_generator()+'.'+data_product_id,
@@ -173,13 +192,37 @@ class VisualizationService(BaseVisualizationService):
             configuration=configuration)
         self.tms_cli.activate_transform(viz_transform_id)
 
-        # Start the replay
-        dr_cli.start_replay(replay_id=replay_id)
+        # Start the replay and return the token
+        self.dr_cli.start_replay(replay_id=replay_id)
+
+        return "google_dt_transform_cb(\"" + data_product_id_token + "\")"
+
+
+    def is_google_dt_ready(self, data_product_id_token=''):
+        try:
+            # check if token is valid
+            if data_product_id_token in self.viz_data_dictionary['google_dt']:
+                #check if the data table is ready
+                if  self.viz_data_dictionary['google_dt'][data_product_id_token]['ready_flag']:
+                    return "google_dt_status_cb(\"True\")"
+                else:
+                    return "google_dt_status_cb(\"False\")"
+
+        except AttributeError:
+            return None
+
+    def get_google_dt(self, data_product_id_token=''):
 
         try:
-            # send the resultant datatable back
-            if data_product_id in self.viz_data_dictionary['google_dt']:
-                return self.viz_data_dictionary['google_dt'][data_product_id]
+            # check if token is valid
+            if data_product_id_token in self.viz_data_dictionary['google_dt']:
+                #check if the data table is ready
+                if  not self.viz_data_dictionary['google_dt'][data_product_id_token]['ready_flag']:
+                    return None
+                else:
+                    return self.viz_data_dictionary['google_dt'][data_product_id_token]['data_table']
+                    # clean up the entry in data _dictionary
+                    #del self.viz_data_dictionary['google_dt'][data_product_id_token]
             else:
                 return None
 
@@ -197,7 +240,7 @@ class VisualizationService(BaseVisualizationService):
 
         try:
             if data_product_id in self.viz_data_dictionary['google_realtime_dt']:
-                return self.viz_data_dictionary['google_realtime_dt'][data_product_id]
+                return self.viz_data_dictionary['google_realtime_dt'][data_product_id]['data_table']
             else:
                 return None
 
@@ -243,7 +286,7 @@ class VisualizationService(BaseVisualizationService):
             return None
 
 
-    def submit_google_dt(self, data_product_id='', data_table=''):
+    def submit_google_dt(self, data_product_id_token='', data_table=''):
         """Send the rendered image to
 
         @param data_product_id    str
@@ -254,7 +297,10 @@ class VisualizationService(BaseVisualizationService):
         """
 
         # Just copy the datatable in to the data dictionary
-        self.viz_data_dictionary['google_dt'][data_product_id] = data_table
+        self.viz_data_dictionary['google_dt'][data_product_id_token]['data_table'] = data_table
+        self.viz_data_dictionary['google_dt'][data_product_id_token]['ready_flag'] = True
+
+        #self.result.set(True)
 
         return
 
@@ -269,7 +315,7 @@ class VisualizationService(BaseVisualizationService):
         """
 
         # Just copy the datatable in to the data dictionary
-        self.viz_data_dictionary['google_realtime_dt'][data_product_id] = data_table
+        self.viz_data_dictionary['google_realtime_dt'][data_product_id]['data_table'] = data_table
 
         return
 
@@ -416,10 +462,13 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
         # extract the data_product_id from the transform name. Should be appended with a '.'
         self.data_product_id = self.CFG.get('data_product_id')
         self.stream_def_id = self.CFG.get("stream_def_id")
-        self.stream_def = self.rr_cli.read(self.stream_def_id)
+        stream_def_resource = self.rr_cli.read(self.stream_def_id)
+        self.stream_def = stream_def_resource.container
         self.realtime_flag = False
         if self.CFG.get("realtime_flag") == "True":
             self.realtime_flag = True
+        else:
+            self.data_product_id_token = self.CFG.get('data_product_id_token')
 
 
         # extract the stream_id associated with the DP. NEeded later
@@ -440,7 +489,7 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
         element_count_id = 0
         expected_range = []
 
-        psd = PointSupplementStreamParser(stream_definition=self.stream_def.container, stream_granule=packet)
+        psd = PointSupplementStreamParser(stream_definition=self.stream_def, stream_granule=packet)
         vardict = {}
         arrLen = None
         for varname in psd.list_field_names():
@@ -477,6 +526,7 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
                 else:
                     varTuple.append(val)
 
+            # Append the tuples to the data table
             self.dataTableContent.append (varTuple)
 
             if self.realtime_flag:
@@ -490,7 +540,8 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
 
         if not self.realtime_flag:
             # This is the historical view part. Make a note of now many records were received
-            element_count_id = self.stream_def.identifiables[self.stream_id].element_count_id
+            data_stream_id = self.stream_def.data_stream_id
+            element_count_id = self.stream_def.identifiables[data_stream_id].element_count_id
             # From each granule you can check the constraint on the number of records
             expected_range = packet.identifiables[element_count_id].constraint.intervals[0]
 
@@ -507,11 +558,23 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
             self.vs_cli.submit_google_realtime_dt(self.data_product_id, data_table.ToJSonResponse())
         else:
             # Submit table back to the service if we received all the replay data
-            if self.total_num_of_records_recvd == (expected_range[1] - 1):
+            if self.total_num_of_records_recvd == (expected_range[1] + 1):
                 print "@@@@@@@@@@@@@@@@  RECEIVED ALL REPLAY RECORDS"
+                # If the datatable received was too big, decimate on the fly to a fixed size
+                max_google_dt_len = 2048
+                if len(self.dataTableContent) > max_google_dt_len:
+                    decimation_factor = math.floor(len(self.dataTableContent) / (len(self.dataTableContent) - max_google_dt_len))
+
+                    for i in xrange(len(self.dataTableContent) - 1 , 0, decimation_factor):
+                        self.dataTableContent.pop(i)
+
+                print "@@@@@@@@@@@@@@@@@@@ Datatable length : ", len(self.dataTableContent)
                 data_table = gviz_api.DataTable(self.dataDescription)
                 data_table.LoadData(self.dataTableContent)
-                self.vs_cli.submit_google_dt(self.data_product_id, data_table.ToJSonResponse())
+
+                self.vs_cli.submit_google_dt(self.data_product_id_token, data_table.ToJSonResponse())
+                return
+
 
         # clear the tuple for future use
         self.varTuple[:] = []

@@ -49,17 +49,19 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
         samples = 60
         sine_curr_deg = 0 # varies from 0 - 360
 
+        startTime = time.time()
         count = samples #something other than zero
-        while True:
-            sine_curr_deg = (count % samples) * 360 / samples
 
+        while True:
+            count = time.time() - startTime
+            sine_curr_deg = (count % samples) * 360 / samples
 
             c = [sine_ampl * math.sin(math.radians(sine_curr_deg))]
             t = [sine_ampl * 2 * math.sin(math.radians(sine_curr_deg + 45))]
             p = [sine_ampl * 4 * math.sin(math.radians(sine_curr_deg + 60))]
 
             lat = lon = [0.0]
-            tvar = [count]
+            tvar = [time.time()]
 
             ctd_packet = ctd_stream_packet(stream_id=stream_id,
                 c=c, t=t, p = p, lat = lat, lon = lon, time=tvar)
@@ -69,6 +71,6 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
 
             time.sleep(2.0)
 
-            count += 1
+            #count += 1
 
 
