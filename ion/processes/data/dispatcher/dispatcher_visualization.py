@@ -86,3 +86,4 @@ class DispatcherVisualization(ReplayProcess):
     def _query(self,datastore_name='dm_datastore', view_name='posts/posts_by_id', opts={}, callback=None):
         ret = self.db.query_view(view_name, opts=opts)
         self._publish_query(ret)
+
