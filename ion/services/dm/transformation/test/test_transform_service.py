@@ -113,7 +113,8 @@ class TransformManagementServiceTest(PyonTestCase):
                 'name':'test_transform',
                 'type':'stream_process',
                 'listen_name':'input_stream_id',
-                'publish_streams':{'output':'mock_output_stream_id'}
+                'publish_streams':{'output':'mock_output_stream_id'},
+                'transform_id': 'transform_id'
             },
             'proc_args':{
                 'arg1':'value'
@@ -158,7 +159,8 @@ class TransformManagementServiceTest(PyonTestCase):
                 'name':'test_transform',
                 'type':'stream_process',
                 'listen_name':'input_stream_id',
-                'publish_streams':{'output':'mock_output_stream_id'}
+                'publish_streams':{'output':'mock_output_stream_id'},
+                'transform_id': 'transform_id'
             }
         }
         self.assertEquals(self.mock_rr_create_assoc.call_count,3)
@@ -197,7 +199,8 @@ class TransformManagementServiceTest(PyonTestCase):
             'process':{
                 'name':'test_transform',
                 'type':'stream_process',
-                'listen_name':'input_stream_id'
+                'listen_name':'input_stream_id',
+                'transform_id': 'transform_id'
             },
             'proc_args':{
                 'arg1':'value'

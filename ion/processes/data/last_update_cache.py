@@ -19,11 +19,14 @@ CACHE_DATASTORE_NAME = 'last_update_datastore'
 
 class LastUpdateCache(TransformDataProcess):
     def __init__(self, *args, **kwargs):
-        super(LastUpdateCache, self)
+        super(LastUpdateCache, self).__init__()
         self.def_cache = {}
 
 
     def on_start(self):
+
+        super(LastUpdateCache, self).on_start()
+
 
         self.couch_config = self.CFG.get('couch_storage')
 
