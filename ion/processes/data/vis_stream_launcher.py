@@ -72,7 +72,7 @@ class VisStreamLauncher(StandaloneProcess):
         """
         # Set up the preconditions. Look for an existing ingestion config
         while True:
-            log.warn("VisStreamLauncher:on_start: Waiting for an ingestion configuration to be available.")
+            log.info("VisStreamLauncher:on_start: Waiting for an ingestion configuration to be available.")
             ingestion_cfgs, _ = self.rrclient.find_resources(RT.IngestionConfiguration, None, None, True)
 
             if len(ingestion_cfgs) > 0:

@@ -741,6 +741,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         @throw InstrumentProtocolException on invalid command
         """
+        # TODO: this routine needs to be more robust to ensure that it deals with situations where the
+        # instrument isn't responding as expected
+        
         next_state = None
         result = None
 
@@ -748,15 +751,24 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             prompt = None
             count = 0
             timeout = kwargs.get('timeout', 10)
-            while prompt != SBE37Prompt.AUTOSAMPLE:
+            mi_logger.debug("_handler_autosample_stop_autosample: timeout set to " + str(timeout))
+            while True:
                 prompt = self._wakeup(timeout)
+                if prompt == SBE37Prompt.AUTOSAMPLE:
+                    break
+                mi_logger.debug("_handler_autosample_stop_autosample: prompt rcvd = %s, prompt wanted = %s"
+                                %(prompt, SBE37Prompt.AUTOSAMPLE))
                 count += 1
                 if count == 3:
+                    # TODO: should this really quit after 3 tries???
                     break
             self._do_cmd_resp('stop', *args, **kwargs)
             prompt = None
+            
+            # TODO: should this really loop forever???
             while prompt != SBE37Prompt.COMMAND:
                 prompt = self._wakeup(timeout)
+                
             next_state = SBE37State.COMMAND
             
         except InstrumentTimeoutException:

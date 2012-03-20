@@ -16,7 +16,7 @@ from pyon.util.async import spawn
 from pyon.core.exception import IonException
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
-from interface.objects import DatasetIngestionTypeEnum
+from interface.objects import DatasetIngestionTypeEnum, Coverage, CountElement
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.event.event import EventSubscriber, EventPublisher
@@ -76,7 +76,6 @@ class IngestionWorker(TransformDataProcess):
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
 
-
         self.dataset_configs = {}
         # update the policy
         def receive_dataset_config_event(event_msg, headers):
@@ -91,7 +90,7 @@ class IngestionWorker(TransformDataProcess):
                 try:
                     del self.dataset_configs[stream_id]
                 except KeyError:
-                    log.warn('Tried to remove dataset config that does not exist!')
+                    log.info('Tried to remove dataset config that does not exist!')
             else:
                 self.dataset_configs[stream_id] = event_msg
 
@@ -109,21 +108,38 @@ class IngestionWorker(TransformDataProcess):
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
 
-        log.warn(str(self.db))
+        log.info(str(self.db))
 
     def process(self, packet):
         """Process incoming data!!!!
         """
 
+        # Ignoring any packet that is not a stream granule!
+        if not isinstance(packet, StreamGranuleContainer):
+            raise IngestionWorkerException('Received invalid message type: "%s"', type(packet))
+
+
         # Get the dataset config for this stream
         dset_config = self.get_dataset_config(packet)
 
         # Process the packet
-        self.process_stream(packet, dset_config)
 
-        headers = ''
-        # Hook to override just before processing is complete
-        self.ingest_process_test_hook(packet, headers)
+        ingest_attributes = self.process_stream(packet, dset_config)
+
+
+        #@todo - get this data from the dataset config...
+        if dset_config:
+            dataset_id = dset_config.dataset_id
+            stream_id = dset_config.stream_id
+
+            self.event_pub.publish_event(event_type="GranuleIngestedEvent", sub_type="DatasetIngest",
+                origin=dataset_id, status=200,
+                ingest_attributes=ingest_attributes, stream_id=stream_id)
+
+
+            headers = ''
+            # Hook to override just before processing is complete
+            self.ingest_process_test_hook(packet, headers)
 
 
     def persist_immutable(self, obj):
@@ -152,58 +168,60 @@ class IngestionWorker(TransformDataProcess):
         @param: dset_config The dset_config telling this method what to do with the incoming data stream.
         """
 
-        # Ignoring is_replay attribute now that we have a policy implementation
-        if isinstance(packet, StreamGranuleContainer):
 
-            if dset_config is None:
-                log.warn('No dataset config for this stream!')
-                return
+        ingestion_attributes={'variables':[], 'number_of_records':-1,'updated_metadata':False, 'updated_data':False}
 
-            values_string = ''
-            sha1 = ''
-            encoding_type = ''
+        if dset_config is None:
+            log.info('No dataset config for this stream!')
+            return
 
-            for key,value in packet.identifiables.iteritems():
-                if isinstance(value, DataStream):
-                    values_string = value.values
-                    value.values=''
+        values_string = ''
+        sha1 = ''
+        encoding_type = ''
 
-                elif isinstance(value, Encoding):
-                    sha1 = value.sha1
-                    encoding_type = value.encoding_type
+        for key,value in packet.identifiables.iteritems():
+            if isinstance(value, DataStream):
+                values_string = value.values
+                value.values=''
+
+            elif isinstance(value, Encoding):
+                sha1 = value.sha1
+                encoding_type = value.encoding_type
+
+            elif isinstance(value, Coverage):
+                ingestion_attributes['variables'].append(key)
+
+            elif isinstance(value, CountElement):
+                ingestion_attributes['number_of_records'] = value.value
+
+        if dset_config.archive_metadata is True:
+            log.debug("Persisting data....")
+            ingestion_attributes['updated_metadata'] = True
+            self.persist_immutable(packet )
+
+        if dset_config.archive_data is True:
+            #@todo - grab the filepath to save the hdf string somewhere..
+
+            ingestion_attributes['updated_data'] = True
+            if values_string:
+
+                calculated_sha1 = hashlib.sha1(values_string).hexdigest().upper()
+
+                filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
+
+                if sha1 != calculated_sha1:
+                    raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
+
+                #log.warn('writing to filename: %s' % filename)
+
+                with open(filename, mode='wb') as f:
+                    f.write(values_string)
+                    f.close()
+            else:
+                log.warn("Nothing to write!")
 
 
-            if dset_config.archive_metadata is True:
-                log.debug("Persisting data....")
-                self.persist_immutable(packet )
-
-            if dset_config.archive_data is True:
-                #@todo - grab the filepath to save the hdf string somewhere..
-
-                if values_string:
-
-                    calculated_sha1 = hashlib.sha1(values_string).hexdigest().upper()
-
-                    filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
-
-                    if sha1 != calculated_sha1:
-                        raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
-
-                    log.warn('writing to filename: %s' % filename)
-
-                    with open(filename, mode='wb') as f:
-                        f.write(values_string)
-                        f.close()
-                else:
-                    log.warn("Nothing to write!")
-
-            # HACK to get the dataset id. Use a better way to get this information
-            #origin = dset_config.name.split(' ')[-1]
-            origin = "TBD"
-            ingest_attributes = {}   # Something telling about the granule
-            self.event_pub.publish_event(event_type="GranuleIngestedEvent", sub_type="DatasetIngest",
-                origin=origin, status=200,
-                ingest_attributes=ingest_attributes, stream_id="TBD")
+        return ingestion_attributes
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
@@ -231,8 +249,6 @@ class IngestionWorker(TransformDataProcess):
         """
         Gets the dset_config for the data stream
         """
-
-        log.warn(incoming_packet)
 
         try:
             stream_id = incoming_packet.stream_resource_id

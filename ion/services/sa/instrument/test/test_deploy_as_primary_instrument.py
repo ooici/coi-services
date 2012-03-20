@@ -48,8 +48,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='foome')
-#@unittest.skip("run locally only")
+@attr('HARDWARE', group='foome')
+@unittest.skip("run locally only")
 class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
     def setUp(self):
@@ -179,7 +179,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         # set this device as the current primary device
         self.imsclient.deploy_as_primary_instrument_device_to_logical_instrument(oldInstDevice_id, logicalInstrument_id)
-        
+
         #-------------------------------
         # Create InstrumentAgentInstance for OldInstrumentDevice to hold configuration information
         # cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
@@ -513,7 +513,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
 
-        
+
         log.debug("test_deployAsPrimaryDevice:: calling reset ")
         cmd = AgentCommand(command='reset')
         reply = self._ia_client_sim1.execute_agent(cmd)
