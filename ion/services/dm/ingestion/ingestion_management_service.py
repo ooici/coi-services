@@ -301,7 +301,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         config = DatasetIngestionByStream(
             archive_data=archive_data,
             archive_metadata=archive_metadata,
-            stream_id=stream_id)
+            stream_id=stream_id,
+            dataset_id=dataset_id)
 
         dset_ingest_config = DatasetIngestionConfiguration(
             name = 'Dataset config %s' % dataset_id,

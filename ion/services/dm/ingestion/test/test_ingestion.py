@@ -8,6 +8,8 @@
 
 import gevent
 from gevent.timeout import Timeout
+from pyon.util.async import spawn
+
 from mock import Mock
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, ctd_stream_packet
 from pyon.util.unit_test import PyonTestCase
@@ -25,8 +27,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.public import RT, PRED, log, IonObject
 
 from pyon.datastore.datastore import DataStore
-from interface.objects import BlogPost, BlogComment, ExchangeQuery, DatasetIngestionConfiguration
+from interface.objects import ExchangeQuery, DatasetIngestionConfiguration
 from pyon.ion.process import StandaloneProcess
+
+from pyon.event.event import EventSubscriber
 
 import random
 import time
@@ -366,6 +370,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         ctd_stream_def = SBE37_CDM_stream_definition()
 
+        self.ctd_stream_def = ctd_stream_def
         stream_def_id = self.pubsub_cli.create_stream_definition(container=ctd_stream_def, name='Junk definition')
 
 
@@ -409,11 +414,25 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.ingestion_configuration_id = ingestion_configuration_id
 
+        self.gl = []
+        self.event_subscribers = []
+
+
 
     def tearDown(self):
         """
         Cleanup. Delete Subscription, Stream, Process Definition
         """
+
+        for es in self.event_subscribers:
+            es.close()
+
+
+        for g in self.gl:
+            g.join(timeout=5)
+            g.kill()
+
+
         self._stop_container()
 
     def test_create_ingestion_configuration(self):
@@ -610,8 +629,8 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(dataset_config.configuration.archive_metadata, False)
 
 
-        self.assertEqual(ar_1.get(timeout=10).configuration.stream_id,self.input_stream_id)
-        self.assertEqual(ar_2.get(timeout=10).configuration.stream_id,self.input_stream_id)
+        self.assertEqual(ar_1.get(timeout=10).configuration.dataset_id,self.input_dataset_id)
+        self.assertEqual(ar_2.get(timeout=10).configuration.dataset_id,self.input_dataset_id)
 
 
     def test_create_dataset_configuration_not_found(self):
@@ -878,64 +897,6 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.ingestion_cli.delete_dataset_config('non_existent_stream_id')
 
-    def test_ingestion_workers_writes_to_couch(self):
-        """
-        Test that the ingestion workers are writing messages to couch
-        """
-
-
-        #------------------------------------------------------------------------
-        # Publish messages
-        #----------------------------------------------------------------------
-
-        post = BlogPost( post_id = '1234', title = 'The beautiful life',author = {'name' : 'Jacques', 'email' : 'jacques@cluseaou.com'}, updated = 'too early', content ='summer', stream_id=self.input_stream_id )
-
-        self.ctd_stream1_publisher.publish(post)
-
-        comment = BlogComment(ref_id = '1234',author = {'name': 'Roger', 'email' : 'roger@rabbit.com'}, updated = 'too late',content = 'when summer comes', stream_id=self.input_stream_id)
-
-        self.ctd_stream1_publisher.publish(comment)
-
-
-        #------------------------------------------------------------------------
-        # List the posts and the comments that should have been written to couch
-        #----------------------------------------------------------------------
-
-        objs = self.db.list_objects()
-
-        # the list of ion_objects... in our case BlogPost and BlogComment
-        ion_objs = []
-
-        for obj in objs:
-
-            # read the document returned by list
-            result = self.db.read_doc(objs[0])
-
-            # convert the persistence dict to an ion_object
-            ion_obj = self.db._persistence_dict_to_ion_object(result)
-
-            if isinstance(ion_obj, BlogPost):
-                log.debug("ION OBJECT: %s\n" % ion_obj)
-                log.debug("POST: %s\n" % post)
-
-                # since the retrieved document has an extra attribute, rev_id, which the orginal post did not have
-                # it is easier to compare the attributes than the whole objects
-                self.assertTrue(ion_obj.post_id == post.post_id), "The post is not to be found in couch storage"
-                self.assertTrue(ion_obj.author == post.author), "The post is not to be found in couch storage"
-                self.assertTrue(ion_obj.title == post.title), "The post is not to be found in couch storage"
-                self.assertTrue(ion_obj.updated == post.updated), "The post is not to be found in couch storage"
-                self.assertTrue(ion_obj.content == post.content), "The post is not to be found in couch storage"
-
-            elif isinstance(ion_obj, BlogComment):
-                log.debug("ION OBJECT: %s\n" % ion_obj)
-                log.debug("COMMENT: %s\n" % comment)
-
-                # since the retrieved document has an extra attribute, rev_id, which the orginal post did not have
-                # it is easier to compare the attributes than the whole objects
-                self.assertTrue(ion_obj.author == comment.author), "The comment is not to be found in couch storage"
-                self.assertTrue(ion_obj.content == comment.content), "The comment is not to be found in couch storage"
-                self.assertTrue(ion_obj.ref_id == comment.ref_id), "The comment is not to be found in couch storage"
-                self.assertTrue(ion_obj.updated == comment.updated), "The comment is not to be found in couch storage"
 
 
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -1102,6 +1063,75 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------------------------
 
         self.assertEquals(queue.get(timeout=10).stream_resource_id, ctd_packet.stream_resource_id)
+
+
+        #--------------------------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+        # Check that the dataset id is passed properly in the GranuleIngestedEvent
+        #--------------------------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------
+
+        ar = gevent.event.AsyncResult()
+        def granule_ingested_hook(msg, headers):
+            ar.set(msg)
+
+
+        #Start the event subscriber - really - what a mess!
+        event_subscriber = EventSubscriber(
+            event_type="GranuleIngestedEvent",
+            origin=self.input_dataset_id,
+            callback=granule_ingested_hook
+            )
+
+        self.gl.append(spawn(event_subscriber.listen))
+        event_subscriber._ready_event.wait(timeout=5)
+        self.event_subscribers.append(event_subscriber)
+
+
+
+        # Set up the gevent Result queue for the hook in the workers
+
+        queue=gevent.queue.Queue()
+
+        def config_event_hook(packet, headers):
+            queue.put(packet)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Override the worker processes methods with the gevent event hooks
+        #--------------------------------------------------------------------------------------------------------
+
+        proc_1.dataset_configs_event_test_hook = config_event_hook
+        proc_2.dataset_configs_event_test_hook = config_event_hook
+
+        dataset_config = self.ingestion_cli.read_dataset_config(dataset_config_id)
+        dataset_config.configuration.archive_metadata = True
+        self.ingestion_cli.update_dataset_config(dataset_config)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Create a new packet and publish it
+        #--------------------------------------------------------------------------------------------------------
+
+        ctd_packet = self._create_packet(self.input_stream_id)
+        self.ctd_stream1_publisher.publish(ctd_packet)
+
+        #--------------------------------------------------------------------------------------------------------
+        # Assert that the dataset id got from the dataset_config event hook is what it should be in both procs
+        #--------------------------------------------------------------------------------------------------------
+
+        self.assertEquals(queue.get(timeout=10).configuration.dataset_id,self.input_dataset_id)
+        self.assertEquals(queue.get(timeout=10).configuration.dataset_id,self.input_dataset_id)
+        self.assertTrue(queue.empty())
+
+
+        event_msg = ar.get(timeout=10)
+        self.assertEquals(event_msg.origin, self.input_dataset_id)
+
+        data_stream_id = self.ctd_stream_def.data_stream_id
+        element_count_id = self.ctd_stream_def.identifiables[data_stream_id].element_count_id
+        record_count = ctd_packet.identifiables[element_count_id].value
+
+        self.assertEquals(event_msg.ingest_attributes['number_of_records'], record_count)
+
 
 
     def _create_packet(self, stream_id):
