@@ -605,7 +605,7 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         self.data_product_id = self.CFG.get('data_product_id')
         self.stream_def_id = self.CFG.get("stream_def_id")
         self.stream_def = self.rr_cli.read(self.stream_def_id)
-
+        self.vs_cli = VisualizationServiceClient()
 
 
 
@@ -641,8 +641,6 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
 
     def rendering_thread(self, graph_data):
 
-        # Service Client
-        vs_cli = VisualizationServiceClient()
 
         # init Matplotlib
         fig = Figure()
@@ -686,7 +684,7 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
             imgInMem.seek(0)
 
             # submit the image object to the visualization service
-            vs_cli.submit_mpl_image(self.data_product_id, imgInMem.getvalue(), fileName)
+            self.vs_cli.submit_mpl_image(self.data_product_id, imgInMem.getvalue(), fileName)
 
             #clear the canvas for the next image
             ax.clear()
