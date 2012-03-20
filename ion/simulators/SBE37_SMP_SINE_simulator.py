@@ -13,10 +13,30 @@ import thread
 import getopt
 import select
 import os
+import time, math
 
 port = 4001  # Default port to run on.
 connection_count = 0
 log_file = "unassigned"
+
+divisor = 20.0
+look = {}
+
+def my_sin(Amin, Amax):
+     global lookup
+     global divisor
+     if str(Amin) + "," + str(Amax) in look:
+         x = look[str(Amin) + "," + str(Amax)]
+     else:
+         look[str(Amin) + "," + str(Amax)] = 0
+         x = 0
+
+     look[str(Amin) + "," + str(Amax)] += 1
+     sin_val = math.sin(x / divisor * math.pi)
+     range = Amax - Amin
+     adj_sin = (sin_val + 1.0) * range/2.0 + Amin
+     return adj_sin
+
 
 class sbe37(asyncore.dispatcher_with_send):
     buf = ""
@@ -170,8 +190,8 @@ class sbe37(asyncore.dispatcher_with_send):
                 time.sleep(0.1)
                 if self.count > 25:
                     self.count = 1
-                    self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
-                    #self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(10,30), random.uniform(0.03, 0.07), random.uniform(-5, -9), random.uniform(0.18, 0.36), random.uniform(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
+                    self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
+                    #self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(my_sin(10,30), my_sin(0.03, 0.07), my_sin(-5, -9), my_sin(0.18, 0.36), my_sin(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
 
                 # Need to handle commands that are not in the blessed list #
                 if data:
@@ -457,29 +477,29 @@ class sbe37(asyncore.dispatcher_with_send):
                     handled = False
 
                 elif command_args[0] == 'ts':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'tsr':
-                    self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'tsr line 1')
+                    self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(my_sin(200000, 500000), my_sin(2000, 3000), my_sin(-200, -300)), 'tsr line 1')
 
                 elif command_args[0] == 'tss':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tss line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(my_sin(15, 25), my_sin(0.001, 0.01), my_sin(0.2, 0.9), my_sin(0.01, 0.02), my_sin(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tss line 1') 
 
                 elif command_args[0] == 'tsson':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tsson line 1')
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(my_sin(15, 25), my_sin(0.001, 0.01), my_sin(0.2, 0.9), my_sin(0.01, 0.02), my_sin(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tsson line 1')
 
                 elif command_args[0] == 'slt':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'slt line 1')
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(my_sin(15, 25), my_sin(0.001, 0.01), my_sin(0.2, 0.9), my_sin(0.01, 0.02), my_sin(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'slt line 1')
 
                 elif command_args[0] == 'sltr':
-                    self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'sltr line 1')
+                    self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(my_sin(200000, 500000), my_sin(2000, 3000), my_sin(-200, -300)), 'sltr line 1')
 
                 elif command_args[0] == 'sl':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'sl line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(my_sin(15, 25), my_sin(0.001, 0.01), my_sin(0.2, 0.9), my_sin(0.01, 0.02), my_sin(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'sl line 1') 
 
                 elif command_args[0] == 'syncmode':
                     if command_args[1] == 'y':
@@ -514,13 +534,13 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.send_data('sample interval = ' + str(self.interval) + ' seconds\r\n', 'dd line 4')  
                     self.send_data('start sample number = ' + str(self.sample_number) + '\r\n\r\n', 'dd line 5')  
                     for sample in range(begin, end):
-                        self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 6')
+                        self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(my_sin(15, 25), my_sin(0.001, 0.01), my_sin(0.2, 0.9), my_sin(0.01, 0.02), my_sin(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 6')
 
                 elif command_args[0] == "tt":
                     count = 100
                     while count > 0:
                         count -= 1
-                        self.send_data('{:8.4f}\r\n'.format(random.uniform(15, 25)), 'tt line 1')
+                        self.send_data('{:8.4f}\r\n'.format(my_sin(15, 25)), 'tt line 1')
                         time.sleep(1)
 
                         data = self.get_data()
@@ -533,7 +553,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     count = 100
                     while count > 0:
                         count -= 1
-                        self.send_data('{:8.5f}\r\n'.format(random.uniform(0.001, 0.1)), 'tc line 1')
+                        self.send_data('{:8.5f}\r\n'.format(my_sin(0.001, 0.1)), 'tc line 1')
                         time.sleep(1)
 
                         data = self.get_data()
@@ -546,7 +566,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     count = 100
                     while count > 0:
                         count -= 1
-                        self.send_data('{:8.3f}\r\n'.format(random.uniform(-6.5, -8.2)), 'tp line 1')
+                        self.send_data('{:8.3f}\r\n'.format(my_sin(-6.5, -8.2)), 'tp line 1')
                         time.sleep(1)
 
                         data = self.get_data()
@@ -559,7 +579,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     count = 100
                     while count > 0:
                         count -= 1
-                        self.send_data('{:9.1f}\r\n'.format(random.uniform(361215, 361219)), 'ttr line 1')
+                        self.send_data('{:9.1f}\r\n'.format(my_sin(361215, 361219)), 'ttr line 1')
                         time.sleep(1)
 
                         data = self.get_data()
@@ -572,7 +592,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     count = 100
                     while count > 0:
                         count -= 1
-                        self.send_data('{:9.3f}\r\n'.format(random.uniform(2600, 2700)), 'tcr line 1')
+                        self.send_data('{:9.3f}\r\n'.format(my_sin(2600, 2700)), 'tcr line 1')
                         time.sleep(1)
 
                         data = self.get_data()
@@ -585,7 +605,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     count = 100
                     while count > 0:
                         count -= 1
-                        self.send_data('{:7.1f},{:6.1f}\r\n'.format(random.uniform(-250, -290),random.uniform(18.1,20.2)), 'tpr line 1')
+                        self.send_data('{:7.1f},{:6.1f}\r\n'.format(my_sin(-250, -290),my_sin(18.1,20.2)), 'tpr line 1')
                         time.sleep(1)
 
                         data = self.get_data()
@@ -598,7 +618,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     count = 30
                     while count > 0:
                         count -= 1
-                        self.send_data('rtcf = {:9.7f}\r\n'.format(random.uniform(1.0, 1.1)), 'tr line 1')
+                        self.send_data('rtcf = {:9.7f}\r\n'.format(my_sin(1.0, 1.1)), 'tr line 1')
                         time.sleep(1)
 
                         data = self.get_data()
@@ -632,7 +652,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.send_data("    CPCOR = " + '{0:.6e}'.format(self.cpcor) + "\r\n", 'dc line 12')
                     self.send_data("    CTCOR = " + '{0:.6e}'.format(self.ctcor) + "\r\n", 'dc line 13')
                     self.send_data("    WBOTC = " + '{0:.6e}'.format(self.wbotc) + "\r\n", 'dc line 14')
-                    self.send_data("pressure S/N 4955, range = " + str(random.uniform(10000, 11000)) + " psia:  " + self.pcaldate + "\r\n", 'dc line 15')
+                    self.send_data("pressure S/N 4955, range = " + str(my_sin(10000, 11000)) + " psia:  " + self.pcaldate + "\r\n", 'dc line 15')
                     self.send_data("    PA0 = " + '{0:.6e}'.format(self.pa0) + "\r\n", 'dc line 16')
                     self.send_data("    PA1 = " + '{0:.6e}'.format(self.pa1) + "\r\n", 'dc line 17')
                     self.send_data("    PA2 = " + '{0:.6e}'.format(self.pa2) + "\r\n", 'dc line 18')

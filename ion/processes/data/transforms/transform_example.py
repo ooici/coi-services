@@ -108,14 +108,14 @@ class TransformCampfire(TransformDataProcess):
     def process(self, packet):
         log.debug('now processing...')
         if self.limit <= 0:
-            log.warn('Transform escaping - limit exceeded')
+            log.info('Transform escaping - limit exceeded')
             return
 
         if not isinstance(packet,(BlogPost,BlogComment)):
-            log.warn('Transform escaping - bad packet type: %s' % type(packet))
+            log.info('Transform escaping - bad packet type: %s' % type(packet))
             return # do nothing
 
-        log.warn('Attempt to publish to campfire')
+        log.info('Attempt to publish to campfire')
 
         if isinstance(packet.author, BlogAuthor):
             author = packet.author.name
@@ -150,9 +150,9 @@ class TransformCampfire(TransformDataProcess):
             'Content-Type':'application/json'
         }
 
-        log.warn(url)
-        log.warn(json_message)
-        log.warn(headers)
+        log.info(url)
+        log.info(json_message)
+        log.info(headers)
 
         url_request = urllib2.Request(url,json_message,headers)
 
@@ -171,10 +171,10 @@ class TransformEvenOdd(TransformDataProcess):
     '''
     def on_start(self):
         super(TransformEvenOdd,self).on_start()
-        assert hasattr(self,'even')
-        assert hasattr(self,'odd')
 
     def process(self, packet):
+        assert hasattr(self,'even')
+        assert hasattr(self,'odd')
         input = int(packet.get('num'))
 
         even = input * 2

@@ -25,7 +25,7 @@ class CacheLauncher(StandaloneProcess):
         dname = CACHE_DATASTORE_NAME
         number_of_workers = self.CFG.get_safe('process.number_of_workers', 2)
 
-        proc_def = ProcessDefinition()
+        proc_def = ProcessDefinition(name='last_update_worker_process',description='Worker process for caching the last update from a stream')
         proc_def.executable['module'] = 'ion.processes.data.last_update_cache'
         proc_def.executable['class'] = 'LastUpdateCache'
         proc_def_id = pd_cli.create_process_definition(process_definition=proc_def)
