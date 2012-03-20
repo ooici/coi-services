@@ -352,7 +352,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         dr_cli.start_replay(replay_id=replay_id)
 
-        assertions(result.get(timeout=3), 'Did not receive a msg from replay')
+        assertions(result.get(timeout=8), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
         if not (os.getenv('CEI_LAUNCH_TEST', False)):
