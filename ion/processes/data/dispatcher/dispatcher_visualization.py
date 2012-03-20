@@ -12,6 +12,12 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 from pyon.util.containers import DotDict
 
 class DispatcherVisualization(ReplayProcess):
+    '''
+    DispatcherVisualization
+    Acts in a manner similar to the replay, it gathers and merges all the granules in a cached dataset.
+    This object is meant to be instantiated and not launched as a process
+
+    '''
     def __init__(self, datastore_manager, stream_id, stream_definition_id, datastore_name=DISPATCH_DATASTORE, view_name='datasets/dataset_by_id' ):
         super(ReplayProcess, self).__init__()
         rr_cli = ResourceRegistryServiceClient()

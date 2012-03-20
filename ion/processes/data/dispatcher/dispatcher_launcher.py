@@ -16,7 +16,21 @@ from ion.processes.data.dispatcher.dispatcher_visualization import DispatcherVis
 from pyon.util.file_sys import FileSystem, FS
 
 class DispatcherLauncher(BaseService):
+    '''
+    DispatcherLauncher
+    This service acts as an arbiter and sub-service for aiding users in rendering data.
+    When the service is started it spawns N number of caching processes that ingest and persist all streams on the exchange point
+    After start up the service appends an instance method to public_api giving the user easy access to the visualize method.
 
+    If the user desires to cache a different subscription, the subscription id can be passed as a config arg
+
+    We use instantiated objects in lieu of processes to beat the overhead and stochastic results of having two separate
+    processes communicate without patching in an event-driven pattern or a lot of monkey patching.
+
+    This pattern is clean, elegant, uses OO and saves on memory usage, instead of having lingering processes with huge
+    buffers containing granules and images, they are released at the end of the visualize call.
+
+    '''
 
     def on_start(self):
         super(DispatcherLauncher, self).on_start()
@@ -27,15 +41,15 @@ class DispatcherLauncher(BaseService):
         #-------------------------------------------------
         # Make or get the subscription for this dispatcher
         #-------------------------------------------------
-        subscription_id = self.CFG.get_safe('process.subscription_id',None)
+        subscription_id = self.CFG.get_safe('service.subscription_id',None)
         if not subscription_id:
             # Exchange Subscription
             subscription_id = self.pubsub_cli.create_subscription(query=ExchangeQuery(),exchange_name=DISPATCH_DATASTORE)
 
-        number_of_processes = self.CFG.get_safe('process.number_of_processes',1)
+        number_of_processes = self.CFG.get_safe('service.number_of_processes',1)
 
         #-------------------------------------------------
-        # Proc def
+        # Process definition
         #-------------------------------------------------
         proc_def = ProcessDefinition()
         proc_def.executable['module'] = 'ion.processes.data.dispatcher.dispatcher_cache'
@@ -47,7 +61,9 @@ class DispatcherLauncher(BaseService):
                 'datastore_profile':'SCIDATA'
             }
         }
-
+        #-------------------------------------------------
+        # Launch N Transforms acting as the caching processes
+        #-------------------------------------------------
         transform_id = ''
         for i in xrange(number_of_processes):
             config['process']['number']=i
@@ -66,28 +82,45 @@ class DispatcherLauncher(BaseService):
 
     
     def visualize(self,stream_id):
+        '''
+        Simple method that renders and generates the files for the visual representation of the stream's granules.
+        '''
+
+        #-------------------------------------------------
+        # Services and definitions
+        #-------------------------------------------------
+
         dpms_cli = DataProductManagementServiceClient()
+
         stream_definition_id = self.pubsub_cli.find_stream_definition(stream_id=stream_id,id_only=True)
 
-        
-        dv = DispatcherVisualization(
-            datastore_manager=self.container.datastore_manager,
-            stream_id=stream_id,
-            stream_definition_id=stream_definition_id
-        )
-
+        # Assemble a data product for this visualization
         visual_product = DataProduct(name='granule visualization')
         visual_product_id = dpms_cli.create_data_product(
             data_product=visual_product,
             stream_definition_id=stream_definition_id
         )
 
-        dr = DispatcherRender(data_product_id=visual_product_id, stream_def_id=stream_definition_id)
+        #-------------------------------------------------
+        # Instantiation for the rending objects
+        #-------------------------------------------------
+        
+        dispatcher_visualization = DispatcherVisualization(
+            datastore_manager=self.container.datastore_manager,
+            stream_id=stream_id,
+            stream_definition_id=stream_definition_id
+        )
 
-        granule = dv.execute_replay()
+        dispatcher_render = DispatcherRender(data_product_id=visual_product_id, stream_def_id=stream_definition_id)
 
-        dr.process(granule)
-        for result in dr.results:
+        #-------------------------------------------------
+        # Process and Render the data
+        #-------------------------------------------------
+
+        granule = dispatcher_visualization.execute_replay()
+
+        dispatcher_render.process(granule)
+        for result in dispatcher_render.results:
             with open(FileSystem.get_url(FS.TEMP,result['file_name']),'w') as f:
                 f.write(result['image_string'])
-        return dr.results
+        return dispatcher_render.results
