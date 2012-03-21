@@ -27,6 +27,7 @@ import string
 import random
 import StringIO
 import simplejson
+import math
 import gevent
 from gevent.greenlet import Greenlet
 
@@ -132,17 +133,18 @@ class VisualizationService(BaseVisualizationService):
 
         # listen for events when new data_products show up
         self.event_subscriber = EventSubscriber(
+            event_type = "ResourceModifiedEvent",
+            origin_type = "DataProduct",
+            sub_type="UPDATE",
             callback=self.receive_new_dataproduct_event
         )
 
-        self.gl = spawn(self.event_subscriber.listen)
-        self.event_subscriber._ready_event.wait(timeout=5)
-
+        self.event_subscriber.activate()
 
         return
 
     def on_stop(self):
-        self.ingestion_service.deactivate_ingestion_configuration(self.ingestion_configuration_id)
+        self.event_subscriber.deactivate()
 
         super(VisualizationService, self).on_stop()
         return
@@ -167,7 +169,6 @@ class VisualizationService(BaseVisualizationService):
 
         # Get the view_name associated with the dataset
         dataset = self.dsm_cli.read_dataset(dataset_id=dp_obj.dataset_id)
-        print " >>>>>> DATASET VIEW_NAME : ", dataset.view_name
 
         # define replay. If no filters are passed the entire ingested dataset is returned
         replay_id, replay_stream_id = self.dr_cli.define_replay(dataset_id=dp_obj.dataset_id)
@@ -435,11 +436,6 @@ class VisualizationService(BaseVisualizationService):
         For now we will start a thread that emulates an event handler
         """
 
-        # Only handle data product creation events
-        if not (event_msg.origin_type == "DataProduct" and
-                (event_msg.mod_type == ResourceModificationType.CREATE or event_msg.mod_type == ResourceModificationType.UPDATE)):
-            return
-
         # register the new data product
         self.register_new_data_product(event_msg.origin)
 
@@ -559,16 +555,17 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
         else:
             # Submit table back to the service if we received all the replay data
             if self.total_num_of_records_recvd == (expected_range[1] + 1):
-                print "@@@@@@@@@@@@@@@@  RECEIVED ALL REPLAY RECORDS"
                 # If the datatable received was too big, decimate on the fly to a fixed size
-                max_google_dt_len = 2048
+                max_google_dt_len = 1024
                 if len(self.dataTableContent) > max_google_dt_len:
-                    decimation_factor = math.floor(len(self.dataTableContent) / (len(self.dataTableContent) - max_google_dt_len))
+                    decimation_factor = int(math.ceil(len(self.dataTableContent) / (max_google_dt_len)))
 
-                    for i in xrange(len(self.dataTableContent) - 1 , 0, decimation_factor):
+                    for i in xrange(len(self.dataTableContent) - 1, 0, -1):
+
+                        if(i % decimation_factor == 0):
+                            continue
                         self.dataTableContent.pop(i)
 
-                print "@@@@@@@@@@@@@@@@@@@ Datatable length : ", len(self.dataTableContent)
                 data_table = gviz_api.DataTable(self.dataDescription)
                 data_table.LoadData(self.dataTableContent)
 
