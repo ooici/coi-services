@@ -16,8 +16,8 @@ class TradeService(BaseTradeService):
         bond_price = 1.56
 
         # Uncomment for correct trade service
-        #order_create_tuple = self.clients.resource_registry.create(order)
-        order_create_tuple = [1]
+        order_create_tuple = self.clients.resource_registry.create(order)
+        #order_create_tuple = ["1"]
 
         # Create confirmation response object
         proceeds = order.cash_amount / bond_price if order.type == 'buy' else order.bond_amount * bond_price
