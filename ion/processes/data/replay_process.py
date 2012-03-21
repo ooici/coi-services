@@ -310,7 +310,7 @@ class ReplayProcess(BaseReplayProcess):
             return None
 
 
-        filepath = FileSystem.get_url(FS.CACHE,'%s.hdf5' % sha1)
+        filepath = FileSystem.get_hierarchical_url(FS.CACHE, sha1, '.hdf5')
 
         if not os.path.exists(filepath):
             log.debug('File with sha1 does not exist')
@@ -527,7 +527,7 @@ class ReplayProcess(BaseReplayProcess):
         #-------------------------------------------------------------------------------------
         file_list.sort()
         file_list = list(i[1] for i in file_list)
-        file_list = list([FileSystem.get_url(FS.CACHE, '%s' % i) for i in file_list])
+        file_list = list([FileSystem.get_hierarchical_url(FS.CACHE, '%s' % i) for i in file_list])
 
         pairs = self._pair_up(granule)
         var_names = list([i[0] for i in pairs])

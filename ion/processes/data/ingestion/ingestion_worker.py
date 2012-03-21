@@ -207,7 +207,7 @@ class IngestionWorker(TransformDataProcess):
 
                 calculated_sha1 = hashlib.sha1(values_string).hexdigest().upper()
 
-                filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
+                filename = FileSystem.get_hierarchical_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
 
                 if sha1 != calculated_sha1:
                     raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
