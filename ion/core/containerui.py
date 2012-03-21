@@ -99,7 +99,9 @@ def process_index():
             "<tr><td>Sys_name</td><td>%s</td></tr>" % get_sys_name(),
             "<tr><td>Broker</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.amqp.host, CFG.server.amqp.port),
             "<tr><td>Datastore</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.couchdb.host, CFG.server.couchdb.port),
-            "</table></p>"
+            "</table></p>",
+            "<div align='center'><img src='/images/intro.png' /></div>"
+
             ]
         content = "\n".join(fragments)
         return build_page(content)
@@ -687,6 +689,34 @@ def process_assoc_list():
         return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
+
+@app.route('/images/<image>',methods=['GET'])
+def process_image(image):
+    from flask import Response,make_response, render_template
+    from pydot import Dot, Node, Edge
+    import random
+    try:
+        dot = Dot()
+        alphabet = "abcdefghijklmnopqrstuv"
+        a = Node(random.choice(alphabet))
+        b = Node(random.choice(alphabet))
+        dot.add_node(a)
+        dot.add_node(b)
+        dot.add_edge(Edge(a,b))
+        dot.write('/tmp/cache.png',format='png')
+        img_buffer = ''
+        with open('/tmp/cache.png','r') as f:
+            img_buffer = f.read()
+
+        resp = make_response(Response(),200)
+        resp.headers['Content-Length'] = len(img_buffer)
+        resp.headers['Content-Type'] = 'image/png'
+        resp.data = img_buffer
+
+        return resp
+
+    except Exception as e:
+        return build_error_page(traceback.format_exc())
 
 @app.route('/nested/<rid>', methods=['GET','POST'])
 def process_nested(rid):
