@@ -27,6 +27,7 @@ from ion.services.mi.instrument_driver import DriverParameter
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
+# This is the mi_merge branch.
 
 class SBE37ProtocolState(BaseEnum):
     """
