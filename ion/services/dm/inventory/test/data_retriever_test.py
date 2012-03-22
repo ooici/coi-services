@@ -221,7 +221,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             granule = psc.close_stream_granule()
             hdf_string = granule.identifiables[definition.data_stream_id].values
             sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-            with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
+            with open(FileSystem.get_hierarchical_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
                 f.write(hdf_string)
             granule.identifiables[definition.data_stream_id].values = ''
             self.couch.create(granule)
@@ -352,7 +352,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
 
         dr_cli.start_replay(replay_id=replay_id)
 
-        assertions(result.get(timeout=3), 'Did not receive a msg from replay')
+        assertions(result.get(timeout=8), 'Did not receive a msg from replay')
 
         dr_cli.cancel_replay(replay_id=replay_id)
         if not (os.getenv('CEI_LAUNCH_TEST', False)):
@@ -402,6 +402,11 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             assertions(record_count>0 and record_count<=10, 'record count size is incorrect.')
             # Make sure that the granule contains no more than 10 records
 
+            expected_range = msg.identifiables[element_count_id].constraint.intervals[0]
+            assertions(expected_range[0] in xrange(71))
+            assertions(expected_range[1] in xrange(71))
+
+
 
             incr_lock.acquire()
             if not records_rcvd.empty():
@@ -426,4 +431,5 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
         dr_cli.cancel_replay(replay_id=replay_id)
         if not (os.getenv('CEI_LAUNCH_TEST', False)):
             assertions(not cc.proc_manager.procs.has_key(pid),'Process was not terminated correctly.')
+
 

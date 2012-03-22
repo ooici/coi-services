@@ -94,28 +94,33 @@ class SimpleCtdPublisher(StandaloneProcess):
 
             length = random.randint(1,20)
 
-            c = [random.uniform(0.0,75.0)  for i in xrange(length)]
+            ctd_packet = self._get_ctd_packet(stream_id, length)
 
-            t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
-
-            p = [random.lognormvariate(1,2) for i in xrange(length)]
-
-            lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
-
-            lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
-
-            tvar = [self.last_time + i for i in xrange(1,length+1)]
-
-            self.last_time = max(tvar)
-
-            ctd_packet = ctd_stream_packet(stream_id=stream_id,
-                c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
-
-
-            log.warn('SimpleCtdPublisher sending %d values!' % length)
+            log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
 
             time.sleep(2.0)
+
+    def _get_ctd_packet(self, stream_id, length):
+
+        c = [random.uniform(0.0,75.0)  for i in xrange(length)]
+
+        t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
+
+        p = [random.lognormvariate(1,2) for i in xrange(length)]
+
+        lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
+
+        lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
+
+        tvar = [self.last_time + i for i in xrange(1,length+1)]
+
+        self.last_time = max(tvar)
+
+        ctd_packet = ctd_stream_packet(stream_id=stream_id,
+            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
+
+        return ctd_packet
 
 class PointCtdPublisher(StandaloneProcess):
 
@@ -150,7 +155,7 @@ class PointCtdPublisher(StandaloneProcess):
 
             ctd_packet = point_constructor.get_stream_granule()
 
-            log.warn('SimpleCtdPublisher sending %d values!' % length)
+            log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
 
             time.sleep(2.0)

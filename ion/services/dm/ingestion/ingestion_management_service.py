@@ -63,7 +63,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         #   far to preload the process definitions. This will later probably be part of a set of predefinitions
         #   for processes.
         #########################################################################################################
-        process_definition = ProcessDefinition()
+        process_definition = ProcessDefinition(name='ingestion_worker_process', description='Worker transform process for ingestion of datasets')
         process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
         process_definition.executable['class'] = 'IngestionWorker'
         self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
@@ -301,7 +301,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         config = DatasetIngestionByStream(
             archive_data=archive_data,
             archive_metadata=archive_metadata,
-            stream_id=stream_id)
+            stream_id=stream_id,
+            dataset_id=dataset_id)
 
         dset_ingest_config = DatasetIngestionConfiguration(
             name = 'Dataset config %s' % dataset_id,
@@ -314,6 +315,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         self.clients.resource_registry.create_association(dset_ingest_config_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
 
+        self.clients.resource_registry.create_association(dataset_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
 
         self.event_publisher.publish_event(
             origin=ingestion_configuration_id, # Use the ingestion configuration ID as the origin!

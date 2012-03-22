@@ -151,30 +151,47 @@ class DataProductManagementService(BaseDataProductManagementService):
         ingestion_configuration_obj = ingest_config_objs[0]
         log.debug("activate_data_product_persistence: ingestion_configuration_obj = %s"  % str(ingestion_configuration_obj))
 
-        # create the dataset for the data
-        # TODO: what if the Dataset already exists (activate-suspend-activate case???)
-        # !!!!!!!! (Currently) The Datastore name MUST MATCH the ingestion configuration name!!!
-        data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream,
-                datastore_name=ingestion_configuration_obj.couch_storage.datastore_name, description=data_product_obj.description)
-        log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
-
-        self.update_data_product(data_product_obj)
-        # Need to read again, because the _rev has changed. Otherwise error on update later.
-        data_product_obj = self.clients.resource_registry.read(data_product_id)
-
-        # call ingestion management to create a dataset configuration
-        log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
-        dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
+        if data_product_obj.dataset_id:
+            objs,_ = self.clients.resource_registry.find_objects(data_product_obj.dataset_id,
+                    PRED.hasIngestionConfiguration, RT.DatasetIngestionConfiguration, id_only=False)
+            if not objs:
+                log.debug('activate_data_product_persistence: Calling create_dataset_configuration for EXISTING Dataset', )
+                dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
                     dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
                     archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
-        log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
+                log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
+            else:
+                dataset_configuration_obj = objs[0]
+                dataset_configuration_obj.archive_data = persist_data
+                dataset_configuration_obj.archive_metadata = persist_metadata
+
+                # call ingestion management to update a dataset configuration
+                log.debug('activate_data_product_persistence: Calling update_dataset_config', )
+                dataset_configuration_id = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
+                log.debug("activate_data_product_persistence: update_dataset_config = %s"  % str(dataset_configuration_id))
+        else:
+            # create the dataset for the data
+            # !!!!!!!! (Currently) The Datastore name MUST MATCH the ingestion configuration name!!!
+            data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream,
+                    datastore_name=ingestion_configuration_obj.couch_storage.datastore_name, description=data_product_obj.description)
+            log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
+
+            self.update_data_product(data_product_obj)
+
+            # Need to read again, because the _rev has changed. Otherwise error on update later.
+            data_product_obj = self.clients.resource_registry.read(data_product_id)
+
+            # call ingestion management to create a dataset configuration
+            log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
+            dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
+                        dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
+                        archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
+            log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
 
         # save the dataset_configuration_id in the product resource? Can this be found via the stream id?
 
         data_product_obj.dataset_configuration_id = dataset_configuration_id
         self.update_data_product(data_product_obj)
-
-        return
 
     def suspend_data_product_persistence(self, data_product_id=''):
         """Suspend data product data persistnce into a data set, multiple options
@@ -206,8 +223,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
 
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
-
-        return
 
     def set_data_product_lifecycle(self, data_product_id="", lifecycle_state=""):
        """

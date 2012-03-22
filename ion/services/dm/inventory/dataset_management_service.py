@@ -53,7 +53,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.primary_view_key=stream_id
         dataset.datastore_name = datastore_name
         #@todo: fill this in
-        dataset.view_name=view_name or 'dataset_by_id'
+        dataset.view_name=view_name or 'datasets/dataset_by_id'
 
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)

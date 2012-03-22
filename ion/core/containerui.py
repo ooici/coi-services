@@ -4,7 +4,7 @@ __author__ = 'Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 import collections, traceback, datetime, time, yaml
-import flask, ast
+import flask, ast, pprint
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
@@ -80,10 +80,20 @@ def process_index():
         fragments = [
             "<h1>Welcome to Container Management UI</h1>",
             "<p><ul>",
-            "<li><a href='/restypes'><b>Browse Resource Registry and Resource Objects</b></a></li>",
+            "<li><a href='/restypes'><b>Browse Resource Registry and Resource Objects</b></a>",
+            "<ul>",
+            "<li>Observatory: <a href='/list/MarineFacility'>Marine Facility</a>, <a href='/list/Site'>Site</a>, <a href='/list/Org'>Org</a>, <a href='/list/UserRole'>Role</a></li>",
+            "<li>Users: <a href='/list/UserIdentity'>Identity</a>, <a href='/list/UserInfo'>Info</a>, <a href='/list/UserCredentials'>Credential Set</a></li>",
+            "<li>Platforms: <a href='/list/PlatformDevice'>Device</a>, <a href='/list/LogicalPlatform'>Logical</a>, <a href='/list/PlatformModel'>Models</a>, <a href='/list/PlatformAgent'>Agent</a>, <a href='/list/PlatformAgentInstance'>Agent Instance</a></li>",
+            "<li>Instruments: <a href='/list/InstrumentDevice'>Device</a>, <a href='/list/LogicalInstrument'>Logical</a>, <a href='/list/InstrumentModel'>Models</a>, <a href='/list/InstrumentAgent'>Agent</a>, <a href='/list/InstrumentAgentInstance'>Agent Instance</a></li>",
+            "<li>Data: <a href='/list/DataProduct'>Data Product</a>, <a href='/list/DataSet'>DataSet</a>, <a href='/list/Stream'>Stream</a></li>",
+            "<li>Process: <a href='/list/DataProcessDefinition'>Data Process Definition</a>, <a href='/list/DataProcess'>DataProcess</a>, <a href='/list/ProcessDefinition'>Process Definition</a></li>",
+            "</ul></li>",
             "<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
             "<li><a href='/events'><b>Browse Events</b></a></li>",
             "<li><a href='http://localhost:5984/_utils'><b>CouchDB Futon UI (if running)</b></a></li>",
+            "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI (if running)</b></a></li>",
+            "<li><a href='http://localhost:9001/'><b>Supervisord UI (if running)</b></a></li>",
             "</ul></p>",
             "<h2>Container and System Properties</h2>",
             "<p><table>",
@@ -155,6 +165,7 @@ def process_list_resources(resource_type):
             fragments.append("</tr>")
 
         fragments.append("</table></p>")
+        fragments.append("<p>Number of resources: %s</p>" % len(res_list))
 
         content = "\n".join(fragments)
         return build_page(content)
@@ -256,7 +267,7 @@ def build_nested_obj(obj, prefix, edit=False):
         if field in schema:
             value = get_formatted_value(getattr(obj, field), fieldname=field)
             if edit and field not in EDIT_IGNORE_FIELDS:
-                fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], field, getattr(obj, field)))
+                fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], prefix, field, getattr(obj, field)))
             else:
                 fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
     for field in sorted(schema.keys()):
@@ -269,8 +280,7 @@ def build_nested_obj(obj, prefix, edit=False):
             else:
                 value = get_formatted_value(value, fieldname=field, fieldtype=schema[field]["type"])
                 if edit and field not in EDIT_IGNORE_FIELDS and schema[field]["type"] not in EDIT_IGNORE_TYPES:
-                    # Todo: check enum, int, list, dict
-                    fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], field, getattr(obj, field)))
+                    fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], prefix, field, getattr(obj, field)))
                 else:
                     fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], value))
     return fragments
@@ -341,6 +351,22 @@ def build_commands(resource_id, restype):
             args = [('select','model_unlink',options)]
             fragments.append(build_command("Unlink Model", "/cmd/unlink_model?rid=%s" % resource_id, args))
 
+        res_list,_ = Container.instance.resource_registry.find_resources(RT.LogicalInstrument, id_only=False)
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','deploy',options)]
+            fragments.append(build_command("Set Deployment", "/cmd/deploy?rid=%s" % resource_id, args))
+
+        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasDeployment, RT.LogicalInstrument, id_only=False)
+        if res_list:
+            options = [(res.name, res._id) for res in res_list]
+            args = [('select','deploy_prim',options)]
+            fragments.append(build_command("Deploy Primary", "/cmd/deploy_prim?rid=%s" % resource_id, args))
+
+        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasPrimaryDeployment, RT.LogicalInstrument, id_only=True)
+        if res_list:
+            fragments.append(build_command("Undeploy Primary", "/cmd/undeploy_prim?rid=%s&undeploy_prim=%s" % (resource_id, res_list[0])))
+
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
 
@@ -360,6 +386,9 @@ def build_commands(resource_id, restype):
     elif restype == "DataProcess":
         fragments.append(build_command("Start Process", "/cmd/start_process?rid=%s" % resource_id))
         fragments.append(build_command("Stop Process", "/cmd/stop_process?rid=%s" % resource_id))
+
+    elif restype == "DataProduct":
+        fragments.append(build_command("Latest Ingest", "/cmd/last_granule?rid=%s" % resource_id))
 
     fragments.append("</table>")
     return "".join(fragments)
@@ -428,25 +457,21 @@ def _process_cmd_update(resource_id, res_obj=None):
         local_field = nested_fields[0]
         if field in EDIT_IGNORE_FIELDS or local_field not in schema:
             continue
-        if field not in schema:
-            # TODO: Change
-            continue
         if len(nested_fields) > 1:
             obj = res_obj
             skip_field = False
             for sub_field in nested_fields:
                 local_obj = getattr(obj, sub_field, None)
-                log.warn("Field %s, sub %s, obj %s, local %s, schema %s" % (field, sub_field, obj,local_obj, obj._schema[sub_field]))
-                if skip_field or not local_obj:
+                if skip_field or local_obj is None:
                     skip_field = True
                     continue
-                elif not isinstance(local_obj, IonObjectBase):
+                elif isinstance(local_obj, IonObjectBase):
+                    obj = local_obj
+                else:
                     value = get_typed_value(value, obj._schema[sub_field])
                     setattr(obj, sub_field, value)
                     set_fields.append(field)
                     skip_field = True
-                else:
-                    obj = local_obj
 
         elif schema[field]['type'] in EDIT_IGNORE_TYPES:
             pass
@@ -455,14 +480,14 @@ def _process_cmd_update(resource_id, res_obj=None):
             setattr(res_obj, field, value)
             set_fields.append(field)
 
-    res_obj._validate()
+    #res_obj._validate()
 
     if resource_id == "NEW":
         Container.instance.resource_registry.create(res_obj)
     else:
         Container.instance.resource_registry.update(res_obj)
 
-    return "OK. Set fields: %s" % set_fields
+    return "OK. Set fields:\n%s" % pprint.pformat(sorted(set_fields))
 
 def _process_cmd_delete(resource_id, res_obj=None):
     Container.instance.resource_registry.delete(resource_id)
@@ -505,11 +530,13 @@ def _process_cmd_stop_agent(resource_id, res_obj=None):
 def _process_cmd_start_process(resource_id, res_obj=None):
     from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
     dpms_cl = DataProcessManagementServiceClient()
+    dpms_cl.activate_data_process(resource_id)
     return "OK"
 
 def _process_cmd_stop_process(resource_id, res_obj=None):
     from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
     dpms_cl = DataProcessManagementServiceClient()
+    dpms_cl.deactivate_data_process(resource_id)
     return "OK"
 
 def _process_cmd_link_model(resource_id, res_obj=None):
@@ -536,6 +563,33 @@ def _process_cmd_agent_execute(resource_id, res_obj=None):
     res_dict = get_value_dict(res)
     res_str = get_formatted_value(res_dict, fieldtype="dict")
     return res_str
+
+def _process_cmd_last_granule(resource_id, res_obj=None):
+    from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+    dpms_cl = DataProductManagementServiceClient()
+    response = dpms_cl.get_last_update(res_obj)
+    return "Last Update: " + str(response)
+
+def _process_cmd_deploy(resource_id, res_obj=None):
+    li_id = get_arg('deploy')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.deploy_instrument_device_to_logical_instrument(resource_id, li_id)
+    return "OK"
+
+def _process_cmd_deploy_prim(resource_id, res_obj=None):
+    li_id = get_arg('deploy_prim')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.deploy_as_primary_instrument_device_to_logical_instrument(resource_id, li_id)
+    return "OK"
+
+def _process_cmd_undeploy_prim(resource_id, res_obj=None):
+    li_id = get_arg('undeploy_prim')
+    from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+    ims_cl = InstrumentManagementServiceClient()
+    ims_cl.undeploy_primary_instrument_device_from_logical_instrument(resource_id, li_id)
+    return "OK"
 
 # ----------------------------------------------------------------------------------------
 
@@ -721,7 +775,7 @@ def process_dir_path(path):
             else:
                 parent = ""
             fragments.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-                build_dir_link(parent,de.key), "&nbsp;", get_formatted_value(get_value_dict(de.attributes), fieldtype="dict")))
+                build_dir_link(parent,de.key), get_formatted_value(de.ts_updated, fieldname="ts_updated"), get_formatted_value(get_value_dict(de.attributes), fieldtype="dict")))
 
         fragments.append("</table></p>")
 
@@ -897,7 +951,10 @@ def get_typed_value(value, schema_entry=None, targettype=None):
         return list(value.split(','))
     elif schema_entry and 'enum_type' in schema_entry:
         enum_clzz = getattr(objects, schema_entry['enum_type'])
-        return enum_clzz._value_map[value]
+        if type(value) is str and value in enum_clzz._value_map:
+            return enum_clzz._value_map[value]
+        else:
+            return int(value)
     else:
         return ast.literal_eval(value)
 

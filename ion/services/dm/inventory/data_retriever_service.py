@@ -21,7 +21,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def on_start(self):
         super(DataRetrieverService,self).on_start()
-        self.process_definition = ProcessDefinition()
+        self.process_definition = ProcessDefinition(name='data_replay_process', description='Process for the replay of datasets')
         self.process_definition.executable['module']='ion.processes.data.replay_process'
         self.process_definition.executable['class'] = 'ReplayProcess'
         self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)

@@ -1,19 +1,15 @@
-#!/usr/bin/env python
-import gevent
 
-__license__ = 'Apache 2.0'
 '''
-@author Maurice Manning
 @author Luke Campbell
 @file ion/services/dm/transformation/transform_management_service.py
 @description Implementation for TransformManagementService
 '''
-import time
-import hashlib
-from pyon.public import log, IonObject, RT, PRED
+from pyon.public import log, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectSerializer, IonObjectBase
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
+import gevent
+from interface.objects import Transform
 
 class TransformManagementService(BaseTransformManagementService):
     """Provides the main orchestration for stream processing
@@ -25,6 +21,34 @@ class TransformManagementService(BaseTransformManagementService):
         BaseTransformManagementService.__init__(self)
 
         self.serializer = IonObjectSerializer()
+
+    def on_start(self):
+        super(TransformManagementService,self).on_start()
+        restart_flag = self.CFG.get_safe('service.transform_management.restart', False)
+        if restart_flag:
+            transform_ids, meta = self.clients.resource_registry.find_resources(restype=RT.Transform, id_only=True)
+            for transform_id in transform_ids:
+                self._restart_transform(transform_id)
+
+    def _restart_transform(self, transform_id):
+        transform = self.clients.resource_registry.read(transform_id)
+        configuration = transform.configuration
+        proc_def_ids,other = self.clients.resource_registry.find_objects(subject=transform_id,predicate=PRED.hasProcessDefinition,id_only=True)
+
+        if len(proc_def_ids) < 1:
+            log.warning('Transform did not have a correct process definition.')
+            return
+
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=proc_def_ids[0],
+            configuration=configuration
+        )
+
+        transform.process_id = pid
+        self.clients.resource_registry.update(transform)
+
+
+
 
     def _strip_types(self, obj):
         if not isinstance(obj, dict):
@@ -59,7 +83,6 @@ class TransformManagementService(BaseTransformManagementService):
         # Determine Transform Name
 
         if isinstance(configuration, IonObjectBase):
-            #@todo Is this the right way to handle configs that come as IonObjects?
             configuration = self.serializer.serialize(configuration)
             # strip the type
             self._strip_types(configuration)
@@ -75,19 +98,18 @@ class TransformManagementService(BaseTransformManagementService):
 
         transform_name=name
 
-        #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
-        #@note: In the near future, Process Dispatcher will do all of this
-
         if not process_definition_id:
             raise NotFound('No process definition was provided')
 
-        process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
-        module = process_definition.executable.get('module','ion.processes.data.transforms.transform_example')
-        cls = process_definition.executable.get('class','TransformExample')
 
         # Transform Resource for association management and pid
-        transform_res = IonObject(RT.Transform,name=transform_name,description=description)
-        
+        transform_res = Transform(name=name, description=description)
+
+        transform_id, _ = self.clients.resource_registry.create(transform_res)
+
+        transform_res = self.clients.resource_registry.read(transform_id)
+
+
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
@@ -96,16 +118,18 @@ class TransformManagementService(BaseTransformManagementService):
         listen_name = subscription.exchange_name
 
 
-        configuration['process'] = {
+        configuration['process'] = dict({
             'name':transform_name,
             'type':'stream_process',
-            'listen_name':listen_name
-        }
+            'listen_name':listen_name,
+            'transform_id':transform_id
+        })
         if out_streams:
             configuration['process']['publish_streams'] = out_streams
             stream_ids = list(v for k,v in out_streams.iteritems())
         else:
             stream_ids = []
+        transform_res.configuration = configuration
 
 
         # ------------------------------------------------------------------------------------
@@ -117,12 +141,12 @@ class TransformManagementService(BaseTransformManagementService):
             configuration=configuration
         )
         transform_res.process_id =  pid
-        
+
         # ------------------------------------------------------------------------------------
         # Handle Resources
         # ------------------------------------------------------------------------------------
-        transform_id, _ = self.clients.resource_registry.create(transform_res)
 
+        self.clients.resource_registry.update(transform_res)
 
         self.clients.resource_registry.create_association(transform_id,PRED.hasProcessDefinition,process_definition_id)
         self.clients.resource_registry.create_association(transform_id,PRED.hasSubscription,in_subscription_id)

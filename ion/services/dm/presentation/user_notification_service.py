@@ -29,8 +29,7 @@ class NotificationEventSubscriber(EventSubscriber):
     
     def __init__(self, origin=None, event_type=None, callback=None):
         self.listener_greenlet = None
-        subscriber_event_type = event_type.upper() + "_EVENT"
-        self.subscriber = EventSubscriber(origin=origin, event_type=subscriber_event_type, callback=callback)
+        self.subscriber = EventSubscriber(origin=origin, event_type=event_type, callback=callback)
         
     def start_listening(self):
         self.listener_greenlet = spawn(self.subscriber.listen)
