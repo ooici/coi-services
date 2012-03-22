@@ -53,7 +53,7 @@ class BaseLoggerProcess(DaemonProcess):
         # class command string.
         spawnargs = ['bin/python', '-c', cmd_str]
         #print str(spawnargs)
-        return Popen(spawnargs)    
+        return Popen(spawnargs, close_fds=True)    
     
     def __init__(self, server_port, pidfname, logfname, statusfname,
                  workdir='/tmp/', delim=['<<','>>'], sniffer_port=None):
