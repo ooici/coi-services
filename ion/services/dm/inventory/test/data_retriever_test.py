@@ -221,7 +221,7 @@ class DataRetrieverServiceIntTest(IonIntegrationTestCase):
             granule = psc.close_stream_granule()
             hdf_string = granule.identifiables[definition.data_stream_id].values
             sha1 = hashlib.sha1(hdf_string).hexdigest().upper()
-            with open(FileSystem.get_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
+            with open(FileSystem.get_hierarchical_url(FS.CACHE, '%s.hdf5' % sha1),'w') as f:
                 f.write(hdf_string)
             granule.identifiables[definition.data_stream_id].values = ''
             self.couch.create(granule)

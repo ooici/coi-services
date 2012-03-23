@@ -11,8 +11,7 @@ and the relationships between them
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
 
-
-
+from pyon.util.log import log
 from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
 from ion.services.sa.resource_impl.logical_platform_impl import LogicalPlatformImpl
 from ion.services.sa.resource_impl.marine_facility_impl import MarineFacilityImpl
@@ -127,8 +126,23 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         delete a resource, including its history (for less ominous deletion, use retire)
         @param marine_facility_id the id of the object to be deleted
         @retval success whether it succeeded
-
         """
+        
+        # find the org for this MF
+        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
+        if len(org_ids) == 0:
+            log.warn("MarineFacilityManagementService.delete_marine_facility(): no org for MF " + marine_facility_id)
+        else:
+            if len(org_ids) > 1:
+                log.warn("MarineFacilityManagementService.delete_marine_facility(): more than 1 org for MF " + marine_facility_id)
+                # TODO: delete the others and/or raise exception???
+            # delete the set of User Roles for this marine facility that this service created
+            self.clients.org_management.remove_user_role(org_ids[0], INSTRUMENT_OPERATOR_ROLE)
+            self.clients.org_management.remove_user_role(org_ids[0], OBSERVATORY_OPERATOR_ROLE)
+            self.clients.org_management.remove_user_role(org_ids[0], DATA_OPERATOR_ROLE)
+            # delete the org
+            self.clients.org_management.delete_org(org_ids[0])
+        
         return self.marine_facility.delete_one(marine_facility_id)
 
     def find_marine_facilities(self, filters=None):
@@ -141,6 +155,7 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
         """
 
         """
+        # find the org for this MF
         org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, marine_facility_id, id_only=True)
         if len(org_ids) == 0:
             return ""

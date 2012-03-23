@@ -181,7 +181,7 @@ class RawStreamIntegration(IonIntegrationTestCase):
 
             data = message.identifiables['data_stream'].values
 
-            filename = FileSystem.get_url(FS.CACHE, sha1, ".raw")
+            filename = FileSystem.get_hierarchical_url(FS.CACHE, sha1, ".raw")
 
             with open(filename, 'r') as f:
 

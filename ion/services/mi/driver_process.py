@@ -41,7 +41,7 @@ class DriverProcess(object):
         # Launch a separate python interpreter, executing the calling
         # class command string.
         spawnargs = ['bin/python', '-c', cmd_str]
-        return Popen(spawnargs)
+        return Popen(spawnargs, close_fds=True)
         
     def __init__(self, driver_module, driver_class):
         """
