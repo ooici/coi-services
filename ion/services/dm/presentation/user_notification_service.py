@@ -22,6 +22,21 @@ ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservator
 # the default smtp server
 ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 
+"""
+For every user that has existing notification requests (who has called create_notification()) the UNS will contain a local 
+UserEventProcessor instance that contains the user's notification information (email address) and all of the user's 
+notifications (along with their event subscribers).  The UserEventProcessors are maintained local to the UNS in a dictionary 
+indexed by the user's resourceID.  When a notification is created the user's UserEventProcessor will be created if it 
+doesn't already exist , and it will be deleted when the user deletes their last notification.
+
+The user's UserEventProcessor will encapsulate a list of notification objects that the user has requested, 
+along with user information needed for send notifications (email address for LCA).  
+It will also encapsulate a subscriber callback method that is passed to all event subscribers for each notification 
+the user has created.
+
+Each notification object will encapsulate the notification information and a list of event subscribers (only one for LCA) 
+that listen for the events in the notification.
+"""
 
 class NotificationEventSubscriber(EventSubscriber):
     # encapsulates the event subscriber and the event 'listen loop' greenlet
