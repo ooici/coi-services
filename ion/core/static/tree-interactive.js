@@ -5,7 +5,7 @@
  * Time: 11:51
  * To change this template use File | Settings | File Templates.
  */
-// Determines the x,y average between two nodes
+
 // Dynamic resizing of the Chart Area
 //todo: needs some tweaking
 var width = 600, height = 270;
@@ -27,7 +27,7 @@ var vis = d3.select("#chart").append("svg")
     .attr("height", h + m[0] + m[2])
     .append("g")
     .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
-
+// Determines the x,y average between two nodes
 function avg(s, t) {
     return {x: (s.x + t.x)/2., y: (s.y + t.y)/2.};
 }

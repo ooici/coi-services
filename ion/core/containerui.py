@@ -115,6 +115,11 @@ def process_index():
 
 @app.route('/tree/<resid>', methods=['GET'])
 def process_tree(resid):
+    '''
+    Creates a tree-like JSON string to be parsed by visual clients such as the D3 Framework
+    @param resid Resource id
+    @return An HTTP Response containing the JSON string (Content-Type: application/json)
+    '''
     from flask import make_response, Response
     from ion.services.dm.utility.resource_tree import build
     try:
@@ -126,13 +131,6 @@ def process_tree(resid):
         return resp
     except Exception as e:
         return build_error_page(traceback.format_exc())
-
-# ----------------------------------------------------------------------------------------
-
-@app.route('/visual/<resid>', methods=['GET'])
-def process_visual(resid):
-    from flask import render_template
-    return render_template('demo.html',resid=resid)
 
 # ----------------------------------------------------------------------------------------
 
@@ -155,43 +153,6 @@ def process_list_resource_types():
         return build_page(content)
 
     except Exception, e:
-        return build_error_page(traceback.format_exc())
-
-# ----------------------------------------------------------------------------------------
-
-@app.route('/streams',methods=['GET'])
-def process_streams():
-    from flask import url_for
-    try:
-        streams,_ = Container.instance.resource_registry.find_resources(restype='Stream')
-        fragments = [
-            build_standard_menu(),
-            '<h1>List of Streams</h1>',
-            '<p>'
-        ]
-
-        fields = ['_id', '_rev', 'description', 'encoding', 'lcstate', 'name',
-                  'original', 'producers', 'ts_created', 'ts_updated', 'url']
-
-        fragments.append('<table width="75%"><tr>')
-        for field in fields:
-            fragments.append('<td>%s</td>' % field)
-        fragments.append('</tr>')
-
-        for stream in streams:
-            fragments.append('<tr>')
-            for field in fields:
-                if field=='_id':
-                    fragments.append('<td><a href="%s">%s</a></td>' % (url_for('process_view_resource',resource_id=stream._id),stream._id))
-                else:
-                    fragments.append('<td>%s</td>' % getattr(stream,field))
-            fragments.append('</tr>')
-
-        fragments.append('</table>')
-
-        content = "\n".join(fragments)
-        return build_page(content)
-    except Exception as e:
         return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
@@ -347,15 +308,15 @@ def build_nested_obj(obj, prefix, edit=False):
     return fragments
 
 def build_associations(resid):
-
-    fragments = []
+    fragments = list()
 
     fragments.append("<h2>Associations</h2>")
     fragments.append("<div id='chart'></div>")
-
+    #----------- Build the visual using javascript --------------#
     fragments.append("<script type='text/javascript' src='/static/d3.v2.js'></script>   ")
     fragments.append("<script type='text/javascript' src='/static/tree-interactive.js'></script>")
     fragments.append("<script type='text/javascript'>build(\"%s\");</script>" % resid)
+    #------------------------------------------------------------#
     fragments.append("<h3>FROM</h3>")
     fragments.append("<p><table>")
     fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
@@ -368,13 +329,8 @@ def build_associations(resid):
             build_link("Delete", "/cmd/delete?rid=%s" % assoc._id, "return confirm('Are you sure to delete association?');")))
 
     fragments.append("</table></p>")
-
-
     fragments.append("<h3>TO</h3>")
     obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
-
-
-
 
     fragments.append("<p><table>")
     fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
@@ -764,7 +720,6 @@ def process_assoc_list():
         return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
-
 
 @app.route('/nested/<rid>', methods=['GET','POST'])
 def process_nested(rid):
