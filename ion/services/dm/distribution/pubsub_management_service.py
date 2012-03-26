@@ -42,6 +42,8 @@ class BindingChannel(SubscriberChannel):
     ### complicated try except at a higher level in pubsub...
 
 
+
+
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
         to create streams and subscriptions.
@@ -271,50 +273,64 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return subscription_id
 
-    def update_subscription(self, subscription=None):
+    def update_subscription(self, subscription_id='', query=None):
+        '''Update an existing subscription.
+        @param subscription_id Identification for the subscription
+        @param query The new query
+        @throws NotFound if the resource doesn't exist
+        @retval True on success
         '''
-        Update an existing subscription.
 
-        @param subscription The subscription object with updated properties.
-        @retval success Boolean to indicate successful update.
-        '''
+        subscription = self.clients.resource_registry.read(subscription_id)
+        subscription_type = subscription.subscription_type
         log.debug("Updating subscription object: %s", subscription.name)
 
-        current_subscription = self.clients.resource_registry.read(subscription._id)
 
-        if current_subscription.is_active:
-            log.info('Updating an active subscription!')
-            # At present, changing any of the following is an error!
-            assert current_subscription.name == subscription.name
-            assert current_subscription.description == subscription.description
-            assert current_subscription.exchange_name == subscription.exchange_name
-            assert current_subscription.subscription_type == subscription.subscription_type
-            assert current_subscription.is_active == subscription.is_active
+        if subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
+            raise BadRequest('Attempted to change query type on a subscription resource.')
 
 
-            if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+        book = dict()
 
-                current_streams = set(current_subscription.query.stream_ids)
+        stream_ids, assocs = self.clients.resource_registry.find_objects(
+            subject=subscription_id,
+            predicate=PRED.hasStream,
+            id_only=True
+        )
+        # Create a dictionary with  { stream_id : association } entries.
+        for stream_id, assoc in zip(stream_ids, assocs):
+            book[stream_id] = assoc
 
-                updated_streams = set(subscription.query.stream_ids)
 
-                removed_streams = current_streams.difference(updated_streams)
+        if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY and isinstance(query,StreamQuery):
+            current_streams = set(stream_ids)
+            updated_streams = set(query.stream_ids)
+            removed_streams = current_streams.difference(updated_streams)
+            added_streams = updated_streams.difference(current_streams)
 
-                added_streams = updated_streams.difference(current_streams)
+            for stream_id in removed_streams:
+                self.clients.resource_registry.delete_association(book[stream_id])
+                if subscription.is_active:
+                    self._unbind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
 
+            for stream_id in added_streams:
+                self.clients.resource_registry.create_association(
+                    subject=subscription_id,
+                    predicate=PRED.hasStream,
+                    object=stream_id
+                )
+                if subscription.is_active:
+                    self._bind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
 
-                for stream_id in added_streams:
-                    self._bind_subscription(self.XP, subscription.exchange_name, stream_id + '.data')
-
-                for stream_id in removed_streams:
-                    self._unbind_subscription(self.XP, subscription.exchange_name, stream_id + '.data')
+            subscription.query.stream_ids = current_streams
+            id, rev = self.clients.resource_registry.update(subscription)
+            return True
 
         else:
             log.info('Updating an inactive subscription!')
 
 
-        id, rev = self.clients.resource_registry.update(subscription)
-        return True
+        return False
 
     def read_subscription(self, subscription_id=''):
         '''
