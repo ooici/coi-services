@@ -8,7 +8,7 @@
 
 // Dynamic resizing of the Chart Area
 //todo: needs some tweaking
-var width = 600, height = 270;
+var width = 1280, height = 270;
 var m = [20, 120, 20, 120],
     w = width - m[1] - m[3],
     h = height - m[0] - m[2],
