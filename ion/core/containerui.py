@@ -313,7 +313,7 @@ def build_associations(resid):
     fragments.append("<h2>Associations</h2>")
     fragments.append("<div id='chart'></div>")
     #----------- Build the visual using javascript --------------#
-    fragments.append("<script type='text/javascript' src='/static/d3.v2.js'></script>   ")
+    fragments.append("<script type='text/javascript' src='http://mbostock.github.com/d3/d3.v2.js'></script>   ")
     fragments.append("<script type='text/javascript' src='/static/tree-interactive.js'></script>")
     fragments.append("<script type='text/javascript'>build(\"%s\");</script>" % resid)
     #------------------------------------------------------------#
@@ -916,12 +916,7 @@ def build_simple_page(content):
 def build_page(content, title=""):
     fragments = [
         "<html><head>",
-        "<style type='text/css'>",
-        "body {font-family:Helvetica,Verdana,sans-serif;font-size:small;}",
-        "table,th,td {font-size:small;border: 1px solid black;border-collapse:collapse;padding-left:3px;padding-right:3px;vertical-align:top;}",
-        "th {background-color:lightgray;}",
-        ".preform {white-space:pre;font-family:monospace;font-size:120%;}",
-        "</style>",
+        "<link type='text/css' rel='stylesheet' href='/static/default.css' />"
         "<link type='text/css' rel='stylesheet' href='/static/demo.css' />",
         "<script type='text/javascript'>",
         "function linkto(href, arg_name, arg_id) {",
