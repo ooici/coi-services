@@ -53,7 +53,7 @@ class ReplayProcess(BaseReplayProcess):
         self.datastore_name = self.CFG.get_safe('process.datastore_name','dm_datastore')
 
         definition_id = self.delivery_format.get('definition_id')
-        rrsc = ResourceRegistryServiceProcessClient(process=self, node=self.container.node)
+        rrsc = ResourceRegistryServiceProcessClient(process=self)
         definition = rrsc.read(definition_id)
         self.definition = definition.container
 
@@ -178,8 +178,8 @@ class ReplayProcess(BaseReplayProcess):
                 continue # Ignore
 
             if isinstance(packet, StreamGranuleContainer):
-                packet = self._parse_granule(packet)
                 log.debug('Got packet')
+                packet = self._parse_granule(packet)
                 if packet:
                     log.debug('Appending packet')
                     publish_queue.append(packet)

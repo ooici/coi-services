@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from gevent.coros import RLock
 from gevent.greenlet import Greenlet
+from pyon.core.exception import NotFound
 
 __author__ = 'Raj Singh'
 __license__ = 'Apache 2.0'
@@ -333,11 +334,13 @@ class VisualizationService(BaseVisualizationService):
 
         # Check for existing entries before updating the list_of_images
         found = False
-        for name in self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images']:
-            if name == image_name:
-                found = True
-                break
-
+        try:
+            for name in self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images']:
+                if name == image_name:
+                    found = True
+                    break
+        except KeyError:
+            raise NotFound('Data product does not exist: %s' % data_product_id)
         if not found:
             list_len = len(self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images'])
             self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images'].append(image_name)
@@ -599,13 +602,7 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         self.data_product_id = self.CFG.get('data_product_id')
         self.stream_def_id = self.CFG.get("stream_def_id")
         self.stream_def = self.rr_cli.read(self.stream_def_id)
-
-        # Start the thread responsible for keeping track of time and generating graphs
-        # Mutex for ensuring proper concurrent communications between threads
-        self.lock = RLock()
-        self.rendering_proc = Greenlet(self.rendering_thread)
-        self.rendering_proc.start()
-
+        self.vs_cli = VisualizationServiceClient()
 
 
 
@@ -626,71 +623,65 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         if self.initDataFlag:
             # look at the incoming packet and store
             for varname in psd.list_field_names():
-                self.lock.acquire()
                 self.graph_data[varname] = []
-                self.lock.release()
+
 
             self.initDataFlag = False
 
         # If code reached here, the graph data storage has been initialized. Just add values
         # to the list
-        with self.lock:
-            for varname in psd.list_field_names():
-                self.graph_data[varname].extend(vardict[varname])
 
+        for varname in psd.list_field_names():
+            self.graph_data[varname].extend(vardict[varname])
 
-    def rendering_thread(self):
-        from copy import deepcopy
-        # Service Client
-        vs_cli = VisualizationServiceClient()
+        self.rendering_thread(graph_data=self.graph_data)
+
+    def rendering_thread(self, graph_data):
+
 
         # init Matplotlib
         fig = Figure()
         ax = fig.add_subplot(111)
         canvas = FigureCanvas(fig)
         imgInMem = StringIO.StringIO()
-        while True:
-
-            # Sleep for a pre-decided interval. Should be specifiable in a YAML file
-            gevent.sleep(20)
-
-            # If there's no data, wait
-            # Lock is used here to make sure the entire vector exists start to finish, this assures that the data won
-            working_set=None
-            with self.lock:
-                if len(self.graph_data) == 0:
-                    continue
-                else:
-                    working_set = deepcopy(self.graph_data)
 
 
-            # For the simple case of testing, lets plot all time variant variables one at a time
-            xAxisVar = 'time'
-            xAxisFloatData = working_set[xAxisVar]
 
-            for varName, varData in working_set.iteritems():
-                if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
-                    continue
+        if len(graph_data) == 0:
+            log.debug('received no data')
+            return
 
-                yAxisVar = varName
-                yAxisFloatData = working_set[varName]
+        log.debug('Building visualization')
 
-                # Generate the plot
+        # For the simple case of testing, lets plot all time variant variables one at a time
+        xAxisVar = 'time'
+        xAxisFloatData = graph_data[xAxisVar]
 
-                ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
-                ax.set_xlabel(xAxisVar)
-                ax.set_ylabel(yAxisVar)
-                ax.set_title(yAxisVar + ' vs ' + xAxisVar)
-                ax.set_autoscale_on(False)
+        for varName, varData in graph_data.iteritems():
+            if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
+                continue
 
-                # generate filename for the output image
-                fileName = yAxisVar + '_vs_' + xAxisVar + '.png'
-                # Save the figure to the in memory file
-                canvas.print_figure(imgInMem, format="png")
-                imgInMem.seek(0)
+            yAxisVar = varName
+            yAxisFloatData = graph_data[varName]
 
-                # submit the image object to the visualization service
-                vs_cli.submit_mpl_image(self.data_product_id, imgInMem.getvalue(), fileName)
 
-                #clear the canvas for the next image
-                ax.clear()
+            # Generate the plot
+            ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
+            ax.set_xlabel(xAxisVar)
+            ax.set_ylabel(yAxisVar)
+            ax.set_title(yAxisVar + ' vs ' + xAxisVar)
+            ax.set_autoscale_on(False)
+
+
+
+            # generate filename for the output image
+            fileName = yAxisVar + '_vs_' + xAxisVar + '.png'
+            # Save the figure to the in memory file
+            canvas.print_figure(imgInMem, format="png")
+            imgInMem.seek(0)
+
+            # submit the image object to the visualization service
+            self.vs_cli.submit_mpl_image(self.data_product_id, imgInMem.getvalue(), fileName)
+
+            #clear the canvas for the next image
+            ax.clear()
