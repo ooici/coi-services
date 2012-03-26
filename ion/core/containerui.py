@@ -102,12 +102,34 @@ def process_index():
             "<tr><td>Sys_name</td><td>%s</td></tr>" % get_sys_name(),
             "<tr><td>Broker</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.amqp.host, CFG.server.amqp.port),
             "<tr><td>Datastore</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.couchdb.host, CFG.server.couchdb.port),
-            "</table></p>"
+            "</table></p>",
+
             ]
         content = "\n".join(fragments)
         return build_page(content)
 
     except Exception, e:
+        return build_error_page(traceback.format_exc())
+
+# ----------------------------------------------------------------------------------------
+
+@app.route('/tree/<resid>', methods=['GET'])
+def process_tree(resid):
+    '''
+    Creates a tree-like JSON string to be parsed by visual clients such as the D3 Framework
+    @param resid Resource id
+    @return An HTTP Response containing the JSON string (Content-Type: application/json)
+    '''
+    from flask import make_response, Response
+    from ion.services.dm.utility.resource_tree import build
+    try:
+        resp = make_response(Response(),200)
+        data = build(resid).to_j()
+        resp.data = data
+        resp.headers['Content-Type'] = 'application/json'
+        resp.headers['Content-Length'] = len(data)
+        return resp
+    except Exception as e:
         return build_error_page(traceback.format_exc())
 
 # ----------------------------------------------------------------------------------------
@@ -286,12 +308,18 @@ def build_nested_obj(obj, prefix, edit=False):
     return fragments
 
 def build_associations(resid):
-    fragments = []
+    fragments = list()
+
     fragments.append("<h2>Associations</h2>")
+    fragments.append("<div id='chart'></div>")
+    #----------- Build the visual using javascript --------------#
+    fragments.append("<script type='text/javascript' src='http://mbostock.github.com/d3/d3.v2.js'></script>   ")
+    fragments.append("<script type='text/javascript' src='/static/tree-interactive.js'></script>")
+    fragments.append("<script type='text/javascript'>build(\"%s\");</script>" % resid)
+    #------------------------------------------------------------#
     fragments.append("<h3>FROM</h3>")
     fragments.append("<p><table>")
     fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
-
     obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
@@ -302,10 +330,11 @@ def build_associations(resid):
 
     fragments.append("</table></p>")
     fragments.append("<h3>TO</h3>")
+    obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
+
     fragments.append("<p><table>")
     fragments.append("<tr><th>Type</th><th>Name</th><th>ID</th><th>Predicate</th><th>Command</th></tr>")
 
-    obj_list, assoc_list = Container.instance.resource_registry.find_objects(subject=resid, id_only=False)
     for obj,assoc in zip(obj_list,assoc_list):
         fragments.append("<tr>")
         fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
@@ -887,12 +916,8 @@ def build_simple_page(content):
 def build_page(content, title=""):
     fragments = [
         "<html><head>",
-        "<style type='text/css'>",
-        "body {font-family:Helvetica,Verdana,sans-serif;font-size:small;}",
-        "table,th,td {font-size:small;border: 1px solid black;border-collapse:collapse;padding-left:3px;padding-right:3px;vertical-align:top;}",
-        "th {background-color:lightgray;}",
-        ".preform {white-space:pre;font-family:monospace;font-size:120%;}",
-        "</style>",
+        "<link type='text/css' rel='stylesheet' href='/static/default.css' />"
+        "<link type='text/css' rel='stylesheet' href='/static/demo.css' />",
         "<script type='text/javascript'>",
         "function linkto(href, arg_name, arg_id) {",
         "var aval = document.getElementById(arg_id).value;",
