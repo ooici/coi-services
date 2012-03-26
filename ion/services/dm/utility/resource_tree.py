@@ -7,6 +7,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from ion.services.dm.utility.jsonify import JSONtree as jt
 
 def build(resource_id):
+    ''' Constructs a JSONtree for the specified resource.
+
+    The tree is built downward so all associations from this resource down are included.
+    '''
     rr_cli = ResourceRegistryServiceClient()
 
     resource = rr_cli.read(resource_id)
