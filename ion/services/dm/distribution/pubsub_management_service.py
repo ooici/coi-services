@@ -42,6 +42,8 @@ class BindingChannel(SubscriberChannel):
     ### complicated try except at a higher level in pubsub...
 
 
+
+
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
         to create streams and subscriptions.
@@ -291,26 +293,45 @@ class PubsubManagementService(BasePubsubManagementService):
             assert current_subscription.subscription_type == subscription.subscription_type
             assert current_subscription.is_active == subscription.is_active
 
+        book = dict()
 
-            if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+        stream_ids, assocs = self.clients.resource_registry.find_objects(
+            subject=subscription._id,
+            predicate=PRED.hasStream,
+            id_only=True
+        )
 
-                current_streams = set(current_subscription.query.stream_ids)
-
-                updated_streams = set(subscription.query.stream_ids)
-
-                removed_streams = current_streams.difference(updated_streams)
-
-                added_streams = updated_streams.difference(current_streams)
+        for stream_id, assoc in zip(stream_ids, assocs):
+            book[stream_id] = assoc
 
 
-                for stream_id in added_streams:
-                    self._bind_subscription(self.XP, subscription.exchange_name, stream_id + '.data')
+        if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
+            current_streams = set(stream_ids)
+            updated_streams = set(subscription.query.stream_ids)
+            removed_streams = current_streams.difference(updated_streams)
+            added_streams = updated_streams.difference(current_streams)
 
-                for stream_id in removed_streams:
-                    self._unbind_subscription(self.XP, subscription.exchange_name, stream_id + '.data')
+            for stream_id in removed_streams:
+                log.warning('Removing stream %s from subscription.' % stream_id)
+                self.clients.resource_registry.delete_association(book[stream_id])
+                if current_subscription.is_active:
+                    self._unbind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
+
+            for stream_id in added_streams:
+                log.warning('Adding stream %s to subscription.' % stream_id)
+
+                self.clients.resource_registry.create_association(
+                    subject=subscription._id,
+                    predicate=PRED.hasStream,
+                    object=stream_id
+                )
+                if current_subscription.is_active:
+                    self._bind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
+
 
         else:
             log.info('Updating an inactive subscription!')
+
 
 
         id, rev = self.clients.resource_registry.update(subscription)
