@@ -15,7 +15,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum, StreamDefinition, StreamDefinitionContainer
+from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum, StreamDefinition, StreamDefinitionContainer, Subscription
 from pyon.util.containers import DotDict
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
@@ -283,15 +283,25 @@ class PubSubTest(PyonTestCase):
         self.assertEqual(ex.message, 'Query type does not exist')
 
     def test_read_and_update_subscription(self):
-        self.mock_read.return_value = self.subscription_stream_query
-        subscription_obj = self.pubsub_service.read_subscription(self.subscription_id)
+        # Mocks
+        subscription_obj = Subscription()
+        subscription_obj.query = StreamQuery(['789'])
+        subscription_obj.is_active=False
+        subscription_obj.subscription_type = SubscriptionTypeEnum.STREAM_QUERY
+        self.mock_read.return_value = subscription_obj
 
-        self.mock_update.return_value = [self.subscription_id, 2]
-        subscription_obj.name = "UpdatedSampleStreamQuerySubscription"
-        ret = self.pubsub_service.update_subscription(subscription_obj)
+        self.mock_find_objects.return_value = (['789'],['This here is an association'])
+        self.mock_update.return_value = ('not important','even less so')
+        # Execution
+        query = StreamQuery(['123'])
+        retval = self.pubsub_service.update_subscription('subscription_id', query)
 
-        self.mock_update.assert_called_once_with(subscription_obj)
-        self.assertTrue(ret)
+        # Assertions
+        self.mock_read.assert_called_once_with('subscription_id','')
+        self.mock_find_objects.assert_called_once_with('subscription_id',PRED.hasStream,'',True)
+        self.mock_delete_association.assert_called_once_with('This here is an association')
+        self.mock_create_association.assert_called_once_with('subscription_id',PRED.hasStream,'123',None)
+        self.assertTrue(self.mock_update.call_count == 1, 'update was not called')
 
     def test_read_subscription(self):
         self.mock_read.return_value = self.subscription_stream_query
@@ -705,8 +715,12 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         # Update the subscription by removing a stream...
         subscription = self.pubsub_cli.read_subscription(self.ctd_subscription_id)
-        subscription.query.stream_ids.remove(self.ctd_stream2_id)
-        self.pubsub_cli.update_subscription(subscription)
+        stream_ids = list(subscription.query.stream_ids)
+        stream_ids.remove(self.ctd_stream2_id)
+        self.pubsub_cli.update_subscription(
+            subscription_id=subscription._id,
+            query=StreamQuery(stream_ids=stream_ids)
+        )
 
 
         # Stream 2 is no longer received
@@ -728,9 +742,10 @@ class PubSubIntTest(IonIntegrationTestCase):
         # Now swith the active streams...
 
         # Update the subscription by removing a stream...
-        subscription = self.pubsub_cli.read_subscription(self.ctd_subscription_id)
-        subscription.query.stream_ids = [self.ctd_stream2_id]
-        self.pubsub_cli.update_subscription(subscription)
+        self.pubsub_cli.update_subscription(
+            subscription_id=self.ctd_subscription_id,
+            query=StreamQuery([self.ctd_stream2_id])
+        )
 
 
         # Stream 1 is no longer received
