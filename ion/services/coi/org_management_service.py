@@ -366,11 +366,6 @@ class OrgManagementService(BaseOrgManagementService):
 
         req_id = self.request_handler.open_request(req_obj)
 
-        #If the user is not enrolled with the Org then immediately deny the request  -TODO move to Neg object?
-        if not self.is_enrolled(org_id, user_id):
-            self.deny_request(org_id, req_id, "The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
-
-
         return req_id
 
     def request_acquire_resource(self, org_id='', user_id='', resource_id=''):
@@ -389,10 +384,6 @@ class OrgManagementService(BaseOrgManagementService):
         req_obj = NegotiateRequestFactory.create_acquire_resource(org_id, user_id, resource_id)
 
         req_id = self.request_handler.open_request(req_obj)
-
-        #If the user is not enrolled with the Org then immediately deny the request  -TODO move to Neg object?
-        if not self.is_enrolled(org_id, user_id):
-            self.deny_request(org_id, req_id, "The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
         return req_id
 
@@ -682,10 +673,6 @@ class OrgManagementService(BaseOrgManagementService):
         user = param_objects['user']
         user_role = param_objects['user_role']
 
-        #First make sure the user is enrolled with the Org  TODO - replace with commitment checks
-        if not self.is_enrolled(org_id, user_id):
-            raise BadRequest("The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
-
         return self._add_role_association(user, user_role)
 
     def _add_role_association(self, user, user_role):
@@ -761,11 +748,6 @@ class OrgManagementService(BaseOrgManagementService):
         param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
         org = param_objects['org']
         user = param_objects['user']
-
-
-        #First make sure the user is enrolled with the Org  - TODO - Replace with commitment checks?
-        if not self.is_enrolled(org_id, user_id):
-            raise BadRequest("The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
         role_list = self._find_org_roles_by_user(org, user)
 
