@@ -104,7 +104,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.resource_registry_service.delete(iid)
 
         with self.assertRaises(NotFound) as ex:
-            assoc = self.resource_registry_service.read(ids[0])
+            assoc = self.resource_registry_service.read(iid)
 
     def test_lifecycle(self):
         att = IonObject("InstrumentDevice", name='mine', description='desc')
