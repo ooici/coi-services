@@ -63,9 +63,17 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def delete_association(self, association=''):
         return self.resource_registry.delete_association(association=association)
 
+    def read_object(self, subject="", predicate="", object_type="", assoc="", id_only=False):
+        return self.resource_registry.read_object(subject=subject, predicate=predicate,
+            object_type=object_type, assoc=assoc, id_only=id_only)
+
     def find_objects(self, subject="", predicate="", object_type="", id_only=False):
         return self.resource_registry.find_objects(subject=subject, predicate=predicate,
             object_type=object_type, id_only=id_only)
+
+    def read_subject(self, subject_type="", predicate="", object="", assoc="", id_only=False):
+        return self.resource_registry.read_subject(subject_type=subject_type, predicate=predicate,
+            object=object, assoc=assoc, id_only=id_only)
 
     def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
         return self.resource_registry.find_subjects(subject_type=subject_type, predicate=predicate,
