@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+7#!/usr/bin/env python
 
 """
 @package  ion.services.sa.resource_impl.resource_impl
@@ -9,9 +9,8 @@
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
 #from pyon.core.bootstrap import IonObject
-from pyon.public import PRED, RT, LCS
+from pyon.public import PRED, RT, LCE
 from pyon.util.log import log
-from pyon.ion.resource import lcs_workflows
 
 
 ######
@@ -38,10 +37,12 @@ class ResourceImpl(object):
         if hasattr(clients, "resource_registry"):
             self.RR = self.clients.resource_registry
 
-        self.lcs_precondition = {}
+        self.lce_precondition = {}
 
-        # any resource can become registered with no worries
-        self.add_lcs_precondition(LCS.REGISTERED, (lambda s, r: True))
+        # by default allow everything
+        # args s, r are "self" and "resource"
+        for l in LCE:
+            self.add_lce_precondition(l, (lambda r: True))
 
         # do implementation-specific stuff
         self.on_impl_init()
@@ -126,12 +127,13 @@ class ResourceImpl(object):
     #
     ##################################################
 
-    def advance_lcs(self, resource_id, new_state):
+    def advance_lcs(self, resource_id, transition_event):
         """
         attempt to advance the lifecycle state of a resource
         @resource_id the resource id
         @new_state the new lifecycle state
         """
+
         
         # check that the resource exists
         resource = self.RR.read(resource_id)
@@ -139,49 +141,26 @@ class ResourceImpl(object):
 
         # check that we've been handed the correct object
         if not resource_type == self.iontype:
-            raise NotImplementedError("Attempted to change lifecycle of a %s in a %s module" %
-                                      (resource_type, self.iontype))
+            raise BadRequest("Attempted to change lifecycle of a %s in a %s module" %
+                             (resource_type, self.iontype))
 
-        # get the workflow that we need
-        restype_workflow = lcs_workflows.get(resource_type, None)
-        if not restype_workflow:
-            raise BadRequest("Resource id=%s type=%s does not have a lifecycle workflow" 
-                             % (resource_id, resource_type))
-            #restype_workflow = lcs_workflows['Resource']
-
-        # check that the transition is possible
-        possible_transitions = restype_workflow.get_predecessors(new_state)
-        if not resource.lcstate in possible_transitions:
-            actions = []
-            for st, tr in possible_transitions.iteritems():
-                actions.append("%s -> %s" % (str(st), str(tr)))
-            raise NotImplementedError(("Attempted to change lifecycle of a %s from %s to %s; " + 
-                                      "supported transitions are {%s}->%s") %
-                                      (self.iontype, 
-                                       resource.lcstate, 
-                                       new_state, 
-                                       ", ".join(actions), 
-                                       new_state))
-
+        
         # check that precondition function exists
-        if not new_state in self.lcs_precondition:
+        if not transition_event in self.lce_precondition:
             raise NotImplementedError(
-                "Lifecycle precondition method '%s' not defined for %s!"
-                % (new_state, self.iontype))
+                "Lifecycle precondition method '%s' not defined for transition %s!"
+                % (transition_event, self.iontype))
 
-        precondition_fn = self.lcs_precondition[new_state]
+        precondition_fn = self.lce_precondition[transition_event]
 
         # check that the precondition is met
         if not precondition_fn(resource_id):
-            raise BadRequest(("Couldn't transition %s to state %s; "
+            raise BadRequest(("Couldn't apply '%s' LCS transition to %s '%s'; "
                               + "failed precondition")
-                             % (self.iontype, new_state))
+                             % (transition_event, self.iontype, resource_id))
 
-        # get the transition event that takes us where we want to go
-        transition_event = possible_transitions[resource.lcstate]
-
-        log.debug("Moving %s resource life cycle to %s with transition event %s"
-                  % (self.iontype, new_state, transition_event))
+        log.debug("Moving %s resource life cycle with transition event %s"
+                  % (self.iontype, transition_event))
 
         ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
                                                    transition_event=transition_event)
@@ -190,13 +169,13 @@ class ResourceImpl(object):
         return ret
 
 
-    def add_lcs_precondition(self, destination_state, precondition_predicate_fn):
+    def add_lce_precondition(self, transition, precondition_predicate_fn):
         """
         register a precondition predicate function for a lifecycle transition
         @param destination_state the state, defined in pyon/ion/resource.pyx
         @param precondition_predicate_fn takes (self, resource_id) and returns boolean
         """
-        self.lcs_precondition[destination_state] = precondition_predicate_fn
+        self.lce_precondition[transition] = precondition_predicate_fn
 
 
 
