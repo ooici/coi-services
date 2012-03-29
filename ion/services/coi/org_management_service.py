@@ -28,6 +28,98 @@ class OrgManagementService(BaseOrgManagementService):
         self.event_pub = EventPublisher()
 
 
+    def _validate_parameters(self, **kwargs):
+
+        parameter_objects = dict()
+
+        org_id = None
+
+        if kwargs.has_key('org_id'):
+
+            org_id = kwargs['org_id']
+
+            if not org_id:
+                raise BadRequest("The org_id parameter is missing")
+
+            org = self.clients.resource_registry.read(org_id)
+            if not org:
+                raise NotFound("Org %s does not exist" % org_id)
+
+            parameter_objects['org'] = org
+
+        if kwargs.has_key('user_id'):
+
+            user_id = kwargs['user_id']
+
+            if not user_id:
+                raise BadRequest("The user_id parameter is missing")
+
+            user = self.clients.resource_registry.read(user_id)
+            if not user:
+                raise NotFound("User %s does not exist" % user_id)
+
+            parameter_objects['user'] = user
+
+
+        if kwargs.has_key('role_name'):
+
+            role_name = kwargs['role_name']
+
+            if not role_name:
+                raise BadRequest("The role_name parameter is missing")
+
+            if org_id is None:
+                raise BadRequest("The org_id parameter is missing")
+
+            user_role = self._find_role(org_id, role_name)
+            if user_role is None:
+                raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
+
+            parameter_objects['user_role'] = user_role
+
+
+        if kwargs.has_key('resource_id'):
+
+            resource_id = kwargs['resource_id']
+
+            if not resource_id:
+                raise BadRequest("The resource_id parameter is missing")
+
+            resource = self.clients.resource_registry.read(resource_id)
+            if not resource:
+                raise NotFound("Resource %s does not exist" % resource_id)
+
+            parameter_objects['resource'] = resource
+
+
+        if kwargs.has_key('request_id'):
+
+            request_id = kwargs['request_id']
+
+            if not request_id:
+                raise BadRequest("The request_id parameter is missing")
+
+            request = self.clients.resource_registry.read(request_id)
+            if not request:
+                raise NotFound("User Request %s does not exist" % request_id)
+
+            parameter_objects['request'] = request
+
+        if kwargs.has_key('affiliate_org_id'):
+
+            affiliate_org_id = kwargs['affiliate_org_id']
+
+            if not affiliate_org_id:
+                raise BadRequest("The affiliate_org_id parameter is missing")
+
+            affiliate_org = self.clients.resource_registry.read(affiliate_org_id)
+            if not affiliate_org:
+                raise NotFound("Org %s does not exist" % affiliate_org_id)
+
+            parameter_objects['affiliate_org'] = affiliate_org
+
+        return parameter_objects
+
     def create_org(self, org=None):
         """Persists the provided Org object. The id string returned
         is the internal id by which Org will be identified in the data store.
@@ -50,7 +142,9 @@ class OrgManagementService(BaseOrgManagementService):
             raise BadRequest("The Org name '%s' can only contain alphanumeric and underscore characters" % org.name)
 
 
-        org_id, version = self.clients.resource_registry.create(org)
+        org_id, org_rev = self.clients.resource_registry.create(org)
+        org._id = org_id
+        org._rev = org_rev
 
         #Instantiate a Directory for this Org
         directory = Directory(orgname=org.name)
@@ -75,6 +169,9 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
+        if not org:
+            raise BadRequest("The org parameter is missing")
+
         self.clients.resource_registry.update(org)
 
     def read_org(self, org_id=''):
@@ -86,11 +183,9 @@ class OrgManagementService(BaseOrgManagementService):
         @retval org    Org
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
+        param_objects = self._validate_parameters(org_id=org_id)
 
-        org = self.clients.resource_registry.read(org_id)
-        return org
+        return param_objects['org']
 
     def delete_org(self, org_id=''):
         """Permanently deletes Org object with the specified
@@ -136,12 +231,8 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified name does not exist
         """
 
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id)
+        org = param_objects['org']
 
         if not user_role:
             raise BadRequest("The user_role parameter is missing")
@@ -151,13 +242,12 @@ class OrgManagementService(BaseOrgManagementService):
 
         user_role.org_id = org_id
         user_role_id = self.clients.policy_management.create_role(user_role)
-        user_role = self.clients.policy_management.read_role(user_role_id)
 
-        aid = self.clients.resource_registry.create_association(org, PRED.hasRole, user_role)
+        aid = self.clients.resource_registry.create_association(org, PRED.hasRole, user_role_id)
 
         return user_role_id
 
-    def remove_user_role(self, org_id='', name='', force_removal=False):
+    def remove_user_role(self, org_id='', role_name='', force_removal=False):
         """Removes a UserRole from an Org. The UserRole will not be removed if there are
         users associated with the UserRole unless the force_removal paramater is set to True
         Throws exception if either id does not exist.
@@ -168,19 +258,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified name does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not name:
-            raise BadRequest("The name parameter is missing")
-
-        user_role = self._find_role(org_id, name)
-        if not user_role:
-            raise NotFound("User Role %s does not exist or is not associated with the Org" % user_role_id)
+        param_objects = self._validate_parameters(org_id=org_id, role_name=role_name)
+        user_role = param_objects['user_role']
 
         if not force_removal:
             alist,_ = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasRole, user_role)
@@ -192,7 +271,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         return True
 
-    def find_org_role_by_name(self, org_id='', name=''):
+    def find_org_role_by_name(self, org_id='', role_name=''):
         """Returns the User Role object for the specified name in the Org.
         Throws exception if name does not match any persisted User Role or the Org does not exist.
         objects.
@@ -202,21 +281,10 @@ class OrgManagementService(BaseOrgManagementService):
         @retval user_role    UserRole
         @throws NotFound    object with specified name or if does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
+        param_objects = self._validate_parameters(org_id=org_id, role_name=role_name)
+        user_role = param_objects['user_role']
 
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not name:
-            raise BadRequest("The name parameter is missing")
-
-        role = self._find_role(org_id, name)
-        if role is None:
-            raise NotFound('The %s User Role is not found.' % name)
-
-        return role
+        return user_role
 
 
     def _find_role(self, org_id='', name=''):
@@ -243,12 +311,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval user_role_list    list
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id)
+        org = param_objects['org']
 
         role_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRole, RT.UserRole)
 
@@ -266,22 +330,11 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
+        org = param_objects['org']
 
         if org.name == ROOT_ION_ORG_NAME:
             raise BadRequest("A request to enroll in the root ION Org is not allowed")
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
 
         #Initiate request
         req_obj = NegotiateRequestFactory.create_enrollment_request(org_id, user_id)
@@ -303,29 +356,10 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not role_name:
-            raise BadRequest("The role_name parameter is missing")
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, role_name=role_name)
 
         if role_name == MEMBER_ROLE:
             raise BadRequest("The Member User Role is already assigned with an enrollment to an Org")
-
-        user_role = self._find_role(org_id, role_name)
-        if user_role is None:
-            raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
 
         #Initiate request
         req_obj = NegotiateRequestFactory.create_role_request(org_id, user_id)
@@ -349,27 +383,7 @@ class OrgManagementService(BaseOrgManagementService):
         @retval request_id    str
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
-
-
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is missing")
-
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise NotFound("Resource %s does not exist" % resource_id)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, resource_id=resource_id)
 
         #Initiate request
         req_obj = NegotiateRequestFactory.create_acquire_resource(org_id, user_id, resource_id)
@@ -394,17 +408,12 @@ class OrgManagementService(BaseOrgManagementService):
         @retval requests    list
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-          raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id)
 
         if request_type != '':
-            request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest, request_type)
+            request_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasRequest, request_type)
         else:
-             request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest)
+             request_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasRequest)
 
         if not request_status:
             return request_list
@@ -425,23 +434,10 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-          raise BadRequest("The org_id parameter is missing")
 
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not request_id:
-            raise BadRequest("The request_id parameter is missing")
-
-        request = self.clients.resource_registry.read(request_id)
-        if not request:
-            raise NotFound("User Request %s does not exist" % request_id)
-
+        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
+        request = param_objects['request']
         self.request_handler.approve_request(request)
-
-
 
 
     def deny_request(self, org_id='', request_id='', reason=''):
@@ -454,20 +450,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not request_id:
-            raise BadRequest("The request_id parameter is missing")
-
-        request = self.clients.resource_registry.read(request_id)
-        if not request:
-            raise NotFound("User Request %s does not exist" % request_id)
-
+        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
+        request = param_objects['request']
         self.request_handler.deny_request(request, reason)
 
 
@@ -485,22 +469,14 @@ class OrgManagementService(BaseOrgManagementService):
         @retval requests    list
         @throws NotFound    object with specified id does not exist
         """
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
+        param_objects = self._validate_parameters(user_id=user_id)
+        user = param_objects['user']
 
         ret_list = []
 
         if org_id:
-            org = self.clients.resource_registry.read(org_id)
-            if not org:
-                raise NotFound("Org %s does not exist" % org_id)
+            param_objects = self._validate_parameters(org_id=org_id)
+            org = param_objects['org']
 
             if request_type != '':
                 request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest, request_type)
@@ -547,20 +523,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not request_id:
-            raise BadRequest("The request_id parameter is missing")
-
-        request = self.clients.resource_registry.read(request_id)
-        if not request:
-            raise NotFound("User Request %s does not exist" % request_id)
-
+        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
+        request = param_objects['request']
         self.request_handler.accept_request(request)
 
         #Since the request was accepted by the user, proceed with the defined action of the negotiation
@@ -579,20 +543,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not request_id:
-            raise BadRequest("The request_id parameter is missing")
-
-        request = self.clients.resource_registry.read(request_id)
-        if not request:
-            raise NotFound("User Request %s does not exist" % request_id)
-
+        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
+        request = param_objects['request']
         self.request_handler.reject_request(request)
 
         return True
@@ -607,29 +559,17 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
+        org = param_objects['org']
+        user = param_objects['user']
 
         if org.name == ROOT_ION_ORG_NAME:
             raise BadRequest("A request to enroll in the root ION Org is not allowed")
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasMembership, user)
 
         if not aid:
             return False
-
-        #TODO - Send enrollment_granted notification
 
         return True
 
@@ -642,23 +582,12 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
+        org = param_objects['org']
+        user = param_objects['user']
 
         if org.name == ROOT_ION_ORG_NAME:
             raise BadRequest("A request to cancel enrollment in the root ION Org is not allowed")
-
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
 
         #First remove all associations to any roles
         role_list = self.find_roles_by_user(org_id, user_id)
@@ -682,23 +611,13 @@ class OrgManagementService(BaseOrgManagementService):
         @retval is_enrolled    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
+        org = param_objects['org']
+        user = param_objects['user']
 
         #Membership into the Root ION Org is implied as part of registration
         if org.name == ROOT_ION_ORG_NAME:
             return True
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
 
         try:
             aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, user)
@@ -716,12 +635,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval user_list    list
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
+        param_objects = self._validate_parameters(org_id=org_id)
+        org = param_objects['org']
 
         #Membership into the Root ION Org is implied as part of registration
         if org.name == ROOT_ION_ORG_NAME:
@@ -739,13 +654,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval org_list    list
         @throws NotFound    object with specified id does not exist
         """
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
+        param_objects = self._validate_parameters(user_id=user_id)
+        user = param_objects['user']
 
         org_list,_ = self.clients.resource_registry.find_subjects(RT.Org,PRED.hasMembership, user )
 
@@ -768,27 +678,9 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
-
-        if not role_name:
-            raise BadRequest("The role_name parameter is missing")
-
-        user_role = self._find_role(org_id, role_name)
-        if user_role is None:
-            raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, role_name=role_name)
+        user = param_objects['user']
+        user_role = param_objects['user_role']
 
         #First make sure the user is enrolled with the Org  TODO - replace with commitment checks
         if not self.is_enrolled(org_id, user_id):
@@ -824,28 +716,9 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
-
-        if not role_name:
-            raise BadRequest("The role_name parameter is missing")
-
-        user_role = self._find_role(org_id, role_name)
-        if user_role is None:
-            raise BadRequest("The User Role '%s' does not exist for this Org" % role_name)
-
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, role_name=role_name)
+        user = param_objects['user']
+        user_role = param_objects['user_role']
 
         return self._delete_role_association(user, user_role)
 
@@ -885,23 +758,12 @@ class OrgManagementService(BaseOrgManagementService):
         @retval user_role_list    list
         @throws NotFound    object with specified id does not exist
         """
-
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
+        org = param_objects['org']
+        user = param_objects['user']
 
 
-        #First make sure the user is enrolled with the Org  - TODO - Replace with commitment checks
+        #First make sure the user is enrolled with the Org  - TODO - Replace with commitment checks?
         if not self.is_enrolled(org_id, user_id):
             raise BadRequest("The user id %s is not enrolled in the specified Org %s" % (user_id, org_id))
 
@@ -918,13 +780,8 @@ class OrgManagementService(BaseOrgManagementService):
         @retval user_roles_by_org    dict
         @throws NotFound    object with specified id does not exist
         """
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
+        param_objects = self._validate_parameters(user_id=user_id)
+        user = param_objects['user']
 
         ret_val = dict()
 
@@ -961,19 +818,9 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is missing")
-
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise NotFound("Resource %s does not exist" % resource_id)
+        param_objects = self._validate_parameters(org_id=org_id, resource_id=resource_id)
+        org = param_objects['org']
+        resource = param_objects['resource']
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasResource, resource)
         if not aid:
@@ -991,20 +838,9 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is missing")
-
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise NotFound("Resource %s does not exist" % resource_id)
+        param_objects = self._validate_parameters(org_id=org_id, resource_id=resource_id)
+        org = param_objects['org']
+        resource = param_objects['resource']
 
         aid = self.clients.resource_registry.get_association(org, PRED.hasResource, resource)
         if not aid:
@@ -1023,32 +859,14 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, resource_id=resource_id)
 
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
-
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is missing")
-
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise NotFound("Resource %s does not exist" % resource_id)
-
-        com_obj = IonObject(RT.ResourceCommitment, name='', org_id=org_id, user_id=user_id, resource_id=resource_id,
+        commitment = IonObject(RT.ResourceCommitment, name='', org_id=org_id, user_id=user_id, resource_id=resource_id,
             description='Resource Commitment')
 
-        commitment_id, _ = self.clients.resource_registry.create(com_obj)
-        commitment = self.clients.resource_registry.read(commitment_id)
+        commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
+        commitment._id = commitment_id
+        commitment._rev = commitment_rev
         self.clients.resource_registry.create_association(user_id, PRED.hasCommitment, commitment)
         self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment)
 
@@ -1063,26 +881,7 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not user_id:
-            raise BadRequest("The user_id parameter is missing")
-
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
-
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is missing")
-
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise NotFound("Resource %s does not exist" % resource_id)
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, resource_id=resource_id)
 
         commitment_list,_ = self.clients.resource_registry.find_objects(resource_id, PRED.hasCommitment, RT.ResourceCommitment)
         for com in commitment_list:
@@ -1090,16 +889,9 @@ class OrgManagementService(BaseOrgManagementService):
                 aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, com)
                 self.clients.resource_registry.delete_association(aid[0])
 
-        commitment_list,_ = self.clients.resource_registry.find_objects(user_id, PRED.hasCommitment, RT.ResourceCommitment)
-        for com in commitment_list:
-            if com.resource_id == resource_id and com.user_id == user_id:
                 aid = self.clients.resource_registry.find_associations(user_id, PRED.hasCommitment, com)
                 self.clients.resource_registry.delete_association(aid[0])
-
-                try:
-                    self.clients.resource_registry.delete(com._id)
-                except Exception, e:
-                    log.debug("Error: " + e.message)
+                self.clients.resource_registry.delete(com._id)
 
         return True
 
@@ -1113,21 +905,11 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
+        param_objects = self._validate_parameters(org_id=org_id, affiliate_org_id=affiliate_org_id)
+        org = param_objects['org']
+        affiliate_org = param_objects['affiliate_org']
 
-        org1 = self.clients.resource_registry.read(org_id)
-        if not org1:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not affiliate_org_id:
-            raise BadRequest("The affiliate_org_id parameter is missing")
-
-        org2 = self.clients.resource_registry.read(affiliate_org_id)
-        if not org2:
-            raise NotFound("Org %s does not exist" % affiliate_org_id)
-
-        aid = self.clients.resource_registry.create_association(org1, PRED.affiliatedWith, org2)
+        aid = self.clients.resource_registry.create_association(org, PRED.affiliatedWith, affiliate_org)
         if not aid:
             return False
 
@@ -1143,21 +925,11 @@ class OrgManagementService(BaseOrgManagementService):
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
+        param_objects = self._validate_parameters(org_id=org_id, affiliate_org_id=affiliate_org_id)
+        org = param_objects['org']
+        affiliate_org = param_objects['affiliate_org']
 
-        org1 = self.clients.resource_registry.read(org_id)
-        if not org1:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not affiliate_org_id:
-            raise BadRequest("The affiliate_org_id parameter is missing")
-
-        org2 = self.clients.resource_registry.read(affiliate_org_id)
-        if not org2:
-            raise NotFound("Org %s does not exist" % affiliate_org_id)
-
-        aid = self.clients.resource_registry.get_association(org1, PRED.affiliatedWith, org2)
+        aid = self.clients.resource_registry.get_association(org, PRED.affiliatedWith, affiliate_org)
         if not aid:
             raise NotFound("The affiliation association between the specified Orgs is not found")
 

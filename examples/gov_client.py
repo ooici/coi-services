@@ -23,6 +23,11 @@ def seed_gov(container, process=FakeProcess()):
     org_client = OrgManagementServiceProcessClient(node=container.node, process=process)
     ion_org = org_client.find_org()
 
+    try:
+        myorg = org_client.read_org()
+    except Exception, e:
+        log.info("This should fail")
+        log.info(e.message)
 
     system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
     log.info('system actor:' + system_actor._id)
@@ -292,8 +297,10 @@ def test_requests(container, process=FakeProcess()):
     org_client.add_user_role(org2_id, operator_role, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
 
     log.info("First try to request a role without being a member - should be denied")
-    req_id = org_client.request_role(org2_id,user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
-
+    try:
+        req_id = org_client.request_role(org2_id,user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+    except Exception, e:
+        log.info(e.message)
 
     requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
@@ -304,8 +311,8 @@ def test_requests(container, process=FakeProcess()):
     try:
         log.info("User requesting enrollment")
         req_id = org_client.request_enroll(org2_id,user._id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
-    except BadRequest, e:
-        pass
+    except Exception, e:
+        log.info(e.message)
 
     requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
     log.info("Org2 Request count: %d" % len(requests))
@@ -316,6 +323,15 @@ def test_requests(container, process=FakeProcess()):
     log.info("User Requests count: %d" % len(requests))
     for r in requests:
         log.info('User Request: ' +str(r))
+
+
+    try:
+        log.info("User tried requesting enrollment again - this should fail")
+        req_id = org_client.request_enroll(org2_id,user._id, headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
+    except Exception, e:
+        log.info(e.message)
+
+
 
     if req_id is not None:
         org_client.deny_request(org2_id,req_id,'To test the deny process', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
@@ -364,6 +380,7 @@ def test_requests(container, process=FakeProcess()):
         log.info('Org Request: ' +str(r))
 
 
+    log.info("User requesting INSTRUMENT_OPERATOR role")
     req_id = org_client.request_role(org2_id,user._id, 'INSTRUMENT_OPERATOR', headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
 
     requests = org_client.find_requests(org2_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
@@ -396,6 +413,18 @@ def test_requests(container, process=FakeProcess()):
     log.info( 'Request Instrument Agents')
     ia_list = ims_client.find_instrument_agents()
 
+
+    #First make a acquire resource request with an non-enrolled user.
+    if len(ia_list) > 0:
+        try:
+            req_id = org_client.request_acquire_resource(org2_id,system_actor._id,ia_list[0]._id , headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles } )
+        except Exception, e:
+            log.info('Initial request should fail with unenrolled user')
+            log.info(e.message)
+    else:
+        req_id = None
+        log.info("No instrument agents to request")
+
     if len(ia_list) > 0:
         req_id = org_client.request_acquire_resource(org2_id,user._id,ia_list[0]._id , headers={'ion-actor-id': user._id, 'ion-actor-roles': user_header_roles } )
     else:
@@ -413,7 +442,7 @@ def test_requests(container, process=FakeProcess()):
         log.info('User Request: ' +str(r))
 
 
-    log.info("Manager approves request")
+    log.info("Manager approves Instrument request")
     if req_id is not None:
         org_client.approve_request(org2_id,req_id, headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
 

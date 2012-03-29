@@ -121,7 +121,7 @@ class BootstrapService(BaseBootstrapService):
 
         neg_def = IonObject(RT.NegotiationDefinition, name=RT.EnrollmentRequest,
             description='Definition of Enrollment Request Negotiation',
-            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == True'],
+            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == False'],
             accept_action = 'enroll_member(org_id,user_id)'
         )
 
