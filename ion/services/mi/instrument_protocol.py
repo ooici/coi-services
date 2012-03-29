@@ -32,7 +32,6 @@ mi_logger = logging.getLogger('mi_logger')
 class InterfaceType(BaseEnum):
     """The methods of connecting to a device"""
     ETHERNET = 'ethernet'
-    SLOW_ETHERNET = 'slow_ethernet'
     SERIAL = 'serial'
 
 class ParameterDictVal(object):
@@ -125,15 +124,6 @@ class InstrumentProtocol(object):
                                             server_port)
             self._logger_client = LoggerClient(server_addr, server_port)
         
-        if method == InterfaceType.SLOW_ETHERNET:
-            device_addr = config['device_addr']
-            device_port = config['device_port']
-            server_addr = config['server_addr']
-            server_port = config['server_port']
-            self._logger = EthernetDeviceLogger(device_addr, device_port,
-                                            server_port, write_delay=0.5)
-            self._logger_client = LoggerClient(server_addr, server_port)
-
         elif method == InterfaceType.SERIAL:
             # The config dict does not have a valid connection method.
             raise InstrumentConnectionException()
@@ -322,7 +312,8 @@ class InstrumentProtocol(object):
             event.update({EventKey.ERROR_CODE:error_code})
         if msg:
             event.update({EventKey.MESSAGE:msg})
-            
+        
+        mi_logger.debug("Sending event announcement: %s", event)     
         self.send_event(event)
 
 class BinaryInstrumentProtocol(InstrumentProtocol):
@@ -423,6 +414,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._build_handlers = {}
         self._response_handlers = {}
         self._parameters = {}
+        
+        self._last_data_receive_timestamp = None
                    
     ########################################################################
     # Incomming data callback.
@@ -436,22 +429,48 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @param cmd The high level key of the command to build for.
         """
         self._build_handlers[cmd] = func
-        
-    def _add_response_handler(self, cmd, func):
+                
+    def _add_response_handler(self, cmd, func, state=None):
         """
         Insert a handler class responsible for handling the response to a
-        command sent to the instrument.
+        command sent to the instrument, optionally available only in a
+        specific state.
         
         @param cmd The high level key of the command to responsd to.
+        @param func The function that handles the response
+        @param state The state to pair with the command for which the function
+        should be used
         """
-        self._response_handlers[cmd] = func
+        if state == None:
+            self._response_handlers[cmd] = func
+        else:            
+            self._response_handlers[(state, cmd)] = func
                 
+    def _get_response_handler(self, cmd):
+        """
+        Get the response handler if there is one. Start by looking for one with
+        the specific state we are in. Failing that, look for anyone for the
+        command, then return None failing that.
+        
+        @param cmd The command to be looking for a handler of
+        @retval None if no state handler found, otherwise, the function of the
+        best state handler.
+        """
+        mi_logger.debug("Looking up response handler with state: %s, cmd: %s",
+                        self._fsm.get_current_state(), cmd)
+        handler = self._response_handlers.get((self._fsm.get_current_state(), cmd), None)
+        if (handler == None):
+            handler = self._response_handlers.get(cmd, None)
+            
+        return handler
+    
     def _got_data(self, data):
         """
         """
         # Update the line and prompt buffers.
         self._linebuf += data        
         self._promptbuf += data
+        self._last_data_received_timestamp = time.time()
 
     ########################################################################
     # Wakeup helpers.
@@ -501,11 +520,6 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         self._build_handlers[cmd] = func
         
-    def _add_response_handler(self, cmd, func):
-        """
-        """
-        self._response_handlers[cmd] = func
-
     def _get_response(self, timeout=10, expected_prompt=None):
         """
         Get a response from the instrument
@@ -526,6 +540,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         while True:
             for item in prompt_list:
+#                mi_logger.debug("*** prompt_buf: [%s], linebuf: [%s], item: %s",
+#                                self._promptbuf, self._linebuf, item)
                 if self._promptbuf.endswith(item):
                     mi_logger.debug('Got prompt: %s', repr(item))
                     return (item, self._linebuf)
@@ -541,14 +557,16 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         @param cmd The high level command to issue
         @param args Arguments for the command
-        @param kwargs timeout if one exists, defaults to 10, expected_prompt
-        string to feed into _get_response 
+        @param kwargs timeout if one exists, defaults to 10,
+        @param kwargs expected_prompt string to feed into _get_response
+        @param kwargs write_delay float of seconds to delay between sends
         @retval resp_result The response handler's return value
         @throw InstrumentProtocolException Bad command
         @throw InstrumentTimeoutException Timeout
         """
         timeout = kwargs.get('timeout', 10)
         expected_prompt = kwargs.get('expected_prompt', None)
+        write_delay = kwargs.get('write_delay', 0)
         retval = None
         
         build_handler = self._build_handlers.get(cmd, None)
@@ -565,19 +583,24 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._promptbuf = ''
 
         # Send command.
-        mi_logger.debug('_do_cmd_resp: %s', repr(cmd_line))
-        self._logger_client.send(cmd_line)
+        mi_logger.debug('_do_cmd_resp: %s, timeout=%s, write_delay=%s,',
+                        repr(cmd_line), timeout, write_delay)
 
+        if (write_delay == 0):
+            self._logger_client.send(cmd_line)
+        else:
+            for char in cmd_line:
+                self._logger_client.send(char)
+                time.sleep(write_delay)
+                
         # Wait for the prompt, prepare result and return, timeout exception
         (prompt, result) = self._get_response(timeout,
                                               expected_prompt=expected_prompt)
-                
-        resp_handler = self._response_handlers.get(cmd, None)
+        resp_handler = self._get_response_handler(cmd)
         resp_result = None
         if resp_handler:
             resp_result = resp_handler(result, prompt)
-
-        mi_logger.debug("*** returning parsed bit: %s", resp_result)
+        
         return resp_result
             
     def _do_cmd_no_resp(self, cmd, *args, **kwargs):
@@ -588,15 +611,17 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         @param cmd The high level command to issue
         @param args Arguments for the command
         @param kwargs timeout if one exists, defaults to 10
+        @param kwargs write_delay float of seconds to delay between sends
         @throw InstrumentProtocolException Bad command
         @throw InstrumentTimeoutException Timeout
         """
-        timeout = kwargs.get('timeout', 10)        
+        timeout = kwargs.get('timeout', 10)
+        write_delay = kwargs.get('write_delay', 0)
+
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
             raise InstrumentProtocolException(InstErrorCode.BAD_DRIVER_COMMAND)
-        
         cmd_line = build_handler(cmd, *args)
         
         # Wakeup the device, timeout exception as needed
@@ -606,8 +631,13 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._linebuf = ''
 
         # Send command.
-        mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
-        self._logger_client.send(cmd_line)        
+        mi_logger.debug('_do_cmd_no_resp: %s, timeout=%s', repr(cmd_line), timeout)
+        if (write_delay == 0):
+            self._logger_client.send(cmd_line)
+        else:
+            for char in cmd_line:
+                self._logger_client.send(char)
+                time.sleep(write_delay)
 
         return InstErrorCode.OK
 

@@ -131,7 +131,7 @@ class DriverProcess(object):
         elif cmd_func:
             reply = cmd_func(*args, **kwargs)
         else:
-            reply = 'Unknown driver command'
+            reply = 'Unknown driver command: %s' % cmd
         
         return reply        
             

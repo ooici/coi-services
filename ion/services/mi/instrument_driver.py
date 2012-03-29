@@ -484,6 +484,8 @@ class InstrumentDriver(object):
             ("MyChannel.CHAN1", MyParam.PARAM4): 456,
             ("MyChannel.CHAN3", MyParam.PARAM5): 789,
           }
+        @retval The parameter dictionary with post-set values and possible
+        errors that were encountered for each parameter
         """
         (result, valid_params) = self._check_set_args(params)
 

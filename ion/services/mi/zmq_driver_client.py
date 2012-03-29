@@ -156,6 +156,6 @@ class ZmqDriverClient(DriverClient):
             except zmq.ZMQError:
                 # Socket not ready with the reply. Sleep and retry later.
                 time.sleep(.5)
-        mi_logger.debug('Reply: %s.', str(reply))
+        mi_logger.debug('Reply: %s', str(reply))
         return reply
     
