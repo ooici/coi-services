@@ -92,13 +92,6 @@ class VisStreamLauncher(StandaloneProcess):
             instModel_obj = IonObject(RT.InstrumentModel, name=self.data_source_name, description=self.data_source_name, model_label=self.data_source_name)
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
 
-            # Create InstrumentAgent. Maybe optional for the viz_data_producers
-            #instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
-            #instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
-
-            #assign instr model to agent
-            #self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
-
             # Create InstrumentDevice
             instDevice_obj = IonObject(RT.InstrumentDevice, name=self.data_source_name, description=self.data_source_name, serial_number="12345" )
 

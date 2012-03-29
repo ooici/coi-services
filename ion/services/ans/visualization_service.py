@@ -15,11 +15,11 @@ Note:
 # Pyon imports
 # Note pyon imports need to be first for monkey patching to occur
 from pyon.ion.transform import TransformDataProcess
-from pyon.public import IonObject, RT, log, PRED
+from pyon.public import IonObject, RT, log, PRED, StreamSubscriberRegistrar, StreamPublisherRegistrar
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient, ResourceRegistryServiceProcessClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+#from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.objects import StreamQuery
 
 from datetime import datetime
@@ -29,16 +29,15 @@ import StringIO
 import simplejson
 import math
 import gevent
+import copy
 from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
-from interface.services.ans.ivisualization_service import VisualizationServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.objects import HdfStorage, CouchStorage
 from pyon.event.event import EventSubscriber
 from pyon.util.async import spawn
-from interface.objects import ResourceModificationType
+#from interface.objects import ResourceModificationType
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
 
@@ -53,9 +52,6 @@ from matplotlib.figure import Figure
 import ion.services.ans.gviz_api as gviz_api
 
 class VisualizationService(BaseVisualizationService):
-    """
-
-    """
 
     def on_start(self):
 
@@ -76,8 +72,9 @@ class VisualizationService(BaseVisualizationService):
         self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
         self.dsm_cli = DatasetManagementServiceClient(node=self.container.node)
 
-        self.datastore_name = 'ingested_datasets' #'test_datastore'
         """
+        self.datastore_name = 'ingested_datasets' #'test_datastore'
+
         #The following code might go away in the future but check for an existing ingestion configuration in the system
         # and if it does not exist, create one. It will be used by the data producers to persist data
         self.IngestClient = IngestionManagementServiceClient(node=self.container.node)
@@ -107,7 +104,8 @@ class VisualizationService(BaseVisualizationService):
             log.debug("test_activateInstrument: activate = %s"  % str(ret))
         """
 
-        # Create process definitions which will used to spawn off the tranform processes
+
+        # Create process definitions which will used to spawn off the transform processes
         self.process_definition1 = IonObject(RT.ProcessDefinition, name='viz_transform_process'+'.'+self.random_id_generator())
         self.process_definition1.executable = {
             'module': 'ion.services.ans.visualization_service',
@@ -122,6 +120,17 @@ class VisualizationService(BaseVisualizationService):
         }
         self.process_definition_id2, _ = self.rr_cli.create(self.process_definition2)
 
+        # Create a stream that all the transform processes will use to submit data back to the viz service
+        self.viz_service_submit_stream_id = self.pubsub_cli.create_stream(name="visualization_service_submit_stream")
+
+        # subscribe to this stream since all the results from transforms will be submitted here
+        query = StreamQuery(stream_ids=[self.viz_service_submit_stream_id,])
+        self.viz_service_submit_stream_sub_id = self.pubsub_cli.create_subscription(query=query, exchange_name="visualization_service_submit_queue")
+        submit_stream_subscriber_registrar = StreamSubscriberRegistrar(process = self.container, node = self.container.node )
+        submit_stream_subscriber = submit_stream_subscriber_registrar.create_subscriber(exchange_name='visualization_service_submit_queue', callback=self.process_submission)
+        submit_stream_subscriber.start()
+
+        self.pubsub_cli.activate_subscription(self.viz_service_submit_stream_sub_id)
 
         # Discover the existing data_product_ids active in the system
         sys_prod_ids, _ = self.rr_cli.find_resources(RT.DataProduct, None, None, True)
@@ -149,6 +158,21 @@ class VisualizationService(BaseVisualizationService):
         super(VisualizationService, self).on_stop()
         return
 
+    def process_submission(self, packet, headers):
+
+        # The packet is a dictionary containing the data_product_id and viz_product_type.
+        if(packet["viz_product_type"] == "google_realtime_dt"):
+            self.submit_google_realtime_dt(data_product_id=packet["data_product_id"], data_table=packet["data_table"])
+
+        if(packet["viz_product_type"] == "google_dt"):
+            self.submit_google_dt(data_product_id_token=packet["data_product_id_token"], data_table=packet["data_table"])
+
+        if(packet["viz_product_type"] == "matplotlib_graphs"):
+            self.submit_mpl_image(data_product_id=packet["data_product_id"], image_obj=packet["image_obj"],
+                                image_name=packet["image_name"])
+
+        return
+
     def start_google_dt_transform(self, data_product_id='', query=''):
         """Request to fetch the datatable for a data product as specified in the query. Query will also specify whether its a realtime view or one-shot
 
@@ -167,8 +191,6 @@ class VisualizationService(BaseVisualizationService):
         if dp_obj.dataset_id == '':
             return None
 
-        # Get the view_name associated with the dataset
-        dataset = self.dsm_cli.read_dataset(dataset_id=dp_obj.dataset_id)
 
         # define replay. If no filters are passed the entire ingested dataset is returned
         replay_id, replay_stream_id = self.dr_cli.define_replay(dataset_id=dp_obj.dataset_id)
@@ -177,7 +199,7 @@ class VisualizationService(BaseVisualizationService):
 
         # setup the transform to handle the data coming back from the replay
         # Init storage for the resulting data_table
-        self.viz_data_dictionary['google_dt'][data_product_id_token] = {'transform_proc': "", 'data_table': [], 'ready_flag': False}
+        self.viz_data_dictionary['google_dt'][data_product_id_token] = {'data_table': [], 'ready_flag': False}
 
         # Create the subscription to the stream. This will be passed as parameter to the transform worker
         query = StreamQuery(stream_ids=[replay_stream_id,])
@@ -189,9 +211,13 @@ class VisualizationService(BaseVisualizationService):
         # Launch the viz transform process
         viz_transform_id = self.tms_cli.create_transform( name='viz_transform_google_dt_' + self.random_id_generator()+'.'+data_product_id,
             in_subscription_id=replay_subscription_id,
+            out_streams = {"visualization_service_submit_stream_id": self.viz_service_submit_stream_id },
             process_definition_id=self.process_definition_id2,
             configuration=configuration)
         self.tms_cli.activate_transform(viz_transform_id)
+
+        # keep a record of the the viz_transform_id
+        self.viz_data_dictionary['google_dt'][data_product_id_token]['transform_proc'] = viz_transform_id
 
         # Start the replay and return the token
         self.dr_cli.start_replay(replay_id=replay_id)
@@ -221,9 +247,16 @@ class VisualizationService(BaseVisualizationService):
                 if  not self.viz_data_dictionary['google_dt'][data_product_id_token]['ready_flag']:
                     return None
                 else:
-                    return self.viz_data_dictionary['google_dt'][data_product_id_token]['data_table']
-                    # clean up the entry in data _dictionary
-                    #del self.viz_data_dictionary['google_dt'][data_product_id_token]
+                    # Make a reference to the data_table and clean space in global dict
+                    data_table = self.viz_data_dictionary['google_dt'][data_product_id_token]['data_table']
+                    # clean up the transform and space in global dict
+                    self.tms_cli.deactivate_transform(self.viz_data_dictionary['google_dt'][data_product_id_token]['transform_proc'])
+                    del self.viz_data_dictionary['google_dt'][data_product_id_token]
+
+                    # returning the reference to the data_table should mark the objects used by this tranform as ready
+                    # for deletion
+                    return data_table
+
             else:
                 return None
 
@@ -320,11 +353,11 @@ class VisualizationService(BaseVisualizationService):
 
         return
 
-    def submit_mpl_image(self, data_product_id='', image_file_obj='', image_name=''):
+    def submit_mpl_image(self, data_product_id='', image_obj='', image_name=''):
         """Send the rendered image to the visualization service
 
         @param data_product_id    str
-        @param image_file_obj    str
+        @param image_obj    str
         @param description    str
         @throws BadRequest    check data_product_id
         """
@@ -343,12 +376,11 @@ class VisualizationService(BaseVisualizationService):
             self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images'].append(image_name)
 
         # Add binary data from the image to the dictionary
-        self.viz_data_dictionary['matplotlib_graphs'][data_product_id][image_name] = image_file_obj
+        self.viz_data_dictionary['matplotlib_graphs'][data_product_id][image_name] = image_obj
 
         return
 
     def register_new_data_product(self, data_product_id=''):
-
 
         """Apprise the Visualization service of a new data product in the system. This function inits transform
         processes for generating the matplotlib graphs of the new data product. It also creates transform processes which
@@ -358,6 +390,11 @@ class VisualizationService(BaseVisualizationService):
         @throws BadRequest    check data_product_id for duplicates
         """
 
+        # Check to see if the DP has already been registered. If yes, do nothing
+        if (data_product_id in self.viz_data_dictionary['matplotlib_graphs']) or (data_product_id in self.viz_data_dictionary['google_realtime_dt']):
+            log.warn("Data Product has already been registered with Visualization service. Ignoring.")
+            return
+        
         # extract the stream_id associated with the data_product_id
         viz_stream_id,_ = self.rr_cli.find_objects(data_product_id, PRED.hasStream, None, True)
 
@@ -395,12 +432,13 @@ class VisualizationService(BaseVisualizationService):
         # Launch the viz transform process
         viz_transform_id1 = self.tms_cli.create_transform( name='viz_transform_matplotlib_'+ self.random_id_generator() + '.'+data_product_id,
             in_subscription_id=viz_subscription_id1,
+            out_streams = {"visualization_service_submit_stream_id": self.viz_service_submit_stream_id },
             process_definition_id=self.process_definition_id1,
             configuration=configuration1)
         self.tms_cli.activate_transform(viz_transform_id1)
 
         # keep a record of the the viz_transform_id
-        #self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['transform_proc'] = viz_transform_id1
+        self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['transform_proc'] = viz_transform_id1
 
 
         ###############################################################################
@@ -418,13 +456,14 @@ class VisualizationService(BaseVisualizationService):
         # Launch the viz transform process
         viz_transform_id2 = self.tms_cli.create_transform( name='viz_transform_realtime_google_dt_' + self.random_id_generator()+'.'+data_product_id,
             in_subscription_id=viz_subscription_id2,
+            out_streams = {"visualization_service_submit_stream_id": self.viz_service_submit_stream_id },
             process_definition_id=self.process_definition_id2,
             configuration=configuration2)
         self.tms_cli.activate_transform(viz_transform_id2)
 
 
         # keep a record of the the viz_transform_id
-        #self.viz_data_dictionary['google_realtime_dt'][data_product_id]['transform_proc'] = viz_transform_id2
+        self.viz_data_dictionary['google_realtime_dt'][data_product_id]['transform_proc'] = viz_transform_id2
 
 
     def random_id_generator(self, size=8, chars=string.ascii_uppercase + string.digits):
@@ -451,11 +490,17 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
         super(VizTransformProcForGoogleDT,self).on_start()
         self.initDataTableFlag = True
 
-        # Create client to interface with the viz service
-        self.vs_cli = VisualizationServiceClient(node=self.container.node)
+        # need some clients
         self.rr_cli = ResourceRegistryServiceProcessClient(process = self, node = self.container.node)
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
 
-        # extract the data_product_id from the transform name. Should be appended with a '.'
+        # extract the various parameters passed
+        self.out_stream_id = self.CFG.get('process').get('publish_streams').get('visualization_service_submit_stream_id')
+
+        # Create a publisher on the output stream
+        out_stream_pub_registrar = StreamPublisherRegistrar(process=self.container, node=self.container.node)
+        self.out_stream_pub = out_stream_pub_registrar.create_publisher(stream_id=self.out_stream_id)
+
         self.data_product_id = self.CFG.get('data_product_id')
         self.stream_def_id = self.CFG.get("stream_def_id")
         stream_def_resource = self.rr_cli.read(self.stream_def_id)
@@ -467,7 +512,7 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
             self.data_product_id_token = self.CFG.get('data_product_id_token')
 
 
-        # extract the stream_id associated with the DP. NEeded later
+        # extract the stream_id associated with the DP. Needed later
         stream_ids,_ = self.rr_cli.find_objects(self.data_product_id, PRED.hasStream, None, True)
         self.stream_id = stream_ids[0]
 
@@ -480,7 +525,6 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
     def process(self, packet):
 
         log.debug('(%s): Received Viz Data Packet' % (self.name) )
-        #log.debug('(%s):   - Processing: %s' % (self.name,packet))
 
         element_count_id = 0
         expected_range = []
@@ -500,13 +544,11 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
 
             # split the data string to extract variable names
             for varname in psd.list_field_names():
-
                 if varname == 'time':
                     continue
 
                 self.dataDescription.append((varname, 'number', varname))
 
-            #self.dataTableContent = [[None] * len(self.dataDescription)]
             self.initDataTableFlag = False
 
 
@@ -517,7 +559,6 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
             for varname,_,_ in self.dataDescription:
                 val = float(vardict[varname][i])
                 if varname == 'time':
-                    #varTuple.append(num2date(val,'days since 1970-01-01T00:00:00Z', 'standard'))
                     varTuple.append(datetime.fromtimestamp(val))
                 else:
                     varTuple.append(val)
@@ -551,7 +592,11 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
             data_table = gviz_api.DataTable(self.dataDescription)
             data_table.LoadData(self.dataTableContent)
 
-            self.vs_cli.submit_google_realtime_dt(self.data_product_id, data_table.ToJSonResponse())
+            # submit resulting table back using the out stream publisher
+            msg = {"viz_product_type": "google_realtime_dt",
+                   "data_product_id": self.data_product_id,
+                   "data_table": data_table.ToJSonResponse() }
+            self.out_stream_pub.publish(msg)
         else:
             # Submit table back to the service if we received all the replay data
             if self.total_num_of_records_recvd == (expected_range[1] + 1):
@@ -569,7 +614,11 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
                 data_table = gviz_api.DataTable(self.dataDescription)
                 data_table.LoadData(self.dataTableContent)
 
-                self.vs_cli.submit_google_dt(self.data_product_id_token, data_table.ToJSonResponse())
+                # submit resulting table back using the out stream publisher
+                msg = {"viz_product_type": "google_dt",
+                       "data_product_id_token": self.data_product_id_token,
+                       "data_table": data_table.ToJSonResponse() }
+                self.out_stream_pub.publish(msg)
                 return
 
 
@@ -591,11 +640,18 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
         self.initDataFlag = True
         self.graph_data = {} # Stores a dictionary of variables : [List of values]
 
-        # Create client to interface with the viz service
-
+        # Need some clients
         self.rr_cli = ResourceRegistryServiceProcessClient(process = self, node = self.container.node)
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
 
-        # extract the data_product_id from the transform name. Should be appended with a '.'
+        # extract the various parameters passed to the transform process
+        self.out_stream_id = self.CFG.get('process').get('publish_streams').get('visualization_service_submit_stream_id')
+
+        # Create a publisher on the output stream
+        #stream_route = self.pubsub_cli.register_producer(stream_id=self.out_stream_id)
+        out_stream_pub_registrar = StreamPublisherRegistrar(process=self.container, node=self.container.node)
+        self.out_stream_pub = out_stream_pub_registrar.create_publisher(stream_id=self.out_stream_id)
+
         self.data_product_id = self.CFG.get('data_product_id')
         self.stream_def_id = self.CFG.get("stream_def_id")
         self.stream_def = self.rr_cli.read(self.stream_def_id)
@@ -642,7 +698,6 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
     def rendering_thread(self):
         from copy import deepcopy
         # Service Client
-        vs_cli = VisualizationServiceClient()
 
         # init Matplotlib
         fig = Figure()
@@ -689,8 +744,12 @@ class VizTransformProcForMatplotlibGraphs(TransformDataProcess):
                 canvas.print_figure(imgInMem, format="png")
                 imgInMem.seek(0)
 
-                # submit the image object to the visualization service
-                vs_cli.submit_mpl_image(self.data_product_id, imgInMem.getvalue(), fileName)
+                # submit resulting table back using the out stream publisher
+                msg = {"viz_product_type": "matplotlib_graphs",
+                       "data_product_id": self.data_product_id,
+                       "image_obj": imgInMem.getvalue(),
+                       "image_name": fileName}
+                self.out_stream_pub.publish(msg)
 
                 #clear the canvas for the next image
                 ax.clear()
