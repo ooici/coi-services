@@ -545,7 +545,7 @@ class OrgManagementService(BaseOrgManagementService):
         """
         param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
         request = param_objects['request']
-        self.request_handler.reject_request(request)
+        self.request_handler.reject_request(request,reason)
 
         return True
 
