@@ -11,7 +11,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.objects import Attachment, AttachmentType
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-@attr('INT', group='coi')
+@attr('INT', group='rr1')
 class TestResourceRegistry(IonIntegrationTestCase):
 
     def setUp(self):
@@ -104,7 +104,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.resource_registry_service.delete(iid)
 
         with self.assertRaises(NotFound) as ex:
-            assoc = self.resource_registry_service.read(ids[0])
+            assoc = self.resource_registry_service.read(iid)
 
     def test_lifecycle(self):
         att = IonObject("InstrumentDevice", name='mine', description='desc')
@@ -203,6 +203,19 @@ class TestResourceRegistry(IonIntegrationTestCase):
 
         # Create two different association types between the same subject and predicate
         assoc_id1, assoc_rev1 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
+
+        # Read object, subject
+        res_obj1 = self.resource_registry_service.read_object(user_identity_obj_id, PRED.hasInfo, RT.UserInfo)
+        self.assertEquals(res_obj1._id, user_info_obj_id)
+        res_obj1 = self.resource_registry_service.read_object(user_identity_obj_id, PRED.hasInfo, RT.UserInfo, id_only=True)
+        self.assertEquals(res_obj1, user_info_obj_id)
+        res_obj2 = self.resource_registry_service.read_subject(RT.UserIdentity, PRED.hasInfo, user_info_obj_id)
+        self.assertEquals(res_obj2._id, user_identity_obj_id)
+        res_obj2 = self.resource_registry_service.read_subject(RT.UserIdentity, PRED.hasInfo, user_info_obj_id, id_only=True)
+        self.assertEquals(res_obj2, user_identity_obj_id)
+
+        # Create a similar association to a specific revision
+        # TODO: This is not a supported case so far
         assoc_id2, assoc_rev2 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, "H2R")
 
         # Search for associations (good cases)

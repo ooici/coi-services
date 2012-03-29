@@ -28,7 +28,7 @@ Install the following if not yet present:
 
 * OS Packages and package management:
 For Mac, use homebrew
-    > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
+    > /usr/bin/ruby -e "$(/usr/bin/curl -fksSL https://raw.github.com/mxcl/homebrew/master/Library/Contributions/install_homebrew.rb)"
 - python 2.7.2
 - git 1.7.7: Use brew or download the Mac or Linux installer and run it
 - couchdb 1.1.0 (optional if memory mockdb is used)
@@ -36,19 +36,19 @@ For Mac, use homebrew
 - rabbitmq 2.6.1 or later (recommended, but can use rabbitmq on amoeba)
     Use brew.
     Alternative: download generic Linux version and unpack into a suitable directory.
-- Install libevent, libyaml, zeromq, couchdb, python, and rabbitmq with Homebrew
-    > brew install libevent libyaml zeromq couchdb python rabbitmq hdf5
+- Install libevent, libyaml, zeromq, couchdb, python, rabbitmq, and pkg-config with Homebrew
+
+    > brew install libevent libyaml zeromq couchdb python rabbitmq hdf5 pkg-config
+
     You can even reinstall git using brew to clean up your /usr/local directory
     Be sure to read the pyon README for platform specific guidance to installing
     dependent libraries and packages.
     Linux: Note that many installs have much older versions installed by default.
     (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update'
     and try the install again)
-- Install matplotlib using pip:
-    pip install matplotlib
 
+installation
 - Install
-
 
 * python packages and environment management:
 - pip
@@ -88,6 +88,11 @@ PACKAGE DEPENDENCIES
 Use Buildout to install the python package dependencies (including pyon itself) with:
     > python bootstrap.py
     > bin/buildout
+
+** Mac should have libpng and libfreetype headers, which are required
+    for matplotlib python build.  If for some reason your buildout fails on
+    matplotlib due to missing libpng libraries, try install from here:
+    http://ethan.tira-thompson.com/Mac_OS_X_Ports.html
 
 Generate service definition interfaces and abstract base classes files:
     > bin/generate_interfaces
