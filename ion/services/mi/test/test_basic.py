@@ -403,7 +403,7 @@ class DriverTest(unittest.TestCase):
     def test_connect_disconnect(self):
         """Test state change when connecting and disconnecting"""
         result = self.driver.get_current_state()
-        mi_logger.debug("*** initial state result: %s", result)
+        mi_logger.debug("Initial state result: %s", result)
         self.assertEquals(result[DriverChannel.INSTRUMENT], DriverState.UNCONFIGURED)
 
         self.driver.chan_map[DriverChannel.INSTRUMENT].connect = Mock(return_value = 12)

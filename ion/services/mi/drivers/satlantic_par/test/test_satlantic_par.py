@@ -36,8 +36,10 @@ mi_logger = logging.getLogger('mi_logger')
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_satlantic_par.py
+# All unit tests: add "-a UNIT" to end, integration add "-a INT"
 # Test device is at 10.180.80.173, port 2001
 
+@unittest.skip("Need better mocking of FSM or smaller testing chunks")
 @attr('UNIT', group='mi')
 class SatlanticParProtocolUnitTest(PyonTestCase):
     """
@@ -55,6 +57,7 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         self.mock_callback = Mock(name='callback')
         self.mock_logger = Mock(name='logger')
         self.mock_logger_client = Mock(name='logger_client')
+        self.mock_fsm = Mock(name='fsm')
 #        self.mock_logger_client.send = Mock()
         self.par_proto = SatlanticPARInstrumentProtocol(self.mock_callback)
         self.config_params = {'method':InterfaceType.ETHERNET,
@@ -62,14 +65,16 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
                               'device_port':1,
                               'server_addr':'2.2.2.2',
                               'server_port':2}
+        self.par_proto._fsm = self.mock_fsm
         self.par_proto.configure(self.config_params)
+        self.par_proto.initialize()
         self.par_proto._logger = self.mock_logger 
         self.par_proto._logger_client = self.mock_logger_client
         self.par_proto._get_response = Mock(return_value=('$', None))
-        self.par_proto.initialize()
         # Quick sanity check to make sure the logger got mocked properly
         self.assertEquals(self.par_proto._logger, self.mock_logger)
         self.assertEquals(self.par_proto._logger_client, self.mock_logger_client)
+        self.assertEquals(self.par_proto._fsm, self.mock_fsm)
         self.mock_logger_client.reset_mock()
     
     def test_get_param(self):
@@ -253,6 +258,9 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
     def _clean_up(self):
         # set back to command mode
         reply = self.driver_client.cmd_dvr('execute_break', [Channel.INSTRUMENT])
+        reply = self.driver_client.cmd_dvr('set',
+                                           {(Channel.INSTRUMENT, Parameter.MAXRATE):1},
+                                           timeout=20)
         self._disconnect()
         
         if self.driver_process:
@@ -480,8 +488,22 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
 
     def test_break_from_fast_autosample(self):
-        pass
         # test break from autosample at high data rates
+        reply = self.driver_client.cmd_dvr('set',
+                                           {(Channel.INSTRUMENT, Parameter.MAXRATE):12},
+                                           timeout=20)
+
+        reply = self.driver_client.cmd_dvr('execute_start_autosample',
+                                           [Channel.INSTRUMENT])
+        self.assert_(reply)
+        time.sleep(5)
+        reply = self.driver_client.cmd_dvr('execute_break',
+                                           [Channel.INSTRUMENT])
+        self.assert_(reply)
+        # confirm prompt?
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+
 
     def test_break_from_poll(self):
         # Now try it from poll mode
@@ -490,15 +512,15 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         self.assert_(reply_1)
         time.sleep(2)
 
+        # Already in poll mode, so this shouldnt give us anything
         reply_2 = self.driver_client.cmd_dvr('execute_poll',
                                            [Channel.INSTRUMENT])
-        self.assert_(reply_2)
-        time.sleep(2)
+        self.assertEqual(reply_2, None)
         self.assertNotEqual(reply_1, reply_2)
         
         reply = self.driver_client.cmd_dvr('execute_break',
                                            [Channel.INSTRUMENT])
-        self.assertEqual(reply, None)
+        self.assertEqual(reply, InstErrorCode.OK)
         
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
         self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
@@ -514,28 +536,65 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         # check all the exec commands that havent been tested already
         pass
     
-    def test_get_data_sample(self):
+    def test_get_sample_from_cmd_mode(self):
+        """Get some samples directly from command mode"""
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+        
+        reply_1 = self.driver_client.cmd_dvr('execute_acquire_sample',
+                                           [Channel.INSTRUMENT])        
+        self.assertTrue(sample_regex.match(reply_1))        
+    
+        # Get data
+        reply_2 = self.driver_client.cmd_dvr('execute_acquire_sample',
+                                           [Channel.INSTRUMENT])
+        self.assertTrue(sample_regex.match(reply_2))
+        self.assertNotEqual(reply_1, reply_2)
+        
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+        
+    def test_get_data_sample_via_poll_mode(self):
         """Mainly check the format of the manual sample that comes out
         @todo Finish this out...is the transition right for getting into poll mode?
         """
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
         reply = self.driver_client.cmd_dvr('execute_poll', [Channel.INSTRUMENT])
         self.assert_(reply)
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
         self.assertEqual({Channel.INSTRUMENT:DriverState.ACQUIRE_SAMPLE}, reply)
         
         # Get data
-        reply = self.driver_client.cmd_dvr('execute_acquire_sample',
+        reply_1 = self.driver_client.cmd_dvr('execute_acquire_sample',
                                            [Channel.INSTRUMENT])
-        mi_logger.debug("*** sample should be: %s", reply)
         
-        self.assertTrue(sample_regex.match(reply))        
+        self.assertTrue(sample_regex.match(reply_1))        
+    
+        # Get data
+        reply_2 = self.driver_client.cmd_dvr('execute_acquire_sample',
+                                           [Channel.INSTRUMENT])
+        
+        self.assertTrue(sample_regex.match(reply_2))
+        self.assertNotEqual(reply_1, reply_2)
+
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.ACQUIRE_SAMPLE}, reply)
+        
+        reply = self.driver_client.cmd_dvr('execute_break',
+                                           [Channel.INSTRUMENT])
+        self.assertEqual(reply, InstErrorCode.OK)
+        
+        reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
+        self.assertEqual({Channel.INSTRUMENT:DriverState.COMMAND}, reply)
+            
     
     def test_publish(self):
         """Test publishing of data...somehow"""
     
     def test_save(self):
         """Test saving parameters, regardless of specific save since we save
-        at every change."""
+        at every set."""
         config_key = (Channel.INSTRUMENT, Parameter.MAXRATE)
         config_A = {config_key:2}
         config_B = {config_key:1}
