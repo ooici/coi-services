@@ -353,6 +353,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     # The following operations manage EOI resources
     # -----------------
 
+    ##########################################################################
+    #
+    # External Data Provider
+    #
+    ##########################################################################
+
     def create_external_data_provider(self, external_data_provider=None):
         # Persist ExternalDataProvider object and return object _id as OOI id
         external_data_provider_id, version = self.clients.resource_registry.create(external_data_provider)
@@ -376,7 +382,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("ExternalDataProvider %s does not exist" % external_data_provider_id)
         self.clients.resource_registry.delete(external_data_provider_id)
 
-
+    ##########################################################################
+    #
+    # Data Source
+    #
+    ##########################################################################
 
     def create_data_source(self, data_source=None):
         # Persist DataSource object and return object _id as OOI id
@@ -429,31 +439,59 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
     def create_data_source_agent(self, data_source_agent=None):
-        pass
+        # Persist ExternalDataSourcAgent object and return object _id as OOI id
+        external_datasource_agent_id, version = self.clients.resource_registry.create(data_source_agent)
+        return data_source_agent
 
     def update_data_source_agent(self, data_source_agent=None):
-        pass
+        # Overwrite DataSourceAgent object
+        self.clients.resource_registry.update(data_source_agent)
 
     def read_data_source_agent(self, data_source_agent_id=''):
-        pass
+        # Read DataSourceAgent object with _id matching passed user id
+        data_source_agent = self.clients.resource_registry.read(data_source_agent_id)
+        if not data_source_agent:
+            raise NotFound("DataSourceAgent %s does not exist" % data_source_agent_id)
+        return data_source_agent
 
     def delete_data_source_agent(self, data_source_agent_id=''):
-        pass
+        # Read and delete specified DataSourceAgent object
+        data_source_agent = self.clients.resource_registry.read(data_source_agent_id)
+        if not data_source_agent:
+            raise NotFound("DataSourceAgent %s does not exist" % data_source_agent_id)
+        self.clients.resource_registry.delete(data_source_agent_id)
 
     def create_data_source_agent_instance(self, data_source_agent_instance=None, data_source_agent=''):
-        pass
+        # Persist DataSourceAgentInstance object and return object _id as OOI id
+        data_source_agent_instance_id, version = self.clients.resource_registry.create(data_source_agent_instance)
+        #todo: Link to agent!
+        return data_source_agent_instance_id
 
     def update_data_source_agent_instance(self, data_source_agent_instance=None):
-        pass
+        # Overwrite DataSourceAgentInstance object
+        self.clients.resource_registry.update(data_source_agent_instance)
 
     def read_data_source_agent_instance(self, data_source_agent_instance_id=''):
-        pass
+        # Read DataSourceAgentInstance object with _id matching passed user id
+        data_source_agent_instance = self.clients.resource_registry.read(data_source_agent_instance_id)
+        if not data_source_agent_instance:
+            raise NotFound("DataSourceAgentInstance %s does not exist" % data_source_agent_instance_id)
+        return data_source_agent_instance
 
     def delete_data_source_agent_instance(self, data_source_agent_instance_id=''):
-        pass
+        # Read and delete specified DataSourceAgentInstance object
+        #todo: unlink agent
+        data_source_agent_instance = self.clients.resource_registry.read(data_source_agent_instance_id)
+        if not data_source_agent_instance:
+            raise NotFound("DataSourceAgentInstance %s does not exist" % data_source_agent_instance_id)
+        self.clients.resource_registry.delete(data_source_agent_instance_id)
 
 
-
+    ##########################################################################
+    #
+    # External Data Set
+    #
+    ##########################################################################
     def create_external_dataset(self, external_dataset=None):
         # Persist ExternalDataSet object and return object _id as OOI id
         external_dataset_id, version = self.clients.resource_registry.create(external_dataset)
@@ -476,6 +514,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if not external_dataset:
             raise NotFound("ExternalDataSet %s does not exist" % external_dataset_id)
         self.clients.resource_registry.delete(external_dataset_id)
+
 
     def create_external_dataset_model(self, external_dataset_model=None):
         # Persist ExternalDatasetModel object and return object _id as OOI id
@@ -528,7 +567,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def create_external_dataset_agent_instance(self, external_dataset_agent_instance=None, external_dataset_agent_id=''):
         # Persist ExternalDatasetAgentInstance object and return object _id as OOI id
         external_dataset_agent_instance_id, version = self.clients.resource_registry.create(external_dataset_agent_instance)
-        #todo: Link to agent!
+        self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance)
         return external_dataset_agent_instance_id
 
     def update_external_dataset_agent_instance(self, external_dataset_agent_instance=None):
@@ -547,9 +586,14 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset_agent_instance = self.clients.resource_registry.read(external_dataset_agent_instance_id)
         if not external_dataset_agent_instance:
             raise NotFound("ExternalDataAgent %s does not exist" % external_dataset_agent_instance_id)
+        #todo: unlink the agent !!
         self.clients.resource_registry.delete(external_dataset_agent_instance_id)
 
-
+    ##########################################################################
+    #
+    # Resource Assign Functions
+    #
+    ##########################################################################
 
     def assign_data_source_to_external_data_provider(self, data_source_id='', external_data_provider_id=''):
         #Connect the data source with an external data provider
@@ -607,139 +651,124 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
-#
-#
-#    def assign_external_dataset_to_agent_instance(self, external_dataset_id='', agent_instance_id=''):
-#        #Connect the agent instance with an external data set
-#        data_source = self.clients.resource_registry.read(external_dataset_id)
-#        if not data_source:
-#            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
-#
-#        agent_instance = self.clients.resource_registry.read(agent_instance_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
-#
-#        self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id)
-#
-#    def unassign_external_dataset_from_agent_instance(self, external_dataset_id='', agent_instance_id=''):
-#        data_source = self.clients.resource_registry.read(external_dataset_id)
-#        if not data_source:
-#            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
-#
-#        agent_instance = self.clients.resource_registry.read(agent_instance_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
-#
-#        # delete the associations
-#        # List all association ids with given subject, predicate, object triples
-#        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, id_only=True)
-#        for association in associations:
-#            self.clients.resource_registry.delete_association(association)
-#
-#
-#
-#    def assign_external_data_agent_to_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
-#        #Connect the agent with an agent instance
-#        data_source = self.clients.resource_registry.read(external_data_agent_id)
-#        if not data_source:
-#            raise NotFound("ExternalDataSet resource %s does not exist" % external_data_agent_id)
-#
-#        agent_instance = self.clients.resource_registry.read(agent_instance_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
-#
-#        self.clients.resource_registry.create_association(external_data_agent_id,  PRED.hasInstance,  agent_instance_id)
-#
-#    def unassign_external_data_agent_from_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
-#        data_source = self.clients.resource_registry.read(external_data_agent_id)
-#        if not data_source:
-#            raise NotFound("ExternalDataSet resource %s does not exist" % external_data_agent_id)
-#
-#        agent_instance = self.clients.resource_registry.read(agent_instance_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
-#
-#        # delete the associations
-#        # List all association ids with given subject, predicate, object triples
-#        associations = self.clients.resource_registry.find_associations(external_data_agent_id,  PRED.hasInstance,  agent_instance_id, id_only=True)
-#        for association in associations:
-#            self.clients.resource_registry.delete_association(association)
-#
-#
-#    def assign_external_data_agent_to_data_model(self, external_data_agent_id='', data_source_model_id=''):
-#        #Connect the external data agent with an external data model
-#        external_data_agent = self.clients.resource_registry.read(external_data_agent_id)
-#        if not external_data_agent:
-#            raise NotFound("ExternalDataAgent resource %s does not exist" % external_data_agent_id)
-#
-#        agent_instance = self.clients.resource_registry.read(data_source_model_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Source Model resource %s does not exist" % data_source_model_id)
-#
-#        self.clients.resource_registry.create_association(external_data_agent_id,  PRED.hasModel,  data_source_model_id)
-#
-#    def unassign_external_data_agent_from_data_model(self, external_data_agent_id='', data_source_model_id=''):
-#        #Disonnect the external data agent from the external data model
-#        external_data_agent = self.clients.resource_registry.read(external_data_agent_id)
-#        if not external_data_agent:
-#            raise NotFound("ExternalDataAgent resource %s does not exist" % external_data_agent_id)
-#
-#        agent_instance = self.clients.resource_registry.read(data_source_model_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Source Model resource %s does not exist" % data_source_model_id)
-#        # delete the associations
-#        # List all association ids with given subject, predicate, object triples
-#        associations = self.clients.resource_registry.find_associations(external_data_agent_id,  PRED.hasModel,  data_source_model_id, id_only=True)
-#        for association in associations:
-#            self.clients.resource_registry.delete_association(association)
-#
-#
-#    def assign_external_dataset_to_data_source(self, external_dataset_id='', data_source_id=''):
-#        #Connect the external data set to a data source
-#        data_source = self.clients.resource_registry.read(external_dataset_id)
-#        if not data_source:
-#            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
-#
-#        agent_instance = self.clients.resource_registry.read(data_source_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Source Instance resource %s does not exist" % data_source_id)
-#
-#        self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasSource,  data_source_id)
-#
-#
-#    def unassign_external_dataset_from_data_source(self, external_dataset_id='', data_source_id=''):
-#        #Disonnect the external data set from the data source
-#        data_source = self.clients.resource_registry.read(external_dataset_id)
-#        if not data_source:
-#            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
-#
-#        agent_instance = self.clients.resource_registry.read(data_source_id)
-#        if not agent_instance:
-#            raise NotFound("External Data Source Instance resource %s does not exist" % data_source_id)
-#
-#        # delete the associations
-#        # List all association ids with given subject, predicate, object triples
-#        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, id_only=True)
-#        for association in associations:
-#            self.clients.resource_registry.delete_association(association)
-#
-#
-#
-#    def assign_eoi_resources(self, external_data_provider_id='', data_source_id='', data_source_model_id='', external_dataset_id='', external_data_agent_id='', agent_instance_id=''):
-#        #Connects multiple eoi resources in batch with assocations
-#
-#        self.assign_data_source_to_external_data_provider(data_source_id, external_data_provider_id )
-#
-#        self.assign_data_source_to_data_model(data_source_id, data_source_model_id)
-#
-#        self.assign_external_dataset_to_data_source(external_dataset_id, data_source_id)
-#
-#        self.assign_external_dataset_to_agent_instance(external_dataset_id, agent_instance_id)
-#
-#        self.assign_external_data_agent_to_data_model(external_data_agent_id, data_source_model_id)
-#
-#        self.assign_external_data_agent_to_agent_instance(external_data_agent_id, agent_instance_id)
-#
+
+
+    def assign_external_dataset_to_agent_instance(self, external_dataset_id='', agent_instance_id=''):
+        #Connect the agent instance with an external data set
+        data_source = self.clients.resource_registry.read(external_dataset_id)
+        if not data_source:
+            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
+
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        if not agent_instance:
+            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
+
+        self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id)
+
+    def unassign_external_dataset_from_agent_instance(self, external_dataset_id='', agent_instance_id=''):
+        data_source = self.clients.resource_registry.read(external_dataset_id)
+        if not data_source:
+            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
+
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        if not agent_instance:
+            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
+
+        # delete the associations
+        # List all association ids with given subject, predicate, object triples
+        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, id_only=True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+
+
+    def assign_external_data_agent_to_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
+        #Connect the agent with an agent instance
+        data_source = self.clients.resource_registry.read(external_data_agent_id)
+        if not data_source:
+            raise NotFound("ExternalDataSetAgent resource %s does not exist" % external_data_agent_id)
+
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        if not agent_instance:
+            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
+
+        self.clients.resource_registry.create_association(external_data_agent_id,  PRED.hasInstance,  agent_instance_id)
+
+    def unassign_external_data_agent_from_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
+        data_source = self.clients.resource_registry.read(external_data_agent_id)
+        if not data_source:
+            raise NotFound("ExternalDataSet resource %s does not exist" % external_data_agent_id)
+
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        if not agent_instance:
+            raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
+
+        # delete the associations
+        # List all association ids with given subject, predicate, object triples
+        associations = self.clients.resource_registry.find_associations(external_data_agent_id,  PRED.hasInstance,  agent_instance_id, id_only=True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+
+    def assign_dataset_agent_to_external_dataset_model(self, dataset_agent_id='', external_dataset_model_id=''):
+        #Connect the external data agent with an external data model
+        external_data_agent = self.clients.resource_registry.read(dataset_agent_id)
+        if not dataset_agent:
+            raise NotFound("DatasetAgent resource %s does not exist" % dataset_agent_id)
+
+        external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
+        if not external_dataset_model:
+            raise NotFound("External Data Source Model resource %s does not exist" % external_dataset_model_id)
+
+        self.clients.resource_registry.create_association(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id)
+
+    def unassign_dataset_agent_from_external_dataset_model(self, dataset_agent_id='', external_dataset_model_id=''):
+        #Disonnect the external data agent from the external data model
+        dataset_agent = self.clients.resource_registry.read(dataset_agent_id)
+        if not dataset_agent:
+            raise NotFound("ExternalDataAgent resource %s does not exist" % dataset_agent_id)
+
+        external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
+        if not external_dataset_model:
+            raise NotFound("External Data Source Model resource %s does not exist" % external_dataset_model_id)
+        # delete the associations
+        # List all association ids with given subject, predicate, object triples
+        associations = self.clients.resource_registry.find_associations(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id, id_only=True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+
+    def assign_external_dataset_to_data_source(self, external_dataset_id='', data_source_id=''):
+        #Connect the external data set to a data source
+        data_source = self.clients.resource_registry.read(external_dataset_id)
+        if not data_source:
+            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
+
+        agent_instance = self.clients.resource_registry.read(data_source_id)
+        if not agent_instance:
+            raise NotFound("External Data Source Instance resource %s does not exist" % data_source_id)
+
+        self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasSource,  data_source_id)
+
+
+    def unassign_external_dataset_from_data_source(self, external_dataset_id='', data_source_id=''):
+        #Disonnect the external data set from the data source
+        data_source = self.clients.resource_registry.read(external_dataset_id)
+        if not data_source:
+            raise NotFound("ExternalDataSet resource %s does not exist" % external_dataset_id)
+
+        agent_instance = self.clients.resource_registry.read(data_source_id)
+        if not agent_instance:
+            raise NotFound("External Data Source Instance resource %s does not exist" % data_source_id)
+
+        # delete the associations
+        # List all association ids with given subject, predicate, object triples
+        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, id_only=True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+
+
 
 
 

@@ -287,12 +287,12 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             # test creating a new data source model
             #
             print 'Creating new data source model'
-            datamodel_obj = IonObject(RT.ExternalDataSourceModel,
+            datamodel_obj = IonObject(RT.DataSourceModel,
                                name='DataSourceModel1',
                                description='data source model',
                                model='model1')
             try:
-                datamodel_id = self.client.create_data_source(datamodel_obj)
+                datamodel_id = self.client.create_data_source_model(datamodel_obj)
             except BadRequest as ex:
                 self.fail("failed to create new data source model: %s" %ex)
             print 'new data source model id = ', datamodel_id
@@ -316,28 +316,28 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             # test creating a new data agent instance
             #
             print 'Creating new external data agent '
-            dataagent_obj = IonObject(RT.ExternalDataAgent,
-                               name='ExternalAgent1',
+            datasetagent_obj = IonObject(RT.ExternalDatasetAgent,
+                               name='ExternalDatasetAgent1',
                                description='external data agent ')
             try:
-                dataagent_id = self.client.create_external_data_agent_instance(dataagent_obj)
+                datasetagent_id = self.client.create_external_dataset_agent(datasetagent_obj)
             except BadRequest as ex:
-                self.fail("failed to create new external data agent: %s" %ex)
-            print 'new external data agent  id = ', dataagent_id
+                self.fail("failed to create new external dataset agent: %s" %ex)
+            print 'new external data agent  id = ', datasetagent_id
 
 
             #
             # test creating a new data agent instance
             #
-            print 'Creating new external data agent instance'
-            dataagentinstance_obj = IonObject(RT.ExternalDataAgentInstance,
-                               name='ExternalAgentInstance1',
-                               description='external data agent instance ')
+            print 'Creating new external dataset agent instance'
+            datasetagentinstance_obj = IonObject(RT.ExternalDatasetAgentInstance,
+                               name='ExternalDatasetAgentInstance1',
+                               description='external dataset agent instance ')
             try:
-                dataagentinstance_id = self.client.create_external_data_agent_instance(dataagentinstance_obj)
+                datasetagentinstance_id = self.client.create_external_dataset_agent_instance(datasetagentinstance_obj)
             except BadRequest as ex:
-                self.fail("failed to create new external data agent instance: %s" %ex)
-            print 'new external data agent instance id = ', dataagentinstance_id
+                self.fail("failed to create new external dataset agent instance: %s" %ex)
+            print 'new external data agent instance id = ', datasetagentinstance_id
 
 
 
