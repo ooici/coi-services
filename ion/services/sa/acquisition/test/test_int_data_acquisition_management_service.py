@@ -334,7 +334,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
                                name='ExternalDatasetAgentInstance1',
                                description='external dataset agent instance ')
             try:
-                datasetagentinstance_id = self.client.create_external_dataset_agent_instance(datasetagentinstance_obj)
+                datasetagentinstance_id = self.client.create_external_dataset_agent_instance(datasetagentinstance_obj, datasetagent_id)
             except BadRequest as ex:
                 self.fail("failed to create new external dataset agent instance: %s" %ex)
             print 'new external data agent instance id = ', datasetagentinstance_id
