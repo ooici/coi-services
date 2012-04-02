@@ -148,16 +148,22 @@ class InstrumentDeviceImpl(ResourceImpl):
     # LIFECYCLE STATE PRECONDITIONS
 
     def lce_precondition_plan(self, instrument_device_id):
-        return 0 < len(self.find_stemming_model(instrument_device_id))
+        if 0 < len(self.find_stemming_model(instrument_device_id)):
+            return ""
+        return "Can't have a planned instrument_device without associated instrument_model"
 
 
     def lce_precondition_develop(self, instrument_device_id):
-        return 0 < len(self.find_stemming_agent_instance(instrument_device_id))
+        if 0 < len(self.find_stemming_agent_instance(instrument_device_id)):
+            return ""
+        return "Can't have a developed instrument_device without associated instrument_agent_instance"
 
 
     def lce_precondition_integrate(self, instrument_device_id):
         has_passing_certification = True #todo.... get this programmatically somehow
-        return has_passing_certification
+        if has_passing_certification:
+            return ""
+        return "Can't have an integrated instrument_device without certification"
 
 
     ### orchestrations

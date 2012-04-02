@@ -1213,73 +1213,73 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ############################
 
 
-    def set_instrument_agent_lifecycle(self, instrument_agent_id="", lifecycle_state=""):
+    def execute_instrument_agent_lifecycle(self, instrument_agent_id="", lifecycle_event=""):
        """
        declare a instrument_agent to be in a given state
        @param instrument_agent_id the resource id
        """
-       return self.instrument_agent.advance_lcs(instrument_agent_id, lifecycle_state)
+       return self.instrument_agent.advance_lcs(instrument_agent_id, lifecycle_event)
 
-    def set_instrument_agent_instance_lifecycle(self, instrument_agent_instance_id="", lifecycle_state=""):
+    def execute_instrument_agent_instance_lifecycle(self, instrument_agent_instance_id="", lifecycle_event=""):
        """
        declare a instrument_agent_instance to be in a given state
        @param instrument_agent_instance_id the resource id
        """
-       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, lifecycle_state)
+       return self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, lifecycle_event)
 
-    def set_instrument_model_lifecycle(self, instrument_model_id="", lifecycle_state=""):
+    def execute_instrument_model_lifecycle(self, instrument_model_id="", lifecycle_event=""):
        """
        declare a instrument_model to be in a given state
        @param instrument_model_id the resource id
        """
-       return self.instrument_model.advance_lcs(instrument_model_id, lifecycle_state)
+       return self.instrument_model.advance_lcs(instrument_model_id, lifecycle_event)
 
-    def set_instrument_device_lifecycle(self, instrument_device_id="", lifecycle_state=""):
+    def execute_instrument_device_lifecycle(self, instrument_device_id="", lifecycle_event=""):
        """
        declare an instrument_device to be in a given state
        @param instrument_device_id the resource id
        """
-       return self.instrument_device.advance_lcs(instrument_device_id, lifecycle_state)
+       return self.instrument_device.advance_lcs(instrument_device_id, lifecycle_event)
 
-    def set_platform_agent_lifecycle(self, platform_agent_id="", lifecycle_state=""):
+    def execute_platform_agent_lifecycle(self, platform_agent_id="", lifecycle_event=""):
        """
        declare a platform_agent to be in a given state
        @param platform_agent_id the resource id
        """
-       return self.platform_agent.advance_lcs(platform_agent_id, lifecycle_state)
+       return self.platform_agent.advance_lcs(platform_agent_id, lifecycle_event)
 
-    def set_platform_agent_instance_lifecycle(self, platform_agent_instance_id="", lifecycle_state=""):
+    def execute_platform_agent_instance_lifecycle(self, platform_agent_instance_id="", lifecycle_event=""):
        """
        declare a platform_agent_instance to be in a given state
        @param platform_agent_instance_id the resource id
        """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, lifecycle_state)
+       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, lifecycle_event)
 
-    def set_platform_model_lifecycle(self, platform_model_id="", lifecycle_state=""):
+    def execute_platform_model_lifecycle(self, platform_model_id="", lifecycle_event=""):
        """
        declare a platform_model to be in a given state
        @param platform_model_id the resource id
        """
-       return self.platform_model.advance_lcs(platform_model_id, lifecycle_state)
+       return self.platform_model.advance_lcs(platform_model_id, lifecycle_event)
 
-    def set_platform_device_lifecycle(self, platform_device_id="", lifecycle_state=""):
+    def execute_platform_device_lifecycle(self, platform_device_id="", lifecycle_event=""):
        """
        declare a platform_device to be in a given state
        @param platform_device_id the resource id
        """
-       return self.platform_device.advance_lcs(platform_device_id, lifecycle_state)
+       return self.platform_device.advance_lcs(platform_device_id, lifecycle_event)
 
-    def set_sensor_model_lifecycle(self, sensor_model_id="", lifecycle_state=""):
+    def execute_sensor_model_lifecycle(self, sensor_model_id="", lifecycle_event=""):
        """
        declare a sensor_model to be in a given state
        @param sensor_model_id the resource id
        """
-       return self.sensor_model.advance_lcs(sensor_model_id, lifecycle_state)
+       return self.sensor_model.advance_lcs(sensor_model_id, lifecycle_event)
 
-    def set_sensor_device_lifecycle(self, sensor_device_id="", lifecycle_state=""):
+    def execute_sensor_device_lifecycle(self, sensor_device_id="", lifecycle_event=""):
        """
        declare a sensor_device to be in a given state
        @param sensor_device_id the resource id
        """
-       return self.sensor_device.advance_lcs(sensor_device_id, lifecycle_state)
+       return self.sensor_device.advance_lcs(sensor_device_id, lifecycle_event)
 

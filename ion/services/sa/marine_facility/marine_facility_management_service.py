@@ -764,31 +764,31 @@ class MarineFacilityManagementService(BaseMarineFacilityManagementService):
     #
     ############################
 
-    def set_logical_instrument_lifecycle(self, logical_instrument_id="", lifecycle_state=""):
+    def execute_logical_instrument_lifecycle(self, logical_instrument_id="", lifecycle_event=""):
        """
        declare a logical_instrument to be in the given lifecycle state
        @param logical_instrument_id the resource id
        """
-       return self.logical_instrument.advance_lcs(logical_instrument_id, lifecycle_state)
+       return self.logical_instrument.advance_lcs(logical_instrument_id, lifecycle_event)
 
-    def set_logical_platform_lifecycle(self, logical_platform_id="", lifecycle_state=""):
+    def execute_logical_platform_lifecycle(self, logical_platform_id="", lifecycle_event=""):
        """
        declare a logical_platform to be in the given lifecycle state
        @param logical_platform_id the resource id
        """
-       return self.logical_platform.advance_lcs(logical_platform_id, lifecycle_state)
+       return self.logical_platform.advance_lcs(logical_platform_id, lifecycle_event)
 
-    def set_marine_facility_lifecycle(self, marine_facility_id="", lifecycle_state=""):
+    def execute_marine_facility_lifecycle(self, marine_facility_id="", lifecycle_event=""):
        """
        declare a marine_facility to be in the given lifecycle state
        @param marine_facility_id the resource id
        """
-       return self.marine_facility.advance_lcs(marine_facility_id, lifecycle_state)
+       return self.marine_facility.advance_lcs(marine_facility_id, lifecycle_event)
 
-    def set_site_lifecycle(self, site_id="", lifecycle_state=""):
+    def execute_site_lifecycle(self, site_id="", lifecycle_event=""):
        """
        declare a site to be in the given lifecycle state
        @param site_id the resource id
        """
-       return self.site.advance_lcs(site_id, lifecycle_state)
+       return self.site.advance_lcs(site_id, lifecycle_event)
 

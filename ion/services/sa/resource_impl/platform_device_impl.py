@@ -99,13 +99,20 @@ class PlatformDeviceImpl(ResourceImpl):
     # LIFECYCLE STATE PRECONDITIONS
 
     def lce_precondition_plan(self, platform_device_id):
-        return 0 < len(self.find_stemming_model(platform_device_id))
+        if 0 < len(self.find_stemming_model(platform_device_id)):
+            return ""
+        return "Can't have a planned platform_device without associated platform_model"
+
 
 
     def lce_precondition_develop(self, platform_device_id):
-        return 0 < len(self.find_stemming_agent_instance(platform_device_id))
+        if 0 < len(self.find_stemming_agent_instance(platform_device_id)):
+            return ""
+        return "Can't have a developed platform_device without associated platform_agent_instance"
 
 
     def lce_precondition_integrate(self, platform_device_id):
         has_passing_certification = True #todo.... get this programmatically somehow
-        return has_passing_certification
+        if has_passing_certification:
+            return ""
+        return "Can't have an integrated platform_device without certification"

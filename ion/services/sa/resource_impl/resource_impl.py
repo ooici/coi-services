@@ -40,9 +40,9 @@ class ResourceImpl(object):
         self.lce_precondition = {}
 
         # by default allow everything
-        # args s, r are "self" and "resource"
+        # args s, r are "self" and "resource"; retval = ok ? "" : "err msg"
         for l in LCE:
-            self.add_lce_precondition(l, (lambda r: True))
+            self.add_lce_precondition(l, (lambda r: ""))
 
         # do implementation-specific stuff
         self.on_impl_init()
@@ -154,10 +154,11 @@ class ResourceImpl(object):
         precondition_fn = self.lce_precondition[transition_event]
 
         # check that the precondition is met
-        if not precondition_fn(resource_id):
+        errmsg = precondition_fn(resource_id)
+        if not "" == errmsg:
             raise BadRequest(("Couldn't apply '%s' LCS transition to %s '%s'; "
-                              + "failed precondition")
-                             % (transition_event, self.iontype, resource_id))
+                              + "failed precondition: %s")
+                             % (transition_event, self.iontype, resource_id, errmsg))
 
         log.debug("Moving %s resource life cycle with transition event %s"
                   % (self.iontype, transition_event))
@@ -173,7 +174,8 @@ class ResourceImpl(object):
         """
         register a precondition predicate function for a lifecycle transition
         @param destination_state the state, defined in pyon/ion/resource.pyx
-        @param precondition_predicate_fn takes (self, resource_id) and returns boolean
+        @param precondition_predicate_fn takes (self, resource_id) and returns string
+                -- empty string means ok, otherwise error indicated by string
         """
         self.lce_precondition[transition] = precondition_predicate_fn
 
