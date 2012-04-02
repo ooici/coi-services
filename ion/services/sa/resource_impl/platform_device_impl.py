@@ -6,7 +6,7 @@
 """
 
 #from pyon.core.exception import BadRequest, NotFound
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, LCE
 
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
@@ -14,6 +14,11 @@ class PlatformDeviceImpl(ResourceImpl):
     """
     @brief resource management for PlatformDevice resources
     """
+
+    def on_impl_init(self):
+        self.add_lce_precondition(LCE.PLAN, self.lce_precondition_plan)
+        self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
+        self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
 
     def _primary_object_name(self):
         return RT.PlatformDevice
@@ -89,3 +94,25 @@ class PlatformDeviceImpl(ResourceImpl):
 
     def find_stemming_instrument(self, platform_device_id):
         return self._find_stemming(platform_device_id, PRED.hasInstrument, RT.InstrumentDevice)
+
+
+    # LIFECYCLE STATE PRECONDITIONS
+
+    def lce_precondition_plan(self, platform_device_id):
+        if 0 < len(self.find_stemming_model(platform_device_id)):
+            return ""
+        return "Can't have a planned platform_device without associated platform_model"
+
+
+
+    def lce_precondition_develop(self, platform_device_id):
+        if 0 < len(self.find_stemming_agent_instance(platform_device_id)):
+            return ""
+        return "Can't have a developed platform_device without associated platform_agent_instance"
+
+
+    def lce_precondition_integrate(self, platform_device_id):
+        has_passing_certification = True #todo.... get this programmatically somehow
+        if has_passing_certification:
+            return ""
+        return "Can't have an integrated platform_device without certification"

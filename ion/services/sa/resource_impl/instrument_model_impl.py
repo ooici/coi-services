@@ -8,7 +8,7 @@
 
 
 #from pyon.core.exception import BadRequest, NotFound
-from pyon.public import RT, LCS, PRED
+from pyon.public import RT, LCS, PRED, LCE
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
@@ -23,7 +23,7 @@ class InstrumentModelImpl(ResourceSimpleImpl):
         self.instrument_agent = InstrumentAgentImpl(self.clients)
         self.instrument_device = InstrumentDeviceImpl(self.clients)
 
-        self.add_lcs_precondition(LCS.RETIRED, self.lcs_precondition_retired)
+        self.add_lce_precondition(LCE.RETIRE, self.lcs_precondition_retired)
 
 
     def _primary_object_name(self):
@@ -36,17 +36,14 @@ class InstrumentModelImpl(ResourceSimpleImpl):
         """
         can't retire if any devices or agents are using this model
         """
-        found, _ = self.instrument_agent.find_having(instrument_model_id)
-        if 0 < len(found):
-            return False
+        if 0 < self.instrument_agent.find_having_model(instrument_model_id):
+            return "Can't retire an instrument_model still associated to instrument agent(s)"
         
-        found, _ = self.instrument_device.find_having(instrument_model_id)
-        if 0 < len(found):
-            return False
+        if 0 < self.instrument_device.find_having_model(instrument_model_id):
+            return "Can't retire an instrument_model still associated to instrument_device(s)"
 
-        return True
-        
-        
+        return ""
+       
     def link_stream_definition(self, instrument_model_id='', stream_definition_id=''):
         return self._link_resources(instrument_model_id, PRED.hasStreamDefinition, stream_definition_id)
 
