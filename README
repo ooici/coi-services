@@ -94,6 +94,9 @@ Use Buildout to install the python package dependencies (including pyon itself) 
     matplotlib due to missing libpng libraries, try install from here:
     http://ethan.tira-thompson.com/Mac_OS_X_Ports.html
 
+For additional support to install matplotlib on MacOS X 10.7 (Lion) please see the following:
+    http://www.thisisthegreenroom.com/2011/installing-python-numpy-scipy-matplotlib-and-ipython-on-lion/
+
 Generate service definition interfaces and abstract base classes files:
     > bin/generate_interfaces
     Note: These will be placed in the interfaces/ subdirectory (and not in GIT nor in the egg).
