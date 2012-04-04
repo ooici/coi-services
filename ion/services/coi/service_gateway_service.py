@@ -10,7 +10,7 @@ from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
-from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object
+from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict
 from pyon.core.object import IonObjectBase
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -464,11 +464,10 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
 
                     #TODO - Potentially remove these conversions whenever ION objects support unicode
                     # UNICODE strings are not supported with ION objects
-                    ion_object_name = convert_unicode(json_params[request_type]['params'][arg][0])
-                    object_params = convert_unicode(json_params[request_type]['params'][arg][1])
+                    object_params = convert_unicode(json_params[request_type]['params'][arg])
 
-                    if is_ion_object(ion_object_name):
-                        param_list[arg] = create_ion_object(ion_object_name, object_params)
+                    if is_ion_object_dict(object_params):
+                        param_list[arg] = create_ion_object(object_params)
                     else:
                         #Not an ION object so handle as a simple type then.
                         param_list[arg] = convert_unicode(json_params[request_type]['params'][arg])
@@ -479,9 +478,8 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
     return param_list
 
 #Helper function for creating and initializing an ION object from a dictionary of parameters.
-def create_ion_object(ion_object_name, object_params):
-
-    new_obj = IonObject(ion_object_name)
+def create_ion_object(object_params):
+    new_obj = IonObject(object_params["type_"])
 
     #Iterate over the parameters to add to object; have to do this instead
     #of passing a dict to get around restrictions in object creation on setting _id, _rev params
@@ -499,13 +497,12 @@ def set_object_field(obj, field, field_val):
         for sub_field in field_val:
             set_object_field(sub_obj, sub_field, field_val.get(sub_field))
     else:
+        # type_ already exists in the class.
         if field != "type_":
             setattr(obj, field, field_val)
 
 #Used by json encoder
 def ion_object_encoder(obj):
-    if isinstance(obj, IonObjectBase):
-        obj.__dict__["type_"] = obj._get_type()
     return obj.__dict__
 
 #Used to recursively convert unicode in JSON structures into proper data structures

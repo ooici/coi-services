@@ -110,7 +110,8 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
             "serviceName": "resource_registry",
             "serviceOp": "create",
             "params": {
-                "object": ["DataProduct", {
+                "object": {
+                    "type_": "DataProduct",
                     "provider_project": "Integration Test",
                     "lcstate": "DRAFT",
                     "description": "A test data product",
@@ -121,7 +122,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
                         "city": "San Diego",
                         "postalcode": "92093"
                     }
-                } ]
+                }
             }
         }
         }
@@ -181,13 +182,14 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         data_product_obj['description'] = 'An updated description for test data'
         data_product_obj['contact']['postalcode'] = '12345'
 
-        data_product_update_request = {  "serviceRequest": {
-            "serviceName": "resource_registry",
-            "serviceOp": "update",
-            "params": {
-                "object": ["DataProduct", data_product_obj ]
+        data_product_update_request = {
+            "serviceRequest": {
+                "serviceName": "resource_registry",
+                "serviceOp": "update",
+                "params": {
+                    "object": data_product_obj
+                }
             }
-        }
         }
 
         response = self.test_app.post('/ion-service/resource_registry/update', {'payload': simplejson.dumps(data_product_update_request) })
