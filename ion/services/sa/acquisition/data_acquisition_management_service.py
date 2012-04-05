@@ -611,7 +611,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         if external_dataset_id:
             self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasAgentInstance, external_dataset_agent_instance_id)
-        self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance)
+        self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
         return external_dataset_agent_instance_id
 
     def update_external_dataset_agent_instance(self, external_dataset_agent_instance=None):
