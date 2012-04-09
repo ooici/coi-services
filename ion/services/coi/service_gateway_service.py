@@ -459,20 +459,13 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
         else:
             if json_params[request_type]['params'].has_key(arg):
 
-                #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
-                if isinstance(json_params[request_type]['params'][arg], list):
-
-                    #TODO - Potentially remove these conversions whenever ION objects support unicode
-                    # UNICODE strings are not supported with ION objects
-                    object_params = convert_unicode(json_params[request_type]['params'][arg])
-
-                    if is_ion_object_dict(object_params):
-                        param_list[arg] = create_ion_object(object_params)
-                    else:
-                        #Not an ION object so handle as a simple type then.
-                        param_list[arg] = convert_unicode(json_params[request_type]['params'][arg])
-
-                else:  # The else branch is for simple types ( non-ION objects )
+                #TODO - Potentially remove these conversions whenever ION objects support unicode
+                # UNICODE strings are not supported with ION objects
+                object_params = convert_unicode(json_params[request_type]['params'][arg])
+                if is_ion_object_dict(object_params):
+                    param_list[arg] = create_ion_object(object_params)
+                else:
+                    #Not an ION object so handle as a simple type then.
                     param_list[arg] = convert_unicode(json_params[request_type]['params'][arg])
 
     return param_list

@@ -366,14 +366,13 @@ def gw_agent_execute_agent(resource_id, cmd, requester=None):
 
 
     agent_cmd_params = IonObjectSerializer().serialize(cmd)
-    del agent_cmd_params['type_']
 
     agent_execute_request = {  "agentRequest": {
         "agentId": resource_id,
         "agentOp": "execute_agent",
         "expiry": 0,
         "params": {
-            "command": ["AgentCommand",  agent_cmd_params]
+            "command": agent_cmd_params
         }
         }
     }
@@ -397,8 +396,7 @@ def gw_agent_get_capabilities(resource_id,  requester=None):
     return process_gateway_request(resource_id, "get_capabilities", agent_get_capabilities_request, requester)
 
 
-#TODO - The functions below must be able to handle sending tuples ad dict keys and also
-#enhance the gateway to handle it, since JSON does not allow it.
+#TODO - The functions below must be able to handle sending tuples ad dict keys and also enhance the gateway to handle it, since JSON does not allow it.
 
 def gw_agent_get_param(resource_id, params,  requester=None):
 
