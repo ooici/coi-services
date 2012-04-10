@@ -184,6 +184,7 @@ class ProcessDispatcherServiceLocalIntTest(IonIntegrationTestCase):
                                               'class':'TransformExample'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_schedule_cancel(self):
 
         process_schedule = ProcessSchedule()
@@ -256,6 +257,7 @@ class ProcessDispatcherServiceBridgeIntTest(IonIntegrationTestCase):
         if hasattr(self, "fake_pd") and self.fake_pd:
             self.fake_pd.shutdown()
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_schedule_cancel(self):
         process_schedule = ProcessSchedule()
         process_schedule.target = ProcessTarget()
