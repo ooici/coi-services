@@ -2,6 +2,7 @@ import gevent
 from mock import Mock
 from unittest import SkipTest
 from nose.plugins.attrib import attr
+import unittest
 
 from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
