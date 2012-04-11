@@ -146,7 +146,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
 @app.errorhandler(403)
 def custom_403(error):
-    return json_response({GATEWAY_ERROR: "The request has been denied since it did not originate from a trusted originator configured in the pyon.yaml file."})
+    return json_response({GATEWAY_ERROR: "The request has been denied since it did not originate from a trusted originator."})
 
 
 #Checks to see if the remote_addr in the request is in the list of specified trusted addresses, if any.
