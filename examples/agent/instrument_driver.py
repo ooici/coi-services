@@ -127,7 +127,7 @@ def instrument_test_driver(container):
         config=agent_config)
 
 
-    log.info('got pid=%s', str(_ia_pid))
+    log.info('got pid=%s for resource_id=%s' % (str(_ia_pid), str(agent_resource_id)))
 
 
    # self._ia_client = None

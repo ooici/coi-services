@@ -13,7 +13,7 @@ from webtest import TestApp
 
 from pyon.core.registry import get_message_class_in_parm_type, getextends
 from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode, GATEWAY_RESPONSE, \
-            GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
+            GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, GATEWAY_ERROR_TRACE
 
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from pyon.util.containers import DictDiffer
@@ -102,7 +102,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('KeyError', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_EXCEPTION])
         self.assertIn('MyFakeResource', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
-
+        self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
     def create_data_product_resource(self):
 
@@ -232,6 +232,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         response = self.delete_data_product_resource(data_product_id)
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
+        self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
     def test_get_resource_schema(self):
 
@@ -245,7 +246,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.check_response_headers(response)
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('No matching class found', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
-
+        self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
 
 
