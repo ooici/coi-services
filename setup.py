@@ -34,6 +34,10 @@ setup(  name = 'coi-services',
             'WebTest',
             'requests',
             'seawater',
-            'matplotlib==1.1.0'
+            'matplotlib==1.1.0',
+            'Pydap>=3.0.1',
+            'netCDF4>=0.9.8',
+            'cdat_lite>=6.0rc2',
+
         ],
      )

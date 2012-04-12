@@ -38,7 +38,7 @@ For Mac, use homebrew
     Alternative: download generic Linux version and unpack into a suitable directory.
 - Install libevent, libyaml, zeromq, couchdb, python, rabbitmq, and pkg-config with Homebrew
 
-    > brew install libevent libyaml zeromq couchdb python rabbitmq hdf5 pkg-config
+    > brew install libevent libyaml zeromq couchdb python rabbitmq hdf5 pkg-config netcdf
 
     You can even reinstall git using brew to clean up your /usr/local directory
     Be sure to read the pyon README for platform specific guidance to installing
