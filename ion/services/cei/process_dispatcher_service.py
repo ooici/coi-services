@@ -96,13 +96,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         """
         self.clients.resource_registry.delete(process_definition_id)
 
-    def find_process_definitions(self, filters=None):
-        """Finds Process Definitions matching filter and returns a list of objects.
-
-        @param filters    ResourceFilter
-        @retval process_definition_list    []
-        """
-        pass
 
     def associate_execution_engine(self, process_definition_id='', execution_engine_definition_id=''):
         """Declare that the given process definition is compatible with the given execution engine.
@@ -127,11 +120,32 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
                                                           execution_engine_definition_id)
         self.clients.resource_registry.delete_association(assoc)
 
-    def schedule_process(self, process_definition_id='', schedule=None, configuration={}):
-        """Schedule a Process Definition for execution as process on an Execution Engine.
+    def create_process(self, process_definition_id=''):
+        """Create a process resource and process id. Does not yet start the process
+
+        @param process_definition_id    str
+        @retval process_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        if not process_definition_id:
+            raise NotFound('No process definition was provided')
+        process_definition = self.clients.resource_registry.read(process_definition_id)
+
+        # try to get a unique but still descriptive name
+        process_id = str(process_definition.name or "process") + uuid.uuid4().hex
+
+        # TODO: Create a resource object or directory entry here?
+
+        return process_id
+
+    def schedule_process(self, process_definition_id='', schedule=None, configuration=None, process_id=''):
+        """Schedule a process definition for execution on an Execution Engine. If no process id is given,
+        a new unique ID is generated.
 
         @param process_definition_id    str
         @param schedule    ProcessSchedule
+        @param configuration    IngestionConfiguration
+        @param process_id    str
         @retval process_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         @throws NotFound    object with specified id does not exist
@@ -150,10 +164,10 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         if configuration is None:
             configuration = {}
 
-        # try to get a unique but still descriptive name
-        name = str(process_definition.name or "process") + uuid.uuid4().hex
+        # If not provided, create a unique but still descriptive name
+        process_id = process_id or str(process_definition.name or "process") + uuid.uuid4().hex
 
-        return self.backend.spawn(name, process_definition, schedule, configuration)
+        return self.backend.spawn(process_id, process_definition, schedule, configuration)
 
     def cancel_process(self, process_id=''):
         """Cancels the execution of the given process id.
@@ -194,7 +208,7 @@ class PDLocalBackend(object):
 
         # Spawn the process
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
-            config=configuration)
+            config=configuration, process_id=name)
         log.debug('PD: Spawned Process (%s)', pid)
 
         return pid
