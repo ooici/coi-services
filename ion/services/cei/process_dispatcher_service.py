@@ -8,6 +8,7 @@ import json
 
 from pyon.public import log, PRED
 from pyon.core.exception import NotFound, BadRequest
+from pyon.util.containers import create_valid_identifier
 
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
 
@@ -120,6 +121,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
                                                           execution_engine_definition_id)
         self.clients.resource_registry.delete_association(assoc)
 
+
     def create_process(self, process_definition_id=''):
         """Create a process resource and process id. Does not yet start the process
 
@@ -133,6 +135,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
 
         # try to get a unique but still descriptive name
         process_id = str(process_definition.name or "process") + uuid.uuid4().hex
+        process_id = create_valid_identifier(process_id, ws_sub='_')
 
         # TODO: Create a resource object or directory entry here?
 
@@ -164,8 +167,10 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         if configuration is None:
             configuration = {}
 
-        # If not provided, create a unique but still descriptive name
-        process_id = process_id or str(process_definition.name or "process") + uuid.uuid4().hex
+        # If not provided, create a unique but still descriptive (valid) name
+        if not process_id:
+            process_id = str(process_definition.name or "process") + uuid.uuid4().hex
+            process_id = create_valid_identifier(process_id, ws_sub='_')
 
         return self.backend.spawn(process_id, process_definition, schedule, configuration)
 
