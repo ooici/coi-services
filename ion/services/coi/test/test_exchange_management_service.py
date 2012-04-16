@@ -134,7 +134,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
 
         # we test actual exchange interaction in pyon, so it's fine to mock the broker interaction here
         self.container.ex_manager = Mock(exchange.ExchangeManager)
-
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     def test_xs_create_delete(self):
         exchange_space = ExchangeSpace(name="bobo")
@@ -168,6 +168,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
     def test_xs_delete_without_create(self):
         self.assertRaises(NotFound, self.ems.delete_exchange_space, '123')
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     def test_xp_create_delete(self):
 
@@ -288,6 +289,7 @@ class TestContainerExchangeToEms(IonIntegrationTestCase):
         # just mock out the transport
         self.container.ex_manager._transport = Mock(BaseTransport)
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     @patch.dict(CFG, {'container':{'exchange':{'auto_register': True}}})
     def test_create_xs_talks_to_ems(self):

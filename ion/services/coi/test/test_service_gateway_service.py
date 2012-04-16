@@ -22,7 +22,7 @@ from pyon.util.log import log
 import unittest
 import os
 
-@attr('INT', group='coi')
+@attr('LOCOINT', 'INT', group='coi')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
