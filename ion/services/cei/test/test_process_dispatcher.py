@@ -74,7 +74,7 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         # name should be def name followed by a uuid
         name = call_kwargs['name']
         self.assertTrue(name.startswith(proc_def.name) and name != proc_def.name)
-        self.assertEqual(len(call_kwargs), 4)
+        self.assertEqual(len(call_kwargs), 5)
         self.assertEqual(call_kwargs['module'], 'my_module')
         self.assertEqual(call_kwargs['cls'], 'class')
 

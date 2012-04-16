@@ -124,7 +124,8 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_pd_schedule.assert_called_with(
             'mock_procdef_id',
             None,
-            out_config
+            out_config,
+            ""
         )
         self.assertTrue(self.mock_rr_create.called)
 
@@ -167,7 +168,8 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_pd_schedule.assert_called_with(
             'mock_procdef_id',
             None,
-            out_config
+            out_config,
+            ""
         )
 
         self.assertTrue(self.mock_rr_create.called)
@@ -210,7 +212,8 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_pd_schedule.assert_called_with(
             'mock_procdef_id',
             None,
-            out_config
+            out_config,
+            ""
         )
 
         self.assertTrue(self.mock_rr_create.called)
