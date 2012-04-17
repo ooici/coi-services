@@ -18,10 +18,9 @@ import os
 import signal
 import re
 
-from ion.services.mi.common import InstErrorCode, EventKey
 from ion.services.mi.protocol_param_dict import ProtocolParameterDict
-from ion.services.mi.exceptions import InstrumentTimeoutError
-from ion.services.mi.exceptions import InstrumentProtocolError
+from ion.services.mi.exceptions import TimeoutError
+from ion.services.mi.exceptions import ProtocolError
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -32,8 +31,8 @@ class InstrumentProtocol(object):
     
     def __init__(self, driver_event):
         """
-        @param evt_callback A callback to send protocol events to the
-        agent.
+        Base constructor.
+        @param driver_event The callback for asynchronous driver events.
         """
         
         # Event callback to send asynchronous events to the agent.
@@ -54,101 +53,31 @@ class InstrumentProtocol(object):
     def got_data(self, data):
        """
        Called by the instrument connection when data is available.
+       Defined in subclasses.
        """
        pass
-
-    def announce_to_driver(self, type, error_code=None, msg=None):
-        """
-        Packag and send events.
-        """
-        pass
     
     def get_current_state(self):
         """
+        Return current state of the protocol FSM.
         """
         return self._protocol_fsm.get_current_state()
-    
-class BinaryInstrumentProtocol(InstrumentProtocol):
-    """Instrument protocol description for a binary-based instrument
-    
-    This class wraps standard protocol operations with methods to pack
-    commands into the binary structures that they need to be in for the
-    instrument to operate on them.
-    @todo Consider removing this class if insufficient parameterization of
-    message packing is done
-    """
-    
-    def _pack_msg(self, msg=None):
-        """Pack the message according to the field before sending it to the
-        instrument.
-        
-        This may involve special packing per parameter, possibly checksumming
-        across the whole message, too.
-        @param msg The message to pack for the instrument. May need to be
-        inspected to determine the proper packing structure
-        @retval packed_msg The packed message
-        """
-        # Default implementation
-        return msg.checksum
-    
-    def _unpack_response(self, type=None, packed_msg=None):
-        """Unpack a message from an instrument
-        
-        When a binary instrument responsed with a packed binary, this routine
-        unbundles the response into something usable. Checksums may be added
-        @param type The type of message to be unpacked. Will like be a key to
-        an unpacking description string.
-        @param packed_msg The packed message needing to be unpacked
-        @retval msg The unpacked message
-        """
-        # Default implementation
-        return packed_msg
-    
-
-class ScriptInstrumentProtocol(InstrumentProtocol):
-    """A class to handle a simple scripted interaction with an instrument
-    
-    For instruments with a predictable interface (such as a menu or well
-    known paths through options), this class can be setup to follow a simple
-    script of interactions to manipulate the instrument. The script language
-    is currently as follows:
-    
-    * Commands are in name value pairs separated by an =, no whitespace
-        around the equals
-    * Commands are separated from each other by \n.
-    * Control keys are the letter preceeded by a ^ symbol.
-    * Use \ to protect a ^ or \n and include it in the string being sent.
-    * A final \n is optional.
-    * Commands will be executed in order
-    * The send command name is "S"
-    * The delay command is "D", delay measured in seconds, but is a
-        python formatted floating point value
-    
-    For example, the following script issues a Control-C, "3", "1", "val1\n", then a "0"
-    with a 1.5 second delay between to do something like walk through a menu,
-    select a parameter, name its value, then return to the previous menu:
-    "S=^C\nD=1.5\nS=3\nD=1.5\nS=1\nD=1.5\nS=val1\\nD=1.5\nS=0"
-
-    @todo Add a wait-for command?
-    """
-    
-    def run_script(self, script):
-        """Interpret the supplied script and apply it to the instrument
-        
-        @param script The script to execute in string form
-        @throws InstrumentProtocolException Confusion dealing with the
-        physical device, possibly due to interrupted communications
-        @throws InstrumentStateException Unable to handle current or future
-        state properly
-        @throws InstrumentTimeoutException Timeout
-        """
-        
     
 class CommandResponseInstrumentProtocol(InstrumentProtocol):
     """
     Base class for text-based command-response instruments.
     """
+    
     def __init__(self, prompts, newline, driver_event):
+        """
+        Constructor.
+        @param prompts Enum class containing possbile device prompts used for
+        command response logic.
+        @param newline The device newline.
+        @driver_event The callback for asynchronous driver events.
+        """
+        
+        # Construct superclass.
         InstrumentProtocol.__init__(self, driver_event)
 
         # The end of line delimiter.                
@@ -179,16 +108,26 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                    
     def _add_build_handler(self, cmd, func):
         """
+        Add a command building function.
+        @param cmd The device command to build.
+        @param func The function that constructs the command.
         """
         self._build_handlers[cmd] = func
         
     def _add_response_handler(self, cmd, func):
         """
+        Add a response parsing function.
+        @param The device command to build.
+        @func The function that parses the response.
         """
         self._response_handlers[cmd] = func
                    
     def _get_response(self, timeout):
         """
+        Wait for and retrieve a command response.
+        @param timeout the timeout to wait for a response.
+        @retval (prompt, repsponse) tuple.
+        @raises TimeoutError if the reponse did not occur in time.
         """
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
@@ -201,17 +140,28 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 else:
                     time.sleep(.1)
             if time.time() > starttime + timeout:
-                raise InstrumentTimeoutError()
+                raise TimeoutError()
                
     def _do_cmd_resp(self, cmd, *args, **kwargs):
         """
+        Perform a command-response on the device.
+        @param cmd The command to execute.
+        @param args positional arguments to pass to the build handler.
+        @param timeout=timeout optional wakeup and command timeout.
+        @retval resp_result The (possibly parsed) response result.
+        @raises TimeoutError if the reponse did not occur in time.
+        @raises ProtocolError if command could not be built or if response
+        was not recognized.
         """
+        
+        # Get timeout and initialize response.
         timeout = kwargs.get('timeout', 10)
         resp_result = None
         
+        # Get the build handler.
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
-            raise InstrumentProtocolError()
+            raise ProtocolError('Cannot build command: %s' % cmd)
         
         cmd_line = build_handler(cmd, *args)
         
@@ -227,27 +177,30 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._connection.send(cmd_line)
 
         # Wait for the prompt, prepare result and return, timeout exception
-        mi_logger.info('getting response')
         (prompt, result) = self._get_response(timeout)
-        mi_logger.info('got response: %s', repr(result))
-                
                 
         resp_handler = self._response_handlers.get(cmd, None)
         if resp_handler:
             resp_result = resp_handler(result, prompt)
         else:
-            mi_logger.info('No response handler.')
+            resp_result = result
 
         return resp_result
             
     def _do_cmd_no_resp(self, cmd, *args, **kwargs):
         """
+        Perform a command without response on the device.
+        @param cmd The command to execute.
+        @param args positional arguments to pass to the build handler.
+        @param timeout=timeout optional wakeup timeout.
+        @raises TimeoutError if the reponse did not occur in time.
+        @raises ProtocolError if command could not be built.        
         """
         timeout = kwargs.get('timeout', 10)        
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
-            raise InstrumentProtocolException(InstErrorCode.BAD_DRIVER_COMMAND)
+            raise ProtocolError('Cannot build command: %s' % cmd)
         
         cmd_line = build_handler(cmd, *args)
         
@@ -256,12 +209,11 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
        
         # Clear line and prompt buffers for result.
         self._linebuf = ''
+        self._promptbuf = ''
 
         # Send command.
         mi_logger.debug('_do_cmd_no_resp: %s', repr(cmd_line))
-        self._logger_client.send(cmd_line)        
-
-        return InstErrorCode.OK
+        self._connection.send(cmd_line)        
     
     ########################################################################
     # Incomming data callback.
@@ -270,6 +222,9 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 
     def got_data(self, data):
         """
+       Called by the instrument connection when data is available.
+       Append line and prompt buffers. Extended by device specific
+       subclasses.
         """
         # Update the line and prompt buffers.
         self._linebuf += data        
@@ -281,18 +236,17 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
     
     def _send_wakeup(self):
         """
-        Use the logger to send what needs to be sent to wake up the device.
-        This is intended to be overridden if there is any wake up needed.
+        Send a wakeup to the device. Overridden by device specific
+        subclasses.
         """
         pass
         
-    def  _wakeup(self, timeout):
+    def  _wakeup(self, timeout, delay=1):
         """
         Clear buffers and send a wakeup command to the instrument
-        @todo Consider the case where there is no prompt returned when the
-        instrument is awake.
-        @param timeout The timeout in seconds
-        @throw InstrumentProtocolExecption on timeout
+        @param timeout The timeout to wake the device.
+        @param delay The time to wait between consecutive wakeups.
+        @throw TimeoutError if the device could not be woken.
         """
         # Clear the prompt buffer.
         self._promptbuf = ''
@@ -304,7 +258,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
             # Send a line return and wait a sec.
             mi_logger.debug('Sending wakeup.')
             self._send_wakeup()
-            time.sleep(1)
+            time.sleep(delay)
             
             for item in self._prompts.list():
                 if self._promptbuf.endswith(item):
@@ -312,5 +266,27 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                     return item
 
             if time.time() > starttime + timeout:
-                raise InstrumentTimeoutError()
+                raise TimeoutError()
 
+    def _wakeup_until(self, timeout, desired_prompt, delay=1, no_tries=5):
+        """
+        Continue waking device until a specific prompt appears or a number
+        of tries has occurred.
+        @param timeout The timeout to wake the device.
+        @desired_prompt Continue waking until this prompt is seen.
+        @delay Time to wake between consecutive wakeups.
+        @no_tries Maximum number of wakeup tries to see desired prompt.
+        @raises TimeoutError if device could not be woken.
+        @raises ProtocolError if the deisred prompt is not seen in the
+        maximum number of attempts.
+        """
+        count = 0
+        while True:
+            prompt = self._wakeup(timeout, delay)
+            if prompt == desired_prompt:
+                break
+            else:
+                time.sleep(delay)
+                count += 1
+                if count >= no_tries:
+                    raise ProtocolError('Incorrect prompt.')

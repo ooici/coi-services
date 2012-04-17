@@ -14,6 +14,7 @@ import logging
 import time
 import re
 import datetime
+from threading import Timer
 
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.single_connection_instrument_driver import SingleConnectionInstrumentDriver
@@ -23,6 +24,11 @@ from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_driver import DriverProtocolState
 from ion.services.mi.instrument_driver import DriverParameter
+from ion.services.mi.exceptions import TimeoutError
+from ion.services.mi.exceptions import ParameterError
+from ion.services.mi.exceptions import SampleError
+from ion.services.mi.exceptions import StateError
+from ion.services.mi.exceptions import ProtocolError
 
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
@@ -31,6 +37,8 @@ mi_logger = logging.getLogger('mi_logger')
 
 class SBE37ProtocolState(BaseEnum):
     """
+    Protocol states for SBE37. Cherry picked from DriverProtocolState
+    enum.
     """
     UNKNOWN = DriverProtocolState.UNKNOWN
     COMMAND = DriverProtocolState.COMMAND
@@ -41,6 +49,7 @@ class SBE37ProtocolState(BaseEnum):
     
 class SBE37ProtocolEvent(BaseEnum):
     """
+    Protocol events for SBE37. Cherry picked from DriverEvent enum.
     """
     ENTER = DriverEvent.ENTER
     EXIT = DriverEvent.EXIT
@@ -57,7 +66,7 @@ class SBE37ProtocolEvent(BaseEnum):
 # Device specific parameters.
 class SBE37Parameter(DriverParameter):
     """
-    Add sbe37 specific parameters here.
+    Device parameters for SBE37.
     """
     OUTPUTSAL = 'OUTPUTSAL'
     OUTPUTSV = 'OUTPUTSV'
@@ -106,13 +115,17 @@ class SBE37Prompt(BaseEnum):
     BAD_COMMAND = '?cmd S>'
     AUTOSAMPLE = 'S>\r\n'
 
+# SBE37 newline.
 SBE37_NEWLINE = '\r\n'
+
+# SBE37 default timeout.
+SBE37_TIMEOUT = 10
                 
+# Packet config for SBE37 data granules.
 PACKET_CONFIG = {
         'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
         'ctd_raw' : None            
 }
-
 
 ###############################################################################
 # Seabird Electronics 37-SMP MicroCAT Driver.
@@ -120,13 +133,22 @@ PACKET_CONFIG = {
 
 class SBE37Driver(SingleConnectionInstrumentDriver):
     """
+    InstrumentDriver subclass for SBE37 driver.
+    Subclasses SingleConnectionInstrumentDriver with connection state
+    machine.
     """
     def __init__(self, evt_callback):
+        """
+        SBE37Driver constructor.
+        @param evt_callback Driver process event callback.
+        """
+        #Construct superclass.
         SingleConnectionInstrumentDriver.__init__(self, evt_callback)
 
 
     def _build_protocol(self):
         """
+        Construct the driver protocol state machine.
         """
         self._protocol = SBE37Protocol(SBE37Prompt, SBE37_NEWLINE, self._driver_event)
 
@@ -136,37 +158,77 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
 
 class SBE37Protocol(CommandResponseInstrumentProtocol):
     """
+    Instrument protocol class for SBE37 driver.
+    Subclasses CommandResponseInstrumentProtocol
     """
     def __init__(self, prompts, newline, driver_event):
         """
+        SBE37Protocol constructor.
+        @param prompts A BaseEnum class containing instrument prompts.
+        @param newline The SBE37 newline.
+        @param driver_event Driver process event callback.
         """
+        # Construct protocol superclass.
         CommandResponseInstrumentProtocol.__init__(self, prompts, newline, driver_event)
         
-        # Build protocol state machine.
+        # Build SBE37 protocol state machine.
         self._protocol_fsm = InstrumentFSM(SBE37ProtocolState, SBE37ProtocolEvent,
                             SBE37ProtocolEvent.ENTER, SBE37ProtocolEvent.EXIT)
 
+        # Add event handlers for protocol state machine.
         self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.ENTER, self._handler_unknown_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.EXIT, self._handler_unknown_exit)
         self._protocol_fsm.add_handler(SBE37ProtocolState.UNKNOWN, SBE37ProtocolEvent.DISCOVER, self._handler_unknown_discover)
         self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.ENTER, self._handler_command_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.EXIT, self._handler_command_exit)
-        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.EXIT, self._handler_command_acquire_sample)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.ACQUIRE_SAMPLE, self._handler_command_acquire_sample)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.START_AUTOSAMPLE, self._handler_command_start_autosample)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.GET, self._handler_command_autosample_test_get)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.SET, self._handler_command_set)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.TEST, self._handler_command_test)
         self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.ENTER, self._handler_autosample_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.EXIT, self._handler_autosample_exit)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.GET, self._handler_command_autosample_test_get)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.STOP_AUTOSAMPLE, self._handler_autosample_stop_autosample)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.ENTER, self._handler_test_enter)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.EXIT, self._handler_test_exit)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.TEST, self._handler_test_run_tests)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.GET, self._handler_command_autosample_test_get)
         self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.ENTER, self._handler_direct_access_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.EXIT, self._handler_direct_access_exit)
 
+        # Construct the parameter dictionary containing device parameters,
+        # current parameter values, and set formatting functions.
         self._build_param_dict()
 
+        # Add build handlers for device commands.
         self._add_build_handler('ds', self._build_simple_command)
         self._add_build_handler('dc', self._build_simple_command)
         self._add_build_handler('ts', self._build_simple_command)
+        self._add_build_handler('startnow', self._build_simple_command)
+        self._add_build_handler('stop', self._build_simple_command)
+        self._add_build_handler('tc', self._build_simple_command)
+        self._add_build_handler('tt', self._build_simple_command)
+        self._add_build_handler('tp', self._build_simple_command)
+        self._add_build_handler('set', self._build_set_command)
 
+        # Add response handlers for device commands.
         self._add_response_handler('ds', self._parse_dsdc_response)
         self._add_response_handler('dc', self._parse_dsdc_response)
         self._add_response_handler('ts', self._parse_ts_response)
+        self._add_response_handler('set', self._parse_set_response)
+        self._add_response_handler('tc', self._parse_test_response)
+        self._add_response_handler('tt', self._parse_test_response)
+        self._add_response_handler('tp', self._parse_test_response)
 
+       # Add sample handlers.
+        self._sample_pattern = r'^#? *(-?\d+\.\d+), *(-?\d+\.\d+), *(-?\d+\.\d+)'
+        self._sample_pattern += r'(, *(-?\d+\.\d+))?(, *(-?\d+\.\d+))?'
+        self._sample_pattern += r'(, *(\d+) +([a-zA-Z]+) +(\d+), *(\d+):(\d+):(\d+))?'
+        self._sample_pattern += r'(, *(\d+)-(\d+)-(\d+), *(\d+):(\d+):(\d+))?'        
+        self._sample_regex = re.compile(self._sample_pattern)
+
+        # State state machine in UNKNOWN state. 
         self._protocol_fsm.start(SBE37ProtocolState.UNKNOWN)
 
     ########################################################################
@@ -175,32 +237,46 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
     def _handler_unknown_enter(self, *args, **kwargs):
         """
+        Enter unknown state.
         """
+        # Tell driver superclass to send a state change event.
+        # Superclass will query the state.
         self._driver_event(DriverAsyncEvent.STATE_CHANGE)
     
     def _handler_unknown_exit(self, *args, **kwargs):
         """
+        Exit unknown state.
         """
         pass
 
     def _handler_unknown_discover(self, *args, **kwargs):
         """
+        Discover current state; can be COMMAND or AUTOSAMPLE.
+        @retval (next_state, result), (SBE37ProtocolState.COMMAND or
+        SBE37State.AUTOSAMPLE, None) if successful.
+        @throws TimeoutError if the device cannot be woken.
+        @throws StateError if the device response does not correspond to
+        an expected state.
         """
         next_state = None
         result = None
-                
         
-        timeout = kwargs.get('timeout', 10)
+        # Wakeup the device with timeout if passed.
+        timeout = kwargs.get('timeout', SBE37_TIMEOUT)
+        prompt = self._wakeup(timeout)
         prompt = self._wakeup(timeout)
         
+        # Set the state to change.
+        # Raise if the prompt returned does not match command or autosample.
         if prompt == SBE37Prompt.COMMAND:
             next_state = SBE37ProtocolState.COMMAND
+            result = SBE37ProtocolState.COMMAND
         elif prompt == SBE37Prompt.AUTOSAMPLE:
             next_state = SBE37ProtocolState.AUTOSAMPLE
+            result = SBE37ProtocolState.AUTOSAMPLE
         else:
-            # Error discovering state.
-            pass
-        mi_logger.info('NEXT STATE IS %s', next_state)        
+            raise StateError('Unknown state.')
+            
         return (next_state, result)
 
     ########################################################################
@@ -209,23 +285,100 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
     def _handler_command_enter(self, *args, **kwargs):
         """
+        Enter command state.
+        @throws TimeoutError if the device cannot be woken.
+        @throws ProtocolError if the update commands and not recognized.
         """
-        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+        # Command device to update parameters and send a config change event.
         self._update_params()
-    
+
+        # Tell driver superclass to send a state change event.
+        # Superclass will query the state.
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+            
     def _handler_command_exit(self, *args, **kwargs):
         """
+        Exit command state.
         """
         pass
 
-    def _handler_command_acquire_sample(self, *args, **kwargs):
+    def _handler_command_set(self, *args, **kwargs):
         """
+        Perform a set command.
+        @param args[0] parameter : value dict.
+        @retval (next_state, result) tuple, (None, None).
+        @throws ParameterError if missing set parameters, if set parameters not ALL and
+        not a dict, or if paramter can't be properly formatted.
+        @throws TimeoutError if device cannot be woken for set command.
+        @throws ProtocolError if set command could not be built or misunderstood.
         """
         next_state = None
         result = None
-                
-        self._do_cmd_resp('ts', *args, **kwargs)
 
+        # Retrieve required parameter.
+        # Raise if no parameter provided, or not a dict.
+        try:
+            params = args[0]
+            
+        except IndexError:
+            raise ParameterError('Set command requires a parameter dict.')
+
+        if not isinstance(params, dict):
+            raise ParameterError('Set parameters not a dict.')
+        
+        # For each key, val in the dict, issue set command to device.
+        # Raise if the command not understood.
+        else:
+            
+            for (key, val) in params.iteritems():
+                result = self._do_cmd_resp('set', key, val, **kwargs)
+            self._update_params()
+            
+        return (next_state, result)
+
+    def _handler_command_acquire_sample(self, *args, **kwargs):
+        """
+        Acquire sample from SBE37.
+        @retval (next_state, result) tuple, (None, sample dict).        
+        @throws TimeoutError if device cannot be woken for command.
+        @throws ProtocolError if command could not be built or misunderstood.
+        @throws SampleError if a sample could not be extracted from result.
+        """
+        next_state = None
+        result = None
+
+        result = self._do_cmd_resp('ts', *args, **kwargs)
+        
+        return (next_state, result)
+
+    def _handler_command_start_autosample(self, *args, **kwargs):
+        """
+        Switch into autosample mode.
+        @retval (next_state, result) tuple, (SBE37ProtocolState.AUTOSAMPLE,
+        None) if successful.
+        @throws TimeoutError if device cannot be woken for command.
+        @throws ProtocolError if command could not be built or misunderstood.
+        """
+        next_state = None
+        result = None
+
+        # Issue start command and switch to autosample if successful.
+        self._do_cmd_no_resp('startnow', *args, **kwargs)
+                
+        next_state = SBE37ProtocolState.AUTOSAMPLE        
+        
+        return (next_state, result)
+
+    def _handler_command_test(self, *args, **kwargs):
+        """
+        Switch to test state to perform instrument tests.
+        @retval (next_state, result) tuple, (SBE37ProtocolState.TEST, None).
+        """
+        next_state = None
+        result = None
+
+        next_state = SBE37ProtocolState.TEST
+        
         return (next_state, result)
 
     ########################################################################
@@ -234,13 +387,148 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
     def _handler_autosample_enter(self, *args, **kwargs):
         """
+        Enter autosample state.
         """
+        # Tell driver superclass to send a state change event.
+        # Superclass will query the state.        
         self._driver_event(DriverAsyncEvent.STATE_CHANGE)
     
     def _handler_autosample_exit(self, *args, **kwargs):
         """
+        Exit autosample state.
         """
         pass
+
+    def _handler_autosample_stop_autosample(self, *args, **kwargs):
+        """
+        Stop autosample and switch back to command mode.
+        @retval (next_state, result) tuple, (SBE37ProtocolState.COMMAND,
+        None) if successful.
+        @throws TimeoutError if device cannot be woken for command.
+        @throws ProtocolError if command misunderstood or
+        incorrect prompt received.
+        """
+        next_state = None
+        result = None
+
+        # Wake up the device, continuing until autosample prompt seen.
+        timeout = kwargs.get('timeout', SBE37_TIMEOUT)
+        self._wakeup_until(timeout, SBE37Prompt.AUTOSAMPLE)
+
+        # Issue the stop command.
+        self._do_cmd_resp('stop', *args, **kwargs)        
+        
+        # Prompt device until command prompt is seen.
+        self._wakeup_until(timeout, SBE37Prompt.COMMAND)
+        
+        next_state = SBE37ProtocolState.COMMAND
+
+        return (next_state, result)
+        
+    ########################################################################
+    # Common handlers.
+    ########################################################################
+
+    def _handler_command_autosample_test_get(self, *args, **kwargs):
+        """
+        Get device parameters from the parameter dict.
+        @param args[0] list of parameters to retrieve, or DriverParameter.ALL.
+        @throws ParameterError if missing or invalid parameter.
+        """
+        next_state = None
+        result = None
+
+        # Retrieve the required parameter, raise if not present.
+        try:
+            params = args[0]
+           
+        except IndexError:
+            raise ParameterError('Get command requires a parameter list or tuple.')
+
+        # If all params requested, retrieve config.
+        if params == DriverParameter.ALL:
+            result = self._param_dict.get_config()
+                    
+        # If not all params, confirm a list or tuple of params to retrieve.
+        # Raise if not a list or tuple.
+        # Retireve each key in the list, raise if any are invalid.
+        else:
+            if not isinstance(params, (list, tuple)):
+                raise ParameterError('Get argument not a list or tuple.')
+            result = {}
+            for key in params:
+                try:
+                    val = self._param_dict.get(key)
+                    result[key] = val
+
+                except KeyError:
+                    raise ParameterError(('%s is not a valid parameter.' % key))
+            
+        return (next_state, result)
+
+    ########################################################################
+    # Test handlers.
+    ########################################################################
+
+    def _handler_test_enter(self, *args, **kwargs):
+        """
+        Enter test state. Setup the secondary call to run the tests.
+        """
+        # Tell driver superclass to send a state change event.
+        # Superclass will query the state.        
+        self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+        
+        # Forward the test event again to run the test handler and
+        # switch back to command mode afterward.
+        Timer(1, lambda: self._protocol_fsm.on_event(SBE37ProtocolEvent.TEST)).start()
+    
+    def _handler_test_exit(self, *args, **kwargs):
+        """
+        Exit test state.
+        """
+        pass
+
+    def _handler_test_run_tests(self, *args, **kwargs):
+        """
+        Run test routines and validate results.
+        @throws TimeoutError if device cannot be woken for command.
+        @throws ProtocolError if command misunderstood or
+        incorrect prompt received.
+        """
+        next_state = None
+        result = None
+
+        tc_pass = False
+        tt_pass = False
+        tp_pass = False
+        tc_result = None
+        tt_result = None
+        tp_result = None
+
+        test_result = {}
+
+        try:
+            tc_pass, tc_result = self._do_cmd_resp('tc', timeout=200)
+            tt_pass, tt_result = self._do_cmd_resp('tt', timeout=200)
+            tp_pass, tp_result = self._do_cmd_resp('tp', timeout=200)
+        
+        except Exception as e:
+            test_result['exception'] = e
+            test_result['message'] = 'Error running instrument tests.'
+        
+        finally:
+            test_result['cond_test'] = 'Passed' if tc_pass else 'Failed'
+            test_result['cond_data'] = tc_result
+            test_result['temp_test'] = 'Passed' if tt_pass else 'Failed'
+            test_result['temp_data'] = tt_result
+            test_result['pres_test'] = 'Passed' if tp_pass else 'Failed'
+            test_result['pres_data'] = tp_result
+            test_result['success'] = 'Passed' if (tc_pass and tt_pass and tp_pass) else 'Failed'
+            
+        self._driver_event(DriverAsyncEvent.TEST_RESULT, test_result)
+        next_state = SBE37ProtocolState.COMMAND
+ 
+        return (next_state, result)
 
     ########################################################################
     # Direct access handlers.
@@ -248,11 +536,15 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
     def _handler_direct_access_enter(self, *args, **kwargs):
         """
+        Enter direct access state.
         """
+        # Tell driver superclass to send a state change event.
+        # Superclass will query the state.                
         self._driver_event(DriverAsyncEvent.STATE_CHANGE)
     
     def _handler_direct_access_exit(self, *args, **kwargs):
         """
+        Exit direct access state.
         """
         pass
 
@@ -262,53 +554,156 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         
     def _send_wakeup(self):
         """
+        Send a newline to attempt to wake the SBE37 device.
         """
         self._connection.send(SBE37_NEWLINE)
-        
-    def _update_params(self):
+                
+    def _update_params(self, *args, **kwargs):
         """
+        Update the parameter dictionary. Wake the device then issue
+        display status and display calibration commands. The parameter
+        dict will match line output and udpate itself.
+        @throws TimeoutError if device cannot be timely woken.
+        @throws ProtocolError if ds/dc misunderstood.
         """
+
         
-        timeout = 10
+        # Get old param dict config.
         old_config = self._param_dict.get_config()
+        
+        # Issue display commands and parse results.
+        timeout = kwargs.get('timeout', SBE37_TIMEOUT)
         self._do_cmd_resp('ds',timeout=timeout)
         self._do_cmd_resp('dc',timeout=timeout)
+        
+        # Get new param dict config. If it differs from the old config,
+        # tell driver superclass to publish a config change event.
         new_config = self._param_dict.get_config()
         if new_config != old_config:
             self._driver_event(DriverAsyncEvent.CONFIG_CHANGE)
-        mi_logger.info('done updating params')
         
     def _build_simple_command(self, cmd):
         """
+        Build handler for basic SBE37 commands.
+        @param cmd the simple sbe37 command to format.
+        @retval The command to be sent to the device.
         """
         return cmd+SBE37_NEWLINE
     
     def _build_set_command(self, cmd, param, val):
         """
+        Build handler for set commands. param=val followed by newline.
+        String val constructed by param dict formatting function.
+        @param param the parameter key to set.
+        @param val the parameter value to set.
+        @ retval The set command to be sent to the device.
+        @throws ProtocolError if the parameter is not valid or
+        if the formatting function could not accept the value passed.
         """
-        str_val = self._format_param_dict(param, val)
-        set_cmd = '%s=%s' % (param, str_val)
-        set_cmd = set_cmd + SBE37_NEWLINE
+        try:
+            str_val = self._param_dict.format(param, val)
+            set_cmd = '%s=%s' % (param, str_val)
+            set_cmd = set_cmd + SBE37_NEWLINE
+            
+        except KeyError:
+            raise ParameterError('Unknown driver parameter %s' % param)
+            
         return set_cmd
+
+    def _parse_set_response(self, response, prompt):
+        """
+        Parse handler for set command.
+        @param response command response string.
+        @param prompt prompt following command response.        
+        @throws ProtocolError if set command misunderstood.
+        """
+        if prompt != SBE37Prompt.COMMAND:
+            raise ProtocolError('Set command not recognized: %s' % response)
 
     def _parse_dsdc_response(self, response, prompt):
         """
+        Parse handler for dsdc commands.
+        @param response command response string.
+        @param prompt prompt following command response.        
+        @throws ProtocolError if dsdc command misunderstood.
         """
+        if prompt != SBE37Prompt.COMMAND:
+            raise ProtocolError('dsdc command not recognized: %s.' % response)
+            
         for line in response.split(SBE37_NEWLINE):
             self._param_dict.update(line)
         
     def _parse_ts_response(self, response, prompt):
         """
+        Response handler for ts command.
+        @param response command response string.
+        @param prompt prompt following command response.
+        @retval sample dictionary containig c, t, d values.
+        @throws ProtocolError if ts command misunderstood.
+        @throws InstrumentSampleError if response did not contain a sample
         """
+        
+        if prompt != SBE37Prompt.COMMAND:
+            raise ProtocolError('ts command not recognized: %s', response)
+        
         sample = None
         for line in response.split(SBE37_NEWLINE):
             sample = self._extract_sample(line, True)
-            if sample: break
+            if sample:
+                break
+        
+        if not sample:     
+            raise SampleError('Response did not contain sample: %s' % repr(response))
             
         return sample
+                
+    def _parse_test_response(self, response, prompt):
+        """
+        Do minimal checking of test outputs.
+        @param response command response string.
+        @param promnpt prompt following command response.
+        @retval tuple of pass/fail boolean followed by response
+        """
         
+        success = False
+        lines = response.split()
+        if len(lines)>2:
+            data = lines[1:-1]
+            bad_count = 0
+            for item in data:
+                try:
+                    float(item)
+                    
+                except ValueError:
+                    bad_count += 1
+            
+            if bad_count == 0:
+                success = True
+        
+        return (success, response)        
+                
+    def got_data(self, data):
+        """
+        Callback for receiving new data from the device.
+        """
+        # Call the superclass to update line and promp buffers.
+        CommandResponseInstrumentProtocol.got_data(self, data)
+
+        # If in streaming mode, process the buffer for samples to publish.
+        cur_state = self.get_current_state()
+        if cur_state == SBE37ProtocolState.AUTOSAMPLE:
+            if SBE37_NEWLINE in self._linebuf:
+                lines = self._linebuf.split(SBE37_NEWLINE)
+                self._linebuf = lines[-1]
+                for line in lines:
+                    self._extract_sample(line)                    
+                
     def _extract_sample(self, line, publish=True):
         """
+        Extract sample from a response line if present and publish to agent.
+        @param line string to match for sample.
+        @param publsih boolean to publish sample (default True).
+        @retval Sample dictionary if present or None.
         """
         sample = None
         match = self._sample_regex.match(line)
@@ -328,6 +723,9 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         
     def _build_param_dict(self):
         """
+        Populate the parameter dictionary with SBE37 parameters.
+        For each parameter key, add match stirng, match lambda function,
+        and value formatting function for set commands.
         """
         # Add parameter handlers to parameter dict.        
         self._param_dict.add(SBE37Parameter.OUTPUTSAL,
@@ -489,12 +887,12 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         Write a boolean value to string formatted for sbe37 set operations.
         @param v a boolean value.
-        @retval A yes/no string formatted for sbe37 set operations, or
-            None if the input is not a valid bool.
+        @retval A yes/no string formatted for sbe37 set operations.
+        @throws ParameterError if value not a bool.
         """
         
         if not isinstance(v,bool):
-            return None
+            raise ParameterError('Value %s is not a bool.' % str(v))
         if v:
             return 'y'
         else:
@@ -505,12 +903,12 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         Write an int value to string formatted for sbe37 set operations.
         @param v An int val.
-        @retval an int string formatted for sbe37 set operations, or None if
-            the input is not a valid int value.
+        @retval an int string formatted for sbe37 set operations.
+        @throws ParameterError if value not an int.
         """
         
         if not isinstance(v,int):
-            return None
+            raise ParameterError('Value %s is not an int.' % str(v))
         else:
             return '%i' % v
 
@@ -519,12 +917,12 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         Write a float value to string formatted for sbe37 set operations.
         @param v A float val.
-        @retval a float string formatted for sbe37 set operations, or None if
-            the input is not a valid float value.
+        @retval a float string formatted for sbe37 set operations.
+        @throws ParameterError if value is not a float.
         """
 
         if not isinstance(v,float):
-            return None
+            raise ParameterError('Value %s is not a float.' % v)
         else:
             return '%e' % v
 
@@ -533,15 +931,15 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         Write a date tuple to string formatted for sbe37 set operations.
         @param v a date tuple: (day,month,year).
-        @retval A date string formatted for sbe37 set operations,
-            or None if the input is not a valid date tuple.
+        @retval A date string formatted for sbe37 set operations.
+        @throws ParameterError if date tuple is not valid.
         """
 
         if not isinstance(v,(list,tuple)):
-            return None
+            raise ParameterError('Value %s is not a list, tuple.' % str(v))
         
         if not len(v)==3:
-            return None
+            raise ParameterError('Value %s is not length 3.' % str(v))
         
         months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep',
                   'Oct','Nov','Dec']
@@ -553,13 +951,13 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             year = int(str(year)[-2:])
         
         if not isinstance(day,int) or day < 1 or day > 31:
-            return None
+            raise ParameterError('Value %s is not a day of month.' % str(day))
         
         if not isinstance(month,int) or month < 1 or month > 12:
-            return None
+            raise ParameterError('Value %s is not a month.' % str(month))
 
         if not isinstance(year,int) or year < 0 or year > 99:
-            return None
+            raise ParameterError('Value %s is not a 0-99 year.' % str(year))
         
         return '%02i-%s-%02i' % (day,months[month-1],year)
 
@@ -568,16 +966,18 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         Extract a date tuple from an sbe37 date string.
         @param str a string containing date information in sbe37 format.
-        @retval a date tuple, or None if the input string is not valid.
+        @retval a date tuple.
+        @throws ParameterError if datestr cannot be formatted to
+        a date.
         """
         if not isinstance(datestr,str):
-            return None
+            raise ParameterError('Value %s is not a string.' % str(datestr))
         try:
             date_time = time.strptime(datestr,fmt)
             date = (date_time[2],date_time[1],date_time[0])
 
         except ValueError:
-            return None
+            raise ParameterError('Value %s could not be formatted to a date.' % str(datestr))
                         
         return date
 

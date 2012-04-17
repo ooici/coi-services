@@ -10,6 +10,8 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
+from ion.services.mi.exceptions import StateError
+
 
 class InstrumentFSM():
     """
@@ -19,11 +21,8 @@ class InstrumentFSM():
     def __init__(self, states, events, enter_event, exit_event):
         """
         Initialize states, events, handlers.
-
         @param states The list of states that the FSM handles
         @param events The list of events that the FSM handles
-        @param state_handlers A dict of which state maps to which handling
-        routine
         @param enter_event The event that indicates a state is being entered
         @param exit_event The event that indicates a state is being exited
         """
@@ -43,6 +42,10 @@ class InstrumentFSM():
 
     def add_handler(self, state, event, handler):
         """
+        Add an event handler.
+        @param state the state to handler the event in.
+        @param the event to handle.
+        @retval True if successful, False otherwise.
         """
         if not self.states.has(state):
             return False
@@ -57,14 +60,12 @@ class InstrumentFSM():
         """
         Start the state machine. Initializes current state and fires the
         EVENT_ENTER event.
-        @param state The state to start execute
-        @param params A list of parameters to hand to the handler
-        @retval return True
-        """
-        
-        #if state not in self.states:
-        #    return False
-        
+        @param state The state to start in.
+        @param args positional arguments to pass to the handler.
+        @param kwargs keyword arguments to pass to the handler.
+        @retval True if successful, False otherwise.
+        @raises Any exception raised by the enter handler.
+        """        
         if not self.states.has(state):
             return False
                 
@@ -79,11 +80,11 @@ class InstrumentFSM():
         Handle an event. Call the current state handler passing the event
         and paramters.
         @param event A string indicating the event that has occurred.
-        @param params Optional parameters to be sent with the event to the
-            handler.
+        @param args positional arguments to pass to the handler.
+        @param kwargs keyword arguments to pass to the handler.
         @retval result from the handler executed by the current state/event pair.
-        @throw InstrumentProtocolException
-        @throw InstrumentTimeoutException
+        @raises StateError if no handler for the event exists in current state.
+        @raises Any exception raised by the handlers.
         """        
         next_state = None
         result = None
@@ -92,6 +93,9 @@ class InstrumentFSM():
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:
                 (next_state, result) = handler(*args, **kwargs)
+            else:
+                raise StateError('Command not handled in current state.')
+                
         #if next_state in self.states:
         if self.states.has(next_state):
             self._on_transition(next_state, *args, **kwargs)
@@ -103,7 +107,9 @@ class InstrumentFSM():
         Call the sequence of events to cause a state transition. Called from
         on_event if the handler causes a transition.
         @param next_state The state to transition to.
-        @param params Opional parameters passed from on_event
+        @param args positional arguments to pass to the handler.
+        @param kwargs keyword arguments to pass to the handler.
+        @raises Any exception raised by the handlers.
         """
         
         handler = self.state_handlers.get((self.current_state, self.exit_event), None)
