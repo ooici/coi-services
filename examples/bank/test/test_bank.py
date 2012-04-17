@@ -8,7 +8,7 @@ import unittest, os
 
 from nose.plugins.attrib import attr
 
-@attr('INT',group='example')
+@attr('LOCOINT', 'INT',group='example')
 class Test_Bank(IonIntegrationTestCase):
 
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')

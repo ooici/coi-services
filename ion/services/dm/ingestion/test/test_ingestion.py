@@ -455,6 +455,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertEquals(ingestion_configuration.hdf_storage.relative_path, self.hdf_storage.relative_path)
         self.assertEquals(ingestion_configuration.couch_storage.datastore_name, self.couch_storage.datastore_name)
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ingestion_workers_creation(self):
         """
@@ -479,6 +480,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         for transform in transforms:
             self.assertTrue(self.container.proc_manager.procs[transform.process_id])
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ingestion_workers_working_round_robin(self):
         """
@@ -566,6 +568,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         # @TODO Test deactivate and reactivate....
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_dataset_config_and_event_subscriber(self):
         """
@@ -650,6 +653,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
                 archive_data = True,
                 archive_metadata=True)
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_dataset_config_dict_in_ingestion_worker(self):
         """
@@ -705,6 +709,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
         self.assertIn(self.input_stream_id, proc_2.dataset_configs)
 
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_update_dataset_config(self):
         """
@@ -796,6 +801,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
             dataset_config.description = 'updated right now'
             self.ingestion_cli.update_dataset_config(dataset_ingestion_configuration = dataset_config)
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_read_dataset_config(self):
         """
@@ -899,6 +905,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
 
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_receive_dataset_config_event(self):
         """
@@ -951,6 +958,7 @@ class IngestionManagementServiceIntTest(IonIntegrationTestCase):
 
         self.assertTrue(queue.get(timeout=10))
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_dataset_config_implementation_for_science_data(self):
         """

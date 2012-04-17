@@ -29,7 +29,6 @@ import StringIO
 import simplejson
 import math
 import gevent
-import copy
 from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
@@ -66,62 +65,38 @@ class VisualizationService(BaseVisualizationService):
         self.data_products = []
 
         # Create clients to interface with PubSub, Transform Management Service and Resource Registry
-        self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
-        self.tms_cli = TransformManagementServiceClient(node=self.container.node)
-        self.rr_cli = ResourceRegistryServiceClient(node=self.container.node)
-        self.dr_cli = DataRetrieverServiceClient(node=self.container.node)
-        self.dsm_cli = DatasetManagementServiceClient(node=self.container.node)
+        self.pubsub_cli = self.clients.pubsub_management
+        self.tms_cli = self.clients.transform_management
+        self.rr_cli = self.clients.resource_registry
+        self.dr_cli = self.clients.data_retriever
+        self.dsm_cli = self.clients.dataset_management
 
         """
-        self.datastore_name = 'ingested_datasets' #'test_datastore'
-
-        #The following code might go away in the future but check for an existing ingestion configuration in the system
-        # and if it does not exist, create one. It will be used by the data producers to persist data
-        self.IngestClient = IngestionManagementServiceClient(node=self.container.node)
-        ingestion_cfgs, _ = self.rr_cli.find_resources(RT.IngestionConfiguration, None, None, True)
-
-        self.datastore_name = 'test_datastore'
-        if len(ingestion_cfgs) == 0:
-            # ingestion configuration parameters
-            self.exchange_point_id = 'science_data'
-            self.number_of_workers = 2
-            self.hdf_storage = HdfStorage(relative_path='ingest')
-            self.couch_storage = CouchStorage(datastore_name=self.datastore_name)
-            self.XP = 'science_data'
-            self.exchange_name = 'ingestion_queue'
-
-            # Create ingestion configuration and activate it
-            self.ingestion_configuration_id =  self.IngestClient.create_ingestion_configuration(
-                exchange_point_id=self.exchange_point_id,
-                couch_storage=self.couch_storage,
-                hdf_storage=self.hdf_storage,
-                number_of_workers=self.number_of_workers
-            )
-            print 'test_activateInstrument: ingestion_configuration_id', self.ingestion_configuration_id
-
-            # activate an ingestion configuration
-            ret = self.IngestClient.activate_ingestion_configuration(self.ingestion_configuration_id)
-            log.debug("test_activateInstrument: activate = %s"  % str(ret))
-        """
-
-
         # Create process definitions which will used to spawn off the transform processes
-        self.process_definition1 = IonObject(RT.ProcessDefinition, name='viz_transform_process'+'.'+self.random_id_generator())
-        self.process_definition1.executable = {
+        self.matplotlib_proc_def = IonObject(RT.ProcessDefinition, name='viz_transform_process'+'.'+self.random_id_generator())
+        self.matplotlib_proc_def.executable = {
             'module': 'ion.services.ans.visualization_service',
             'class':'VizTransformProcForMatplotlibGraphs'
         }
-        self.process_definition_id1, _ = self.rr_cli.create(self.process_definition1)
+        self.matplotlib_proc_def_id, _ = self.rr_cli.create(self.matplotlib_proc_def)
 
-        self.process_definition2 = IonObject(RT.ProcessDefinition, name='viz_transform_process'+'.'+self.random_id_generator())
-        self.process_definition2.executable = {
+        self.google_dt_proc_def = IonObject(RT.ProcessDefinition, name='viz_transform_process'+'.'+self.random_id_generator())
+        self.google_dt_proc_def.executable = {
             'module': 'ion.services.ans.visualization_service',
             'class':'VizTransformProcForGoogleDT'
         }
-        self.process_definition_id2, _ = self.rr_cli.create(self.process_definition2)
+        self.google_dt_proc_def_id, _ = self.rr_cli.create(self.google_dt_proc_def)
+        """
+
+        # Query resource registry to get process definitions and streams ids made by the bootstrap
+        proc_def_ids,_ = self.rr_cli.find_resources(restype=RT.ProcessDefinition, lcstate=None, name="viz_matplotlib_transform_process", id_only=True)
+        self.matplotlib_proc_def_id = proc_def_ids[0]
+
+        proc_def_ids,_ = self.rr_cli.find_resources(restype=RT.ProcessDefinition, lcstate=None, name="viz_google_dt_transform_process", id_only=True)
+        self.google_dt_proc_def_id = proc_def_ids[0]
 
         # Create a stream that all the transform processes will use to submit data back to the viz service
-        self.viz_service_submit_stream_id = self.pubsub_cli.create_stream(name="visualization_service_submit_stream")
+        self.viz_service_submit_stream_id = self.pubsub_cli.create_stream(name="visualization_service_submit_stream." + self.random_id_generator())
 
         # subscribe to this stream since all the results from transforms will be submitted here
         query = StreamQuery(stream_ids=[self.viz_service_submit_stream_id,])
@@ -195,7 +170,7 @@ class VisualizationService(BaseVisualizationService):
         # define replay. If no filters are passed the entire ingested dataset is returned
         replay_id, replay_stream_id = self.dr_cli.define_replay(dataset_id=dp_obj.dataset_id)
 
-        replay_stream_def_id = self.pubsub_cli.find_stream_definition(stream_id=replay_stream_id,id_only=True)
+        replay_stream_def_id = self.pubsub_cli.find_stream_definition(stream_id=replay_stream_id, id_only=True)
 
         # setup the transform to handle the data coming back from the replay
         # Init storage for the resulting data_table
@@ -212,7 +187,7 @@ class VisualizationService(BaseVisualizationService):
         viz_transform_id = self.tms_cli.create_transform( name='viz_transform_google_dt_' + self.random_id_generator()+'.'+data_product_id,
             in_subscription_id=replay_subscription_id,
             out_streams = {"visualization_service_submit_stream_id": self.viz_service_submit_stream_id },
-            process_definition_id=self.process_definition_id2,
+            process_definition_id=self.google_dt_proc_def_id,
             configuration=configuration)
         self.tms_cli.activate_transform(viz_transform_id)
 
@@ -274,7 +249,10 @@ class VisualizationService(BaseVisualizationService):
 
         try:
             if data_product_id in self.viz_data_dictionary['google_realtime_dt']:
-                return self.viz_data_dictionary['google_realtime_dt'][data_product_id]['data_table']
+                # assign data_table to a temp var before returning it. This will ensure a complete object is returned
+                # in case the data_table is being updated by a transform process
+                data_table = self.viz_data_dictionary['google_realtime_dt'][data_product_id]['data_table']
+                return data_table
             else:
                 return None
 
@@ -292,7 +270,9 @@ class VisualizationService(BaseVisualizationService):
         # return a json version of the array stored in the data_dict
         try:
             if data_product_id in self.viz_data_dictionary['matplotlib_graphs']:
-                json_img_list = simplejson.dumps({'data': self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images']})
+                # assign data_table to a temp var before returning it. This will ensure a complete object is returned
+                img_list = self.viz_data_dictionary['matplotlib_graphs'][data_product_id]['list_of_images']
+                json_img_list = simplejson.dumps({'data': img_list})
                 return "image_list_callback("+json_img_list+")"
             else:
                 return None
@@ -310,7 +290,8 @@ class VisualizationService(BaseVisualizationService):
         try:
             if data_product_id in self.viz_data_dictionary['matplotlib_graphs']:
                 if image_name in self.viz_data_dictionary['matplotlib_graphs'][data_product_id]:
-                    return self.viz_data_dictionary['matplotlib_graphs'][data_product_id][image_name]
+                    img = self.viz_data_dictionary['matplotlib_graphs'][data_product_id][image_name]
+                    return img
                 else:
                     return None
             else:
@@ -414,6 +395,7 @@ class VisualizationService(BaseVisualizationService):
         # For the matplotlib graphs, the list_of_images stores the names of the image files. The actual binary data for the
         # images is also stored in the same dictionary as {img_name1: binary_data1, img_name2: binary_data2 .. etc}
         self.viz_data_dictionary['matplotlib_graphs'][data_product_id] = {'transform_proc': "", 'list_of_images': []}
+
         # The 'data_table' key points to a JSON string
         self.viz_data_dictionary['google_realtime_dt'][data_product_id] = {'transform_proc': "", 'data_table': []}
 
@@ -433,7 +415,7 @@ class VisualizationService(BaseVisualizationService):
         viz_transform_id1 = self.tms_cli.create_transform( name='viz_transform_matplotlib_'+ self.random_id_generator() + '.'+data_product_id,
             in_subscription_id=viz_subscription_id1,
             out_streams = {"visualization_service_submit_stream_id": self.viz_service_submit_stream_id },
-            process_definition_id=self.process_definition_id1,
+            process_definition_id=self.matplotlib_proc_def_id,
             configuration=configuration1)
         self.tms_cli.activate_transform(viz_transform_id1)
 
@@ -457,7 +439,7 @@ class VisualizationService(BaseVisualizationService):
         viz_transform_id2 = self.tms_cli.create_transform( name='viz_transform_realtime_google_dt_' + self.random_id_generator()+'.'+data_product_id,
             in_subscription_id=viz_subscription_id2,
             out_streams = {"visualization_service_submit_stream_id": self.viz_service_submit_stream_id },
-            process_definition_id=self.process_definition_id2,
+            process_definition_id=self.google_dt_proc_def_id,
             configuration=configuration2)
         self.tms_cli.activate_transform(viz_transform_id2)
 
