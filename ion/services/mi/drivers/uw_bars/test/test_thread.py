@@ -61,7 +61,8 @@ from nose.plugins.attrib import attr
 import os
 
 
-@unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this.')
+#@unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this.')
+@unittest.skip('Need to align.')
 @attr('UNIT', group='mi')
 class _T(Thread):
     def __init__(self):

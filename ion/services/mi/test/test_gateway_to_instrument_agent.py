@@ -54,6 +54,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
     
 #@unittest.skip('Do not run hardware test.')
+@unittest.skip('Need to align.')
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):

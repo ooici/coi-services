@@ -35,6 +35,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('META', group='sa')
+@unittest.skip('Need to align.')
 class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 
     def setUp(self):

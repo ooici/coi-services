@@ -14,7 +14,7 @@ from nose.plugins.attrib import attr
 from unittest import skip
 
 
-@skip('not yet easy to test protocol in isolation')
+@unittest.skip('Need to align.')
 @attr('UNIT', group='mi')
 class ProtocolTest(PyonBarsTestCase):
 

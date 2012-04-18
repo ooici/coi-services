@@ -18,7 +18,7 @@ from nose.plugins.attrib import attr
 from unittest import skip
 
 
-@skip('not yet easy to test driver in isolation')
+@unittest.skip('Need to align.')
 @attr('UNIT', group='mi')
 class DriverTest(PyonBarsTestCase):
 

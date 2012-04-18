@@ -24,6 +24,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
+@unittest.skip('Need to align.')
 @attr('INT', group='sa')
 class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
