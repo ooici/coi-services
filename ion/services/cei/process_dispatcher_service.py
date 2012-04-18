@@ -6,11 +6,15 @@ __license__ = 'Apache 2.0'
 import uuid
 import json
 
+import gevent
+
 from pyon.public import log, PRED
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.containers import create_valid_identifier
+from pyon.event.event import EventPublisher
 
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
+from interface.objects import ProcessStateEnum
 
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
@@ -58,6 +62,9 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
 
     def on_start(self):
         self.backend.initialize()
+
+    def on_stop(self):
+        self.backend.shutdown()
 
     def create_process_definition(self, process_definition=None):
         """Creates a Process Definition based on given object.
@@ -193,8 +200,12 @@ class PDLocalBackend(object):
 
     def __init__(self, container):
         self.container = container
+        self.event_pub = EventPublisher()
 
     def initialize(self):
+        pass
+
+    def shutdown(self):
         pass
 
     def spawn(self, name, definition, schedule, configuration):
@@ -216,14 +227,32 @@ class PDLocalBackend(object):
             config=configuration, process_id=name)
         log.debug('PD: Spawned Process (%s)', pid)
 
+        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+            origin=name, origin_type="DispatchedProcess",
+            state=ProcessStateEnum.SPAWN)
+
         return pid
 
     def cancel(self, process_id):
         self.container.proc_manager.terminate_process(process_id)
         log.debug('PD: Terminated Process (%s)', process_id)
 
+        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+            origin=process_id, origin_type="DispatchedProcess",
+            state=ProcessStateEnum.TERMINATE)
+
         return True
 
+
+# map from internal PD states to external ProcessStateEnum values
+_PD_PROCESS_STATE_MAP = {
+    "500-RUNNING" : ProcessStateEnum.SPAWN,
+    "600-TERMINATING" : ProcessStateEnum.TERMINATE,
+    "700-TERMINATED" : ProcessStateEnum.TERMINATE,
+    "800-EXITED" : ProcessStateEnum.TERMINATE,
+    "850-FAILED" : ProcessStateEnum.ERROR,
+    "900-REJECTED" : ProcessStateEnum.ERROR
+}
 
 class PDBridgeBackend(object):
     """Scheduling backend to PD that bridges to external CEI Process Dispatcher
@@ -231,6 +260,7 @@ class PDBridgeBackend(object):
 
     def __init__(self, conf):
         self.dashi = None
+        self.consumer_thread = None
 
         # grab config parameters used to connect to backend Process Dispatcher
         try:
@@ -241,8 +271,21 @@ class PDBridgeBackend(object):
             log.warn("Needed Process Dispatcher config not found: %s", e)
             raise
 
+        self.dashi_name = self.topic + "_bridge"
+        self.pd_process_subscribers = [(self.dashi_name, "process_state")]
+
+        self.event_pub = EventPublisher()
+
     def initialize(self):
         self.dashi = self._init_dashi()
+        self.dashi.handle(self._process_state, "process_state")
+        self.consumer_thread = gevent.spawn(self.dashi.consume)
+
+    def shutdown(self):
+        if self.dashi:
+            self.dashi.cancel()
+        if self.consumer_thread:
+            self.consumer_thread.join()
 
     def _init_dashi(self):
         # we are avoiding directly depending on dashi as this bridging approach
@@ -256,7 +299,32 @@ class PDBridgeBackend(object):
             log.warn("Attempted to use Process Dispatcher bridge mode but the "+
                      "dashi library dependency is not available.")
             raise
-        return dashi.DashiConnection(self.topic, self.uri, self.exchange)
+        return dashi.DashiConnection(self.dashi_name, self.uri, self.exchange)
+
+    def _process_state(self, process):
+        # handle incoming process state updates from the real PD service.
+        # some states map to ION events while others are ignored.
+
+        process_id = None
+        state = None
+        if process:
+            process_id = process.get('upid')
+            state = process.get('state')
+
+        if not (process and process_id and state):
+            log.warn("Invalid process state from CEI process dispatcher: %s",
+                process)
+            return
+
+        ion_process_state = _PD_PROCESS_STATE_MAP.get(state)
+        if not ion_process_state:
+            log.debug("Received unknown process state from Process Dispatcher."+
+                      " process=%s state=%s", process_id, state)
+            return
+
+        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+            origin=process_id, origin_type="DispatchedProcess",
+            state=ion_process_state)
 
     def spawn(self, name, definition, schedule, configuration):
 
@@ -281,7 +349,8 @@ class PDBridgeBackend(object):
         spec = dict(run_type="pyon_single", parameters=dict(rel=rel))
 
         proc = self.dashi.call(self.topic, "dispatch_process",
-            upid=name, spec=spec, subscribers=None, constraints=constraints)
+            upid=name, spec=spec, subscribers=self.pd_process_subscribers,
+            constraints=constraints)
 
         log.debug("Dashi Process Dispatcher returned process: %s", proc)
 
