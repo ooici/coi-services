@@ -451,6 +451,16 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         BaseLoggerProcess.__init__(self, server_port, pidfname, logfname,
                             statusfname, workdir, delim, sniffer_port, ppid)
 
+    def start():
+        """
+        Override daemon start method to launch a new python interpreter.
+        Avoids gevent monkeypatching leaking into the logger process.
+        """
+        cmd_str = 'from %s import %s; l = %s("%s", %i, %i, "%s", %s, %s, %s); l.start()' \
+            % (__name__, cls.__name__, cls.__name__, device_host, device_port,
+               server_port, workdir, str(delim), str(sniffer_port), str(ppid))
+        BaseLoggerProcess.launch_logger(cmd_str)        
+
     def _init_device_comms(self):
         """
         Initialize ethernet device comms. Attempt to connect to an IP
