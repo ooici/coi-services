@@ -71,8 +71,8 @@ DVR_EVT_PORT = 5557
 DVR_MOD = 'ion.services.mi.drivers.sbe37_driver'
 DVR_CLS = 'SBE37Driver'
 #DEV_ADDR = '67.58.49.220' 
-#DEV_ADDR = '137.110.112.119'
-DEV_ADDR = 'sbe37-simulator.oceanobservatories.org'
+#DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
+DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 PAGENT_ADDR = 'localhost'
@@ -85,6 +85,7 @@ COMMS_CONFIG = {
     'port': PAGENT_PORT
 }
 
+# Used to validate param config retrieved from driver.
 PARAMS = {
     SBE37Parameter.OUTPUTSAL : bool,
     SBE37Parameter.OUTPUTSV : bool,
@@ -123,7 +124,6 @@ PARAMS = {
     SBE37Parameter.RTCA0 : float,
     SBE37Parameter.RTCA1 : float,
     SBE37Parameter.RTCA2 : float
-    
 }
 
 
