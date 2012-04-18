@@ -28,9 +28,11 @@ from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
+"""
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+"""
 from pyon.public import CFG
 from mock import patch
 

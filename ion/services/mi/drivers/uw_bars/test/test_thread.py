@@ -62,8 +62,8 @@ import os
 
 
 #@unittest.skipIf(None == os.getenv('run_it'), 'define run_it to run this.')
-@unittest.skip('Need to align.')
 @attr('UNIT', group='mi')
+@unittest.skip('Need to align.')
 class _T(Thread):
     def __init__(self):
         Thread.__init__(self, name="_T")

@@ -4,22 +4,23 @@ __author__ = "Carlos Rueda"
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.drivers.uw_bars.test.pyon_test import PyonBarsTestCase
+"""
 from ion.services.mi.drivers.uw_bars.driver import BarsInstrumentDriver
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.common import InstErrorCode
-
+"""
 import time
 
 from nose.plugins.attrib import attr
 
-from unittest import skip
+import unittest
 
 
-@unittest.skip('Need to align.')
 @attr('UNIT', group='mi')
+@unittest.skip('Need to align.')
 class DriverTest(PyonBarsTestCase):
 
     def test(self):
