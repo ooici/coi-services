@@ -60,6 +60,9 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_errors
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_discover_autosample
 
+# http://sbe37-simulator.oceanobservatories.org/
+# 4001 random data
+# 4002 sine based
 
 # Driver and port agent configuration
 DVR_SVR_ADDR = 'localhost'
@@ -68,8 +71,10 @@ DVR_EVT_PORT = 5557
 DVR_MOD = 'ion.services.mi.drivers.sbe37_driver'
 DVR_CLS = 'SBE37Driver'
 #DEV_ADDR = '67.58.49.220' 
-DEV_ADDR = '137.110.112.119' 
-DEV_PORT = 4001
+#DEV_ADDR = '137.110.112.119'
+DEV_ADDR = 'sbe37-simulator.oceanobservatories.org'
+DEV_PORT = 4001 # Moxa port or simulator random data.
+#DEV_PORT = 4002 # Simulator sine data.
 PAGENT_ADDR = 'localhost'
 PAGENT_PORT = 8888
 WORK_DIR = '/tmp/'
@@ -123,7 +128,7 @@ PARAMS = {
 
 
 @attr('HARDWARE', group='mi')
-#@unittest.skip('Ready to go, remove skip when other errors out.')
+#@unittest.skip('Ready to go, remove skip when tested against simulator.')
 class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
@@ -176,13 +181,11 @@ class TestSBE37Driver(PyonTestCase):
 
         # Start the port agent.
         # Confirm it is started by getting pidfile.
-        # EthernetDeviceLogger.launch_logger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
-        #                WORK_DIR, DELIM, SNIFFER_PORT, this_pid)
         self._pagent.startx()
-        #self._pagent.start()
+        mi_logger.info('Here...')
         pid = self._pagent.get_pid()
         while not pid:
-            time.sleep(.1)
+            gevent.sleep(.1)
             pid = self._pagent.get_pid()
         mi_logger.info('Started port agent pid %d', pid)
         
@@ -220,7 +223,7 @@ class TestSBE37Driver(PyonTestCase):
         # Start client messaging.
         self._dvr_client.start_messaging(self.evt_recd)
         mi_logger.info('Driver messaging started.')
-        time.sleep(.5)
+        gevent.sleep(.5)
             
     def _stop_driver(self):
         """
@@ -336,7 +339,7 @@ class TestSBE37Driver(PyonTestCase):
             'And I am important event #2!'
             ]
         reply = self._dvr_client.cmd_dvr('test_events', events=events)
-        time.sleep(1)
+        gevent.sleep(1)
         
         # Confirm the events received are as expected.
         self.assertEqual(self._events, events)
@@ -347,7 +350,7 @@ class TestSBE37Driver(PyonTestCase):
             reply = self._dvr_client.cmd_dvr('test_exceptions', exception_str)
         
         # Verify we received a driver error event.
-        time.sleep(1)
+        gevent.sleep(1)
         error_events = [evt for evt in self._events if isinstance(evt, dict) and evt['type']==DriverAsyncEvent.ERROR]
         self.assertTrue(len(error_events) == 1)
         
@@ -548,7 +551,7 @@ class TestSBE37Driver(PyonTestCase):
         self.assertSampleDict(reply)
         
         # Confirm that 3 samples arrived as published events.
-        time.sleep(1)
+        gevent.sleep(1)
         sample_events = [evt for evt in self._events if evt['type']==DriverAsyncEvent.SAMPLE]
         self.assertEqual(len(sample_events), 3)
 
@@ -610,7 +613,7 @@ class TestSBE37Driver(PyonTestCase):
         self.assertEqual(state, SBE37ProtocolState.AUTOSAMPLE)
         
         # Wait for a few samples to roll in.
-        time.sleep(30)
+        gevent.sleep(30)
         
         # Return to command mode. Catch timeouts and retry if necessary.
         count = 0
@@ -648,7 +651,7 @@ class TestSBE37Driver(PyonTestCase):
         state = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(state, DriverConnectionState.UNCONFIGURED)
 
-    # Note: the following test is probably not supported by the simulator.
+    @unittest.skip('Not supported by simulator and very long (> 5 min).')
     def test_test(self):
         """
         Test the hardware testing mode.
@@ -686,7 +689,7 @@ class TestSBE37Driver(PyonTestCase):
         self.assertEqual(state, SBE37ProtocolState.TEST)
         
         while state != SBE37ProtocolState.COMMAND:
-            time.sleep(5)
+            gevent.sleep(5)
             elapsed = time.time() - start_time
             mi_logger.info('Device testing %f seconds elapsed.' % elapsed)
             state = self._dvr_client.cmd_dvr('get_current_state')
@@ -840,7 +843,7 @@ class TestSBE37Driver(PyonTestCase):
         state = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(state, DriverConnectionState.UNCONFIGURED)
     
-    # Note: the following test is probably not supported by the simulator.    
+    @unittest.skip('Not supported by simulator.')
     def test_discover_autosample(self):
         """
         Test the device can discover autosample mode.
@@ -885,7 +888,7 @@ class TestSBE37Driver(PyonTestCase):
         self.assertEqual(state, SBE37ProtocolState.AUTOSAMPLE)
     
         # Let a sample or two come in.
-        gevent.sleep(15)
+        gevent.sleep(30)
     
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('disconnect')
@@ -902,7 +905,7 @@ class TestSBE37Driver(PyonTestCase):
         self.assertEqual(state, DriverConnectionState.UNCONFIGURED)
 
         # Wait briefly before we restart the comms.
-        gevent.sleep(5)
+        gevent.sleep(10)
     
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('configure', COMMS_CONFIG)
@@ -939,7 +942,7 @@ class TestSBE37Driver(PyonTestCase):
         # Let a sample or two come in.
         # This device takes awhile to begin transmitting again after you
         # prompt it in autosample mode.
-        gevent.sleep(15)
+        gevent.sleep(30)
 
         # Return to command mode. Catch timeouts and retry if necessary.
         count = 0

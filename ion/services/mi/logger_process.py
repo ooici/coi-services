@@ -380,6 +380,7 @@ class BaseLoggerProcess(DaemonProcess):
             self.statusfile.flush()
             return
         
+        #last_time = time.time()
         while self._device_connected():
             self._accept_driver_comms()
             driver_data = self.read_driver()
@@ -395,6 +396,11 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.write('\n')
                 self.logfile.flush()
             self._check_parent()
+            #cur_time = time.time()
+            #if cur_time - last_time > 5:
+            #    last_time = cur_time
+            #    self.statusfile.write('logger processing...\n')
+            #    self.statusfile.flush()
             if not driver_data and not device_data:
                 time.sleep(.1)
 
