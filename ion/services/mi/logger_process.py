@@ -51,6 +51,8 @@ class BaseLoggerProcess(DaemonProcess):
         Launch a logger in a sperate python environment.
         @param cmd_str the command string for python.
         """
+        
+        mi_logger.info('LAUNCH STRING: %s',cmd_str)
         spawnargs = ['bin/python', '-c', cmd_str]
         return Popen(spawnargs, close_fds=True)
     
@@ -451,14 +453,15 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         BaseLoggerProcess.__init__(self, server_port, pidfname, logfname,
                             statusfname, workdir, delim, sniffer_port, ppid)
 
-    def start():
+    def startx(self):
         """
         Override daemon start method to launch a new python interpreter.
         Avoids gevent monkeypatching leaking into the logger process.
         """
+        cls_name = type(self).__name__
         cmd_str = 'from %s import %s; l = %s("%s", %i, %i, "%s", %s, %s, %s); l.start()' \
-            % (__name__, cls.__name__, cls.__name__, device_host, device_port,
-               server_port, workdir, str(delim), str(sniffer_port), str(ppid))
+            % (__name__, cls_name, cls_name, self.device_host, self.device_port,
+               self.server_port, self.workdir, str(self.delim), str(self.sniffer_port), str(self.ppid))
         BaseLoggerProcess.launch_logger(cmd_str)        
 
     def _init_device_comms(self):

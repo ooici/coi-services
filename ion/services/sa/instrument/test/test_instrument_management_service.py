@@ -29,7 +29,7 @@ from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
 from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
 
 #from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-#import unittest
+import unittest
 from pyon.util.unit_test import PyonTestCase
 
 

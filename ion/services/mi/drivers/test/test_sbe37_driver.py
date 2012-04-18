@@ -123,7 +123,7 @@ PARAMS = {
 
 
 @attr('HARDWARE', group='mi')
-@unittest.skip('Ready to go, remove skip when other errors out.')
+#@unittest.skip('Ready to go, remove skip when other errors out.')
 class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
@@ -176,9 +176,10 @@ class TestSBE37Driver(PyonTestCase):
 
         # Start the port agent.
         # Confirm it is started by getting pidfile.
-        EthernetDeviceLogger.launch_logger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
-                        WORK_DIR, DELIM, SNIFFER_PORT, this_pid)
-        self._pagent.start()
+        # EthernetDeviceLogger.launch_logger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
+        #                WORK_DIR, DELIM, SNIFFER_PORT, this_pid)
+        self._pagent.startx()
+        #self._pagent.start()
         pid = self._pagent.get_pid()
         while not pid:
             time.sleep(.1)
