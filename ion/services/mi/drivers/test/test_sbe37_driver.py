@@ -175,6 +175,8 @@ class TestSBE37Driver(PyonTestCase):
 
         # Start the port agent.
         # Confirm it is started by getting pidfile.
+        EthernetDeviceLogger.launch_logger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
+                        WORK_DIR, DELIM, SNIFFER_PORT, this_pid)
         self._pagent.start()
         pid = self._pagent.get_pid()
         while not pid:

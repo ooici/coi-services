@@ -45,7 +45,15 @@ class BaseLoggerProcess(DaemonProcess):
     Derived subclasses provide read/write logic for TCP/IP, serial or other
     device hardware.
     """
-        
+    @staticmethod
+    def launch_logger(cmd_str):
+        """
+        Launch a logger in a sperate python environment.
+        @param cmd_str the command string for python.
+        """
+        spawnargs = ['bin/python', '-c', cmd_str]
+        return Popen(spawnargs, close_fds=True)
+    
     def __init__(self, server_port, pidfname, logfname, statusfname,
                  workdir, delim, sniffer_port, ppid):
         """
@@ -394,6 +402,17 @@ class EthernetDeviceLogger(BaseLoggerProcess):
     Provides functionality opening, closing, reading, writing and checking
     connection status of device.
     """
+    
+    @classmethod
+    def launch_logger(cls, device_host, device_port, server_port, workdir,
+                      delim, sniffer_port, ppid):
+        """
+        Static method to launch the logger in a seperate python environment.
+        """
+        cmd_str = 'from %s import %s; l = %s("%s", %i, %i, "%s", %s, %s, %s); l.start()' \
+            % (__name__, cls.__name__, cls.__name__, device_host, device_port,
+               server_port, workdir, str(delim), str(sniffer_port), str(ppid))
+        BaseLoggerProcess.launch_logger(cmd_str)
     
     def __init__(self, device_host, device_port, server_port, workdir,
                  delim, sniffer_port, ppid):
