@@ -123,6 +123,7 @@ PARAMS = {
 
 
 @attr('HARDWARE', group='mi')
+@unittest.skip('Ready to go, remove skip when other errors out.')
 class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
