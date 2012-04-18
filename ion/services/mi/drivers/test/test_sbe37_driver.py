@@ -29,7 +29,6 @@ from nose.plugins.attrib import attr
 from pyon.util.unit_test import PyonTestCase
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-from ion.services.mi.watchdog_process import launch_logger_watchdog
 from ion.services.mi.drivers.sbe37_driver import SBE37Driver
 from ion.services.mi.drivers.sbe37_driver import SBE37ProtocolState
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
@@ -290,7 +289,7 @@ class TestSBE37Driver(PyonTestCase):
         for (key, val) in params.iteritems():
             correct_val = correct_params[key]
             if isinstance(val, float):
-                # Verify to 1% of the larger value.
+                # Verify to 5% of the larger value.
                 max_val = max(abs(val), abs(correct_val))
                 self.assertAlmostEqual(val, correct_val, delta=max_val*.01)
 
@@ -485,13 +484,16 @@ class TestSBE37Driver(PyonTestCase):
         self.assertParamVals(reply, orig_params)
 
         # Retrieve the configuration and ensure it matches the original.
+        # Remove samplenum as it is switched by autosample and storetime.
         reply = self._dvr_client.cmd_dvr('get', SBE37Parameter.ALL)
+        reply.pop('SAMPLENUM')
+        orig_config.pop('SAMPLENUM')
         self.assertParamVals(reply, orig_config)
 
         # Disconnect from the port agent.
         reply = self._dvr_client.cmd_dvr('disconnect')
         
-        # Test the driver is configured for comms.
+        # Test the driver is disconnected.
         state = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(state, DriverConnectionState.DISCONNECTED)
         
