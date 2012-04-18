@@ -3,7 +3,6 @@
 """
 @package ion.services.mi.instrument_driver Instrument driver structures
 @file ion/services/mi/instrument_driver.py
-@author Steve Foley
 @author Edward Hunter
 @brief Instrument driver classes that provide structure towards interaction
 with individual instruments in the system.
@@ -13,75 +12,45 @@ __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.exceptions import InstrumentConnectionException 
-from ion.services.mi.common import DEFAULT_TIMEOUT
+from ion.services.mi.exceptions import NotImplementedError 
+from ion.services.mi.exceptions import InstrumentException
+import time
 
-class DriverChannel(BaseEnum):
-    """Common channels for all sensors. Driver subclasses contain a subset."""
-    INSTRUMENT = 'CHANNEL_INSTRUMENT'
-    CTD = 'CHANNEL_CTD'
-    ALL = 'CHANNEL_ALL'
-
-class DriverCommand(BaseEnum):
-    """Common driver commands
-    
-    Commands and events should have unique strings that either indicate
-    something or can be used in some other rational fashion."""
-    
-    ACQUIRE_SAMPLE = 'DRIVER_CMD_ACQUIRE_SAMPLE'
-    START_AUTO_SAMPLING = 'DRIVER_CMD_START_AUTO_SAMPLING'
-    STOP_AUTO_SAMPLING = 'DRIVER_CMD_STOP_AUTO_SAMPLING'
-    TEST = 'DRIVER_CMD_TEST'
-    CALIBRATE = 'DRIVER_CMD_CALIBRATE'
-    RESET = 'DRIVER_CMD_RESET'
-    GET = 'DRIVER_CMD_GET'
-    SET = 'DRIVER_CMD_SET'
-    GET_STATUS = 'DRIVER_CMD_GET_STATUS'
-    GET_METADATA = 'DRIVER_CMD_GET_METADATA'
-    UPDATE_PARAMS = 'DRIVER_CMD_UPDATE_PARAMS'
-    TEST_ERRORS = 'DRIVER_CMD_TEST_ERRORS'    
-
-
-class DriverState(BaseEnum):
-    """Common driver state enum"""
-    
-    UNCONFIGURED = 'DRIVER_STATE_UNCONFIGURED'
-    DISCONNECTED = 'DRIVER_STATE_DISCONNECTED'
-    CONNECTING = 'DRIVER_STATE_CONNECTING'
-    DISCONNECTING = 'DRIVER_STATE_DISCONNECTING'
-    CONNECTED = 'DRIVER_STATE_CONNECTED'
-    ACQUIRE_SAMPLE = 'DRIVER_STATE_ACQUIRE_SAMPLE'
-    UPDATE_PARAMS = 'DRIVER_STATE_UPDATE_PARAMS'
-    SET = 'DRIVER_STATE_SET'
+class DriverProtocolState(BaseEnum):
+    """
+    Base states for driver protocols. Subclassed for specific driver
+    protocols.
+    """
     AUTOSAMPLE = 'DRIVER_STATE_AUTOSAMPLE'
     TEST = 'DRIVER_STATE_TEST'
     CALIBRATE = 'DRIVER_STATE_CALIBRATE'
-    DETACHED = 'DRIVER_STATE_DETACHED'
     COMMAND = 'DRIVER_STATE_COMMAND'
-    DIRECT = 'DRIVER_STATE_DIRECT'
+    DIRECT_ACCESS = 'DRIVER_STATE_DIRECT_ACCESS'
+    UNKNOWN = 'DRIVER_STATE_UNKNOWN'
 
+class DriverConnectionState(BaseEnum):
+    """
+    Base states for driver connections.
+    """
+    UNCONFIGURED = 'DRIVER_STATE_UNCONFIGURED'
+    DISCONNECTED = 'DRIVER_STATE_DISCONNECTED'
+    CONNECTED = 'DRIVER_STATE_CONNECTED'
+    
 class DriverEvent(BaseEnum):
-    """Common driver event enum
-    
-    Commands and events should have unique strings that either indicate
-    something or can be used in some other rational fashion."""
-    
+    """
+    Base events for driver state machines. Commands and other events
+    are transformed into state machine events for handling.
+    """
     CONFIGURE = 'DRIVER_EVENT_CONFIGURE'
     INITIALIZE = 'DRIVER_EVENT_INITIALIZE'
     CONNECT = 'DRIVER_EVENT_CONNECT'
-    CONNECTION_COMPLETE = 'DRIVER_EVENT_CONNECTION_COMPLETE'
-    CONNECTION_FAILED = 'DRIVER_EVENT_CONNECTION_FAILED'
     CONNECTION_LOST = 'DRIVER_CONNECTION_LOST'
     DISCONNECT = 'DRIVER_EVENT_DISCONNECT'
-    DISCONNECT_COMPLETE = 'DRIVER_EVENT_DISCONNECT_COMPLETE'
-    DISCONNECT_FAILED = 'DRIVER_EVENT_DISCONNECT_FAILED'
-    PROMPTED = 'DRIVER_EVENT_PROMPTED'
-    DATA_RECEIVED = 'DRIVER_EVENT_DATA_RECEIVED'
-    COMMAND_RECEIVED = 'DRIVER_EVENT_COMMAND_RECEIVED'
-    RESPONSE_TIMEOUT = 'DRIVER_EVENT_RESPONSE_TIMEOUT'
     SET = 'DRIVER_EVENT_SET'
     GET = 'DRIVER_EVENT_GET'
+    DISCOVER = 'DRIVER_EVENT_DISCOVER'
     EXECUTE = 'DRIVER_EVENT_EXECUTE'
+    EXECUTE_DIRECT = 'DRIVER_EVENT_EXECUTE_DIRECT'
     ACQUIRE_SAMPLE = 'DRIVER_EVENT_ACQUIRE_SAMPLE'
     START_AUTOSAMPLE = 'DRIVER_EVENT_START_AUTOSAMPLE'
     STOP_AUTOSAMPLE = 'DRIVER_EVENT_STOP_AUTOSAMPLE'
@@ -91,381 +60,260 @@ class DriverEvent(BaseEnum):
     RESET = 'DRIVER_EVENT_RESET'
     ENTER = 'DRIVER_EVENT_ENTER'
     EXIT = 'DRIVER_EVENT_EXIT'
-    ATTACH = 'DRIVER_EVENT_ATTACH'
-    DETACH = 'DRIVER_EVENT_DETACH'
     UPDATE_PARAMS = 'DRIVER_EVENT_UPDATE_PARAMS'
-    EXECUTE_DIRECT = 'EXECUTE_DIRECT'    
-    START_DIRECT = 'DRIVER_EVENT_START_DIRECT'
-    STOP_DIRECT = 'DRIVER_EVENT_STOP_DIRECT'
 
-class DriverStatus(BaseEnum):
-    """Common driver status enum"""
-    
-    DRIVER_VERSION = 'DRIVER_STATUS_DRIVER_VERSION'
-    DRIVER_STATE = 'DRIVER_STATUS_DRIVER_STATE'
-    OBSERVATORY_STATE = 'DRIVER_STATUS_OBSERVATORY_STATE'
-    DRIVER_ALARMS = 'DRIVER_STATUS_DRIVER_ALARMS'
-    ALL = 'DRIVER_STATUS_ALL'
-
+class DriverAsyncEvent(BaseEnum):
+    """
+    Asynchronous driver event types.
+    """
+    STATE_CHANGE = 'DRIVER_ASYNC_EVENT_STATE_CHANGE'
+    CONFIG_CHANGE = 'DRIVER_ASYNC_EVENT_CONFIG_CHANGE'
+    SAMPLE = 'DRIVER_ASYNC_EVENT_SAMPLE'
+    ERROR = 'DRIVER_ASYNC_EVENT_ERROR'
+    TEST_RESULT = 'DRIVER_ASYNC_TEST_RESULT'
 
 class DriverParameter(BaseEnum):
-    """Common driver parameter enum"""
-    
+    """
+    Base driver parameters. Subclassed by specific drivers with device
+    specific parameters.
+    """
     ALL = 'DRIVER_PARAMETER_ALL'
 
-
-class ObservatoryState(BaseEnum):
-    """The status of a device in observatory mode"""
-    
-    NONE = 'OBSERVATORY_STATUS_NONE'
-    STANDBY = 'OBSERVATORY_STATUS_STANDBY'
-    STREAMING = 'OBSERVATORY_STATUS_STREAMING'
-    TESTING = 'OBSERVATORY_STATUS_TESTING'
-    CALIBRATING = 'OBSERVATORY_STATUS_CALIBRATING'
-    UPDATING = 'OBSERVATORY_STATUS_UPDATING'
-    ACQUIRING = 'OBSERVATORY_STATUS_ACQUIRING'
-    UNKNOWN = 'OBSERVATORY_STATUS_UNKNOWN'
-
-"""
-TODO:
-Do we want timeouts in the driver interface. timeout=DEFAULT_TIMEOUT.
-How would we provide such behavior?
-"""
-
 class InstrumentDriver(object):
-    """The base instrument driver class
-    
-    This is intended to be extended where necessary to provide a coherent
-    driver for interfacing between the instrument and the instrument agent.
-    Think of this class as encapsulating the session layer of the instrument
-    interaction.
-    
-    @see https://confluence.oceanobservatories.org/display/syseng/CIAD+SA+SV+Instrument+Driver+Interface
     """
-
-    def __init__(self, evt_callback):
-
-        # Instrument channel dict.
-        # A dictionary of channel-name keys and channel protocol object values.
-        # We need to change this to protocol or connection name, rather than channel.
-        self.channels = {}
-        self.send_event = evt_callback
-        
-        # Below are old members with comments from EH.
-        #
-        # Protocol will create and own the connection it fronts.
-        #self.instrument_connection = None
-        #"""An object for manipulating connect and disconnect to an instrument"""
-        # This is the self.channels member above. Change name. A dict of protocols.
-        #self.instrument_protocol = None
-        #"""The instrument-specific protocol object"""
-        # This is supplied by the driver process that contains and creates the driver.
-        #self.instrument_comms_method = None
-        #"""The communications method formatting object"""
-        # Probably an enum class with execute commands that are possible.
-        #self.instrument_commands = None
-        #"""The instrument-specific command list"""
-        # Ditch this.
-        #self.instrument_metadata_parameters = None
-        #"""The instrument-specific metadata parameter list"""
-        # To be added. A dictionary or class that knows how to match, parse and format all of its params.
-        #self.instrument_parameters = None
-        #"""The instrument-specific parameter list"""
-        # TBD.
-        #self.instrument_channels = None
-        #"""The instrument-specific channel list"""
-        # Why bother, make errors draw from the common list.
-        #self.instrument_errors = None
-        #"""The instrument-specific error list"""
-        # This should return the instrument commands enum values
-        #self.instrument_capabilities = None
-        #"""The instrument-specific capabilities list"""
-        # TBD.
-        #self.instrument_status = None
-        #"""The instrument-specific status list"""
-        
-        # Do we need this also? Just use simple harmonizing logic
-        # at driver level if there are multiple connections. If one connection,
-        # one state machine.
-        # Setup the state machine
-        """
-        self.driver_fsm = FSM(DriverState.UNCONFIGURED)
-        self.driver_fsm.add_transition(DriverEvent.CONFIGURE,
-                                       DriverState.UNCONFIGURED,
-                                       action=self._handle_configure,
-                                       next_state=DriverState.DISCONNECTED)
-        self.driver_fsm.add_transition(DriverEvent.INITIALIZE,
-                                       DriverState.DISCONNECTED,
-                                       action=self._handle_initialize,
-                                       next_state=DriverState.UNCONFIGURED)        
-        self.driver_fsm.add_transition(DriverEvent.DISCONNECT_FAILED,
-                                       DriverState.DISCONNECTING,
-                                       action=self._handle_disconnect_failure,
-                                       next_state=DriverState.CONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.DISCONNECT_COMPLETE,
-                                       DriverState.DISCONNECTING,
-                                       action=self._handle_disconnect_success,
-                                       next_state=DriverState.DISCONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.DISCONNECT,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_disconnect,
-                                       next_state=DriverState.DISCONNECTING) 
-        self.driver_fsm.add_transition(DriverEvent.CONNECT,
-                                       DriverState.DISCONNECTED,
-                                       action=self._handle_connect,
-                                       next_state=DriverState.CONNECTING) 
-        self.driver_fsm.add_transition(DriverEvent.CONNECTION_COMPLETE,
-                                       DriverState.CONNECTING,
-                                       action=self._handle_connect_success,
-                                       next_state=DriverState.CONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.CONNECTION_FAILED,
-                                       DriverState.CONNECTING,
-                                       action=self._handle_connect_failed,
-                                       next_state=DriverState.DISCONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.START_AUTOSAMPLE,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_start_autosample,
-                                       next_state=DriverState.AUTOSAMPLE) 
-        self.driver_fsm.add_transition(DriverEvent.STOP_AUTOSAMPLE,
-                                       DriverState.AUTOSAMPLE,
-                                       action=self._handle_stop_autosample,
-                                       next_state=DriverState.CONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.CONNECTION_LOST,
-                                       DriverState.AUTOSAMPLE,
-                                       action=self._handle_connection_lost,
-                                       next_state=DriverState.DISCONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.CONNECTION_LOST,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_connection_lost,
-                                       next_state=DriverState.DISCONNECTED) 
-        
-        self.driver_fsm.add_transition(DriverEvent.DATA_RECEIVED,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_data_received,
-                                       next_state=DriverState.CONNECTED)
-        self.driver_fsm.add_transition(DriverEvent.DATA_RECEIVED,
-                                       DriverState.AUTOSAMPLE,
-                                       action=self._handle_data_received,
-                                       next_state=DriverState.AUTOSAMPLE)
-        self.driver_fsm.add_transition(DriverEvent.GET,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_get,
-                                       next_state=DriverState.CONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.SET,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_set,
-                                       next_state=DriverState.CONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.ACQUIRE_SAMPLE,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_acquire_sample,
-                                       next_state=DriverState.CONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.TEST,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_test,
-                                       next_state=DriverState.CONNECTED) 
-        self.driver_fsm.add_transition(DriverEvent.CALIBRATE,
-                                       DriverState.CONNECTED,
-                                       action=self._handle_calibrate,
-                                       next_state=DriverState.CONNECTED) 
-
-        self.driver_fsm.add_transition_catch(DriverEvent.RESET,
-                                       action=self._handle_reset,
-                                       next_state=DriverState.UNCONFIGURED)    
-        """
-        
-    ########################################################################
-    # Channel connection interface.
-    ########################################################################
+    Base class for instrument drivers.
+    """
     
-    def initialize(self, channels, *args, **kwargs):
+    def __init__(self, event_callback):
         """
-        Return a device channel to an unconnected, unconfigured state.
-        @param channels List of channel names to initialize.
-        @param timeout Number of seconds before this operation times out
+        Constructor.
+        @param event_callback The driver process callback used to send
+        asynchrous driver events to the agent.
         """
-        pass
+        self._send_event = event_callback
 
-    def configure(self, configs, *args, **kwargs):
-        """
-        Configure the driver for communications with an instrument channel.
-        @param config A dict containing channel name keys, with
-        dict values containing the comms configuration for the named channel.
-        @param timeout Number of seconds before this operation times out        
-        """
-        pass        
-        
-    def connect(self, channels, *args, **kwargs):
-        """
-        Establish communications with a device channel.
-        @param channels List of channel names to connect.
-        @param timeout Number of seconds before this operation times out
-        """
-        pass
+    #############################################################
+    # Device connection interface.
+    #############################################################
     
-    def disconnect(self, channels, *args, **kwargs):
+    def initialize(self, *args, **kwargs):
         """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
+        Initialize driver connection, bringing communications parameters
+        into unconfigured state (no connection object).
+        @raises StateError if command not allowed in current state        
+        @raises NotImplementedError if not implemented by subclass.
+        """
+        raise NotImplementedError('initialize() not implemented.')
         
+    def configure(self, *args, **kwargs):
         """
-        pass
+        Configure the driver for communications with the device via
+        port agent / logger (valid but unconnected connection object).
+        @param arg[0] comms config dict.
+        @raises StateError if command not allowed in current state        
+        @throws ParameterError if missing comms or invalid config dict.
+        @raises NotImplementedError if not implemented by subclass.
+        """
+        raise NotImplementedError('configure() not implemented.')
+        
+    def connect(self, *args, **kwargs):
+        """
+        Establish communications with the device via port agent / logger
+        (connected connection object).
+        @raises StateError if command not allowed in current state
+        @throws ConnectionError if the connection failed.
+        @raises NotImplementedError if not implemented by subclass.
+        """
+        raise NotImplementedError('connect() not implemented.')
+    
+    def disconnect(self, *args, **kwargs):
+        """
+        Disconnect from device via port agent / logger.
+        @raises StateError if command not allowed in current state
+        @raises NotImplementedError if not implemented by subclass.
+        """
+        raise NotImplementedError('disconnect() not implemented.')
 
-    def detach(self, channels, *args, **kwargs):
+    #############################################################
+    # Command and control interface.
+    #############################################################
+
+    def discover(self, *args, **kwargs):
         """
-        Disconnect communications with a device channel.
-        @param channels List of channel names to disconnect.
-        @param timeout Number of seconds before this operation times out
+        Determine initial state upon establishing communications.
+        @param timeout=timeout Optional command timeout.        
+        @retval Current device state.
+        @raises TimeoutError if could not wake device.
+        @raises StateError if command not allowed in current state or if
+        device state not recognized.
+        @raises NotImplementedError if not implemented by subclass.
         """
-        pass
+        raise NotImplementedError('discover() is not implemented.')
+
+    def get(self, *args, **kwargs):
+        """
+        Retrieve device parameters.
+        @param args[0] DriverParameter.ALL or a list of parameters to retrive.
+        @retval parameter : value dict.
+        @raises ParameterError if missing or invalid get parameters.
+        @raises StateError if command not allowed in current state
+        @raises NotImplementedError if not implemented by subclass.
+        """
+        raise NotImplementedError('get() is not implemented.')
+
+    def set(self, *args, **kwargs):
+        """
+        Set device parameters.
+        @param args[0] parameter : value dict of parameters to set.
+        @param timeout=timeout Optional command timeout.
+        @raises ParameterError if missing or invalid set parameters.
+        @riases TimeoutError if could not wake device or no response.
+        @raises ProtocolError if set command not recognized.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.
+        """
+        raise NotImplementedError('set() not implemented.')
+
+    def execute_acquire_sample(self, *args, **kwargs):
+        """
+        Poll for a sample.
+        @param timeout=timeout Optional command timeout.        
+        @ retval Device sample dict.
+        @riases TimeoutError if could not wake device or no response.
+        @raises ProtocolError if acquire command not recognized.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.        
+        """
+        raise NotImplementedError('execute_acquire_sample() not implemented.')
+
+    def execute_start_autosample(self, *args, **kwargs):
+        """
+        Switch to autosample mode.
+        @param timeout=timeout Optional command timeout.        
+        @riases TimeoutError if could not wake device or no response.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.                
+        """
+        raise NotImplementedError('execute_start_autosample() not implemented.')
+
+    def execute_stop_autosample(self, *args, **kwargs):
+        """
+        Leave autosample mode.
+        @param timeout=timeout Optional command timeout.        
+        @riases TimeoutError if could not wake device or no response.
+        @raises ProtocolError if stop command not recognized.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.                
+        """
+        raise NotImplementedError('execute_stop_autosample() not implemented.')
+
+    def execute_test(self, *args, **kwargs):
+        """
+        Execute device tests.
+        @param timeout=timeout Optional command timeout (for wakeup only --
+        device specific timeouts for internal test commands).
+        @riases TimeoutError if could not wake device or no response.
+        @raises ProtocolError if test commands not recognized.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.                        
+        """
+        raise NotImplementedError('execute_test() not implemented.')
+
+    def execute_calibrate(self, *args, **kwargs):
+        """
+        Execute device calibration.
+        @param timeout=timeout Optional command timeout (for wakeup only --
+        device specific timeouts for internal calibration commands).
+        @riases TimeoutError if could not wake device or no response.
+        @raises ProtocolError if test commands not recognized.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.                        
+        """
+        raise NotImplementedError('execute_calibrate() not implemented.')
+
+    def execute_direct(self, *args, **kwargs):
+        """
+        """
+        raise NotImplementedError('execute_direct() not implemented.')
 
     ########################################################################
-    # Channel command interface.
-    ########################################################################
-
-    def get(self, params, *args, **kwargs):
-        """
-        @param timeout Number of seconds before this operation times out
-        """
-        pass
-    
-    def set(self, params, *args, **kwargs):
-        """
-        @param timeout Number of seconds before this operation times out
-        """
-        pass
-
-    def execute_acquire_sample(self, channels, *args, **kwargs):
-        """
-        """
-        pass
-
-    def execute_start_autosample(self, channels, *args, **kwargs):
-        """
-        """
-        pass
-
-    def execute_stop_autosample(self, channels, *args, **kwargs):
-        """
-        """
-        pass
-
-    def execute_test(self, channels, *args, **kwargs):
-        """
-        """
-        pass
-    
-    def execute_direct(self, channels, *args, **kwargs):
-        """
-        """
-        pass
-
-    def execute_direct_access(self, channels, *args, **kwargs):
-        """
-        """
-        pass
-
-    def execute_start_direct_access(self, channels):
-        """
-        """
-        pass
-        
-    def execute_stop_direct_access(self, channels):
-        """
-        """
-        pass
-        
-    ################################
-    # Announcement callback from protocol
-    ################################
-    def protocol_callback(self, event):
-        """The callback method that the protocol calls when there is some sort
-        of event worth notifying the driver about.
-        
-        @param event The event object from the event service
-        @todo Make event a real event object of some sort instead of the hack
-        tuple of (DriverAnnouncement enum, any error code, message)
-        """
-    
-    
-    ########################################################################
-    # TBD.
+    # Resource query interface.
     ########################################################################    
+    
+    def get_resource_commands(self):
+        """
+        Retrun list of device execute commands available.
+        """
+        return [cmd for cmd in dir(self) if cmd.startswith('execute_')]    
+    
+    def get_resource_params(self):
+        """
+        Return list of device parameters available.
+        """
+        return self.get(DriverParameter.ALL)
+            
+    def get_current_state(self):
+        """
+        Return current device state. Implemented in connection specific
+        subclasses.
+        """
+        raise NotImplementedError('get_current_state() is not implemented.')
+
+    ########################################################################
+    # Event interface.
+    ########################################################################
+
+    def _driver_event(self, type, val=None):
+        """
+        Construct and send an asynchronous driver event.
+        @param type a DriverAsyncEvent type specifier.
+        @param val event value for sample and test result events.
+        """
+        event = {
+            'type' : type,
+            'value' : None,
+            'time' : time.time()
+        }
+        if type == DriverAsyncEvent.STATE_CHANGE:
+            state = self.get_current_state()
+            event['value'] = state
+            self._send_event(event)
+            
+        elif type == DriverAsyncEvent.CONFIG_CHANGE:
+            config = self.get(DriverParameter.ALL)
+            event['value'] = config
+            self._send_event(event)
         
-    def get_capabilities(self, channels, *args, **kwargs):
-        """
-        @param timeout Number of seconds before this operation times out
-        """
-        pass
+        elif type == DriverAsyncEvent.SAMPLE:
+            event['value'] = val
+            self._send_event(event)
+            
+        elif type == DriverAsyncEvent.ERROR:
+            # Error caught at driver process level.
+            pass
 
-    def get_channels(self):
-        """
-        """
-        pass
-    
-    def get_active_channels(self):
-        """
-        """
-        pass
-    
-    def get_current_state(self, channels):
-        """
-        """
-        pass
+        elif type == DriverAsyncEvent.TEST_RESULT:
+            event['value'] = val
+            self._send_event(event)
 
-    #######################
-    # State change handlers
-    #######################
-    #def _handle_configure(self):
-    #    """State change handler"""
-    #
-    #def _handle_initialize(self):
-    #    """State change handler"""
-    #
-    #def _handle_disconnect_failure(self):
-    #    """State change handler"""
-    #
-    #def _handle_disconnect_success(self):
-    #    """State change handler"""
-    #
-    #def _handle_disconnect(self):
-    #    """State change handler"""
-    #
-    #def _handle_connect(self):
-    #    """State change handler"""
-    #
-    #def _handle_connect_success(self):
-    #    """State change handler"""
-    #
-    #def _handle_connect_failed(self):
-    #    """State change handler"""
-    #
-    #def _handle_start_autosample(self):
-    #    """State change handler"""
-    #
-    #def _handle_stop_autosample(self):
-    #    """State change handler"""
-    #
-    #def _handle_connection_lost(self):
-    #    """State change handler"""
-    #
-    #def _handle_reset(self):
-    #    """State change handler"""
-    #
-    #def _handle_handle_data_received(self):
-    #    """State change handler"""
-    #    
-    #def _handle_handle_get(self):
-    #    """State change handler"""
-    #    
-    #def _handle_handle_set(self):
-    #    """State change handler"""
-    #
-    #def _handle_handle_acquire_sample(self):
-    #    """State change handler"""
-    #    
-    #def _handle_handle_test(self):
-    #    """State change handler"""
-    #
-    #def _handle_handle_calibrate(self):
-    #    """State change handler"""  
+    ########################################################################
+    # Test interface.
+    ########################################################################
+
+    def driver_echo(self, msg):
+        """
+        Echo a message.
+        @param msg the message to prepend and echo back to the caller.
+        """
+        reply = 'driver_echo: '+msg
+        return reply
+    
+    def test_exceptions(self, msg):
+        """
+        Test exception handling in the driver process.
+        @param msg message string to put in a raised exception to be caught in
+        a test.
+        @raises InstrumentExeption always.
+        """
+        raise InstrumentException(msg)
+        

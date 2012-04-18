@@ -28,6 +28,7 @@ import zmq
 
 import ion.services.mi.mi_logger
 import ion.services.mi.driver_process as driver_process
+from ion.services.mi.instrument_driver import DriverAsyncEvent
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -40,7 +41,7 @@ class ZmqDriverProcess(driver_process.DriverProcess):
     """
     
     @classmethod
-    def launch_process(cls, cmd_port, event_port, driver_module, driver_class):
+    def launch_process(cls, cmd_port, event_port, driver_module, driver_class, ppid):
         """
         Class method constructor to launch ZmqDriverProcess as a
         separate OS process. Creates command string for this
@@ -50,22 +51,29 @@ class ZmqDriverProcess(driver_process.DriverProcess):
         @param event_port Int IP port of the event socket.
         @param driver_module The python module containing the driver code.
         @param driver_class The python driver class.
+        @param ppid ID of the parent process, used to self destruct when
+        parent dies in test cases.
         @retval a Popen object representing the ZMQ driver process.
         """
-        cmd_str = 'from %s import %s; dp = %s(%i, %i, "%s", "%s");dp.run()' \
-                        % (__name__, cls.__name__, cls.__name__,
-                cmd_port, event_port, driver_module, driver_class)
         
+        # Construct the command string.
+        cmd_str = 'from %s import %s; dp = %s(%i, %i, "%s", "%s", %s);dp.run()' \
+                        % (__name__, cls.__name__, cls.__name__,
+                cmd_port, event_port, driver_module, driver_class, str(ppid))
+                
+        # Call base class launch method.
         return driver_process.DriverProcess.launch_process(cmd_str)
         
-    def __init__(self, cmd_port, event_port, driver_module, driver_class):
+    def __init__(self, cmd_port, event_port, driver_module, driver_class, ppid):
         """
         @param cmd_port Int IP port of the command REP socket.
         @param event_port Int IP port of the event socket.
         @param driver_module The python module containing the driver code.
         @param driver_class The python driver class.
+        @param ppid ID of the parent process, used to self destruct when
+        parent dies in test cases.        
         """
-        driver_process.DriverProcess.__init__(self, driver_module, driver_class)
+        driver_process.DriverProcess.__init__(self, driver_module, driver_class, ppid)
         self.cmd_port = cmd_port
         self.cmd_host_string = 'tcp://*:%i' % self.cmd_port
         self.event_port = event_port
@@ -103,13 +111,15 @@ class ZmqDriverProcess(driver_process.DriverProcess):
                     reply = zmq_driver_process.cmd_driver(msg)
                     while True:
                         try:
-                            sock.send_pyobj(reply)
+                            sock.send_pyobj(reply, flags=zmq.NOBLOCK)
                             break
                         except zmq.ZMQError:
                             time.sleep(.1)
+                            if zmq_driver_process.stop_cmd_thread:
+                                break
                 except zmq.ZMQError:
                     time.sleep(.1)
-        
+                
             sock.close()
             context.term()
             mi_logger.info('Driver process cmd socket closed.')
@@ -137,7 +147,8 @@ class ZmqDriverProcess(driver_process.DriverProcess):
                             mi_logger.debug('Event sent!')
                         except zmq.ZMQError:
                             time.sleep(.1)
-                            
+                            if zmq_driver_process.stop_evt_thread:
+                                break
                 except IndexError:
                     time.sleep(.1)
 
@@ -148,9 +159,8 @@ class ZmqDriverProcess(driver_process.DriverProcess):
         self.cmd_thread = Thread(target=recv_cmd_msg, args=(self, ))
         self.evt_thread = Thread(target=send_evt_msg, args=(self, ))
         self.cmd_thread.start()        
-        self.evt_thread.start()        
-        self.cmd_thread.join()
-        self.evt_thread.join()
+        self.evt_thread.start()
+        self.messaging_started = True
     
     def stop_messaging(self):
         """
@@ -159,6 +169,7 @@ class ZmqDriverProcess(driver_process.DriverProcess):
         """
         self.stop_cmd_thread = True
         self.stop_evt_thread = True
+        self.messaging_started = False
     
     def shutdown(self):
         """

@@ -82,7 +82,6 @@ class DaemonProcess(object):
             # An error in the inital fork occurred, return error.
             return -1
 
-
     def get_pid(self):
         """
         """
@@ -95,6 +94,19 @@ class DaemonProcess(object):
             pid = None
 
         return pid            
+
+    def get_pidfname(self):
+        """
+        Return the pidfile name for this logger.
+        """
+        return os.path.split(self.pidfname)[1]
+    
+    def get_workdir(self):
+        """
+        Return the work dir for this logger.
+        """
+        return (os.path.split(self.pidfname)[0] + '/')
+    
 
     def stop(self):
         """
