@@ -52,7 +52,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             pd_conf = None
 
         if pd_conf:
-            print pd_conf
             log.debug("Using Process Dispatcher Bridge backend -- requires running CEI services.")
             self.backend = PDBridgeBackend(pd_conf)
         else:
