@@ -230,7 +230,7 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         self.driver_class = 'SatlanticPARInstrumentDriver'
 
         self.config_params = {'method':InterfaceType.ETHERNET,
-                              'device_addr':'10.180.80.173',
+                              'device_addr':'10.180.80.179',
                               'device_port':2101,
                               'server_addr':'localhost',
                               'server_port':8888}

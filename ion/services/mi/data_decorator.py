@@ -73,9 +73,38 @@ class RSNTimestampDecorator(TimestampDecorator):
     the chained_data parameter.
     '''
     
+    TS_PATTERN = r'<OOI-TS (?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d*) TS>(?P<data>.*)<\00I-TS>'
+    '''Pattern of timestamp from RSN. EX:
+    <OOI-TS 2012-04-11T23:40:04.956497 TS>
+    data<\00I-TS>
+    '''
+    TS_REGEX = re.compile(TS_PATTERN)
+    
     def handle_incoming_data(self, original_data=None, chained_data=None):
         '''Pulls timestamp out of the original_data argument'''
-        # execute a publish on the chained_data argument
+        (timestamp, instrument_string) = self._parse_timestamp(original_data)
+        
+        if timestamp:
+            if self.next_decorator == None:
+                return (original_data, chained_data)
+            else:
+                self.next_decorator.handle_incoming_data(original_data, chained_data)
+        else:
+            raise InstrumentDataException(InstErrorCode.HARDWARE_ERROR,
+                                          "Checksum failure!")
+    
+    def _parse_timestamp(self, s):
+        '''Parse a string to see if it matches the given regex. If so, get
+        the timestamp out and return the string and the data.
+        @param s The string to run through the regex
+        @retval 2-tuple of timestamp string and data string
+        '''
+        ts = None
+        data = None
+        if TS_REGEX.matches(s):
+            # get the timestamp and data string
+            pass
+        return (ts, data)
         
 class CGSNTimestampDecorator(TimestampDecorator):
     '''A decorator that attaches timestamps to the data stream
