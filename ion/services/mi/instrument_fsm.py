@@ -10,7 +10,7 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-from ion.services.mi.exceptions import StateError
+from ion.services.mi.exceptions import InstrumentStateException
 
 
 class InstrumentFSM():
@@ -84,7 +84,7 @@ class InstrumentFSM():
         @param args positional arguments to pass to the handler.
         @param kwargs keyword arguments to pass to the handler.
         @retval result from the handler executed by the current state/event pair.
-        @raises StateError if no handler for the event exists in current state.
+        @raises InstrumentStateException if no handler for the event exists in current state.
         @raises Any exception raised by the handlers.
         """        
         next_state = None
@@ -95,7 +95,7 @@ class InstrumentFSM():
             if handler:
                 (next_state, result) = handler(*args, **kwargs)
             else:
-                raise StateError('Command not handled in current state.')
+                raise InstrumentStateException('Command not handled in current state.')
                 
         #if next_state in self.states:
         if self.states.has(next_state):

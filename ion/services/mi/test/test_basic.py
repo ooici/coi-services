@@ -19,7 +19,7 @@ from mock import Mock
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
-from ion.services.mi.exceptions import RequiredParameterException
+from ion.services.mi.exceptions import InstrumentParameterException
 from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.instrument_driver import InstrumentDriver
@@ -357,11 +357,11 @@ class DriverTest(unittest.TestCase):
 
     def test_check_channel(self):
         """Test the routines to check the channel arguments"""
-        self.assertRaises(RequiredParameterException,
+        self.assertRaises(InstrumentParameterException,
                           self.driver._check_channel_args, DriverChannel.ALL)
-        self.assertRaises(RequiredParameterException,
+        self.assertRaises(InstrumentParameterException,
                           self.driver._check_channel_args, [])
-        self.assertRaises(RequiredParameterException,
+        self.assertRaises(InstrumentParameterException,
                           self.driver._check_channel_args, None)
 
         (bad, good) = self.driver._check_channel_args(

@@ -18,7 +18,7 @@ import signal
 import os
 import sys
 import time
-from ion.services.mi.exceptions import UnknownCommandError
+from ion.services.mi.exceptions import InstrumentCommandException
 from ion.services.mi.instrument_driver import DriverAsyncEvent
 
 mi_logger = logging.getLogger('mi_logger')
@@ -162,7 +162,7 @@ class DriverProcess(object):
                 self.send_event(event)
                 
         else:
-            reply = UnknownCommandError('Unknown driver command.')
+            reply = InstrumentCommandException('Unknown driver command.')
             event = {
                 'type' : DriverAsyncEvent.ERROR,
                 'value' : str(reply),

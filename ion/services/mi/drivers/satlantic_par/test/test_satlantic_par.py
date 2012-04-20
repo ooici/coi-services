@@ -389,7 +389,6 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         reply = self.driver_client.cmd_dvr('get', [config_key], timeout=20)
         self.assertEquals(reply, config_B)
         
-    @unittest.skip("Waiting for exception/error refactor")
     def test_get_from_wrong_state(self):
         """Test get() from wrong state
         
@@ -405,7 +404,6 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
                           self.driver_client.cmd_dvr,
                           'get', [(Channel.INSTRUMENT, Parameter.MAXRATE)])
 
-    @unittest.skip("Waiting for exception/error refactor")
     def test_set_from_wrong_state(self):
         """Test set() from wrong state
         @todo exception across thread
@@ -416,7 +414,7 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
         self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
 
-        self.assertRaises(InstrumentProtocolError,
+        self.assertRaises(InstrumentProtocolException,
                           self.driver_client.cmd_dvr,
                           'set', {(Channel.INSTRUMENT, Parameter.MAXRATE):10})
 
@@ -438,7 +436,7 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
         self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
 
-        self.assertRaises(InstrumentProtocolError,
+        self.assertRaises(InstrumentProtocolException,
                           self.driver_client.cmd_drv,
                           'get_config', [Channel.INSTRUMENT])
         """
@@ -474,7 +472,7 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         reply = self.driver_client.cmd_dvr('get_current_state', [Channel.INSTRUMENT])
         self.assertEqual({Channel.INSTRUMENT:DriverState.AUTOSAMPLE}, reply)
 
-        self.assertRaises(InstrumentProtocolError,
+        self.assertRaises(InstrumentProtocolException,
                           self.driver_client.cmd_dvr,
                           'restore_config', config)
         """

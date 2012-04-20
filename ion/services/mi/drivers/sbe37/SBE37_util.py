@@ -8,9 +8,9 @@
 """
 Use:
 
-bin/python ion/services/mi/drivers/SBE37_util.py [options] ipaddress port command
-bin/python ion/services/mi/drivers/SBE37_util.py -n 20 -f ion/services/mi/drivers/SBE37_3464_config_short.txt 137.110.112.119 4001 reset 
-bin/python ion/services/mi/drivers/SBE37_util.py -n 20 -f ion/services/mi/drivers/SBE37_3464_config.txt 137.110.112.119 4001 reset 
+bin/python ion/services/mi/drivers/sbe37/SBE37_util.py [options] ipaddress port command
+bin/python ion/services/mi/drivers/sbe37/SBE37_util.py -n 20 -f ion/services/mi/drivers/sbe37/SBE37_3464_config_short.txt 137.110.112.119 4001 reset 
+bin/python ion/services/mi/drivers/sbe37/SBE37_util.py -n 20 -f ion/services/mi/drivers/sbe37/SBE37_3464_config.txt 137.110.112.119 4001 reset 
 
 commands:
 reset               reset the instrument to nonsampling mode and
@@ -23,7 +23,7 @@ options:
 import socket
 import time
 
-from ion.services.mi.drivers.sbe37_driver import SBE37Prompt, SBE37_NEWLINE
+from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Prompt, SBE37_NEWLINE
 
 commands = ['reset']
 

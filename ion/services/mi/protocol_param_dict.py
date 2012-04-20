@@ -116,7 +116,7 @@ class ProtocolParameterDict(object):
         @param name The name of the parameter.
         @param val The parameter value.
         @retval The value formatted as a string for writing to the device.
-        @raises ProtocolError if the value could not be formatted.
+        @raises InstrumentProtocolException if the value could not be formatted.
         @raises KeyError if the parameter name is invalid.
         """
         return self._param_dict[name].f_format(val)

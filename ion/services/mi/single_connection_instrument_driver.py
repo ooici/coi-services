@@ -15,14 +15,14 @@ __license__ = 'Apache 2.0'
 import logging
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.exceptions import NotImplementedError
+from ion.services.mi.exceptions import NotImplementedException
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.instrument_driver import DriverConnectionState
 from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.logger_process import LoggerClient
-from ion.services.mi.exceptions import ParameterError
+from ion.services.mi.exceptions import InstrumentParameterException
 
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
@@ -89,7 +89,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         Initialize driver connection, bringing communications parameters
         into unconfigured state (no connection object).
-        @raises StateError if command not allowed in current state        
+        @raises InstrumentStateException if command not allowed in current state        
         """
         # Forward event and argument to the connection FSM.
         return self._connection_fsm.on_event(DriverEvent.INITIALIZE, *args, **kwargs)
@@ -99,8 +99,8 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Configure the driver for communications with the device via
         port agent / logger (valid but unconnected connection object).
         @param arg[0] comms config dict.
-        @raises StateError if command not allowed in current state        
-        @throws ParameterError if missing comms or invalid config dict.
+        @raises InstrumentStateException if command not allowed in current state        
+        @throws InstrumentParameterException if missing comms or invalid config dict.
         """
         # Forward event and argument to the connection FSM.
         return self._connection_fsm.on_event(DriverEvent.CONFIGURE, *args, **kwargs)
@@ -109,8 +109,8 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         Establish communications with the device via port agent / logger
         (connected connection object).
-        @raises StateError if command not allowed in current state
-        @throws ConnectionError if the connection failed.
+        @raises InstrumentStateException if command not allowed in current state
+        @throws InstrumentConnectionException if the connection failed.
         """
         # Forward event and argument to the connection FSM.
         return self._connection_fsm.on_event(DriverEvent.CONNECT, *args, **kwargs)
@@ -118,7 +118,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
     def disconnect(self, *args, **kwargs):
         """
         Disconnect from device via port agent / logger.
-        @raises StateError if command not allowed in current state
+        @raises InstrumentStateException if command not allowed in current state
         """
         # Forward event and argument to the connection FSM.
         return self._connection_fsm.on_event(DriverEvent.DISCONNECT, *args, **kwargs)
@@ -132,10 +132,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Determine initial state upon establishing communications.
         @param timeout=timeout Optional command timeout.        
         @retval Current device state.
-        @raises TimeoutError if could not wake device.
-        @raises StateError if command not allowed in current state or if
+        @raises InstrumentTimeoutException if could not wake device.
+        @raises InstrumentStateException if command not allowed in current state or if
         device state not recognized.
-        @raises NotImplementedError if not implemented by subclass.
+        @raises NotImplementedException if not implemented by subclass.
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.DISCOVER, DriverEvent.DISCOVER, *args, **kwargs)
@@ -145,9 +145,9 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Retrieve device parameters.
         @param args[0] DriverParameter.ALL or a list of parameters to retrive.
         @retval parameter : value dict.
-        @raises ParameterError if missing or invalid get parameters.
-        @raises StateError if command not allowed in current state
-        @raises NotImplementedError if not implemented by subclass.                        
+        @raises InstrumentParameterException if missing or invalid get parameters.
+        @raises InstrumentStateException if command not allowed in current state
+        @raises NotImplementedException if not implemented by subclass.                        
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.GET, DriverEvent.GET, *args, **kwargs)
@@ -157,11 +157,11 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Set device parameters.
         @param args[0] parameter : value dict of parameters to set.
         @param timeout=timeout Optional command timeout.
-        @raises ParameterError if missing or invalid set parameters.
-        @riases TimeoutError if could not wake device or no response.
-        @raises ProtocolError if set command not recognized.
-        @raises StateError if command not allowed in current state.
-        @raises NotImplementedError if not implemented by subclass.                        
+        @raises InstrumentParameterException if missing or invalid set parameters.
+        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentProtocolException if set command not recognized.
+        @raises InstrumentStateException if command not allowed in current state.
+        @raises NotImplementedException if not implemented by subclass.                        
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.SET, DriverEvent.SET, *args, **kwargs)
@@ -171,10 +171,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Poll for a sample.
         @param timeout=timeout Optional command timeout.        
         @ retval Device sample dict.
-        @riases TimeoutError if could not wake device or no response.
-        @raises ProtocolError if acquire command not recognized.
-        @raises StateError if command not allowed in current state.
-        @raises NotImplementedError if not implemented by subclass.                        
+        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentProtocolException if acquire command not recognized.
+        @raises InstrumentStateException if command not allowed in current state.
+        @raises NotImplementedException if not implemented by subclass.                        
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.ACQUIRE_SAMPLE, DriverEvent.ACQUIRE_SAMPLE, *args, **kwargs)
@@ -183,9 +183,9 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         Switch to autosample mode.
         @param timeout=timeout Optional command timeout.        
-        @riases TimeoutError if could not wake device or no response.
-        @raises StateError if command not allowed in current state.
-        @raises NotImplementedError if not implemented by subclass.                        
+        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentStateException if command not allowed in current state.
+        @raises NotImplementedException if not implemented by subclass.                        
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.START_AUTOSAMPLE, DriverEvent.START_AUTOSAMPLE, *args, **kwargs)
@@ -194,10 +194,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         Leave autosample mode.
         @param timeout=timeout Optional command timeout.        
-        @riases TimeoutError if could not wake device or no response.
-        @raises ProtocolError if stop command not recognized.
-        @raises StateError if command not allowed in current state.
-        @raises NotImplementedError if not implemented by subclass.                        
+        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentProtocolException if stop command not recognized.
+        @raises InstrumentStateException if command not allowed in current state.
+        @raises NotImplementedException if not implemented by subclass.                        
          """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.STOP_AUTOSAMPLE, DriverEvent.STOP_AUTOSAMPLE, *args, **kwargs)
@@ -207,10 +207,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Execute device tests.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal test commands).
-        @riases TimeoutError if could not wake device or no response.
-        @raises ProtocolError if test commands not recognized.
-        @raises StateError if command not allowed in current state.
-        @raises NotImplementedError if not implemented by subclass.                        
+        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentProtocolException if test commands not recognized.
+        @raises InstrumentStateException if command not allowed in current state.
+        @raises NotImplementedException if not implemented by subclass.                        
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.TEST, DriverEvent.TEST, *args, **kwargs)
@@ -220,10 +220,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Execute device calibration.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal calibration commands).
-        @riases TimeoutError if could not wake device or no response.
-        @raises ProtocolError if test commands not recognized.
-        @raises StateError if command not allowed in current state.
-        @raises NotImplementedError if not implemented by subclass.                        
+        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentProtocolException if test commands not recognized.
+        @raises InstrumentStateException if command not allowed in current state.
+        @raises NotImplementedException if not implemented by subclass.                        
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.CALIBRATE, DriverEvent.CALIBRATE, *args, **kwargs)
@@ -283,7 +283,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         @param args[0] Communiations config dictionary.
         @retval (next_state, result) tuple, (DriverConnectionState.DISCONNECTED,
         None) if successful, (None, None) otherwise.
-        @raises Parameter error if missing or invalid param dict.        
+        @raises InstrumentParameterException if missing or invalid param dict.        
         """
         next_state = None
         result = None
@@ -293,7 +293,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
             config = args[0]
         
         except IndexError:
-            raise ParameterError('Missing comms config parameter.')
+            raise InstrumentParameterException('Missing comms config parameter.')
         
         # Verify dict and construct connection client.
         try:
@@ -305,10 +305,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
                 next_state = DriverConnectionState.DISCONNECTED
                             
             else:
-                raise ParameterError('Invalid comms config dict.')
+                raise InstrumentParameterException('Invalid comms config dict.')
                 
         except (TypeError, KeyError):
-            raise ParameterError('Invalid comms config dict.')        
+            raise InstrumentParameterException('Invalid comms config dict.')        
         
         return (next_state, result)
 
@@ -349,7 +349,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Configure driver for device comms.
         @param args[0] Communiations config dictionary.
         @retval (next_state, result) tuple, (None, None).
-        @raises Parameter error if missing or invalid param dict.
+        @raises InstrumentParameterException if missing or invalid param dict.
         """
         next_state = None
         result = None
@@ -359,7 +359,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
             config = args[0]
         
         except IndexError:
-            raise ParameterError('Missing comms config parameter.')
+            raise InstrumentParameterException('Missing comms config parameter.')
 
         # Verify configuration dict, and update connection if possible.        
         try:
@@ -370,10 +370,10 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
                 self._connection = LoggerClient(addr, port)
                             
             else:
-                raise ParameterError('Invalid comms config dict.')
+                raise InstrumentParameterException('Invalid comms config dict.')
                 
         except (TypeError, KeyError):
-            raise ParameterError('Invalid comms config dict.')        
+            raise InstrumentParameterException('Invalid comms config dict.')        
         
         return (next_state, result)
 
@@ -383,7 +383,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         construct and intialize a protocol FSM for device interaction.
         @retval (next_state, result) tuple, (DriverConnectionState.CONNECTED,
         None) if successful.
-        @raises ConnectionError if the attempt to connect failed.
+        @raises InstrumentConnectionException if the attempt to connect failed.
         """
         next_state = None
         result = None

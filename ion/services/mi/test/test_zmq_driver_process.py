@@ -47,7 +47,7 @@ class TestZmqDriverProcess(PyonTestCase):
         self.evt_port = 5557
         
         # Driver module parameters.
-        self.dvr_mod = 'ion.services.mi.drivers.sbe37_driver'
+        self.dvr_mod = 'ion.services.mi.drivers.sbe37.sbe37_driver'
         self.dvr_cls = 'SBE37Driver'
 
 
@@ -62,7 +62,7 @@ class TestZmqDriverProcess(PyonTestCase):
         
         """
         driver_process = ZmqDriverProcess.launch_process(5556, 5557,
-                        'ion.services.mi.drivers.sbe37_driver', 'SBE37Driver')
+                        'ion.services.mi.drivers.sbe37.sbe37_driver', 'SBE37Driver')
         driver_client = ZmqDriverClient('localhost', 5556, 5557)
         driver_client.start_messaging()
         time.sleep(3)

@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 """
 To launch this object from class static constructor:
 import ion.services.mi.zmq_driver_process as zdp
-p = zdp.ZmqDriverProcess.launch_process(5556, 5557, 'ion.services.mi.drivers.sbe37_driver', 'SBE37Driver')
+p = zdp.ZmqDriverProcess.launch_process(5556, 5557, 'ion.services.mi.drivers.sbe37.sbe37_driver', 'SBE37Driver')
 
 """
 

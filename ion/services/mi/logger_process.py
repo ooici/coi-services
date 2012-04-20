@@ -23,7 +23,7 @@ import logging
 import os
 
 from ion.services.mi.daemon_process import DaemonProcess
-from ion.services.mi.exceptions import ConnectionError
+from ion.services.mi.exceptions import InstrumentConnectionException
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -675,7 +675,7 @@ class LoggerClient(object):
             mi_logger.info('Logger client comms initialized.')
         
         except:
-            raise ConnectionError('Failed to connect to port agent at %s:%i.' % (self.host, self.port))
+            raise InstrumentConnectionException('Failed to connect to port agent at %s:%i.' % (self.host, self.port))
         
     def stop_comms(self):
         """
