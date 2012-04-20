@@ -12,7 +12,6 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT, IonObject
 from ion.services.coi.org_management_service import OrgManagementService
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 
 @attr('UNIT', group='coi')
@@ -39,9 +38,14 @@ class TestOrgManagementService(PyonTestCase):
         self.org = Mock()
         self.org.name = "Foo"
 
+        self.user_role = Mock()
+        self.user_role2 = Mock()
 
     @patch('pyon.ion.directory.Directory.__init__', Mock(return_value=None))
     def test_create_org(self):
+
+        self.mock_find_objects.return_value = ([self.user_role], [self.user_role2])
+
         self.mock_create.return_value = ['111', 1]
 
         org_id = self.org_management_service.create_org(self.org)
@@ -100,16 +104,18 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         self.org_management_service = OrgManagementServiceClient(node=self.container.node)
 
 
     def test_org_crud(self):
-        org_obj = IonObject("Org", {"name": "Test Facility"})
+
+        with self.assertRaises(BadRequest) as br:
+            self.org_management_service.create_org(IonObject("Org", {"name": "Test Facility"}))
+        self.assertTrue("can only contain alphanumeric and underscore characters" in br.exception.message)
+
+        org_obj = IonObject("Org", {"name": "TestFacility"})
         org_id = self.org_management_service.create_org(org_obj)
         self.assertNotEqual(org_id, None)
 
@@ -117,14 +123,17 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         org = self.org_management_service.read_org(org_id)
         self.assertNotEqual(org, None)
 
+        #Check that the roles got associated to them
+        role_list = self.org_management_service.find_org_roles(org_id)
+        self.assertEqual(len(role_list),2 )
 
-        org.name = 'Updated Test Facility'
+        org.name = 'Updated_TestFacility'
         self.org_management_service.update_org(org)
 
         org = None
         org = self.org_management_service.read_org(org_id)
         self.assertNotEqual(org, None)
-        self.assertEqual(org.name, 'Updated Test Facility')
+        self.assertEqual(org.name, 'Updated_TestFacility')
 
         self.org_management_service.delete_org(org_id)
 
@@ -143,7 +152,7 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         root_org = self.org_management_service.find_org()
         self.assertNotEqual(root_org, None)
 
-        org_obj = IonObject("Org", {"name": "Test Facility"})
+        org_obj = IonObject("Org", {"name": "TestFacility"})
         org_id = self.org_management_service.create_org(org_obj)
         self.assertNotEqual(org_id, None)
 

@@ -478,7 +478,7 @@ class ResourceImplMetatest(object):
                 svc.clients.resource_registry.find_resources.assert_called_once_with(impl_instance.iontype,
                                                                                      None,
                                                                                      None,
-                                                                                     True)
+                                                                                     False)
 
                 
             name = make_name("resource_impl_find")
@@ -587,6 +587,10 @@ class ResourceImplMetatest(object):
                             mylink = getattr(myimpl, link_name)
 
                             #set up Mock
+                            find_reply = ([], []) #for exclusive associations
+                            svc.clients.resource_registry.find_subjects.return_value = find_reply
+                            svc.clients.resource_registry.find_objects.return_value = find_reply
+
                             reply = ('333', 'bla')
                             svc.clients.resource_registry.create_association.return_value = reply
 
@@ -642,18 +646,18 @@ class ResourceImplMetatest(object):
             """
 
             # pull up the set of preconditions
-            lcs_precondition = None
+            lce_precondition = None
             for k in dir(impl_instance):
-                if "lcs_precondition" == k:
-                    lcs_precondition = getattr(impl_instance, k)
+                if "lce_precondition" == k:
+                    lce_precondition = getattr(impl_instance, k)
 
             # if we fail, nothing to do here
-            if not lcs_precondition: return 
+            if not lce_precondition: return
 
             # add a test for going to each transition
-            for lcstate in lcs_precondition.iterkeys():
+            for lcetrans in lce_precondition.iterkeys():
 
-                def freeze(lcstate):
+                def freeze(lcetrans):
                     """
                     must freeze this so the loop doesn't overwrite the lcstate varible
                     """
@@ -665,27 +669,30 @@ class ResourceImplMetatest(object):
 
 
                         #set up Mock
-                        reply = lcstate
+                        reply = lcetrans
                         svc.clients.resource_registry.execute_lifecycle_transition.return_value = reply
                         svc.clients.resource_registry.read.return_value = good_sample_resource
 
                         #call the impl
+
                         try:
-                            response = myimpl.advance_lcs("333", lcstate)
-                        except NotImplementedError as nie:
-                            # for a transition that isn't supported or fails precondition
-                            msg = "LCS transition requires more logic; will test in integration.  "
-                            msg += "(%s)" % str(nie)
-                            raise SkipTest(msg)
+                            response = myimpl.advance_lcs("333", lcetrans)
+                        except TypeError as te:
+                            # for logic tests that run into mock trouble
+                            if "'Mock' object is not iterable" == te.message:
+                                raise SkipTest("Must test this with INT test")
+                            else:
+                                raise te
                         except Exception as e:
                             raise e
+
                         self.assertEqual(reply, response)
 
-                    name = make_name("resource_impl_advance_lcs_to_%s" % lcstate)
-                    doc  = make_doc("Checking advance_lcs of a %s resource to %s" % (impl_instance.iontype, lcstate))
+                    name = make_name("resource_impl_advance_lcs_with_%s" % lcetrans)
+                    doc  = make_doc("Checking advance_lcs of a %s resource with %s" % (impl_instance.iontype, lcetrans))
                     add_test_method(name, doc, fun)
 
-                freeze(lcstate)
+                freeze(lcetrans)
 
 
 

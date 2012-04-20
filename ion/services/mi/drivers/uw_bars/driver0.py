@@ -28,6 +28,7 @@ import logging
 log = logging.getLogger('mi_logger')
 
 
+@unittest.skip('Need to align.')
 class BarsInstrumentDriver(InstrumentDriver):
     """
     The InstrumentDriver class for the TRHPH BARS sensor.

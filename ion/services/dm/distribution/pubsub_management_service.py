@@ -19,15 +19,29 @@ from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, S
 from interface.objects import Subscription, SubscriptionTypeEnum
 from interface import objects
 from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
+from pyon.net.transport import NameTrio, TransportError
 
 # Can't make a couchdb data store here...
 ### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
 
 
 class BindingChannel(SubscriberChannel):
+    """
+    The Pubsub Mgmt Svc should over ride _declare_queue in its BindingChannel object so that a binding a queue that does
+    not exist will fail. Unfortunately tests break in the CEI environment because the queue for a transform is created by
+    a process. That process may not have been spawned yet when activate transform is called.
+
+    For now - as a patch we will allow pubsub to create queues where they do not exist yet. This could be replaced with
+    a call back on a process life cycle event, after which the transform (for the subscription) can be activated.
+    """
 
     def _declare_queue(self, queue):
-        self._recv_name = (self._recv_name[0], '.'.join(self._recv_name))
+        self._recv_name = NameTrio(self._recv_name.exchange, '.'.join((self._recv_name.exchange, self._recv_name.queue)))
+
+    ### Tried to handle this in a simple way, but there are other possible errors as well. It will have to be a more
+    ### complicated try except at a higher level in pubsub...
+
+
 
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -59,6 +73,25 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_def_id, rev = self.clients.resource_registry.create(stream_definition)
 
         return stream_def_id
+
+    def find_stream_definition(self, stream_id='', id_only=True):
+        """@brief Retrieves a stream definition from an existing stream_id
+        @param stream_id Stream ID
+        @param id_only True if you only want the stream definition id
+        @return stream definition object
+
+        @param stream_id    str
+        @param id_only    bool
+        @retval stream_definition    str
+        @throws NotFound    if there is no association
+        """
+
+        retval = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=id_only)
+        if len(retval) != 2:
+            raise NotFound('Desired stream definition not found.')
+        if len(retval[0]) < 1:
+            raise NotFound('Desired stream definition not found.')
+        return retval[0][0]
 
     def update_stream_definition(self, stream_definition=None):
         """Update an existing stream definition
@@ -240,16 +273,64 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return subscription_id
 
-    def update_subscription(self, subscription=None):
+    def update_subscription(self, subscription_id='', query=None):
+        '''Update an existing subscription.
+        @param subscription_id Identification for the subscription
+        @param query The new query
+        @throws NotFound if the resource doesn't exist
+        @retval True on success
         '''
-        Update an existing subscription.
 
-        @param subscription The subscription object with updated properties.
-        @retval success Boolean to indicate successful update.
-        '''
+        subscription = self.clients.resource_registry.read(subscription_id)
+        subscription_type = subscription.subscription_type
         log.debug("Updating subscription object: %s", subscription.name)
-        id, rev = self.clients.resource_registry.update(subscription)
-        return True
+
+
+        if subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
+            raise BadRequest('Attempted to change query type on a subscription resource.')
+
+
+        book = dict()
+
+        stream_ids, assocs = self.clients.resource_registry.find_objects(
+            subject=subscription_id,
+            predicate=PRED.hasStream,
+            id_only=True
+        )
+        # Create a dictionary with  { stream_id : association } entries.
+        for stream_id, assoc in zip(stream_ids, assocs):
+            book[stream_id] = assoc
+
+
+        if subscription.subscription_type == SubscriptionTypeEnum.STREAM_QUERY and isinstance(query,StreamQuery):
+            current_streams = set(stream_ids)
+            updated_streams = set(query.stream_ids)
+            removed_streams = current_streams.difference(updated_streams)
+            added_streams = updated_streams.difference(current_streams)
+
+            for stream_id in removed_streams:
+                self.clients.resource_registry.delete_association(book[stream_id])
+                if subscription.is_active:
+                    self._unbind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
+
+            for stream_id in added_streams:
+                self.clients.resource_registry.create_association(
+                    subject=subscription_id,
+                    predicate=PRED.hasStream,
+                    object=stream_id
+                )
+                if subscription.is_active:
+                    self._bind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
+
+            subscription.query.stream_ids = current_streams
+            id, rev = self.clients.resource_registry.update(subscription)
+            return True
+
+        else:
+            log.info('Updating an inactive subscription!')
+
+
+        return False
 
     def read_subscription(self, subscription_id=''):
         '''
@@ -302,6 +383,9 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
+        if subscription_obj.is_active:
+            raise BadRequest('Subscription is already active!')
+
         ids, _ = self.clients.resource_registry.find_objects(subscription_id, PRED.hasStream, RT.Stream, id_only=True)
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
@@ -309,6 +393,10 @@ class PubsubManagementService(BasePubsubManagementService):
                 self._bind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
             self._bind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+
+        subscription_obj.is_active = True
+
+        self.clients.resource_registry.update(object=subscription_obj)
 
         return True
 
@@ -325,15 +413,21 @@ class PubsubManagementService(BasePubsubManagementService):
         if subscription_obj is None:
             raise NotFound("Subscription %s does not exist" % subscription_id)
 
+        if not subscription_obj.is_active:
+            raise BadRequest('Subscription is not active!')
+
         ids, _ = self.clients.resource_registry.find_objects(subscription_id, PRED.hasStream, RT.Stream, id_only=True)
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
             for stream_id in ids:
-                print stream_id
                 self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
 
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
             self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+
+        subscription_obj.is_active = False
+
+        self.clients.resource_registry.update(object=subscription_obj)
 
         return True
 
@@ -413,14 +507,28 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
-        channel = self.container.node.channel(BindingChannel)
-        channel.setup_listener((exchange_point, exchange_name), binding=routing_key)
+        try:
+            channel = self.container.node.channel(BindingChannel)
+            channel.setup_listener(NameTrio(exchange_point, exchange_name), binding=routing_key)
+
+        except TransportError:
+            log.exception('Caught Transport Error while creating a binding. Trying Subscriber Binding to make the queue first')
+
+            channel = self.container.node.channel(SubscriberChannel)
+            channel.setup_listener(NameTrio(exchange_point, exchange_name), binding=routing_key)
+
+
 
     def _unbind_subscription(self, exchange_point, exchange_name, routing_key):
-        channel = self.container.node.channel(BindingChannel)
-        channel._recv_name = (exchange_point, exchange_name)
-        channel._recv_name = (channel._recv_name[0], '.'.join(channel._recv_name))
-        channel._recv_binding = routing_key
-        channel._destroy_binding()
+
+        try:
+            channel = self.container.node.channel(BindingChannel)
+            channel._recv_name = NameTrio(exchange_point, exchange_name)
+            channel._recv_name = NameTrio(channel._recv_name.exchange, '.'.join([exchange_point, exchange_name]))
+            channel._recv_binding = routing_key
+            channel._destroy_binding()
+
+        except TransportError, te:
+            log.exception('Raised transport error during deactivate_subscription. Assuming that it is due to deleting a binding that was already deleted and continuing!')
 
 

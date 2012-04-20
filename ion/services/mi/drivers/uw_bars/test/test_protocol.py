@@ -5,17 +5,17 @@ __license__ = 'Apache 2.0'
 
 
 from ion.services.mi.drivers.uw_bars.test.pyon_test import PyonBarsTestCase
+"""
 from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
 from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
-
+"""
 import time
 
 from nose.plugins.attrib import attr
-from unittest import skip
+import unittest
 
-
-@skip('not yet easy to test protocol in isolation')
 @attr('UNIT', group='mi')
+@unittest.skip('Need to align.')
 class ProtocolTest(PyonBarsTestCase):
 
     def test(self):

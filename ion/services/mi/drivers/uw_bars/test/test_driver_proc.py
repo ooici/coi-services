@@ -18,6 +18,7 @@ import time
 
 from ion.services.mi.drivers.uw_bars.test.pyon_test import PyonBarsTestCase
 
+"""
 from ion.services.mi.instrument_driver import DriverState
 
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
@@ -25,13 +26,13 @@ from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
-
+"""
 
 import unittest
 from nose.plugins.attrib import attr
 
-
 @attr('UNIT', group='mi')
+@unittest.skip('Need to align.')
 class BarsDriverTest(PyonBarsTestCase):
     """
     Tests involving ZMQ driver process and ZMQ client.

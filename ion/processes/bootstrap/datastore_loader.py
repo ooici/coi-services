@@ -21,6 +21,7 @@ import os.path
 
 from pyon.public import CFG, log, ImmediateProcess, iex
 from pyon.datastore.datastore import DatastoreManager
+from pyon.core.bootstrap import get_sys_name
 
 class DatastoreAdmin(ImmediateProcess):
     """
@@ -30,10 +31,13 @@ class DatastoreAdmin(ImmediateProcess):
         pass
 
     def on_start(self):
+        # print env temporarily to debug cei
+        import os
+        log.info('ENV vars: %s' % str(os.environ))
         op = self.CFG.get("op", None)
         datastore = self.CFG.get("datastore", None)
         path = self.CFG.get("path", None)
-        prefix = self.CFG.get("prefix", None)
+        prefix = self.CFG.get("prefix", get_sys_name()).lower()
         log.info("DatastoreLoader: {op=%s, datastore=%s, path=%s, prefix=%s}" % (op, datastore, path, prefix))
         if op:
             if op == "load":
@@ -83,22 +87,31 @@ class DatastoreAdmin(ImmediateProcess):
         if not DatastoreManager.exists(ds_name):
             log.warn("Datastore does not exist: %s" % ds_name)
         ds = DatastoreManager.get_datastore_instance(ds_name)
+        objects = []
         for fn in os.listdir(path):
             fp = os.path.join(path, fn)
             try:
-                cls._read_and_create_obj(ds, fp)
+                with open(fp, 'r') as f:
+                    yaml_text = f.read()
+                obj = yaml.load(yaml_text)
+                if "_rev" in obj:
+                    del obj["_rev"]
+                objects.append(obj)
             except Exception as ex:
                 if ignore_errors:
                     log.warn("load error id=%s err=%s" % (fn, str(ex)))
                 else:
                     raise ex
 
-    @classmethod
-    def _read_and_create_obj(cls, ds, fp):
-        with open(fp, 'r') as f:
-            yaml_text = f.read()
-        obj = yaml.load(yaml_text)
-        ds._preload_create_doc(obj)
+        if objects:
+            try:
+                res = ds.create_doc_mult(objects, allow_ids=True)
+                log.info("DatastoreLoader: Loaded %s objects into %s" % (len(res), ds_name))
+            except Exception as ex:
+                if ignore_errors:
+                    log.warn("load error id=%s err=%s" % (fn, str(ex)))
+                else:
+                    raise ex
 
     @classmethod
     def dump_datastore(cls, path=None, ds_name=None, clear_dir=True):
@@ -146,11 +159,8 @@ class DatastoreAdmin(ImmediateProcess):
         numwrites = 0
         for obj_id, obj_key, obj in objs:
             fn = obj_id
-            if obj_id.startswith("_design"):
-                fn = obj_id.replace("/","_")
-            # Some object ids start with slash
-            if obj_id.startswith("/"):
-                fn = obj_id.replace("/","_")
+            # Some object ids have slashes
+            fn = obj_id.replace("/","_")
             with open("%s/%s.yml" % (outpath, fn), 'w') as f:
                 yaml.dump(obj, f, default_flow_style=False)
                 numwrites += 1

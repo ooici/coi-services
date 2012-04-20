@@ -1,20 +1,29 @@
 #!/usr/bin/env python
 
 
-
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, collections, ast, simplejson, json, sys
-from flask import Flask, request
+import inspect, collections, ast, simplejson, json, sys, time, traceback
+from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, ProcessRPCClient
-from pyon.core.exception import NotFound, Inconsistent, BadRequest
-from pyon.core.registry import get_message_class_in_parm_type, getextends
+from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
+from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict
+from pyon.core.object import IonObjectBase
 
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
-from interface.services.coi.iresource_registry_service import IResourceRegistryService, ResourceRegistryServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
+from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
+from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
+from pyon.util.log import log
+from pyon.util.lru_cache import LRUCache
+from pyon.util.containers import current_time_millis
+
+from pyon.agent.agent import ResourceAgentClient
+from interface.services.iresource_agent import ResourceAgentProcessClient
 
 #Initialize the flask app
 app = Flask(__name__)
@@ -24,11 +33,20 @@ service_gateway_instance = None
 
 DEFAULT_WEB_SERVER_HOSTNAME = ""
 DEFAULT_WEB_SERVER_PORT = 5000
+DEFAULT_USER_CACHE_SIZE = 2000
 
 GATEWAY_RESPONSE = 'GatewayResponse'
 GATEWAY_ERROR = 'GatewayError'
 GATEWAY_ERROR_EXCEPTION = 'Exception'
 GATEWAY_ERROR_MESSAGE = 'Message'
+GATEWAY_ERROR_TRACE = 'Trace'
+
+DEFAULT_ACTOR_ID = 'anonymous'
+DEFAULT_EXPIRY = '0'
+
+#Stuff for specifying other return types
+RETURN_FORMAT_PARAM = 'return_format'
+RETURN_FORMAT_RAW_JSON = 'raw_json'
 
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
@@ -46,27 +64,53 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.server_port = DEFAULT_WEB_SERVER_PORT
         self.web_server_enabled = True
         self.logging = None
+        self.user_cache_size = DEFAULT_USER_CACHE_SIZE
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
         service_gateway_instance = self
 
-        #get configuration settings if specified
-        if 'web_server' in self.CFG:
-            web_server_cfg = self.CFG['web_server']
-            if web_server_cfg is not None:
-                if 'hostname' in web_server_cfg:
-                    self.server_hostname = web_server_cfg['hostname']
-                if 'port' in web_server_cfg:
-                    self.server_port = web_server_cfg['port']
-                if 'enabled' in web_server_cfg:
-                    self.web_server_enabled = web_server_cfg['enabled']
-                if 'log' in web_server_cfg:
-                    self.logging = web_server_cfg['log']
+        try:
+            self.web_server_cfg = self.CFG['container']['service_gateway']['web_server']
+        except Exception, e:
+            self.web_server_cfg = None
 
-        #need to figure out how to redirect HTTP logging to a file
+        if self.web_server_cfg is not None:
+            if 'hostname' in self.web_server_cfg:
+                self.server_hostname = self.web_server_cfg['hostname']
+            if 'port' in self.web_server_cfg:
+                self.server_port = self.web_server_cfg['port']
+            if 'enabled' in self.web_server_cfg:
+                self.web_server_enabled = self.web_server_cfg['enabled']
+            if 'log' in self.web_server_cfg:
+                self.logging = self.web_server_cfg['log']
+
+        try:
+            #Optional list of trusted originators can be specified in config.
+            self.trusted_originators = self.CFG['container']['service_gateway']['trusted_originators']
+            if len(self.trusted_originators) == 0:
+                self.trusted_originators = None
+        except Exception, e:
+            self.trusted_originators = None
+
+        if self.trusted_originators is None:
+            log.info("Service Gateway will not check requests against trusted originators since none are configured.")
+
+        try:
+            #Get the user_cache_size
+            self.user_cache_size = self.CFG['container']['service_gateway']['user_cache_size']
+        except Exception, e:
+            self.user_cache_size = DEFAULT_USER_CACHE_SIZE
+
+
+        #Start the gevent web server unless disabled
         if self.web_server_enabled:
             self.start_service(self.server_hostname,self.server_port)
+
+        #Initialize an LRU Cache to keep user roles cached for performance reasons
+        #maxSize = maximum number of elements to keep in cache
+        #maxAgeMs = oldest entry to keep
+        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
 
     def on_quit(self):
         self.stop_service()
@@ -89,7 +133,33 @@ class ServiceGatewayService(BaseServiceGatewayService):
             self.http_server.stop()
         return True
 
-        
+    def is_trusted_address(self, requesting_address):
+
+        if self.trusted_originators is None:
+            return True
+
+        for addr in self.trusted_originators:
+            if requesting_address == addr:
+                return True
+
+        return False
+
+@app.errorhandler(403)
+def custom_403(error):
+    return json_response({GATEWAY_ERROR: "The request has been denied since it did not originate from a trusted originator."})
+
+
+#Checks to see if the remote_addr in the request is in the list of specified trusted addresses, if any.
+@app.before_request
+def is_trusted_request():
+
+    if request.remote_addr is not None:
+        log.debug("Request from: " + request.remote_addr)
+
+    if not service_gateway_instance.is_trusted_address(request.remote_addr):
+        abort(403)
+
+
 
 # This is a service operation for handling generic service operation calls with arguments passed as query string parameters; like this:
 # http://hostname:port/ion-service/resource_registry/find_resources?restype=BankAccount&id_only=False
@@ -124,7 +194,7 @@ def process_gateway_request(service_name, operation):
 
         #Find the concrete client class for making the RPC calls.
         if not target_service.client:
-            raise BadRequest("Cannot find a client class for the specified service: %s" % service_name )
+            raise Inconsistent("Cannot find a client class for the specified service: %s" % service_name )
 
         target_client = target_service.client
 
@@ -151,44 +221,231 @@ def process_gateway_request(service_name, operation):
             if json_params['serviceRequest']['serviceOp'] != operation:
                 raise Inconsistent("Target service operation in the JSON request (%s) does not match service name in URL (%s)" % ( str(json_params['serviceRequest']['serviceOp']), operation ) )
 
-        param_list = create_parameter_list(service_name, target_client,operation, json_params)
+        param_list = create_parameter_list('serviceRequest', service_name, target_client,operation, json_params)
 
-        #Add governance headers - these are the default values.
-        ion_actor_id = 'anonymous'
-        expiry = '0'
-        param_list['headers'] = {'ion-actor-id': ion_actor_id, 'expiry': expiry}
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+        param_list['headers'] = build_message_headers(ion_actor_id, expiry)
 
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
         result = methodToCall(**param_list)
 
-        return json_response({GATEWAY_RESPONSE: result})
+
+        #For service operations that add or remove user roles, remove the cached roles so that
+        #the next request will get the latest set of user roles
+        #TODO - this will only work while there is a single Service Gateway running - need to replace with Event
+        #framework to evict from the cache when a user roles get updated.
+        if operation == 'grant_role' or operation == 'revoke_role':
+            #Look for a user_id in the set of parameters and remove it from the user role cache
+            if param_list.has_key('user_id'):
+                service_gateway_instance.user_data_cache.evict(param_list['user_id'])
+
+
+        return gateway_json_response(result)
 
 
     except Exception, e:
         return build_error_response(e)
 
 
+#This service method is used to communicate with a resource agent within the system from an
+#external entity using HTTP requests. A resource_id of a running agent is required as is the operation
+#that is being called and a JSON request block which specifies the data being sent to the agent.
+#Example:
+# curl -d 'payload={"agentRequest": { "agentId": "121ab46344cb3b30112", "agentOp": "execute",
+# "params": { "command": ["AgentCommand",  {"command": "reset"}]  } }' http://localhost:5000/ion-agent/121ab46344cb3b30112/execute
+@app.route('/ion-agent/<resource_id>/<operation>', methods=['POST'])
+def process_gateway_agent_request(resource_id, operation):
+
+    try:
+
+        if not resource_id:
+            raise BadRequest("Am agent resource_id was not found in the URL")
+
+        if operation == '':
+            raise BadRequest("An agent operation was not specified in the URL")
+
+        #Retrieve json data from HTTP Post payload
+        json_params = None
+        if request.method == "POST":
+            payload = request.form['payload']
+
+            json_params = json.loads(payload)
+
+            if not json_params.has_key('agentRequest'):
+                raise Inconsistent("The JSON request is missing the 'agentRequest' key in the request")
+
+            if not json_params['agentRequest'].has_key('agentId'):
+                raise Inconsistent("The JSON request is missing the 'agentRequest' key in the request")
+
+            if not json_params['agentRequest'].has_key('agentOp'):
+                raise Inconsistent("The JSON request is missing the 'agentOp' key in the request")
+
+            if json_params['agentRequest']['agentId'] != resource_id:
+                raise Inconsistent("Target agent id in the JSON request (%s) does not match agent id in URL (%s)" % (str(json_params['agentRequest']['agentId']), resource_id) )
+
+            if json_params['agentRequest']['agentOp'] != operation:
+                raise Inconsistent("Target agent operation in the JSON request (%s) does not match agent operation in URL (%s)" % ( str(json_params['agentRequest']['agentOp']), operation ) )
+
+        resource_agent = ResourceAgentClient(convert_unicode(resource_id), node=Container.instance.node, process=service_gateway_instance)
+        if resource_agent is None:
+            raise NotFound('The agent instance for id %s is not found.' % resource_id)
+
+
+        param_list = create_parameter_list('agentRequest', 'resource_agent', ResourceAgentProcessClient, operation, json_params)
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request('agentRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+        param_list['headers'] = build_message_headers(ion_actor_id, expiry)
+
+        methodToCall = getattr(resource_agent, operation)
+        result = methodToCall(**param_list)
+
+        return gateway_json_response(result)
+
+    except Exception, e:
+        return build_error_response(e)
+
 
 #Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
 def json_response(response_data):
 
-    return app.response_class(simplejson.dumps({'data': response_data}, default=ion_object_encoder,
+    return app.response_class(simplejson.dumps(response_data, default=ion_object_encoder,
         indent=None if request.is_xhr else 2), mimetype='application/json')
+
+def gateway_json_response(response_data):
+
+
+    if request.args.has_key(RETURN_FORMAT_PARAM):
+        return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
+        if return_format == RETURN_FORMAT_RAW_JSON:
+            return app.response_class(response_data, mimetype='application/json')
+
+    return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
 def build_error_response(e):
 
     exc_type, exc_obj, exc_tb = sys.exc_info()
     result = {
         GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
-        GATEWAY_ERROR_MESSAGE : str(e.message)
+        GATEWAY_ERROR_MESSAGE : str(e.message),
+        GATEWAY_ERROR_TRACE : traceback.format_exception(*sys.exc_info())
     }
 
-    return json_response({ GATEWAY_ERROR :result } )
+    if request.args.has_key(RETURN_FORMAT_PARAM):
+        return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
+        if return_format == RETURN_FORMAT_RAW_JSON:
+            return app.response_class(result, mimetype='application/json')
 
+    return json_response({'data': {GATEWAY_ERROR: result }} )
+
+def get_governance_info_from_request(request_type = '', json_params = None):
+
+    #Default values for governance headers.
+    actor_id = DEFAULT_ACTOR_ID
+    expiry = DEFAULT_EXPIRY
+    if not json_params:
+
+        if request.args.has_key('requester'):
+            actor_id = convert_unicode(request.args['requester'])
+
+        if request.args.has_key('expiry'):
+            expiry = convert_unicode(request.args['expiry'])
+    else:
+
+        if json_params[request_type].has_key('requester'):
+            actor_id = convert_unicode(json_params[request_type]['requester'])
+
+        if json_params[request_type].has_key('expiry'):
+            expiry = convert_unicode(json_params[request_type]['expiry'])
+
+    return actor_id, expiry
+
+def validate_request(ion_actor_id, expiry):
+
+    #There is no point in looking up an anonymous user - so return default values.
+    if ion_actor_id == DEFAULT_ACTOR_ID:
+        expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
+        return ion_actor_id, expiry
+
+    idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+
+    try:
+        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
+    except NotFound, e:
+        ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
+        expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
+        return ion_actor_id, expiry
+
+    #need to convert to a float first in order to compare against current time.
+    try:
+        int_expiry = int(expiry)
+    except Exception, e:
+        raise Inconsistent("Unable to read the expiry value in the request '%s' as an int" % expiry)
+
+    #The user has been validated as being known in the system, so not check the expiry and raise exception if
+    # the expiry is not set to 0 and less than the current time.
+    if int_expiry > 0 and int_expiry < current_time_millis():
+        raise Unauthorized('The certificate associated with the user and expiry time in the request has expired.')
+
+    return ion_actor_id, expiry
+
+def build_message_headers( ion_actor_id, expiry):
+
+    headers = dict()
+
+
+    headers['ion-actor-id'] = ion_actor_id
+    headers['expiry'] = expiry
+
+    #If this is an anonymous requester then there are no roles associated with the request
+    if ion_actor_id == DEFAULT_ACTOR_ID:
+        headers['ion-actor-roles'] = dict()
+        return headers
+
+    try:
+        #Check to see if the user's roles are cached already - keyed by user id
+        #TODO - May need to synchronize this if there are "threading" issues
+#        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
+#            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+#            if role_header is not None:
+#                headers['ion-actor-roles'] = role_header
+#                return headers
+
+
+        #The user's roles were not cached so hit the datastore to find it.
+        org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
+
+        role_header = get_role_message_headers(org_roles)
+
+        #Cache the roles by user id
+        service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
+
+    except Exception, e:
+        role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
+
+    headers['ion-actor-roles'] = role_header
+
+    return headers
+
+#Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
+#to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
+def get_role_message_headers(org_roles):
+
+    role_header = dict()
+    for org in org_roles:
+        role_header[org] = []
+        for role in org_roles[org]:
+            role_header[org].append(role.name)
+    return role_header
 
 #Build parameter list dynamically from
-def create_parameter_list(service_name, target_client,operation, json_params):
+def create_parameter_list(request_type, service_name, target_client,operation, json_params):
     param_list = {}
     method_args = inspect.getargspec(getattr(target_client,operation))
     for arg in method_args[0]:
@@ -202,27 +459,22 @@ def create_parameter_list(service_name, target_client,operation, json_params):
                 else:
                     param_list[arg] = ast.literal_eval(convert_unicode(request.args[arg]))
         else:
-            if json_params['serviceRequest']['params'].has_key(arg):
+            if json_params[request_type]['params'].has_key(arg):
 
-                #This if handles ION objects as a 2 element list: [Object Type, { field1: val1, ...}]
-                if isinstance(json_params['serviceRequest']['params'][arg], list):
-
-                    #TODO - Potentially remove these conversions whenever ION objects support unicode
-                    # UNICODE strings are not supported with ION objects
-                    ion_object_name = convert_unicode(json_params['serviceRequest']['params'][arg][0])
-                    object_params = convert_unicode(json_params['serviceRequest']['params'][arg][1])
-
-                    param_list[arg] = create_ion_object(ion_object_name, object_params)
-
-                else:  # The else branch is for simple types ( non-ION objects )
-                    param_list[arg] = convert_unicode(json_params['serviceRequest']['params'][arg])
+                #TODO - Potentially remove these conversions whenever ION objects support unicode
+                # UNICODE strings are not supported with ION objects
+                object_params = convert_unicode(json_params[request_type]['params'][arg])
+                if is_ion_object_dict(object_params):
+                    param_list[arg] = create_ion_object(object_params)
+                else:
+                    #Not an ION object so handle as a simple type then.
+                    param_list[arg] = convert_unicode(json_params[request_type]['params'][arg])
 
     return param_list
 
 #Helper function for creating and initializing an ION object from a dictionary of parameters.
-def create_ion_object(ion_object_name, object_params):
-
-    new_obj = IonObject(ion_object_name)
+def create_ion_object(object_params):
+    new_obj = IonObject(object_params["type_"])
 
     #Iterate over the parameters to add to object; have to do this instead
     #of passing a dict to get around restrictions in object creation on setting _id, _rev params
@@ -240,7 +492,9 @@ def set_object_field(obj, field, field_val):
         for sub_field in field_val:
             set_object_field(sub_obj, sub_field, field_val.get(sub_field))
     else:
-        setattr(obj, field, field_val)
+        # type_ already exists in the class.
+        if field != "type_":
+            setattr(obj, field, field_val)
 
 #Used by json encoder
 def ion_object_encoder(obj):
@@ -257,6 +511,9 @@ def convert_unicode(data):
     else:
         return data
 
+
+
+
 # This service method returns the list of registered resource objects sorted alphabetically. Optional query
 # string parameter will filter by extended type  i.e. type=InformationResource. All registered objects
 # will be returned if not filtered
@@ -271,6 +528,12 @@ def list_resource_types():
 
 
     try:
+
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request()
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
         #Look to see if a specific resource type has been specified - if not default to all
         if request.args.has_key('type'):
             resultSet = set(getextends(request.args['type'])) if getextends(request.args['type']) is not None else set()
@@ -283,7 +546,7 @@ def list_resource_types():
             ret_list.append(res)
 
 
-        return json_response({ GATEWAY_RESPONSE :ret_list } )
+        return gateway_json_response(ret_list)
 
 
     except Exception, e:
@@ -297,6 +560,11 @@ def get_resource_schema(resource_type):
 
 
     try:
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request()
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
         #ION Objects are not registered as UNICODE names
         ion_object_name = convert_unicode(resource_type)
         ret_obj = IonObject(ion_object_name, {})
@@ -316,7 +584,7 @@ def get_resource_schema(resource_type):
                     setattr(ret_obj, field, value)
 
 
-        return json_response({ GATEWAY_RESPONSE :ret_obj } )
+        return gateway_json_response(ret_obj)
 
     except Exception, e:
         return build_error_response(e)
@@ -330,16 +598,20 @@ def get_resource_schema(resource_type):
 @app.route('/ion-service/rest/resource/<resource_id>')
 def get_resource(resource_id):
 
-    result = None
-    client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-    if resource_id != '':
         try:
+
+            client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+
+            #Validate requesting user and expiry and add governance headers
+            ion_actor_id, expiry = get_governance_info_from_request()
+            ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
             #Database object IDs are not unicode
             result = client.read(convert_unicode(resource_id))
             if not result:
                 raise NotFound("No resource found for id: %s " % resource_id)
 
-            return json_response({ GATEWAY_RESPONSE :result } )
+            return gateway_json_response(result)
 
         except Exception, e:
             return build_error_response(e)
@@ -352,21 +624,37 @@ def get_resource(resource_id):
 @app.route('/ion-service/rest/find_resources/<resource_type>')
 def list_resources_by_type(resource_type):
 
-    result = None
-
-    client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     try:
+
+        client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request()
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+
         #Resource Types are not in unicode
         res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
 
-        return json_response({ GATEWAY_RESPONSE :res_list } )
+        return gateway_json_response(res_list)
 
     except Exception, e:
         return build_error_response(e)
 
 
+#Gateway specific services are below
 
-#Example restful call to a client function for another service like
+# Get image for a specific data product
+@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
+def get_viz_image(data_product_id, img_name):
+
+    # Create client to interface with the viz service
+    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+    return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
+
+
+
+#Below are example restful calls to stuff for testing... all should be removed at some point
+
 #http://hostname:port/ion-service/run_bank_client
 @app.route('/ion-service/run_bank_client')
 def create_accounts():
@@ -377,10 +665,29 @@ def create_accounts():
 
 @app.route('/ion-service/seed_gov')
 def seed_gov():
-    from examples.gov_client import run_client
-    run_client(Container.instance, process=service_gateway_instance)
+    from examples.gov_client import seed_gov
+    seed_gov(Container.instance)
     return json_response("")
 
+
+@app.route('/ion-service/test_policy')
+def test_policy():
+    from examples.gov_client import test_policy
+    test_policy(Container.instance)
+    return json_response("")
+
+
+@app.route('/ion-service/test_requests')
+def test_requests():
+    from examples.gov_client import test_requests
+    test_requests(Container.instance)
+    return json_response("")
+
+@app.route('/ion-service/instrument_test_driver')
+def instrument_test_driver():
+    from examples.agent.instrument_driver import instrument_test_driver
+    instrument_test_driver(Container.instance)
+    return json_response("")
 
 
 

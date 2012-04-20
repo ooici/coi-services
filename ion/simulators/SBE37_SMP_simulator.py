@@ -11,11 +11,15 @@ import random
 import asyncore
 import thread
 import getopt
+import select
+import os
 
 port = 4001  # Default port to run on.
 connection_count = 0
+log_file = "unassigned"
 
 class sbe37(asyncore.dispatcher_with_send):
+    buf = ""
     count = 8
     time_set_at = time.time() 
     out_buffer = ""
@@ -71,16 +75,14 @@ class sbe37(asyncore.dispatcher_with_send):
     rtca0 = 9.999862e-01
     rtca1 = 1.686132e-06
     rtca2 = -3.022745e-08
+    knock_count = 0
 
     months = ['BAD PROGRAMMER MONTH', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
     def __init__(self, socket, thread):
         self.socket = socket
+        self.socket.settimeout(0.0)
         self.thread = thread
-        try:
-            self.socket.send("S>")
-        except:
-            print "exception could not send 'S>' for some reason...\n"
         self.handle_read()
 
     def handle_error(self, request, client_address):
@@ -96,39 +98,62 @@ class sbe37(asyncore.dispatcher_with_send):
         format = "%m-%d-%Y, %H:%M:%S"
         return current_time.strftime(format)
 
+
+
+    def read_a_char(self):
+            c = None
+            if len(self.buf) > 0:
+                c = self.buf[0:1]
+                self.buf = self.buf[1:]
+            else:
+                self.buf = self.recv(8192)
+
+            return c
     def get_data(self):
+        data = ""
         try:
-            ret = ''
+            ret = ""
 
             while True:
-                c = self.socket.recv(1)
-
+                c = self.read_a_char()
+                #print "GOT " + str(c)
+                if c == None:
+                    break
                 if c == '\n' or c == '':
+                    ret += c
                     break
                 else:
                     ret += c
 
             data = ret
+        except AttributeError:
+            print "CLOSING"
+            log_file.close()
+            self.socket.close()
+            self.thread.exit()
         except:
-            data = None
+            data = ""
 
         if data:
             data = data.lower()
-            print "\nIN  [" + str(data.replace("\r", "\\r").replace("\n", "\\n")) + "]\n"
-
+            print "IN  [" + repr(data) + "]"
+            if log_file.closed == False:
+                log_file.write("IN  [" + repr(data) + "]\n")
         return data
  
     def send_data(self, data, debug):
-        print "OUT [" + str(data.replace("\r", "\\r").replace("\n", "\\n")) + "]"
 
         try:
+            print "OUT [" + repr(data) + "]"
+            if log_file.closed == False:
+                log_file.write("OUT  [" + repr(data) + "]\n")
             self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
 
     def handle_read(self):
         while True:
-            time.sleep(0.5)
+            time.sleep(0.1)
             start_time = datetime.datetime.strptime(self.start_mmddyy + " " + self.start_time, "%m%d%y %H%M%S")
             current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + \
                            datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
@@ -138,44 +163,53 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.logging = True
 
             #------------------------------------------------------------------#
-            data = None
             data = self.get_data()
-            if data == "":
-                self.socket.close()
-                self.thread.exit()
 
             if self.logging == True:
                 self.count += 1
-                time.sleep(1)
-                if self.count > 8:
+                time.sleep(0.1)
+                if self.count > 25:
                     self.count = 1
-                    self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(10,30), random.uniform(0.03, 0.07), random.uniform(-5, -9), random.uniform(0.18, 0.36), random.uniform(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
+                    if self.tx_real_time:
+                        self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
+                    #self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(10,30), random.uniform(0.03, 0.07), random.uniform(-5, -9), random.uniform(0.18, 0.36), random.uniform(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
 
                 # Need to handle commands that are not in the blessed list #
                 if data:
                     command_args = string.splitfields(data.rstrip('\r\n'), "=")
                     if data[0] == '\r' or data[0] == '\n':
                         locked = False
-                        self.send_data('S>', 'is this what it wants')
-                        self.send_data('S>\r\n', 'is this what it wants')
-                        time.sleep(1)
-                        self.send_data('S>\r\n', 'is this what it wants')
 
-                    if command_args[0] in ['ds', 'dc', 'ts', 'tsr', 'slt', 'sltr', 'qs', 'stop', '\r\n', '\n\r']:
+                        self.knock_count += 1
+
+                        if self.knock_count == 5:
+                            self.send_data('\r\nS>\r\n', 'NEW')
+
+                        if self.knock_count == 4:
+                            self.send_data('\r\nS>\r\n', 'NEW')
+
+                        if self.knock_count == 3:
+                            self.send_data('\x00SBE 37-SM\r\n', 'NEW')
+                            self.send_data('S>', 'NEW')
+                            
+                        #time.sleep(1)
+                    
+                    elif command_args[0] in ['ds', 'dc', 'ts', 'tsr', 'slt', 'sltr', 'qs', 'stop', '\r\n', '\n\r']:
                         """
                         print "GOT A PERMITTED COMMAND " + command_args[0] + "\n"
                         """
                     else:
-                        """
-                        print "SILENTLY GOBBLING COMMAND " + data
-                        """
+                        self.send_data('cmd not allowed while logging\n', 'non-permitted command')
                         data = None
 
             if data:
-                self.send_data(data, 'ECHO COMMAND BACK TO SENDER')
+                handled = True
+                if data.rstrip('\r').rstrip('\n') != "":
+                    if (data.replace('\r','').replace('\n','') != ""):
+                        self.send_data(data.replace('\r','').replace('\n','') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
-                if command_args[0] == 'BAUD':
+                if command_args[0] == 'baud':
                     if command_args[1] in self.allowable_baud_rates:
                         self.baud_rate = command_args[1]
                     else:
@@ -252,7 +286,7 @@ class sbe37(asyncore.dispatcher_with_send):
                             (int(command_args[1][2:4]) < 13) and
                             (int(command_args[1][0:2]) > 0) and
                             (int(command_args[1][0:2]) < 32)):
-                            self.date=command_args[1][2:4] + command_args[0][0:2] + command_args[0][4:6]
+                            self.date=command_args[1][2:4] + command_args[1][0:2] + command_args[1][4:6]
                         else:
                             self.send_data("***DATE RANGE ERROR***" + command_args[1] + "\r\n", 'ddmmyy line 1')
                     except ValueError:
@@ -351,15 +385,25 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.send_data('start now\r\n', 'startnow line 1')
                     self.logging = True
                     self.locked = True
+                    self.knock_count = 0
+                    handled = False
 
                 elif data[0] == '\r':
-                    self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    handled = False
+                    if self.logging == False:
+                        self.send_data('\r\nS>', '\\ r line 1')
                     self.locked = False
+                    data = ""
                 elif data[1] == '\r\n':
-                    self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    handled = False
+                    self.send_data('S>  ', '\\ r \\ n line 1')
                     self.locked = False
                 elif command_args[0] == '\x1b':
-                    self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
+                    handled = False
+                    self.send_data('S>  ', '\\ x1b line 1')
                     self.locked = False
 
                 elif command_args[0] == 'startmmddyy':
@@ -380,7 +424,7 @@ class sbe37(asyncore.dispatcher_with_send):
                             (int(command_args[1][2:4]) < 13) and
                             (int(command_args[1][0:2]) > 0) and
                             (int(command_args[1][0:2]) < 32)):
-                            self.start_mmddyy=command_args[1][2:4] + command_args[0][0:2] + command_args[0][4:6]
+                            self.start_mmddyy=command_args[1][2:4] + command_args[1][0:2] + command_args[1][4:6]
                         else:
                             self.send_data("***DATE RANGE ERROR***" + command_args[1] + "\r\n", 'startddmmyy line 1')
                     except ValueError:
@@ -407,28 +451,34 @@ class sbe37(asyncore.dispatcher_with_send):
                 elif command_args[0] == 'stop':
                     self.start_later = False
                     self.logging = False
-                    #print "really got stop command\r\n"
+                    print "really got stop command\r\n"
+                    self.send_data('S>\r\n', 'SPECIAL STOP PROMPT')
+                    handled = False
 
                 elif command_args[0] == 'ts':
-                    self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'tsr':
                     self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'tsr line 1')
 
                 elif command_args[0] == 'tss':
-                    self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tss line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tss line 1') 
 
                 elif command_args[0] == 'tsson':
-                    self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tsson line 1')
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tsson line 1')
 
                 elif command_args[0] == 'slt':
-                    self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'slt line 1')
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'slt line 1')
 
                 elif command_args[0] == 'sltr':
                     self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'sltr line 1')
 
                 elif command_args[0] == 'sl':
-                    self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'sl line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'sl line 1') 
 
                 elif command_args[0] == 'syncmode':
                     if command_args[1] == 'y':
@@ -459,11 +509,11 @@ class sbe37(asyncore.dispatcher_with_send):
                         end = int(command_args[1])
                     except ValueError:
                         self.send_data("*** end ERROR expected INTEGER", 'dd line 2')
-                        self.send_data('start time =  ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + '  ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 3') 
-                        self.send_data('sample interval = ' + str(self.interval) + ' seconds\r\n', 'dd line 4')  
-                        self.send_data('start sample number = ' + str(self.sample_number) + '\r\n\r\n', 'dd line 5')  
-                        for sample in range(begin, end):
-                            self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 6')
+                    self.send_data('start time =  ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + '  ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 3') 
+                    self.send_data('sample interval = ' + str(self.interval) + ' seconds\r\n', 'dd line 4')  
+                    self.send_data('start sample number = ' + str(self.sample_number) + '\r\n\r\n', 'dd line 5')  
+                    for sample in range(begin, end):
+                        self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'dd line 6')
 
                 elif command_args[0] == "tt":
                     count = 100
@@ -757,9 +807,11 @@ class sbe37(asyncore.dispatcher_with_send):
                         self.send_data("? CMD\r\n", 'rtca2 line 1')
 
                 else:
+                    handled = False
                     self.send_data("? CMD\r\n", 'else line 1 RESPONSE TO ' + data)
              
-                self.send_data("\r\nS>", 'default command prompt')
+                if handled == True:
+                    self.send_data("\r\nS>", 'default command prompt')
                 #------------------------------------------------------------------#
 
  
@@ -779,6 +831,12 @@ class sbe37_server(asyncore.dispatcher):
         else:
             sock, addr = pair
             global connection_count
+            global log_file
+            try:
+                name = str(os.getppid()) + "." +repr(addr).replace('(','').replace(')','').replace(' ','').replace("'",'')
+                log_file = open("/tmp/" + name, 'w')
+            except:
+                print "could not open log file " + repr(addr)
             connection_count += 1
             print str(connection_count) + ' Incoming connection from %s' % repr(addr)
             try:
@@ -811,6 +869,7 @@ def get_opts():
             sys.exit()
         elif o in ("-p", "--port"):
             try: 
+                global port
                 port = int(a)
             except:
                 port_usage()

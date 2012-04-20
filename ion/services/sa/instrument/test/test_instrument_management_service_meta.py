@@ -35,6 +35,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('META', group='sa')
+@unittest.skip('Need to align.')
 class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 
     def setUp(self):
@@ -51,6 +52,7 @@ class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
         
         print 'started services'
 
+    @unittest.skip('this test just for debugging setup')
     def test_just_the_setup(self):
         return
 

@@ -16,10 +16,10 @@ from pyon.util.async import spawn
 from pyon.core.exception import IonException
 
 from pyon.datastore.couchdb.couchdb_datastore import sha1hex
-from interface.objects import BlogPost, BlogComment, DatasetIngestionByStream, DatasetIngestionTypeEnum
+from interface.objects import DatasetIngestionTypeEnum, Coverage, CountElement
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.event.event import DatasetIngestionConfigurationEventSubscriber
+from pyon.event.event import EventSubscriber, EventPublisher
 
 from pyon.util.file_sys import FS, FileSystem
 import hashlib
@@ -46,6 +46,9 @@ class IngestionWorker(TransformDataProcess):
     def ingest_process_test_hook(self,msg, headers):
         pass
 
+    def on_init(self):
+        self.event_pub = EventPublisher()
+
     def on_start(self):
         super(IngestionWorker,self).on_start()
         #----------------------------------------------
@@ -69,10 +72,9 @@ class IngestionWorker(TransformDataProcess):
 
             self.datastore_profile = DataStore.DS_PROFILE.SCIDATA
         log.debug('datastore_profile %s' % self.datastore_profile)
-        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, self.datastore_profile, self.CFG)
+        self.db = self.container.datastore_manager.get_datastore(ds_name=self.datastore_name, profile = self.datastore_profile, config = self.CFG)
 
         self.resource_reg_client = ResourceRegistryServiceClient(node = self.container.node)
-
 
         self.dataset_configs = {}
         # update the policy
@@ -88,17 +90,17 @@ class IngestionWorker(TransformDataProcess):
                 try:
                     del self.dataset_configs[stream_id]
                 except KeyError:
-                    log.warn('Tried to remove dataset config that does not exist!')
+                    log.info('Tried to remove dataset config that does not exist!')
             else:
-                self.dataset_configs[stream_id] = event_msg.configuration
+                self.dataset_configs[stream_id] = event_msg
 
             # Hook to override just before processing is complete
             self.dataset_configs_event_test_hook(event_msg, headers)
 
 
         #Start the event subscriber - really - what a mess!
-        self.event_subscriber = DatasetIngestionConfigurationEventSubscriber(
-            node = self.container.node,
+        self.event_subscriber = EventSubscriber(
+            event_type="DatasetIngestionConfigurationEvent",
             origin=self.ingest_config_id,
             callback=receive_dataset_config_event
             )
@@ -106,21 +108,38 @@ class IngestionWorker(TransformDataProcess):
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
 
-        log.warn(str(self.db))
+        log.info(str(self.db))
 
     def process(self, packet):
         """Process incoming data!!!!
         """
 
+        # Ignoring any packet that is not a stream granule!
+        if not isinstance(packet, StreamGranuleContainer):
+            raise IngestionWorkerException('Received invalid message type: "%s"', type(packet))
+
+
         # Get the dataset config for this stream
         dset_config = self.get_dataset_config(packet)
 
         # Process the packet
-        self.process_stream(packet, dset_config)
 
-        headers = ''
-        # Hook to override just before processing is complete
-        self.ingest_process_test_hook(packet, headers)
+        ingest_attributes = self.process_stream(packet, dset_config)
+
+
+        #@todo - get this data from the dataset config...
+        if dset_config:
+            dataset_id = dset_config.dataset_id
+            stream_id = dset_config.stream_id
+
+            self.event_pub.publish_event(event_type="GranuleIngestedEvent", sub_type="DatasetIngest",
+                origin=dataset_id, status=200,
+                ingest_attributes=ingest_attributes, stream_id=stream_id)
+
+
+            headers = ''
+            # Hook to override just before processing is complete
+            self.ingest_process_test_hook(packet, headers)
 
 
     def persist_immutable(self, obj):
@@ -132,6 +151,7 @@ class IngestionWorker(TransformDataProcess):
 
         try:
             self.db.create_doc(doc, object_id=sha1)
+            log.debug('Persisted document %s', type(obj))
         except BadRequest:
             # Deduplication in action!
             #@TODO why are we getting so many duplicate comments?
@@ -148,71 +168,79 @@ class IngestionWorker(TransformDataProcess):
         @param: dset_config The dset_config telling this method what to do with the incoming data stream.
         """
 
-        # Ignoring is_replay attribute now that we have a policy implementation
-        if isinstance(packet, StreamGranuleContainer):
 
-            if dset_config is None:
-                log.warn('No dataset config for this stream!')
-                return
+        ingestion_attributes={'variables':[], 'number_of_records':-1,'updated_metadata':False, 'updated_data':False}
 
+        if dset_config is None:
+            log.info('No dataset config for this stream!')
+            return
 
+        values_string = ''
+        sha1 = ''
+        encoding_type = ''
 
-            hdfstring = ''
-            sha1 = ''
+        for key,value in packet.identifiables.iteritems():
+            if isinstance(value, DataStream):
+                values_string = value.values
+                value.values=''
 
-            for key,value in packet.identifiables.iteritems():
-                if isinstance(value, DataStream):
-                    hdfstring = value.values
-                    value.values=''
+            elif isinstance(value, Encoding):
+                sha1 = value.sha1
+                encoding_type = value.encoding_type
 
-                elif isinstance(value, Encoding):
-                    sha1 = value.sha1
+            elif isinstance(value, Coverage):
+                ingestion_attributes['variables'].append(key)
 
+            elif isinstance(value, CountElement):
+                ingestion_attributes['number_of_records'] = value.value
 
-
-            if dset_config.archive_metadata is True:
-                log.debug("Persisting data....")
-                self.persist_immutable(packet )
-
-            if dset_config.archive_data is True:
-                #@todo - grab the filepath to save the hdf string somewhere..
-
-                if hdfstring:
-
-                    calculated_sha1 = hashlib.sha1(hdfstring).hexdigest().upper()
-
-                    filename = FileSystem.get_url(FS.CACHE, calculated_sha1, ".hdf5")
-
-                    if sha1 != calculated_sha1:
-                        raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
-
-                    log.warn('writing to filename: %s' % filename)
-
-                    with open(filename, mode='wb') as f:
-                        f.write(hdfstring)
-                        f.close()
-                else:
-                    log.warn("Nothing to write!")
-
-
-        elif isinstance(packet, BlogPost) and not packet.is_replay:
+        if dset_config.archive_metadata is True:
+            log.debug("Persisting data....")
+            ingestion_attributes['updated_metadata'] = True
             self.persist_immutable(packet )
 
+        if dset_config.archive_data is True:
+            #@todo - grab the filepath to save the hdf string somewhere..
 
-        elif isinstance(packet, BlogComment) and not packet.is_replay:
-            self.persist_immutable(packet)
+            ingestion_attributes['updated_data'] = True
+            if values_string:
 
-        # Create any events for about the receipt of an update on this stream
+                calculated_sha1 = hashlib.sha1(values_string).hexdigest().upper()
 
+                filename = FileSystem.get_hierarchical_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
+
+                if sha1 != calculated_sha1:
+                    raise  IngestionWorkerException('The sha1 stored is different than the calculated from the received hdf_string')
+
+                #log.warn('writing to filename: %s' % filename)
+
+                with open(filename, mode='wb') as f:
+                    f.write(values_string)
+                    f.close()
+            else:
+                log.warn("Nothing to write!")
+
+
+        return ingestion_attributes
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
+
+        # close event subscriber safely
+        self.event_subscriber.close()
+        self.gl.join(timeout=5)
         self.gl.kill()
+
         self.db.close()
 
     def on_quit(self):
         TransformDataProcess.on_quit(self)
+
+        # close event subscriber safely
+        self.event_subscriber.close()
+        self.gl.join(timeout=5)
         self.gl.kill()
+
         self.db.close()
 
 
@@ -231,10 +259,12 @@ class IngestionWorker(TransformDataProcess):
 
         dset_config = self.dataset_configs.get(stream_id, None)
 
+        configuration = None
         if dset_config is None:
-            log.info('No policy found for stream id: %s ' % stream_id)
+            log.info('No config found for stream id: %s ' % stream_id)
         else:
-            log.info('Got policy: %s for stream id: %s' % (dset_config, stream_id))
+            log.info('Got config: %s for stream id: %s' % (dset_config, stream_id))
+            configuration = dset_config.configuration
 
         # return the extracted instruction
-        return dset_config
+        return configuration

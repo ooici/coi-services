@@ -3,16 +3,13 @@
 @file ion/services/dm/transformation/test_transform_service.py
 @description Unit Test for Transform Management Service
 '''
-from Queue import Empty
-import time
-import gevent
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.icontainer_agent import ContainerAgentClient
 from pyon.core.exception import NotFound, BadRequest
+from pyon.ion.transform import TransformDataProcess
 from pyon.util.containers import DotDict
 from pyon.public import IonObject, RT, PRED
 from pyon.util.unit_test import PyonTestCase
@@ -23,8 +20,16 @@ from ion.services.dm.transformation.transform_management_service import Transfor
 from ion.processes.data.transforms.transform_example import TransformExample
 from interface.objects import ProcessDefinition, StreamQuery
 from pyon.public import   StreamSubscriberRegistrar, StreamPublisherRegistrar
+from Queue import Empty
+import os
+import time
+import gevent
 
 import unittest
+
+
+class TestTransform(TransformDataProcess):
+    pass
 
 @attr('UNIT',group='dm')
 class TransformManagementServiceTest(PyonTestCase):
@@ -100,7 +105,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -109,7 +113,8 @@ class TransformManagementServiceTest(PyonTestCase):
                 'name':'test_transform',
                 'type':'stream_process',
                 'listen_name':'input_stream_id',
-                'publish_streams':{'output':'mock_output_stream_id'}
+                'publish_streams':{'output':'mock_output_stream_id'},
+                'transform_id': 'transform_id'
             },
             'proc_args':{
                 'arg1':'value'
@@ -119,7 +124,8 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_pd_schedule.assert_called_with(
             'mock_procdef_id',
             None,
-            out_config
+            out_config,
+            ""
         )
         self.assertTrue(self.mock_rr_create.called)
 
@@ -146,7 +152,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -155,14 +160,16 @@ class TransformManagementServiceTest(PyonTestCase):
                 'name':'test_transform',
                 'type':'stream_process',
                 'listen_name':'input_stream_id',
-                'publish_streams':{'output':'mock_output_stream_id'}
+                'publish_streams':{'output':'mock_output_stream_id'},
+                'transform_id': 'transform_id'
             }
         }
         self.assertEquals(self.mock_rr_create_assoc.call_count,3)
         self.mock_pd_schedule.assert_called_with(
             'mock_procdef_id',
             None,
-            out_config
+            out_config,
+            ""
         )
 
         self.assertTrue(self.mock_rr_create.called)
@@ -187,7 +194,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         # assertions
         # look up on procdef
-        self.mock_pd_read.assert_called_with('mock_procdef_id')
         self.mock_ps_read_sub.assert_called_with(subscription_id='mock_subscription_id')
 
         # (1) sub, (1) stream, (1) procdef
@@ -195,7 +201,8 @@ class TransformManagementServiceTest(PyonTestCase):
             'process':{
                 'name':'test_transform',
                 'type':'stream_process',
-                'listen_name':'input_stream_id'
+                'listen_name':'input_stream_id',
+                'transform_id': 'transform_id'
             },
             'proc_args':{
                 'arg1':'value'
@@ -205,7 +212,8 @@ class TransformManagementServiceTest(PyonTestCase):
         self.mock_pd_schedule.assert_called_with(
             'mock_procdef_id',
             None,
-            out_config
+            out_config,
+            ""
         )
 
         self.assertTrue(self.mock_rr_create.called)
@@ -322,8 +330,8 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
                                               'class':'TransformExample'}
         self.process_definition_id = self.procd_cli.create_process_definition(process_definition=self.process_definition)
 
-
-
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_create_transform(self):
         configuration = {'program_args':{'arg1':'value'}}
 
@@ -389,6 +397,8 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             )
         self.tms_cli.delete_transform(transform_id)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_create_no_output(self):
         transform_id = self.tms_cli.create_transform(
             name='test_transform',
@@ -482,7 +492,12 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         Where A is the even_odd transform (generates a stream of even and odd numbers from input)
         and B and C are the basic transforms that receive even and odd input
         '''
+        cc = self.container
+        assertions = self.assertTrue
 
+        pubsub_cli = PubsubManagementServiceClient(node=cc.node)
+        rr_cli = ResourceRegistryServiceClient(node=cc.node)
+        tms_cli = TransformManagementServiceClient(node=cc.node)
         #-------------------------------
         # Process Definition
         #-------------------------------
@@ -492,7 +507,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformExample'
         }
-        basic_transform_definition_id, _ = self.rr_cli.create(process_definition)
+        basic_transform_definition_id, _ = rr_cli.create(process_definition)
 
         # Create The process definition for the TransformEvenOdd
         process_definition = IonObject(RT.ProcessDefinition, name='evenodd_transform_definition')
@@ -500,72 +515,72 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             'module': 'ion.processes.data.transforms.transform_example',
             'class':'TransformEvenOdd'
         }
-        evenodd_transform_definition_id, _ = self.rr_cli.create(process_definition)
+        evenodd_transform_definition_id, _ = rr_cli.create(process_definition)
 
         #-------------------------------
         # Streams
         #-------------------------------
-        streams = [self.pubsub_cli.create_stream() for i in xrange(5)]
+        streams = [pubsub_cli.create_stream() for i in xrange(5)]
 
         #-------------------------------
         # Subscriptions
         #-------------------------------
 
         query = StreamQuery(stream_ids=[streams[0]])
-        input_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='input_queue')
+        input_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='input_queue')
 
         query = StreamQuery(stream_ids = [streams[1]]) # even output
-        even_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='even_queue')
+        even_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='even_queue')
 
         query = StreamQuery(stream_ids = [streams[2]]) # odd output
-        odd_subscription_id = self.pubsub_cli.create_subscription(query=query, exchange_name='odd_queue')
+        odd_subscription_id = pubsub_cli.create_subscription(query=query, exchange_name='odd_queue')
 
 
         #-------------------------------
         # Launch the EvenOdd Transform
         #-------------------------------
 
-        evenodd_id = self.tms_cli.create_transform(name='even_odd',
+        evenodd_id = tms_cli.create_transform(name='even_odd',
             in_subscription_id=input_subscription_id,
             out_streams={'even':streams[1], 'odd':streams[2]},
             process_definition_id=evenodd_transform_definition_id,
             configuration={})
-        self.tms_cli.activate_transform(evenodd_id)
+        tms_cli.activate_transform(evenodd_id)
 
 
         #-------------------------------
         # Launch the Even Processing Transform
         #-------------------------------
 
-        even_transform_id = self.tms_cli.create_transform(name='even_transform',
+        even_transform_id = tms_cli.create_transform(name='even_transform',
             in_subscription_id = even_subscription_id,
             out_streams={'even_plus1':streams[3]},
             process_definition_id=basic_transform_definition_id,
             configuration={})
-        self.tms_cli.activate_transform(even_transform_id)
+        tms_cli.activate_transform(even_transform_id)
 
         #-------------------------------
         # Launch the Odd Processing Transform
         #-------------------------------
 
-        odd_transform_id = self.tms_cli.create_transform(name='odd_transform',
+        odd_transform_id = tms_cli.create_transform(name='odd_transform',
             in_subscription_id = odd_subscription_id,
             out_streams={'odd_plus1':streams[4]},
             process_definition_id=basic_transform_definition_id,
             configuration={})
-        self.tms_cli.activate_transform(odd_transform_id)
+        tms_cli.activate_transform(odd_transform_id)
 
         #-------------------------------
         # Set up final subscribers
         #-------------------------------
 
-        evenplus1_subscription_id = self.pubsub_cli.create_subscription(
+        evenplus1_subscription_id = pubsub_cli.create_subscription(
             query=StreamQuery([streams[3]]),
             exchange_name='evenplus1_queue',
             name='EvenPlus1Subscription',
             description='EvenPlus1 SubscriptionDescription'
         )
-        oddplus1_subscription_id = self.pubsub_cli.create_subscription(
+        oddplus1_subscription_id = pubsub_cli.create_subscription(
             query=StreamQuery([streams[4]]),
             exchange_name='oddplus1_queue',
             name='OddPlus1Subscription',
@@ -579,16 +594,16 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
         def even1_message_received(message, headers):
             input = int(message.get('num'))
-            self.assertTrue( (input % 2) ) # Assert it is odd (transform adds 1)
+            assertions( (input % 2) ) # Assert it is odd (transform adds 1)
             msgs.put(True)
 
 
         def odd1_message_received(message, headers):
             input = int(message.get('num'))
-            self.assertTrue(not (input % 2)) # Assert it is even
+            assertions(not (input % 2)) # Assert it is even
             msgs.put(True)
 
-        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        subscriber_registrar = StreamSubscriberRegistrar(process=cc, node=cc.node)
         even_subscriber = subscriber_registrar.create_subscriber(exchange_name='evenplus1_queue', callback=even1_message_received)
         odd_subscriber = subscriber_registrar.create_subscriber(exchange_name='oddplus1_queue', callback=odd1_message_received)
 
@@ -597,22 +612,22 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         odd_subscriber.start()
 
         # Activate subscriptions
-        self.pubsub_cli.activate_subscription(evenplus1_subscription_id)
-        self.pubsub_cli.activate_subscription(oddplus1_subscription_id)
+        pubsub_cli.activate_subscription(evenplus1_subscription_id)
+        pubsub_cli.activate_subscription(oddplus1_subscription_id)
 
         #-------------------------------
         # Set up fake stream producer
         #-------------------------------
 
-        pid = self.container.spawn_process(name='dummy_process_for_test',
+        pid = cc.spawn_process(name='dummy_process_for_test',
             module='pyon.ion.process',
             cls='SimpleProcess',
             config={})
-        dummy_process = self.container.proc_manager.procs[pid]
+        dummy_process = cc.proc_manager.procs[pid]
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=cc.node)
         stream_publisher = publisher_registrar.create_publisher(stream_id=streams[0])
 
         #-------------------------------
@@ -629,5 +644,48 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             try:
                 msgs.get()
             except Empty:
-                self.assertTrue(False, "Failed to process all messages correctly.")
+                assertions(False, "Failed to process all messages correctly.")
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST',False),'CEI incompatible')
+    def test_transform_restart(self):
+        tms_cli = self.tms_cli
+        rr_cli = self.rr_cli
+        pubsub_cli = self.pubsub_cli
+        cc = self.container
+        assertions = self.assertTrue
+
+        proc_def = ProcessDefinition(executable=
+            {
+            'module':'ion.services.dm.transformation.test.test_transform_service',
+            'class':'TestTransform'
+        })
+        proc_def_id, _ = rr_cli.create(proc_def)
+
+        stream_id = pubsub_cli.create_stream()
+        subscription_id = pubsub_cli.create_subscription(query=StreamQuery(stream_ids=[stream_id]),exchange_name='test_transform')
+
+        transform_id = tms_cli.create_transform(
+            name='test_transform',
+            in_subscription_id=subscription_id,
+            process_definition_id=proc_def_id
+        )
+        tms_cli.activate_transform(transform_id)
+
+        transform = rr_cli.read(transform_id)
+        pid = transform.process_id
+
+        assertions(cc.proc_manager.procs.has_key(pid), 'Transform process was never started.')
+        cc.proc_manager.terminate_process(pid)
+
+        assertions(not cc.proc_manager.procs.has_key(pid),'Transform process was never killed')
+
+        handle = cc.proc_manager.procs_by_name['transform_management']
+        handle._restart_transform(transform_id)
+
+        transform = rr_cli.read(transform_id)
+        pid = transform.process_id
+
+        assertions(cc.proc_manager.procs.has_key(pid), 'Transform process was never restarted.')
+        
 

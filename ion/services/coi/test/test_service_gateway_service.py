@@ -13,9 +13,8 @@ from webtest import TestApp
 
 from pyon.core.registry import get_message_class_in_parm_type, getextends
 from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode, GATEWAY_RESPONSE, \
-            GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
+            GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, GATEWAY_ERROR_TRACE
 
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from pyon.util.containers import DictDiffer
 from pyon.util.log import log
@@ -23,17 +22,14 @@ from pyon.util.log import log
 import unittest
 import os
 
-@attr('INT', group='coi')
+@attr('LOCOINT', 'INT', group='coi')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         # Now create client to service
         self.service_gateway_service = ServiceGatewayServiceClient(node=self.container.node)
@@ -106,7 +102,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('KeyError', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_EXCEPTION])
         self.assertIn('MyFakeResource', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
-
+        self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
     def create_data_product_resource(self):
 
@@ -114,7 +110,8 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
             "serviceName": "resource_registry",
             "serviceOp": "create",
             "params": {
-                "object": ["DataProduct", {
+                "object": {
+                    "type_": "DataProduct",
                     "provider_project": "Integration Test",
                     "lcstate": "DRAFT",
                     "description": "A test data product",
@@ -125,7 +122,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
                         "city": "San Diego",
                         "postalcode": "92093"
                     }
-                } ]
+                }
             }
         }
         }
@@ -185,13 +182,14 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         data_product_obj['description'] = 'An updated description for test data'
         data_product_obj['contact']['postalcode'] = '12345'
 
-        data_product_update_request = {  "serviceRequest": {
-            "serviceName": "resource_registry",
-            "serviceOp": "update",
-            "params": {
-                "object": ["DataProduct", data_product_obj ]
+        data_product_update_request = {
+            "serviceRequest": {
+                "serviceName": "resource_registry",
+                "serviceOp": "update",
+                "params": {
+                    "object": data_product_obj
+                }
             }
-        }
         }
 
         response = self.test_app.post('/ion-service/resource_registry/update', {'payload': simplejson.dumps(data_product_update_request) })
@@ -234,6 +232,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         response = self.delete_data_product_resource(data_product_id)
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
+        self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
     def test_get_resource_schema(self):
 
@@ -247,7 +246,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.check_response_headers(response)
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('No matching class found', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
-
+        self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
 
 

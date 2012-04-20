@@ -2,16 +2,16 @@ import gevent
 from mock import Mock
 from unittest import SkipTest
 from nose.plugins.attrib import attr
+import unittest, os
 
 from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
-from interface.services.icontainer_agent import ContainerAgentClient
 
 from ion.processes.data.transforms.transform_example import TransformExample
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
@@ -74,7 +74,7 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         # name should be def name followed by a uuid
         name = call_kwargs['name']
         self.assertTrue(name.startswith(proc_def.name) and name != proc_def.name)
-        self.assertEqual(len(call_kwargs), 4)
+        self.assertEqual(len(call_kwargs), 5)
         self.assertEqual(call_kwargs['module'], 'my_module')
         self.assertEqual(call_kwargs['cls'], 'class')
 
@@ -176,18 +176,17 @@ class ProcessDispatcherServiceLocalIntTest(IonIntegrationTestCase):
 
         # set up the container
         self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
 
-        self.cc = ContainerAgentClient(node=self.container.node, name=self.container.name)
-
-        self.cc.start_rel_from_url('res/deploy/r2cei.yml')
-
-        self.pd_cli = ProcessDispatcherServiceClient(node=self.cc.node)
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         self.process_definition = ProcessDefinition(name='basic_transform_definition')
         self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',
                                               'class':'TransformExample'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_schedule_cancel(self):
 
         process_schedule = ProcessSchedule()
@@ -202,6 +201,18 @@ class ProcessDispatcherServiceLocalIntTest(IonIntegrationTestCase):
         # matters since everything gets torn down between tests
         self.pd_cli.cancel_process(pid)
         self.assertNotIn(pid, self.container.proc_manager.procs)
+
+    def test_schedule_bad_config(self):
+
+        process_schedule = ProcessSchedule()
+
+        # a non-JSON-serializable IonObject
+        o = ProcessTarget()
+
+        with self.assertRaises(BadRequest) as ar:
+            self.pd_cli.schedule_process(self.process_definition_id,
+                process_schedule, configuration={"bad" : o})
+        self.assertTrue(ar.exception.message.startswith("bad configuration"))
 
 
 @attr('INT', group='cei')
@@ -232,14 +243,12 @@ class ProcessDispatcherServiceBridgeIntTest(IonIntegrationTestCase):
         # set up the container
         self._start_container()
 
-        self.cc = ContainerAgentClient(node=self.container.node, name=self.container.name)
-
         CFG['process_dispatcher_bridge'] = dict(uri="memory://local",
             exchange="test_pd_bridge_exchange", topic="processdispatcher")
 
-        self.cc.start_rel_from_url('res/deploy/r2cei.yml')
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
 
-        self.pd_cli = ProcessDispatcherServiceClient(node=self.cc.node)
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         self.process_definition = ProcessDefinition(name='basic_transform_definition')
         self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',
@@ -250,6 +259,8 @@ class ProcessDispatcherServiceBridgeIntTest(IonIntegrationTestCase):
         if hasattr(self, "fake_pd") and self.fake_pd:
             self.fake_pd.shutdown()
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_schedule_cancel(self):
         process_schedule = ProcessSchedule()
         process_schedule.target = ProcessTarget()
