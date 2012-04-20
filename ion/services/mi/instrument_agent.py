@@ -22,9 +22,8 @@ from pyon.event.event import EventPublisher
 import time
 import socket
 
-from ion.services.mi.instrument_fsm_args import InstrumentFSM
+from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.common import InstErrorCode
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes

@@ -14,7 +14,6 @@ modules as appropriate.
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
-from ion.services.mi.exceptions import InstrumentDataException
 
 class DataDecorator(object):
     '''The base decorator class that all data decorators should extend

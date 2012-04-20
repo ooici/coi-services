@@ -14,13 +14,14 @@ from ion.services.mi.drivers.uw_bars.bars_client import BarsClient
 import ion.services.mi.drivers.uw_bars.bars as bars
 
 from ion.services.mi.instrument_driver import InstrumentDriver
-from ion.services.mi.instrument_driver import DriverState
-from ion.services.mi.exceptions import InstrumentProtocolException
+#from ion.services.mi.instrument_driver import DriverState
+#from ion.services.mi.exceptions import InstrumentProtocolException
 
-from ion.services.mi.common import InstErrorCode
+#from ion.services.mi.common import InstErrorCode
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
+import unittest
 import re
 
 #import ion.services.mi.mi_logger
