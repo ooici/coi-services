@@ -66,7 +66,8 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
 
-
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_replay_integration(self):
         '''
         test_replay_integration
