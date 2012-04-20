@@ -2,7 +2,7 @@
 
 """
 @package ion.services.mi.sbe37_driver
-@file ion
+@file ion/services/mi/sbe37_driver.py
 @author Edward Hunter
 @brief Driver class for sbe37 CTD instrument.
 """
