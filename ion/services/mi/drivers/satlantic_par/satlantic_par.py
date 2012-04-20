@@ -20,12 +20,12 @@ from ion.services.mi.data_decorator import ChecksumDecorator
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 from ion.services.mi.instrument_connection import SerialInstrumentConnection
-from ion.services.mi.common import InstErrorCode
-from ion.services.mi.common import DriverAnnouncement
-from ion.services.mi.instrument_fsm_args import InstrumentFSM
-from ion.services.mi.exceptions import InstrumentProtocolException
-from ion.services.mi.exceptions import InstrumentTimeoutException
-from ion.services.mi.exceptions import InstrumentDataException
+#from ion.services.mi.common import InstErrorCode
+#from ion.services.mi.common import DriverAnnouncement
+from ion.services.mi.instrument_fsm import InstrumentFSM
+#from ion.services.mi.exceptions import InstrumentProtocolException
+#from ion.services.mi.exceptions import InstrumentTimeoutException
+#from ion.services.mi.exceptions import InstrumentDataException
 
 mi_logger = logging.getLogger('mi_logger')
 

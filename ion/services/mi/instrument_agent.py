@@ -22,9 +22,8 @@ from pyon.event.event import EventPublisher
 import time
 import socket
 
-from ion.services.mi.instrument_fsm_args import InstrumentFSM
+from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.common import InstErrorCode
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
@@ -92,7 +91,7 @@ class InstrumentAgent(ResourceAgent):
                 
         # Instrument agent state machine.
         self._fsm = InstrumentFSM(InstrumentAgentState, InstrumentAgentEvent, InstrumentAgentEvent.ENTER,
-                                  InstrumentAgentEvent.EXIT, InstErrorCode.UNHANDLED_EVENT, self._log_state_change_event)
+                                  InstrumentAgentEvent.EXIT)
         
         # Populate state machine for all state-events.
         self._fsm.add_handler(InstrumentAgentState.POWERED_DOWN, InstrumentAgentEvent.ENTER, self._handler_powered_down_enter)
@@ -400,14 +399,22 @@ class InstrumentAgent(ResourceAgent):
         Get driver resource commands. Send event to state machine and return
         response or empty list if none.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_COMMANDS) or []
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_COMMANDS)
+            
+        except StateError:
+            return []
     
     def _get_resource_params(self):
         """
         Get driver resource parameters. Send event to state machine and return
         response or empty list if none.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_PARAMS) or []
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_PARAMS)
+            
+        except StateError:
+            return []
 
     ###############################################################################
     # Instrument agent resource interface. These functions override ResourceAgent

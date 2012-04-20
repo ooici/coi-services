@@ -21,6 +21,7 @@ import logging
 from subprocess import Popen
 import os
 import signal
+import uuid
 
 # 3rd party imports
 from nose.plugins.attrib import attr
@@ -44,7 +45,6 @@ from ion.services.mi.exceptions import SampleError
 from ion.services.mi.exceptions import StateError
 from ion.services.mi.exceptions import UnknownCommandError
 
-
 # MI logger
 import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
@@ -60,9 +60,8 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_errors
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_discover_autosample
 
-# http://sbe37-simulator.oceanobservatories.org/
-# 4001 random data
-# 4002 sine based
+# Logger constructor:
+# EthernetDeviceLogger(DEV_ADDR, DEV_PORT, PAGENT_PORT, WORK_DIR, DELIM, SNIFFER_PORT, None, TAG)
 
 # Driver and port agent configuration
 DVR_SVR_ADDR = 'localhost'
@@ -76,10 +75,13 @@ DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 PAGENT_ADDR = 'localhost'
-PAGENT_PORT = 8888
+#PAGENT_PORT = 8888
+PAGENT_PORT = 0
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
 SNIFFER_PORT = None
+TAG = str(uuid.uuid4())
+#TAG = None
 COMMS_CONFIG = {
     'addr': PAGENT_ADDR,
     'port': PAGENT_PORT
@@ -169,10 +171,10 @@ class TestSBE37Driver(PyonTestCase):
         # Create port agent object.
         this_pid = os.getpid()
         self._pagent = EthernetDeviceLogger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
-                        WORK_DIR, DELIM, SNIFFER_PORT, this_pid)
+                        WORK_DIR, DELIM, SNIFFER_PORT, this_pid, TAG)
         mi_logger.info('Created port agent object for %s %d %d', DEV_ADDR,
                        DEV_PORT, PAGENT_PORT)
-        
+
         # Stop the port agent if it is already running.
         # The port agent creates a pid file based on the config used to
         # construct it.
@@ -181,14 +183,19 @@ class TestSBE37Driver(PyonTestCase):
 
         # Start the port agent.
         # Confirm it is started by getting pidfile.
-        self._pagent.startx()
-        mi_logger.info('Here...')
+        self._pagent.start_remote()
         pid = self._pagent.get_pid()
         while not pid:
             gevent.sleep(.1)
             pid = self._pagent.get_pid()
-        mi_logger.info('Started port agent pid %d', pid)
-        
+        port = self._pagent.get_port()
+        while not port:
+            gevent.sleep(.1)
+            port = self._pagent.get_port()
+            
+        COMMS_CONFIG['port'] = port
+        mi_logger.info('Started port agent pid %d listening at port %d', pid, port)
+
     def _stop_pagent(self):
         """
         Stop the port agent.
@@ -196,7 +203,7 @@ class TestSBE37Driver(PyonTestCase):
         if self._pagent:
             pid = self._pagent.get_pid()
             if pid:
-                mi_logger.info('Stopping pagent pid %s', pid)
+                mi_logger.info('Stopping pagent pid %i', pid)
                 self._pagent.stop()
             else:
                 mi_logger.info('No port agent running.')
@@ -599,10 +606,12 @@ class TestSBE37Driver(PyonTestCase):
         state = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(state, SBE37ProtocolState.COMMAND)
         
-        # Make sure the device parameters are set to sample frequently.
+        # Make sure the device parameters are set to sample frequently and
+        # to transmit.
         params = {
             SBE37Parameter.NAVG : 1,
-            SBE37Parameter.INTERVAL : 5
+            SBE37Parameter.INTERVAL : 5,
+            SBE37Parameter.TXREALTIME : True
         }
         reply = self._dvr_client.cmd_dvr('set', params)
         
