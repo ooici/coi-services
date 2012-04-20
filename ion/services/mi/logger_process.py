@@ -52,8 +52,6 @@ class BaseLoggerProcess(DaemonProcess):
         Launch a logger in a sperate python environment.
         @param cmd_str the command string for python.
         """
-        
-        mi_logger.info('LAUNCH STRING: %s',cmd_str)
         spawnargs = ['bin/python', '-c', cmd_str]
         return Popen(spawnargs, close_fds=True)
     
@@ -107,18 +105,14 @@ class BaseLoggerProcess(DaemonProcess):
                 self.driver_server_sock.setsockopt(socket.SOL_SOCKET,
                                                    socket.SO_REUSEADDR, 1)
                 self.driver_server_sock.bind(('',self.server_port))
-                #if self._server_port == 0:
-                #    self._server_port = self.driver_server_sock.getsockname()[1]
-                #    file(self.portfname,'w+').write('%i\n' % self._server_port)
-                real_port = self.driver_server_sock.getsockname()[1]
+                sock_name = self.driver_server_sock.getsockname()
+                real_port = sock_name[1]
                 if real_port != self.server_port:
                     self.server_port = real_port
                 file(self.portfname,'w+').write(str(real_port)+'\n')
                 self.driver_server_sock.listen(1)
                 self.driver_server_sock.setblocking(0)
-                self.statusfile.write('_init_driver_comms: Listening for driver on port %i.\n' % self.server_port)
-                self.statusfile.write('port fname is: %s\n' % self.portfname)
-                self.statusfile.write('server port is: %s\n' % self.driver_server_sock.getsockname()[1])
+                self.statusfile.write('_init_driver_comms: Listening for driver at: %s.\n' % str(sock_name))
                 self.statusfile.flush()
                 return True
             
@@ -525,9 +519,8 @@ class EthernetDeviceLogger(BaseLoggerProcess):
             return False
         
         else:
-            self.statusfile.write('_init_device_comms: device connected.\n')
             sock_name = self.device_sock.getsockname()
-            self.statusfile.write('_init_device_comms: sock_name: %s\n' % str(sock_name))
+            self.statusfile.write('_init_device_comms: device connected at: %s\n' % str(sock_name))
             self.statusfile.flush()
             return True
         
