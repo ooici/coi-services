@@ -2,7 +2,7 @@ __author__ = 'Bill French'
 
 import argparse
 
-from ion.processes.idk.start_driver import StartDriver
+from ion.idk.start_driver import StartDriver
 
 def run():
     app = StartDriver()

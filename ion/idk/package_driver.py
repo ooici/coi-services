@@ -11,10 +11,10 @@ import zipfile
 import yaml
 
 from pyon.util.log import log
-from ion.processes.idk import prompt
-from ion.processes.idk.metadata import Metadata
-from ion.processes.idk.nose_test import NoseTest
-from ion.processes.idk.driver_generator import DriverGenerator
+from ion.idk import prompt
+from ion.idk.metadata import Metadata
+from ion.idk.nose_test import NoseTest
+from ion.idk.driver_generator import DriverGenerator
 
 
 class PackageManifest():

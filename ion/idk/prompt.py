@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file coi-services/ion/processes/idk/prompt.py
+@file coi-services/ion/idk/prompt.py
 @author Bill French
 @brief Collection of functions for prompting user input from the console.
 """

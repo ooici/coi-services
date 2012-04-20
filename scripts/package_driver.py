@@ -1,6 +1,6 @@
 __author__ = 'Bill French'
 
-from ion.processes.idk.package_driver import PackageDriver
+from ion.idk.package_driver import PackageDriver
 
 def run():
     app = PackageDriver()

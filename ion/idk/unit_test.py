@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 """
-@file coi-services/ion/processes/idk/unit_test.py
+@file coi-services/ion/idk/unit_test.py
 @author Bill French
 @brief Base class for instrument driver tests.
 """

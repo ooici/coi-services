@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file coi-services/ion/processes/idk/comm_config.py
+@file coi-services/ion/idk/comm_config.py
 @author Bill French
 @brief Comm Configuration object used to gather and store connection information for the logger.
 
@@ -33,8 +33,8 @@ import os
 
 import yaml
 
-from ion.processes.idk import prompt
-from ion.processes.idk.metadata import Metadata
+from ion.idk import prompt
+from ion.idk.metadata import Metadata
 
 
 class CommConfig(object):

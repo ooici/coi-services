@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file coi-services/ion/processes/idk/driver_generator.py
+@file coi-services/ion/idk/driver_generator.py
 @author Bill French
 @brief Generate directory structure and code stubs for a driver
 """
@@ -17,7 +17,7 @@ from string import Template
 import yaml
 
 from pyon.util.config import CFG
-from ion.processes.idk.metadata import Metadata
+from ion.idk.metadata import Metadata
 
 
 class DriverGenerator:

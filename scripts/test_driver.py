@@ -2,8 +2,8 @@ __author__ = 'Bill French'
 
 import argparse
 
-from ion.processes.idk.nose_test import NoseTest
-from ion.processes.idk.metadata import Metadata
+from ion.idk.nose_test import NoseTest
+from ion.idk.metadata import Metadata
 
 def run():
     app = NoseTest(Metadata())

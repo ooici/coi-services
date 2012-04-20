@@ -11,9 +11,9 @@ import sys
 
 import nose
 
-from ion.processes.idk.metadata import Metadata
-from ion.processes.idk.comm_config import CommConfig
-from ion.processes.idk.driver_generator import DriverGenerator
+from ion.idk.metadata import Metadata
+from ion.idk.comm_config import CommConfig
+from ion.idk.driver_generator import DriverGenerator
 
 class NoseTest():
     """

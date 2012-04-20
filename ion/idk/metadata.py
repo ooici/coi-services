@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@file coi-services/ion/processes/idk/metadata.py
+@file coi-services/ion/idk/metadata.py
 @author Bill French
 @brief Gather and store metadata for driver creation
 """
@@ -14,7 +14,7 @@ import os
 
 import yaml
 
-from ion.processes.idk import prompt
+from ion.idk import prompt
 
 
 class Metadata():
