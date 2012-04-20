@@ -15,7 +15,7 @@ from ion.services.mi.drivers.uw_bars.protocol import BarsInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
 #from ion.services.mi.instrument_driver import DriverState
 
-from ion.services.mi.common import InstErrorCode
+#from ion.services.mi.common import InstErrorCode
 from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 from ion.services.mi.drivers.uw_bars.protocol import BarsProtocolState
