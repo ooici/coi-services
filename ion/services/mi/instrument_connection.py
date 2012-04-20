@@ -12,7 +12,6 @@ __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 from zope.interface import Interface, implements
-from ion.services.mi.exceptions import InstrumentConnectionException 
 
 class IInstrumentConnection(Interface):
     """The structure to handle connecting and disconnecting from instruments

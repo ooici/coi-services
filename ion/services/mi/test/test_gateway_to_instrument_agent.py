@@ -28,9 +28,11 @@ from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
+"""
 from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+"""
 from pyon.public import CFG
 from mock import patch
 
@@ -54,6 +56,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
     
 #@unittest.skip('Do not run hardware test.')
+@unittest.skip('Need to align.')
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):

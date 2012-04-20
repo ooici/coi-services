@@ -18,9 +18,9 @@ from pyon.util.log import log
 
 #for agent mgmt
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
-from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+#from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 
 from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -40,9 +40,9 @@ from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
 from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
 
-from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+#from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService

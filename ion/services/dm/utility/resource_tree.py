@@ -6,7 +6,9 @@
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.dm.utility.jsonify import JSONtree as jt
 
-def build(resource_id):
+tree_depth_max = 5
+
+def build(resource_id, depth=0):
     ''' Constructs a JSONtree for the specified resource.
 
     The tree is built downward so all associations from this resource down are included.
@@ -23,8 +25,7 @@ def build(resource_id):
         return root
 
     for obj,assoc in zip(obj_list,assoc_list):
-        if obj:
-
-            root.add_child(build(obj),assoc.p)
+        if obj and not (depth > tree_depth_max):
+            root.add_child(build(obj,depth+1),assoc.p)
 
     return root

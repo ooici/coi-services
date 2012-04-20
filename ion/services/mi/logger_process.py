@@ -21,8 +21,10 @@ from subprocess import Popen
 from subprocess import PIPE
 import logging
 import os
+import uuid
 
 from ion.services.mi.daemon_process import DaemonProcess
+from ion.services.mi.exceptions import ConnectionError
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -44,19 +46,17 @@ class BaseLoggerProcess(DaemonProcess):
     Derived subclasses provide read/write logic for TCP/IP, serial or other
     device hardware.
     """
-    
     @staticmethod
-    def launch_process(cmd_str):
+    def launch_logger(cmd_str):
         """
+        Launch a logger in a sperate python environment.
+        @param cmd_str the command string for python.
         """
-        # Launch a separate python interpreter, executing the calling
-        # class command string.
         spawnargs = ['bin/python', '-c', cmd_str]
-        #print str(spawnargs)
-        return Popen(spawnargs, close_fds=True)    
+        return Popen(spawnargs, close_fds=True)
     
     def __init__(self, server_port, pidfname, logfname, statusfname,
-                 workdir='/tmp/', delim=['<<','>>'], sniffer_port=None):
+                 workdir, delim, sniffer_port, ppid):
         """
         @param server_port The port to listen on for driver connections.
         @param pidfname The file name of the process ID file, used by
@@ -71,6 +71,8 @@ class BaseLoggerProcess(DaemonProcess):
                 the driver in the logfile, thus demarking it from the device
                 output.
         @param sniffer_port The port to listen on for sniffer connections.
+        @param ppid The optional parent process id, used to self destruct
+        when parents die in test cases.
         """
         DaemonProcess.__init__(self, pidfname, logfname, workdir)
         self.server_port = server_port
@@ -83,7 +85,10 @@ class BaseLoggerProcess(DaemonProcess):
         self.sniffer_addr = None
         self.delim = delim
         self.statusfname = workdir + statusfname
-
+        self.ppid = ppid
+        self.last_parent_check = None
+        self.portfname = self.pidfname.replace('pid.txt','port.txt')
+        
     def _init_driver_comms(self):
         """
         Initialize driver comms. Create, bind and listen on the driver
@@ -100,9 +105,14 @@ class BaseLoggerProcess(DaemonProcess):
                 self.driver_server_sock.setsockopt(socket.SOL_SOCKET,
                                                    socket.SO_REUSEADDR, 1)
                 self.driver_server_sock.bind(('',self.server_port))
+                sock_name = self.driver_server_sock.getsockname()
+                real_port = sock_name[1]
+                if real_port != self.server_port:
+                    self.server_port = real_port
+                file(self.portfname,'w+').write(str(real_port)+'\n')
                 self.driver_server_sock.listen(1)
                 self.driver_server_sock.setblocking(0)
-                self.statusfile.write('_init_driver_comms: Listening for driver on port %i.\n' % self.server_port)
+                self.statusfile.write('_init_driver_comms: Listening for driver at: %s.\n' % str(sock_name))
                 self.statusfile.flush()
                 return True
             
@@ -191,6 +201,27 @@ class BaseLoggerProcess(DaemonProcess):
         subclasses.
         """
         return False
+
+    def _check_parent(self):
+        """
+        Check if the original parent is still alive, and fire the shutdown
+        process if not detected. Used when run in the testing framework
+        to ensure process and pidfile goes away if the test ends abruptly.
+        """
+        
+        if self.ppid:
+            cur_time = time.time()
+            if not self.last_parent_check or (cur_time - self.last_parent_check > 1):
+            
+                self.last_parent_check = cur_time
+                
+                try:
+                    os.kill(self.ppid, 0)
+                    
+                except OSError:
+                    self.statusfile.write('_parent_alive: parent process not detected, shutting down.\n')
+                    self.statusfile.flush()
+                    self._cleanup()
 
     def read_driver(self):
         """
@@ -320,12 +351,29 @@ class BaseLoggerProcess(DaemonProcess):
         """
         self._close_device_comms()
         self._close_driver_comms()
+        if os.path.exists(self.portfname):
+            os.remove(self.portfname)
         if self.statusfile:
             self.statusfile.write('_cleanup: logger stopping.\n')
             self.statusfile.flush()
             self.statusfile.close()
             self.statusfile = None
         DaemonProcess._cleanup(self)
+     
+    def get_port(self):
+        """
+        Read the logger port file and return the socket to connect to.
+        """
+        try:
+            pf = file(self.portfname, 'r')
+            pid = int(pf.read().strip())
+            pf.close()
+
+        except IOError:
+            pid = None
+
+        return pid            
+        
      
     def _run(self):
         """
@@ -347,13 +395,16 @@ class BaseLoggerProcess(DaemonProcess):
         if not self._init_device_comms():
             self.statusfile.write('_run: could not connect to device.\n')
             self.statusfile.flush()
+            self._cleanup()
             return
         
         if not self._init_driver_comms():
             self.statusfile.write('_run: could not listen for drivers.\n')
             self.statusfile.flush()
+            self._cleanup()
             return
         
+        #last_time = time.time()
         while self._device_connected():
             self._accept_driver_comms()
             driver_data = self.read_driver()
@@ -368,6 +419,12 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.write(repr(device_data))
                 self.logfile.write('\n')
                 self.logfile.flush()
+            self._check_parent()
+            #cur_time = time.time()
+            #if cur_time - last_time > 5:
+            #    last_time = cur_time
+            #    self.statusfile.write('logger processing...\n')
+            #    self.statusfile.flush()
             if not driver_data and not device_data:
                 time.sleep(.1)
 
@@ -376,9 +433,10 @@ class EthernetDeviceLogger(BaseLoggerProcess):
     A device logger process specialized to read/write to TCP/IP devices.
     Provides functionality opening, closing, reading, writing and checking
     connection status of device.
-    """    
-    def __init__(self, device_host, device_port, server_port, workdir='/tmp/',
-                 delim=['<<','>>'], sniffer_port=None):
+    """
+        
+    def __init__(self, device_host, device_port, server_port, workdir,
+                 delim, sniffer_port=None, ppid=None, tag=None):
         """
         @param server_port The port to listen on for driver connections.
         @param pidfname The file name of the process ID file, used by
@@ -392,45 +450,50 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         @param delim A 2-element delimter list used to delimit traffic from
                 the driver in the logfile, thus demarking it from the device
                 output.
-        @param sniffer_port The port to listen on for sniffer connections.        
+        @param sniffer_port The port to listen on for sniffer connections.
+        @param ppid The optional parent process id, used to self destruct
+        when parents die in test cases.
+        @param tag Optional string to make files unique when multiple loggers
+        connect to the same server port (test cases).
         """
         
         start_time = datetime.datetime.now()
         self.start_time = start_time
-        dt_string = '%s_%i__%i_%i_%i_%i_%i_%i' % \
-                (device_host, device_port, start_time.year, start_time.month,
+        dt_string = '%i_%i_%i_%i_%i_%i' % \
+                (start_time.year, start_time.month,
                 start_time.day, start_time.hour, start_time.minute,
                 start_time.second)
-        
-        pidfname = '%s_%i.pid.txt' % (device_host, device_port)
-        logfname = '%s.log.txt' % dt_string
-        statusfname = '%s.status.txt' % dt_string
+        if tag:
+            pidfname = '%s_%i_%s.pid.txt' % (device_host, device_port, tag)
+            logfname = '%s_%i_%s__%s.log.txt' % (device_host, device_port, tag, dt_string)
+            statusfname = '%s_%i_%s__%s.status.txt' % (device_host, device_port, tag, dt_string)
+        else:
+            pidfname = '%s_%i.pid.txt' % (device_host, device_port)
+            logfname = '%s_%i__%s.log.txt' % (device_host, device_port, dt_string)
+            statusfname = '%s_%i__%s.status.txt' % (device_host, device_port, dt_string)
+            
         self.device_host = device_host
         self.device_port = device_port
         self.device_sock = None
+        self.tag = tag
         
         BaseLoggerProcess.__init__(self, server_port, pidfname, logfname,
-                            statusfname, workdir, delim=['<<','>>'],
-                            sniffer_port=None)
+                            statusfname, workdir, delim, sniffer_port, ppid)
 
-    def launch_process(self):
+    def start_remote(self):
+        """
+        Override daemon start method to launch a new python interpreter.
+        Avoids gevent monkeypatching leaking into the logger process.
+        """
         
-        
-        import_str = 'import ion.services.mi.logger_process as lp; '
-        ctor_str = 'l = lp.EthernetDeviceLogger'
-        if not self.sniffer_port:
-            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"]); ' \
-                        % (self.device_host, self.device_port, self.server_port,
-                           self.workdir, self.delim[0], self.delim[1])
-        else:
-            ctor_str += '("%s", %i, %i, "%s", ["%s","%s"], %i); ' \
-                        % (device_host, device_port, server_port,
-                           workdir, delim[0], delim[1], self.sniffer_port)
-
-
-        cmd_str = import_str + ctor_str + 'l.start()'            
+        cls_name = type(self).__name__
+        tag = ('"%s"' % self.tag) if self.tag else 'None'
+        cmd_str = 'from %s import %s; l = %s("%s", %i, %i, "%s", %s, %s, %s, %s); l.start()' \
+                % (__name__, cls_name, cls_name, self.device_host, self.device_port,
+                   self.server_port, self.workdir, str(self.delim),
+                   str(self.sniffer_port), str(self.ppid), tag)
             
-        return BaseLoggerProcess.launch_process(cmd_str)
+        BaseLoggerProcess.launch_logger(cmd_str)        
 
     def _init_device_comms(self):
         """
@@ -456,7 +519,8 @@ class EthernetDeviceLogger(BaseLoggerProcess):
             return False
         
         else:
-            self.statusfile.write('_init_device_comms: device connected.\n')
+            sock_name = self.device_sock.getsockname()
+            self.statusfile.write('_init_device_comms: device connected at: %s\n' % str(sock_name))
             self.statusfile.flush()
             return True
         
@@ -625,16 +689,18 @@ class LoggerClient(object):
         """
         mi_logger.info('Logger initializing comms.')
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # This can be thrown here.
-        # error: [Errno 61] Connection refused
-        self.sock.connect((self.host, self.port))
-        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                        
-        self.sock.setblocking(0)        
-        self.listener_thread = Listener(self.sock, self.delim, callback)
-        self.listener_thread.start()
-        mi_logger.info('Logger client comms initialized.')
-        #print 'init client comms done'
-        #logging.info('init client comms done')        
+        try:
+            # This can be thrown here.
+            # error: [Errno 61] Connection refused
+            self.sock.connect((self.host, self.port))
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                        
+            self.sock.setblocking(0)        
+            self.listener_thread = Listener(self.sock, self.delim, callback)
+            self.listener_thread.start()
+            mi_logger.info('Logger client comms initialized.')
+        
+        except:
+            raise ConnectionError('Failed to connect to port agent at %s:%i.' % (self.host, self.port))
         
     def stop_comms(self):
         """
@@ -648,13 +714,10 @@ class LoggerClient(object):
         self.sock.close()
         self.sock = None
         mi_logger.info('Logger client comms stopped.')
-        #print 'stopped client comms'
-        #logging.info('stopped client comms')
 
     def done(self):
         """
-        Send a stop message to the logger process, causeing it to
-        close comms and shutdown, then close client comms.
+        Synonym for stop_comms.
         """
         self.stop_comms()
 
@@ -683,7 +746,8 @@ class Listener(threading.Thread):
         """
         Listener thread constructor.
         @param sock The socket to listen on.
-        @param delim The line delimiter to split incomming lines on.
+        @param delim The line delimiter to split incomming lines on, used in
+        debugging when no callback is supplied.
         @param callback The callback on data arrival.
         """
         threading.Thread.__init__(self)
@@ -698,7 +762,6 @@ class Listener(threading.Thread):
             self.callback = fn_callback
         else:
             self.callback = None
-
 
     def done(self):
         """

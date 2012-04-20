@@ -11,12 +11,15 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 import logging
+from threading import Thread
 from subprocess import Popen
 from subprocess import PIPE
 import signal
 import os
 import sys
 import time
+from ion.services.mi.exceptions import UnknownCommandError
+from ion.services.mi.instrument_driver import DriverAsyncEvent
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -43,15 +46,17 @@ class DriverProcess(object):
         spawnargs = ['bin/python', '-c', cmd_str]
         return Popen(spawnargs, close_fds=True)
         
-    def __init__(self, driver_module, driver_class):
+    def __init__(self, driver_module, driver_class, ppid):
         """
         @param driver_module The python module containing the driver code.
         @param driver_class The python driver class.
         """
         self.driver_module = driver_module
         self.driver_class = driver_class
+        self.ppid = ppid
         self.driver = None
         self.events = []
+        self.messaging_started = False
         
     def construct_driver(self):
         """
@@ -101,6 +106,20 @@ class DriverProcess(object):
         self.driver_class = None
         self.driver = None
 
+    def check_parent(self):
+        """
+        Test for existence of original parent process, if ppid specified.
+        """
+        if self.ppid:
+            try:
+                os.kill(self.ppid, 0)
+                
+            except OSError:
+                mi_logger.info('Driver process COULD NOT DETECT PARENT.')
+                return False
+        
+        return True
+
     def cmd_driver(self, msg):
         """
         Process a command message against the driver. If the command
@@ -130,28 +149,58 @@ class DriverProcess(object):
         elif cmd == 'process_echo':
             reply = 'process_echo: %s' % str(args[0])
         elif cmd_func:
-            reply = cmd_func(*args, **kwargs)
+            try:
+                reply = cmd_func(*args, **kwargs)
+            except Exception as e:
+                reply = e
+                event = {
+                    'type' : DriverAsyncEvent.ERROR,
+                    'value' : str(e),
+                    'exception' : e,
+                    'time' : time.time()
+                }
+                self.send_event(event)
+                
         else:
-            reply = 'Unknown driver command'
+            reply = UnknownCommandError('Unknown driver command.')
+            event = {
+                'type' : DriverAsyncEvent.ERROR,
+                'value' : str(reply),
+                'exception' : reply,
+                'time' : time.time()
+            }
+            self.send_event(event)
         
         return reply        
             
     def send_event(self, evt):
         """
+        Append an event to the list to be sent by the event threaed.
         """
         self.events.append(evt)
             
     def run(self):
         """
         Process entry point. Construct driver and start messaging loops.
-        Call shutdown when messaging terminates amd then end process.
+        Periodically check messaging is going and parent exists if
+        specified.
         """
         
         mi_logger.info('Driver process started.')
         
+        def shand(signum, frame):
+            mi_logger.info('DRIVER GOT SIGINT')        
+        signal.signal(signal.SIGINT, shand)
+
         if self.construct_driver():
             self.start_messaging()
-
+            while self.messaging_started:
+                if self.check_parent():
+                    time.sleep(2)
+                else:
+                    self.stop_messaging()
+                    break
+            
         self.shutdown()
         time.sleep(1)
         os._exit(0)
