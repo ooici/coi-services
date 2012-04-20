@@ -64,7 +64,7 @@ mi_logger = logging.getLogger('mi_logger')
 # EthernetDeviceLogger(DEV_ADDR, DEV_PORT, PAGENT_PORT, WORK_DIR, DELIM, SNIFFER_PORT, None, TAG)
 
 # Driver and port agent configuration
-#DVR_SVR_ADDR = 'localhost'
+DVR_SVR_ADDR = 'localhost'
 DVR_CMD_PORT = 5556
 DVR_EVT_PORT = 5557
 DVR_MOD = 'ion.services.mi.drivers.sbe37_driver'
