@@ -28,7 +28,7 @@ Install the following if not yet present:
 
 * OS Packages and package management:
 For Mac, use homebrew
-    > /usr/bin/ruby -e "$(curl -fsSL https://raw.github.com/gist/323731)"
+    > /usr/bin/ruby -e "$(/usr/bin/curl -fksSL https://raw.github.com/mxcl/homebrew/master/Library/Contributions/install_homebrew.rb)"
 - python 2.7.2
 - git 1.7.7: Use brew or download the Mac or Linux installer and run it
 - couchdb 1.1.0 (optional if memory mockdb is used)
@@ -36,12 +36,19 @@ For Mac, use homebrew
 - rabbitmq 2.6.1 or later (recommended, but can use rabbitmq on amoeba)
     Use brew.
     Alternative: download generic Linux version and unpack into a suitable directory.
-- Install libevent, libyaml, zeromq, couchdb, python, and rabbitmq with Homebrew
-    > brew install libevent libyaml zeromq couchdb python rabbitmq
+- Install libevent, libyaml, zeromq, couchdb, python, rabbitmq, and pkg-config with Homebrew
+
+    > brew install libevent libyaml zeromq couchdb python rabbitmq hdf5 pkg-config netcdf
+
     You can even reinstall git using brew to clean up your /usr/local directory
     Be sure to read the pyon README for platform specific guidance to installing
     dependent libraries and packages.
     Linux: Note that many installs have much older versions installed by default.
+    (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update'
+    and try the install again)
+
+installation
+- Install
 
 * python packages and environment management:
 - pip
@@ -81,6 +88,14 @@ PACKAGE DEPENDENCIES
 Use Buildout to install the python package dependencies (including pyon itself) with:
     > python bootstrap.py
     > bin/buildout
+
+** Mac should have libpng and libfreetype headers, which are required
+    for matplotlib python build.  If for some reason your buildout fails on
+    matplotlib due to missing libpng libraries, try install from here:
+    http://ethan.tira-thompson.com/Mac_OS_X_Ports.html
+
+For additional support to install matplotlib on MacOS X 10.7 (Lion) please see the following:
+    http://www.thisisthegreenroom.com/2011/installing-python-numpy-scipy-matplotlib-and-ipython-on-lion/
 
 Generate service definition interfaces and abstract base classes files:
     > bin/generate_interfaces
@@ -136,6 +151,25 @@ Run unit tests:
 Use integration tests:
 
     > bin/nosetests -a INT
+
+TROUBLESHOOTING
+===============
+
+bin/generate_interfaces can leave outdated stuff behind that causes your
+tests to fail unexpectedly.  Do an ant clean and try again.
+    > ant clean
+
+bin/generate_interfaces still has import errors after ant clean.  Then, you
+might have an outdated pyon repo
+    > cd ../pyon
+    > git pull
+    > cd -
+
+If your tests fail unexpectedly when you have tried everything else, your build
+might be corrupted.  Do an ant clean buildout and try again with a new
+virtualenv and build from scratch.
+
+    > ant clean-buildout
 
 DEBUG
 =====
@@ -223,4 +257,4 @@ if it notices a change to the commit that your supermodule points to.
 The pre-commit script is so you don't forget to push changes to the submodule *BEFORE* you push changes
 to the supermodule.
 
-    
+

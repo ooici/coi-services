@@ -3,15 +3,14 @@
 """
 @package ion.services.mi.exceptions Exception classes for MI work
 @file ion/services/mi/exceptions.py
-@author Steve Foley
+@author Edward Hunter
 @brief Common exceptions used in the MI work. Specific ones can be subclassed
-in the driver code
+in the driver code.
 """
 
-__author__ = 'Steve Foley'
+__author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-from ion.services.mi.common import InstErrorCode
 
 class InstrumentException(Exception):
     """Base class for an exception related to physical instruments or their
@@ -25,7 +24,8 @@ class InstrumentException(Exception):
     
 class InstrumentConnectionException(InstrumentException):
     """Exception related to connection with a physical instrument"""
-    
+    pass
+
 class InstrumentProtocolException(InstrumentException):
     """Exception related to an instrument protocol problem
     
@@ -33,10 +33,12 @@ class InstrumentProtocolException(InstrumentException):
     to happen when talking at the lowest layer protocol to a device.
     @todo Add partial result property?
     """
-    
+    pass
+
 class InstrumentStateException(InstrumentException):
     """Exception related to an instrument state of any sort"""
-    
+    pass
+
 class InstrumentTimeoutException(InstrumentException):
     """Exception related to a command, request, or communication timing out"""
     def __init__(self, error_code=InstErrorCode.TIMEOUT, msg=None):
@@ -45,11 +47,13 @@ class InstrumentTimeoutException(InstrumentException):
 class InstrumentDataException(InstrumentException):
     """Exception related to the data returned by an instrument or developed
     along the path of handling that data"""
+    pass
+
+class InstrumentCommandException(InstrumentException):
+    """A problem with the command sent toward the instrument"""
+    pass
     
-class CommsException(InstrumentException):
-    """Exception related to upstream communications trouble"""
-    
-class RequiredParameterException(InstrumentException):
+class InstrumentParameterException(InstrumentException):
     """A required parameter is not supplied"""
     def __init__(self, error_code=None, msg=None):
         if error_code == None:
@@ -59,9 +63,14 @@ class RequiredParameterException(InstrumentException):
             
         InstrumentException.__init__(self, error_code, msg)
 
-class InvalidChannelException(InstrumentException):
-    """Invalid channel(s) indicated. This could be caused by a an unrecognized
-    channel or a combination of channels that cannot be handled in a single
-    operation."""
-    def __init__(self, error_code=InstErrorCode.INVALID_CHANNEL, msg=None):
-        InstrumentException.__init__(self, error_code, msg)
+class NotImplementedException(InstrumentException):
+    """
+    A driver function is not implemented.
+    """
+    pass
+
+class SampleException(InstrumentException):
+    """
+    An expected sample could not be extracted.
+    """
+    pass

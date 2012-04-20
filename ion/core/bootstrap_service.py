@@ -2,13 +2,16 @@
 
 """Process that bootstraps an ION system"""
 
+
 __author__ = 'Michael Meisinger'
 
 from pyon.public import CFG, IonObject, log, get_sys_name, RT, LCS, PRED, iex
+from pyon.ion.exchange import ION_ROOT_XS
 
 from interface.services.ibootstrap_service import BaseBootstrapService
+from ion.services.coi.policy_management_service import MANAGER_ROLE, ION_MANAGER
+from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 
-bootstrap_instance = None
 
 class BootstrapService(BaseBootstrapService):
     """
@@ -16,13 +19,17 @@ class BootstrapService(BaseBootstrapService):
     This service is triggered for each boot level.
     """
 
+    process_type = "immediate"      # bootstrap inits/starts only, not a running process/service
+
     def on_init(self):
         log.info("Bootstrap service INIT: System init")
-        global bootstrap_instance
-        bootstrap_instance = self
+        self.system_actor_id = None
 
     def on_start(self):
-        log.info("Bootstrap service START: System start")
+        level = self.CFG.level
+        log.info("Bootstrap service START: service start, level: %s", level)
+
+        self.trigger_level(level, self.CFG)
 
     def trigger_level(self, level, config):
         #print "Bootstrap level: %s config: %s" % (str(level),str(config))
@@ -35,10 +42,17 @@ class BootstrapService(BaseBootstrapService):
             self.post_resource_registry(config)
         elif level == "identity_management":
             self.post_identity_management(config)
+        elif level == "policy_management":
+            self.post_policy_management(config)
         elif level == "org_management":
             self.post_org_management(config)
         elif level == "exchange_management":
             self.post_exchange_management(config)
+        elif level == "visualization_service":
+            self.bootstrap_viz_svc(config)
+        elif level == "load_system_policy":
+            self.load_system_policy(config)
+
 
             self.post_startup()
 
@@ -50,6 +64,7 @@ class BootstrapService(BaseBootstrapService):
     def post_datastore(self, config):
         # Make sure to detect that system was already bootstrapped.
         # Look in datastore for secret cookie\
+
         cookie_name = get_sys_name() + ".ION_INIT"
         try:
             res = self.clients.datastore.read_doc(cookie_name)
@@ -74,49 +89,122 @@ class BootstrapService(BaseBootstrapService):
             rt = IonObject("ResourceType", name=res)
             #self.clients.datastore.create(rt)
 
-    def post_identity_management(self, config):
-        # TBD
+    def post_policy_management(self, config):
+
         pass
 
+    def post_identity_management(self, config):
+
+        #Create the ION System Agent user which should be passed in subsequent bootstraping calls
+        system_actor = CFG.system.system_actor
+        user = IonObject(RT.UserIdentity, name=system_actor, description="ION System Agent")
+        self.clients.identity_management.create_user_identity(user)
+
     def post_org_management(self, config):
+
+        system_actor = self.clients.identity_management.find_user_identity_by_name(name=CFG.system.system_actor)
+
         # Create root Org: ION
-        org = IonObject(RT.Org, name="ION", description="ION Root Org")
-        self.org_id = self.clients.org_management.create_org(org)
+        root_orgname = CFG.system.root_org
+        org = IonObject(RT.Org, name=root_orgname, description="ION Root Org")
+        self.org_id = self.clients.org_management.create_org(org, headers={'ion-actor-id': system_actor._id})
+
+        #Instantiate initial set of User Roles for this Org
+        ion_manager = IonObject(RT.UserRole, name=ION_MANAGER,label='ION Manager', description='ION Manager')
+        self.clients.org_management.add_user_role(self.org_id, ion_manager)
+
+        #Make the ION system agent a manager for the ION Org
+        self.clients.org_management.grant_role(self.org_id,system_actor._id,MANAGER_ROLE, headers={'ion-actor-id': system_actor._id} )
+
+
+        #
+        # Now load the base set of negotiation definitions used by the request operations (enroll/role/resource, etc)
+
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.EnrollmentRequest,
+            description='Definition of Enrollment Request Negotiation',
+            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == False'],
+            accept_action = 'enroll_member(org_id,user_id)'
+        )
+
+        self.clients.resource_registry.create(neg_def)
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.RoleRequest,
+            description='Definition of Role Request Negotiation',
+            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            accept_action = 'grant_role(org_id,user_id,role_name)'
+        )
+
+        self.clients.resource_registry.create(neg_def)
+
+        neg_def = IonObject(RT.NegotiationDefinition, name=RT.ResourceRequest,
+            description='Definition of Role Request Negotiation',
+            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            accept_action = 'acquire_resource(org_id,user_id,resource_id)'
+        )
+
+        self.clients.resource_registry.create(neg_def)
+
+
+
+
+    #This operation must happen after the root ION Org has been created. This is triggered by adding an entry to the deploy file.
+    def load_system_policy(self, config):
+
+        LoadSystemPolicy.op_load_system_policies(self)
+
 
     def post_exchange_management(self, config):
+
+        system_actor = self.clients.identity_management.find_user_identity_by_name(name=CFG.system.system_actor)
+
+        # find root org
+        root_orgname = CFG.system.root_org      # @TODO: THIS CAN BE SPECIFIED ON A PER LAUNCH BASIS, HOW TO FIND?
+        org = self.clients.org_management.find_org(name=root_orgname)
+
         # Create root ExchangeSpace
-        xs = IonObject(RT.ExchangeSpace, name="ioncore", description="ION service XS")
-        self.xs_id = self.clients.exchange_management.create_exchange_space(xs, self.org_id)
+        xs = IonObject(RT.ExchangeSpace, name=ION_ROOT_XS, description="ION service XS")
+        self.xs_id = self.clients.exchange_management.create_exchange_space(xs, org._id,headers={'ion-actor-id': system_actor._id})
 
         #self.clients.resource_registry.find_objects(self.org_id, "HAS-A")
 
         #self.clients.resource_registry.find_subjects(self.xs_id, "HAS-A")
 
+    def bootstrap_viz_svc(self, config):
+
+        # Create process definitions which will used to spawn off the transform processes
+        matplotlib_proc_def = IonObject(RT.ProcessDefinition, name='viz_matplotlib_transform_process')
+        matplotlib_proc_def.executable = {
+            'module': 'ion.services.ans.visualization_service',
+            'class':'VizTransformProcForMatplotlibGraphs'
+        }
+        matplotlib_proc_def_id, _ = self.clients.resource_registry.create(matplotlib_proc_def)
+
+        google_dt_proc_def = IonObject(RT.ProcessDefinition, name='viz_google_dt_transform_process')
+        google_dt_proc_def.executable = {
+            'module': 'ion.services.ans.visualization_service',
+            'class':'VizTransformProcForGoogleDT'
+        }
+        google_dt_proc_def_id, _ = self.clients.resource_registry.create(google_dt_proc_def)
+
+        return
+
     def post_startup(self):
-        # Do some sanity tests across the board
-        org_ids, _ = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
-        self.assert_condition(len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined")
+        log.info("Cannot sanity check bootstrap yet, need better plan to sync local state (or pull from datastore?)")
 
-        xs_ids, _ = self.clients.resource_registry.find_resources(RT.ExchangeSpace, None, None, True)
-        self.assert_condition(len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined")
-
-        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, PRED.hasExchangeSpace, RT.ExchangeSpace, True)
-        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated")
-
-        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, self.xs_id, True)
-        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated")
+#        # Do some sanity tests across the board
+#        org_ids, _ = self.clients.resource_registry.find_resources(RT.Org, None, None, True)
+#        self.assert_condition(len(org_ids) == 1 and org_ids[0] == self.org_id, "Orgs not properly defined")
+#
+#        xs_ids, _ = self.clients.resource_registry.find_resources(RT.ExchangeSpace, None, None, True)
+#        self.assert_condition(len(xs_ids) == 1 and xs_ids[0] == self.xs_id, "ExchangeSpace not properly defined")
+#
+#        res_ids, _ = self.clients.resource_registry.find_objects(self.org_id, PRED.hasExchangeSpace, RT.ExchangeSpace, True)
+#        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.xs_id, "ExchangeSpace not associated")
+#
+#        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, self.xs_id, True)
+#        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated")
 
     def on_quit(self):
         log.info("Bootstrap service QUIT: System quit")
 
-
-def start(container, starttype, app_definition, config):
-    #print "Bootstrap starttype: %s app_definition: %s config: %s" % (str(starttype),str(app_definition),str(config))
-    level = config.get("level", 0)
-    log.debug("Bootstrap Trigger Level: %s" % level)
-    bootstrap_instance.trigger_level(level, config)
-
-    return (None, None)
-
-def stop(container, state):
-    pass

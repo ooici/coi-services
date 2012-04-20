@@ -6,7 +6,6 @@
 @test ion.services.sa.acquisition.DataAcquisitionManagementService integration test
 '''
 
-from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.net.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.public import RT
@@ -28,17 +27,13 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-#@unittest.skip('not working')
+@unittest.skip('not working')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        #print 'got CC client'
-        container_client.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2sa.yml')
 
         # Now create client to DataAcquisitionManagementService
         self.client = DataAcquisitionManagementServiceClient(node=self.container.node)
@@ -153,12 +148,17 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         try:
             self.client.assign_data_product(instrument_id, dataproduct_id, True)
         except BadRequest as ex:
-            self.fail("failed to create new data producer: %s" %ex)
+            self.fail("failed to assign data product to data producer: %s" %ex)
         except NotFound as ex:
-            self.fail("failed to create new data producer: %s" %ex)
+            self.fail("failed to assign data product to data producer: %s" %ex)
 
-
-        # todo:  call UNassign_data_product
+        # test UNassigning a data product from instrument, deleting the stream for the product
+        try:
+            self.client.unassign_data_product(instrument_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
 
         # test UNregistering a new data producer
         try:
@@ -175,6 +175,10 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         ext_dataset_obj = IonObject(RT.ExternalDataset, name='DataSet1',description='an external data feed')
         ext_dataset_id, rev = self.rrclient.create(ext_dataset_obj)
 
+        dataproduct_obj = IonObject(RT.DataProduct, name='DataProduct1',description='sample data product')
+        dataproduct_id, rev = self.rrclient.create(dataproduct_obj)
+
+
         # test registering a new external data set
         try:
             ds_id = self.client.register_external_data_set(ext_dataset_id)
@@ -182,9 +186,21 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("failed to create new data producer: %s" %ex)
         print 'new data producer id = ', ds_id
 
-        # todo:  call assign_data_product
+        # test assigning a data product to an ext_dataset_id, creating the stream for the product
+        try:
+            self.client.assign_data_product(ext_dataset_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to assign data product to data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to assign data product to data producer: %s" %ex)
 
-        # todo:  call UNassign_data_product
+        # test UNassigning a data product from ext_dataset_id, deleting the stream for the product
+        try:
+            self.client.unassign_data_product(ext_dataset_id, dataproduct_id, True)
+        except BadRequest as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
 
         # test UNregistering a external data set
         try:
@@ -213,7 +229,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("failed to create new data producer: %s" %ex)
         print 'new data producer id = ', ds_id
 
-        # test assigning a data product to a process
+        # test assigning a data product to a process, no stream create
         try:
             self.client.assign_data_product(process_id, dataproduct_id, False)
         except BadRequest as ex:
@@ -222,7 +238,13 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("failed to create new data producer: %s" %ex)
 
 
-        # todo:  call UNassign_data_product
+        # test UNassigning a data product from the data process, deleting the stream for the product
+        try:
+            self.client.unassign_data_product(process_id, dataproduct_id, False)
+        except BadRequest as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+        except NotFound as ex:
+            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
 
         # test UNregistering a process
         try:
@@ -265,12 +287,12 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             # test creating a new data source model
             #
             print 'Creating new data source model'
-            datamodel_obj = IonObject(RT.ExternalDataSourceModel,
+            datamodel_obj = IonObject(RT.DataSourceModel,
                                name='DataSourceModel1',
                                description='data source model',
                                model='model1')
             try:
-                datamodel_id = self.client.create_data_source(datamodel_obj)
+                datamodel_id = self.client.create_data_source_model(datamodel_obj)
             except BadRequest as ex:
                 self.fail("failed to create new data source model: %s" %ex)
             print 'new data source model id = ', datamodel_id
@@ -294,28 +316,28 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             # test creating a new data agent instance
             #
             print 'Creating new external data agent '
-            dataagent_obj = IonObject(RT.ExternalDataAgent,
-                               name='ExternalAgent1',
+            datasetagent_obj = IonObject(RT.ExternalDatasetAgent,
+                               name='ExternalDatasetAgent1',
                                description='external data agent ')
             try:
-                dataagent_id = self.client.create_external_data_agent_instance(dataagent_obj)
+                datasetagent_id = self.client.create_external_dataset_agent(datasetagent_obj)
             except BadRequest as ex:
-                self.fail("failed to create new external data agent: %s" %ex)
-            print 'new external data agent  id = ', dataagent_id
+                self.fail("failed to create new external dataset agent: %s" %ex)
+            print 'new external data agent  id = ', datasetagent_id
 
 
             #
             # test creating a new data agent instance
             #
-            print 'Creating new external data agent instance'
-            dataagentinstance_obj = IonObject(RT.ExternalDataAgentInstance,
-                               name='ExternalAgentInstance1',
-                               description='external data agent instance ')
+            print 'Creating new external dataset agent instance'
+            datasetagentinstance_obj = IonObject(RT.ExternalDatasetAgentInstance,
+                               name='ExternalDatasetAgentInstance1',
+                               description='external dataset agent instance ')
             try:
-                dataagentinstance_id = self.client.create_external_data_agent_instance(dataagentinstance_obj)
+                datasetagentinstance_id = self.client.create_external_dataset_agent_instance(datasetagentinstance_obj, datasetagent_id)
             except BadRequest as ex:
-                self.fail("failed to create new external data agent instance: %s" %ex)
-            print 'new external data agent instance id = ', dataagentinstance_id
+                self.fail("failed to create new external dataset agent instance: %s" %ex)
+            print 'new external data agent instance id = ', datasetagentinstance_id
 
 
 

@@ -7,7 +7,7 @@ import unittest
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from prototype.sci_data.ctd_stream import ctd_stream_packet
+from prototype.sci_data.stream_defs import ctd_stream_packet
 from pyon.datastore.datastore import DataStore
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -16,7 +16,7 @@ from nose.plugins.attrib import attr
 import random
 
 
-@attr('UNIT',group='DM')
+@attr('UNIT',group='dm')
 class DatasetManagementTest(PyonTestCase):
     def setUp(self):
         mock_clients = self._create_service_mock('dataset_management')
@@ -62,7 +62,7 @@ class DatasetManagementTest(PyonTestCase):
         self.mock_rr_delete.assert_called_with('123')
 
 
-@attr('INT', group='DM')
+@attr('INT', group='dm')
 class DatasetManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         import couchdb

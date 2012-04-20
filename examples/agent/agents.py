@@ -12,13 +12,19 @@ from pyon.agent.agent import ResourceAgent, UserAgent, ResourceAgentClient
 from pyon.ion.process import StandaloneProcess
 from pyon.public import log
 
-from interface.objects import AgentCommand
+from interface.objects import AgentCommand, Org, InstrumentDevice, UserIdentity
 
 # For this example only. Proc_name -> proc id
 agent_instances = {}
+# For this example only. Proc_id -> resource id
+agent_resources = {}
 
 class OrgAgent(ResourceAgent):
     def on_init(self):
+        res_obj = Org(name="org1")
+        rid,_ = self.clients.resource_registry.create(res_obj)
+        agent_resources[self.id] = rid
+        self.resource_id = rid
         agent_instances[self._proc_name] = self.id
 
 class ResAgentOne(ResourceAgent):
@@ -26,6 +32,10 @@ class ResAgentOne(ResourceAgent):
     rpar_tone = "friendly"
 
     def on_init(self):
+        res_obj = InstrumentDevice(name="resource1")
+        rid,_ = self.clients.resource_registry.create(res_obj)
+        agent_resources[self.id] = rid
+        self.resource_id = rid
         agent_instances[self._proc_name] = self.id
 
     def rcmd_say(self, what, *args, **kwargs):
@@ -37,6 +47,10 @@ class ResAgentOne(ResourceAgent):
 
 class ResAgentTwo(ResourceAgent):
     def on_init(self):
+        res_obj = InstrumentDevice(name="resource2")
+        rid,_ = self.clients.resource_registry.create(res_obj)
+        agent_resources[self.id] = rid
+        self.resource_id = rid
         agent_instances[self._proc_name] = self.id
 
     def rcmd_shout(self, *args, **kwargs):
@@ -44,6 +58,10 @@ class ResAgentTwo(ResourceAgent):
 
 class UserAgentOne(UserAgent):
     def on_init(self):
+        res_obj = UserIdentity(name="user1")
+        rid,_ = self.clients.resource_registry.create(res_obj)
+        agent_resources[self.id] = rid
+        self.resource_id = rid
         agent_instances[self._proc_name] = self.id
 
     def on_start(self):
@@ -63,6 +81,10 @@ class UserAgentOne(UserAgent):
 
 class UserAgentTwo(UserAgent):
     def on_init(self):
+        res_obj = UserIdentity(name="user1")
+        rid,_ = self.clients.resource_registry.create(res_obj)
+        agent_resources[self.id] = rid
+        self.resource_id = rid
         agent_instances[self._proc_name] = self.id
 
 class TriggerProcess(StandaloneProcess):
@@ -70,7 +92,9 @@ class TriggerProcess(StandaloneProcess):
     def on_start(self):
         log.info("Known agents: "+ str(agent_instances))
         target_name = agent_instances['user_agent_1']
-        self.rac = ResourceAgentClient(resource_id='res_id', name=target_name, process=self)
+        resource_id = agent_resources[target_name]
+
+        self.rac = ResourceAgentClient(resource_id=resource_id, process=self)
 
         self.trigger_func = threading.Thread(target=self._trigger_func)
         self.trigger_func.start()

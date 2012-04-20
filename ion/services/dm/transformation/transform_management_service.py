@@ -1,19 +1,15 @@
-#!/usr/bin/env python
-__license__ = 'Apache 2.0'
+
 '''
-@author Maurice Manning
 @author Luke Campbell
 @file ion/services/dm/transformation/transform_management_service.py
 @description Implementation for TransformManagementService
 '''
-import time
-import hashlib
-from pyon.public import log, IonObject, RT, PRED
+from pyon.public import log, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectSerializer, IonObjectBase
-
-
 from interface.services.dm.itransform_management_service import BaseTransformManagementService
+import gevent
+from interface.objects import Transform
 
 class TransformManagementService(BaseTransformManagementService):
     """Provides the main orchestration for stream processing
@@ -26,18 +22,54 @@ class TransformManagementService(BaseTransformManagementService):
 
         self.serializer = IonObjectSerializer()
 
+    def on_start(self):
+        super(TransformManagementService,self).on_start()
+        restart_flag = self.CFG.get_safe('service.transform_management.restart', False)
+        if restart_flag:
+            transform_ids, meta = self.clients.resource_registry.find_resources(restype=RT.Transform, id_only=True)
+            for transform_id in transform_ids:
+                self._restart_transform(transform_id)
+
+    def _restart_transform(self, transform_id):
+        transform = self.clients.resource_registry.read(transform_id)
+        configuration = transform.configuration
+        proc_def_ids,other = self.clients.resource_registry.find_objects(subject=transform_id,predicate=PRED.hasProcessDefinition,id_only=True)
+
+        if len(proc_def_ids) < 1:
+            log.warning('Transform did not have a correct process definition.')
+            return
+
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=proc_def_ids[0],
+            configuration=configuration
+        )
+
+        transform.process_id = pid
+        self.clients.resource_registry.update(transform)
+
+
+
+
+    def _strip_types(self, obj):
+        if not isinstance(obj, dict):
+            return
+        for k,v in obj.iteritems():
+            if isinstance(v,dict):
+                self._strip_types(v)
+        if "type_" in obj:
+            del obj['type_']
 
 
     def create_transform(self,
                          name='',
                          description='',
                          in_subscription_id='',
-                         out_streams={},
+                         out_streams=None,
                          process_definition_id='',
-                         configuration={}):
+                         configuration=None):
 
         """Creates the transform and registers it with the resource registry
-        @param process_definition_id The process defintion contains the module and class of the process to be spawned
+        @param process_definition_id The process definition contains the module and class of the process to be spawned
         @param in_subscription_id The subscription id corresponding to the input subscription
         @param out_stream_id The stream id for the output
         @param configuration {}
@@ -51,8 +83,10 @@ class TransformManagementService(BaseTransformManagementService):
         # Determine Transform Name
 
         if isinstance(configuration, IonObjectBase):
-            #@todo Is this the right way to handle configs that come as IonObjects?
             configuration = self.serializer.serialize(configuration)
+            # strip the type
+            self._strip_types(configuration)
+
 
         elif not configuration:
             configuration = {}
@@ -64,56 +98,55 @@ class TransformManagementService(BaseTransformManagementService):
 
         transform_name=name
 
-        #@todo: fill in process schedule stuff (CEI->Process Dispatcher)
-        #@note: In the near future, Process Dispatcher will do all of this
         if not process_definition_id:
             raise NotFound('No process definition was provided')
-        process_definition = self.clients.resource_registry.read(process_definition_id)
-        module = process_definition.executable.get('module','ion.processes.data.transforms.transform_example')
-        cls = process_definition.executable.get('class','TransformExample')
+
 
         # Transform Resource for association management and pid
-        transform_res = IonObject(RT.Transform,name=transform_name,description=description)
-        
+        transform_res = Transform(name=name, description=description)
+
+        transform_id, _ = self.clients.resource_registry.create(transform_res)
+
+        transform_res = self.clients.resource_registry.read(transform_id)
+
+
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
-       
 
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
         listen_name = subscription.exchange_name
 
 
-        configuration['process'] = {
+        configuration['process'] = dict({
             'name':transform_name,
             'type':'stream_process',
-            'listen_name':listen_name
-        }
+            'listen_name':listen_name,
+            'transform_id':transform_id
+        })
         if out_streams:
             configuration['process']['publish_streams'] = out_streams
             stream_ids = list(v for k,v in out_streams.iteritems())
         else:
             stream_ids = []
+        transform_res.configuration = configuration
 
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
         # ------------------------------------------------------------------------------------
-
-
         # Spawn the process
-        pid = self.container.spawn_process(name=transform_name,
-                        module=module,
-                        cls=cls,
-                        config=configuration)
-
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=process_definition_id,
+            configuration=configuration
+        )
         transform_res.process_id =  pid
-        
+
         # ------------------------------------------------------------------------------------
         # Handle Resources
         # ------------------------------------------------------------------------------------
-        transform_id, _ = self.clients.resource_registry.create(transform_res)
 
+        self.clients.resource_registry.update(transform_res)
 
         self.clients.resource_registry.create_association(transform_id,PRED.hasProcessDefinition,process_definition_id)
         self.clients.resource_registry.create_association(transform_id,PRED.hasSubscription,in_subscription_id)
@@ -126,7 +159,7 @@ class TransformManagementService(BaseTransformManagementService):
 
 
 
-    def update_transform(self, configuration={}):
+    def update_transform(self, configuration=None):
         """Not currently possible to update a transform
         @throws NotImplementedError
         """
@@ -169,7 +202,9 @@ class TransformManagementService(BaseTransformManagementService):
         # stop the transform process
 
         #@note: terminate_process does not raise or confirm if there termination was successful or not
-        self.container.proc_manager.terminate_process(pid)
+
+        self.clients.process_dispatcher.cancel_process(pid)
+
         log.debug('(%s): Terminated Process (%s)' % (self.name,pid))
 
 
@@ -193,32 +228,26 @@ class TransformManagementService(BaseTransformManagementService):
 
 # ---------------------------------------------------------------------------
 
-    def execute_transform(self, process_definition_id='', data={}, configuration={}):
-        process_definition = self.clients.resource_registry.read(process_definition_id)
-        module = process_definition.executable.get('module','ion.services.dm.transformation.transform_example')
-        cls = process_definition.executable.get('class','TransformExample')
-
-        m = hashlib.sha1('transform' + time.ctime())
-        name = m.hexdigest()
-
-        configuration = {
-            'process':{
-                'type':'stream_process',
-                #@todo: fix this
-                'listen_name':'noqueue',
-            }
-        }
-
-        pid = self.container.spawn_process(name=name,
-                        module=module,
-                        cls=cls,
-                        config=configuration)
+    def execute_transform(self, process_definition_id='', data=None, configuration=None):
+        process_definition = self.clients.process_dispatcher.read_process_definition(process_definition_id)
+        module = process_definition.executable.get('module')
+        cls = process_definition.executable.get('class')
 
 
-        process_instance = self.container.proc_manager.procs[pid]
-        retval = process_instance.execute(data)
 
-        self.container.proc_manager.terminate_process(pid)
+        module = __import__(module, fromlist=[cls])
+        cls = getattr(module,cls)
+        instance = cls()
+
+        result = gevent.event.AsyncResult()
+        def execute(data):
+            result.set(instance.execute(data))
+
+        g = gevent.greenlet.Greenlet(execute, data)
+        g.start()
+
+        retval = result.get(timeout=10)
+
 
         return retval
 

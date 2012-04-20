@@ -12,7 +12,6 @@ from nose.plugins.attrib import attr
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT, IonObject
 from ion.services.coi.identity_management_service import IdentityManagementService
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
 
 from pyon.util.context import LocalContextMixin
@@ -164,7 +163,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.identity_management_service.unregister_user_credentials('111', "Bogus subject")
 
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, self.user_credentials.name, False)
-        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', None, False)
         self.mock_delete_association.assert_called_once_with('333')
         self.mock_delete.assert_called_once_with('222')
 
@@ -190,7 +189,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'UserIdentity to UserCredentials association for user id 111 to credential Bogus subject does not exist')
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, 'Bogus subject', False)
-        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', None, False)
 
     def test_create_user_info(self):
         self.mock_find_objects.return_value = (None, None)
@@ -242,7 +241,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.identity_management_service.delete_user_info('444')
 
         self.mock_find_subjects.assert_called_once_with(RT.UserIdentity, PRED.hasInfo, '444', False)
-        self.mock_find_associations.assert_called_once_with('111', PRED.hasInfo, '444', False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasInfo, '444', None, False)
         self.mock_delete_association.assert_called_once_with('555')
         self.mock_delete.assert_called_once_with('444')
  
@@ -325,7 +324,7 @@ class TestIdentityManagementService(PyonTestCase):
             self.identity_management_service.find_user_info_by_name("John Doe")
 
         ex = cm.exception
-        self.assertEqual(ex.message, 'Multiple UserInfos with name John Doe exist')
+        self.assertEqual(ex.message, 'Multiple UserInfo objects with name John Doe exist')
         self.mock_find_resources.assert_called_once_with(RT.UserInfo, None, "John Doe", False)
 
     def test_find_user_info_by_subject(self):
@@ -440,10 +439,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-
-        # Establish endpoint with container
-        container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-        container_client.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
 

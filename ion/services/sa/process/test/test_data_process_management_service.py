@@ -108,6 +108,6 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.assertEqual(dpd_id, self.data_proc_def_id)
         self.assertEqual(in_id, self.in_product_A)
         self.assertEqual(out_id, self.out_product_A)
-        self.resource_registry.find_associations.assert_called_once_with(self.data_process_id, PRED.hasTransform, '', False)
+        self.resource_registry.find_associations.assert_called_once_with(self.data_process_id, PRED.hasTransform, '', None, False)
         self.transform_management_service.read_transform.assert_called_once_with(self.transform_id)
 

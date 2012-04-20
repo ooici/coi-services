@@ -25,7 +25,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     class docstring
     """
 
-    def create_dataset(self, stream_id='', datastore_name='', view_name='', name='', description='', contact=None, user_metadata={}):
+    def create_dataset(self, stream_id='', datastore_name='', view_name='', name='', description='', contact=None, user_metadata=None):
         """@brief Create a resource which defines a dataset. For LCA it is assumed that datasets are organized by stream.
         @param stream_id is the primary key used in the couch view to retrieve the content or metadata
         @param datastore_name is the name of the datastore where this dataset resides.
@@ -53,7 +53,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.primary_view_key=stream_id
         dataset.datastore_name = datastore_name
         #@todo: fill this in
-        dataset.view_name=view_name or 'dataset_by_id'
+        dataset.view_name=view_name or 'datasets/dataset_by_id'
 
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
@@ -106,7 +106,8 @@ class DatasetManagementService(BaseDatasetManagementService):
                 # Means there are no results
                 results = {}
             ar.set(results)
-        g = Greenlet(ar_timeout, self.db)
+        db = self.container.datastore_manager.get_datastore(dataset.datastore_name)
+        g = Greenlet(ar_timeout,db)
         g.start()
         bounds = ar.get(timeout=5)
 

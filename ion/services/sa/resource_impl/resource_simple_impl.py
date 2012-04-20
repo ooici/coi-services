@@ -19,15 +19,6 @@ class ResourceSimpleImpl(ResourceImpl):
 
     def on_impl_init(self):
 
-        # lcs preconditions that are all operator discretion
-        self.add_lcs_precondition(LCS.DISCOVERABLE,  self.lcs_precondition_always)
-        self.add_lcs_precondition(LCS.AVAILABLE,     self.lcs_precondition_always)
-        self.add_lcs_precondition(LCS.RETIRED,       self.lcs_precondition_always)
-
-        self.add_lcs_precondition(LCS.PLANNED,       self.lcs_precondition_unimplemented)
-        self.add_lcs_precondition(LCS.DEVELOPED,     self.lcs_precondition_unimplemented)
-        self.add_lcs_precondition(LCS.INTEGRATED,    self.lcs_precondition_unimplemented)
-
         self.on_simpl_init()
 
 
@@ -54,7 +45,8 @@ class ResourceSimpleImpl(ResourceImpl):
         @param obj_id an object id
         @param obj the object itself (not needed in this case)
         """
-        self.advance_lcs(obj_id, LCS.AVAILABLE)
+        # Note MM: Some resources do not have a LC state anymore
+        #self.advance_lcs(obj_id, LCS.AVAILABLE)
 
         return
 

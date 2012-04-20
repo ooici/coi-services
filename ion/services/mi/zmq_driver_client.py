@@ -83,6 +83,7 @@ class ZmqDriverClient(DriverClient):
                   driver_client.event_host_string)
 
             driver_client.stop_event_thread = False
+            #last_time = time.time()
             while not driver_client.stop_event_thread:
                 try:
                     evt = sock.recv_pyobj(flags=zmq.NOBLOCK)
@@ -91,7 +92,10 @@ class ZmqDriverClient(DriverClient):
                         driver_client.evt_callback(evt)
                 except zmq.ZMQError:
                     time.sleep(.5)
-
+                #cur_time = time.time()
+                #if cur_time - last_time > 5:
+                #    mi_logger.info('event thread listening')
+                #    last_time = cur_time
             sock.close()
             context.term()
             mi_logger.info('Client event socket closed.')
@@ -156,6 +160,11 @@ class ZmqDriverClient(DriverClient):
             except zmq.ZMQError:
                 # Socket not ready with the reply. Sleep and retry later.
                 time.sleep(.5)
-        mi_logger.debug('Reply: %s', str(reply))
-        return reply
+                
+        mi_logger.debug('Reply: %s.', str(reply))
+        
+        if isinstance(reply, Exception):
+            raise reply
+        else:
+            return reply
     

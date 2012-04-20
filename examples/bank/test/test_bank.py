@@ -4,12 +4,14 @@ from pyon.public import Container
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from interface.services.examples.bank.ibank_service import BankServiceClient
+import unittest, os
 
 from nose.plugins.attrib import attr
 
-@attr('INT',group='example')
+@attr('LOCOINT', 'INT',group='example')
 class Test_Bank(IonIntegrationTestCase):
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_bank(self):
         # Start container
         self._start_container()

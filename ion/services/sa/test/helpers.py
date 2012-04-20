@@ -14,7 +14,7 @@ def any_old(resource_type, extra_fields={}):
 
     _sa_test_helpers_ionobj_count[resource_type] = _sa_test_helpers_ionobj_count[resource_type] + 1
 
-    name = "%s %d" % (resource_type, _sa_test_helpers_ionobj_count[resource_type])
+    name = "%s_%d" % (resource_type, _sa_test_helpers_ionobj_count[resource_type])
     desc = "My %s #%d" % (resource_type, _sa_test_helpers_ionobj_count[resource_type])
     log.debug("Creating any old %s IonObject (#%d)" % (resource_type, _sa_test_helpers_ionobj_count[resource_type]))
 

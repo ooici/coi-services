@@ -4,6 +4,7 @@
 @package ion.services.mi.common Common classes for MI work
 @file ion/services/mi/common.py
 @author Steve Foley
+@author Edward Hunter
 @brief Common enumerations, constants, utilities used in the MI work
 """
 
@@ -13,7 +14,7 @@ __license__ = 'Apache 2.0'
 # imports could go here
 
 """Default timeout value in seconds"""
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 10
 
 class BaseEnum(object):
     """Base class for enums.
@@ -41,7 +42,6 @@ class BaseEnum(object):
         return [getattr(cls,attr) for attr in dir(cls) if \
             not callable(getattr(cls,attr)) and not attr.startswith('__')]
 
-
     @classmethod
     def has(cls, item):
         """Is the object defined in the class?
@@ -51,229 +51,11 @@ class BaseEnum(object):
         @code
         if not FooEnum.has(possible_value)
         @endcode
-        
         @param item The attribute value to test for.
         @retval True if one of the class attributes has value item, false
         otherwise.
         """
         return item in cls.list()
-
-###############################################################################
-# Common driver elements. Below are the constants intended for all instrument
-# specific driver implementations, and part of the driver implementation
-# framework. 
-##############################################################################
-
-
-###############################################################################
-# Instrument agent constants.
-##############################################################################
-
-class AgentState(BaseEnum):
-    """Common agent state enum.
-    
-    Includes aggregate states of the agent state machine.
-    """
-    UNKNOWN = 'AGENT_STATE_UNKNOWN'
-    POWERED_DOWN = 'AGENT_STATE_POWERED_DOWN'
-    POWERED_UP = 'AGENT_STATE_POWERED_UP'
-    UNINITIALIZED = 'AGENT_STATE_UNINITIALIZED'
-    ACTIVE = 'AGENT_STATE_ACTIVE'
-    INACTIVE = 'AGENT_STATE_INACTIVE'
-    STOPPED = 'AGENT_STATE_STOPPED'
-    IDLE = 'AGENT_STATE_IDLE'
-    RUNNING = 'AGENT_STATE_RUNNING'
-    OBSERVATORY_MODE = 'AGENT_STATE_OBSERVATORY_MODE'
-    DIRECT_ACCESS_MODE = 'AGENT_STATE_DIRECT_ACCESS_MODE'
-
-
-class AgentEvent(BaseEnum):
-    """Common agent event enum"""
-    
-    GO_POWER_UP = 'AGENT_EVENT_GO_POWER_DOWN'
-    GO_POWER_DOWN = 'AGENT_EVENT_GO_POWER_UP'
-    INITIALIZE = 'AGENT_EVENT_INITIALIZE'
-    RESET = 'AGENT_EVENT_RESET'
-    GO_ACTIVE = 'AGENT_EVENT_GO_ACTIVE'
-    GO_INACTIVE = 'AGENT_EVENT_GO_INACTIVE'
-    CLEAR = 'AGENT_EVENT_CLEAR'
-    RESUME = 'AGENT_EVENT_RESUME'
-    RUN = 'AGENT_EVENT_RUN'
-    PAUSE = 'AGENT_EVENT_PAUSE'
-    GO_OBSERVATORY_MODE = 'AGENT_EVENT_GO_OBSERVATORY_MODE'
-    GO_DIRECT_ACCESS_MODE = 'AGENT_EVENT_GO_DIRECT_ACCESS_MODE'
-    ENTER = 'AGENT_EVENT_ENTER'
-    EXIT = 'AGENT_EVENT_EXIT'
-    
-
-class AgentCommand(BaseEnum):
-    """ Common agent commands enum"""
-    
-    TRANSITION = 'AGENT_CMD_TRANSITION'
-    TRANSMIT_DATA = 'AGENT_CMD_TRANSMIT_DATA'
-    SLEEP = 'AGENT_CMD_SLEEP'
-
-
-class AgentParameter(BaseEnum):
-    """Common agent parameters"""
-    
-    EVENT_PUBLISHER_ORIGIN = 'AGENT_PARAM_EVENT_PUBLISHER_ORIGIN'
-    TIME_SOURCE = 'AGENT_PARAM_TIME_SOURCE'
-    CONNECTION_METHOD = 'AGENT_PARAM_CONNECTION_METHOD'
-    MAX_ACQ_TIMEOUT = 'AGENT_PARAM_MAX_ACQ_TIMEOUT'
-    DEFAULT_EXP_TIMEOUT = 'AGENT_PARAM_DEFAULT_EXP_TIMEOUT'
-    MAX_EXP_TIMEOUT = 'AGENT_PARAM_MAX_EXP_TIMEOUT'    
-    DRIVER_DESC = 'AGENT_PARAM_DRIVER_DESC'
-    DRIVER_CLIENT_DESC = 'AGENT_PARAM_DRIVER_CLIENT_DESC'
-    DRIVER_CONFIG = 'AGENT_PARAM_DRIVER_CONFIG'
-    BUFFER_SIZE = 'AGENT_PARAM_BUFFER_SIZE'
-    ALL = 'AGENT_PARAM_ALL'
-
-
-class AgentStatus(BaseEnum):
-    """Common agent status enum"""
-    
-    AGENT_STATE = 'AGENT_STATUS_AGENT_STATE'
-    CONNECTION_STATE = 'AGENT_STATUS_CONNECTION_STATE'
-    ALARMS = 'AGENT_STATUS_ALARMS'
-    TIME_STATUS = 'AGENT_STATUS_TIME_STATUS'
-    BUFFER_SIZE = 'AGENT_STATUS_BUFFER_SIZE'
-    AGENT_VERSION = 'AGENT_STATUS_AGENT_VERSION'
-    PENDING_TRANSACTIONS = 'AGENT_STATUS_PENDING_TRANSACTIONS'
-    ALL = 'AGENT_STATUS_ALL'
-
-
-class AgentConnectionState(BaseEnum):
-    """Common agent connection state enum.
-    
-    Possible states of connection/disconnection an agent may be in, among the
-    shore and wet side agent, the driver and the hardware iteself.
-    """
-    REMOTE_DISCONNECTED = 'AGENT_CONNECTION_STATE_REMOTE_DISCONNECTED'
-    POWERED_DOWN = 'AGENT_CONNECTION_STATE_POWERED_DOWN'
-    NO_DRIVER = 'AGENT_CONNECTION_STATE_NO_DRIVER'
-    DISCONNECTED = 'AGENT_CONNECTION_STATE_DISCONNECTED'
-    CONNECTED = 'AGENT_CONNECTION_STATE_CONNECTED'
-    UNKOWN = 'AGENT_CONNECTION_STATE_UNKNOWN'
-
-
-class Datatype(BaseEnum):
-    """Common agent parameter and metadata types"""
-    
-    DATATYPE = 'TYPE_DATATYPE' # This type.
-    INT = 'TYPE_INT' # int.
-    FLOAT = 'TYPE_FLOAT' # float.
-    BOOL = 'TYPE_BOOL' # bool.
-    STRING = 'TYPE_STRING' # str.
-    INT_RANGE = 'TYPE_INT_RANGE' # (int,int).
-    FLOAT_RANGE = 'TYPE_FLOAT_RANGE' # (float,float).
-    TIMESTAMP = 'TYPE_TIMESTAMP' # (int seconds,int nanoseconds).
-    TIME_DURATION = 'TYPE_TIME_DURATION' # TBD.
-    PUBSUB_TOPIC_DICT = 'TYPE_PUBSUB_TOPIC_DICT' # dict of topic strings.
-    RESOURCE_ID = 'TYPE_RESOURCE_ID' # str (possible validation).
-    ADDRESS = 'TYPE_ADDRESS' # str (possible validation).
-    ENUM = 'TYPE_ENUM' # str with valid values.
-    PUBSUB_ORIGIN = 'TYPE_PUBSUB_ORIGIN'
-
-"""
-@todo Used by the existing drivers...need to fix.
-"""
-publish_msg_type = {
-    'Error':'Error',
-    'StateChange':'StateChange',
-    'ConfigChange':'ConfigChange',
-    'Data':'Data',
-    'Event':'Event'
-}
-
-driver_client = "PLACEHOLDER"
-
-
-class DriverAnnouncement(BaseEnum):
-    """Common publish message type enum"""
-    
-    ERROR = 'DRIVER_ANNOUNCEMENT_ERROR'          
-    STATE_CHANGE = 'DRIVER_ANNOUNCEMENT_STATE_CHANGE'
-    CONFIG_CHANGE = 'DRIVER_ANNOUNCEMENT_CONIFG_CHANGE'
-    DATA_RECEIVED = 'DRIVER_ANNOUNCEMENT_DATA_RECEIVED'
-    EVENT_OCCURRED = 'DRIVER_ANNOUNCEMENT_EVENT_OCCURRED'        
-    
-    
-class TimeSource(BaseEnum):
-    """Common time source enum for the device fronted by the agent"""
-    
-    NOT_SPECIFIED = 'TIME_SOURCE_NOT_SPECIFIED'
-    PTP_DIRECT = 'TIME_SOURCE_PTP_DIRECT' # IEEE 1588 PTP connection directly supported.
-    NTP_UNICAST = 'TIME_SOURCE_NTP_UNICAST' # NTP unicast to the instrument.
-    NTP_BROADCAST = 'TIME_SOURCE_NTP_BROADCAST' # NTP broadcast to the instrument.
-    LOCAL_OSCILLATOR = 'TIME_SOURCE_LOCAL_OSCILLATOR' # Device has own clock.
-    DRIVER_SET_INTERVAL = 'TIME_SOURCE_DRIVER_SET_INTERVAL' # Driver sets clock at interval.
-    
-
-class ConnectionMethod(BaseEnum):
-    """Common connection method to agent and device enum"""
-    
-    NOT_SPECIFIED = 'CONNECTION_METHOD_NOT_SPECIFIED'
-    OFFLINE = 'CONNECTION_METHOD_OFFLINE' 
-    CABLED_OBSERVATORY = 'CONNECTION_METHOD_CABLED_OBSERVATORY' 
-    SHORE_NETWORK = 'CONNECTION_METHOD_SHORE_NETWORK' 
-    PART_TIME_SCHEDULED = 'CONNECTION_METHOD_PART_TIME_SCHEDULED' 
-    PART_TIME_RANDOM = 'CONNECTION_METHOD_PART_TIME_RANDOM'    
-    
-
-class AlarmType(BaseEnum):
-    """Common agent observatory alarm enum"""
-    
-    CANNOT_PUBLISH = ('ALARM_CANNOT_PUBLISH','Attempted to publish but cannot.')
-    INSTRUMENT_UNREACHABLE = ('ALARM_INSTRUMENT_UNREACHABLE',
-                'Instrument cannot be contacted when it should be.')
-    MESSAGING_ERROR = ('ALARM_MESSAGING_ERROR','Error when sending messages.')
-    HARDWARE_ERROR = ('ALARM_HARDWARE_ERROR','Hardware problem detected.')
-    UNKNOWN_ERROR = ('ALARM_UNKNOWN_ERROR','An unknown error has occurred.')       
-   
-
-class ObservatoryCapability(BaseEnum):
-    """Common agent observatory capabilies enum"""
-    
-    OBSERVATORY_COMMANDS = 'CAP_OBSERVATORY_COMMANDS' 
-    OBSERVATORY_PARAMS = 'CAP_OBSERVATORY_PARAMS' 
-    OBSERVATORY_STATUSES = 'CAP_OBSERVATORY_STATUSES' 
-    OBSERVATORY_METADATA = 'CAP_OBSERVATORY_METADATA' 
-    OBSERVATORY_ALL = 'CAP_OBSERVATORY_ALL'
-    
-
-class DriverCapability(BaseEnum):
-    """Common device capabilities enum"""
-    
-    DEVICE_METADATA = 'CAP_DEVICE_METADATA' 
-    DEVICE_COMMANDS = 'CAP_DEVICE_COMMANDS' 
-    DEVICE_PARAMS = 'CAP_DEVICE_PARAMS' 
-    DEVICE_STATUSES = 'CAP_DEVICE_STATUSES' 
-    DEVICE_CHANNELS = 'CAP_DEVICE_CHANNELS' 
-    DEVICE_ALL = 'CAP_DEVICE_ALL'
-    
-
-class InstrumentCapability(ObservatoryCapability,DriverCapability):
-    """Comination of agent and device capabilities enum"""
-    
-    ALL = 'CAP_ALL'
-
-
-class MetadataParameter(BaseEnum):
-    """Common metadata parameter names enum"""
-    
-    DATATYPE = 'META_DATATYPE'
-    PHYSICAL_PARAMETER_TYPE = 'META_PHYSICAL_PARAMETER_TYPE'
-    MINIMUM_VALUE = 'META_MINIMUM_VALUE'
-    MAXIMUM_VALUE = 'META_MAXIMUM_VALUE'
-    UNITS = 'META_UNITS'
-    UNCERTAINTY = 'META_UNCERTAINTY'
-    LAST_CHANGE_TIMESTAMP = 'META_LAST_CHANGE_TIMESTAMP'
-    WRITABLE = 'META_WRITABLE'
-    VALID_VALUES = 'META_VALID_VALUES'
-    FRIENDLY_NAME = 'META_FRIENDLY_NAME'
-    DESCRIPTION = 'META_DESCRIPTION'
-    ALL = 'META_ALL'
 
 class EventKey(BaseEnum):
     """Keys to the event dictionary fields as used by the InstrumentProtocol
@@ -431,5 +213,3 @@ class InstErrorCode(BaseEnum):
             strval = strval[:-2]
             return strval
 
-        else:
-            return None
