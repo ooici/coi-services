@@ -606,10 +606,12 @@ class TestSBE37Driver(PyonTestCase):
         state = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(state, SBE37ProtocolState.COMMAND)
         
-        # Make sure the device parameters are set to sample frequently.
+        # Make sure the device parameters are set to sample frequently and
+        # to transmit.
         params = {
             SBE37Parameter.NAVG : 1,
-            SBE37Parameter.INTERVAL : 5
+            SBE37Parameter.INTERVAL : 5,
+            SBE37Parameter.TXREALTIME : True
         }
         reply = self._dvr_client.cmd_dvr('set', params)
         
