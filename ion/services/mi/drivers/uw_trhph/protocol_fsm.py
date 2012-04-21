@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+#########################################################################
+# NOTE
+# This source is obsolete -- NOT USED.
+# it was a preliminary version of an instrument protocol class for the
+# BARS instrument that was initially made available by UW.
+#########################################################################
+
 """
 @package ion.services.mi.drivers.uwash_bars.protocol_fsm
 @file ion/services/mi/drivers/uwash_bars/protocol_fsm.py
@@ -47,8 +54,6 @@ CYCLE_TIME_PATTERN = re.compile(
         r'present value for the Cycle Time is\s+([^.]*)\.')
 
 
-
-
 class BarsProtocolState(BaseEnum):
     PRE_INIT = "PRE_INIT"
     COLLECTING_DATA = 'COLLECTING_DATA'
@@ -80,7 +85,7 @@ class BarsPrompt(BaseEnum):
 
 
 class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
-    """The instrument protocol classes to deal with a TRHPH BARS sensor.
+    """The instrument protocol classes to deal with a BARS sensor.
 
     """
 
@@ -140,7 +145,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         self._add_build_handler(CONTROL_S, self._build_simple_cmd)
         self._add_build_handler(CONTROL_M, self._build_simple_cmd)
         for c in range(8):
-            char ='%d' % c
+            char = '%d' % c
             self._add_build_handler(char, self._build_simple_cmd)
 
         # add response handlers
@@ -307,7 +312,6 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         log.debug("_set_cycle_time NOT IMPLEMENTED YET!")
 
         return InstErrorCode.OK
-
 
     ########################################################################
 

@@ -21,14 +21,14 @@ of the launch methods.
 
 The following two require a ^\ to kill them (the thread is not started).
 
-$ bin/nosetests -sv ion/services/mi/drivers/uw_bars/test/test_thread.py
+$ bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_thread.py
 2012-02-10 13:39:53,238 DEBUG    pyon.core.governance.governance_controller GovernanceController.__init__()
 2012-02-10 13:39:53,238 DEBUG    pyon.core.governance.governance_interceptor GovernanceInterceptor enabled: False
-test_simple (ion.services.mi.drivers.uw_bars.test.test_thread.ThreadTest) ... :: _T created
+test_simple (ion.services.mi.drivers.uw_trhph.test.test_thread.ThreadTest) ... :: _T created
 ^\
 
-$ bin/python -m unittest ion.services.mi.drivers.uw_bars.test.test_thread
-test_simple (ion.services.mi.drivers.uw_bars.test.test_bars_client.DriverTest) ...
+$ bin/python -m unittest ion.services.mi.drivers.uw_trhph.test.test_thread
+test_simple (ion.services.mi.drivers.uw_trhph.test.test_bars_client.DriverTest) ...
 DEBUG      bars_client               20742  MainThread      - ### connecting to 10.180.80.172:2001
 DEBUG      bars_client               20742  MainThread      - ### connected to 10.180.80.172:2001
 DEBUG      bars_client               20742  MainThread      - ### _Recv created.
@@ -36,7 +36,7 @@ DEBUG      bars_client               20742  MainThread      - ### _Recv created.
 
 
 The following runs fine:
-$ bin/python  ion/services/mi/drivers/uw_bars/test/test_thread.py
+$ bin/python  ion/services/mi/drivers/uw_trhph/test/test_thread.py
 2012-02-10 13:42:32,860 DEBUG    pyon.core.governance.governance_controller GovernanceController.__init__()
 2012-02-10 13:42:32,860 DEBUG    pyon.core.governance.governance_interceptor GovernanceInterceptor enabled: False
 :: _T created
