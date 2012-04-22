@@ -27,7 +27,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@unittest.skip('not working')
+#@unittest.skip('not working')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -313,7 +313,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
 
             #
-            # test creating a new data agent instance
+            # test creating a new dataset agent instance
             #
             print 'Creating new external data agent '
             datasetagent_obj = IonObject(RT.ExternalDatasetAgent,
@@ -327,7 +327,24 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
 
             #
-            # test creating a new data agent instance
+            # test creating a new datasource agent instance
+            #
+            print 'Creating new  data source agent '
+            datasourceagent_obj = IonObject(RT.DataSourceAgent,
+                               name='DataSourceAgent1',
+                               description=' DataSource agent ')
+            try:
+                datasource_agent_id = self.client.create_data_source_agent(datasourceagent_obj)
+            except BadRequest as ex:
+                self.fail("failed to create new external datasource agent: %s" %ex)
+            print 'new external data agent  id = ', datasource_agent_id
+
+
+
+
+
+            #
+            # test creating a new dataset agent instance
             #
             print 'Creating new external dataset agent instance'
             datasetagentinstance_obj = IonObject(RT.ExternalDatasetAgentInstance,
@@ -339,21 +356,28 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
                 self.fail("failed to create new external dataset agent instance: %s" %ex)
             print 'new external data agent instance id = ', datasetagentinstance_id
 
-
+            #
+            # test creating a new datasource agent instance
+            #
+            print 'Creating new  data source agent '
+            datasourceagentinstance_obj = IonObject(RT.DataSourceAgentInstance,
+                               name='ExternalDataSourceAgentInstance1',
+                               description='external DataSource agent instance ')
+            try:
+                datasource_agent_instance_id = self.client.create_data_source_agent_instance(datasourceagentinstance_obj)
+            except BadRequest as ex:
+                self.fail("failed to create new external datasource agent instance: %s" %ex)
+            print 'new external data agent  id = ', datasource_agent_instance_id
 
             #
             # test assign / unassign
             #
-
-            self.client.assign_eoi_resources(dataprovider_id, datasource_id, datamodel_id, extdataset_id, dataagent_id, dataagentinstance_id)
 
             self.client.unassign_data_source_from_external_data_provider(datasource_id, dataprovider_id)
 
             self.client.unassign_data_source_from_data_model(datasource_id, datamodel_id)
 
             self.client.unassign_external_dataset_from_data_source(extdataset_id, datasource_id)
-
-            self.client.unassign_external_dataset_from_agent_instance(extdataset_id, dataagentinstance_id)
 
             #
             # test read
@@ -373,21 +397,13 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             else:
                 pass
 
-            try:
-                dp_obj = self.client.read_external_data_source_model(datamodel_id)
-            except NotFound as ex:
-                self.fail("existing data model was not found during read")
-            else:
-                pass
             #
             # test delete
             #
             try:
                 self.client.delete_external_data_provider(dataprovider_id)
                 self.client.delete_data_source(datasource_id)
-                self.client.delete_external_source_model_instance(datamodel_id)
                 self.client.delete_external_dataset(extdataset_id)
-                self.client.delete_external_data_agent_instance(dataagentinstance_id)
             except NotFound as ex:
                 self.fail("existing data product was not found during delete")
 
