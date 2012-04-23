@@ -123,7 +123,7 @@ SBE37_NEWLINE = '\r\n'
 SBE37_TIMEOUT = 10
                 
 # Packet config for SBE37 data granules.
-SBE37_PACKET_CONFIG = {
+PACKET_CONFIG = {
         'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
         'ctd_raw' : None            
 }

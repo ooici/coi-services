@@ -60,31 +60,27 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_errors
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_discover_autosample
 
-# Logger constructor:
-# EthernetDeviceLogger(DEV_ADDR, DEV_PORT, PAGENT_PORT, WORK_DIR, DELIM, SNIFFER_PORT, None, TAG)
-
 # Driver and port agent configuration
-DVR_SVR_ADDR = 'localhost'
-DVR_CMD_PORT = 5556
-DVR_EVT_PORT = 5557
+
+# Driver module and class.
 DVR_MOD = 'ion.services.mi.drivers.sbe37_driver'
 DVR_CLS = 'SBE37Driver'
+
+# Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
-#DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
+#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
-PAGENT_ADDR = 'localhost'
-#PAGENT_PORT = 8888
-PAGENT_PORT = 0
+
+# Work dir and logger delimiter.
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
-SNIFFER_PORT = None
-TAG = str(uuid.uuid4())
-#TAG = None
+
+# Driver comms config. Port number set when port agent launched.
 COMMS_CONFIG = {
-    'addr': PAGENT_ADDR,
-    'port': PAGENT_PORT
+    'addr': 'localhost',
+    'port': 0
 }
 
 # Used to validate param config retrieved from driver.
@@ -170,20 +166,9 @@ class TestSBE37Driver(PyonTestCase):
         
         # Create port agent object.
         this_pid = os.getpid()
-        self._pagent = EthernetDeviceLogger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
-                        WORK_DIR, DELIM, SNIFFER_PORT, this_pid, TAG)
-        mi_logger.info('Created port agent object for %s %d %d', DEV_ADDR,
-                       DEV_PORT, PAGENT_PORT)
+        self._pagent = EthernetDeviceLogger.launch_process(DEV_ADDR, DEV_PORT,
+                        WORK_DIR, DELIM, this_pid)
 
-        # Stop the port agent if it is already running.
-        # The port agent creates a pid file based on the config used to
-        # construct it.
-        self._stop_pagent()
-        pid = None
-
-        # Start the port agent.
-        # Confirm it is started by getting pidfile.
-        self._pagent.start_remote()
         pid = self._pagent.get_pid()
         while not pid:
             gevent.sleep(.1)
@@ -192,8 +177,9 @@ class TestSBE37Driver(PyonTestCase):
         while not port:
             gevent.sleep(.1)
             port = self._pagent.get_port()
-            
+        
         COMMS_CONFIG['port'] = port
+
         mi_logger.info('Started port agent pid %d listening at port %d', pid, port)
 
     def _stop_pagent(self):
@@ -215,17 +201,17 @@ class TestSBE37Driver(PyonTestCase):
         
         # Launch driver process based on test config.
         this_pid = os.getpid()
-        self._dvr_proc = ZmqDriverProcess.launch_process(DVR_CMD_PORT,
-            DVR_EVT_PORT, DVR_MOD, DVR_CLS, this_pid)
-        mi_logger.info('Started driver process for %d %d %s %s', DVR_CMD_PORT,
-            DVR_EVT_PORT, DVR_MOD, DVR_CLS)
+        (dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(DVR_MOD, DVR_CLS, WORK_DIR, this_pid)
+        self._dvr_proc = dvr_proc
+        mi_logger.info('Started driver process for %d %d %s %s', cmd_port,
+            evt_port, DVR_MOD, DVR_CLS)
         mi_logger.info('Driver process pid %d', self._dvr_proc.pid)
             
         # Create driver client.            
-        self._dvr_client = ZmqDriverClient(DVR_SVR_ADDR, DVR_CMD_PORT,
-            DVR_EVT_PORT)
-        mi_logger.info('Created driver client for %d %d %s %s', DVR_CMD_PORT,
-            DVR_EVT_PORT, DVR_MOD, DVR_CLS)
+        self._dvr_client = ZmqDriverClient('localhost', cmd_port,
+            evt_port)
+        mi_logger.info('Created driver client for %d %d %s %s', cmd_port,
+            evt_port, DVR_MOD, DVR_CLS)
         
         # Start client messaging.
         self._dvr_client.start_messaging(self.evt_recd)
@@ -316,7 +302,6 @@ class TestSBE37Driver(PyonTestCase):
         Test for correct launch of driver process and communications, including
         asynchronous driver events.
         """
-
         # Verify processes exist.
         self.assertNotEqual(self._dvr_proc, None)
         drv_pid = self._dvr_proc.pid

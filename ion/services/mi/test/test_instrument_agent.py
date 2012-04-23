@@ -42,6 +42,9 @@ from pyon.util.context import LocalContextMixin
 from pyon.public import CFG
 from pyon.event.event import EventSubscriber
 
+# MI imports.
+from ion.services.mi.logger_process import EthernetDeviceLogger
+
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
@@ -63,8 +66,10 @@ DELIM = ['<<','>>'] # Log file delim.
 SNIFFER_PORT = None # No sniffer capabilities yet.
 TAG = str(uuid.uuid4()) # File tag.
 
+# Driver comms config.
+
 # Driver config.
-from ion.services.mi.drivers.sbe37_driver import SBE37_PACKET_CONFIG as PACKET_CONFIG
+from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 DVR_CONFIG = {
     'svr_addr' : 'localhost',
     'cmd_port' : 5556,
@@ -90,8 +95,8 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id=''
     process_type = ''
-    
-@unittest.skip('Need to align.')
+
+@unittest.skip('In development.')    
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
@@ -119,10 +124,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Pubsub client.
         self._pubsub_client = None
         
-        # Names of agent data streams to be configured.
-        parsed_stream_name = 'ctd_parsed'        
-        raw_stream_name = 'ctd_raw'        
-
+        # Port agent.
+        self._pagent = None
+        
+        # Start the port agent.
+        self._start_pagent()
+        
+        # Add cleanup to shut pagent down.
+        self.addCleanup(self._stop_pagent)    
+        
         # Start container.
         self._start_container()
 
@@ -194,7 +204,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         agent_config = {
             'driver_config' : DVR_CONFIG,
             'stream_config' : stream_config,
-            'agent'         : {'resource_id': IA_RESOURCE_ID}
+            'agent'         : {'resource_id': IA_RESOURCE_ID},
+            'test_mode' : True
         }
         
         log.debug("TestInstrumentAgent.setup(): starting IA")
@@ -237,7 +248,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             gevent.sleep(.1)
             port = self._pagent.get_port()
             
-        COMMS_CONFIG['port'] = port
+        DVR_CONFIG['comms_config']['port'] = port
         log.info('Started port agent pid %d listening at port %d', pid, port)
 
     def _stop_pagent(self):
@@ -265,29 +276,29 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.
         """
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('IA state: %s', str(retval))
     
-    
-        log.info('Running initialize test.')
-        gevent.sleep(3)
-        log.info('Test done.')
-        
-    
-        """
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-        
-        caps = self._ia_client.get_capabilities()
-        log.info('Capabilities: %s',str(caps))
-        
+        log.info('initialize retval: %s', str(retval))
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('IA state: %s', str(retval))
+
+        gevent.sleep(3)
+
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
-        """
-        
+        log.info('reset retval: %s', str(retval))
+                
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('IA state: %s', str(retval))
+    
     def test_go_active(self):
         """
         Test agent go_active command. This causes a driver process to

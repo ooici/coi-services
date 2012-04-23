@@ -22,6 +22,7 @@ import os
 import time
 import logging
 import sys
+import uuid
 
 import zmq
 
@@ -40,48 +41,77 @@ class ZmqDriverProcess(driver_process.DriverProcess):
     """
     
     @classmethod
-    def launch_process(cls, cmd_port, event_port, driver_module, driver_class, ppid):
+    def launch_process(cls, driver_module, driver_class, workdir='/tmp/', ppid=None):
         """
         Class method constructor to launch ZmqDriverProcess as a
         separate OS process. Creates command string for this
-        class and pass to superclass static method. Method has the same
-        function signature as the class constructor.
-        @param cmd_port Int IP port of the command REP socket.
-        @param event_port Int IP port of the event socket.
+        class and pass to superclass static method. 
         @param driver_module The python module containing the driver code.
         @param driver_class The python driver class.
+        @param workdir The work directory when temporary port files are written.
         @param ppid ID of the parent process, used to self destruct when
         parent dies in test cases.
-        @retval a Popen object representing the ZMQ driver process.
+        @retval Tuple containing (Popen object for the process, cmd port,
+            evt_port)
         """
         
         # Construct the command string.
-        cmd_str = 'from %s import %s; dp = %s(%i, %i, "%s", "%s", %s);dp.run()' \
-                        % (__name__, cls.__name__, cls.__name__,
-                cmd_port, event_port, driver_module, driver_class, str(ppid))
+        tag = str(uuid.uuid4())
+        cmd_port_fname = 'dvr_cmd_port_%s.txt' % tag
+        cmd_port_fname = workdir + cmd_port_fname
+        evt_port_fname = 'dvr_evt_port_%s.txt' % tag
+        evt_port_fname = workdir + evt_port_fname
+        cmd_str = 'from %s import %s; dp = %s("%s", "%s", "%s", "%s", %s);dp.run()' \
+            % (__name__, cls.__name__, cls.__name__, driver_module,
+               driver_class, cmd_port_fname, evt_port_fname, str(ppid))
                 
         # Call base class launch method.
-        return driver_process.DriverProcess.launch_process(cmd_str)
+        dvr_proc = driver_process.DriverProcess.launch_process(cmd_str)
+        while True:
+            try:                
+                cmd_port_file = file(cmd_port_fname, 'r')
+                dvr_cmd_port = int(cmd_port_file.read().strip())
+                cmd_port_file.close()
+                os.remove(cmd_port_fname)
+                break
+            
+            except IOError:
+                time.sleep(.1)
+        while True:
+            try:                
+                evt_port_file = file(evt_port_fname, 'r')
+                dvr_evt_port = int(evt_port_file.read().strip())
+                evt_port_file.close()
+                os.remove(evt_port_fname)
+                break
+            
+            except IOError:
+                time.sleep(.1)
+
+        return (dvr_proc, dvr_cmd_port, dvr_evt_port)
         
-    def __init__(self, cmd_port, event_port, driver_module, driver_class, ppid):
+    def __init__(self, driver_module, driver_class, cmd_port_fname, evt_port_fname, ppid):
         """
-        @param cmd_port Int IP port of the command REP socket.
-        @param event_port Int IP port of the event socket.
+        Zmq driver process constructor.
         @param driver_module The python module containing the driver code.
         @param driver_class The python driver class.
+        @param cmd_port_fname Filename for temp cmd port file.
+        @param evt_port_fname Filename for temp evt port file.
         @param ppid ID of the parent process, used to self destruct when
         parent dies in test cases.        
         """
         driver_process.DriverProcess.__init__(self, driver_module, driver_class, ppid)
-        self.cmd_port = cmd_port
-        self.cmd_host_string = 'tcp://*:%i' % self.cmd_port
-        self.event_port = event_port
-        self.event_host_string = 'tcp://*:%i' % self.event_port
+        self.cmd_port = None
+        self.cmd_port_fname = cmd_port_fname
+        self.evt_port = None
+        self.evt_port_fname = evt_port_fname
+        self.cmd_host_string = 'tcp://*'
+        self.event_host_string ='tcp://*'
         self.evt_thread = None
         self.stop_evt_thread = True
         self.cmd_thread = None
         self.stop_cmd_thread = True
-
+        
     def start_messaging(self):
         """
         Initialize and start messaging resources for the driver, blocking
@@ -98,10 +128,11 @@ class ZmqDriverProcess(driver_process.DriverProcess):
             """
             context = zmq.Context()
             sock = context.socket(zmq.REP)
-            sock.bind(zmq_driver_process.cmd_host_string)
-            mi_logger.info('Driver process cmd socket bound to %s',
-                           zmq_driver_process.cmd_host_string)
-        
+            zmq_driver_process.cmd_port = sock.bind_to_random_port(zmq_driver_process.cmd_host_string)
+            mi_logger.info('Driver process cmd socket bound to %i',
+                           zmq_driver_process.cmd_port)
+            file(zmq_driver_process.cmd_port_fname,'w+').write(str(zmq_driver_process.cmd_port)+'\n')
+
             zmq_driver_process.stop_cmd_thread = False
             while not zmq_driver_process.stop_cmd_thread:
                 try:
@@ -130,9 +161,10 @@ class ZmqDriverProcess(driver_process.DriverProcess):
             """
             context = zmq.Context()
             sock = context.socket(zmq.PUB)
-            sock.bind(zmq_driver_process.event_host_string)
-            mi_logger.info('Driver process event socket bound to %s',
-                           zmq_driver_process.event_host_string)
+            zmq_driver_process.evt_port = sock.bind_to_random_port(zmq_driver_process.event_host_string)
+            mi_logger.info('Driver process event socket bound to %i',
+                           zmq_driver_process.evt_port)
+            file(zmq_driver_process.evt_port_fname,'w+').write(str(zmq_driver_process.evt_port)+'\n')
 
             zmq_driver_process.stop_evt_thread = False
             while not zmq_driver_process.stop_evt_thread:
