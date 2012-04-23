@@ -251,6 +251,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
         # Driver configuration.
+#        driver_config = {
+#            'svr_addr': instrument_agent_instance_obj.svr_addr,
+#            'cmd_port': int(instrument_agent_instance_obj.cmd_port),
+#            'evt_port':int(instrument_agent_instance_obj.evt_port),
+#            'dvr_mod': instrument_agent_instance_obj.driver_module,
+#            'dvr_cls': instrument_agent_instance_obj.driver_class,
+#            'comms_config': {
+#                SBE37Channel.CTD: {
+#                    'method':instrument_agent_instance_obj.comms_method,
+#                    'device_addr': instrument_agent_instance_obj.comms_device_address,
+#                    'device_port': int(instrument_agent_instance_obj.comms_device_port),
+#                    'server_addr': instrument_agent_instance_obj.comms_server_address,
+#                    'server_port': int(instrument_agent_instance_obj.comms_server_port)
+#                    }
+#                }
+#            }
+
         driver_config = {
             'svr_addr': instrument_agent_instance_obj.svr_addr,
             'cmd_port': int(instrument_agent_instance_obj.cmd_port),
@@ -258,13 +275,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'dvr_mod': instrument_agent_instance_obj.driver_module,
             'dvr_cls': instrument_agent_instance_obj.driver_class,
             'comms_config': {
-                SBE37Channel.CTD: {
-                    'method':instrument_agent_instance_obj.comms_method,
-                    'device_addr': instrument_agent_instance_obj.comms_device_address,
-                    'device_port': int(instrument_agent_instance_obj.comms_device_port),
-                    'server_addr': instrument_agent_instance_obj.comms_server_address,
-                    'server_port': int(instrument_agent_instance_obj.comms_server_port)
-                    }
+                    'addr': instrument_agent_instance_obj.comms_device_address,
+                    'port': int(instrument_agent_instance_obj.comms_device_port),
                 }
             }
 
