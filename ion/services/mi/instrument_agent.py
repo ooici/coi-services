@@ -1037,26 +1037,26 @@ class InstrumentAgent(ResourceAgent):
         @param dvr_config The driver configuration.
         @param comms_config The driver communications configuration.
         @retval None or error.
-        """        
-        # Retrieve configuration parameters.
-        svr_addr = self._dvr_config['svr_addr']
-        cmd_port = self._dvr_config['cmd_port']
-        evt_port = self._dvr_config['evt_port']
+        """
+
+        # Get driver configuration and pid for test case.        
         dvr_mod = self._dvr_config['dvr_mod']
         dvr_cls = self._dvr_config['dvr_cls']
         this_pid = os.getpid() if self._test_mode else None
 
-        # Lauch driver based on config.        
-        self._dvr_proc = ZmqDriverProcess.launch_process(cmd_port, evt_port,
-            dvr_mod, dvr_cls, this_pid)           
-
+        (self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, '/tmp/', this_pid)
+            
         # Verify the driver has started.
         if not self._dvr_proc or self._dvr_proc.poll():            
             raise BadRequest('Error starting driver.')
             
+        log.info('Started driver process for %d %d %s %s', cmd_port,
+            evt_port, dvr_mod, dvr_cls)
+        log.info('Driver process pid %d', self._dvr_proc.pid)
+
         # Start client messaging and verify messaging.
         try:
-            self._dvr_client = ZmqDriverClient(svr_addr, cmd_port, evt_port)
+            self._dvr_client = ZmqDriverClient('localhost', cmd_port, evt_port)
             self._dvr_client.start_messaging(self.evt_recv)
             retval = self._dvr_client.cmd_dvr('process_echo', 'Test.')
         
@@ -1067,9 +1067,9 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_client = None
             raise BadRequest('Error starting driver client.')            
 
-        log.info('Instrument agent %s started its driver.', self._proc_name)
-
         self._construct_packet_factories(dvr_mod)
+
+        log.info('Instrument agent %s started its driver.', self._proc_name)
 
         return self._dvr_proc.pid
         
@@ -1103,22 +1103,16 @@ class InstrumentAgent(ResourceAgent):
         @retval True if the current config is valid, False otherwise.
         """
         try:
-            svr_addr = self._dvr_config['svr_addr']
-            cmd_port = self._dvr_config['cmd_port']
-            evt_port = self._dvr_config['evt_port']
             dvr_mod = self._dvr_config['dvr_mod']
             dvr_cls = self._dvr_config['dvr_cls']
             comms_config = self._dvr_config['comms_config']
             addr = comms_config['addr']
             port = comms_config['port']
-
+            
         except TypeError, KeyError:
             return False
         
-        if not isinstance(svr_addr, str) or \
-            not isinstance(cmd_port, int) or \
-            not isinstance(evt_port, int) or \
-            not isinstance(dvr_mod, str) or \
+        if not isinstance(dvr_mod, str) or \
             not isinstance(dvr_cls, str) or \
             not isinstance(addr, str) or \
             not isinstance(port, int):

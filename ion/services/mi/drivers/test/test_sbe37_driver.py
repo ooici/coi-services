@@ -79,8 +79,7 @@ DELIM = ['<<','>>']
 
 # Driver comms config. Port number set when port agent launched.
 COMMS_CONFIG = {
-    'addr': 'localhost',
-    'port': 0
+    'addr': 'localhost'
 }
 
 # Used to validate param config retrieved from driver.

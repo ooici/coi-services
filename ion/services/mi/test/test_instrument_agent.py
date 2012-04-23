@@ -44,6 +44,7 @@ from pyon.event.event import EventSubscriber
 
 # MI imports.
 from ion.services.mi.logger_process import EthernetDeviceLogger
+from ion.services.mi.instrument_agent import InstrumentAgentState
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
@@ -51,34 +52,25 @@ from ion.services.mi.logger_process import EthernetDeviceLogger
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 
-# Device and port agent config.
+# Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
-#DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
+#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
-# Port agent config.
-PAGENT_ADDR = 'localhost' # Run local.
-PAGENT_PORT = 0 # Have the port agent select a server port.
-WORK_DIR = '/tmp/' # Location of pid, status, port, log files.
-DELIM = ['<<','>>'] # Log file delim.
-SNIFFER_PORT = None # No sniffer capabilities yet.
-TAG = str(uuid.uuid4()) # File tag.
-
-# Driver comms config.
+# Work dir and logger delimiter.
+WORK_DIR = '/tmp/'
+DELIM = ['<<','>>']
 
 # Driver config.
+# DVR_CONFIG['comms_config']['port'] is set by the setup.
 from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 DVR_CONFIG = {
-    'svr_addr' : 'localhost',
-    'cmd_port' : 5556,
-    'evt_port' : 5557,
     'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
     'dvr_cls' : 'SBE37Driver',
     'comms_config' : {
-        'addr' : 'localhost',
-        'port' : 0
+        'addr' : 'localhost'
     }
 }
 
@@ -96,7 +88,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@unittest.skip('In development.')    
+#@unittest.skip('In development.')    
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
@@ -222,23 +214,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         Construct and start the port agent.
         """
-        
+
         # Create port agent object.
         this_pid = os.getpid()
-        self._pagent = EthernetDeviceLogger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
-                        WORK_DIR, DELIM, SNIFFER_PORT, this_pid, TAG)
-        log.info('Created port agent object for %s %d %d', DEV_ADDR,
-                       DEV_PORT, PAGENT_PORT)
+        self._pagent = EthernetDeviceLogger.launch_process(DEV_ADDR, DEV_PORT,
+                        WORK_DIR, DELIM, this_pid)
 
-        # Stop the port agent if it is already running.
-        # The port agent creates a pid file based on the config used to
-        # construct it.
-        self._stop_pagent()
-        pid = None
-
-        # Start the port agent.
-        # Confirm it is started by getting pidfile.
-        self._pagent.start_remote()
+        # Get the pid and port agent server port number.
         pid = self._pagent.get_pid()
         while not pid:
             gevent.sleep(.1)
@@ -247,8 +229,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         while not port:
             gevent.sleep(.1)
             port = self._pagent.get_port()
-            
+        
+        # Configure driver to use port agent port number.
         DVR_CONFIG['comms_config']['port'] = port
+        
+        # Report.
         log.info('Started port agent pid %d listening at port %d', pid, port)
 
     def _stop_pagent(self):
@@ -279,25 +264,24 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('IA state: %s', str(retval))
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
     
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval: %s', str(retval))
 
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('IA state: %s', str(retval))
-
-        gevent.sleep(3)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('reset retval: %s', str(retval))
                 
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('IA state: %s', str(retval))
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
     
     def test_go_active(self):
         """
