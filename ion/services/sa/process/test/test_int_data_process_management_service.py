@@ -53,7 +53,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to DataProductManagementService
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
@@ -66,29 +66,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
 
 
-        # Set up the preconditions
-        # ingestion configuration parameters
-        self.exchange_point_id = 'science_data'
-        self.number_of_workers = 2
-        self.hdf_storage = HdfStorage(relative_path='ingest')
-        self.couch_storage = CouchStorage(datastore_name='test_datastore')
-        self.XP = 'science_data'
-        self.exchange_name = 'ingestion_queue'
 
-        # Create ingestion configuration and activate it
-        ingestion_configuration_id =  self.ingestclient.create_ingestion_configuration(
-            exchange_point_id=self.exchange_point_id,
-            couch_storage=self.couch_storage,
-            hdf_storage=self.hdf_storage,
-            number_of_workers=self.number_of_workers
-        )
-        print 'test_activateInstrument: ingestion_configuration_id', ingestion_configuration_id
-
-        # activate an ingestion configuration
-        ret = self.ingestclient.activate_ingestion_configuration(ingestion_configuration_id)
-        log.debug("test_activateInstrument: activate = %s"  % str(ret))
-
-    #@unittest.skip('not working')
+#    #@unittest.skip('not working')
     def test_createDataProcess(self):
 
         #-------------------------------
