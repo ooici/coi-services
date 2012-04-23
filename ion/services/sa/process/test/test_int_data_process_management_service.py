@@ -46,9 +46,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-#@attr('HARDWARE', group='sa')
+@attr('HARDWARE', group='sa')
 #@unittest.skip('not working')
-@attr('INT', group='mmm')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):
@@ -183,24 +182,24 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.output_products['temperature'] = output_dp_id_3
         self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_3, persist_data=True, persist_metadata=True)
 
-#
-#        #-------------------------------
-#        # Create the data process
-#        #-------------------------------
-#        log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process start")
-#        try:
-#            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, input_dp_id, self.output_products)
-#        except BadRequest as ex:
-#            self.fail("failed to create new data process: %s" %ex)
-#
-#        log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process return")
-#
-#        # these assigns happen inside create_data_process
-#        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_1)
-#        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_2)
-#        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_3)
-#
-#
+
+        #-------------------------------
+        # Create the data process
+        #-------------------------------
+        log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process start")
+        try:
+            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, input_dp_id, self.output_products)
+        except BadRequest as ex:
+            self.fail("failed to create new data process: %s" %ex)
+
+        log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process return")
+
+        # these assigns happen inside create_data_process
+        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_1)
+        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_2)
+        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_3)
+
+
 #        #-------------------------------
 #        # ProcessDefinition for CTD Stream Publisher
 #        #-------------------------------
@@ -522,9 +521,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 #        # after the queue has been created it is safe to activate the subscription
 #        self.pubsubclient.activate_subscription(subscription_id=subscription_id)
 #
-#        #-------------------------------
-#        # Launch InstrumentAgentInstance, connect to the resource agent client
-#        #-------------------------------
+        #-------------------------------
+        # Launch InstrumentAgentInstance, connect to the resource agent client
+        #-------------------------------
 #        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 #
 #        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
