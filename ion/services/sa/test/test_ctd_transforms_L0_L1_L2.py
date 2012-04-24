@@ -47,7 +47,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-@unittest.skip("run locally only")
+#@unittest.skip("run locally only")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -83,20 +83,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.couch_storage = CouchStorage(datastore_name='test_datastore')
         self.XP = 'science_data'
         self.exchange_name = 'ingestion_queue'
-
-        #-------------------------------
-        # Create ingestion configuration and activate it
-        #-------------------------------
-        ingestion_configuration_id =  self.ingestclient.create_ingestion_configuration(
-            exchange_point_id=self.exchange_point_id,
-            couch_storage=self.couch_storage,
-            hdf_storage=self.hdf_storage,
-            number_of_workers=self.number_of_workers
-        )
-        print 'test_createTransformsThenActivateInstrument: ingestion_configuration_id', ingestion_configuration_id
-
-        # activate an ingestion configuration
-        ret = self.ingestclient.activate_ingestion_configuration(ingestion_configuration_id)
 
 
         #-------------------------------
@@ -465,15 +451,15 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
         #-------------------------------
-        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-
-        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-        print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
-
-        # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-        print 'activate_instrument: got ia client %s', self._ia_client
-        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
+#        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+#
+#        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+#        print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
+#
+#        # Start a resource agent client to talk with the instrument agent.
+#        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
+#        print 'activate_instrument: got ia client %s', self._ia_client
+#        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
 
 
 #        #-------------------------------
@@ -525,62 +511,62 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------
         # Sampling
         #-------------------------------
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        print retval
-        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
-        time.sleep(2)
-
-        cmd = AgentCommand(command='go_active')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: go_active %s", str(reply))
-        time.sleep(2)
-
-        cmd = AgentCommand(command='run')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: run %s", str(reply))
-        time.sleep(2)
-
-        log.debug("test_activateInstrument: calling acquire_sample ")
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
-        time.sleep(2)
-
-        log.debug("test_activateInstrument: calling acquire_sample 2")
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
-        time.sleep(2)
-
-        log.debug("test_activateInstrument: calling acquire_sample 3")
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
-        time.sleep(2)
-
-        log.debug("test_activateInstrument: calling go_inactive ")
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
-        time.sleep(2)
-
-        log.debug("test_activateInstrument: calling reset ")
-        cmd = AgentCommand(command='reset')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: return from reset %s", str(reply))
-        time.sleep(2)
-
-
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-
-
-        #get the dataset id of the ctd_parsed product from the dataproduct  ctd_parsed_data_product
-        ctd_parsed_data_product_obj = self.dataproductclient.read_data_product(ctd_parsed_data_product)
-        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
-
-        # ask for the dataset bounds from the datasetmgmtsvc
-        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
-        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset bounds %s", str(bounds))
-        print 'activate_instrument: got dataset bounds %s', str(bounds)
+#        cmd = AgentCommand(command='initialize')
+#        retval = self._ia_client.execute_agent(cmd)
+#        print retval
+#        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
+#        time.sleep(2)
+#
+#        cmd = AgentCommand(command='go_active')
+#        reply = self._ia_client.execute_agent(cmd)
+#        log.debug("test_activateInstrument: go_active %s", str(reply))
+#        time.sleep(2)
+#
+#        cmd = AgentCommand(command='run')
+#        reply = self._ia_client.execute_agent(cmd)
+#        log.debug("test_activateInstrument: run %s", str(reply))
+#        time.sleep(2)
+#
+#        log.debug("test_activateInstrument: calling acquire_sample ")
+#        cmd = AgentCommand(command='acquire_sample')
+#        reply = self._ia_client.execute(cmd)
+#        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
+#        time.sleep(2)
+#
+#        log.debug("test_activateInstrument: calling acquire_sample 2")
+#        cmd = AgentCommand(command='acquire_sample')
+#        reply = self._ia_client.execute(cmd)
+#        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
+#        time.sleep(2)
+#
+#        log.debug("test_activateInstrument: calling acquire_sample 3")
+#        cmd = AgentCommand(command='acquire_sample')
+#        reply = self._ia_client.execute(cmd)
+#        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
+#        time.sleep(2)
+#
+#        log.debug("test_activateInstrument: calling go_inactive ")
+#        cmd = AgentCommand(command='go_inactive')
+#        reply = self._ia_client.execute_agent(cmd)
+#        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
+#        time.sleep(2)
+#
+#        log.debug("test_activateInstrument: calling reset ")
+#        cmd = AgentCommand(command='reset')
+#        reply = self._ia_client.execute_agent(cmd)
+#        log.debug("test_activateInstrument: return from reset %s", str(reply))
+#        time.sleep(2)
+#
+#
+#        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+#
+#
+#        #get the dataset id of the ctd_parsed product from the dataproduct  ctd_parsed_data_product
+#        ctd_parsed_data_product_obj = self.dataproductclient.read_data_product(ctd_parsed_data_product)
+#        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
+#
+#        # ask for the dataset bounds from the datasetmgmtsvc
+#        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
+#        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset bounds %s", str(bounds))
+#        print 'activate_instrument: got dataset bounds %s', str(bounds)
 
