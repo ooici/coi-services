@@ -47,7 +47,7 @@ from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_observatory
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
@@ -88,7 +88,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-#@unittest.skip('In development.')    
+@unittest.skip('In development.')    
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
@@ -246,7 +246,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 log.info('Stopping pagent pid %i', pid)
                 self._pagent.stop()
             else:
-                log.info('No port agent running.')
+                log.warning('No port agent running.')
                 
     def _listen(self, sub):
         """
@@ -283,43 +283,51 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
     
-    def test_go_active(self):
+    def test_observatory(self):
         """
-        Test agent go_active command. This causes a driver process to
-        launch a connection broker, connect to device hardware, determine
-        entry state of driver and intialize driver parameters.
+        Test agent in observatory mode, including go active and run
+        command, and interaction with the device resource.
         """
-        pass
-        """        
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-        
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
         cmd = AgentCommand(command='go_active')
         retval = self._ia_client.execute_agent(cmd)
-        if isinstance(retval.result['CHANNEL_CTD'], int):
-            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
-            log.info('LOGGER PID: %s', str(retval.result))
-            log.info('PIDFILE %s', self.lgr_pidfile_path)
-            
-        time.sleep(2)
-        """
-        log.info('TESTING CLEANUP>>>>>>>>')
-        self.assertTrue(False)
-        """
-        
-        cmd = AgentCommand(command='go_inactive')
-        retval = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
 
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        #self.assertEqual(state, InstrumentAgentState.INACTIVE)
+        log.info('go active state = %s', state)
+        
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        #self.assertEqual(state, InstrumentAgentState.INACTIVE)
+        log.info('run state = %s', state)
+        
+        
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-        """
+                
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
         
     def test_get_set(self):
         """
