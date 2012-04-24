@@ -18,6 +18,7 @@ import os
 import signal
 import re
 
+from ion.services.mi.common import BaseEnum
 from ion.services.mi.protocol_param_dict import ProtocolParameterDict
 from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentProtocolException
@@ -28,7 +29,7 @@ class InterfaceType(BaseEnum):
     """The methods of connecting to a device"""
     ETHERNET = 'ethernet'
     SERIAL = 'serial'
-    
+
 class InstrumentProtocol(object):
     """
     Base instrument protocol class.

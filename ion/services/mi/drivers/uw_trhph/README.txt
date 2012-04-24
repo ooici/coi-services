@@ -5,6 +5,18 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-04-21,24:
+Adjustments to start aligning with Edward's refactoring via Steve's
+sfoley/mmaster branch:
+- DriverAnnouncement is gone so removed references to it
+- DriverChannel is gone so removed references to it
+- Others agreed with Steve.
+- Committing to sfoley/master.
+- All TRHPH code is at least not causing errors. As before, most tests are
+  dependent on the UW_TRHPH environment variable, with test_trhph_client.py
+  now passing OK, and the others being still skipped while the alignment
+  is completed.
+
 2012-04-05:
 - Systematic BARS->TRHPH related renamings.
 - Simulator updated.

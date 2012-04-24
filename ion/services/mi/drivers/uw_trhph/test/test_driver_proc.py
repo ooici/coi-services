@@ -20,27 +20,21 @@ import time
 #from ion.services.mi.drivers.uw_trhph.test.pyon_test import PyonTrhphTestCase
 from ion.services.mi.drivers.uw_trhph.test import TrhphTestCase
 
-"""
 from ion.services.mi.instrument_driver import DriverState
 
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 
-<<<<<<< HEAD
-from ion.services.mi.drivers.uw_bars.common import BarsChannel
-from ion.services.mi.drivers.uw_bars.common import BarsParameter
-=======
 from ion.services.mi.drivers.uw_trhph.common import TrhphChannel
 from ion.services.mi.drivers.uw_trhph.common import TrhphParameter
 
->>>>>>> carueda
 from ion.services.mi.mi_logger import mi_logger
 log = mi_logger
-"""
 
 import unittest
 from nose.plugins.attrib import attr
 
+@unittest.skip('Need to align with new refactoring')
 @attr('UNIT', group='mi')
 class TrhphDriverTest(TrhphTestCase):
     """

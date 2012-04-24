@@ -23,7 +23,7 @@ from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_protocol import InstrumentProtocol
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.common import InstErrorCode
-from ion.services.mi.common import DriverAnnouncement
+#from ion.services.mi.common import DriverAnnouncement
 
 from ion.services.mi.drivers.uw_trhph.common import TrhphParameter
 
@@ -176,9 +176,9 @@ class TrhphInstrumentProtocol(InstrumentProtocol):
         """
         log.info("_data_listener: sample = %s" % str(sample))
 
-        log.debug("announcing to driver: %s" % str(sample))
-        self.announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
-                                data_sample=sample)
+#        log.debug("announcing to driver: %s" % str(sample))
+#        self.announce_to_driver(DriverAnnouncement.DATA_RECEIVED,
+#                                data_sample=sample)
 
     def disconnect(self, *args, **kwargs):
         """
@@ -296,8 +296,9 @@ class TrhphInstrumentProtocol(InstrumentProtocol):
         """
         Sets the given parameters.
         It handles TIME_BETWEEN_BURSTS, VERBOSE_MODE.
-        Once the parameters are set, it does a
-        DriverAnnouncement.CONFIG_CHANGE.
+
+        Once the parameters are set, it does a DriverAnnouncement
+        .CONFIG_CHANGE. (removed after refactoring)
         """
         if log.isEnabledFor(logging.DEBUG):
             log.debug("params=%s args=%s kwargs=%s" %
@@ -326,9 +327,9 @@ class TrhphInstrumentProtocol(InstrumentProtocol):
             else:
                 result[param] = InstErrorCode.INVALID_PARAMETER
 
-        msg = "%s parameter(s) successfully set." % updated_params
-        log.debug("announcing to driver: %s" % msg)
-        self.announce_to_driver(DriverAnnouncement.CONFIG_CHANGE, msg=msg)
+#        msg = "%s parameter(s) successfully set." % updated_params
+#        log.debug("announcing to driver: %s" % msg)
+#        self.announce_to_driver(DriverAnnouncement.CONFIG_CHANGE, msg=msg)
         return result
 
     def _set_cycle_time(self, seconds, timeout):

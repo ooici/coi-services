@@ -24,7 +24,9 @@ import socket
 import os
 import re
 import time
-from threading import Thread
+
+import gevent
+from gevent import Greenlet, sleep
 
 import logging
 from ion.services.mi.mi_logger import mi_logger
@@ -130,7 +132,7 @@ class TimeoutException(TrhphClientException):
         return s
 
 
-class _Recv(Thread):
+class _Recv(Greenlet):
     """
     Thread to receive and optionaly write the received data to a given file.
     It keeps internal buffers to support checking for expected contents,
@@ -150,7 +152,8 @@ class _Recv(Thread):
         @param prefix_state True to prefix each line in the outfile with the
                   current state; False by default.
         """
-        Thread.__init__(self, name="_Recv")
+#        Thread.__init__(self, name="_Recv")
+        Greenlet.__init__(self)
         self._conn = conn
         self._data_listener = data_listener
         self._last_line = ''
@@ -160,7 +163,7 @@ class _Recv(Thread):
         self._outfile = outfile
         self._prefix_state = prefix_state
         self._state = None
-        self.setDaemon(True)
+#        self.setDaemon(True)
 
         self._last_data_burst = None
         self._diagnostic_data = []
@@ -320,7 +323,7 @@ class _Recv(Thread):
             os.write(self._outfile.fileno(), '\n\n<_Recv ended.>\n\n')
             self._outfile.flush()
 
-    def run(self):
+    def _run(self):
         """
         Runs the receiver while updating buffers and state as appropriate.
         """
@@ -419,7 +422,7 @@ class TrhphClient(object):
                 if attempt < max_attempts:
                     log.info("Re-attempting in %s secs ..." %
                               str(time_between_attempts))
-                    time.sleep(time_between_attempts)
+                    gevent.sleep(time_between_attempts)
 
         if self._sock:
             log.info("Connected to %s:%s" % (host, port))
@@ -481,20 +484,20 @@ class TrhphClient(object):
         # in case some output is currently being generated
         time_limit = time.time() + 5
         while self._bt._state is None and time.time() <= time_limit:
-            time.sleep(1)
+            gevent.sleep(1)
         if self._bt._state:
             return  # we got the state
 
         # 2. send a few "backspaces" (^H) to delete any ongoing partial entry
         for i in range(5):
             self._send_control('h')
-            time.sleep(0.5)
+            gevent.sleep(0.5)
 
         # 3. send ^M in case the instrument is in some menu, and check
         self.send_enter()
         time_limit = time.time() + 10
         while self._bt._state is None and time.time() <= time_limit:
-            time.sleep(2)
+            gevent.sleep(2)
         if self._bt._state:
             return  # we got the state
 
@@ -532,7 +535,7 @@ class TrhphClient(object):
         while not got_prompt and time.time() <= time_limit:
             log.debug("sending ^S")
             self._send_control('s')
-            time.sleep(2)
+            gevent.sleep(2)
             string = self._bt._new_line
             got_prompt = GENERIC_PROMPT_PATTERN.match(string) is not None
 
@@ -585,7 +588,7 @@ class TrhphClient(object):
                 self.send_enter()
             else:
                 self.send(cmd)
-            time.sleep(4)
+            gevent.sleep(4)
 
         self.expect_generic_prompt(timeout=timeout)
 
@@ -785,7 +788,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while self._bt._state != State.SYSTEM_INFO and time.time() <= \
                                                        time_limit:
-            time.sleep(1)
+            gevent.sleep(1)
 
         if self._bt._state != State.SYSTEM_INFO:
             raise TimeoutException(
@@ -797,7 +800,7 @@ class TrhphClient(object):
         # send enter to return to main menu
         log.info("send enter to return to main menu")
         self.send_enter()
-        time.sleep(1)
+        gevent.sleep(1)
 
         return self._bt._system_info
 
@@ -824,7 +827,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while (self._bt._state != State.ENTER_NUM_SCANS) and\
               (time.time() <= time_limit):
-            time.sleep(1)
+            gevent.sleep(1)
 
         if self._bt._state != State.ENTER_NUM_SCANS:
             raise TimeoutException(
@@ -864,7 +867,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while (self._bt._state != State.POWER_STATUS_MENU) and\
               (time.time() <= time_limit):
-            time.sleep(1)
+            gevent.sleep(1)
 
         if self._bt._state != State.POWER_STATUS_MENU:
             raise TimeoutException(
@@ -906,7 +909,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while (self._bt._state != State.POWER_STATUS_MENU) and\
               (time.time() <= time_limit):
-            time.sleep(1)
+            gevent.sleep(1)
 
         if self._bt._state != State.POWER_STATUS_MENU:
             raise TimeoutException(
@@ -947,12 +950,12 @@ class TrhphClient(object):
         # to actually check for new information
         self.send(string)
 
-        time.sleep(2)
+        gevent.sleep(2)
 
         timeout = timeout or self._generic_timeout
         time_limit = time.time() + timeout
         while self._bt._state != state and time.time() <= time_limit:
-            time.sleep(1)
+            gevent.sleep(1)
 
         if self._bt._state != state:
             raise TimeoutException(
@@ -966,7 +969,7 @@ class TrhphClient(object):
         """
         Sleeps for self.delay_before_send and calls self._send_control('m').
         """
-        time.sleep(self.delay_before_send)
+        gevent.sleep(self.delay_before_send)
         log.debug("send_enter")
         self._send_control('m')
 
@@ -974,7 +977,7 @@ class TrhphClient(object):
         """
         Sleeps for self.delay_before_send and then sends string + '\r'
         """
-        time.sleep(self.delay_before_send)
+        gevent.sleep(self.delay_before_send)
         s = string + '\r'
         self._send(s)
 
@@ -994,14 +997,14 @@ class TrhphClient(object):
 
         timeout = timeout or self.generic_timeout
         pre_delay = pre_delay or self.delay_before_expect
-        time.sleep(pre_delay)
+        gevent.sleep(pre_delay)
 
         patt_str = pattern if isinstance(pattern, str) else pattern.pattern
         log.debug("expecting '%s'" % patt_str)
         time_limit = time.time() + timeout
         got_it = False
         while not got_it and time.time() <= time_limit:
-            time.sleep(0.5)
+            gevent.sleep(0.5)
             string = self._bt._new_line
             got_it = re.match(pattern, string) is not None
 
