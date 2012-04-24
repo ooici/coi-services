@@ -73,6 +73,7 @@ DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
+
 # Work dir and logger delimiter.
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
