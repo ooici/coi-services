@@ -5,6 +5,13 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-04-24:
+- TRHPH simulator now implemented using greenlets to facilitate integration
+  with the rest of the pyon ecosystem. This is particularly important when
+  the simulator is launched as part of the test setup (in concrete when
+  indicating the environment variable UW_BARS="embsimulator", eg:
+  $ UW_TRHPH="embsimulator" bin/nosetests -v ion/services/mi/drivers/uw_trhph/test/test_trhph_client.py
+
 2012-04-21,24:
 Adjustments to start aligning with Edward's refactoring via Steve's
 sfoley/mmaster branch:
@@ -20,8 +27,8 @@ sfoley/mmaster branch:
 2012-04-05:
 - Systematic BARS->TRHPH related renamings.
 - Simulator updated.
-- Documentation updates almost complete, seeUW+TRHPH confluence page
-- All tests OK with both real instrument and simulator as before, see the
+- Documentation updates almost complete, see UW+TRHPH confluence page
+- All tests OK with both real instrument and simulator as before
 - This version tagged: "0.1.2"
 
 
