@@ -256,7 +256,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         @retval (next_state, result), (SBE37ProtocolState.COMMAND or
         SBE37State.AUTOSAMPLE, None) if successful.
         @throws TimeoutError if the device cannot be woken.
-        @throws StateError if the device response does not correspond to
+        @throws ProtocolError if the device response does not correspond to
         an expected state.
         """
         next_state = None
@@ -276,7 +276,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             next_state = SBE37ProtocolState.AUTOSAMPLE
             result = SBE37ProtocolState.AUTOSAMPLE
         else:
-            raise StateError('Unknown state.')
+            raise ProtocolError('Failure to recognzie device state.')
             
         return (next_state, result)
 
@@ -363,6 +363,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
 
+        # Assure the device is transmitting.
+        if not self._param_dict.get(SBE37Parameter.TXREALTIME):
+            self._do_cmd_resp('set', SBE37Parameter.TXREALTIME, True, **kwargs)
+        
         # Issue start command and switch to autosample if successful.
         self._do_cmd_no_resp('startnow', *args, **kwargs)
                 

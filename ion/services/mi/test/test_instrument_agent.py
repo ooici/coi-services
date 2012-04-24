@@ -45,8 +45,10 @@ from pyon.event.event import EventSubscriber
 # MI imports.
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_states
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_observatory
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
@@ -79,6 +81,47 @@ IA_RESOURCE_ID = '123xyz'
 IA_NAME = 'Agent007'
 IA_MOD = 'ion.services.mi.instrument_agent'
 IA_CLS = 'InstrumentAgent'
+
+# Used to validate param config retrieved from driver.
+PARAMS = {
+    SBE37Parameter.OUTPUTSAL : bool,
+    SBE37Parameter.OUTPUTSV : bool,
+    SBE37Parameter.NAVG : int,
+    SBE37Parameter.SAMPLENUM : int,
+    SBE37Parameter.INTERVAL : int,
+    SBE37Parameter.STORETIME : bool,
+    SBE37Parameter.TXREALTIME : bool,
+    SBE37Parameter.SYNCMODE : bool,
+    SBE37Parameter.SYNCWAIT : int,
+    SBE37Parameter.TCALDATE : tuple,
+    SBE37Parameter.TA0 : float,
+    SBE37Parameter.TA1 : float,
+    SBE37Parameter.TA2 : float,
+    SBE37Parameter.TA3 : float,
+    SBE37Parameter.CCALDATE : tuple,
+    SBE37Parameter.CG : float,
+    SBE37Parameter.CH : float,
+    SBE37Parameter.CI : float,
+    SBE37Parameter.CJ : float,
+    SBE37Parameter.WBOTC : float,
+    SBE37Parameter.CTCOR : float,
+    SBE37Parameter.CPCOR : float,
+    SBE37Parameter.PCALDATE : tuple,
+    SBE37Parameter.PA0 : float,
+    SBE37Parameter.PA1 : float,
+    SBE37Parameter.PA2 : float,
+    SBE37Parameter.PTCA0 : float,
+    SBE37Parameter.PTCA1 : float,
+    SBE37Parameter.PTCA2 : float,
+    SBE37Parameter.PTCB0 : float,
+    SBE37Parameter.PTCB1 : float,
+    SBE37Parameter.PTCB2 : float,
+    SBE37Parameter.POFFSET : float,
+    SBE37Parameter.RCALDATE : tuple,
+    SBE37Parameter.RTCA0 : float,
+    SBE37Parameter.RTCA1 : float,
+    SBE37Parameter.RTCA2 : float
+}
 
 class FakeProcess(LocalContextMixin):
     """
@@ -256,6 +299,63 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         sub._ready_event.wait(timeout=5)
         return gl
 
+    def assertSampleDict(self, val):
+        """
+        Verify the value is a sample dictionary for the sbe37.
+        """
+        #{'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}        
+        self.assertTrue(isinstance(val, dict))
+        self.assertTrue(val.has_key('c'))
+        self.assertTrue(val.has_key('t'))
+        self.assertTrue(val.has_key('p'))
+        self.assertTrue(val.has_key('time'))
+        c = val['c'][0]
+        t = val['t'][0]
+        p = val['p'][0]
+        time = val['time'][0]
+    
+        self.assertTrue(isinstance(c, float))
+        self.assertTrue(isinstance(t, float))
+        self.assertTrue(isinstance(p, float))
+        self.assertTrue(isinstance(time, float))
+
+    def assertParamDict(self, pd, all_params=False):
+        """
+        Verify all device parameters exist and are correct type.
+        """
+        if all_params:
+            self.assertEqual(set(pd.keys()), set(PARAMS.keys()))
+            for (key, type_val) in PARAMS.iteritems():
+                if type_val == list or type_val == tuple:
+                    self.assertTrue(isinstance(pd[key], (list, tuple)))
+                else:
+                    self.assertTrue(isinstance(pd[key], type_val))
+                    
+        else:
+            for (key, val) in pd.iteritems():
+                self.assertTrue(PARAMS.has_key(key))
+                self.assertTrue(isinstance(val, PARAMS[key]))
+    
+    def assertParamVals(self, params, correct_params):
+        """
+        Verify parameters take the correct values.
+        """
+        self.assertEqual(set(params.keys()), set(correct_params.keys()))
+        for (key, val) in params.iteritems():
+            correct_val = correct_params[key]
+            if isinstance(val, float):
+                # Verify to 5% of the larger value.
+                max_val = max(abs(val), abs(correct_val))
+                self.assertAlmostEqual(val, correct_val, delta=max_val*.01)
+
+            elif isinstance(val, (list, tuple)):
+                # list of tuple.
+                self.assertEqual(list(val), list(correct_val))
+            
+            else:
+                # int, bool, str.
+                self.assertEqual(val, correct_val)
+
     def test_initialize(self):
         """
         Test agent initialize command. This causes creation of
@@ -283,7 +383,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
     
-    def test_observatory(self):
+    def test_states(self):
         """
         Test agent in observatory mode, including go active and run
         command, and interaction with the device resource.
@@ -295,7 +395,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
@@ -303,193 +402,148 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         cmd = AgentCommand(command='go_active')
         retval = self._ia_client.execute_agent(cmd)
-
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
-        #self.assertEqual(state, InstrumentAgentState.INACTIVE)
-        log.info('go active state = %s', state)
+        self.assertEqual(state, InstrumentAgentState.IDLE)
         
         cmd = AgentCommand(command='run')
         retval = self._ia_client.execute_agent(cmd)
-
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
-        #self.assertEqual(state, InstrumentAgentState.INACTIVE)
-        log.info('run state = %s', state)
-        
-        
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+                
+        cmd = AgentCommand(command='pause')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.STOPPED)
+ 
+        cmd = AgentCommand(command='resume')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+ 
+        cmd = AgentCommand(command='clear')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        cmd = AgentCommand(command='pause')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.STOPPED)
+
+        cmd = AgentCommand(command='clear')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
-                
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-        
-    def test_get_set(self):
+    def test_observatory(self):
         """
-        Test instrument driver resource get/set interface. This tests
-        getting and setting driver reousrce paramters in various syntaxes and
-        validates results including persistence on device hardware.
+        Test instrument driver resource command and control interface.
         """
-        pass
-        """
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-        
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
         cmd = AgentCommand(command='go_active')
         retval = self._ia_client.execute_agent(cmd)
-        if isinstance(retval.result['CHANNEL_CTD'], int):
-            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
-            log.info('LOGGER PID: %s', str(retval.result))
-            log.info('PIDFILE %s', self.lgr_pidfile_path)
-
-        cmd = AgentCommand(command='run')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        get_params = [
-            (SBE37Channel.CTD, SBE37Parameter.ALL)            
-        ]
-        reply = self._ia_client.get_param(get_params)
-        time.sleep(2)
-
-        self.assertIsInstance(reply, dict)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (tuple, list))
-
-        # Set up a param dict of the original values.
-        old_ta2 = reply[(SBE37Channel.CTD, SBE37Parameter.TA2)]
-        old_ptca1 = reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)]
-        old_tcaldate = reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)]
-
-        orig_params = {
-            (SBE37Channel.CTD, SBE37Parameter.TA2): old_ta2,
-            (SBE37Channel.CTD, SBE37Parameter.PTCA1): old_ptca1,
-            (SBE37Channel.CTD, SBE37Parameter.TCALDATE): old_tcaldate            
-        }
-
-        # Set up a param dict of new values.
-        new_ta2 = old_ta2*2
-        new_ptcal1 = old_ptca1*2
-        new_tcaldate = list(old_tcaldate)
-        new_tcaldate[2] = new_tcaldate[2] + 1
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
         
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Retrieve all resource parameters.                
+        reply = self._ia_client.get_param(SBE37Parameter.ALL)
+        self.assertParamDict(reply, True)
+        orig_config = reply
+        
+        # Retrieve a subset of resource parameters.
+        params = [
+            SBE37Parameter.TA0,
+            SBE37Parameter.INTERVAL,
+            SBE37Parameter.STORETIME
+        ]
+        reply = self._ia_client.get_param(params)
+        self.assertParamDict(reply)
+        orig_params = reply
+
+        # Set a subset of resource parameters.
         new_params = {
-            (SBE37Channel.CTD, SBE37Parameter.TA2): new_ta2,
-            (SBE37Channel.CTD, SBE37Parameter.PTCA1): new_ptcal1,
-            (SBE37Channel.CTD, SBE37Parameter.TCALDATE): new_tcaldate
+            SBE37Parameter.TA0 : (orig_params[SBE37Parameter.TA0] * 2),
+            SBE37Parameter.INTERVAL : (orig_params[SBE37Parameter.INTERVAL] + 1),
+            SBE37Parameter.STORETIME : (not orig_params[SBE37Parameter.STORETIME])
         }
-
-        # Set the params to their new values.
-        reply = self._ia_client.set_param(new_params)
-        time.sleep(2)
-
-        # Check overall success and success of the individual paramters.
-        self.assertIsInstance(reply, dict)
+        self._ia_client.set_param(new_params)
+        check_new_params = self._ia_client.get_param(params)
+        self.assertParamVals(check_new_params, new_params)
         
-        # Get the same paramters back from the driver.
-        get_params = [
-            (SBE37Channel.CTD, SBE37Parameter.TA2),
-            (SBE37Channel.CTD, SBE37Parameter.PTCA1),
-            (SBE37Channel.CTD, SBE37Parameter.TCALDATE)
-        ]
-        reply = self._ia_client.get_param(get_params)
-        time.sleep(2)
+        # Reset the parameters back to their original values.
+        self._ia_client.set_param(orig_params)
+        reply = self._ia_client.get_param(SBE37Parameter.ALL)
+        reply.pop(SBE37Parameter.SAMPLENUM)
+        orig_config.pop(SBE37Parameter.SAMPLENUM)
+        self.assertParamVals(reply, orig_config)
 
-        # Check success, and check that the parameters were set to the
-        # new values.
-        self.assertIsInstance(reply, dict)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (tuple, list))
-        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], new_ta2, delta=abs(0.01*new_ta2))
-        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], new_ptcal1, delta=abs(0.01*new_ptcal1))
-        self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], new_tcaldate)
+        # Poll for a few samples.
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)
 
-        # Set the paramters back to their original values.        
-        reply = self._ia_client.set_param(orig_params)
-        self.assertIsInstance(reply, dict)
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)
 
-        # Get the parameters back from the driver.
-        reply = self._ia_client.get_param(get_params)
-
-        # Check overall and individual sucess, and that paramters were
-        # returned to their original values.
-        self.assertIsInstance(reply, dict)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], float)
-        self.assertIsInstance(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], (tuple, list))
-        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TA2)], old_ta2, delta=abs(0.01*old_ta2))
-        self.assertAlmostEqual(reply[(SBE37Channel.CTD, SBE37Parameter.PTCA1)], old_ptca1, delta=abs(0.01*old_ptca1))
-        self.assertEqual(reply[(SBE37Channel.CTD, SBE37Parameter.TCALDATE)], old_tcaldate)
-
-        time.sleep(2)
-
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)        
 
         cmd = AgentCommand(command='reset')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-        """
-        
-    def test_poll(self):
-        """
-        Test instrument driver resource execute interface to do polled
-        sampling.
-        """
-        pass
-        """
-        cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-        
-        cmd = AgentCommand(command='go_active')
+        cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
-        if isinstance(retval.result['CHANNEL_CTD'], int):
-            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
-            log.info('LOGGER PID: %s', str(retval.result))
-            log.info('PIDFILE %s', self.lgr_pidfile_path)
-
-        cmd = AgentCommand(command='run')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        time.sleep(2)
-
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        time.sleep(2)
-
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        time.sleep(2)
-
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        cmd = AgentCommand(command='reset')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-        """
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
     def test_autosample(self):
         """
@@ -497,96 +551,24 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         mode.
         """
         pass
+
+    def test_capabilities(self):
         """
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-        
-        cmd = AgentCommand(command='go_active')
-        retval = self._ia_client.execute_agent(cmd)
-        if isinstance(retval.result['CHANNEL_CTD'], int):
-            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
-            log.info('LOGGER PID: %s', str(retval.result))
-            log.info('PIDFILE %s', self.lgr_pidfile_path)
-
-        cmd = AgentCommand(command='run')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        cmd = AgentCommand(command='go_streaming')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(30)
-        
-        cmd = AgentCommand(command='go_observatory')
-        while True:
-            reply = self._ia_client.execute_agent(cmd)
-            result = reply.result
-            if isinstance(result, dict):
-                if all([val == None for val in result.values()]):
-                    break
-            time.sleep(2)
-        time.sleep(2)
-        
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        cmd = AgentCommand(command='reset')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
+        Test the ability to retrieve agent and resource parameter and command
+        capabilities.
         """
+        pass
+    
+    def test_errors(self):
+        """
+        """
+        pass
+
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
         driver process and transition to direct access.
         """
         pass
-    
-        """
-        print("test initing")
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
 
-        cmd = AgentCommand(command='go_active')
-        retval = self._ia_client.execute_agent(cmd)
-        if isinstance(retval.result['CHANNEL_CTD'], int):
-            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
-            log.info('LOGGER PID: %s', str(retval.result))
-            log.info('PIDFILE %s', self.lgr_pidfile_path)
-
-        print("test run")
-        cmd = AgentCommand(command='run')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        print("test go_da")
-        cmd = AgentCommand(command='go_direct_access')
-        retval = self._ia_client.execute_agent(cmd) 
-        print("retval=" + str(retval))       
-        time.sleep(2)
-
-        print("test go_ob")
-        cmd = AgentCommand(command='go_observatory')
-        retval = self._ia_client.execute_agent(cmd)        
-        time.sleep(2)
-
-        print("test go_inactive")
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        print("test reset")
-        cmd = AgentCommand(command='reset')
-        retval = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-        """
 

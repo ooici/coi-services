@@ -12,7 +12,6 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 # Pyon imports
-from pyon.core.exception import BadRequest, NotFound, Conflict, Timeout
 from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
 from pyon.core import exception as iex
@@ -20,6 +19,22 @@ from pyon.util.containers import get_ion_ts
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.event.event import EventPublisher
 from pyon.util.containers import get_safe
+
+# Pyon exceptions
+from pyon.core.exception import BadRequest
+from pyon.core.exception import Conflict
+from pyon.core.exception import Timeout
+from pyon.core.exception import NotFound
+from pyon.core.exception import IonInstrumentError
+from pyon.core.exception import InstTimeoutError
+from pyon.core.exception import InstConnectionError
+from pyon.core.exception import InstNotImplementedError
+from pyon.core.exception import InstParameterError
+from pyon.core.exception import InstProtocolError
+from pyon.core.exception import InstSampleError
+from pyon.core.exception import InstStateError
+from pyon.core.exception import InstUnknownCommandError
+from pyon.core.exception import InstDriverError
 
 # Standard imports.
 import time
@@ -34,7 +49,18 @@ from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
 
 # MI imports.
+from ion.services.mi.exceptions import ConnectionError
+from ion.services.mi.exceptions import InstrumentException
+from ion.services.mi.exceptions import NotImplementedError
+from ion.services.mi.exceptions import ParameterError
+from ion.services.mi.exceptions import ProtocolError
+from ion.services.mi.exceptions import SampleError
 from ion.services.mi.exceptions import StateError
+from ion.services.mi.exceptions import TimeoutError
+from ion.services.mi.exceptions import UnknownCommandError
+from ion.services.mi.instrument_driver import DriverConnectionState
+from ion.services.mi.instrument_driver import DriverProtocolState
+
 
 class InstrumentAgentState(BaseEnum):
     """
@@ -252,25 +278,6 @@ class InstrumentAgent(ResourceAgent):
 
         # Start state machine.
         self._fsm.start(self._initial_state)
-
-
-    ###############################################################################
-    # Event callback and handling for direct access.
-    ###############################################################################
-    
-    def telnet_input_processor(self, data):
-        # callback passed to DA Server for receiving input from server       
-        if isinstance(data, int):
-            # not character data, so check for lost connection
-            if data == -1:
-                log.warning("InstAgent.telnetInputProcessor: connection lost")
-                self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
-            else:
-                log.error("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
-            return
-        log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
-        # send the data to the driver
-        self._dvr_client.cmd_dvr('execute_direct_access', data + chr(13) + chr(10))
             
 
     ###############################################################################
@@ -317,83 +324,134 @@ class InstrumentAgent(ResourceAgent):
         """
         Agent power_up command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.POWER_UP, *args, **kwargs)
+        
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.POWER_UP, *args, **kwargs)
+            
+        except StateError:
+            raise InstStateError('power_up not allowed in state %s.', self._fsm.get_current_state()) 
     
     def acmd_power_down(self, *args, **kwargs):
         """
         Agent power_down command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.POWER_DOWN, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.POWER_DOWN, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('power_down not allowed in state %s.', self._fsm.get_current_state()) 
+
     
     def acmd_initialize(self, *args, **kwargs):
         """
         Agent initialize command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
+        
+        except StateError:
+            raise InstStateError('initialize not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_reset(self, *args, **kwargs):
         """
         Agent reset command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.RESET, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.RESET, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('reset not allowed in state %s.', self._fsm.get_current_state()) 
     
     def acmd_go_active(self, *args, **kwargs):
         """
         Agent go_active command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GO_ACTIVE, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GO_ACTIVE, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('go_active not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_go_inactive(self, *args, **kwargs):
         """
         Agent go_inactive command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('go_inactive not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_run(self, *args, **kwargs):
         """
         Agent run command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.RUN, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.RUN, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('run not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_clear(self, *args, **kwargs):
         """
         Agent clear command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.CLEAR, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.CLEAR, *args, **kwargs)
+            
+        except StateError:
+            raise InstStateError('clear not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_pause(self, *args, **kwargs):
         """
         Agent pause command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.PAUSE, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.PAUSE, *args, **kwargs)
+        
+        except StateError:
+            raise InstStateError('pause not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_resume(self, *args, **kwargs):
         """
         Agent resume command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.RESUME, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.RESUME, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('resume not allowed in state %s.', self._fsm.get_current_state()) 
+
 
     def acmd_go_streaming(self, *args, **kwargs):
         """
         Agent go_streaming command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GO_STREAMING, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GO_STREAMING, *args, **kwargs)
+        
+        except StateError:
+            raise InstStateError('go_streaming not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_go_direct_access(self, *args, **kwargs):
         """
         Agent go_direct_access command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GO_DIRECT_ACCESS, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GO_DIRECT_ACCESS, *args, **kwargs)
+        
+        except StateError:
+            raise InstStateError('go_direct_access not allowed in state %s.', self._fsm.get_current_state())         
 
     def acmd_go_observatory(self, *args, **kwargs):
         """
         Agent go_observatory command. Forward with args to state machine.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
-    ###############################################################################
-    # Misc instrument agent command interface.
-    ###############################################################################
+        except StateError:
+            raise InstStateError('go_observatory not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_get_current_state(self, *args, **kwargs):
         """
@@ -444,8 +502,11 @@ class InstrumentAgent(ResourceAgent):
         to retrieve
         @retval Dict of (channel, name) : value parameter values if handled.
         """
-        params = name
-        return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, params) or {}
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, name)
+        
+        except StateError:
+            raise InstStateError('get_params not allowed in state %s.', self._fsm.get_current_state())       
         
     def set_param(self, resource_id="", name='', value=''):
         """
@@ -458,8 +519,11 @@ class InstrumentAgent(ResourceAgent):
         to be set.
         @retval Dict of (channel, name) : None or Error if handled.
         """
-        params = name
-        return self._fsm.on_event(InstrumentAgentEvent.SET_PARAMS, params) or {}
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.SET_PARAMS, name)
+        
+        except StateError:
+            raise InstStateError('set_params not allowed in state %s.', self._fsm.get_current_state())        
                 
     def execute(self, resource_id="", command=None):
         """
@@ -470,7 +534,12 @@ class InstrumentAgent(ResourceAgent):
         to execute
         @retval Resrouce agent command response object if handled.
         """
-        return self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE, command)
+        
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE, command)
+            
+        except StateError:
+            raise InstStateError('execute not allowed in state %s.', self._fsm.get_current_state())        
                 
     ###############################################################################
     # Instrument agent transaction interface.
@@ -509,7 +578,7 @@ class InstrumentAgent(ResourceAgent):
         Handler for power_down agent command in uninitialized state.
         """
         result = None
-        next_state = None
+        next_state = InstrumentAgentState.UNINITIALIZED
         
         return (next_state, result)
 
@@ -536,10 +605,8 @@ class InstrumentAgent(ResourceAgent):
         Handler for power_down agent command in uninitialized state.
         """
         result = none
-        next_state = None
+        next_state = InstrumentAgentState.POWERED_DOWN
 
-        raise BadRequst('Not implemented.')
-        
         return (next_state, result)
 
     def _handler_uninitialized_initialize(self, *args, **kwargs):
@@ -548,6 +615,8 @@ class InstrumentAgent(ResourceAgent):
         Attempt to start driver process with driver config supplied as
         argument or in agent configuration. Switch to inactive state if
         successful.
+        @raises InstDriverError if the driver configuration is missing or
+        invalid, or if the driver or client faild to start.
         """
         result = None
         next_state = None
@@ -561,13 +630,11 @@ class InstrumentAgent(ResourceAgent):
         
         # If config not valid, fail.
         if not self._validate_driver_config():
-            raise BadRequest('Driver configuration missing or invalid.')
+            raise InstDriverError('The driver configuration is missing or invalid.')
 
-        # Start the driver.
-        result = self._start_driver(self._dvr_config)
-        
-        if isinstance(result, int):
-            next_state = InstrumentAgentState.INACTIVE
+        # Start the driver and switch to inactive.
+        self._start_driver(self._dvr_config)
+        next_state = InstrumentAgentState.INACTIVE
             
         return (next_state, result)
 
@@ -600,38 +667,69 @@ class InstrumentAgent(ResourceAgent):
         
         return (next_state, result)
 
-    def _handler_inactive_go_active(self, dvr_comms=None, *args, **kwargs):
+    def _handler_inactive_go_active(self, *args, **kwargs):
         """
         Handler for go_active agent command in inactive state.
         Attempt to establsih communications with all device channels.
         Switch to active state if any channels activated.
+        @raises InstDriverError if the comms config is not valid.
+        @raises InstConnectionError if the driver connection failed.
         """
         result = None
         next_state = None
-        
-        if not dvr_comms:
-            dvr_comms = self._dvr_config.get('comms_config', None)
-            
-        cfg_result = self._dvr_client.cmd_dvr('configure', dvr_comms)
-        
-        channels = [key for (key, val) in cfg_result.iteritems() if not
-            InstErrorCode.is_error(val)]
-        
-        con_result = self._dvr_client.cmd_dvr('connect', channels)
-
-        result = cfg_result.copy()
-
+                    
+        # Set the driver config if passed as a parameter.
         try:
-            for (key, val) in con_result.iteritems():
-                result[key] = val
-        except:
-            log.error("Instrument agent connection failure: " + str(con_result))
-
-        self._active_channels = self._dvr_client.cmd_dvr('get_active_channels')
-
-        if len(self._active_channels)>0:
-                next_state = InstrumentAgentState.IDLE
-
+            self._dvr_config['comms_config'] = args[0]
+        
+        except IndexError:
+            pass
+        
+        # Configure the driver, driver checks if config is valid.
+        dvr_comms = self._dvr_config.get('comms_config', None)   
+        try:
+            self._dvr_client.cmd_dvr('configure', dvr_comms)
+        
+        except ParameterError:
+            raise InstParameterError('The driver comms configuration is invalid.')
+        
+        # Connect to the device, propagating connection errors.
+        try:
+            self._dvr_client.cmd_dvr('connect')
+        
+        except ConnectionError:
+            raise InstConnectionError('Driver could not connect to %s', str(dvr_comms))
+        
+        # If the device state is unknown, send the discover command.
+        # Disconnect and raise if the state cannot be determined.
+        # If state discoveered, switch into autosample state if driver there,
+        # else switch into idle. Agent assumes a non autosample driver state
+        # is observatory friendly. Drivers should implement discover to
+        # affect the necessary internal state changes if necessary.
+        dvr_state = self._dvr_client.cmd_dvr('get_current_state')
+        if dvr_state == DriverProtocolState.UNKNOWN:
+            max_tries = kwargs.get('max_tries', 5)
+            if not isinstance(max_tries, int) or max_tries < 1:
+                max_tries = 5
+            no_tries = 0
+            while True: 
+                try:    
+                    dvr_state = self._dvr_client.cmd_dvr('discover')
+                    if dvr_state == DriverProtocolState.AUTOSAMPLE:
+                        next_state = InstrumentAgentState.STREAMING
+                    else:
+                        next_state = InstrumentAgentState.IDLE
+                    break
+                
+                except TimeoutError, ProtocolError:
+                    no_tries += 1
+                    if no_tries >= max_tries:
+                        self._dvr_client.cmd_dvr('disconnect')
+                        raise InstProtocolError('Could not discover instrument state.')
+        
+        else:
+            next_state = InstrumentAgentState.IDLE
+        
         return (next_state, result)
 
     ###############################################################################
@@ -660,22 +758,10 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        channels = self._dvr_client.cmd_dvr('get_active_channels')
-        dis_result = self._dvr_client.cmd_dvr('disconnect', channels)
-        
-        [key for (key, val) in dis_result.iteritems() if not
-            InstErrorCode.is_error(val)]
-        
-        init_result = self._dvr_client.cmd_dvr('initialize', channels)
-
-        result = dis_result.copy()
-        for (key, val) in init_result.iteritems():
-            result[key] = val
-            
-        self._active_channels = self._dvr_client.cmd_dvr('get_active_channels')
-            
-        if len(self._active_channels)==0:
-            next_state = InstrumentAgentState.INACTIVE
+        # Disconnect, initialize and go to inactive.
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')
+        next_state = InstrumentAgentState.INACTIVE
             
         return (next_state, result)
 
@@ -685,6 +771,12 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
+        
+        # Disconnect, initialize, stop driver and go to uninitialized.
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        next_state = InstrumentAgentState.UNINITIALIZED
         
         return (next_state, result)
 
@@ -700,6 +792,7 @@ class InstrumentAgent(ResourceAgent):
 
     ###############################################################################
     # Stopped state handlers.
+    # @todo Determine and implement behavior for stopped state.
     ###############################################################################
 
     def _handler_stopped_enter(self,  *args, **kwargs):
@@ -721,7 +814,12 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-        
+
+        # Disconnect, initialize and go to inactive.
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')
+        next_state = InstrumentAgentState.INACTIVE
+         
         return (next_state, result)
 
     def _handler_stopped_reset(self,  *args, **kwargs):
@@ -730,6 +828,12 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
+
+        # Disconnect, initialize, stop driver and go to uninitialized.        
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        next_state = InstrumentAgentState.UNINITIALIZED        
         
         return (next_state, result)
 
@@ -738,7 +842,7 @@ class InstrumentAgent(ResourceAgent):
         Handler for clear agent command in stopped state.
         """
         result = None
-        next_state = None
+        next_state = InstrumentAgentState.IDLE
         
         return (next_state, result)
 
@@ -747,7 +851,7 @@ class InstrumentAgent(ResourceAgent):
         Handler for resume agent command in stopped state.
         """
         result = None
-        next_state = None
+        next_state = InstrumentAgentState.OBSERVATORY
         
         return (next_state, result)
 
@@ -777,22 +881,10 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        channels = self._dvr_client.cmd_dvr('get_active_channels')
-        dis_result = self._dvr_client.cmd_dvr('disconnect', channels)
-        
-        [key for (key, val) in dis_result.iteritems() if not
-            InstErrorCode.is_error(val)]
-        
-        init_result = self._dvr_client.cmd_dvr('initialize', channels)
-
-        result = dis_result.copy()
-        for (key, val) in init_result.iteritems():
-            result[key] = val
-            
-        self._active_channels = self._dvr_client.cmd_dvr('get_active_channels')
-            
-        if len(self._active_channels)==0:
-            next_state = InstrumentAgentState.INACTIVE
+        # Disconnect, initialize and go to inactive.
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')
+        next_state = InstrumentAgentState.INACTIVE
             
         return (next_state, result)
 
@@ -802,7 +894,13 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-        
+
+        # Disconnect, initialize, stop driver and go to uninitialized.
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        next_state = InstrumentAgentState.UNINITIALIZED        
+
         return (next_state, result)
 
     def _handler_observatory_clear(self,  *args, **kwargs):
@@ -810,7 +908,7 @@ class InstrumentAgent(ResourceAgent):
         Handler for clear agent command in observatory state.
         """
         result = None
-        next_state = None
+        next_state = InstrumentAgentState.IDLE
         
         return (next_state, result)
 
@@ -819,7 +917,7 @@ class InstrumentAgent(ResourceAgent):
         Handler for pause agent command in observatory state.
         """
         result = None
-        next_state = None
+        next_state = InstrumentAgentState.STOPPED
         
         return (next_state, result)
 
@@ -828,68 +926,88 @@ class InstrumentAgent(ResourceAgent):
         Handler for go_streaming agent command in observatory state.
         Send start autosample command to driver and switch to streaming
         state if successful.
+        @todo Add logic to switch to streaming mode.
         """
         result = None
         next_state = None
+        
+        try:
+            self._dvr_client.cmd_dvr('execute_start_autosample', *args, **kwargs)
 
-        result = self._dvr_client.cmd_dvr('start_autosample', *args, **kwargs)
-    
-        if isinstance(result, dict):
-            if any([val == None for val in result.values()]):
-                next_state = InstrumentAgentState.STREAMING
+        except TimeoutError:
+            raise InstTimeoutError('Instrument timed out attempting autosample.')
+        
+        except ProtocolError:
+            raise InstProtocolError('Instrument protocol error attempting autosample.')
+        
+        except NotImplementedError:
+            raise InstNotImplementedError('Autosample not implemented.')
+
+        except ParameterError:
+            raise InstParameterError('Instrument parameter error attempting autosample: args=%s, kwargs=%.', str(args), str(kwargs))
+
+        next_state = InstrumentAgentState.STREAMING
 
         return (next_state, result)
 
     def _handler_observatory_go_direct_access(self,  *args, **kwargs):
         """
         Handler for go_direct_access agent command in observatory state.
+        @todo Complete this when DA is complete and ready to port in.
         """
         result = None
         next_state = None
         
-        log.info("Instrument agent requested to go to direct access mode")
-        
-        # get 'address' of host
-        hostname = socket.gethostname()
-        log.debug("hostname = " + hostname)        
-        ip_addresses = socket.gethostbyname_ex(hostname)
-        log.debug("ip_address=" + str(ip_addresses))
-        ip_address = ip_addresses[2][0]
-        ip_address = hostname
-        # create a DA server instance (TODO: just telnet for now) and pass in callback method
-        try:
-            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor, ip_address)
-        except Exception as ex:
-            log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
-            raise ex
-
-        # get the connection info from the DA server to return to the user
-        port, token = self.da_server.get_connection_info()
-        result = {'ip_address':ip_address, 'port':port, 'token':token}
-        next_state = InstrumentAgentState.DIRECT_ACCESS
-
-        # tell driver to start direct access mode
-        self._dvr_client.cmd_dvr('start_direct_access')
-        
         return (next_state, result)
 
-    def _handler_get_params(self, params, *args, **kwargs):
+    def _handler_get_params(self, *args, **kwargs):
         """
         Handler for get_params resource command in observatory state.
         Send get command to driver and return result.
         """
-        result = self._dvr_client.cmd_dvr('get', params)
+        
         next_state = None
+        
+        try:
+            result = self._dvr_client.cmd_dvr('get', *args, **kwargs)
+        
+        except TimeoutError:
+            raise InstTimeoutError('Instrument timed out attempting get.')
+        
+        except ProtocolError:
+            raise InstProtocolError('Instrument protocol error attempting get.')
+        
+        except NotImplementedError:
+            raise InstNotImplementedError('Get not implemented.')
+
+        except ParameterError:
+            raise InstParameterError('Instrument parameter error attempting get: args=%s, kwargs=%.', str(args), str(kwargs))
+        
         
         return (next_state, result)
 
-    def _handler_observatory_set_params(self, params, *args, **kwargs):
+    def _handler_observatory_set_params(self, *args, **kwargs):
         """
         Handler for set_params resource command in observatory state.
         Send the set command to the driver and return result.
         """
-        result = self._dvr_client.cmd_dvr('set', params)
         next_state = None
+        result = None
+        
+        try:        
+            self._dvr_client.cmd_dvr('set', *args, **kwargs)
+
+        except TimeoutError:
+            raise InstTimeoutError('Instrument timed out attempting set.')
+        
+        except ProtocolError:
+            raise InstProtocolError('Instrument protocol error attempting set.')
+        
+        except NotImplementedError:
+            raise InstNotImplementedError('Get not implemented.')
+
+        except ParameterError:
+            raise InstParameterError('Instrument parameter error attempting set: args=%s, kwargs=%.', str(args), str(kwargs))
         
         return (next_state, result)
 
@@ -910,12 +1028,27 @@ class InstrumentAgent(ResourceAgent):
                             command=command.command)
         cmd_res.ts_execute = get_ion_ts()
         command.command = 'execute_' + command.command
-        res = self._dvr_client.cmd_dvr(command.command, *command.args,
-                                           **command.kwargs)
-        cmd_res.status = 0
-        cmd_res.result = res
-        result = cmd_res
         
+        try:
+            res = self._dvr_client.cmd_dvr(command.command, *command.args,
+                                           **command.kwargs)
+            cmd_res.status = 0
+            cmd_res.result = res
+            result = cmd_res
+            
+        except TimeoutError:
+            raise InstTimeoutError('Instrument timed out attempting %s.',str(command.command))
+        
+        except ProtocolError:
+            raise InstProtocolError('Instrument protocol error attempting %s.', str(command.command))
+        
+        except UnknownCommandError:
+            raise InstUnknownCommandError('Command %s unknown.', st(command.command))
+
+        except ParameterError:
+            raise InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%.',
+                                     str(command.command), str(command.args), str(command.kwargs))
+
         return (next_state, result)
 
     ###############################################################################
@@ -961,17 +1094,38 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-        
-        result = self._dvr_client.cmd_dvr('stop_autosample', *args, **kwargs)
-        
-        if isinstance(result, dict):
-            if all([val == None for val in result.values()]):
-                next_state = InstrumentAgentState.OBSERVATORY
+
+        max_tries = kwargs.get('max_tries', 5)
+        if not isinstance(max_tries, int) or max_tries < 1:
+            max_tries = 5
             
+        no_tries = 0
+        while True:
+            try:
+                self._dvr_client.cmd_dvr('execute_stop_autosample', *args, **kwargs)
+                break
+            
+            except TimeoutError:
+                no_tries += 1
+                if no_tries >= max_tries:
+                    raise InstTimeoutError('Instrument timed out attempting stop autosample.')
+            
+            except ProtocolError:
+                raise InstProtocolError('Instrument protocol error attempting stop autosample.')
+            
+            except NotImplementedError:
+                raise InstNotImplementedError('Stop autosample not implemented.')
+    
+            except ParameterError:
+                raise InstParameterError('Instrument parameter error attempting stop autosample: args=%s, kwargs=%.', str(args), str(kwargs))
+
+        next_state = InstrumentAgentState.OBSERVATORY
+
         return (next_state, result)
 
     ###############################################################################
     # Direct access state handlers.
+    # @todo add handlers when DA work is done.
     ###############################################################################
 
     def _handler_direct_access_enter(self,  *args, **kwargs):
@@ -990,16 +1144,11 @@ class InstrumentAgent(ResourceAgent):
     def _handler_direct_access_go_observatory(self,  *args, **kwargs):
         """
         Handler for go_observatory agent command within direct access state.
+        @todo.
         """
         result = None
         next_state = None
         
-        # tell driver to stop direct access mode
-        result = self._dvr_client.cmd_dvr('stop_direct_access')
-        # stop and delete DA server
-        self.da_server.stop()
-        del self.da_server
-        next_state = InstrumentAgentState.OBSERVATORY
         return (next_state, result)
 
     ###############################################################################
@@ -1035,8 +1184,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Start the driver process and driver client.
         @param dvr_config The driver configuration.
-        @param comms_config The driver communications configuration.
-        @retval None or error.
+        @raises InstDriverError If the driver or client failed to start properly.
         """
 
         # Get driver configuration and pid for test case.        
@@ -1047,8 +1195,8 @@ class InstrumentAgent(ResourceAgent):
         (self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, '/tmp/', this_pid)
             
         # Verify the driver has started.
-        if not self._dvr_proc or self._dvr_proc.poll():            
-            raise BadRequest('Error starting driver.')
+        if not self._dvr_proc or self._dvr_proc.poll():
+            raise InstDriverError('Error starting driver process.')
             
         log.info('Started driver process for %d %d %s %s', cmd_port,
             evt_port, dvr_mod, dvr_cls)
@@ -1065,18 +1213,15 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc.wait()
             self._dvr_proc = None
             self._dvr_client = None
-            raise BadRequest('Error starting driver client.')            
+            raise InstDriverError('Error starting driver client.')            
 
         self._construct_packet_factories(dvr_mod)
 
         log.info('Instrument agent %s started its driver.', self._proc_name)
-
-        return self._dvr_proc.pid
         
     def _stop_driver(self):
         """
         Stop the driver process and driver client.
-        @retval None.
         """
         if self._dvr_proc:
             if self._dvr_client:
@@ -1105,21 +1250,15 @@ class InstrumentAgent(ResourceAgent):
         try:
             dvr_mod = self._dvr_config['dvr_mod']
             dvr_cls = self._dvr_config['dvr_cls']
-            comms_config = self._dvr_config['comms_config']
-            addr = comms_config['addr']
-            port = comms_config['port']
             
         except TypeError, KeyError:
             return False
         
-        if not isinstance(dvr_mod, str) or \
-            not isinstance(dvr_cls, str) or \
-            not isinstance(addr, str) or \
-            not isinstance(port, int):
+        if not isinstance(dvr_mod, str) or not isinstance(dvr_cls, str):
             return False
         
-        return True        
-        
+        return True
+                
     def _construct_data_publishers(self):
         """
         Construct the stream publishers from the stream_config agent
