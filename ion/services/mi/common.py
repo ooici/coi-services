@@ -57,6 +57,3 @@ class BaseEnum(object):
         otherwise.
         """
         return item in cls.list()
-
-
-

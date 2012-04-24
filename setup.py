@@ -25,7 +25,8 @@ setup(  name = 'coi-services',
         keywords = ['ooici','ioncore', 'pyon', 'coi'],
         packages = find_packages(),
         dependency_links = [
-            'http://ooici.net/releases'
+            'http://ooici.net/releases',
+            'https://github.com/ooici/pyon/tarball/master#egg=pyon'
         ],
         test_suite = 'pyon',
         install_requires = [

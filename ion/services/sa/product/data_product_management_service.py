@@ -162,8 +162,9 @@ class DataProductManagementService(BaseDataProductManagementService):
                 log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
             else:
                 dataset_configuration_obj = objs[0]
-                dataset_configuration_obj.archive_data = persist_data
-                dataset_configuration_obj.archive_metadata = persist_metadata
+
+                dataset_configuration_obj.configuration.archive_data = persist_data
+                dataset_configuration_obj.configuration.archive_metadata = persist_metadata
 
                 # call ingestion management to update a dataset configuration
                 log.debug('activate_data_product_persistence: Calling update_dataset_config', )
@@ -205,8 +206,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_obj = self.clients.resource_registry.read(data_product_id)
         if data_product_obj is None:
             raise NotFound("Data Product %s does not exist" % data_product_id)
-        if data_product_obj.ingestion_configuration_id is None:
-            raise NotFound("Data Product %s ingestion configuration does not exist" % data_product_id)
         if data_product_obj.dataset_configuration_id is None:
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
@@ -217,8 +216,8 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise NotFound("Dataset Configuration %s does not exist" % data_product_obj.dataset_configuration_id)
 
         #Set the dataset config archive data/metadata attrs to false
-        dataset_configuration_obj.archive_data = False
-        dataset_configuration_obj.archive_metadata = False
+        dataset_configuration_obj.configuration.archive_data = False
+        dataset_configuration_obj.configuration.archive_metadata = False
 
         ret = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
 

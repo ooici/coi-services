@@ -10,11 +10,24 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
+# Import pyon first for monkey patching.
 from pyon.public import log
-from nose.plugins.attrib import attr
+
+# Standard imports.
 import os
 import signal
+import time
+import unittest
+from datetime import datetime
 
+# 3rd party imports.
+from gevent import spawn
+import gevent
+from nose.plugins.attrib import attr
+from mock import patch
+import uuid
+
+# ION imports.
 from interface.objects import StreamQuery
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -26,26 +39,46 @@ from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-"""
-from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
-import ion.services.mi.driver_proc_util as proc_util
-"""
 from pyon.public import CFG
-from mock import patch
 from pyon.event.event import EventSubscriber
-from gevent import spawn
 
-import time
-import unittest
-from datetime import datetime
+# MI imports.
+from ion.services.mi.logger_process import EthernetDeviceLogger
+from ion.services.mi.instrument_agent import InstrumentAgentState
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_observatory
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+
+# Device ethernet address and port
+#DEV_ADDR = '67.58.49.220' 
+DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
+#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+DEV_PORT = 4001 # Moxa port or simulator random data.
+#DEV_PORT = 4002 # Simulator sine data.
+
+# Work dir and logger delimiter.
+WORK_DIR = '/tmp/'
+DELIM = ['<<','>>']
+
+# Driver config.
+# DVR_CONFIG['comms_config']['port'] is set by the setup.
+from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+DVR_CONFIG = {
+    'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
+    'dvr_cls' : 'SBE37Driver',
+    'comms_config' : {
+        'addr' : 'localhost'
+    }
+}
+
+# Agent parameters.
+IA_RESOURCE_ID = '123xyz'
+IA_NAME = 'Agent007'
+IA_MOD = 'ion.services.mi.instrument_agent'
+IA_CLS = 'InstrumentAgent'
 
 class FakeProcess(LocalContextMixin):
     """
@@ -54,9 +87,8 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id=''
     process_type = ''
-    
-#@unittest.skip('Do not run hardware test.')
-@unittest.skip('Need to align.')
+
+@unittest.skip('In development.')    
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
@@ -64,66 +96,35 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     Test cases for instrument agent class. Functions in this class provide
     instrument agent integration tests and provide a tutorial on use of
     the agent setup and interface.
-    """
- 
-    def customCleanUp(self):
-        log.info('CUSTOM CLEAN UP ******************************************************************************')
-
+    """ 
     def setUp(self):
         """
-        Setup the test environment to exersice use of instrumet agent, including:
-        * define driver_config parameters.
-        * create container with required services and container client.
-        * create publication stream ids for each driver data stream.
-        * create stream_config parameters.
-        * create and activate subscriptions for agent data streams.
-        * spawn instrument agent process and create agent client.
-        * add cleanup functions to cause subscribers to get stopped.
         """
         
-        self.cleanupprocs()
+        # Agent ion process id.
+        self._ia_pid = None
         
-        self.addCleanup(self.customCleanUp)
-        # Names of agent data streams to be configured.
-        parsed_stream_name = 'ctd_parsed'        
-        raw_stream_name = 'ctd_raw'        
-
-        # Driver configuration.
+        # Agent client.
+        self._ia_client = None
         
-        self.driver_config = {
-            'svr_addr': 'localhost',
-            'cmd_port': 5556,
-            'evt_port': 5557,
-            'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
-            'dvr_cls': 'SBE37Driver',
-            'comms_config': {
-                SBE37Channel.CTD: {
-                    'method':'ethernet',
-                    'device_addr': CFG.device.sbe37.host,
-                    'device_port': CFG.device.sbe37.port,
-                    'server_addr': 'localhost',
-                    'server_port': 8888
-                }                
-            }
-        }
-        """
-        self.driver_config = {
-            'svr_addr': 'localhost',
-            'cmd_port': 5556,
-            'evt_port': 5557,
-            'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
-            'dvr_cls': 'SBE37Driver',
-            'comms_config': {
-                SBE37Channel.CTD: {
-                    'method':'ethernet',
-                    'device_addr': '137.110.112.119',
-                    'device_port': 4001,
-                    'server_addr': 'localhost',
-                    'server_port': 8888
-                }                
-            }
-        }
-        """
+        # Data subscriptions.
+        self._subs = None
+        
+        # Container client.
+        self._container_client = None
+        
+        # Pubsub client.
+        self._pubsub_client = None
+        
+        # Port agent.
+        self._pagent = None
+        
+        # Start the port agent.
+        self._start_pagent()
+        
+        # Add cleanup to shut pagent down.
+        self.addCleanup(self._stop_pagent)    
+        
         # Start container.
         self._start_container()
 
@@ -146,10 +147,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
                                                 node=self.container.node)
 
-        self.subs = []
-
-        # Create streams for each stream named in driver.
-        self.stream_config = {}
+        # Create streams and subscriptions for each stream named in driver.
+        stream_config = {}
+        self._subs = []
         for (stream_name, val) in PACKET_CONFIG.iteritems():
             stream_def = ctd_stream_definition(stream_id=None)
             stream_def_id = self._pubsub_client.create_stream_definition(
@@ -159,7 +159,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                         stream_definition_id=stream_def_id,
                         original=True,
                         encoding='ION R2')
-            self.stream_config[stream_name] = stream_id
+            stream_config[stream_name] = stream_id
             
             # Create subscriptions for each stream.
             exchange_name = '%s_queue' % stream_name
@@ -169,149 +169,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             sub_id = self._pubsub_client.create_subscription(\
                                 query=query, exchange_name=exchange_name)
             self._pubsub_client.activate_subscription(sub_id)
-            self.subs.append(sub)
+            self._subs.append(sub)
             
         # Add cleanup function to stop subscribers.        
         def stop_subscriber(sub_list):
             for sub in sub_list:
                 sub.stop()            
-        self.addCleanup(stop_subscriber, self.subs)
+        self.addCleanup(stop_subscriber, self._subs)
 
-        self.agent_resource_id = '123xyz'
-
-        # Create agent config.
-        self.agent_config = {
-            'driver_config' : self.driver_config,
-            'stream_config' : self.stream_config,
-            'agent'         : {'resource_id': self.agent_resource_id}
-        }
-
-        # Launch an instrument agent process.
-        self._ia_name = 'agent007'
-        self._ia_mod = 'ion.services.mi.instrument_agent'
-        self._ia_class = 'InstrumentAgent'
-        
         """
-        # use this block of code to find python errors in the IA, because they don't show up on stdout
-        # when the IA is started as a process for some reason, it just fails. (sigh)
-        log.debug("TestInstrumentAgent.setup(): instantiating IA")
-        from ion.services.mi.instrument_agent import InstrumentAgent
-        IA = InstrumentAgent()
-        """
-        
-        log.debug("TestInstrumentAgent.setup(): starting IA")
-        self._ia_pid = self._container_client.spawn_process(name=self._ia_name,
-                                       module=self._ia_mod, cls=self._ia_class,
-                                       config=self.agent_config)      
-        log.info('got pid=%s', str(self._ia_pid))
-        
-        # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient(self.agent_resource_id, process=FakeProcess())
-        log.info('got ia client %s', str(self._ia_client))        
-        
-        self.dvr_proc_pid = None
-        self.lgr_proc_pid = None
-        self.lgr_pidfile_path = '/tmp/%s*.pid.txt' % str(self.driver_config['comms_config'][SBE37Channel.CTD]['device_addr'])
-
-        def cleanup_procs(agttest):
-            dvr_proc_pid = agttest.dvr_proc_pid
-            lgr_proc_pid = agttest.lgr_proc_pid
-            lgr_pidfile_path = agttest.lgr_pidfile_path
-            if isinstance(dvr_proc_pid, int):
-                dvr_proc_path = '/proc/%i' %  dvr_proc_pid
-                if os.path.exists(dvr_proc_path):
-                    log.info('CLEANING UP DVR PID %s', str(dvr_proc_pid))
-                    os.kill(dvr_proc_pid, signal.SIGTERM)
-            if isinstance(lgr_proc_pid, int):
-                lgr_proc_path = '/proc/%i' %  lgr_proc_pid
-                if os.path.exists(lgr_proc_path):
-                    log.info('CLEANING UP LGR PID %s', str(lgr_proc_pid))
-                    os.kill(lgr_proc_pid, signal.SIGTERM)
-            if lgr_pidfile_path and os.path.exists(lgr_pidfile_path):
-                log.info('REMOVING PIDFILE %s', lgr_pidfile_path)
-                os.remove(lgr_pidfile_path)
-            
-        self.addCleanup(cleanup_procs, self)
-
-    def cleanupprocs(self):
-        stm = os.popen('ps -e | grep ion.services.mi.logger_process')
-        procs = stm.read()
-        if len(procs) > 0:
-            procs = procs.split()
-            if procs[0].isdigit():
-                pid = int(procs[0])
-                os.kill(pid,signal.SIGKILL)                
-        stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
-        procs = stm.read()
-        if len(procs) > 0:
-            procs = procs.split()
-            if procs[0].isdigit():
-                pid = int(procs[0])
-                os.kill(pid,signal.SIGKILL)                
-        stm = os.popen('rm -f /tmp/*.pid.txt')
-
-    def _listen(self, sub):
-        """
-        Pass in a subscriber here, this will make it listen in a background greenlet.
-        """
-        gl = spawn(sub.listen)
-        sub._ready_event.wait(timeout=5)
-        return gl
-
-    def test_direct_access(self):
-        """
-        Test agent direct_access command. This causes creation of
-        driver process and transition to direct access.
-        """
-                
-        print("test initing")
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-
-        cmd = AgentCommand(command='go_active')
-        retval = self._ia_client.execute_agent(cmd)
-        if isinstance(retval.result['CHANNEL_CTD'], int):
-            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
-            log.info('LOGGER PID: %s', str(retval.result))
-            log.info('PIDFILE %s', self.lgr_pidfile_path)
-
-        print("test run")
-        cmd = AgentCommand(command='run')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        print("test go_da")
-        cmd = AgentCommand(command='go_direct_access')
-        retval = self._ia_client.execute_agent(cmd) 
-        print("retval=" + str(retval))       
-        time.sleep(2)
-
-        print("test go_ob")
-        cmd = AgentCommand(command='go_observatory')
-        retval = self._ia_client.execute_agent(cmd)        
-        time.sleep(2)
-
-        print("test go_inactive")
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-        print("test reset")
-        cmd = AgentCommand(command='reset')
-        retval = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
-
-    def test_initialize(self):
-        """
-        Test agent initialize command. This causes creation of
-        driver process and transition to inactive.
-        """
-                
+        # Add subscription for events.
         def cb(*args, **kwargs):
             origin = args[0].origin
             event = str(args[0]._get_type())
@@ -323,64 +190,153 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
         sub = EventSubscriber(event_type="ResourceEvent", callback=cb)
         self._listen(sub)
+        """
+        
+        # Create agent config.
+        agent_config = {
+            'driver_config' : DVR_CONFIG,
+            'stream_config' : stream_config,
+            'agent'         : {'resource_id': IA_RESOURCE_ID},
+            'test_mode' : True
+        }
+        
+        log.debug("TestInstrumentAgent.setup(): starting IA")
+        self._ia_pid = self._container_client.spawn_process(name=IA_NAME,
+                                       module=IA_MOD, cls=IA_CLS,
+                                       config=agent_config)      
+        log.info('agent pid=%s', str(self._ia_pid))
+        
+        # Start a resource agent client to talk with the instrument agent.
+        self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
+        log.info('got ia client %s', str(self._ia_client))        
+        
+    def _start_pagent(self):
+        """
+        Construct and start the port agent.
+        """
 
+        # Create port agent object.
+        this_pid = os.getpid()
+        self._pagent = EthernetDeviceLogger.launch_process(DEV_ADDR, DEV_PORT,
+                        WORK_DIR, DELIM, this_pid)
+
+        # Get the pid and port agent server port number.
+        pid = self._pagent.get_pid()
+        while not pid:
+            gevent.sleep(.1)
+            pid = self._pagent.get_pid()
+        port = self._pagent.get_port()
+        while not port:
+            gevent.sleep(.1)
+            port = self._pagent.get_port()
+        
+        # Configure driver to use port agent port number.
+        DVR_CONFIG['comms_config']['port'] = port
+        
+        # Report.
+        log.info('Started port agent pid %d listening at port %d', pid, port)
+
+    def _stop_pagent(self):
+        """
+        Stop the port agent.
+        """
+        if self._pagent:
+            pid = self._pagent.get_pid()
+            if pid:
+                log.info('Stopping pagent pid %i', pid)
+                self._pagent.stop()
+            else:
+                log.warning('No port agent running.')
+                
+    def _listen(self, sub):
+        """
+        Pass in a subscriber here, this will make it listen in a background greenlet.
+        """
+        gl = spawn(sub.listen)
+        sub._ready_event.wait(timeout=5)
+        return gl
+
+    def test_initialize(self):
+        """
+        Test agent initialize command. This causes creation of
+        driver process and transition to inactive.
+        """
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-        
-        caps = self._ia_client.get_capabilities()
-        log.info('Capabilities: %s',str(caps))
-        
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
-
-    def test_go_active(self):
-        """
-        Test agent go_active command. This causes a driver process to
-        launch a connection broker, connect to device hardware, determine
-        entry state of driver and intialize driver parameters.
-        """
                 
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
+    def test_observatory(self):
+        """
+        Test agent in observatory mode, including go active and run
+        command, and interaction with the device resource.
+        """
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
-        log.info('initialize retval %s', str(retval))
-        if isinstance(retval.result, int):             
-            self.dvr_proc_pid = retval.result
-            log.info('DRIVER PROCESS PID: %s', str(retval.result))
-        time.sleep(2)
-        
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
         cmd = AgentCommand(command='go_active')
         retval = self._ia_client.execute_agent(cmd)
-        if isinstance(retval.result['CHANNEL_CTD'], int):
-            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
-            log.info('LOGGER PID: %s', str(retval.result))
-            log.info('PIDFILE %s', self.lgr_pidfile_path)
-            
-        time.sleep(2)
-        """
-        log.info('TESTING CLEANUP>>>>>>>>')
-        self.assertTrue(False)
-        """
-        
-        cmd = AgentCommand(command='go_inactive')
-        retval = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
 
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        #self.assertEqual(state, InstrumentAgentState.INACTIVE)
+        log.info('go active state = %s', state)
+        
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        #self.assertEqual(state, InstrumentAgentState.INACTIVE)
+        log.info('run state = %s', state)
+        
+        
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
-        time.sleep(2)
+                
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+        
     def test_get_set(self):
         """
         Test instrument driver resource get/set interface. This tests
         getting and setting driver reousrce paramters in various syntaxes and
         validates results including persistence on device hardware.
         """
-                
+        pass
+        """
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -486,13 +442,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='reset')
         reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
-
+        """
+        
     def test_poll(self):
         """
         Test instrument driver resource execute interface to do polled
         sampling.
         """
-                
+        pass
+        """
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -531,14 +489,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='reset')
         reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
-
+        """
 
     def test_autosample(self):
         """
         Test instrument driver execute interface to start and stop streaming
         mode.
         """
-                
+        pass
+        """
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         log.info('initialize retval %s', str(retval))
@@ -579,6 +538,55 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='reset')
         reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
+        """
+    def test_direct_access(self):
+        """
+        Test agent direct_access command. This causes creation of
+        driver process and transition to direct access.
+        """
+        pass
+    
+        """
+        print("test initing")
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('initialize retval %s', str(retval))
+        if isinstance(retval.result, int):             
+            self.dvr_proc_pid = retval.result
+            log.info('DRIVER PROCESS PID: %s', str(retval.result))
+        time.sleep(2)
 
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        if isinstance(retval.result['CHANNEL_CTD'], int):
+            self.lgr_proc_pid = retval.result['CHANNEL_CTD']
+            log.info('LOGGER PID: %s', str(retval.result))
+            log.info('PIDFILE %s', self.lgr_pidfile_path)
 
+        print("test run")
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test go_da")
+        cmd = AgentCommand(command='go_direct_access')
+        retval = self._ia_client.execute_agent(cmd) 
+        print("retval=" + str(retval))       
+        time.sleep(2)
+
+        print("test go_ob")
+        cmd = AgentCommand(command='go_observatory')
+        retval = self._ia_client.execute_agent(cmd)        
+        time.sleep(2)
+
+        print("test go_inactive")
+        cmd = AgentCommand(command='go_inactive')
+        reply = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        print("test reset")
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+        """
 
