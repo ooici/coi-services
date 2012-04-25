@@ -7,6 +7,7 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 import ast
 import csv
 import uuid
+import json
 
 from interface import objects
 
@@ -813,7 +814,8 @@ class IONLoader(ImmediateProcess):
         path = path + "/ui_assets"
         log.info("Start parsing UI assets from path=%s" % path)
         categories = [
-            ('Architectural Source.csv', 'Attribute'),
+            ('Architectural Source.csv', 'InternalResourceType'),
+            ('Attribute.csv', 'Attribute'),
             ('Block.csv', 'Block'),
             ('Group.csv', 'Group'),
             ('Representation block.csv', 'Representation'),
@@ -881,6 +883,11 @@ class IONLoader(ImmediateProcess):
             obj._id = oid
             self.ui_obj_by_id[oid] = obj
 
+            try:
+                json.dumps(obj.__dict__.copy())
+            except Exception as ex:
+                log.exception("Object %s problem" % obj)
+
         # Resolve associations to real resource IDs
         for refassoc in self.ref_assocs:
             sub_refid, pred, obj_refid = refassoc
@@ -895,12 +902,22 @@ class IONLoader(ImmediateProcess):
 
                 self.ui_assocs.append(assoc)
             except Exception as ex:
-                log.warn("Cannon create association for subject=%s pred=%s object=%s: %s" % (sub_refid, pred, obj_refid, ex))
+                log.warn("Cannot create association for subject=%s pred=%s object=%s: %s" % (sub_refid, pred, obj_refid, ex))
+
+    def _loadui_InternalResourceType(self, row):
+        refid, o_name = row['__pk_ArchitecturalSource_ID'], row['Name']
+        obj = objects.UIInternalResourceType(uirefid=refid, name=o_name)
+        self._add_ui_object(refid, obj)
 
     def _loadui_Attribute(self, row):
-        refid, o_name = row['__pk_ArchitecturalSource_ID'], row['Name']
-        obj = objects.UIAttribute(uirefid=refid, name=o_name)
+        refid, o_name, o_attlevel, o_labelid, o_iresid, o_comp, o_status, o_valgen = row['__pk_Attribute_ID'], \
+            row['Name'], row['_fk_AttributeLevel_ID'], row['_fk_ScreenLabel_ID'], row['_fk_ArchitecturalSource_ID'], \
+            row['Composite Name'], row['Alignment Status'], row['Value Generation']
+
+        obj = objects.UIAttribute(uirefid=refid, name=str(o_name), attribute_level_id=o_attlevel, screen_label_id=o_labelid,
+            internal_resource_type_id=o_iresid, composite_name=str(o_comp), alignment_status=o_status, value_generation=o_valgen)
         self._add_ui_object(refid, obj)
+        # TODO: Only accepted attributes, only Value (not Computed)
 
     def _loadui_Block(self, row):
         refid, o_name, o_layout, o_groupid, o_labelid = row['__pk_Block_ID'], row['Name'], row['LayoutID'], row['_fk_Group_ID'], row['_fk_ScreenLabel_ID']
