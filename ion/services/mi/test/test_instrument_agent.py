@@ -40,7 +40,7 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.public import CFG
-from pyon.event.event import EventSubscriber
+from pyon.event.event import EventSubscriber, EventPublisher
 
 # MI imports.
 from ion.services.mi.logger_process import EthernetDeviceLogger
@@ -49,14 +49,15 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_states
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_observatory
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
 # Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
-DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+#DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
+DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
@@ -70,9 +71,7 @@ from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 DVR_CONFIG = {
     'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
     'dvr_cls' : 'SBE37Driver',
-    'comms_config' : {
-        'addr' : 'localhost'
-    }
+    'workdir' : '/tmp/',
 }
 
 # Agent parameters.
@@ -158,7 +157,6 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@unittest.skip('In development.')    
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
@@ -175,6 +173,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Start streams and subscribers.
         Start agent, client.
         """
+        # Data samples list.
+        self._samples_received = []
+        
+        # Event list.
+        self._events_received = []
+        
         # Agent ion process id.
         self._ia_pid = None
         
@@ -216,7 +220,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # A callback for processing subscribed-to data.
         def consume(message, headers):
             log.info('Subscriber received message: %s', str(message))
-
+            self._samples_received.append(message)
+        
         # Create a stream subscriber registrar to create subscribers.
         subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
                                                 node=self.container.node)
@@ -251,20 +256,17 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 sub.stop()            
         self.addCleanup(stop_subscriber, self._subs)
 
-        """
+        
         # Add subscription for events.
-        def cb(*args, **kwargs):
-            origin = args[0].origin
-            event = str(args[0]._get_type())
-            description = args[0].description
-            time_stamp = str(datetime.fromtimestamp(time.mktime(time.gmtime(float(args[0].ts_created)/1000))))
-            log.debug("got event: origin=%s, event=%s, description=%s, time stamp=%s"
-                      %(origin, event, description, time_stamp))
+        def consume_event(*args, **kwargs):
+            log.info('Test recieved ION event: args=%s  kwargs=%s', str(args), str(kwargs))
             
-            
-        sub = EventSubscriber(event_type="ResourceEvent", callback=cb)
-        self._listen(sub)
-        """
+        event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
+        event_sub.activate()
+        #self._listen(sub)
+        def stop_event_subscriber(event_sub):
+            event_sub.deactivate()
+        self.addCleanup(stop_event_subscriber, event_sub)
         
         # Create agent config.
         agent_config = {
@@ -305,7 +307,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             port = self._pagent.get_port()
         
         # Configure driver to use port agent port number.
-        DVR_CONFIG['comms_config']['port'] = port
+        DVR_CONFIG['comms_config'] = {
+            'addr' : 'localhost',
+            'port' : port
+        }
         
         # Report.
         log.info('Started port agent pid %d listening at port %d', pid, port)
@@ -494,7 +499,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    def test_observatory(self):
+    def test_get_set(self):
         """
         Test instrument driver resource command and control interface.
         """
@@ -556,6 +561,44 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         orig_config.pop(SBE37Parameter.SAMPLENUM)
         self.assertParamVals(reply, orig_config)
 
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_poll(self):
+        """
+        Test observatory polling function.
+        """
+        
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+        
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+        
         # Poll for a few samples.
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
@@ -569,13 +612,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         reply = self._ia_client.execute(cmd)
         self.assertSampleDict(reply.result)        
 
+        # Assert we got 3 samples.
+        self.assertTrue(len(self._samples_received)==3)
+
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)        
+        
     def test_autosample(self):
         """
         Test instrument driver execute interface to start and stop streaming
@@ -606,7 +652,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
-                
+
+        # Make sure the sampling rate and transmission are sane.                
+        params = {
+            SBE37Parameter.NAVG : 1,
+            SBE37Parameter.INTERVAL : 5,
+            SBE37Parameter.TXREALTIME : True
+        }
+        self._ia_client.set_param(params)
+
+        # Begin streaming.                
         cmd = AgentCommand(command='go_streaming')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
@@ -614,14 +669,19 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
  
+        # Wait for some samples to roll in.
         gevent.sleep(15)
  
+        # Halt streaming.
         cmd = AgentCommand(command='go_observatory')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Assert we got some samples.
+        self.assertTrue(len(self._samples_received)>0)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -679,5 +739,4 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         driver process and transition to direct access.
         """
         pass
-
 

@@ -60,7 +60,7 @@ from ion.services.mi.exceptions import TimeoutError
 from ion.services.mi.exceptions import UnknownCommandError
 from ion.services.mi.instrument_driver import DriverConnectionState
 from ion.services.mi.instrument_driver import DriverProtocolState
-
+from ion.services.mi.instrument_driver import DriverAsyncEvent
 
 class InstrumentAgentState(BaseEnum):
     """
@@ -278,7 +278,7 @@ class InstrumentAgent(ResourceAgent):
 
         # Start state machine.
         self._fsm.start(self._initial_state)
-            
+
 
     ###############################################################################
     # Event callback and handling.
@@ -291,28 +291,53 @@ class InstrumentAgent(ResourceAgent):
         """
         log.info('Instrument agent %s received driver event %s', self._proc_name,
                  str(evt))
-        """
+        
         try:
-            if evt['type'] == 'sample':
-                name = evt['name']
-                value = evt['value']
+            type = evt['type']
+            value = evt.get('value', None)
+            if type == DriverAsyncEvent.SAMPLE:
+                stream_name = value.pop('stream_name')
                 value['lat'] = [self._lat]
                 value['lon'] = [self._lon]
-                value['stream_id'] = self._data_streams[name]
-                if isinstance(value, dict):
-                    packet = self._packet_factories[name](**value)
-                    self._data_publishers[name].publish(packet)        
-                    log.info('Instrument agent %s published data packet.',
-                             self._proc_name)
-            if evt['type'] == 'direct_access':
-                self.da_server.send(evt['value'])
+                value['stream_id'] = self._data_streams[stream_name]
+                packet = self._packet_factories[stream_name](**value)
+                self._data_publishers[stream_name].publish(packet)
+                log.info('Instrument agent %s published data packet.', self._proc_name)
+
+            elif type == DriverAsyncEvent.CONFIG_CHANGE:
+                # Needs a specific event type.
+                desc_str = 'New driver configuration: %s' % str(value)
+                pub = EventPublisher('DeviceEvent')
+                pub.publish_event(origin=self.resource_id ,description=desc_str)
+                
+            elif type == DriverAsyncEvent.STATE_CHANGE:
+                desc_str = 'New driver state: %s' % str(value)
+                pub = EventPublisher('DeviceSpecificLifecycleEvent')
+                pub.publish_event(origin=self.resource_id ,description=desc_str)
+            
+            elif type == DriverAsyncEvent.TEST_RESULT:
+                # Needs a specific event type.
+                desc_str = 'Driver test result: %s' % str(value)
+                pub = EventPublisher('DeviceEvent')
+                pub.publish_event(origin=self.resource_id ,description=desc_str)
+            
+            elif type == DriverAsyncEvent.ERROR:
+                desc_str = 'Driver error: %s' % str(value)
+                pub = EventPublisher('DeviceEvent')
+                pub.publish_event(origin=self.resource_id ,description=desc_str)
+            
+            elif type == DriverAsyncEvent.DIRECT_ACCESS:
+                # TBD.
+                pass
+            
+            else:
+                log.warning('Instrument agent %s recieved unhandled driver event %s',
+                            self._proc_name, str(evt))
                     
-        except (KeyError, TypeError) as e:
-            pass
-        
         except Exception as e:
-            log.info('Instrument agent %s error %s', self._proc_name, str(e))
-        """
+            log.error('Instrument agent %s error %s processing driver event %s',
+                      self._proc_name, str(e), str(evt))
+        
 
     ###############################################################################
     # Instrument agent state transition interface.
@@ -565,8 +590,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler upon entry to powered_down state.
         """
-        log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+        self._common_state_enter()
     
     def _handler_powered_down_exit(self, *args, **kwargs):
         """
@@ -592,8 +616,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler upon entry to uninitialized state.
         """
-        log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+        self._common_state_enter()
     
     def _handler_uninitialized_exit(self,  *args, **kwargs):
         """
@@ -648,8 +671,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler upon entry to inactive state.
         """
-        log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+        self._common_state_enter()
     
     def _handler_inactive_exit(self,  *args, **kwargs):
         """
@@ -741,8 +763,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler upon entry to idle state.
         """
-        log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+        self._common_state_enter()
                 
     def _handler_idle_exit(self,  *args, **kwargs):
         """
@@ -800,8 +821,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler for entry into stopped state.
         """
-        log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+        self._common_state_enter()
     
     def _handler_stopped_exit(self,  *args, **kwargs):
         """
@@ -864,8 +884,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler upon entry to observatory state.
         """
-        log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+        self._common_state_enter()
     
     def _handler_observatory_exit(self,  *args, **kwargs):
         """
@@ -945,7 +964,7 @@ class InstrumentAgent(ResourceAgent):
             raise InstNotImplementedError('Autosample not implemented.')
 
         except ParameterError:
-            raise InstParameterError('Instrument parameter error attempting autosample: args=%s, kwargs=%.', str(args), str(kwargs))
+            raise InstParameterError('Instrument parameter error attempting autosample: args=%s, kwargs=%s.', str(args), str(kwargs))
 
         next_state = InstrumentAgentState.STREAMING
 
@@ -982,7 +1001,7 @@ class InstrumentAgent(ResourceAgent):
             raise InstNotImplementedError('Get not implemented.')
 
         except ParameterError:
-            raise InstParameterError('Instrument parameter error attempting get: args=%s, kwargs=%.', str(args), str(kwargs))
+            raise InstParameterError('Instrument parameter error attempting get: args=%s, kwargs=%s.', str(args), str(kwargs))
         
         
         return (next_state, result)
@@ -1008,7 +1027,7 @@ class InstrumentAgent(ResourceAgent):
             raise InstNotImplementedError('Get not implemented.')
 
         except ParameterError:
-            raise InstParameterError('Instrument parameter error attempting set: args=%s, kwargs=%.', str(args), str(kwargs))
+            raise InstParameterError('Instrument parameter error attempting set: args=%s, kwargs=%s.', str(args), str(kwargs))
         
         return (next_state, result)
 
@@ -1047,7 +1066,7 @@ class InstrumentAgent(ResourceAgent):
             raise InstUnknownCommandError('Command %s unknown.', st(command.command))
 
         except ParameterError:
-            raise InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%.',
+            raise InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%s.',
                                      str(command.command), str(command.args), str(command.kwargs))
 
         return (next_state, result)
@@ -1060,8 +1079,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler for entry to streaming state.
         """
-        log.info('Instrument agent entered state %s',
-                 self._fsm.get_current_state())
+        self._common_state_enter()
     
     def _handler_streaming_exit(self,  *args, **kwargs):
         """
@@ -1133,8 +1151,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler upon direct access entry.
         """
-        log.info('Instrument agent entered state %s',
-            self._fsm.get_current_state())
+        self._common_state_enter()
     
     def _handler_direct_access_exit(self,  *args, **kwargs):
         """
@@ -1191,17 +1208,19 @@ class InstrumentAgent(ResourceAgent):
         # Get driver configuration and pid for test case.        
         dvr_mod = self._dvr_config['dvr_mod']
         dvr_cls = self._dvr_config['dvr_cls']
+        workdir = self._dvr_config['workdir']
         this_pid = os.getpid() if self._test_mode else None
 
-        (self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, '/tmp/', this_pid)
+        (self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, workdir, this_pid)
             
         # Verify the driver has started.
         if not self._dvr_proc or self._dvr_proc.poll():
+            log.error('Instrument agent %s rror starting driver process.', self._proc_name)
             raise InstDriverError('Error starting driver process.')
             
         log.info('Started driver process for %d %d %s %s', cmd_port,
             evt_port, dvr_mod, dvr_cls)
-        log.info('Driver process pid %d', self._dvr_proc.pid)
+        log.info('Instrument agent %s driver process pid %d', self._proc_name, self._dvr_proc.pid)
 
         # Start client messaging and verify messaging.
         try:
@@ -1214,6 +1233,7 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc.wait()
             self._dvr_proc = None
             self._dvr_client = None
+            log.error('Instrument agent %s rror starting driver client.', self._proc_name)
             raise InstDriverError('Error starting driver client.')            
 
         self._construct_packet_factories(dvr_mod)
@@ -1317,16 +1337,16 @@ class InstrumentAgent(ResourceAgent):
         self._packet_factories.clear()
         log.info('Instrument agent %s deleted packet factories.', self._proc_name)
         
-    def _log_state_change_event(self, state):
-        event_description = 'Instrument agent ' + self.resource_id + ' entered state ' + state
-        self._publish_instrument_agent_event(event_type='DeviceCommonLifecycleEvent',
-                                             description=event_description)
-        
-    def _publish_instrument_agent_event(self, event_type=None, description=None):
-        log.debug('Instrument agent %s publishing event %s:%s.' %(self._proc_name, event_type, description))
-        pub = EventPublisher(event_type=event_type)
-        pub.publish_event(origin=self.resource_id, description=description)
-            
+    def _common_state_enter(self):
+        """
+        Common work upon every state entry.
+        """
+        state = self._fsm.get_current_state()
+        log.info('Instrument agent entered state %s', state)
+        desc_str = 'Agent entered state: %s' % state
+        pub = EventPublisher('DeviceCommonLifecycleEvent')
+        pub.publish_event(origin=self.resource_id, description=desc_str)
+                    
     ###############################################################################
     # Misc and test.
     ###############################################################################

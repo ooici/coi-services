@@ -33,8 +33,6 @@ from ion.services.mi.exceptions import ProtocolError
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
-# This is the mi_merge branch.
-
 class SBE37ProtocolState(BaseEnum):
     """
     Protocol states for SBE37. Cherry picked from DriverProtocolState
@@ -124,7 +122,7 @@ SBE37_TIMEOUT = 10
                 
 # Packet config for SBE37 data granules.
 PACKET_CONFIG = {
-        'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
+        'ctd_parsed' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet'),
         'ctd_raw' : None            
 }
 
@@ -733,6 +731,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
             # Driver timestamp.
             sample['time'] = [time.time()]
+            sample['stream_name'] = 'ctd_parsed'
 
             if self._driver_event:
                 self._driver_event(DriverAsyncEvent.SAMPLE, sample)
