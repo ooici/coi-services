@@ -14,6 +14,7 @@ __license__ = 'Apache 2.0'
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.exceptions import NotImplementedError 
 from ion.services.mi.exceptions import InstrumentException
+from ion.services.mi.exceptions import StateError
 import time
 
 class DriverProtocolState(BaseEnum):
@@ -241,18 +242,22 @@ class InstrumentDriver(object):
     # Resource query interface.
     ########################################################################    
     
+    
     def get_resource_commands(self):
         """
         Retrun list of device execute commands available.
         """
-        return [cmd for cmd in dir(self) if cmd.startswith('execute_')]    
+        cmds = [cmd for cmd in dir(self) if cmd.startswith('execute_')]
+        cmds = [item.replace('execute_','') for item in cmds]
+        return cmds
     
     def get_resource_params(self):
         """
-        Return list of device parameters available.
+        Return list of device parameters available. Implemented in
+        device specific subclass.
         """
-        return self.get(DriverParameter.ALL)
-            
+        raise NotImplementedError('get_resource_params() is not implemented.')
+
     def get_current_state(self):
         """
         Return current device state. Implemented in connection specific

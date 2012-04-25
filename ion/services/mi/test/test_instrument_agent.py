@@ -51,6 +51,7 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_states
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_observatory
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
 # Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
@@ -120,6 +121,34 @@ PARAMS = {
     SBE37Parameter.RTCA1 : float,
     SBE37Parameter.RTCA2 : float
 }
+
+CMDS = [
+    'acquire_sample',
+    'calibrate',
+    'direct',
+    'start_autosample',
+    'stop_autosample',
+    'test'    
+]
+
+AGT_CMDS = [
+    'clear',
+    'end_transaction',
+    'get_current_state',
+    'go_active',
+    'go_direct_access',
+    'go_inactive',
+    'go_observatory',
+    'go_streaming',
+    'initialize',
+    'pause',
+    'power_down',
+    'power_up',
+    'reset',
+    'resume',
+    'run',
+    'start_transaction'
+]
 
 class FakeProcess(LocalContextMixin):
     """
@@ -606,7 +635,38 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test the ability to retrieve agent and resource parameter and command
         capabilities.
         """
-        pass
+        acmds = self._ia_client.get_capabilities(['AGT_CMD'])
+        acmds = [item[1] for item in acmds]
+        self.assertEqual(acmds, AGT_CMDS)
+        apars = self._ia_client.get_capabilities(['AGT_PAR'])
+        apars = [item[1] for item in apars]
+        
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+        
+        rcmds = self._ia_client.get_capabilities(['RES_CMD'])
+        rcmds = [item[1] for item in rcmds]
+        self.assertEqual(rcmds, CMDS)
+        
+        rpars = self._ia_client.get_capabilities(['RES_PAR'])
+        rpars = [item[1] for item in rpars]
+        self.assertEqual(rpars, SBE37Parameter.list())
+                
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
     
     def test_errors(self):
         """

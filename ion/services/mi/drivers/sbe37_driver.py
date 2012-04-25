@@ -146,6 +146,19 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
         #Construct superclass.
         SingleConnectionInstrumentDriver.__init__(self, evt_callback)
 
+    ########################################################################
+    # Superclass overrides for resource query.
+    ########################################################################
+
+    def get_resource_params(self):
+        """
+        Return list of device parameters available.
+        """
+        return SBE37Parameter.list()        
+
+    ########################################################################
+    # Protocol builder.
+    ########################################################################
 
     def _build_protocol(self):
         """

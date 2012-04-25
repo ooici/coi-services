@@ -471,7 +471,7 @@ class InstrumentAgent(ResourceAgent):
         """
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_COMMANDS)
-            
+        
         except StateError:
             return []
     
@@ -480,12 +480,13 @@ class InstrumentAgent(ResourceAgent):
         Get driver resource parameters. Send event to state machine and return
         response or empty list if none.
         """
-        try:
+        try:    
             return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_PARAMS)
-            
+    
         except StateError:
             return []
-
+    
+            
     ###############################################################################
     # Instrument agent resource interface. These functions override ResourceAgent
     # base class functions to specialize behavior for instrument driver resources.
@@ -1163,7 +1164,7 @@ class InstrumentAgent(ResourceAgent):
         """
         result = self._dvr_client.cmd_dvr('get_resource_params')
         next_state = None
-        
+
         return (next_state, result)
 
     def _handler_get_resource_commands(self,  *args, **kwargs):
