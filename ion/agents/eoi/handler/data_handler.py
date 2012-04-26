@@ -1,5 +1,7 @@
 __author__ = "Tim Giguere"
 
+from pyon.public import log
+
 class DataHandler():
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
@@ -18,6 +20,8 @@ class DataHandler():
         #get_current_state -> Not used
         #discover -> Not used
         #disconnect -> Not used
+
+        log.warn('cmd_dvr received command \'{0}\' with: args={1} kwargs={2}'.format(cmd, args, kwargs))
 
         reply = None
         if cmd == 'configure':  #used to configure data handler
