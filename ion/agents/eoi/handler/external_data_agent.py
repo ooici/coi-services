@@ -51,8 +51,6 @@ class ExternalDataAgent(InstrumentAgent):
 
         log.info('Instrument agent %s started its driver.', self._proc_name)
 
-        return 0 #Need to return a process ID to get into Inactive state, this will do for now
-
     def _stop_driver(self):
         """
         Stop the driver process and driver client.

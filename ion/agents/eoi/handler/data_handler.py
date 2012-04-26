@@ -1,9 +1,6 @@
 __author__ = "Tim Giguere"
 
-from ion.services.mi.instrument_driver import InstrumentDriver
-from ion.services.mi.driver_client import DriverClient
-
-class DataHandler(DriverClient, InstrumentDriver):
+class DataHandler():
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
         Command a driver by request-reply messaging. Package command
@@ -16,44 +13,77 @@ class DataHandler(DriverClient, InstrumentDriver):
         """
         # Package command dictionary.
 
+        #need to account for observatory_execute_resource commands
+        #connect -> Not used
+        #get_current_state -> Not used
+        #discover -> Not used
+        #disconnect -> Not used
+
         reply = None
-        if cmd == 'configure':
-            reply = configure(args, kwargs)
-        elif cmd == 'connect':
-            reply = connect(args, kwargs)
-        elif cmd == 'disconnect':
-            reply = disconnect(args, kwargs)
-        elif cmd == 'initialize':
-            reply = initialize(args, kwargs)
-        elif cmd == 'start_autosample':
-            reply = execute_start_autosample(args, kwargs)
-        elif cmd == 'get_active_channels':
-            reply = get_active_channels(args, kwargs)
-        elif cmd == 'stop_autosample':
-            reply = execute_stop_autosample(args, kwargs)
+        if cmd == 'configure':  #used to configure data handler
+            reply = self.configure(args, kwargs)
+        elif cmd == 'initialize':   #used to initialize data handler
+            reply = self.initialize(args, kwargs)
+        elif cmd == 'execute_start_autosample': #used to get data handler into streaming mode
+            reply = self.execute_start_autosample(args, kwargs)
+        elif cmd == 'execute_stop_autosample':  #used to get data handler back into observatory mode
+            reply = self.execute_stop_autosample(args, kwargs)
+        elif cmd == 'get':
+            reply = self.get(args, kwargs)
+        elif cmd == 'set':
+            reply = self.set(args, kwargs)
+        elif cmd == 'get_resource_params':
+            reply = self.get_resource_params(args, kwargs)
+        elif cmd == 'get_resource_commands':
+            reply = self.get_resource_commands(args, kwargs)
 
         return reply
 
-    def connect(self, *args, **kwargs):
-        return {}
-
     def configure(self, *args, **kwargs):
-        return {}
-
-    def disconnect(self, *args, **kwargs):
         return {}
 
     def initialize(self, *args, **kwargs):
         return None
 
-    def get_active_channels(self, *args, **kwargs):
-        return ['active_channel'] #return non-empty list to get agent state to IDLE
-
     def execute_start_autosample(self, *args, **kwargs):
-        return {}
+        """
+        @raises TimeoutError:
+        @raises ProtocolError:
+        @raises NotImplementedError:
+        @raises ParameterError:
+        """
+        return None
 
     def execute_stop_autosample(self, *args, **kwargs):
-        return {}
+        """
+        @raises TimeoutError:
+        @raises ProtocolError:
+        @raises NotImplementedError:
+        @raises ParameterError:
+        """
+        return None
 
+    def get(self, *args, **kwargs):
+        """
+        @raises TimeoutError:
+        @raises ProtocolError:
+        @raises NotImplementedError:
+        @raises ParameterError:
+        """
+        return None
 
+    def set(self, *args, **kwargs):
+        """
+        @raises TimeoutError:
+        @raises ProtocolError:
+        @raises NotImplementedError:
+        @raises ParameterError:
+        """
+        return None
+
+    def get_resource_params(self, *args, **kwargs):
+        return None
+
+    def get_resource_commands(self, *args, **kwargs):
+        return None
 
