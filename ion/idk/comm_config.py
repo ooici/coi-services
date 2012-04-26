@@ -146,14 +146,19 @@ class CommConfig(object):
         else:
             inputFile = self.config_path()
 
-        infile = open( inputFile )
+        try:
+            infile = open( inputFile )
 
-        input = yaml.load( infile )
+            input = yaml.load( infile )
 
-        if( input ):
-            self._init_from_yaml( input )
+            if( input ):
+                self._init_from_yaml( input )
 
-        infile.close()
+            infile.close()
+        except IOError:
+            """
+            Silently be ok with not being able to read the file. 
+            """
 
     def get_from_console(self):
         """

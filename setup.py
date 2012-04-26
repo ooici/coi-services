@@ -29,6 +29,13 @@ setup(  name = 'coi-services',
             'https://github.com/ooici/pyon/tarball/master#egg=pyon'
         ],
         test_suite = 'pyon',
+        entry_points = {
+            'console_scripts' : [
+                'package_driver=ion.idk.scripts.package_driver:run',
+                'start_driver=ion.idk.scripts.start_driver:run',
+                'test_driver=ion.idk.scripts.test_driver:run',
+            ],
+        },
         install_requires = [
             'pyon',
             'Flask==0.8',
