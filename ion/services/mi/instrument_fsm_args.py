@@ -94,8 +94,8 @@ class InstrumentFSM():
         result = None
         
         if self.current_state == None:
-            raise InstrumentException(InstErrorCode.INVALID_TRANSITION,
-                                      "FSM not started!")
+            raise InstrumentException(error_code=InstErrorCode.INVALID_TRANSITION,
+                                      msg="FSM not started!")
         if self.events.has(event):
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:

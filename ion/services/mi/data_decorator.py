@@ -90,8 +90,8 @@ class RSNTimestampDecorator(TimestampDecorator):
             else:
                 self.next_decorator.handle_incoming_data(original_data, chained_data)
         else:
-            raise InstrumentDataException(InstErrorCode.HARDWARE_ERROR,
-                                          "Checksum failure!")
+            raise InstrumentDataException(error_code=InstErrorCode.HARDWARE_ERROR,
+                                          msg="Checksum failure!")
     
     def _parse_timestamp(self, s):
         '''Parse a string to see if it matches the given regex. If so, get

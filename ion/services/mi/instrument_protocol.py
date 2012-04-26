@@ -231,7 +231,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         
         build_handler = self._build_handlers.get(cmd, None)
         if not build_handler:
-            raise InstrumentProtocolException(InstErrorCode.BAD_DRIVER_COMMAND)
+            raise InstrumentProtocolException(error_code=InstErrorCode.BAD_DRIVER_COMMAND)
         cmd_line = build_handler(cmd, *args)
         
         # Wakeup the device, timeout exception as needed

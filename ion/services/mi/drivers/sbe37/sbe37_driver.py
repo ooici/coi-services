@@ -17,9 +17,9 @@ import datetime
 from threading import Timer
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.single_connection_instrument_driver import SingleConnectionInstrumentDriver
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_fsm import InstrumentFSM
+from ion.services.mi.instrument_driver import SingleConnectionInstrumentDriver
 from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_driver import DriverProtocolState

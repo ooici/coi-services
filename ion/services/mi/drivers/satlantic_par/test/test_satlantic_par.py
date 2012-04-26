@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-@file ion/services/mi/drivers/test/test_satlantic_par.py
+@file ion/services/mi/drivers/satlantic_par/test/test_satlantic_par.py
 @author Steve Foley
 @test ion.services.mi.drivers.satlantic_par
 Unit test suite to test Satlantic PAR sensor
@@ -14,25 +14,21 @@ import time
 from mock import Mock, call, DEFAULT
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-"""
+
 from ion.services.mi.common import InstErrorCode
 #import ion.services.mi.drivers.satlantic_par.satlantic_par
-from ion.services.mi.data_decorator import ChecksumDecorator
 from ion.services.mi.instrument_driver import DriverState, ConnectionState
 from ion.services.mi.instrument_protocol import InterfaceType
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticPARInstrumentProtocol
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Parameter
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Command
-from ion.services.mi.drivers.satlantic_par.satlantic_par import Event
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Channel
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticChecksumDecorator
 from ion.services.mi.drivers.satlantic_par.satlantic_par import sample_regex
 from ion.services.mi.exceptions import InstrumentProtocolException
-from ion.services.mi.exceptions import InstrumentTimeoutException
 from ion.services.mi.exceptions import InstrumentDataException
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-"""
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -636,7 +632,6 @@ class SatlanticParProtocolIntegrationTest(PyonTestCase):
         self.assertEquals(reply, config_B)
         
 @attr('UNIT', group='mi')
-@unittest.skip('Need to align.')
 class SatlanticParDecoratorTest(PyonTestCase):
     
     def setUp(self):
