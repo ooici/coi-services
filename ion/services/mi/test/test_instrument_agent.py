@@ -22,6 +22,7 @@ from datetime import datetime
 
 # 3rd party imports.
 from gevent import spawn
+from gevent.event import AsyncResult
 import gevent
 from nose.plugins.attrib import attr
 from mock import patch
@@ -187,13 +188,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
+        self._no_samples = None
+        self._async_data_result = AsyncResult()
+        self._data_greenlets = []
         self._stream_config = {}
         self._samples_received = []
-        self._data_subscribers = None
+        self._data_subscribers = []
         self._start_data_subscribers()
         self.addCleanup(self._stop_data_subscribers)
 
         # Start event subscribers, add stop to cleanup.
+        self._no_events = None
+        self._async_event_result = AsyncResult()
         self._events_received = []
         self._event_subscribers = []
         self._start_event_subscribers()
@@ -272,7 +278,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         def consume_data(message, headers):
             log.info('Subscriber received data message: %s.', str(message))
             self._samples_received.append(message)
-        
+            if self._no_samples and self._no_samples == len(self._samples_received):
+                self._async_data_result.set()
+                
         # Create a stream subscriber registrar to create subscribers.
         subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
                                                 node=self.container.node)
@@ -295,19 +303,30 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             exchange_name = '%s_queue' % stream_name
             sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name,
                                                          callback=consume_data)
-            sub.start()
+            self._listen(sub)
+            self._data_subscribers.append(sub)
             query = StreamQuery(stream_ids=[stream_id])
             sub_id = pubsub_client.create_subscription(\
                                 query=query, exchange_name=exchange_name)
             pubsub_client.activate_subscription(sub_id)
-            self._data_subscribers.append(sub)
-                    
+            
+    def _listen(self, sub):
+        """
+        Pass in a subscriber here, this will make it listen in a background greenlet.
+        """
+        gl = spawn(sub.listen)
+        self._data_greenlets.append(gl)
+        sub._ready_event.wait(timeout=5)
+        return gl
+                                 
     def _stop_data_subscribers(self):
         """
         Stop the data subscribers on cleanup.
         """
         for sub in self._data_subscribers:
             sub.stop()
+        for gl in self._data_greenlets:
+            gl.kill()
             
     def _start_event_subscribers(self):
         """
@@ -315,7 +334,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         def consume_event(*args, **kwargs):
             log.info('Test recieved ION event: args=%s  kwargs=%s.', str(args), str(kwargs))
-            self._events_received.append(args[0]) 
+            self._events_received.append(args[0])
+            if self._no_events and self._no_events == len(self._event_received):
+                self._async_event_result.set()
+                
         event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
         event_sub.activate()
         self._event_subscribers.append(event_sub)
@@ -590,6 +612,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
         
+        # Lets get 3 samples.
+        self._no_samples = 3
+        
         # Poll for a few samples.
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
@@ -604,6 +629,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertSampleDict(reply.result)        
 
         # Assert we got 3 samples.
+        self._async_data_result.get(timeout=10)
         self.assertTrue(len(self._samples_received)==3)
 
         cmd = AgentCommand(command='reset')
@@ -652,6 +678,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         }
         self._ia_client.set_param(params)
 
+        self._no_samples = 2
+
         # Begin streaming.                
         cmd = AgentCommand(command='go_streaming')
         retval = self._ia_client.execute_agent(cmd)
@@ -672,7 +700,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
         # Assert we got some samples.
-        self.assertTrue(len(self._samples_received)>0)
+        self._async_data_result.get(timeout=10)
+        self.assertTrue(len(self._samples_received)>=2)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
