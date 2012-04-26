@@ -2,8 +2,11 @@
 
 __author__ = "Tim Giguere"
 
+from pyon.public import log
+
 from ion.services.mi.instrument_agent import InstrumentAgent, InstrumentAgentState, InstrumentAgentEvent
 from ion.agents.eoi.handler.data_handler import DataHandler
+import os
 
 class ExternalDataAgent(InstrumentAgent):
 
