@@ -19,7 +19,6 @@ from ion.services.mi.common import BaseEnum
 from ion.services.mi.data_decorator import ChecksumDecorator
 from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
 from ion.services.mi.instrument_driver import InstrumentDriver
-from ion.services.mi.instrument_driver import DriverChannel
 from ion.services.mi.instrument_driver import DriverState
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
