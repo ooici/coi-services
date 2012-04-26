@@ -210,6 +210,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
 
         #Todo: currently this is handled explicitly after creating the dat product, that code then calls DMAS:assign_data_product
+        log.debug("DataProcessManagementService:create_data_process associate data process workflows with source data products %s hasInputProduct  %s", str(data_process_id), str(in_data_product_id))
         self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
 
         #-------------------------------

@@ -33,8 +33,6 @@ from ion.services.mi.exceptions import ProtocolError
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
-# This is the mi_merge branch.
-
 class SBE37ProtocolState(BaseEnum):
     """
     Protocol states for SBE37. Cherry picked from DriverProtocolState
@@ -123,8 +121,8 @@ SBE37_NEWLINE = '\r\n'
 SBE37_TIMEOUT = 10
                 
 # Packet config for SBE37 data granules.
-SBE37_PACKET_CONFIG = {
-        'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
+PACKET_CONFIG = {
+        'ctd_parsed' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet'),
         'ctd_raw' : None            
 }
 
@@ -146,6 +144,19 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
         #Construct superclass.
         SingleConnectionInstrumentDriver.__init__(self, evt_callback)
 
+    ########################################################################
+    # Superclass overrides for resource query.
+    ########################################################################
+
+    def get_resource_params(self):
+        """
+        Return list of device parameters available.
+        """
+        return SBE37Parameter.list()        
+
+    ########################################################################
+    # Protocol builder.
+    ########################################################################
 
     def _build_protocol(self):
         """
@@ -256,7 +267,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         @retval (next_state, result), (SBE37ProtocolState.COMMAND or
         SBE37State.AUTOSAMPLE, None) if successful.
         @throws TimeoutError if the device cannot be woken.
-        @throws StateError if the device response does not correspond to
+        @throws ProtocolError if the device response does not correspond to
         an expected state.
         """
         next_state = None
@@ -276,7 +287,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             next_state = SBE37ProtocolState.AUTOSAMPLE
             result = SBE37ProtocolState.AUTOSAMPLE
         else:
-            raise StateError('Unknown state.')
+            raise ProtocolError('Failure to recognzie device state.')
             
         return (next_state, result)
 
@@ -363,6 +374,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
 
+        # Assure the device is transmitting.
+        if not self._param_dict.get(SBE37Parameter.TXREALTIME):
+            self._do_cmd_resp('set', SBE37Parameter.TXREALTIME, True, **kwargs)
+        
         # Issue start command and switch to autosample if successful.
         self._do_cmd_no_resp('startnow', *args, **kwargs)
                 
@@ -716,6 +731,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
             # Driver timestamp.
             sample['time'] = [time.time()]
+            sample['stream_name'] = 'ctd_parsed'
 
             if self._driver_event:
                 self._driver_event(DriverAsyncEvent.SAMPLE, sample)
