@@ -175,10 +175,12 @@ class DriverGenerator:
         @param template_file path to a file that containes a template
         @retval string.Template object
         """
-        infile = open(template_file)
-        tmpl_str = infile.read()
-
-        return Template(tmpl_str)
+        try:
+            infile = open(template_file)
+            tmpl_str = infile.read()
+            return Template(tmpl_str)
+        except IOError:
+            return Template("")
 
 
     def _driver_template_data(self):

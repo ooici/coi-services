@@ -1,19 +1,20 @@
 import gevent
 from mock import Mock
-from unittest import SkipTest
 from nose.plugins.attrib import attr
-import unittest, os
+from gevent import queue
 
+from pyon.net.endpoint import RPCClient
+from pyon.service.service import BaseService
 from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import CFG
+from pyon.public import log
+from pyon.event.event import EventSubscriber
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessStateEnum
 
-from ion.processes.data.transforms.transform_example import TransformExample
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
     PDLocalBackend, PDBridgeBackend
 
@@ -46,10 +47,13 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         self.mock_cc_terminate = self.pd_service.container.proc_manager.terminate_process
         self.mock_cc_procs = self.pd_service.container.proc_manager.procs
 
-    def test_local_schedule(self):
+    def test_local_create_schedule(self):
 
         self.pd_service.init()
         self.assertIsInstance(self.pd_service.backend, PDLocalBackend)
+
+        event_pub = Mock()
+        self.pd_service.backend.event_pub = event_pub
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
@@ -57,29 +61,32 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         self.mock_rr_read.return_value = proc_def
         self.mock_cc_spawn.return_value = '123'
 
+        pid = self.pd_service.create_process("fake-process-def-id")
+
         # not used for anything in local mode
         proc_schedule = DotDict()
 
         configuration = {"some": "value"}
 
-        pid = self.pd_service.schedule_process("fake-process-def-id",
-            proc_schedule, configuration)
+        self.pd_service.schedule_process("fake-process-def-id",
+            proc_schedule, configuration, pid)
 
-        self.mock_rr_read.assert_called_once_with("fake-process-def-id", "")
-        self.assertEqual(pid, '123')
+        self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
         self.assertEqual(self.mock_cc_spawn.call_count, 1)
         call_args, call_kwargs = self.mock_cc_spawn.call_args
         self.assertFalse(call_args)
 
         # name should be def name followed by a uuid
         name = call_kwargs['name']
-        self.assertTrue(name.startswith(proc_def.name) and name != proc_def.name)
+        self.assertEqual(name, pid)
         self.assertEqual(len(call_kwargs), 5)
         self.assertEqual(call_kwargs['module'], 'my_module')
         self.assertEqual(call_kwargs['cls'], 'class')
 
         called_config = call_kwargs['config']
         self.assertEqual(called_config, configuration)
+
+        self.assertEqual(event_pub.publish_event.call_count, 1)
 
     def test_schedule_process_notfound(self):
         proc_schedule = DotDict()
@@ -89,7 +96,7 @@ class ProcessDispatcherServiceTest(PyonTestCase):
 
         with self.assertRaises(NotFound):
             self.pd_service.schedule_process("not-a-real-process-id",
-            proc_schedule, configuration)
+                proc_schedule, configuration)
 
         self.mock_rr_read.assert_called_once_with("not-a-real-process-id", "")
 
@@ -102,23 +109,30 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         self.assertTrue(ok)
         self.mock_cc_terminate.assert_called_once_with("process-id")
 
-    def test_bridge_schedule(self):
+    def test_bridge_create_schedule(self):
         pdcfg = dict(uri="amqp://hello", topic="pd", exchange="123")
         self.pd_service.CFG = DotDict()
         self.pd_service.CFG['process_dispatcher_bridge'] = pdcfg
         self.pd_service.init()
         self.assertIsInstance(self.pd_service.backend, PDBridgeBackend)
 
+        event_pub = Mock()
+        self.pd_service.backend.event_pub = event_pub
+
         # sneak in and replace dashi connection method
         mock_dashi = Mock()
+        mock_dashi.consume.return_value = lambda : None
         self.pd_service.backend._init_dashi = lambda : mock_dashi
 
         self.pd_service.start()
+        self.assertEqual(mock_dashi.handle.call_count, 1)
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
         proc_def['executable'] = {'module':'my_module', 'class':'class'}
         self.mock_rr_read.return_value = proc_def
+
+        pid = self.pd_service.create_process("fake-process-def-id")
 
         proc_schedule = DotDict()
         proc_schedule['target'] = DotDict()
@@ -126,10 +140,11 @@ class ProcessDispatcherServiceTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid = self.pd_service.schedule_process("fake-process-def-id",
-            proc_schedule, configuration)
+        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+            proc_schedule, configuration, pid)
 
-        self.mock_rr_read.assert_called_once_with("fake-process-def-id", "")
+        self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
+        self.assertEqual(pid, pid2)
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
         self.assertEqual(mock_dashi.call.call_count, 1)
         call_args, call_kwargs = mock_dashi.call.call_args
@@ -137,7 +152,21 @@ class ProcessDispatcherServiceTest(PyonTestCase):
             set(['upid', 'spec', 'subscribers', 'constraints']))
         self.assertEqual(call_kwargs['constraints'],
             proc_schedule.target['constraints'])
+        self.assertEqual(call_kwargs['subscribers'],
+            self.pd_service.backend.pd_process_subscribers)
         self.assertEqual(call_args, ("pd", "dispatch_process"))
+        self.assertEqual(event_pub.publish_event.call_count, 0)
+
+        # trigger some fake async state updates from dashi. first
+        # should not trigger an event
+
+        self.pd_service.backend._process_state(dict(upid=pid,
+            state="400-PENDING"))
+        self.assertEqual(event_pub.publish_event.call_count, 0)
+
+        self.pd_service.backend._process_state(dict(upid=pid,
+            state="500-RUNNING"))
+        self.assertEqual(event_pub.publish_event.call_count, 1)
 
     def test_bridge_cancel(self):
         pdcfg = dict(uri="amqp://hello", topic="pd", exchange="123")
@@ -146,8 +175,12 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         self.pd_service.init()
         self.assertIsInstance(self.pd_service.backend, PDBridgeBackend)
 
+        event_pub = Mock()
+        self.pd_service.backend.event_pub = event_pub
+
         # sneak in and replace dashi connection method
         mock_dashi = Mock()
+        mock_dashi.consume.return_value = lambda : None
         self.pd_service.backend._init_dashi = lambda : mock_dashi
 
         self.pd_service.start()
@@ -157,50 +190,113 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         self.assertTrue(ok)
         mock_dashi.call.assert_called_once_with("pd", "terminate_process",
             upid="process-id")
+        self.assertEqual(event_pub.publish_event.call_count, 0)
+
+        self.pd_service.backend._process_state(dict(upid="process-id",
+            state="700-TERMINATED"))
+        self.assertEqual(event_pub.publish_event.call_count, 1)
+
+
+class TestProcess(BaseService):
+    """Test process to deploy via PD
+    """
+    name = __name__ + "test"
+
+    def on_init(self):
+        self.i = 0
+
+    def count(self):
+        self.i += 1
+        return self.i
+
+
+class TestClient(RPCClient):
+    def __init__(self, to_name=None, node=None, **kwargs):
+        to_name = to_name or __name__ + "test"
+        RPCClient.__init__(self, to_name=to_name, node=node, **kwargs)
+
+    def count(self, headers=None, timeout=None):
+        return self.request({}, op='count', headers=headers, timeout=timeout)
 
 
 @attr('INT', group='cei')
-class ProcessDispatcherServiceLocalIntTest(IonIntegrationTestCase):
-    """Integration tests for the "local" mode of the PD
-
-    In local mode processes are directly started on the local container. This
-    is provided to allow use of PD functionality when launching via a single
-    rel file instead of via a "real" CEI launch.
-    """
+class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
     def setUp(self):
-
-        # ensure bridge mode is disabled
-        if 'process_dispatcher_bridge' in CFG:
-            del CFG['process_dispatcher_bridge']
-
-        # set up the container
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
 
         self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
-        self.process_definition = ProcessDefinition(name='basic_transform_definition')
-        self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',
-                                              'class':'TransformExample'}
+        self.process_definition = ProcessDefinition(name='test_process')
+        self.process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
+                                              'class':'TestProcess'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
+        self.event_queue = queue.Queue()
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_schedule_cancel(self):
+        self.event_sub = None
 
+    def tearDown(self):
+        if self.event_sub:
+            self.event_sub.deactivate()
+
+    def _event_callback(self, event, *args, **kwargs):
+        self.event_queue.put(event)
+
+    def subscribe_events(self, origin):
+        self.event_sub =  EventSubscriber(event_type="ProcessLifecycleEvent",
+            callback=self._event_callback, origin=origin, origin_type="DispatchedProcess")
+        self.event_sub.activate()
+
+    def await_state_event(self, pid, state):
+        event = self.event_queue.get(timeout=5)
+        log.debug("Got event: %s", event)
+        self.assertEqual(event.origin, pid)
+        self.assertEqual(event.state, state)
+        return event
+
+    def test_create_schedule_cancel(self):
         process_schedule = ProcessSchedule()
 
-        pid = self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, configuration={})
+        pid = self.pd_cli.create_process(self.process_definition_id)
+        self.subscribe_events(pid)
 
-        proc = self.container.proc_manager.procs.get(pid)
-        self.assertIsInstance(proc, TransformExample)
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid)
+        self.assertEqual(pid, pid2)
 
-        # failures could theoretically leak processes but I don't think that
-        # matters since everything gets torn down between tests
+        self.await_state_event(pid, ProcessStateEnum.SPAWN)
+
+        # now try communicating with the process to make sure it is really running
+        test_client =  TestClient()
+        for i in range(5):
+            # this timeout may be too low
+            self.assertEqual(i+1, test_client.count(timeout=1))
+
+        # kill the process and start it again
         self.pd_cli.cancel_process(pid)
-        self.assertNotIn(pid, self.container.proc_manager.procs)
+
+        self.await_state_event(pid, ProcessStateEnum.TERMINATE)
+
+        oldpid = pid
+
+        pid = self.pd_cli.create_process(self.process_definition_id)
+        self.subscribe_events(pid)
+
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid)
+        self.assertEqual(pid, pid2)
+        self.assertNotEqual(oldpid, pid)
+
+        self.await_state_event(pid, ProcessStateEnum.SPAWN)
+
+        for i in range(5):
+            # this timeout may be too low
+            self.assertEqual(i+1, test_client.count(timeout=1))
+
+        # kill the process for good
+        self.pd_cli.cancel_process(pid)
+        self.await_state_event(pid, ProcessStateEnum.TERMINATE)
 
     def test_schedule_bad_config(self):
 
@@ -213,104 +309,3 @@ class ProcessDispatcherServiceLocalIntTest(IonIntegrationTestCase):
             self.pd_cli.schedule_process(self.process_definition_id,
                 process_schedule, configuration={"bad" : o})
         self.assertTrue(ar.exception.message.startswith("bad configuration"))
-
-
-@attr('INT', group='cei')
-class ProcessDispatcherServiceBridgeIntTest(IonIntegrationTestCase):
-    """Integration tests for the "bridge" mode of the PD
-
-    In bridge mode requests are bridged to a backend Process Dispatcher
-    service running outside of the container and launched out of band.
-    """
-
-    dashi_uri = "memory://local"
-    dashi_exchange = "test_pd_bridge_exchange"
-    dashi_pd_topic = "processdispatcher"
-
-    def setUp(self):
-
-        # set up a fake dashi consumer to act as the PD
-        try:
-            import dashi
-        except ImportError:
-            raise SkipTest("Process Dispatcher Bridge integration test "+
-                           "requires the dashi library. Skipping.")
-
-        self.fake_pd = FakePD(dashi.DashiConnection(self.dashi_pd_topic,
-            self.dashi_uri, self.dashi_exchange))
-        self.fake_pd.consume_in_thread()
-
-        # set up the container
-        self._start_container()
-
-        CFG['process_dispatcher_bridge'] = dict(uri="memory://local",
-            exchange="test_pd_bridge_exchange", topic="processdispatcher")
-
-        self.container.start_rel_from_url('res/deploy/r2cei.yml')
-
-        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
-
-        self.process_definition = ProcessDefinition(name='basic_transform_definition')
-        self.process_definition.executable = {'module': 'ion.processes.data.transforms.transform_example',
-                                              'class':'TransformExample'}
-        self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
-
-    def tearDown(self):
-        if hasattr(self, "fake_pd") and self.fake_pd:
-            self.fake_pd.shutdown()
-
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_schedule_cancel(self):
-        process_schedule = ProcessSchedule()
-        process_schedule.target = ProcessTarget()
-        process_schedule.target.constraints = {'site' : 'chicago'}
-
-        config = {'some': "value"}
-
-        pid = self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, configuration=config)
-
-        self.assertEqual(self.fake_pd.dispatch_process.call_count, 1)
-        args, kwargs = self.fake_pd.dispatch_process.call_args
-        self.assertFalse(args)
-        self.assertEqual(set(kwargs),
-            set(['upid', 'spec', 'subscribers', 'constraints']))
-
-        spec = kwargs['spec']
-        self.assertEqual(spec['run_type'], 'pyon_single')
-        self.assertEqual(spec['parameters']['rel']['apps'][0]['config'],
-            config)
-
-        self.pd_cli.cancel_process(pid)
-        self.fake_pd.terminate_process.assert_called_once_with(upid=pid)
-
-
-class FakePD(object):
-    """object which uses CEI messaging to simulate the backend PD service
-
-    We cannot stand up the real service for true integration testing but
-    this at least verifies that the messaging works.
-    """
-    consume_timeout = 5
-
-    def __init__(self, dashi):
-        self.dashi = dashi
-
-        # return values do not match service responses yet
-        self.dispatch_process = Mock()
-        self.dispatch_process.return_value = {}
-        self.dashi.handle(self.dispatch_process, 'dispatch_process')
-
-        self.terminate_process = Mock()
-        self.terminate_process.return_value = {}
-        self.dashi.handle(self.terminate_process, 'terminate_process')
-
-    def consume_in_thread(self):
-        self.consumer_thread = gevent.spawn(self.dashi.consume)
-
-    def shutdown(self):
-        if self.consumer_thread:
-            self.dashi.cancel(block=False)
-            self.consumer_thread.kill()
-            self.consumer_thread = None

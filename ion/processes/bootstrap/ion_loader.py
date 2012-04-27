@@ -814,14 +814,15 @@ class IONLoader(ImmediateProcess):
         path = path + "/ui_assets"
         log.info("Start parsing UI assets from path=%s" % path)
         categories = [
-            ('Architectural Source.csv', 'InternalResourceType'),
+            ('Internal Resource Type.csv', 'InternalResourceType'),
+            ('Resource.csv', 'ResourceType'),
+            ('Information Level.csv', 'InformationLevel'),
             ('Attribute.csv', 'Attribute'),
             ('Block.csv', 'Block'),
             ('Group.csv', 'Group'),
-            ('Representation block.csv', 'Representation'),
-            ('Resource.csv', 'ResourceType'),
-            ('Screen Label free.csv', 'ScreenLabel'),
+            ('Representation.csv', 'Representation'),
             ('View.csv', 'View'),
+            ('Screen Label.csv', 'ScreenLabel'),
             ('_jt_Block_Attribute.csv', 'BlockAttribute'),
             ('_jt_Block_Representation.csv', 'BlockRepresentation'),
             ('_jt_Group_Block.csv', 'GroupBlock'),
@@ -851,7 +852,6 @@ class IONLoader(ImmediateProcess):
 
             log.info("Loaded UI category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
-
         try:
             ds = DatastoreManager.get_datastore_instance("resources")
             self._finalize_uirefs(ds)
@@ -866,12 +866,19 @@ class IONLoader(ImmediateProcess):
         while refid in self.ui_objs:
             log.warn("Object duplicate id=%s, obj=%s" % (refid, obj))
             refid = refid + "!"
-        self.ui_objs[refid] = obj
+
+        if not refid:
+            log.warn("Object has no UI refid: %s" % obj)
+        else:
+            self.ui_objs[refid] = obj
 
     def _add_ui_refassoc(self, sub_refid, predicate, obj_refid):
         # Create a pre-association based on UI refids (not object IDs)
-        refassoc = (sub_refid, predicate, obj_refid)
-        self.ref_assocs.append(refassoc)
+        if not sub_refid or not obj_refid:
+            log.warn("Association not complete: %s (%s) -> %s" % (sub_refid, predicate, obj_refid))
+        else:
+            refassoc = (sub_refid, predicate, obj_refid)
+            self.ref_assocs.append(refassoc)
 
     def _get_uiid(self, refid):
         return refid
@@ -904,88 +911,155 @@ class IONLoader(ImmediateProcess):
             except Exception as ex:
                 log.warn("Cannot create association for subject=%s pred=%s object=%s: %s" % (sub_refid, pred, obj_refid, ex))
 
+    def _build_ui_resource(self, row, objtype, mapping, auto_add=True):
+        refid = None
+        obj_fields = {}
+        for obj_attr, row_attr in mapping.iteritems():
+            row_val = row[row_attr]
+            obj_fields[obj_attr] = row_val
+            if obj_attr == "uirefid":
+                refid = row_val
+
+        obj = IonObject(objtype, **obj_fields)
+
+        if 'name' in obj_attr and not obj.name:
+            log.warn("Ignoring object with no name: %s" % obj)
+        else:
+            if auto_add:
+                self._add_ui_object(refid, obj)
+
+        return refid, obj
+
     def _loadui_InternalResourceType(self, row):
-        refid, o_name = row['__pk_ArchitecturalSource_ID'], row['Name']
-        obj = objects.UIInternalResourceType(uirefid=refid, name=o_name)
-        self._add_ui_object(refid, obj)
+        refid, obj = self._build_ui_resource(row, "UIInternalResourceType",
+                {'uirefid':'__pk_InternalResourceType_ID',
+                 'name':'Name',
+                 'internal_resource_superclass':'Internal Resource Superclass',
+                 'alignment_status':'Alignment Status'})
 
-    def _loadui_Attribute(self, row):
-        refid, o_name, o_attlevel, o_labelid, o_iresid, o_comp, o_status, o_valgen = row['__pk_Attribute_ID'], \
-            row['Name'], row['_fk_AttributeLevel_ID'], row['_fk_ScreenLabel_ID'], row['_fk_ArchitecturalSource_ID'], \
-            row['Composite Name'], row['Alignment Status'], row['Value Generation']
-
-        obj = objects.UIAttribute(uirefid=refid, name=str(o_name), attribute_level_id=o_attlevel, screen_label_id=o_labelid,
-            internal_resource_type_id=o_iresid, composite_name=str(o_comp), alignment_status=o_status, value_generation=o_valgen)
-        self._add_ui_object(refid, obj)
-        # TODO: Only accepted attributes, only Value (not Computed)
-
-    def _loadui_Block(self, row):
-        refid, o_name, o_layout, o_groupid, o_labelid = row['__pk_Block_ID'], row['Name'], row['LayoutID'], row['_fk_Group_ID'], row['_fk_ScreenLabel_ID']
-        obj = objects.UIBlock(uirefid=refid, name=o_name, layout_id=o_layout, group_id=o_groupid, screen_label_id=o_labelid)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(refid, "hasUIGroup", o_groupid)
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", o_labelid)
-
-    def _loadui_Group(self, row):
-        refid, o_name, o_desc, o_labelid = row['__pk_Group_ID'], row['Name'], row['Description'], row['_fk_ScreenLabel_ID']
-        obj = objects.UIGroup(uirefid=refid, name=o_name, description=o_desc, screen_label_id=o_labelid)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", o_labelid)
-
-    def _loadui_Representation(self, row):
-        refid, o_name, o_desc, o_labelid = row['__pk_Representation_ID'], row['Name'], row['Description'], row['_fk_ScreenLabel_ID']
-        obj = objects.UIRepresentation(uirefid=refid, name=o_name, description=o_desc, screen_label_id=o_labelid)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", o_labelid)
+        self._add_ui_refassoc(refid, "hasUISupertype", obj.internal_resource_superclass)
 
     def _loadui_ResourceType(self, row):
-        refid, o_name, o_labelid = row['__pk_Resource_ID'], row['Name'], row['_fk_ScreenLabel_ID']
-        obj = objects.UIResourceType(uirefid=refid, name=o_name, screen_label_id=o_labelid)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", o_labelid)
+        refid, obj = self._build_ui_resource(row, "UIResourceType",
+                {'uirefid':'__pk_Resource_ID',
+                 'name':'Name',
+                 'screen_label_id':'_fk_ScreenLabel_ID'})
+
+        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
+
+    def _loadui_InformationLevel(self, row):
+        refid, obj = self._build_ui_resource(row, "UIInformationLevel",
+                {'uirefid':'__pk_InformationLevel_ID',
+                 'level':'Level',
+                 'description':'Description'})
 
     def _loadui_ScreenLabel(self, row):
-        refid, o_text, o_abbrev = row['__pk_ScreenLabel_ID'], row['Text'], row['Abbreviation']
-        obj = objects.UIScreenLabel(uirefid=refid, text=o_text, abbreviation=o_abbrev)
-        self._add_ui_object(refid, obj)
+        refid, obj = self._build_ui_resource(row, "UIScreenLabel",
+                {'uirefid':'__pk_ScreenLabel_ID',
+                 'text':'Text',
+                 'abbreviation':'Abbreviation'})
+
+    def _loadui_Attribute(self, row):
+        refid, obj = self._build_ui_resource(row, "UIAttribute",
+                {'uirefid':'__pk_Attribute_ID',
+                 'name':'Name',
+                 'information_level_id':'_fk_InformationLevel_ID',
+                 'screen_label_id':'_fk_ScreenLabel_ID',
+                 'internal_resource_type_id':'_fk_InternalResourceType_ID',
+                 'value_generation':'Value Generation',
+                 'alignment_status':'Alignment Status'})
+
+        # TODO: Only accepted attributes, only Value (not Computed)
 
     def _loadui_View(self, row):
-        refid, o_name, o_desc, o_labelid = row['__pk_View_ID'], row['Name'], row['Description'], row['_fk_ScreenLabel_ID']
-        obj = objects.UIView(uirefid=refid, name=o_name, description=o_desc, screen_label_id=o_labelid)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", o_labelid)
+        refid, obj = self._build_ui_resource(row, "UIView",
+                {'uirefid':'__pk_View_ID',
+                 'name':'Name',
+                 'description':'Description',
+                 'screen_label_id':'_fk_ScreenLabel_ID'})
+
+        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
+
+    def _loadui_Group(self, row):
+        refid, obj = self._build_ui_resource(row, "UIGroup",
+                {'uirefid':'__pk_Group_ID',
+                 'name':'Name',
+                 'description':'Description',
+                 'screen_label_id':'_fk_ScreenLabel_ID'})
+
+        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
+
+    def _loadui_Block(self, row):
+        refid, obj = self._build_ui_resource(row, "UIBlock",
+                {'uirefid':'__pk_Block_ID',
+                 'name':'Name',
+                 'resource_id':'_fk_Resource_ID',
+                 'group_id':'_fk_Group_ID',
+                 'screen_label_id':'_fk_ScreenLabel_ID'})
+
+        self._add_ui_refassoc(refid, "hasUIResource", obj.resource_id)
+        self._add_ui_refassoc(refid, "hasUIGroup", obj.group_id)
+        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
+
+    def _loadui_Representation(self, row):
+        refid, obj = self._build_ui_resource(row, "UIRepresentation",
+                {'uirefid':'__pk_Representation_ID',
+                 'name':'Name',
+                 'description':'Description',
+                 'screen_label_id':'_fk_ScreenLabel_ID'})
+
+        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
 
     def _loadui_BlockAttribute(self, row):
-        refid, o_blockid, o_attrid, o_pos = row['__pk_jt_Block_Attribute'], row['_fk_Block_ID'], row['_fk_Attribute_ID'], row['Position']
-        obj = objects.UIBlockAttribute(uirefid=refid, block_id=o_blockid, attribute_id=o_attrid, position=o_pos)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(o_blockid, "hasUIBlockAttribute", refid)
-        self._add_ui_refassoc(o_attrid, "hasUIBlockAttribute", refid)
-        self._add_ui_refassoc(o_blockid, "hasUIAttribute", o_attrid)
+        refid, obj = self._build_ui_resource(row, "UIBlockAttribute",
+                {'uirefid':'__pk_jt_Block_Attribute',
+                 'block_id':'_fk_Block_ID',
+                 'attribute_id':'_fk_Attribute_ID',
+                 'position':'Position'})
+
+        if not obj.block_id or not obj.attribute_id:
+            log.warn("Ignoring UIBlockAttribute: Both FK must be set")
+        else:
+            self._add_ui_refassoc(obj.attribute_id, "hasUIBlockAttribute", refid)
+            self._add_ui_refassoc(obj.block_id, "hasUIBlockAttribute", refid)
+            self._add_ui_refassoc(obj.block_id, "hasUIAttribute", obj.attribute_id)
 
     def _loadui_BlockRepresentation(self, row):
-        refid, o_blockid, o_repr_id = row['__pk_jt_Block_Representation'], row['_fk_Block_ID'], row['_fk_Representation_ID']
-        obj = objects.UIBlockRepresentation(uirefid=refid, block_id=o_blockid, representation_id=o_repr_id)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(o_blockid, "hasUIBlockRepresentation", refid)
-        self._add_ui_refassoc(o_repr_id, "hasUIBlockRepresentation", refid)
-        self._add_ui_refassoc(o_blockid, "hasUIRepresentation", o_repr_id)
+        refid, obj = self._build_ui_resource(row, "UIBlockRepresentation",
+                {'uirefid':'__pk_jt_Block_Representation',
+                 'block_id':'_fk_Block_ID',
+                 'representation_id':'_fk_Representation_ID'})
+
+        if not obj.block_id or not obj.representation_id:
+            log.warn("Ignoring UIBlockRepresentation: Both FK must be set")
+        else:
+            self._add_ui_refassoc(obj.block_id, "hasUIBlockRepresentation", refid)
+            self._add_ui_refassoc(obj.representation_id, "hasUIBlockRepresentation", refid)
+            self._add_ui_refassoc(obj.block_id, "hasUIRepresentation", obj.representation_id)
 
     def _loadui_GroupBlock(self, row):
-        refid, o_groupid, o_blockid = row['__pk_jt_Group_Block_ID'], row['_fk_Group_ID'], row['_fk_Block_ID']
-        obj = objects.UIGroupBlock(uirefid=refid, group_id=o_groupid, block_id=o_blockid)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(o_groupid, "hasUIGroupBlock", refid)
-        self._add_ui_refassoc(o_blockid, "hasUIGroupBlock", refid)
-        self._add_ui_refassoc(o_groupid, "hasUIBlock", o_blockid)
+        refid, obj = self._build_ui_resource(row, "UIGroupBlock",
+                {'uirefid':'__pk_jt_Group_Block_ID',
+                 'block_id':'_fk_Block_ID',
+                 'group_id':'_fk_Group_ID'})
+
+        if not obj.block_id or not obj.group_id:
+            log.warn("Ignoring UIGroupBlock: Both FK must be set")
+        else:
+            self._add_ui_refassoc(obj.group_id, "hasUIGroupBlock", refid)
+            self._add_ui_refassoc(obj.block_id, "hasUIGroupBlock", refid)
+            self._add_ui_refassoc(obj.group_id, "hasUIBlock", obj.block_id)
 
 
     def _loadui_ViewGroup(self, row):
-        return
-        # Error in CSV
-        refid, o_viewid, o_groupid = row['__pk_jt_View_Group_ID'], row['_fk_View_ID'], row['_fk_Group_ID']
-        obj = objects.UIViewGroup(uirefid=refid, view_id=o_viewid, group_id=o_groupid)
-        self._add_ui_object(refid, obj)
-        self._add_ui_refassoc(o_viewid, "hasUIViewGroup", refid)
-        self._add_ui_refassoc(o_groupid, "hasUIViewGroup", refid)
-        self._add_ui_refassoc(o_viewid, "hasUIGroup", o_groupid)
+        refid, obj = self._build_ui_resource(row, "UIViewGroup",
+                {'uirefid':'__pk_jt_View_Group_ID',
+                 'view_id':'_fk_View_ID',
+                 'group_id':'_fk_Group_ID'})
+
+        if not obj.view_id or not obj.group_id:
+            log.warn("Ignoring UIViewGroup: Both FK must be set")
+        else:
+            self._add_ui_refassoc(obj.view_id, "hasUIViewGroup", refid)
+            self._add_ui_refassoc(obj.group_id, "hasUIViewGroup", refid)
+            self._add_ui_refassoc(obj.view_id, "hasUIGroup", obj.group_id)
