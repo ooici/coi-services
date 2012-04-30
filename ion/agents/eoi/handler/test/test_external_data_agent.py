@@ -22,6 +22,7 @@ from datetime import datetime
 
 # 3rd party imports.
 from gevent import spawn
+from gevent.event import AsyncResult
 import gevent
 from nose.plugins.attrib import attr
 from mock import patch
@@ -175,114 +176,58 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Start streams and subscribers.
         Start agent, client.
         """
-        # Agent ion process id.
-        self._ia_pid = None
 
-        # Agent client.
-        self._ia_client = None
-
-        # Data subscriptions.
-        self._subs = None
-
-        # Container client.
-        self._container_client = None
-
-        # Pubsub client.
-        self._pubsub_client = None
-
-        # Port agent.
+        # Start port agent, add stop to cleanup.
         self._pagent = None
-
-        # Start the port agent.
-        #self._start_pagent()
-
-        # Add cleanup to shut pagent down.
+        self._start_pagent()
         self.addCleanup(self._stop_pagent)
 
         # Start container.
         self._start_container()
 
-        # Establish endpoint with container (used in tests below)
-        self._container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
-
         # Bring up services in a deploy file (no need to message)
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        # Create a pubsub client to create streams.
-        self._pubsub_client = PubsubManagementServiceClient(
-            node=self.container.node)
+        # Start data suscribers, add stop to cleanup.
+        # Define stream_config.
+        self._no_samples = None
+        self._async_data_result = AsyncResult()
+        self._data_greenlets = []
+        self._stream_config = {}
+        self._samples_received = []
+        self._data_subscribers = []
+        self._start_data_subscribers()
+        self.addCleanup(self._stop_data_subscribers)
 
-        # A callback for processing subscribed-to data.
-        def consume(message, headers):
-            log.info('Subscriber received message: %s', str(message))
-
-        # Create a stream subscriber registrar to create subscribers.
-        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
-            node=self.container.node)
-
-        # Create streams and subscriptions for each stream named in driver.
-        stream_config = {}
-        self._subs = []
-        for (stream_name, val) in PACKET_CONFIG.iteritems():
-            stream_def = ctd_stream_definition(stream_id=None)
-            stream_def_id = self._pubsub_client.create_stream_definition(
-                container=stream_def)
-            stream_id = self._pubsub_client.create_stream(
-                name=stream_name,
-                stream_definition_id=stream_def_id,
-                original=True,
-                encoding='ION R2')
-            stream_config[stream_name] = stream_id
-
-            # Create subscriptions for each stream.
-            exchange_name = '%s_queue' % stream_name
-            sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name, callback=consume)
-            sub.start()
-            query = StreamQuery(stream_ids=[stream_id])
-            sub_id = self._pubsub_client.create_subscription(\
-                query=query, exchange_name=exchange_name)
-            self._pubsub_client.activate_subscription(sub_id)
-            self._subs.append(sub)
-
-        # Add cleanup function to stop subscribers.        
-        def stop_subscriber(sub_list):
-            for sub in sub_list:
-                sub.stop()
-        self.addCleanup(stop_subscriber, self._subs)
-
-        """
-        # Add subscription for events.
-        def cb(*args, **kwargs):
-            origin = args[0].origin
-            event = str(args[0]._get_type())
-            description = args[0].description
-            time_stamp = str(datetime.fromtimestamp(time.mktime(time.gmtime(float(args[0].ts_created)/1000))))
-            log.debug("got event: origin=%s, event=%s, description=%s, time stamp=%s"
-                      %(origin, event, description, time_stamp))
-            
-            
-        sub = EventSubscriber(event_type="ResourceEvent", callback=cb)
-        self._listen(sub)
-        """
+        # Start event subscribers, add stop to cleanup.
+        self._no_events = None
+        self._async_event_result = AsyncResult()
+        self._events_received = []
+        self._event_subscribers = []
+        self._start_event_subscribers()
+        self.addCleanup(self._stop_event_subscribers)
 
         # Create agent config.
         agent_config = {
             'driver_config' : DVR_CONFIG,
-            'stream_config' : stream_config,
+            'stream_config' : self._stream_config,
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True
         }
 
-        log.debug("TestInstrumentAgent.setup(): starting IA")
-        self._ia_pid = self._container_client.spawn_process(name=IA_NAME,
-            module=IA_MOD, cls=IA_CLS,
-            config=agent_config)
-        log.info('agent pid=%s', str(self._ia_pid))
+        # Start instrument agent.
+        self._ia_pid = None
+        log.debug("TestInstrumentAgent.setup(): starting IA.")
+        container_client = ContainerAgentClient(node=self.container.node,
+            name=self.container.name)
+        self._ia_pid = container_client.spawn_process(name=IA_NAME,
+            module=IA_MOD, cls=IA_CLS, config=agent_config)
+        log.info('Agent pid=%s.', str(self._ia_pid))
 
         # Start a resource agent client to talk with the instrument agent.
+        self._ia_client = None
         self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
-        log.info('got ia client %s', str(self._ia_client))
+        log.info('Got ia client %s.', str(self._ia_client))
 
     def _start_pagent(self):
         """
@@ -305,10 +250,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             port = self._pagent.get_port()
 
         # Configure driver to use port agent port number.
-        DVR_CONFIG['comms_config']['port'] = port
+        DVR_CONFIG['comms_config'] = {
+            'addr' : 'localhost',
+            'port' : port
+        }
 
         # Report.
-        log.info('Started port agent pid %d listening at port %d', pid, port)
+        log.info('Started port agent pid %d listening at port %d.', pid, port)
 
     def _stop_pagent(self):
         """
@@ -317,24 +265,97 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         if self._pagent:
             pid = self._pagent.get_pid()
             if pid:
-                log.info('Stopping pagent pid %i', pid)
+                log.info('Stopping pagent pid %i.', pid)
                 self._pagent.stop()
             else:
                 log.warning('No port agent running.')
+
+    def _start_data_subscribers(self):
+        """
+        """
+        # Create a pubsub client to create streams.
+        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+
+        # A callback for processing subscribed-to data.
+        def consume_data(message, headers):
+            log.info('Subscriber received data message: %s.', str(message))
+            self._samples_received.append(message)
+            if self._no_samples and self._no_samples == len(self._samples_received):
+                self._async_data_result.set()
+
+        # Create a stream subscriber registrar to create subscribers.
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
+            node=self.container.node)
+
+        # Create streams and subscriptions for each stream named in driver.
+        self._stream_config = {}
+        self._data_subscribers = []
+        for (stream_name, val) in PACKET_CONFIG.iteritems():
+            stream_def = ctd_stream_definition(stream_id=None)
+            stream_def_id = pubsub_client.create_stream_definition(
+                container=stream_def)
+            stream_id = pubsub_client.create_stream(
+                name=stream_name,
+                stream_definition_id=stream_def_id,
+                original=True,
+                encoding='ION R2')
+            self._stream_config[stream_name] = stream_id
+
+            # Create subscriptions for each stream.
+            exchange_name = '%s_queue' % stream_name
+            sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name,
+                callback=consume_data)
+            self._listen(sub)
+            self._data_subscribers.append(sub)
+            query = StreamQuery(stream_ids=[stream_id])
+            sub_id = pubsub_client.create_subscription(\
+                query=query, exchange_name=exchange_name)
+            pubsub_client.activate_subscription(sub_id)
 
     def _listen(self, sub):
         """
         Pass in a subscriber here, this will make it listen in a background greenlet.
         """
         gl = spawn(sub.listen)
+        self._data_greenlets.append(gl)
         sub._ready_event.wait(timeout=5)
         return gl
+
+    def _stop_data_subscribers(self):
+        """
+        Stop the data subscribers on cleanup.
+        """
+        for sub in self._data_subscribers:
+            sub.stop()
+        for gl in self._data_greenlets:
+            gl.kill()
+
+    def _start_event_subscribers(self):
+        """
+        Create subscribers for agent and driver events.
+        """
+        def consume_event(*args, **kwargs):
+            log.info('Test recieved ION event: args=%s  kwargs=%s.', str(args), str(kwargs))
+            self._events_received.append(args[0])
+            if self._no_events and self._no_events == len(self._event_received):
+                self._async_event_result.set()
+
+        event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
+        event_sub.activate()
+        self._event_subscribers.append(event_sub)
+
+    def _stop_event_subscribers(self):
+        """
+        Stop event subscribers on cleanup.
+        """
+        for sub in self._event_subscribers:
+            sub.deactivate()
 
     def assertSampleDict(self, val):
         """
         Verify the value is a sample dictionary for the sbe37.
         """
-        #{'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}        
+        #{'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}
         self.assertTrue(isinstance(val, dict))
         self.assertTrue(val.has_key('c'))
         self.assertTrue(val.has_key('t'))
@@ -387,7 +408,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 # int, bool, str.
                 self.assertEqual(val, correct_val)
 
-    @unittest.skip("")
     def test_initialize(self):
         """
         Test agent initialize command. This causes creation of
@@ -415,11 +435,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    @unittest.skip("")
     def test_states(self):
         """
-        Test agent in observatory mode, including go active and run
-        command, and interaction with the device resource.
+        Test agent state transitions.
         """
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -496,9 +514,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    def test_observatory(self):
+    @unittest.skip("")
+    def test_get_set(self):
         """
-        Test instrument driver resource command and control interface.
+        Test instrument driver get and set interface.
         """
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -531,54 +550,98 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertParamDict(reply, True)
         orig_config = reply
 
-        ## Retrieve a subset of resource parameters.
-        #params = [
-        #    SBE37Parameter.TA0,
-        #    SBE37Parameter.INTERVAL,
-        #    SBE37Parameter.STORETIME
-        #]
-        #reply = self._ia_client.get_param(params)
-        #self.assertParamDict(reply)
-        #orig_params = reply
+        # Retrieve a subset of resource parameters.
+        params = [
+            SBE37Parameter.TA0,
+            SBE37Parameter.INTERVAL,
+            SBE37Parameter.STORETIME
+        ]
+        reply = self._ia_client.get_param(params)
+        self.assertParamDict(reply)
+        orig_params = reply
 
-        ## Set a subset of resource parameters.
-        #new_params = {
-        #    SBE37Parameter.TA0 : (orig_params[SBE37Parameter.TA0] * 2),
-        #    SBE37Parameter.INTERVAL : (orig_params[SBE37Parameter.INTERVAL] + 1),
-        #    SBE37Parameter.STORETIME : (not orig_params[SBE37Parameter.STORETIME])
-        #}
-        #self._ia_client.set_param(new_params)
-        #check_new_params = self._ia_client.get_param(params)
-        #self.assertParamVals(check_new_params, new_params)
+        # Set a subset of resource parameters.
+        new_params = {
+            SBE37Parameter.TA0 : (orig_params[SBE37Parameter.TA0] * 2),
+            SBE37Parameter.INTERVAL : (orig_params[SBE37Parameter.INTERVAL] + 1),
+            SBE37Parameter.STORETIME : (not orig_params[SBE37Parameter.STORETIME])
+        }
+        self._ia_client.set_param(new_params)
+        check_new_params = self._ia_client.get_param(params)
+        self.assertParamVals(check_new_params, new_params)
 
-        ## Reset the parameters back to their original values.
-        #self._ia_client.set_param(orig_params)
-        #reply = self._ia_client.get_param(SBE37Parameter.ALL)
-        #reply.pop(SBE37Parameter.SAMPLENUM)
-        #orig_config.pop(SBE37Parameter.SAMPLENUM)
-        #self.assertParamVals(reply, orig_config)
+        # Reset the parameters back to their original values.
+        self._ia_client.set_param(orig_params)
+        reply = self._ia_client.get_param(SBE37Parameter.ALL)
+        reply.pop(SBE37Parameter.SAMPLENUM)
+        orig_config.pop(SBE37Parameter.SAMPLENUM)
+        self.assertParamVals(reply, orig_config)
 
-        ## Poll for a few samples.
-        #cmd = AgentCommand(command='acquire_sample')
-        #reply = self._ia_client.execute(cmd)
-        #self.assertSampleDict(reply.result)
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-        #cmd = AgentCommand(command='acquire_sample')
-        #reply = self._ia_client.execute(cmd)
-        #self.assertSampleDict(reply.result)
+    def test_poll(self):
+        """
+        Test observatory polling function.
+        """
 
-        #cmd = AgentCommand(command='acquire_sample')
-        #reply = self._ia_client.execute(cmd)
-        #self.assertSampleDict(reply.result)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-        #cmd = AgentCommand(command='reset')
-        #retval = self._ia_client.execute_agent(cmd)
-        #cmd = AgentCommand(command='get_current_state')
-        #retval = self._ia_client.execute_agent(cmd)
-        #state = retval.result
-        #self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
 
-    @unittest.skip("")
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Lets get 3 samples.
+        self._no_samples = 3
+
+        # Poll for a few samples.
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)
+
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)
+
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)
+
+        # Assert we got 3 samples.
+        self._async_data_result.get(timeout=10)
+        self.assertTrue(len(self._samples_received)==3)
+
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
     def test_autosample(self):
         """
         Test instrument driver execute interface to start and stop streaming
@@ -610,6 +673,17 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
+        # Make sure the sampling rate and transmission are sane.
+        params = {
+            SBE37Parameter.NAVG : 1,
+            SBE37Parameter.INTERVAL : 5,
+            SBE37Parameter.TXREALTIME : True
+        }
+        self._ia_client.set_param(params)
+
+        self._no_samples = 2
+
+        # Begin streaming.
         cmd = AgentCommand(command='go_streaming')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
@@ -617,14 +691,20 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
+        # Wait for some samples to roll in.
         gevent.sleep(15)
 
+        # Halt streaming.
         cmd = AgentCommand(command='go_observatory')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Assert we got some samples.
+        self._async_data_result.get(timeout=10)
+        self.assertTrue(len(self._samples_received)>=2)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -633,7 +713,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    @unittest.skip("")
     def test_capabilities(self):
         """
         Test the ability to retrieve agent and resource parameter and command
@@ -672,18 +751,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    @unittest.skip("")
     def test_errors(self):
         """
         """
         pass
 
-    @unittest.skip("")
+    @unittest.skip('Direct access to be finished and added.')
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
         driver process and transition to direct access.
         """
         pass
-
-
