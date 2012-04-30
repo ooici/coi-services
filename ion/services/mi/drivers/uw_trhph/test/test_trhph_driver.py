@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.drivers.uw_trhph.test.test_protocol
-@file ion/services/mi/drivers/uw_trhph/test/test_protocol.py
+@package ion.services.mi.drivers.uw_trhph.test.test_trhph_driver
+@file    ion/services/mi/drivers/uw_trhph/test/test_trhph_driver.py
 @author Carlos Rueda
-@brief Directly tests the TrhphInstrumentProtocol
+@brief TrhphInstrumentDriver tests
 """
 
 __author__ = "Carlos Rueda"

@@ -420,7 +420,8 @@ class TrhphClient(object):
         attempt = 0
         while self._sock is None and attempt < max_attempts:
             attempt += 1
-            log.info("Trying to connect to %s:%s (%d)" % (host, port, attempt))
+            log.info("Trying to connect to %s:%s (attempt=%d)" %
+                     (host, port, attempt))
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.connect((host, port))
