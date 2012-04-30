@@ -54,7 +54,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='sa')
+@attr('HARDWARE', group='foo')
 #@attr('INT', group='foo')
 #@unittest.skip('run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
@@ -124,6 +124,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
+        log.debug('test_activateInstrument: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
         try:
             instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
@@ -131,7 +132,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
             
-        print 'new InstrumentDevice id = ', instDevice_id
+        log.debug("test_activateInstrument: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
 #        # Create InstrumentAgentInstance to hold configuration information
 #        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
@@ -217,10 +218,15 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         time.sleep(2)
 
+        log.debug("test_activateInstrument: Sending go_active command (L4-CI-SA-RQ-334)")
         cmd = AgentCommand(command='go_active')
         reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: go_active %s", str(reply))
+        log.debug("test_activateInstrument: return value from go_active %s", str(reply))
         time.sleep(2)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        log.debug("test_activateInstrument: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
 
         cmd = AgentCommand(command='run')
         reply = self._ia_client.execute_agent(cmd)

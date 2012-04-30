@@ -121,7 +121,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.assign_instrument_agent_instance_to_instrument_agent(instrument_agent_instance_id, instrument_agent_id)
 
+
         self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
+        log.debug("create_instrument_agent_instance: device %s now connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         return instrument_agent_instance_id
 
@@ -174,6 +176,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if len(inst_device_ids) > 1:
             raise BadRequest("Instrument Agent Instance should only have ONE Instrument Device" + str(instrument_agent_instance_id))
         instrument_device_id = inst_device_ids[0]
+        log.debug("start_instrument_agent_instance: device is %s connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         #retrieve the instrument model
         model_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
