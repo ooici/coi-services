@@ -5,6 +5,15 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-04-30:
+- Added ion/services/mi/driver_int_test_support.py to factor out common
+  supporting functionality for driver integration tests (based on initial
+  code by Steve).
+  Already using it in test_trhph_driver_proc.py
+
+- NOTE: new instrument interface released today, TRHPH program Version 1.25 - Last Revision: April 14, 2012
+  Updated diagram. TODO update driver code accordingly.
+
 2012-04-29:
 - trhph_driver.py aligned and all tests passing as before, both with simulator
   and real instrument (Version 1.2 - Last Revision: Mar. 27, 2012):
