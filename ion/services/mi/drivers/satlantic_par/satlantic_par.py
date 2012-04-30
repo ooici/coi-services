@@ -1151,32 +1151,32 @@ class SatlanticPARInstrumentDriver(SingleConnectionInstrumentDriver):
         """ Construct driver protocol state machine """
         self._protocol = SatlanticPARInstrumentProtocol(self._driver_event)
 
-    def execute_acquire_sample(self, channels, *args, **kwargs):
-        return self.protocol.execute_acquire_sample(*args, **kwargs)           
+    def execute_acquire_sample(self, *args, **kwargs):
+        return self._protocol.execute_acquire_sample(*args, **kwargs)           
         
-    def execute_start_autosample(self, channels, *args, **kwargs):
-        return self.protocol.execute_start_autosample(*args, **kwargs)
+    def execute_start_autosample(self, *args, **kwargs):
+        return self._protocol.execute_start_autosample(*args, **kwargs)
         
-    def execute_stop_autosample(self, channels, *args, **kwargs):
-        return self.protocol.execute_stop_autosample(*args, **kwargs)
+    def execute_stop_autosample(self, *args, **kwargs):
+        return self._protocol.execute_stop_autosample(*args, **kwargs)
                 
-    def execute_exit(self, channels, *args, **kwargs):
-        return self.protocol.execute_exit(*args, **kwargs)
+    def execute_exit(self, *args, **kwargs):
+        return self._protocol.execute_exit(*args, **kwargs)
         
-    def execute_exit_and_reset(self, channels, *args, **kwargs):
-        return self.protocol.execute_exit_and_reset(*args, **kwargs)
+    def execute_exit_and_reset(self, *args, **kwargs):
+        return self._protocol.execute_exit_and_reset(*args, **kwargs)
         
-    def execute_poll(self, channels, *args, **kwargs):
-        return self.protocol.execute_poll(*args, **kwargs)
+    def execute_poll(self, *args, **kwargs):
+        return self._protocol.execute_poll(*args, **kwargs)
         
-    def execute_reset(self, channels, *args, **kwargs):
-        return self.protocol.execute_reset(*args, **kwargs)
+    def execute_reset(self, *args, **kwargs):
+        return self._protocol.execute_reset(*args, **kwargs)
         
-    def execute_break(self, channels, *args, **kwargs):
-        return self.protocol.execute_break(*args, **kwargs)
+    def execute_break(self, *args, **kwargs):
+        return self._protocol.execute_break(*args, **kwargs)
         
-    def execute_stop(self, channels, *args, **kwargs):
-        return self.protocol.execute_stop(*args, **kwargs)
+    def execute_stop(self, *args, **kwargs):
+        return self._protocol.execute_stop(*args, **kwargs)
         
     def get_config(self, *args, **kwargs):
         return self.get([Parameter.TELBAUD, Parameter.MAXRATE])

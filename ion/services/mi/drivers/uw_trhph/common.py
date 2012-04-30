@@ -11,7 +11,7 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_driver import DriverChannel
+#from ion.services.mi.instrument_driver import DriverChannel
 
 
 class TrhphCommand(BaseEnum):
@@ -23,11 +23,11 @@ class TrhphCommand(BaseEnum):
 class TrhphChannel(BaseEnum):
     # TODO Concept of "instrument channel" is under revision.
 
-    ALL = DriverChannel.ALL
+    ALL = "CHANNEL_ALL"  # DriverChannel.ALL
 
     # note: the driver only creates a single protocol object,
     # which is associated to the INSTRUMENT special "channel."
-    INSTRUMENT = DriverChannel.INSTRUMENT
+    INSTRUMENT = "CHANNEL_INSTRUMENT"  #DriverChannel.INSTRUMENT
 
 
 class TrhphParameter(BaseEnum):

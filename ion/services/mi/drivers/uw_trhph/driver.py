@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 from ion.services.mi.drivers.uw_trhph.protocol import TrhphInstrumentProtocol
 
 from ion.services.mi.instrument_driver import InstrumentDriver
-from ion.services.mi.instrument_driver import DriverChannel
+#from ion.services.mi.instrument_driver import DriverChannel
 from ion.services.mi.drivers.uw_trhph.common import TrhphParameter
 from ion.services.mi.drivers.uw_trhph.common import TrhphCommand
 from ion.services.mi.drivers.uw_trhph.common import TrhphChannel
@@ -53,14 +53,14 @@ class TrhphInstrumentDriver(InstrumentDriver):
         provided by the underlying TrhphClient.
 
         @param channels List of channel names to get metadata from, by default
-                        [DriverChannel.INSTRUMENT]
+                        [TrhphChannel.INSTRUMENT]
         @retval Dict of channels and metadata outputs
         """
 
         # NOTE code written in a way that eventually can be moved to parent
         # class with no or minimal changes.
 
-        channels = channels or [DriverChannel.INSTRUMENT]
+        channels = channels or [TrhphChannel.INSTRUMENT]
 
         mi_logger.debug("Issuing base execute_get_metadata...")
         (result, valid_channels) = self._check_channel_args(channels)
@@ -77,14 +77,14 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Executes the diagnostics operation.
 
         @param channels List of channel names to execute the operation to,
-                by default [DriverChannel.INSTRUMENT].
+                by default [TrhphChannel.INSTRUMENT].
         @param num_scans the number of scans for the operation, 5 by default.
         @param timeout Timeout for the wait, self._timeout by default.
         @retval a list of rows, one with values per scan
         @throws TimeoutException
         """
 
-        channels = channels or [DriverChannel.INSTRUMENT]
+        channels = channels or [TrhphChannel.INSTRUMENT]
 
         mi_logger.debug("Issuing base execute_diagnostics...")
         (result, valid_channels) = self._check_channel_args(channels)
@@ -101,13 +101,13 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Gets the power statuses.
 
         @param channels List of channel names to execute the operation to,
-                by default [DriverChannel.INSTRUMENT].
+                by default [TrhphChannel.INSTRUMENT].
         @param timeout Timeout for the wait, self._timeout by default.
         @retval a dict of power statuses per channel
         @throws TimeoutException
         """
 
-        channels = channels or [DriverChannel.INSTRUMENT]
+        channels = channels or [TrhphChannel.INSTRUMENT]
 
         mi_logger.debug("Issuing base execute_diagnostics...")
         (result, valid_channels) = self._check_channel_args(channels)

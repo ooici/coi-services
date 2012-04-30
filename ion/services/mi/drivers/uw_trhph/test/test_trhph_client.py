@@ -25,8 +25,6 @@ from unittest import skipIf, SkipTest
 import os
 
 
-# explicit run_it because of threading + gevent-monkey-patching issues
-@skipIf(os.getenv('run_it') is None, 'define run_it to run this.')
 @attr('UNIT', group='mi')
 class TrhphClientTest(TrhphTestCase):
 

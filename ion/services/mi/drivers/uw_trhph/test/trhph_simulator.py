@@ -12,6 +12,13 @@ See https://confluence.oceanobservatories.org/display/CIDev/UW+TRHPH+instrument+
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
+# Implementation based on Gevent greenlets, which facilitates integration with
+# the rest of the pyon ecosystem. A previous version was based on threads
+# (threading module), which was fine when the simulator is run in standalone
+# mode. But the simulator can also be launched as part of the TRHPH driver
+# tests, even in "embedded" form (that is, within the same python execution
+# instance), so the gevent based implementation is of course more general.
+
 import ion.services.mi.drivers.uw_trhph.trhph as trhph
 
 import socket
@@ -21,7 +28,13 @@ import sys
 import os
 import signal
 
-from threading import Thread, Lock
+# do the needed gevent monkey-patching
+from gevent import monkey
+monkey.patch_all()
+
+import gevent
+from gevent import Greenlet, sleep
+
 import logging
 
 log = logging.getLogger('mi_logger')
@@ -39,21 +52,18 @@ class _Sender(object):
     """
     Allows synchronized sends to the client so there are no intermixed
     messages being replied.
+    NOTE: This object is a legacy from the previously threading-based
+    implementation; with greenlets there's no need to synchronize in this case.
     """
     def __init__(self, conn):
         self._conn = conn
-        self._lock = Lock()
 
     def send(self, m):
         """Does an atomic send to the client."""
-        self._lock.acquire()
-        try:
-            self._conn.sendall(m)
-        finally:
-            self._lock.release()
+        self._conn.sendall(m)
 
 
-class _BurstThread(Thread):
+class _BurstThread(Greenlet):
     """Thread to generate data bursts"""
 
     # TODO handle verbose mode; currently the "data-only" mode is always
@@ -70,7 +80,7 @@ class _BurstThread(Thread):
         @param time_between_bursts time in seconds.
         """
 
-        Thread.__init__(self, name="BurstThread")
+        Greenlet.__init__(self)
         self._sender = sender
         self._client_prefix = client_prefix
         self._data_only = data_only
@@ -94,7 +104,7 @@ class _BurstThread(Thread):
         self._data_only = data_only
         log.info(self._client_prefix + "set data_only = %s" % self._data_only)
 
-    def run(self):
+    def _run(self):
         info = "burst thread running"
         info += ", time_between_bursts = %d secs" % self._time_between_bursts
         info += ", data_only = %s" % self._data_only
@@ -107,7 +117,7 @@ class _BurstThread(Thread):
                     self._output_burst()
                     time_next_burst = time.time() + self._time_between_bursts
 
-            time.sleep(0.2)
+            sleep(0.2)
 
         log.info(self._client_prefix + "burst thread exiting")
 
@@ -139,7 +149,7 @@ class _BurstThread(Thread):
                          "while trying to send a data burst: %s" % e)
 
 
-class TrhphSimulator(Thread):
+class TrhphSimulator(Greenlet):
     """
     Can dispatch multiple clients, not concurrently but sequentially.
     The special command 'q' can be requested by a client to make the whole
@@ -154,7 +164,7 @@ class TrhphSimulator(Thread):
         @param port Socket is bound to given (host,port)
         @param accept_timeout Timeout for accepting a connection
         """
-        Thread.__init__(self, name="TrhphSimulator")
+        Greenlet.__init__(self)
 
         TrhphSimulator._next_simulator_no += 1
         self._simulator_no = TrhphSimulator._next_simulator_no
@@ -188,13 +198,13 @@ class TrhphSimulator(Thread):
     def port(self):
         return self._port
 
-    def run(self):
+    def _run(self):
         try:
-            self._run()
+            self.__run()
         finally:
             self._end_burst_thread()
 
-    def _run(self):
+    def __run(self):
         #
         # internal timeout for the accept. It allows to check regularly if
         # the simulator has been requested to terminate.
@@ -242,7 +252,7 @@ class TrhphSimulator(Thread):
                 self._end_burst_thread()
 
             log.info(self._sim_prefix() + "bye.")
-            time.sleep(1)
+            sleep(1)
 
         self._sock.close()
 

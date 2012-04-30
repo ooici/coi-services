@@ -27,6 +27,7 @@ from nose.plugins.attrib import attr
 
 # Pyon and ION imports
 from pyon.util.unit_test import PyonTestCase
+from ion.services.mi.driver_test_case import DriverTestCase
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Driver
@@ -129,11 +130,26 @@ PARAMS = {
 
 @attr('HARDWARE', group='mi')
 #@unittest.skip('Ready to go, remove skip when tested against simulator.')
-class TestSBE37Driver(PyonTestCase):    
+class TestSBE37Driver(DriverTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
     use patterns for the sbe37 driver as a zmq driver process.
     """    
+    
+    def __init__(self):
+        DriverTestCase.__init__()
+        self.device_addr = DEV_ADDR
+        self.device_port = DEV_PORT
+        self.pagent_port = PAGENT_PORT
+        self.work_dir = WORK_DIR
+        self.delim = DELIM
+        self.sniffer_port = SNIFFER_PORT
+        
+        self.driver_class = DVR_CLS
+        self.driver_server_addr = DVR_SVR_ADDR
+        self.driver_cmd_port = DVR_CMD_PORT
+        self.driver_event_port = DVR_EVT_PORT
+        self.driver_module = DVR_MOD
     
     def setUp(self):
         """
@@ -160,91 +176,6 @@ class TestSBE37Driver(PyonTestCase):
         # Create and start the driver.
         self._start_driver()
         self.addCleanup(self._stop_driver)        
-        
-    def _start_pagent(self):
-        """
-        Construct and start the port agent.
-        """
-        
-        # Create port agent object.
-        this_pid = os.getpid()
-        self._pagent = EthernetDeviceLogger(DEV_ADDR, DEV_PORT, PAGENT_PORT,
-                        WORK_DIR, DELIM, SNIFFER_PORT, this_pid)
-        mi_logger.info('Created port agent object for %s %d %d', DEV_ADDR,
-                       DEV_PORT, PAGENT_PORT)
-        
-        # Stop the port agent if it is already running.
-        # The port agent creates a pid file based on the config used to
-        # construct it.
-        self._stop_pagent()
-        pid = None
-
-        # Start the port agent.
-        # Confirm it is started by getting pidfile.
-        self._pagent.startx()
-        mi_logger.info('Here...')
-        pid = self._pagent.get_pid()
-        while not pid:
-            gevent.sleep(.1)
-            pid = self._pagent.get_pid()
-        mi_logger.info('Started port agent pid %d', pid)
-        
-    def _stop_pagent(self):
-        """
-        Stop the port agent.
-        """
-        if self._pagent:
-            pid = self._pagent.get_pid()
-            if pid:
-                mi_logger.info('Stopping pagent pid %s', pid)
-                self._pagent.stop()
-            else:
-                mi_logger.info('No port agent running.')
-            
-    def _start_driver(self):
-        """
-        Start the driver process.
-        """
-        
-        # Launch driver process based on test config.
-        this_pid = os.getpid()
-        self._dvr_proc = ZmqDriverProcess.launch_process(DVR_CMD_PORT,
-            DVR_EVT_PORT, DVR_MOD, DVR_CLS, this_pid)
-        mi_logger.info('Started driver process for %d %d %s %s', DVR_CMD_PORT,
-            DVR_EVT_PORT, DVR_MOD, DVR_CLS)
-        mi_logger.info('Driver process pid %d', self._dvr_proc.pid)
-            
-        # Create driver client.            
-        self._dvr_client = ZmqDriverClient(DVR_SVR_ADDR, DVR_CMD_PORT,
-            DVR_EVT_PORT)
-        mi_logger.info('Created driver client for %d %d %s %s', DVR_CMD_PORT,
-            DVR_EVT_PORT, DVR_MOD, DVR_CLS)
-        
-        # Start client messaging.
-        self._dvr_client.start_messaging(self.evt_recd)
-        mi_logger.info('Driver messaging started.')
-        gevent.sleep(.5)
-            
-    def _stop_driver(self):
-        """
-        Method to shut down the driver process. Attempt normal shutdown,
-        and kill the process if unsuccessful.
-        """
-        
-        if self._dvr_proc:
-            mi_logger.info('Stopping driver process pid %d', self._dvr_proc.pid)
-            if self._dvr_client:
-                self._dvr_client.done()
-                self._dvr_proc.wait()
-                self._dvr_client = None
-
-            else:
-                try:
-                    mi_logger.info('Killing driver process.')
-                    self._dvr_proc.kill()
-                except OSError:
-                    pass
-            self._dvr_proc = None
 
     def evt_recd(self, evt):
         """

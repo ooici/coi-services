@@ -11,7 +11,9 @@
 __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
-# imports could go here
+# MI logger
+import logging
+mi_logger = logging.getLogger('mi_logger')
 
 """Default timeout value in seconds"""
 DEFAULT_TIMEOUT = 10
@@ -212,4 +214,3 @@ class InstErrorCode(BaseEnum):
                 strval += str(item) + ', '
             strval = strval[:-2]
             return strval
-
