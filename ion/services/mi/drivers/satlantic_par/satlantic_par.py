@@ -1184,6 +1184,9 @@ class SatlanticPARInstrumentDriver(SingleConnectionInstrumentDriver):
     def restore_config(self, config, *args, **kwargs):
         return self.set(config, *args, **kwargs)
         
+    def configure(self, config, *args, **kwargs):
+        return self._protocol.configure(config, *args, **kwargs)
+
 class SatlanticChecksumDecorator(ChecksumDecorator):
     """Checks the data checksum for the Satlantic PAR sensor"""
     

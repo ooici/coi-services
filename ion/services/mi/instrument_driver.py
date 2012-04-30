@@ -17,6 +17,7 @@ import logging
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.exceptions import NotImplementedException 
 from ion.services.mi.exceptions import InstrumentException
+from ion.services.mi.exceptions import InstrumentParameterException
 from ion.services.mi.logger_process import LoggerClient
 from ion.services.mi.instrument_fsm import InstrumentFSM
 
