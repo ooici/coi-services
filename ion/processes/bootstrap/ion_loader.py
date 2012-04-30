@@ -890,6 +890,10 @@ class IONLoader(ImmediateProcess):
             obj._id = oid
             self.ui_obj_by_id[oid] = obj
 
+            # Change references for all known UI objects
+            for attr in obj.__dict__:
+                if attr != 'uirefid' and getattr(obj, attr) in self.ui_objs:
+                    setattr(obj, attr, self.uiid_prefix + getattr(obj, attr))
             try:
                 json.dumps(obj.__dict__.copy())
             except Exception as ex:
