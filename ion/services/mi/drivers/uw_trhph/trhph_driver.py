@@ -56,6 +56,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
     def __init__(self, evt_callback):
         """
         Constructor.
+
         @param evt_callback Driver process event callback.
         """
         InstrumentDriver.__init__(self, evt_callback)
@@ -75,6 +76,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
         """
         Asserts that the current state is either the same as the one given (if
         not a list) or one of the elements of the given list.
+
         @raises InstrumentStateException if the assertion fails
         """
         cs = self.get_current_state()
@@ -97,10 +99,13 @@ class TrhphInstrumentDriver(InstrumentDriver):
         """
         Initialize driver connection, bringing communications parameters
         into unconfigured state (no connection object).
+
         @raises InstrumentStateException if command not allowed in current
                  state
-        @raises NotImplementedException if not implemented by subclass.
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
 
         if self._state == TrhphDriverState.UNCONFIGURED:
             assert self._trhph_client is None
@@ -118,23 +123,24 @@ class TrhphInstrumentDriver(InstrumentDriver):
         """
         Configure the driver for communications with the device via
         port agent / logger (valid but unconnected connection object).
-        @param arg[0] comms config dict.
+
+        @param config comms config dict.
+
         @raises InstrumentStateException if command not allowed in current
                 state
         @throws InstrumentParameterException if missing comms or invalid
                 config dict.
-        @raises NotImplementedException if not implemented by subclass.
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
 
         self._assert_state(TrhphDriverState.UNCONFIGURED)
 
-        # Get the required param dict.
-        try:
-            config = args[0]
-
-        except IndexError:
+        config = kwargs.get('config', None)
+        if config is None:
             raise InstrumentParameterException(
-                    'Missing comms config parameter.')
+                    msg="'config' parameter required")
 
         # Verify dict and construct connection client.
         try:
@@ -149,7 +155,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
                     log.info("_data_listener: sample = %s" % str(sample))
 
                 host = addr
-                outfile = file('trhph_output2.txt', 'w')
+                outfile = file('trhph_output.txt', 'w')
                 log.info("setting TrhphClient to connect to %s:%s" % (host, port))
                 self.trhph_client = TrhphClient(host, port, outfile, True)
                 self.trhph_client.set_data_listener(_data_listener)
@@ -166,13 +172,17 @@ class TrhphInstrumentDriver(InstrumentDriver):
         """
         Establish communications with the device via port agent / logger
         (connected connection object).
+
         @raises InstrumentStateException if command not allowed in current
                 state
         @throws InstrumentConnectionException if the connection failed.
-        @raises NotImplementedException if not implemented by subclass.
         """
 
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
         self._assert_state(TrhphDriverState.DISCONNECTED)
+
         self.trhph_client.connect()
 
         self._state = TrhphDriverState.CONNECTED
@@ -182,10 +192,13 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Disconnect from device via port agent / logger.
         @raises InstrumentStateException if command not allowed in current
                 state
-        @raises NotImplementedException if not implemented by subclass.
         """
 
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
         self._assert_state(TrhphDriverState.CONNECTED)
+
         self.trhph_client.end()
 
         self._state = TrhphDriverState.DISCONNECTED
@@ -215,24 +228,31 @@ class TrhphInstrumentDriver(InstrumentDriver):
     def get(self, *args, **kwargs):
         """
         Retrieve device parameters.
-        @param args[0] DriverParameter.ALL or a list of parameters to retrieve.
+
+        @param params DriverParameter.ALL or a list of parameters to retrieve.
+        @param timeout Timeout for each involved instrument interation,
+                self._timeout by default.
+
         @retval parameter : value dict.
         @raises InstrumentParameterException if missing or invalid get parameters.
         @raises InstrumentStateException if command not allowed in current state
-        @raises NotImplementedException if not implemented by subclass.
         """
         
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
         self._assert_state(TrhphDriverState.CONNECTED)
 
-        # Retrieve the required parameter, raise if not present.
-        try:
-            params = args[0]
-        except IndexError:
+        params = kwargs.get('params', None)
+        if params is None:
             raise InstrumentParameterException(
-                    msg='Get command requires a parameter list or tuple.')
+                    msg="'params' parameter required")
 
         if params == DriverParameter.ALL:
             params = TrhphParameter.list()
+        elif not isinstance(params, (list, tuple)):
+            raise InstrumentParameterException(
+                    msg='params must be list or tuple.')
 
         timeout = kwargs.get('timeout', self._timeout)
 
@@ -241,8 +261,9 @@ class TrhphInstrumentDriver(InstrumentDriver):
         if TrhphParameter.TIME_BETWEEN_BURSTS in params or \
            TrhphParameter.VERBOSE_MODE in params:
             seconds, is_data_only = self._get_data_collection_params(timeout)
+            verbose = not is_data_only
             data_collec_params[TrhphParameter.TIME_BETWEEN_BURSTS] = seconds
-            data_collec_params[TrhphParameter.VERBOSE_MODE] = is_data_only
+            data_collec_params[TrhphParameter.VERBOSE_MODE] = verbose
 
         params = list(set(params))  # remove any duplicates
 
@@ -271,28 +292,31 @@ class TrhphInstrumentDriver(InstrumentDriver):
     def set(self, *args, **kwargs):
         """
         Set device parameters.
-        @param args[0] parameter : value dict of parameters to set.
-        @param timeout=timeout Optional command timeout.
+
+        @param params parameter : value dict of parameters to set.
+
+        @param timeout Timeout for each involved instrument interation,
+                self._timeout by default.
+
         @raises InstrumentParameterException if missing or invalid set parameters.
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if set command not recognized.
         @raises InstrumentStateException if command not allowed in current state.
-        @raises NotImplementedException if not implemented by subclass.
         """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
 
         self._assert_state(TrhphDriverState.CONNECTED)
 
-        # Retrieve required parameter.
-        # Raise if no parameter provided, or not a dict.
-        try:
-            params = args[0]
-        except IndexError:
+        params = kwargs.get('params', None)
+        if params is None:
             raise InstrumentParameterException(
-                    msg='Set command requires a parameter dict.')
+                    msg="'params' parameter required")
 
         if not isinstance(params, dict):
             raise InstrumentParameterException(
-                    msg='Set parameters not a dict.')
+                    msg="'params' parameter not a dict.")
 
         timeout = kwargs.get('timeout', self._timeout)
         self.trhph_client.go_to_main_menu(timeout)
@@ -305,7 +329,8 @@ class TrhphInstrumentDriver(InstrumentDriver):
                 if InstErrorCode.is_ok(result[param]):
                     updated_params += 1
             elif param == TrhphParameter.VERBOSE_MODE:
-                result[param] = self._set_is_data_only(value, timeout)
+                data_only = not value
+                result[param] = self._set_is_data_only(data_only, timeout)
                 if InstErrorCode.is_ok(result[param]):
                     updated_params += 1
             else:
@@ -348,7 +373,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Poll for a sample.
         @param timeout=timeout Optional command timeout.
         @ retval Device sample dict.
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if acquire command not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.
@@ -358,30 +383,167 @@ class TrhphInstrumentDriver(InstrumentDriver):
     def execute_start_autosample(self, *args, **kwargs):
         """
         Switch to autosample mode.
-        @param timeout=timeout Optional command timeout.
-        @riases InstrumentTimeoutException if could not wake device or no response.
+
+        @param timeout Timeout for each involved instrument interation,
+                self._timeout by default.
+
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentStateException if command not allowed in current state.
-        @raises NotImplementedException if not implemented by subclass.
         """
-        raise NotImplementedException('execute_start_autosample() not implemented.')
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
+        self._assert_state(TrhphDriverState.CONNECTED)
+
+        timeout = kwargs.get('timeout', self._timeout)
+
+        try:
+            self.trhph_client.resume_data_streaming(timeout)
+            result = InstErrorCode.OK
+            return result
+        except TimeoutException, e:
+            raise InstrumentTimeoutException(str(e))
+        except TrhphClientException, e:
+            log.warn("TrhphClientException while resume_data_streaming: %s" %
+                     str(e))
+            return InstErrorCode.MESSAGING_ERROR
 
     def execute_stop_autosample(self, *args, **kwargs):
         """
         Leave autosample mode.
-        @param timeout=timeout Optional command timeout.
-        @riases InstrumentTimeoutException if could not wake device or no response.
+
+        @param timeout Timeout for each involved instrument interation,
+                self._timeout by default.
+
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if stop command not recognized.
         @raises InstrumentStateException if command not allowed in current state.
-        @raises NotImplementedException if not implemented by subclass.
         """
-        raise NotImplementedException('execute_stop_autosample() not implemented.')
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
+        self._assert_state(TrhphDriverState.CONNECTED)
+
+        timeout = kwargs.get('timeout', self._timeout)
+
+        try:
+            self.trhph_client.go_to_main_menu(timeout)
+            result = InstErrorCode.OK
+            return result
+        except TimeoutException, e:
+            raise InstrumentTimeoutException(str(e))
+        except TrhphClientException, e:
+            log.warn("TrhphClientException while calling go_to_main_menu: %s" %
+                     str(e))
+            return InstErrorCode.MESSAGING_ERROR
+
+    def execute_get_metadata(self, *args, **kwargs):
+        """
+        Returns metadata.
+
+        TODO NOTE: metadata aspect not yet specified in the framework. This
+        method is a direct implementation to exercise the functionality
+        provided by the underlying TrhphClient. All metadata (from the
+        get_system_info call) is reported.
+
+        @param timeout Timeout for each involved instrument interation,
+                self._timeout by default.
+
+        @retval name:value dict
+        """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
+        self._assert_state(TrhphDriverState.CONNECTED)
+
+        timeout = kwargs.get('timeout', self._timeout)
+        self.trhph_client.go_to_main_menu(timeout)
+
+        try:
+            system_info = self.trhph_client.get_system_info(timeout)
+            result = system_info
+            return result
+        except TimeoutException, e:
+            raise InstrumentTimeoutException(str(e))
+        except TrhphClientException, e:
+            log.warn("TrhphClientException while getting system info: %s" %
+                     str(e))
+            return InstErrorCode.MESSAGING_ERROR
+
+    def execute_diagnostics(self, *args, **kwargs):
+        """
+        Executes the diagnostics operation.
+
+        @param num_scans the number of scans for the operation
+        @param timeout Timeout for each involved instrument interation,
+                self._timeout by default.
+
+        @retval a list of rows, one with values per scan
+        @throws TimeoutException
+        """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
+        self._assert_state(TrhphDriverState.CONNECTED)
+
+        num_scans = kwargs.get('num_scans', None)
+        if num_scans is None:
+            raise InstrumentParameterException(
+                    msg='num_scans parameter required')
+        if not isinstance(num_scans, int) or num_scans < 0:
+            raise InstrumentParameterException(
+                    msg='Invalid num_scans parameter value')
+
+        timeout = kwargs.get('timeout', self._timeout)
+
+        try:
+            result = self.trhph_client.execute_diagnostics(num_scans, timeout)
+            return result
+        except TimeoutException, e:
+            raise InstrumentTimeoutException(str(e))
+        except TrhphClientException, e:
+            log.warn("TrhphClientException while executing diagnostics: %s" %
+                     str(e))
+            return InstErrorCode.MESSAGING_ERROR
+
+    def execute_get_power_statuses(self, *args, **kwargs):
+        """
+        Gets the power statuses.
+
+        TODO NOTE: should this be part of the metadata?
+
+        @param timeout Timeout for each involved instrument interation,
+                self._timeout by default.
+
+        @retval a dict of power statuses
+        @throws TimeoutException
+        """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
+
+        self._assert_state(TrhphDriverState.CONNECTED)
+
+        timeout = kwargs.get('timeout', self._timeout)
+
+        try:
+            result = self.trhph_client.get_power_statuses(timeout)
+            return result
+        except TimeoutException, e:
+            raise InstrumentTimeoutException(str(e))
+        except TrhphClientException, e:
+            log.warn("TrhphClientException executing get_power_statuses: %s" %
+                     str(e))
+            return InstErrorCode.MESSAGING_ERROR
 
     def execute_test(self, *args, **kwargs):
         """
         Execute device tests.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal test commands).
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if test commands not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.
@@ -393,7 +555,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Execute device calibration.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal calibration commands).
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if test commands not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.
