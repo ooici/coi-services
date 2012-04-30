@@ -13,6 +13,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 
 from pyon.public import log
 from nose.plugins.attrib import attr
@@ -36,6 +37,46 @@ import time
 
 from pyon.util.context import LocalContextMixin
 
+# Used to validate param config retrieved from driver.
+PARAMS = {
+    SBE37Parameter.OUTPUTSAL : bool,
+    SBE37Parameter.OUTPUTSV : bool,
+    SBE37Parameter.NAVG : int,
+    SBE37Parameter.SAMPLENUM : int,
+    SBE37Parameter.INTERVAL : int,
+    SBE37Parameter.STORETIME : bool,
+    SBE37Parameter.TXREALTIME : bool,
+    SBE37Parameter.SYNCMODE : bool,
+    SBE37Parameter.SYNCWAIT : int,
+    SBE37Parameter.TCALDATE : tuple,
+    SBE37Parameter.TA0 : float,
+    SBE37Parameter.TA1 : float,
+    SBE37Parameter.TA2 : float,
+    SBE37Parameter.TA3 : float,
+    SBE37Parameter.CCALDATE : tuple,
+    SBE37Parameter.CG : float,
+    SBE37Parameter.CH : float,
+    SBE37Parameter.CI : float,
+    SBE37Parameter.CJ : float,
+    SBE37Parameter.WBOTC : float,
+    SBE37Parameter.CTCOR : float,
+    SBE37Parameter.CPCOR : float,
+    SBE37Parameter.PCALDATE : tuple,
+    SBE37Parameter.PA0 : float,
+    SBE37Parameter.PA1 : float,
+    SBE37Parameter.PA2 : float,
+    SBE37Parameter.PTCA0 : float,
+    SBE37Parameter.PTCA1 : float,
+    SBE37Parameter.PTCA2 : float,
+    SBE37Parameter.PTCB0 : float,
+    SBE37Parameter.PTCB1 : float,
+    SBE37Parameter.PTCB2 : float,
+    SBE37Parameter.POFFSET : float,
+    SBE37Parameter.RCALDATE : tuple,
+    SBE37Parameter.RTCA0 : float,
+    SBE37Parameter.RTCA1 : float,
+    SBE37Parameter.RTCA2 : float
+}
 
 class FakeProcess(LocalContextMixin):
     """
@@ -47,7 +88,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-#@unittest.skip("run locally only")
+@unittest.skip("run locally only")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -99,7 +140,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent")
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -123,10 +164,25 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
-                                          comms_server_address="localhost", comms_server_port=8888)
+#        driver_config = {
+#            'svr_addr': "localhost",
+#            'cmd_port': 5556,
+#            'evt_port': 5557,
+#            'dvr_mod': "ion.services.mi.drivers.sbe37_driver",
+#            'dvr_cls': "SBE37Driver",
+#            'comms_config': {
+#                    'addr': 'sbe37-simulator.oceanobservatories.org',
+#                    'port': 4001,
+#                }
+#            }
+        driver_config = {
+            'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_cls' : 'SBE37Driver',
+            'workdir' : '/tmp/',
+        }
+
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
+                                          comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
 
@@ -451,62 +507,71 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
         #-------------------------------
-#        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-#
-#        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-#        print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
-#
-#        # Start a resource agent client to talk with the instrument agent.
-#        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-#        print 'activate_instrument: got ia client %s', self._ia_client
-#        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
+        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+
+        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
+
+        # Start a resource agent client to talk with the instrument agent.
+        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
+        print 'activate_instrument: got ia client %s', self._ia_client
+        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
 
 
-#        #-------------------------------
-#        # Streaming
-#        #-------------------------------
-#
-#        cmd = AgentCommand(command='initialize')
-#        retval = self._ia_client.execute_agent(cmd)
-#        print retval
-#        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
-#
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='go_active')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_createTransformsThenActivateInstrument:: go_active %s", str(reply))
-#        time.sleep(2)
-#
-#        cmd = AgentCommand(command='run')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_createTransformsThenActivateInstrument:: run %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling go_streaming ")
-#        cmd = AgentCommand(command='go_streaming')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_createTransformsThenActivateInstrument:: go_streaming %s", str(reply))
-#        time.sleep(30)
-#
-#        log.debug("test_activateInstrument: calling go_observatory")
-#        cmd = AgentCommand(command='go_observatory')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from go_observatory   %s", str(reply))
-#        time.sleep(6)
-#
-#
-#        log.debug("test_createTransformsThenActivateInstrument:: calling go_inactive ")
-#        cmd = AgentCommand(command='go_inactive')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_createTransformsThenActivateInstrument:: return from go_inactive %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_createTransformsThenActivateInstrument:: calling reset ")
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_createTransformsThenActivateInstrument:: return from reset %s", str(reply))
-#        time.sleep(2)
+        #-------------------------------
+        # Streaming
+        #-------------------------------
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        print retval
+        log.debug("test_createTransformsThenActivateInstrument:: initialize %s", str(retval))
+
+        time.sleep(1)
+
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_createTransformsThenActivateInstrument:: go_active %s", str(reply))
+        time.sleep(1)
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_createTransformsThenActivateInstrument:: run %s", str(reply))
+        time.sleep(1)
+
+
+        # Make sure the sampling rate and transmission are sane.
+        params = {
+            SBE37Parameter.NAVG : 1,
+            SBE37Parameter.INTERVAL : 5,
+            SBE37Parameter.TXREALTIME : True
+        }
+        self._ia_client.set_param(params)
+
+        self._no_samples = 2
+
+        # Begin streaming.
+        cmd = AgentCommand(command='go_streaming')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_createTransformsThenActivateInstrument:: go_streaming %s", str(reply))
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+
+        time.sleep(15)
+
+        log.debug("test_activateInstrument: calling go_observatory")
+        cmd = AgentCommand(command='go_observatory')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrument: return from go_observatory   %s", str(reply))
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        time.sleep(2)
+
+        log.debug("test_createTransformsThenActivateInstrument:: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_createTransformsThenActivateInstrument:: return from reset %s", str(reply))
+        time.sleep(2)
 
         #-------------------------------
         # Sampling
@@ -570,3 +635,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #        log.debug("test_createTransformsThenActivateInstrument:: ctd_parsed_data_product dataset bounds %s", str(bounds))
 #        print 'activate_instrument: got dataset bounds %s', str(bounds)
 
+
+        #-------------------------------
+        # Deactivate InstrumentAgentInstance
+        #-------------------------------
+        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)

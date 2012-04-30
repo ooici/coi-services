@@ -56,7 +56,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('HARDWARE', group='sa')
 #@attr('INT', group='foo')
-@unittest.skip('run locally only')
+#@unittest.skip('run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -133,11 +133,22 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             
         print 'new InstrumentDevice id = ', instDevice_id
 
-        # Create InstrumentAgentInstance to hold configuration information
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
-                                          comms_server_address="localhost", comms_server_port=8888)
+#        # Create InstrumentAgentInstance to hold configuration information
+#        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
+#                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
+#                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
+#                                          comms_server_address="localhost", comms_server_port=8888)
+#        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+
+
+        driver_config = {
+            'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_cls' : 'SBE37Driver',
+            'workdir' : '/tmp/',
+        }
+
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
+                                          comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
 
@@ -234,27 +245,24 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
         time.sleep(2)
 
-        log.debug("test_activateInstrument: calling go_inactive ")
-        cmd = AgentCommand(command='go_inactive')
-        reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: return from go_inactive %s", str(reply))
-        time.sleep(2)
-
         log.debug("test_activateInstrument: calling reset ")
         cmd = AgentCommand(command='reset')
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrument: return from reset %s", str(reply))
         time.sleep(2)
 
-
+        #-------------------------------
+        # Deactivate InstrumentAgentInstance
+        #-------------------------------
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
-        #get the dataset id of the ctd_parsed product from the dataproduct  data_product_id1
-        ctd_parsed_data_product_obj = self.dpclient.read_data_product(data_product_id1)
-        log.debug("test_activateInstrument: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
 
-        # ask for the dataset bounds from the datasetmgmtsvc
-        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
-        log.debug("test_activateInstrument: ctd_parsed_data_product dataset bounds %s", str(bounds))
-        print 'activate_instrument: got dataset bounds %s', str(bounds)
+#        #get the dataset id of the ctd_parsed product from the dataproduct  data_product_id1
+#        ctd_parsed_data_product_obj = self.dpclient.read_data_product(data_product_id1)
+#        log.debug("test_activateInstrument: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
+#
+#        # ask for the dataset bounds from the datasetmgmtsvc
+#        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
+#        log.debug("test_activateInstrument: ctd_parsed_data_product dataset bounds %s", str(bounds))
+#        print 'activate_instrument: got dataset bounds %s', str(bounds)
 
