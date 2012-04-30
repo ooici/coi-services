@@ -24,6 +24,7 @@ class IONLoader(ImmediateProcess):
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadooi=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadui=True
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/lca_demo scenario=LCA_DEMO_PRE
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/lca_demo
     """
@@ -48,6 +49,7 @@ class IONLoader(ImmediateProcess):
         scenario = self.CFG.get("scenario", None)
         DEBUG = self.CFG.get("debug", False)
         self.loadooi = self.CFG.get("loadooi", False)
+        self.loadui = self.CFG.get("loadui", False)
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
         if op:
@@ -99,6 +101,9 @@ class IONLoader(ImmediateProcess):
         self._preload_ids()
         if self.loadooi:
             self.extract_ooi_assets(path)
+
+        if self.loadui:
+            self.load_ui(path)
 
         for category in categories:
             row_do, row_skip = 0, 0
