@@ -48,6 +48,10 @@ class DataHandler():
             reply = self.run(args, kwargs)
         elif cmd == 'reset':
             reply = self.reset(args, kwargs)
+        elif cmd == 'go_observatory':
+            reply = self.go_observatory(args, kwargs)
+        elif cmd == 'execute_acquire_sample':
+            reply = self.execute_acquire_sample(args, kwargs)
 
         return reply
 
@@ -64,6 +68,9 @@ class DataHandler():
         return None
 
     def reset(self, *args, **kwargs):
+        return None
+
+    def go_observatory(self, *args, **kwargs):
         return None
 
     def execute_acquire_sample(self, *args, **kwargs):
