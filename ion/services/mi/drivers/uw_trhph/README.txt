@@ -5,6 +5,17 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-04-29:
+- trhph_driver.py aligned and all tests passing as before, both with simulator
+  and real instrument (Version 1.2 - Last Revision: Mar. 27, 2012):
+
+    $ UW_TRHPH="10.180.80.172:2001" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_client.py
+    Ran 9 tests in 242.147s
+
+    $ UW_TRHPH="10.180.80.172:2001" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_driver.py
+    Ran 9 tests in 162.387s
+
+
 2012-04-24:
 - TRHPH simulator now implemented using greenlets to facilitate integration
   with the rest of the pyon ecosystem. This is particularly important when

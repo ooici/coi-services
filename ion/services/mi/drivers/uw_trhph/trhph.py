@@ -220,7 +220,7 @@ CHANGE_CYCLE_TIME_IN_MINUTES = "Enter a new value between _ and _ here --> "
 CHANGE_VERBOSE_MODE = _newline("""
  Do you want Verbose Status Information during Logging
                or just the Data?
-    Enter 1 for Verbose, 0 for just Data. --> """)
+    Enter 2 for Verbose, 1 for just Data. --> """)
 
 #----------------------------------------------
 # 3).  System Diagnostics.

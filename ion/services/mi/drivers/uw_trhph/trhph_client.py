@@ -141,9 +141,9 @@ class _Recv(Greenlet):
     current state to facilitate debugging.
     """
 
-    def __init__(self, conn, data_listener, outfile=None, prefix_state=False):
+    def __init__(self, sock, data_listener, outfile=None, prefix_state=False):
         """
-        @param conn The connection to read in characters from the instrument.
+        @param sock The connection to read in characters from the instrument.
         @param data_listener data_listener(sample) is called whenever a
                new data line is received, where sample is a dict indexed by
                the names in trhph.CHANNEL_NAMES.
@@ -154,7 +154,7 @@ class _Recv(Greenlet):
         """
 #        Thread.__init__(self, name="_Recv")
         Greenlet.__init__(self)
-        self._conn = conn
+        self._sock = sock
         self._data_listener = data_listener
         self._last_line = ''
         self._new_line = ''
@@ -327,10 +327,20 @@ class _Recv(Greenlet):
         """
         Runs the receiver while updating buffers and state as appropriate.
         """
+
+        # set timeout to the socket, mainly intended to allow yielding control
+        # to other greenlets:
+        if self._sock.gettimeout() is None:
+            self._sock.settimeout(0.5)
+
         log.debug("_Recv running.")
         while self._active:
             # Note that we read one character at a time.
-            c = self._conn.recv(1)
+            try:
+                c = self._sock.recv(1)
+            except socket.timeout, e:
+                # ok, just reattempt reading
+                continue
             self._update_lines(c)
             self._update_state()
             self._update_values(c)
@@ -426,7 +436,9 @@ class TrhphClient(object):
 
         if self._sock:
             log.info("Connected to %s:%s" % (host, port))
+
             self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1)
+
             self._bt = _Recv(self._sock, self._data_listener,
                              self._outfile, self._prefix_state)
             self._bt.start()
@@ -438,6 +450,10 @@ class TrhphClient(object):
         """
         Ends the client.
         """
+        if self._sock is None:
+            log.warn("end() called again")
+            return
+
         log.info("closing connection")
         try:
             self._bt.end()
@@ -670,8 +686,9 @@ class TrhphClient(object):
         self._assert_state(State.SYSTEM_PARAM_MENU)
 
         buffer = self.get_last_buffer()
-        log.info("BUFFER=[%s]" % str(buffer))
+        log.debug("BUFFER=[%s]" % str(buffer))
 
+        # capture seconds
         seconds_string = trhph.get_cycle_time(buffer)
         log.debug("seconds_string='%s'" % seconds_string)
         if seconds_string is None:
@@ -680,8 +697,9 @@ class TrhphClient(object):
         if seconds is None:
             raise TrhphClientException("Seconds could not be matched")
 
+        # capture verbose thing
         data_only_string = trhph.get_verbose_vs_data_only(buffer)
-        log.debug("data_only_string='%s'" % data_only_string)
+        log.info("data_only_string='%s'" % data_only_string)
         is_data_only = trhph.DATA_ONLY == data_only_string
 
         log.debug("send 9 to return to main menu")
