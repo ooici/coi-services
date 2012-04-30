@@ -104,7 +104,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
 
 
-@attr('INT', group='sa')
+@attr('INT', group='mmm')
 #@unittest.skip('not working')
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
@@ -162,15 +162,17 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
 
         # test creating a new data product w/o a stream definition
-        print 'Creating new data product w/o a stream definition'
+        print 'test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)'
         dp_obj = IonObject(RT.DataProduct,
                            name='DP1',
                            description='some new dp')
         try:
             dp_id = client.create_data_product(dp_obj, '')
+            dp_obj = client.read_data_product(dp_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', dp_id
+        log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
 
 
         # test creating a new data product with  a stream definition

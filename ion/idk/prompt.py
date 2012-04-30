@@ -19,7 +19,7 @@ def text(label, default=None):
     """
     display = label
     if( default ):
-        display += " (default: " + default + ")"
+        display += " (default: " + str(default) + ")"
 
     input = raw_input( display + ": " )
 
