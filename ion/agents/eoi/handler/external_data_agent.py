@@ -1,14 +1,26 @@
+#!/usr/bin/env python
 
-
-__author__ = "Tim Giguere"
+"""
+@package
+@file
+@author Tim Giguere
+@author Christopher Mueller
+@brief Class derived from InstrumentAgent that provides a one-to-one relationship between an ExternalDataAgent instance
+ and a given external dataset
+"""
 
 from pyon.public import log
+from pyon.core.exception import InstDriverError
 
 from ion.services.mi.instrument_agent import InstrumentAgent, InstrumentAgentState, InstrumentAgentEvent
 from ion.agents.eoi.handler.data_handler import DataHandler
 import os
 
 class ExternalDataAgent(InstrumentAgent):
+
+    def __init__(self, initial_state=InstrumentAgentState.UNINITIALIZED):
+        log.debug('ExternalDataAgent.__init__: initial_state = {0}'.format(initial_state))
+        InstrumentAgent.__init__(self, initial_state)
 
     ###############################################################################
     # Private helpers.
@@ -24,35 +36,24 @@ class ExternalDataAgent(InstrumentAgent):
         # Get driver configuration and pid for test case.
         dvr_mod = self._dvr_config['dvr_mod']
         dvr_cls = self._dvr_config['dvr_cls']
-        this_pid = os.getpid() if self._test_mode else None
 
-        #(self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, '/tmp/', this_pid)
-        #
-        ## Verify the driver has started.
-        #if not self._dvr_proc or self._dvr_proc.poll():
-        #    raise InstDriverError('Error starting driver process.')
+        # TODO: Retrieve all resources needed by the DataHandler and provide them during instantiation
 
-        #log.info('Started driver process for %d %d %s %s', cmd_port,
-        #    evt_port, dvr_mod, dvr_cls)
-        #log.info('Driver process pid %d', self._dvr_proc.pid)
-
-        # Start client messaging and verify messaging.
+        # Instantiate the DataHandler based on the configuration
         try:
-            #self._dvr_client = ZmqDriverClient('localhost', cmd_port, evt_port)
-            self._dvr_client = DataHandler()
-            #self._dvr_client.start_messaging(self.evt_recv)
-            #retval = self._dvr_client.cmd_dvr('process_echo', 'Test.')
+
+            module = __import__(dvr_mod, fromlist=[dvr_cls])
+            classobj = getattr(module, dvr_cls)
+#            self._dvr_client = classobj(data_provider=edp_res, data_source=dsrc_res, ext_dataset=ext_ds_res)
+            self._dvr_client = classobj()
 
         except Exception:
-            #self._dvr_proc.kill()
-            #self._dvr_proc.wait()
-            #self._dvr_proc = None
             self._dvr_client = None
-            #raise InstDriverError('Error starting driver client.')
+            raise InstDriverError('Error instantiating DataHandler: {0}.{1}'.format(dvr_mod,dvr_cls))
 
         #self._construct_packet_factories(dvr_mod)
 
-        log.info('Instrument agent %s started its driver.', self._proc_name)
+        log.info('ExternalDataAgent {0} loaded it\'s DataHandler: {1}'.format(self._proc_name,self._dvr_client))
 
     def _stop_driver(self):
         """

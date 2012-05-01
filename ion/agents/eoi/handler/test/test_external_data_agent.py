@@ -46,7 +46,7 @@ from pyon.event.event import EventSubscriber
 # MI imports.
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+#from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_states
@@ -56,8 +56,8 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 
 # Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
-DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+#DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
+DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
@@ -77,59 +77,22 @@ DVR_CONFIG = {
 }
 
 # Agent parameters.
-IA_RESOURCE_ID = '123xyz'
-IA_NAME = 'Agent007'
-IA_MOD = 'ion.agents.eoi.handler.external_data_agent'
-IA_CLS = 'ExternalDataAgent'
+EDA_RESOURCE_ID = '123xyz'
+EDA_NAME = 'ExampleEDA'
+EDA_MOD = 'ion.agents.eoi.handler.external_data_agent'
+EDA_CLS = 'ExternalDataAgent'
 
 # Used to validate param config retrieved from driver.
 PARAMS = {
-    SBE37Parameter.OUTPUTSAL : bool,
-    SBE37Parameter.OUTPUTSV : bool,
-    SBE37Parameter.NAVG : int,
-    SBE37Parameter.SAMPLENUM : int,
-    SBE37Parameter.INTERVAL : int,
-    SBE37Parameter.STORETIME : bool,
-    SBE37Parameter.TXREALTIME : bool,
-    SBE37Parameter.SYNCMODE : bool,
-    SBE37Parameter.SYNCWAIT : int,
-    SBE37Parameter.TCALDATE : tuple,
-    SBE37Parameter.TA0 : float,
-    SBE37Parameter.TA1 : float,
-    SBE37Parameter.TA2 : float,
-    SBE37Parameter.TA3 : float,
-    SBE37Parameter.CCALDATE : tuple,
-    SBE37Parameter.CG : float,
-    SBE37Parameter.CH : float,
-    SBE37Parameter.CI : float,
-    SBE37Parameter.CJ : float,
-    SBE37Parameter.WBOTC : float,
-    SBE37Parameter.CTCOR : float,
-    SBE37Parameter.CPCOR : float,
-    SBE37Parameter.PCALDATE : tuple,
-    SBE37Parameter.PA0 : float,
-    SBE37Parameter.PA1 : float,
-    SBE37Parameter.PA2 : float,
-    SBE37Parameter.PTCA0 : float,
-    SBE37Parameter.PTCA1 : float,
-    SBE37Parameter.PTCA2 : float,
-    SBE37Parameter.PTCB0 : float,
-    SBE37Parameter.PTCB1 : float,
-    SBE37Parameter.PTCB2 : float,
-    SBE37Parameter.POFFSET : float,
-    SBE37Parameter.RCALDATE : tuple,
-    SBE37Parameter.RTCA0 : float,
-    SBE37Parameter.RTCA1 : float,
-    SBE37Parameter.RTCA2 : float
+    'param1':bool,
+    'param2':str,
 }
+PARAM_KEYS=['param1','param2']
 
 CMDS = [
     'acquire_sample',
-    'calibrate',
-    'direct',
     'start_autosample',
-    'stop_autosample',
-    'test'
+    'stop_autosample'
 ]
 
 AGT_CMDS = [
@@ -178,9 +141,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
 
         # Start port agent, add stop to cleanup.
-        self._pagent = None
-        self._start_pagent()
-        self.addCleanup(self._stop_pagent)
+#        self._pagent = None
+#        self._start_pagent()
+#        self.addCleanup(self._stop_pagent)
 
         # Start container.
         self._start_container()
@@ -211,22 +174,22 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         agent_config = {
             'driver_config' : DVR_CONFIG,
             'stream_config' : self._stream_config,
-            'agent'         : {'resource_id': IA_RESOURCE_ID},
+            'agent'         : {'resource_id': EDA_RESOURCE_ID},
             'test_mode' : True
         }
 
         # Start instrument agent.
         self._ia_pid = None
-        log.debug("TestInstrumentAgent.setup(): starting IA.")
+        log.debug("TestInstrumentAgent.setup(): starting EDA.")
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-        self._ia_pid = container_client.spawn_process(name=IA_NAME,
-            module=IA_MOD, cls=IA_CLS, config=agent_config)
+        self._ia_pid = container_client.spawn_process(name=EDA_NAME,
+            module=EDA_MOD, cls=EDA_CLS, config=agent_config)
         log.info('Agent pid=%s.', str(self._ia_pid))
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
-        self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
+        self._ia_client = ResourceAgentClient(EDA_RESOURCE_ID, process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))
 
     def _start_pagent(self):
@@ -242,10 +205,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Get the pid and port agent server port number.
         pid = self._pagent.get_pid()
         while not pid:
+            log.warn('waiting for pid')
             gevent.sleep(.1)
             pid = self._pagent.get_pid()
         port = self._pagent.get_port()
         while not port:
+            log.warn('waiting for port')
             gevent.sleep(.1)
             port = self._pagent.get_port()
 
@@ -408,11 +373,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 # int, bool, str.
                 self.assertEqual(val, correct_val)
 
+#    @unittest.skip("")
     def test_initialize(self):
-        """
-        Test agent initialize command. This causes creation of
-        driver process and transition to inactive.
-        """
+        # Test agent initialize command. This causes creation of driver process and transition to inactive.
 
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -435,10 +398,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip("")
     def test_states(self):
-        """
-        Test agent state transitions.
-        """
+        # Test agent state transitions.
+
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
@@ -507,6 +470,27 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.IDLE)
 
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        cmd = AgentCommand(command='go_streaming')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.STREAMING)
+
+        cmd = AgentCommand(command='go_observatory')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
@@ -515,10 +499,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
     @unittest.skip("")
-    def test_get_set(self):
-        """
-        Test instrument driver get and set interface.
-        """
+    def test_observatory(self):
+        # Test instrument driver get and set interface.
+
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
@@ -546,15 +529,14 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
         # Retrieve all resource parameters.
-        reply = self._ia_client.get_param(SBE37Parameter.ALL)
+        # TODO: This blows up pretty severely...
+        reply = self._ia_client.get_param('DRIVER_PARAMETER_ALL')
         self.assertParamDict(reply, True)
         orig_config = reply
 
-        # Retrieve a subset of resource parameters.
+        ## Retrieve a subset of resource parameters.
         params = [
-            SBE37Parameter.TA0,
-            SBE37Parameter.INTERVAL,
-            SBE37Parameter.STORETIME
+            'param1'
         ]
         reply = self._ia_client.get_param(params)
         self.assertParamDict(reply)
@@ -584,10 +566,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip("")
     def test_poll(self):
-        """
-        Test observatory polling function.
-        """
+        # Test observatory polling function.
 
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -642,11 +623,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip("")
     def test_autosample(self):
-        """
-        Test instrument driver execute interface to start and stop streaming
-        mode.
-        """
+        # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
@@ -713,15 +692,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip("")
     def test_capabilities(self):
-        """
-        Test the ability to retrieve agent and resource parameter and command
-        capabilities.
-        """
+        # Test the ability to retrieve agent and resource parameter and command capabilities.
         acmds = self._ia_client.get_capabilities(['AGT_CMD'])
+        log.debug('Agent Commands: {0}'.format(acmds))
         acmds = [item[1] for item in acmds]
         self.assertEqual(acmds, AGT_CMDS)
         apars = self._ia_client.get_capabilities(['AGT_PAR'])
+        log.debug('Agent Parameters: {0}'.format(apars))
         apars = [item[1] for item in apars]
 
         cmd = AgentCommand(command='get_current_state')
@@ -737,12 +716,14 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.INACTIVE)
 
         rcmds = self._ia_client.get_capabilities(['RES_CMD'])
+        log.debug('Resource Commands: {0}'.format(rcmds))
         rcmds = [item[1] for item in rcmds]
         self.assertEqual(rcmds, CMDS)
 
         rpars = self._ia_client.get_capabilities(['RES_PAR'])
+        log.debug('Resource Parameters: {0}'.format(rpars))
         rpars = [item[1] for item in rpars]
-        self.assertEqual(rpars, SBE37Parameter.list())
+        self.assertEqual(rpars, PARAM_KEYS)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -751,15 +732,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip("")
     def test_errors(self):
-        """
-        """
         pass
 
-    @unittest.skip('Direct access to be finished and added.')
+    @unittest.skip('Direct access not applicable to ExternalDataAgent')
     def test_direct_access(self):
-        """
-        Test agent direct_access command. This causes creation of
-        driver process and transition to direct access.
-        """
+        # Test agent direct_access command. This causes creation of driver process and transition to direct access.
         pass

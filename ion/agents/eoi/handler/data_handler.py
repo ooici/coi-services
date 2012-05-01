@@ -21,7 +21,7 @@ class DataHandler():
         #discover -> Not used
         #disconnect -> Not used
 
-        log.warn('cmd_dvr received command \'{0}\' with: args={1} kwargs={2}'.format(cmd, args, kwargs))
+        log.debug('cmd_dvr received command \'{0}\' with: args={1} kwargs={2}'.format(cmd, args, kwargs))
 
         reply = None
         if cmd == 'configure':  #used to configure data handler
@@ -74,10 +74,13 @@ class DataHandler():
         return None
 
     def execute_acquire_sample(self, *args, **kwargs):
+        # todo: Fix raises statements and add documentation
         return {'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}
 
     def execute_start_autosample(self, *args, **kwargs):
+        # todo: Fix raises statements and add documentation
         """
+
         @raises TimeoutError:
         @raises ProtocolError:
         @raises NotImplementedError:
@@ -86,6 +89,7 @@ class DataHandler():
         return None
 
     def execute_stop_autosample(self, *args, **kwargs):
+        # todo: Fix raises statements and add documentation
         """
         @raises TimeoutError:
         @raises ProtocolError:
@@ -101,7 +105,10 @@ class DataHandler():
         @raises NotImplementedError:
         @raises ParameterError:
         """
-        return {'CJ':float, 'CI':float, 'CH':float, 'TA0':float, 'TA1':float, 'NAVG':int, 'TA3':float, 'WBOTC':float, 'RCALDATE':tuple, 'CG':float, 'CTCOR':float, 'PCALDATE':tuple, 'STORETIME':bool, 'CPCOR':float, 'PTCA2':float, 'OUTPUTSV':bool, 'SAMPLENUM':int, 'PTCB0':float, 'SYNCMODE':bool, 'PTCB2':float, 'TCALDATE':tuple, 'PTCB1':float, 'CCALDATE':tuple, 'PA0':float, 'TXREALTIME':bool, 'PA2':float, 'OUTPUTSAL':bool, 'TA2':float, 'POFFSET':float, 'PTCA0':float, 'INTERVAL':int, 'PA1':float, 'SYNCWAIT':int, 'RTCA0':float, 'RTCA2':float, 'RTCA1':float, 'PTCA1':float}
+        return {
+            'param1' : True,
+            'param2' : 'value',
+            }
 
     def set(self, *args, **kwargs):
         """
@@ -113,52 +120,54 @@ class DataHandler():
         return None
 
     def get_resource_params(self, *args, **kwargs):
-        return ['DRIVER_PARAMETER_ALL',
-                'CCALDATE',
-                'CG',
-                'CH',
-                'CI',
-                'CJ',
-                'CPCOR',
-                'CTCOR',
-                'INTERVAL',
-                'NAVG',
-                'OUTPUTSAL',
-                'OUTPUTSV',
-                'PA0',
-                'PA1',
-                'PA2',
-                'PCALDATE',
-                'POFFSET',
-                'PTCA0',
-                'PTCA1',
-                'PTCA2',
-                'PTCB0',
-                'PTCB1',
-                'PTCB2',
-                'RCALDATE',
-                'RTCA0',
-                'RTCA1',
-                'RTCA2',
-                'SAMPLENUM',
-                'STORETIME',
-                'SYNCMODE',
-                'SYNCWAIT',
-                'TA0',
-                'TA1',
-                'TA2',
-                'TA3',
-                'TCALDATE',
-                'TXREALTIME',
-                'WBOTC']
+        """
+        Return list of resource parameters. Implemented in specific handlers
+        """
+#        raise NotImplementedError('get_resource_params() not implemented in BaseDataHandler')
+        return ['param1','param2']
+#        return ['DRIVER_PARAMETER_ALL',
+#                'CCALDATE',
+#                'CG',
+#                'CH',
+#                'CI',
+#                'CJ',
+#                'CPCOR',
+#                'CTCOR',
+#                'INTERVAL',
+#                'NAVG',
+#                'OUTPUTSAL',
+#                'OUTPUTSV',
+#                'PA0',
+#                'PA1',
+#                'PA2',
+#                'PCALDATE',
+#                'POFFSET',
+#                'PTCA0',
+#                'PTCA1',
+#                'PTCA2',
+#                'PTCB0',
+#                'PTCB1',
+#                'PTCB2',
+#                'RCALDATE',
+#                'RTCA0',
+#                'RTCA1',
+#                'RTCA2',
+#                'SAMPLENUM',
+#                'STORETIME',
+#                'SYNCMODE',
+#                'SYNCWAIT',
+#                'TA0',
+#                'TA1',
+#                'TA2',
+#                'TA3',
+#                'TCALDATE',
+#                'TXREALTIME',
+#                'WBOTC']
 
     def get_resource_commands(self, *args, **kwargs):
-        return [
-            'acquire_sample',
-            'calibrate',
-            'direct',
-            'start_autosample',
-            'stop_autosample',
-            'test'
-        ]
+        """
+        Return list of device execute commands available.
+        """
+        cmds = [cmd.replace('execute_','') for cmd in dir(self) if cmd.startswith('execute_')]
+        return cmds
 
