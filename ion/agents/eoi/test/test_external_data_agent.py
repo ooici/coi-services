@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_instrument_agent
-@file ion/services/mi/test_instrument_agent.py
-@author Edward Hunter
-@brief Test cases for R2 instrument agent.
+@package ion.agents.eoi.test.test_external_data_agent
+@file ion/agents/eoi/test/test_external_data_agent.py
+@author Tim Giguere
+@author Christopher Mueller
+@brief Test cases for R2 ExternalDataAgent
 """
-
-__author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
 
 # Import pyon first for monkey patching.
 from pyon.public import log
@@ -79,7 +77,7 @@ DVR_CONFIG = {
 # Agent parameters.
 EDA_RESOURCE_ID = '123xyz'
 EDA_NAME = 'ExampleEDA'
-EDA_MOD = 'ion.agents.eoi.handler.external_data_agent'
+EDA_MOD = 'ion.agents.eoi.external_data_agent'
 EDA_CLS = 'ExternalDataAgent'
 
 # Used to validate param config retrieved from driver.

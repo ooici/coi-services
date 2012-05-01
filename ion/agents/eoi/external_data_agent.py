@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package
-@file
+@package ion.agents.eoi.external_data_agent
+@file ion/agents/eoi/external_data_agent.py
 @author Tim Giguere
 @author Christopher Mueller
 @brief Class derived from InstrumentAgent that provides a one-to-one relationship between an ExternalDataAgent instance
