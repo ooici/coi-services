@@ -77,6 +77,7 @@ class DriverEvent(BaseEnum):
     START_AUTOSAMPLE = 'DRIVER_EVENT_START_AUTOSAMPLE'
     STOP_AUTOSAMPLE = 'DRIVER_EVENT_STOP_AUTOSAMPLE'
     TEST = 'DRIVER_EVENT_TEST'
+    RUN_TEST = 'DRIVER_EVENT_RUN_TEST'
     STOP_TEST = 'DRIVER_EVENT_STOP_TEST'
     CALIBRATE = 'DRIVER_EVENT_CALIBRATE'
     RESET = 'DRIVER_EVENT_RESET'
@@ -262,18 +263,22 @@ class InstrumentDriver(object):
     ########################################################################
     # Resource query interface.
     ########################################################################    
+
     def get_resource_commands(self):
         """
         Retrun list of device execute commands available.
         """
-        return [cmd for cmd in dir(self) if cmd.startswith('execute_')]    
+        cmds = [cmd for cmd in dir(self) if cmd.startswith('execute_')]
+        cmds = [item.replace('execute_','') for item in cmds]
+        return cmds
     
     def get_resource_params(self):
         """
-        Return list of device parameters available.
+        Return list of device parameters available. Implemented in
+        device specific subclass.
         """
-        return self.get(DriverParameter.ALL)
-            
+        raise NotImplementedError('get_resource_params() is not implemented.')
+
     def get_current_state(self):
         """
         Return current device state. Implemented in connection specific

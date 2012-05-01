@@ -112,6 +112,7 @@ class BootstrapService(BaseBootstrapService):
         #Instantiate initial set of User Roles for this Org
         ion_manager = IonObject(RT.UserRole, name=ION_MANAGER,label='ION Manager', description='ION Manager')
         self.clients.org_management.add_user_role(self.org_id, ion_manager)
+        self.clients.org_management.grant_role(self.org_id,system_actor._id,ION_MANAGER, headers={'ion-actor-id': system_actor._id} )
 
         #Make the ION system agent a manager for the ION Org
         self.clients.org_management.grant_role(self.org_id,system_actor._id,MANAGER_ROLE, headers={'ion-actor-id': system_actor._id} )

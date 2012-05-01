@@ -17,12 +17,12 @@ import SocketServer
 import logging
 from subprocess import Popen
 
-from ion.services.mi.instrument_fsm_args import InstrumentFSM
+from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.common import BaseEnum
-from ion.services.mi.common import InstErrorCode
+#from ion.services.mi.common import InstErrorCode
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Channel
+#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
 
 class CgMsgTypes(BaseEnum):
     ACK               = 0

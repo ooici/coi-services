@@ -258,3 +258,13 @@ The pre-commit script is so you don't forget to push changes to the submodule *B
 to the supermodule.
 
 
+Instrument Development Kit (IDK)
+================================
+There are now 4 configuration options in a new config file res/config/idk.yml
+The only option you are likely to need to override is the driver_path, currently set to ion/code. Override it in idk.local.yml to the parrent directory of coi-services, pyon, and marine-integrations if they are located elsewhere.
+
+Use driver_path: OOI
+If you have the following structure.
+  ~/OOI/coi-services 
+  ~/OOI/pyon 
+  ~/OOI/marine-integrations 

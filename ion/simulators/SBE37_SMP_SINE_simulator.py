@@ -190,7 +190,8 @@ class sbe37(asyncore.dispatcher_with_send):
                 time.sleep(0.1)
                 if self.count > 25:
                     self.count = 1
-                    self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
+                    if self.tx_real_time:
+                        self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(my_sin(-10.0, 100.0), my_sin(0.0, 100.0), my_sin(0.0, 1000.0), my_sin(0.1, 40.0), my_sin(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
                     #self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(my_sin(10,30), my_sin(0.03, 0.07), my_sin(-5, -9), my_sin(0.18, 0.36), my_sin(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
 
                 # Need to handle commands that are not in the blessed list #
@@ -213,14 +214,12 @@ class sbe37(asyncore.dispatcher_with_send):
                             
                         #time.sleep(1)
 
-                    if command_args[0] in ['ds', 'dc', 'ts', 'tsr', 'slt', 'sltr', 'qs', 'stop', '\r\n', '\n\r']:
+                    elif command_args[0] in ['ds', 'dc', 'ts', 'tsr', 'slt', 'sltr', 'qs', 'stop', '\r\n', '\n\r']:
                         """
                         print "GOT A PERMITTED COMMAND " + command_args[0] + "\n"
                         """
                     else:
-                        """
-                        print "SILENTLY GOBBLING COMMAND " + data
-                        """
+                        self.send_data('cmd not allowed while logging\n', 'non-permitted command')
                         data = None
 
             if data:

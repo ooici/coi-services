@@ -44,6 +44,9 @@ class DatastoreAdmin(ImmediateProcess):
                 self.load_datastore(path, datastore, ignore_errors=False)
             elif op == "dump":
                 self.dump_datastore(path, datastore)
+            elif op == "blame":
+                # TODO make generic
+                self.get_blame_objects()
             elif op == "clear":
                 self.clear_datastore(datastore, prefix)
             else:
@@ -202,4 +205,18 @@ class DatastoreAdmin(ImmediateProcess):
         else:
             log.warn("Cannot clear datastore without prefix or datastore name")
 
+    @classmethod
+    def get_blame_objects(cls):
+        ds_list = ['resources', 'objects', 'state', 'events', 'directory', 'scidata']
+        blame_objs = {}
+        for ds_name in ds_list:
+            ds = DatastoreManager.get_datastore_instance(ds_name)
+            ret_objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
+            objs = []
+            for obj_id, obj_key, obj in ret_objs:
+                if "blame_" in obj:
+                    objs.append(obj)
+            blame_objs[ds_name] = objs
+        return blame_objs
+        
 DatastoreLoader = DatastoreAdmin
