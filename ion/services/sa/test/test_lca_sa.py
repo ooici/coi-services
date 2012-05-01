@@ -8,7 +8,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
@@ -41,14 +41,14 @@ class TestLCASA(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to DataProductManagementService
         self.client = DotDict()
         self.client.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
-        self.client.MFMS = MarineFacilityManagementServiceClient(node=self.container.node)
+        self.client.MFMS = ObservatoryManagementServiceClient(node=self.container.node)
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
@@ -84,6 +84,7 @@ class TestLCASA(IonIntegrationTestCase):
 
 
 
+    @unittest.skip('refactoring')
     #@unittest.skip('temporarily')
     #@unittest.skip('Fixing data product creation')
     def test_lca_step_1_to_6(self):
@@ -103,8 +104,8 @@ class TestLCASA(IonIntegrationTestCase):
         resource_ids = self._low_level_init()
 
         log.info("LCA steps 1.3, 1.4, 1.5, 1.6, 1.7: FCRUF marine facility")
-        marine_facility_id = self.generic_fcruf_script(RT.MarineFacility, 
-                                          "marine_facility", 
+        observatory_id = self.generic_fcruf_script(RT.Observatory, 
+                                          "observatory", 
                                           self.client.MFMS, 
                                           True)
 
@@ -115,10 +116,10 @@ class TestLCASA(IonIntegrationTestCase):
 #                                            True)
 
         log.info("LCA <missing step>: associate site with marine facility")
-#        self.generic_association_script(c.MFMS.assign_site_to_marine_facility,
-#                                        c.MFMS.find_marine_facility_by_site,
-#                                        c.MFMS.find_site_by_marine_facility,
-#                                        marine_facility_id,
+#        self.generic_association_script(c.MFMS.assign_site_to_observatory,
+#                                        c.MFMS.find_observatory_by_site,
+#                                        c.MFMS.find_site_by_observatory,
+#                                        observatory_id,
 #                                        site_id)
 
         
@@ -212,7 +213,7 @@ class TestLCASA(IonIntegrationTestCase):
 
         #THIS STEP IS IN THE WRONG PLACE...
         log.info("LCA step 5.5: list instruments by observatory")
-        insts = c.MFMS.find_instrument_device_by_marine_facility(marine_facility_id)
+        insts = c.MFMS.find_instrument_device_by_observatory(observatory_id)
         self.assertEqual(0, len(insts))
         #self.assertIn(instrument_device_id, insts)
 
@@ -251,7 +252,7 @@ class TestLCASA(IonIntegrationTestCase):
 
         #THIS IS WHERE STEP 5.5 SHOULD BE
         log.info("LCA step 5.5: list instruments by observatory")
-        insts = c.MFMS.find_instrument_device_by_marine_facility(marine_facility_id)
+        insts = c.MFMS.find_instrument_device_by_observatory(observatory_id)
         #self.assertIn(instrument_device_id, insts)
 
 
@@ -278,7 +279,7 @@ class TestLCASA(IonIntegrationTestCase):
         #self.assertIn(data_product_id, products)
 
         log.info("LCA step 5.10e: find data products by marine facility")
-        products = self.client.MFMS.find_data_product_by_marine_facility(marine_facility_id)
+        products = self.client.MFMS.find_data_product_by_observatory(observatory_id)
         #self.assertIn(data_product_id, products)
 
 

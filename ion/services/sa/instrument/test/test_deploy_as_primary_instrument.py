@@ -56,7 +56,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Start container
         self._start_container()
 
-        #self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        #self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         print 'started services'
