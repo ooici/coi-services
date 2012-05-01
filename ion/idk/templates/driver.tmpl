@@ -19,21 +19,21 @@ import time
 import re
 import datetime
 
-from ion.services.mi.instrument_connection import SerialInstrumentConnection
-from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
-from ion.services.mi.instrument_driver import InstrumentDriver
-from ion.services.mi.instrument_driver import DriverChannel
-from ion.services.mi.instrument_driver import DriverCommand
-from ion.services.mi.instrument_driver import DriverState
-from ion.services.mi.instrument_driver import DriverEvent
-from ion.services.mi.instrument_driver import DriverParameter
-from ion.services.mi.exceptions import InstrumentProtocolException
-from ion.services.mi.exceptions import InstrumentTimeoutException
-from ion.services.mi.exceptions import InstrumentStateException
-from ion.services.mi.exceptions import InstrumentConnectionException
-from ion.services.mi.common import InstErrorCode
-from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_fsm import InstrumentFSM
+from mi.instrument_connection import SerialInstrumentConnection
+from mi.instrument_protocol import CommandResponseInstrumentProtocol
+from mi.instrument_driver import InstrumentDriver
+from mi.instrument_driver import DriverChannel
+from mi.instrument_driver import DriverCommand
+from mi.instrument_driver import DriverState
+from mi.instrument_driver import DriverEvent
+from mi.instrument_driver import DriverParameter
+from mi.exceptions import InstrumentProtocolException
+from mi.exceptions import InstrumentTimeoutException
+from mi.exceptions import InstrumentStateException
+from mi.exceptions import InstrumentConnectionException
+from mi.common import InstErrorCode
+from mi.common import BaseEnum
+from mi.instrument_fsm import InstrumentFSM
 
 
 ###
