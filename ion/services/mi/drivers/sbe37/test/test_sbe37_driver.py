@@ -176,12 +176,6 @@ class TestSBE37Driver(DriverTestCase):
         # Create and start the driver.
         self._start_driver()
         self.addCleanup(self._stop_driver)        
-
-    def evt_recd(self, evt):
-        """
-        Simple callback to catch events from the driver for verification.
-        """
-        self._events.append(evt)
     
     def assertSampleDict(self, val):
         """

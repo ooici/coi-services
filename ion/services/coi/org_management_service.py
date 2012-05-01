@@ -362,7 +362,7 @@ class OrgManagementService(BaseOrgManagementService):
             raise BadRequest("The Member User Role is already assigned with an enrollment to an Org")
 
         #Initiate request
-        req_obj = NegotiateRequestFactory.create_role_request(org_id, user_id)
+        req_obj = NegotiateRequestFactory.create_role_request(org_id, user_id, role_name)
 
         req_id = self.request_handler.open_request(req_obj)
 

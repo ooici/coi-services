@@ -24,13 +24,11 @@ from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
 import ion.services.mi.drivers.uw_bars.bars as bars
-
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
 from ion.services.mi.instrument_fsm_args import InstrumentFSM
-
-from ion.services.mi.exceptions import InstrumentProtocolException
-from ion.services.mi.exceptions import InstrumentTimeoutException
+#from ion.services.mi.exceptions import InstrumentProtocolException
+#from ion.services.mi.exceptions import InstrumentTimeoutException
 
 import time
 import sys

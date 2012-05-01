@@ -21,6 +21,7 @@ from subprocess import Popen
 from subprocess import PIPE
 import logging
 import os
+import uuid
 
 from ion.services.mi.daemon_process import DaemonProcess
 from ion.services.mi.exceptions import InstrumentConnectionException
@@ -50,44 +51,35 @@ class BaseLoggerProcess(DaemonProcess):
         """
         Launch a logger in a sperate python environment.
         @param cmd_str the command string for python.
+        @retval Popen object for the new process.
         """
-        
-        mi_logger.info('LAUNCH STRING: %s',cmd_str)
         spawnargs = ['bin/python', '-c', cmd_str]
         return Popen(spawnargs, close_fds=True)
     
-    def __init__(self, server_port, pidfname, logfname, statusfname,
-                 workdir, delim, sniffer_port, ppid):
+    def __init__(self, pidfname, logfname, statusfname, portfname, workdir,
+                 delim, ppid):
         """
-        @param server_port The port to listen on for driver connections.
-        @param pidfname The file name of the process ID file, used by
-                DaemonProcess.
-        @param logfname The file name of the logger logfile where comms
-                traffic is logged, used by DaemonProcess.
-        @param statsfname The name of the logger status file, where logger
-                status info and errors is kept.
-        @param workdir The path of the working directory where logger files
-                are written, used by DaemonProcess.
-        @param delim A 2-element delimter list used to delimit traffic from
-                the driver in the logfile, thus demarking it from the device
-                output.
-        @param sniffer_port The port to listen on for sniffer connections.
-        @param ppid The optional parent process id, used to self destruct
-        when parents die in test cases.
+        Base logger process constructor.
+        @param pidfname Process id file name.
+        @param logfname Log file name.
+        @param statusfname Status file name.
+        @param portfname Port file name.
+        @param workdir The work directory.
+        @param delim 2-element delimiter to indicate traffic from the driver
+        in the logfile.
+        @param ppid Parent process ID, used to self destruct when parents
+        die in test cases.        
         """
         DaemonProcess.__init__(self, pidfname, logfname, workdir)
-        self.server_port = server_port
-        self.sniffer_port = sniffer_port
+        self.server_port = None
         self.driver_server_sock = None
         self.driver_sock = None
         self.driver_addr = None
-        self.sniffer_server_sock = None
-        self.sniffer_sock = None
-        self.sniffer_addr = None
         self.delim = delim
         self.statusfname = workdir + statusfname
         self.ppid = ppid
         self.last_parent_check = None
+        self.portfname = workdir + portfname
         
     def _init_driver_comms(self):
         """
@@ -104,10 +96,13 @@ class BaseLoggerProcess(DaemonProcess):
                                                 socket.SOCK_STREAM)
                 self.driver_server_sock.setsockopt(socket.SOL_SOCKET,
                                                    socket.SO_REUSEADDR, 1)
-                self.driver_server_sock.bind(('',self.server_port))
+                self.driver_server_sock.bind(('',0))
+                sock_name = self.driver_server_sock.getsockname()
+                self.server_port = sock_name[1]
+                file(self.portfname,'w+').write(str(self.server_port)+'\n')
                 self.driver_server_sock.listen(1)
                 self.driver_server_sock.setblocking(0)
-                self.statusfile.write('_init_driver_comms: Listening for driver on port %i.\n' % self.server_port)
+                self.statusfile.write('_init_driver_comms: Listening for driver at: %s.\n' % str(sock_name))
                 self.statusfile.flush()
                 return True
             
@@ -162,7 +157,6 @@ class BaseLoggerProcess(DaemonProcess):
         if they exist. Log with status file.
         """
         if self.driver_sock:
-            #-self.driver_sock.shutdown(socket.SHUT_RDWR)
             self.driver_sock.close()
             self.driver_sock = None
             self.driver_addr = None
@@ -346,12 +340,29 @@ class BaseLoggerProcess(DaemonProcess):
         """
         self._close_device_comms()
         self._close_driver_comms()
+        if os.path.exists(self.portfname):
+            os.remove(self.portfname)
         if self.statusfile:
             self.statusfile.write('_cleanup: logger stopping.\n')
             self.statusfile.flush()
             self.statusfile.close()
             self.statusfile = None
         DaemonProcess._cleanup(self)
+     
+    def get_port(self):
+        """
+        Read the logger port file and return the socket to connect to.
+        """
+        try:
+            pf = file(self.portfname, 'r')
+            pid = int(pf.read().strip())
+            pf.close()
+
+        except IOError:
+            pid = None
+
+        return pid            
+        
      
     def _run(self):
         """
@@ -373,11 +384,13 @@ class BaseLoggerProcess(DaemonProcess):
         if not self._init_device_comms():
             self.statusfile.write('_run: could not connect to device.\n')
             self.statusfile.flush()
+            self._cleanup()
             return
         
         if not self._init_driver_comms():
             self.statusfile.write('_run: could not listen for drivers.\n')
             self.statusfile.flush()
+            self._cleanup()
             return
         
         #last_time = time.time()
@@ -396,11 +409,6 @@ class BaseLoggerProcess(DaemonProcess):
                 self.logfile.write('\n')
                 self.logfile.flush()
             self._check_parent()
-            #cur_time = time.time()
-            #if cur_time - last_time > 5:
-            #    last_time = cur_time
-            #    self.statusfile.write('logger processing...\n')
-            #    self.statusfile.flush()
             if not driver_data and not device_data:
                 time.sleep(.1)
 
@@ -409,67 +417,64 @@ class EthernetDeviceLogger(BaseLoggerProcess):
     A device logger process specialized to read/write to TCP/IP devices.
     Provides functionality opening, closing, reading, writing and checking
     connection status of device.
-    """
-    
+    """ 
     @classmethod
-    def launch_logger(cls, device_host, device_port, server_port, workdir,
-                      delim, sniffer_port, ppid):
+    def launch_process(cls, device_host, device_port, workdir='/tmp/',
+                       delim=['<<','>>'], ppid=None):
         """
-        Static method to launch the logger in a seperate python environment.
+        Class method to be used in place of a constructor to launch a logger in
+        a fully seperate python interpreter process. Builds command line for
+        EthernetDeviceLogger and calls base class static method.
+        @param device_host Internet address of the device.
+        @param device_port Port of the device.
+        @param workdir The work directory.
+        @param delim 2-element delimiter to indicate traffic from the driver
+        in the logfile.
+        @param ppid Parent process ID, used to self destruct when parents
+        die in test cases.      
+        @retval An EthernetDeviceLogger object to control the remote process.
         """
-        cmd_str = 'from %s import %s; l = %s("%s", %i, %i, "%s", %s, %s, %s); l.start()' \
-            % (__name__, cls.__name__, cls.__name__, device_host, device_port,
-               server_port, workdir, str(delim), str(sniffer_port), str(ppid))
-        BaseLoggerProcess.launch_logger(cmd_str)
-    
-    def __init__(self, device_host, device_port, server_port, workdir,
-                 delim, sniffer_port, ppid):
-        """
-        @param server_port The port to listen on for driver connections.
-        @param pidfname The file name of the process ID file, used by
-                DaemonProcess.
-        @param logfname The file name of the logger logfile where comms
-                traffic is logged, used by DaemonProcess.
-        @param statsfname The name of the logger status file, where logger
-                status info and errors is kept.
-        @param workdir The path of the working directory where logger files
-                are written, used by DaemonProcess.
-        @param delim A 2-element delimter list used to delimit traffic from
-                the driver in the logfile, thus demarking it from the device
-                output.
-        @param sniffer_port The port to listen on for sniffer connections.
-        @param ppid The optional parent process id, used to self destruct
-        when parents die in test cases.        
-        """
-        
         start_time = datetime.datetime.now()
-        self.start_time = start_time
-        dt_string = '%s_%i__%i_%i_%i_%i_%i_%i' % \
-                (device_host, device_port, start_time.year, start_time.month,
+        dt_string = '%i_%i_%i_%i_%i_%i' % \
+                (start_time.year, start_time.month,
                 start_time.day, start_time.hour, start_time.minute,
                 start_time.second)
+        tag = str(uuid.uuid4())
+        pidfname = '%s_%i_%s.pid.txt' % (device_host, device_port, tag)
+        portfname = '%s_%i_%s.port.txt' % (device_host, device_port, tag)
+        logfname = '%s_%i_%s__%s.log.txt' % (device_host, device_port, tag, dt_string)
+        statusfname = '%s_%i_%s__%s.status.txt' % (device_host, device_port, tag, dt_string)
+        cmd_str = 'from %s import %s; l = %s("%s", %i, "%s", "%s", "%s", "%s", "%s", %s, %s); l.start()' \
+                % (__name__, cls.__name__, cls.__name__, device_host, device_port, pidfname,
+                   logfname, statusfname, portfname, workdir, str(delim), str(ppid))
+        BaseLoggerProcess.launch_logger(cmd_str)        
+        return EthernetDeviceLogger(device_host, device_port, pidfname, logfname,
+                 statusfname, portfname, workdir, delim, ppid)
+
+    def __init__(self, device_host, device_port, pidfname, logfname,
+                 statusfname, portfname, workdir, delim, ppid):
+        """
+        Ethernet device logger constructor. Initialize ethernet specific
+        members and call base class constructor.
+        @param device_host Internet address of the device.
+        @param device_port Port of the device.
+        @param pidfname Process id file name.
+        @param logfname Log file name.
+        @param statusfname Status file name.
+        @param portfname Port file name.
+        @param workdir The work directory.
+        @param delim 2-element delimiter to indicate traffic from the driver
+        in the logfile.
+        @param ppid Parent process ID, used to self destruct when parents
+        die in test cases.              
+        """
         
-        pidfname = '%s_%i.pid.txt' % (device_host, device_port)
-        logfname = '%s.log.txt' % dt_string
-        statusfname = '%s.status.txt' % dt_string
         self.device_host = device_host
         self.device_port = device_port
         self.device_sock = None
-                
-        BaseLoggerProcess.__init__(self, server_port, pidfname, logfname,
-                            statusfname, workdir, delim, sniffer_port, ppid)
-
-    def startx(self):
-        """
-        Override daemon start method to launch a new python interpreter.
-        Avoids gevent monkeypatching leaking into the logger process.
-        """
-        cls_name = type(self).__name__
-        cmd_str = 'from %s import %s; l = %s("%s", %i, %i, "%s", %s, %s, %s); l.start()' \
-            % (__name__, cls_name, cls_name, self.device_host, self.device_port,
-               self.server_port, self.workdir, str(self.delim), str(self.sniffer_port), str(self.ppid))
-        BaseLoggerProcess.launch_logger(cmd_str)        
-
+        BaseLoggerProcess.__init__(self, pidfname, logfname, statusfname, portfname,
+                                   workdir, delim, ppid)        
+        
     def _init_device_comms(self):
         """
         Initialize ethernet device comms. Attempt to connect to an IP
@@ -494,7 +499,8 @@ class EthernetDeviceLogger(BaseLoggerProcess):
             return False
         
         else:
-            self.statusfile.write('_init_device_comms: device connected.\n')
+            sock_name = self.device_sock.getsockname()
+            self.statusfile.write('_init_device_comms: device connected at: %s\n' % str(sock_name))
             self.statusfile.flush()
             return True
         
@@ -619,22 +625,10 @@ class SerialDeviceLogger(BaseLoggerProcess):
     Provides functionality opening, closing, reading, writing and checking
     connection status of device.    
     """
-    def __init__(self, server_port, device_host, device_port,
-                 dir=None, delim=['<<','>>'], sniffer_port=None):
+    def __init__(self):
         """
-        @param server_port The port to listen on for driver connections.
-        @param pidfname The file name of the process ID file, used by
-                DaemonProcess.
-        @param logfname The file name of the logger logfile where comms
-                traffic is logged, used by DaemonProcess.
-        @param statsfname The name of the logger status file, where logger
-                status info and errors is kept.
-        @param workdir The path of the working directory where logger files
-                are written, used by DaemonProcess.
-        @param delim A 2-element delimter list used to delimit traffic from
-                the driver in the logfile, thus demarking it from the device
-                output.
-        @param sniffer_port The port to listen on for sniffer connections.        
+        Serial logger constructor. Set serial specific members and call
+        base class constructor.
         """        
         pass
 

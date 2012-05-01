@@ -33,8 +33,6 @@ from ion.services.mi.exceptions import InstrumentProtocolException
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
-# This is the mi_merge branch.
-
 class SBE37ProtocolState(BaseEnum):
     """
     Protocol states for SBE37. Cherry picked from DriverProtocolState
@@ -60,6 +58,7 @@ class SBE37ProtocolEvent(BaseEnum):
     START_AUTOSAMPLE = DriverEvent.START_AUTOSAMPLE
     STOP_AUTOSAMPLE = DriverEvent.STOP_AUTOSAMPLE
     TEST = DriverEvent.TEST
+    RUN_TEST = DriverEvent.RUN_TEST
     CALIBRATE = DriverEvent.CALIBRATE
     EXECUTE_DIRECT = DriverEvent.EXECUTE_DIRECT
 
@@ -123,7 +122,7 @@ SBE37_TIMEOUT = 10
                 
 # Packet config for SBE37 data granules.
 PACKET_CONFIG = {
-        'ctd_parsed' : ('prototype.sci_data.ctd_stream', 'ctd_stream_packet'),
+        'ctd_parsed' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet'),
         'ctd_raw' : None            
 }
 
@@ -145,6 +144,19 @@ class SBE37Driver(SingleConnectionInstrumentDriver):
         #Construct superclass.
         SingleConnectionInstrumentDriver.__init__(self, evt_callback)
 
+    ########################################################################
+    # Superclass overrides for resource query.
+    ########################################################################
+
+    def get_resource_params(self):
+        """
+        Return list of device parameters available.
+        """
+        return SBE37Parameter.list()        
+
+    ########################################################################
+    # Protocol builder.
+    ########################################################################
 
     def _build_protocol(self):
         """
@@ -192,7 +204,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.STOP_AUTOSAMPLE, self._handler_autosample_stop_autosample)
         self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.ENTER, self._handler_test_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.EXIT, self._handler_test_exit)
-        self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.TEST, self._handler_test_run_tests)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.RUN_TEST, self._handler_test_run_tests)
         self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.GET, self._handler_command_autosample_test_get)
         self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.ENTER, self._handler_direct_access_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.EXIT, self._handler_direct_access_exit)
@@ -362,6 +374,10 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
 
+        # Assure the device is transmitting.
+        if not self._param_dict.get(SBE37Parameter.TXREALTIME):
+            self._do_cmd_resp('set', SBE37Parameter.TXREALTIME, True, **kwargs)
+        
         # Issue start command and switch to autosample if successful.
         self._do_cmd_no_resp('startnow', *args, **kwargs)
                 
@@ -480,7 +496,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         
         # Forward the test event again to run the test handler and
         # switch back to command mode afterward.
-        Timer(1, lambda: self._protocol_fsm.on_event(SBE37ProtocolEvent.TEST)).start()
+        Timer(1, lambda: self._protocol_fsm.on_event(SBE37ProtocolEvent.RUN_TEST)).start()
     
     def _handler_test_exit(self, *args, **kwargs):
         """
@@ -715,6 +731,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
             # Driver timestamp.
             sample['time'] = [time.time()]
+            sample['stream_name'] = 'ctd_parsed'
 
             if self._driver_event:
                 self._driver_event(DriverAsyncEvent.SAMPLE, sample)

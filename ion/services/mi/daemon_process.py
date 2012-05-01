@@ -37,17 +37,19 @@ class DaemonProcess(object):
         self.logfile = None
         self.workdir = workdir
 
+        # SIGCHLD handler goofs up popen.wait and popen.poll in
+        # the launching process.
         # Register a handler for the SIGCHLD signal. This will
         # call os.wait() to retrieve the child process return value and
         # prevent it from becomming a zombie process.
-        def wait_on_child(signum=None, frame=None):
-            retval = os.wait()
-        try:
-            signal.signal(signal.SIGCHLD, wait_on_child)
-        
-        except ValueError:
-            # Can only register signals in main thread.
-            pass
+        #def wait_on_child(signum=None, frame=None):
+        #    retval = os.wait()
+        #try:
+        #    signal.signal(signal.SIGCHLD, wait_on_child)
+        # 
+        #except ValueError:
+        #    # Can only register signals in main thread.
+        #    pass
 
     def start(self):
         """

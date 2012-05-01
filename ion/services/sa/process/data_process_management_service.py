@@ -191,7 +191,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             if not out_data_product_obj:
                 raise NotFound("Output Data Product %s does not exist" % out_data_product_id)
             # Associate with DataProcess: register as an output product for this process
-            log.debug("DataProcessManagementService:create_data_process link data process %s and output out data product: %s", str(data_process_id), str(out_data_product_id))
+            log.debug("DataProcessManagementService:create_data_process link data process %s and output out data product: %s    (L4-CI-SA-RQ-260)", str(data_process_id), str(out_data_product_id))
             self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
 
             # Retrieve the id of the OUTPUT stream from the out Data Product
@@ -210,6 +210,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
 
         #Todo: currently this is handled explicitly after creating the dat product, that code then calls DMAS:assign_data_product
+        log.debug("DataProcessManagementService:create_data_process associate data process workflows with source data products %s hasInputProduct  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_id))
         self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
 
         #-------------------------------
