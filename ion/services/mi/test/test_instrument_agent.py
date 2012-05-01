@@ -44,9 +44,11 @@ from pyon.public import CFG
 from pyon.event.event import EventSubscriber, EventPublisher
 
 # MI imports.
+from ion.services.mi.driver_int_test_support import DriverIntegrationTestSupport
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
 from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_states
@@ -62,17 +64,19 @@ DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
+DRV_MOD = 'ion.services.mi.drivers.sbe37_driver'
+DRV_CLS = 'SBE37Driver'
+
 # Work dir and logger delimiter.
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
 
 # Driver config.
 # DVR_CONFIG['comms_config']['port'] is set by the setup.
-from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 DVR_CONFIG = {
-    'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
-    'dvr_cls' : 'SBE37Driver',
-    'workdir' : '/tmp/',
+    'dvr_mod' : DRV_MOD,
+    'dvr_cls' : DRV_CLS,
+    'workdir' : WORK_DIR,
 }
 
 # Agent parameters.
@@ -175,10 +179,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Start agent, client.
         """
                 
+        self._support = DriverIntegrationTestSupport(DRV_MOD,
+                                                     DRV_CLS,
+                                                     DEV_ADDR,
+                                                     DEV_PORT,
+                                                     DELIM,
+                                                     WORK_DIR)
         # Start port agent, add stop to cleanup.
         self._pagent = None        
         self._start_pagent()
-        self.addCleanup(self._stop_pagent)    
+        self.addCleanup(self._support.stop_pagent)    
         
         # Start container.
         self._start_container()
@@ -231,21 +241,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         Construct and start the port agent.
         """
-
-        # Create port agent object.
-        this_pid = os.getpid()
-        self._pagent = EthernetDeviceLogger.launch_process(DEV_ADDR, DEV_PORT,
-                        WORK_DIR, DELIM, this_pid)
-
-        # Get the pid and port agent server port number.
-        pid = self._pagent.get_pid()
-        while not pid:
-            gevent.sleep(.1)
-            pid = self._pagent.get_pid()
-        port = self._pagent.get_port()
-        while not port:
-            gevent.sleep(.1)
-            port = self._pagent.get_port()
+        port = self._support.start_pagent()
         
         # Configure driver to use port agent port number.
         DVR_CONFIG['comms_config'] = {
@@ -253,21 +249,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'port' : port
         }
         
-        # Report.
-        log.info('Started port agent pid %d listening at port %d.', pid, port)
-
-    def _stop_pagent(self):
-        """
-        Stop the port agent.
-        """
-        if self._pagent:
-            pid = self._pagent.get_pid()
-            if pid:
-                log.info('Stopping pagent pid %i.', pid)
-                self._pagent.stop()
-            else:
-                log.warning('No port agent running.')
-                
     def _start_data_subscribers(self):
         """
         """
@@ -748,6 +729,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
     
+    @unittest.skip('Never written')
     def test_errors(self):
         """
         """

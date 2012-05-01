@@ -27,7 +27,6 @@ from nose.plugins.attrib import attr
 
 # Pyon and ION imports
 from pyon.util.unit_test import PyonTestCase
-from ion.services.mi.driver_test_case import DriverTestCase
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Driver
@@ -119,24 +118,26 @@ PARAMS = {
 
 @attr('HARDWARE', group='mi')
 #@unittest.skip('Ready to go, remove skip when tested against simulator.')
-class TestSBE37Driver(DriverTestCase):    
+class TestSBE37Driver(PyonTestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
     use patterns for the sbe37 driver as a zmq driver process.
     """    
     
     def __init__(self):
-        DriverTestCase.__init__()
         self.device_addr = DEV_ADDR
         self.device_port = DEV_PORT
         self.work_dir = WORK_DIR
         self.delim = DELIM
         
         self.driver_class = DVR_CLS
-#        self.driver_server_addr = DVR_SVR_ADDR
-#        self.driver_cmd_port = DVR_CMD_PORT
-#        self.driver_event_port = DVR_EVT_PORT
         self.driver_module = DVR_MOD
+        self._support = DriverIntegrationTestSupport(self.driver_module,
+                                                     self.driver_class,
+                                                     self.device_addr,
+                                                     self.device_port,
+                                                     self.delim,
+                                                     self.work_dir)
     
     def setUp(self):
         """
@@ -157,12 +158,12 @@ class TestSBE37Driver(DriverTestCase):
 
         # Create and start the port agent.
         mi_logger.info('start')
-        self._start_pagent()
-        self.addCleanup(self._stop_pagent)    
+        COMMS_CONFIG['port'] = self._support.start_pagent()
+        self.addCleanup(self._support.stop_pagent)    
 
         # Create and start the driver.
-        self._start_driver()
-        self.addCleanup(self._stop_driver)        
+        self._support.start_driver()
+        self.addCleanup(self._support.stop_driver)        
     
     def assertSampleDict(self, val):
         """

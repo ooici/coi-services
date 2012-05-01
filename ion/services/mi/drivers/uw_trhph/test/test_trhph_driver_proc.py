@@ -39,24 +39,12 @@ import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
 
-# Driver and port agent configuration
-DVR_SVR_ADDR = 'localhost'
-DVR_CMD_PORT = 5556
-DVR_EVT_PORT = 5557
-
 DVR_MOD = 'ion.services.mi.drivers.uw_trhph.trhph_driver'
 DVR_CLS = 'TrhphInstrumentDriver'
 
-PAGENT_ADDR = 'localhost'
-PAGENT_PORT = 8888
-
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
-SNIFFER_PORT = None
-COMMS_CONFIG = {
-    'addr': PAGENT_ADDR,
-    'port': PAGENT_PORT
-}
+COMMS_CONFIG = {'addr': 'localhost'}
 
 
 @attr('INT', group='mi')
@@ -76,21 +64,20 @@ class DriverIntTest(TrhphTestCase):
 
         self._support = DriverIntegrationTestSupport(DVR_MOD, DVR_CLS,
                             self.device_address, self.device_port,
-                            PAGENT_PORT, DELIM, SNIFFER_PORT,
-                            DVR_CMD_PORT, DVR_EVT_PORT, DVR_SVR_ADDR)
+                            DELIM)
 
         self._dvr_client = None
 
         # Create and start the port agent.
         mi_logger.info('start')
 
-        self._support._start_pagent()
-        self.addCleanup(self._support._stop_pagent)
+        COMMS_CONFIG['port'] = self._support.start_pagent()
+        self.addCleanup(self._support._top_pagent)
 
 
         # Create and start the driver.
-        self._support._start_driver()
-        self.addCleanup(self._support._stop_driver)
+        self._support.start_driver()
+        self.addCleanup(self._support.stop_driver)
 
         self._dvr_client = self._support._dvr_client
 

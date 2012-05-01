@@ -26,8 +26,7 @@ class DriverIntegrationTestSupport(object):
     """
 
     def __init__(self, driver_module, driver_class,
-                 device_addr, device_port, pagent_port, delim, sniffer_port,
-                 driver_cmd_port, driver_event_port, driver_server_addr,
+                 device_addr, device_port, delim,
                  work_dir='/tmp/'):
 
         """
@@ -35,9 +34,7 @@ class DriverIntegrationTestSupport(object):
         @param driver_class
         @param device_addr
         @param device_port
-        @param pagent_port
         @param delim
-        @param sniffer_port
         @param driver_cmd_port
         @param driver_event_port
         @param driver_server_addr
@@ -51,14 +48,7 @@ class DriverIntegrationTestSupport(object):
 
         self.device_addr = device_addr
         self.device_port = device_port
-        self.pagent_port = pagent_port
         self.delim = delim
-        self.sniffer_port = sniffer_port
-
-        self.driver_cmd_port = driver_cmd_port
-        self.driver_event_port = driver_event_port
-        self.driver_server_addr = driver_server_addr
-
         self.work_dir = work_dir
 
         # Should clear this in setup
@@ -68,12 +58,15 @@ class DriverIntegrationTestSupport(object):
     def start_pagent(self):
         """
         Construct and start the port agent.
+        @retval port Port that was used for connection to agent
         """
-        
         # Create port agent object.
         this_pid = os.getpid()
-        self._pagent = EthernetDeviceLogger.launch_process(DEV_ADDR, DEV_PORT,
-                        WORK_DIR, DELIM, this_pid)
+        self._pagent = EthernetDeviceLogger.launch_process(self.device_addr,
+                                                           self.device_port,
+                                                           self.work_dir,
+                                                           self.delim,
+                                                           this_pid)
 
         pid = self._pagent.get_pid()
         while not pid:
@@ -83,11 +76,10 @@ class DriverIntegrationTestSupport(object):
         while not port:
             gevent.sleep(.1)
             port = self._pagent.get_port()
-        
-        COMMS_CONFIG['port'] = port
-
+            
         mi_logger.info('Started port agent pid %d listening at port %d', pid, port)
-
+        return port
+    
     def stop_pagent(self):
         """
         Stop the port agent.
@@ -107,17 +99,20 @@ class DriverIntegrationTestSupport(object):
         
         # Launch driver process based on test config.
         this_pid = os.getpid()
-        (dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(DVR_MOD, DVR_CLS, WORK_DIR, this_pid)
+        (dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(self.driver_module,
+                                                                         self.driver_class,
+                                                                         self.work_dir,
+                                                                         this_pid)
         self._dvr_proc = dvr_proc
         mi_logger.info('Started driver process for %d %d %s %s', cmd_port,
-            evt_port, DVR_MOD, DVR_CLS)
+            evt_port, self.driver_module, self.driver_class)
         mi_logger.info('Driver process pid %d', self._dvr_proc.pid)
             
         # Create driver client.            
         self._dvr_client = ZmqDriverClient('localhost', cmd_port,
             evt_port)
         mi_logger.info('Created driver client for %d %d %s %s', cmd_port,
-            evt_port, DVR_MOD, DVR_CLS)
+            evt_port, self.driver_module, self.driver_class)
         
         # Start client messaging.
         self._dvr_client.start_messaging(self.evt_recd)

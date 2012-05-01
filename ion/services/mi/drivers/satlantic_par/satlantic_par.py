@@ -105,6 +105,9 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     
     The protocol is a very simple command/response protocol with a few show
     commands and a few set commands.
+    
+    Note protocol state machine must be called "self._protocol_fsm"
+    
     @todo Check for valid state transitions and handle requests appropriately
     possibly using better exceptions from the fsm.on_event() method
     """
@@ -116,48 +119,48 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         self.write_delay = WRITE_DELAY
         self._last_data_timestamp = None
         
-        self._fsm = InstrumentFSM(PARProtocolState, PARProtocolEvent, PARProtocolEvent.ENTER_STATE,
+        self._protocol_fsm = InstrumentFSM(PARProtocolState, PARProtocolEvent, PARProtocolEvent.ENTER_STATE,
                                   PARProtocolEvent.EXIT_STATE,
                                   InstErrorCode.UNHANDLED_EVENT)
-        self._fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.AUTOSAMPLE,
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.AUTOSAMPLE,
                               self._handler_command_autosample)
-        self._fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.COMMAND,
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.COMMAND,
                               self._handler_command_command)
-        self._fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.ENTER_STATE,
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.ENTER_STATE,
                               self._handler_command_enter_state)
-        self._fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.GET,
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.GET,
                               self._handler_command_get)    
-        self._fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.SET,
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.SET,
                               self._handler_command_set)
-        self._fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.POLL,
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.POLL,
                               self._handler_command_poll)
-        self._fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.SAMPLE,
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.SAMPLE,
                               self._handler_command_sample)
-        self._fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.BREAK,
+        self._protocol_fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.BREAK,
                               self._handler_autosample_break)
-        self._fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.STOP,
+        self._protocol_fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.STOP,
                               self._handler_autosample_stop)
-        self._fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.RESET,
+        self._protocol_fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.RESET,
                               self._handler_reset)
-        self._fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.COMMAND,
+        self._protocol_fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.COMMAND,
                               self._handler_autosample_command)
-        self._fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.ENTER_STATE,
+        self._protocol_fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.ENTER_STATE,
                               self._handler_autosample_enter_state)
-        self._fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.AUTOSAMPLE,
+        self._protocol_fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.AUTOSAMPLE,
                               self._handler_poll_autosample)
-        self._fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.RESET,
+        self._protocol_fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.RESET,
                               self._handler_reset)
-        self._fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.BREAK,
+        self._protocol_fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.BREAK,
                               self._handler_poll_break)
-        self._fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.SAMPLE,
+        self._protocol_fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.SAMPLE,
                               self._handler_poll_sample)
-        self._fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.COMMAND,
+        self._protocol_fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.COMMAND,
                               self._handler_poll_command)
-        self._fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.ENTER_STATE,
+        self._protocol_fsm.add_handler(PARProtocolState.POLL_MODE, PARProtocolEvent.ENTER_STATE,
                               self._handler_poll_enter_state)
-        self._fsm.add_handler(PARProtocolState.UNKNOWN, PARProtocolEvent.CONFIGURE,
+        self._protocol_fsm.add_handler(PARProtocolState.UNKNOWN, PARProtocolEvent.CONFIGURE,
                               self._handler_configure)
-        self._fsm.start(PARProtocolState.UNKNOWN)
+        self._protocol_fsm.start(PARProtocolState.UNKNOWN)
 
         self._add_build_handler(Command.SET, self._build_set_command)
         self._add_build_handler(Command.GET, self._build_param_fetch_command)
@@ -203,7 +206,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid parameter
         """
         # Parameters checked in Handler
-        result = self._fsm.on_event(PARProtocolEvent.GET, *args, **kwargs)
+        result = self._protocol_fsm.on_event(PARProtocolEvent.GET, *args, **kwargs)
         if result == None:
             raise InstrumentProtocolException(error_code=InstErrorCode.INCORRECT_STATE)
         assert (isinstance(result, dict))
@@ -217,7 +220,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid parameter
         """
         # Parameters checked in handler
-        result = self._fsm.on_event(PARProtocolEvent.SET, *args, **kwargs)
+        result = self._protocol_fsm.on_event(PARProtocolEvent.SET, *args, **kwargs)
         if result == None:
             raise InstrumentProtocolException(error_code=InstErrorCode.INCORRECT_STATE)
         assert(isinstance(result, dict))
@@ -231,7 +234,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid command or missing
         """
         kwargs.update({KwargsKey.COMMAND:Command.EXIT})
-        return self._fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
         
     def execute_exit_and_reset(self, *args, **kwargs):
         """ Execute the exit and reset command
@@ -240,7 +243,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid command or missing
         """
         kwargs.update({KwargsKey.COMMAND:Command.EXIT_AND_RESET})
-        return self._fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
     
     def execute_poll(self, *args, **kwargs):
         """ Enter manual poll mode
@@ -249,7 +252,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid command or missing
         @todo fix this to handle change to poll mode from different states
         """
-        return self._fsm.on_event(PARProtocolEvent.POLL, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.POLL, *args, **kwargs)
         
     def execute_reset(self, *args, **kwargs):
         """ Execute the reset command
@@ -257,7 +260,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        return self._fsm.on_event(PARProtocolEvent.RESET, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.RESET, *args, **kwargs)
     
     def execute_break(self, *args, **kwargs):
         """ Execute the break command
@@ -265,7 +268,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        return self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
     
     def execute_stop(self, *args, **kwargs):
         """ Execute the stop command
@@ -273,7 +276,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        return self._fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
     
     '''
     def execute_start_autosample(self, *args, **kwargs):
@@ -282,7 +285,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        return self._fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
         
     def execute_stop_autosample(self, *args, **kwargs):
         """ Execute the autosample command
@@ -290,7 +293,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        return self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs) 
+        return self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs) 
     
     def execute_acquire_sample(self, *args, **kwargs):
         """ Get an actual sample when in poll mode
@@ -298,7 +301,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @retval None if nothing was done, otherwise result of FSM event handle
         @throws InstrumentProtocolException On invalid command or missing
         """
-        return self._fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
+        return self._protocol_fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
     '''    
     def get_config(self, *args, **kwargs):
         """ Get the entire configuration for the instrument
@@ -343,7 +346,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     def configure(self, config, *args, **kwargs):
         mi_logger.info('Configuring PAR sensor')
         CommandResponseInstrumentProtocol.configure(self, {}, *args, **kwargs)
-        self._fsm.on_event(PARProtocolEvent.CONFIGURE, *args, **kwargs)
+        self._protocol_fsm.on_event(PARProtocolEvent.CONFIGURE, *args, **kwargs)
         
     ################
     # State handlers
@@ -463,11 +466,11 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         cmd = kwargs.get(KwargsKey.COMMAND, None)
 
         if (cmd == Command.BREAK):
-            result = self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+            result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
         elif (cmd == Command.STOP):
-            result = self._fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
+            result = self._protocol_fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
         elif (cmd == Command.RESET):
-            result = self._fsm.on_event(PARProtocolEvent.RESET, *args, **kwargs)
+            result = self._protocol_fsm.on_event(PARProtocolEvent.RESET, *args, **kwargs)
         else:
             raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_COMMAND)
         
@@ -530,20 +533,20 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             
         elif cmd == Command.SAMPLE:
             try:
-                result = self._fsm.on_event(PARProtocolEvent.POLL, *args, **kwargs)
+                result = self._protocol_fsm.on_event(PARProtocolEvent.POLL, *args, **kwargs)
                 if (result == InstErrorCode.OK):
-                    result = self._fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
-                    break_result = self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)   
+                    result = self._protocol_fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
+                    break_result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)   
                     if not (break_result == InstErrorCode.OK):
                         next_state = PARProtocolState.POLL_MODE
                 
             except (InstrumentTimeoutException, InstrumentProtocolException) as e:
                 mi_logger.debug("Caught exception while polling: %s", e)
-                if self._fsm.current_state == PARProtocolState.AUTOSAMPLE_MODE:
-                    result = self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
-                elif (self._fsm.current_state == PARProtocolState.POLL_MODE):
-                    result = self._fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
-                    result = self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+                if self._protocol_fsm.current_state == PARProtocolState.AUTOSAMPLE_MODE:
+                    result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+                elif (self._protocol_fsm.current_state == PARProtocolState.POLL_MODE):
+                    result = self._protocol_fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
+                    result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
         
         else:
             raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_COMMAND)
@@ -565,19 +568,19 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         try:
             # get into auto-sample mode guaranteed, then stop and sample
             kwargs.update({KwargsKey.COMMAND:Command.EXIT_AND_RESET})
-            result = self._fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
+            result = self._protocol_fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
             if (result == InstErrorCode.OK):
-                result = self._fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
+                result = self._protocol_fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
                 if (result == InstErrorCode.OK):    
                     next_state = PARProtocolState.POLL_MODE
                  
         except (InstrumentTimeoutException, InstrumentProtocolException) as e:
             mi_logger.debug("Caught exception while moving to manual poll mode: %s", e)
-            if self._fsm.current_state == PARProtocolState.AUTOSAMPLE_MODE:
-                result = self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
-            elif (self._fsm.current_state == PARProtocolState.POLL_MODE):
-                result = self._fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
-                result = self._fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+            if self._protocol_fsm.current_state == PARProtocolState.AUTOSAMPLE_MODE:
+                result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+            elif (self._protocol_fsm.current_state == PARProtocolState.POLL_MODE):
+                result = self._protocol_fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
+                result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
 
         return (next_state, result)
     
@@ -592,7 +595,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
         kwargs.update({KwargsKey.COMMAND:Command.SAMPLE})
-        result = self._fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
+        result = self._protocol_fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
         return (next_state, result)
         
     def _handler_command_autosample(self, params=None, *args, **kwargs):
@@ -753,11 +756,11 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         cmd = kwargs.get(KwargsKey.COMMAND, None)
         
         if (cmd == Command.AUTOSAMPLE):
-            result = self._fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
+            result = self._protocol_fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
         elif (cmd == Command.RESET):
-            result = self._fsm.on_event(PARProtocolEvent.RESET, *args, **kwargs)
+            result = self._protocol_fsm.on_event(PARProtocolEvent.RESET, *args, **kwargs)
         elif (cmd == Command.POLL):
-            result = self._fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
+            result = self._protocol_fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
         else:
             raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_COMMAND)
         
@@ -990,7 +993,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         write_delay = 0.2
         mi_logger.debug("Sending reset chars")
 
-        if self._fsm.get_current_state() == PARProtocolState.COMMAND_MODE:
+        if self._protocol_fsm.get_current_state() == PARProtocolState.COMMAND_MODE:
             return InstErrorCode.OK
         
         while True:
@@ -1014,7 +1017,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         write_delay = 0.2
         mi_logger.debug("Sending stop chars")
 
-        if self._fsm.get_current_state() == PARProtocolState.COMMAND_MODE:
+        if self._protocol_fsm.get_current_state() == PARProtocolState.COMMAND_MODE:
             return InstErrorCode.OK
 
         while True:
@@ -1038,7 +1041,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         mi_logger.debug("Sending break char")
         # do the magic sequence of sending lots of characters really fast...
         # but not too fast
-        if self._fsm.get_current_state() == PARProtocolState.COMMAND_MODE:
+        if self._protocol_fsm.get_current_state() == PARProtocolState.COMMAND_MODE:
             return InstErrorCode.OK
         
         while True:
@@ -1059,7 +1062,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         
         # If we are streaming, process the line buffer for samples, but it
         # could have header stuff come out if you just got a break!
-        if self._fsm.get_current_state() == PARProtocolState.AUTOSAMPLE_MODE:
+        if self._protocol_fsm.get_current_state() == PARProtocolState.AUTOSAMPLE_MODE:
             if self.eoln in self._linebuf:
                 lines = self._linebuf.split(self.eoln)
                 for line in lines:
