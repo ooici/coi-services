@@ -342,7 +342,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
     
     def configure(self, config, *args, **kwargs):
         mi_logger.info('Configuring PAR sensor')
-        CommandResponseInstrumentProtocol.configure(self, config, *args, **kwargs)
+        CommandResponseInstrumentProtocol.configure(self, {}, *args, **kwargs)
         self._fsm.on_event(PARProtocolEvent.CONFIGURE, *args, **kwargs)
         
     ################
@@ -1184,9 +1184,6 @@ class SatlanticPARInstrumentDriver(SingleConnectionInstrumentDriver):
     def restore_config(self, config, *args, **kwargs):
         return self.set(config, *args, **kwargs)
         
-    def configure(self, config, *args, **kwargs):
-        return self._protocol.configure(config, *args, **kwargs)
-
 class SatlanticChecksumDecorator(ChecksumDecorator):
     """Checks the data checksum for the Satlantic PAR sensor"""
     

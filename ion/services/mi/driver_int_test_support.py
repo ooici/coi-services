@@ -65,7 +65,7 @@ class DriverIntegrationTestSupport(object):
         self._events = []
         self._dvr_client = None
 
-    def _start_pagent(self):
+    def start_pagent(self):
         """
         Construct and start the port agent.
         """
@@ -81,7 +81,7 @@ class DriverIntegrationTestSupport(object):
         # Stop the port agent if it is already running.
         # The port agent creates a pid file based on the config used to
         # construct it.
-        self._stop_pagent()
+        self.stop_pagent()
         pid = None
 
         # Start the port agent.
@@ -94,7 +94,7 @@ class DriverIntegrationTestSupport(object):
             pid = self._pagent.get_pid()
         mi_logger.info('Started port agent pid %d' % pid)
 
-    def _stop_pagent(self):
+    def stop_pagent(self):
         """
         Stop the port agent.
         """
@@ -106,7 +106,7 @@ class DriverIntegrationTestSupport(object):
             else:
                 mi_logger.info('No port agent running.')
 
-    def _start_driver(self):
+    def start_driver(self):
         """
         Start the driver process.
         """
@@ -133,8 +133,10 @@ class DriverIntegrationTestSupport(object):
         self._dvr_client.start_messaging(self.evt_recd)
         mi_logger.info('Driver messaging started.')
         gevent.sleep(.5)
+        
+        return self._dvr_client
 
-    def _stop_driver(self):
+    def stop_driver(self):
         """
         Method to shut down the driver process. Attempt normal shutdown,
         and kill the process if unsuccessful.

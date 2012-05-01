@@ -339,7 +339,6 @@ class InstrumentDriver(object):
         """
         raise InstrumentException(msg)
         
-
 class SingleConnectionInstrumentDriver(InstrumentDriver):
     """
     Base class for instrument drivers with a single device connection.
@@ -781,4 +780,3 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Overridden in device specific subclasses.
         """
         pass
-    

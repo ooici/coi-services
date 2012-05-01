@@ -17,9 +17,10 @@ import time
 from mock import Mock, call, DEFAULT
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
+from unittest import TestCase
 
 from ion.services.mi.common import InstErrorCode
-from ion.services.mi.driver_test_case import DriverTestCase
+from ion.services.mi.driver_int_test_support import DriverIntegrationTestSupport
 from ion.services.mi.instrument_driver import DriverState, DriverConnectionState
 from ion.services.mi.instrument_protocol import InterfaceType
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticPARInstrumentProtocol
@@ -59,8 +60,7 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         self.mock_fsm = Mock(name='fsm')
 #        self.mock_logger_client.send = Mock()
         self.par_proto = SatlanticPARInstrumentProtocol(self.mock_callback)
-        self.config_params = {'method':InterfaceType.ETHERNET,
-                              'device_addr':'1.1.1.1',
+        self.config_params = {'device_addr':'1.1.1.1',
                               'device_port':1,
                               'server_addr':'2.2.2.2',
                               'server_port':2}
@@ -217,53 +217,58 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
         pass
 
 @attr('INT', group='mi')
-class SatlanticParProtocolIntegrationTest(DriverTestCase):
+class SatlanticParProtocolIntegrationTest(unittest.TestCase):
 
-    def __init__(self, *args):
-        DriverTestCase.__init__(self, *args)
-        self.driver_module = 'ion.services.mi.drivers.satlantic_par.satlantic_par'
-        self.driver_class = 'SatlanticPARInstrumentDriver'
-        self.driver_server_addr = 'localhost'
-        self.driver_cmd_port = 5556
-        self.driver_event_port = 5557
+    def setUp(self):        
+        driver_module = 'ion.services.mi.drivers.satlantic_par.satlantic_par'
+        driver_class = 'SatlanticPARInstrumentDriver'
+        driver_server_addr = 'localhost'
+        driver_cmd_port = 5556
+        driver_event_port = 5557
         
-        self.pagent_port = 8888
-        self.device_addr = '10.180.80.179'
-        self.device_port = 2101
-        
-    def setUp(self):
+        pagent_port = 8888
+        device_addr = '10.180.80.179'
+        device_port = 2101
+
         # Zmq parameters used by driver process and client.
-        self.config_params = {'method':InterfaceType.ETHERNET,
-                              'server_port':8888}
-
+        self.config_params = {'addr': driver_server_addr,
+                              'port':pagent_port}
+                
+        self._support = DriverIntegrationTestSupport(driver_module,
+                                                     driver_class,
+                                                     device_addr,
+                                                     device_port,
+                                                     pagent_port,
+                                                     None,
+                                                     None,
+                                                     driver_cmd_port,
+                                                     driver_event_port,
+                                                     driver_server_addr)
         # Clear the driver event list
         self._events = []
         self._pagent = None
         self._dvr_proc = None
-        self._dvr_client = None
 
         mi_logger.info("Starting port agent")
-        self._start_pagent()
-        self.addCleanup(self._stop_pagent)
+        self._support.start_pagent()
+        self.addCleanup(self._support.stop_pagent)
         
         mi_logger.info("Starting Satlantic PAR driver")
-        self._start_driver()
-        self.addCleanup(self._stop_driver)
+        self._dvr_client = self._support.start_driver()
+        self.addCleanup(self._support.stop_driver)
+        
+        
 
     def _clean_up(self):
         # set back to command mode
-        reply = self._dvr_client.cmd_dvr('execute_break')
-        reply = self._dvr_client.cmd_dvr('set',
-                                           {Parameter.MAXRATE:1},
-                                           timeout=20)
-        self._disconnect()
+        if self._dvr_client:
+            reply = self._dvr_client.cmd_dvr('execute_break')
+            reply = self._dvr_client.cmd_dvr('set',
+                                             {Parameter.MAXRATE:1},
+                                              timeout=20)
+            self._disconnect()
         
-        if self.driver_process:
-            try:
-                self._dvr_client.done()
-                self.driver_process.wait()
-            finally:
-                self.driver_process = None
+        self._support.stop_driver()
 
     def tearDown(self):
         super(SatlanticParProtocolIntegrationTest, self).tearDown()
@@ -276,14 +281,15 @@ class SatlanticParProtocolIntegrationTest(DriverTestCase):
     def _connect(self):
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(DriverState.UNCONFIGURED, reply)
-
-        self._initialize()
-
         configs = self.config_params
         reply = self._dvr_client.cmd_dvr('configure', configs)
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.COMMAND, reply)
+        self.assertEqual(DriverState.DISCONNECTED, reply)
         reply = self._dvr_client.cmd_dvr('connect')
+        self.assertEqual(DriverState.COMMAND, reply)
+
+        self._initialize()
+        self.assertEqual(DriverState.COMMAND, reply)
 
         time.sleep(1)
 
@@ -317,11 +323,7 @@ class SatlanticParProtocolIntegrationTest(DriverTestCase):
     def test_connect_disconnect(self):
         """Instrument connect and disconnect"""
         # Make sure we are connected
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.UNCONFIGURED, reply)        
-        reply = self._dvr_client.cmd_dvr('configure')
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.COMMAND, reply)        
+        self._connect()
 
     def test_bad_driver_command(self):
         """Test a bad driver command being sent to the driver client"""

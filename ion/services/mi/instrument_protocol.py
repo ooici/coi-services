@@ -325,3 +325,57 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 count += 1
                 if count >= no_tries:
                     raise InstrumentProtocolException('Incorrect prompt.')
+                    
+    ########################################################################
+    # Static helpers to format set commands.
+    ########################################################################
+
+    @staticmethod
+    def _true_false_to_string(v):
+        """
+        Write a boolean value to string formatted for "generic" set operations.
+        Subclasses should overload this as needed for instrument-specific
+        formatting.
+        
+        @param v a boolean value.
+        @retval A yes/no string formatted as a Python boolean for set operations.
+        @throws InstrumentParameterException if value not a bool.
+        """
+        
+        if not isinstance(v,bool):
+            raise InstrumentParameterException('Value %s is not a bool.' % str(v))
+        return str(v)
+
+    @staticmethod
+    def _int_to_string(v):
+        """
+        Write an int value to string formatted for "generic" set operations.
+        Subclasses should overload this as needed for instrument-specific
+        formatting.
+        
+        @param v An int val.
+        @retval an int string formatted for generic set operations.
+        @throws InstrumentParameterException if value not an int.
+        """
+        
+        if not isinstance(v,int):
+            raise InstrumentParameterException('Value %s is not an int.' % str(v))
+        else:
+            return '%i' % v
+
+    @staticmethod
+    def _float_to_string(v):
+        """
+        Write a float value to string formatted for "generic" set operations.
+        Subclasses should overload this as needed for instrument-specific
+        formatting.
+        
+        @param v A float val.
+        @retval a float string formatted for "generic" set operations.
+        @throws InstrumentParameterException if value is not a float.
+        """
+
+        if not isinstance(v,float):
+            raise InstrumentParameterException('Value %s is not a float.' % v)
+        else:
+            return '%e' % v
