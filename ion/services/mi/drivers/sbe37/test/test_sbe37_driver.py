@@ -61,29 +61,18 @@ mi_logger = logging.getLogger('mi_logger')
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_errors
 # bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_discover_autosample
 
-# http://sbe37-simulator.oceanobservatories.org/
-# 4001 random data
-# 4002 sine based
-
-# Driver and port agent configuration
-DVR_SVR_ADDR = 'localhost'
-DVR_CMD_PORT = 5556
-DVR_EVT_PORT = 5557
 DVR_MOD = 'ion.services.mi.drivers.sbe37.sbe37_driver'
+
 DVR_CLS = 'SBE37Driver'
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
 DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
 DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
-PAGENT_ADDR = 'localhost'
-PAGENT_PORT = 8888
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
-SNIFFER_PORT = None
 COMMS_CONFIG = {
-    'addr': PAGENT_ADDR,
-    'port': PAGENT_PORT
+    'addr': 'localhost',
 }
 
 # Used to validate param config retrieved from driver.
@@ -140,15 +129,13 @@ class TestSBE37Driver(DriverTestCase):
         DriverTestCase.__init__()
         self.device_addr = DEV_ADDR
         self.device_port = DEV_PORT
-        self.pagent_port = PAGENT_PORT
         self.work_dir = WORK_DIR
         self.delim = DELIM
-        self.sniffer_port = SNIFFER_PORT
         
         self.driver_class = DVR_CLS
-        self.driver_server_addr = DVR_SVR_ADDR
-        self.driver_cmd_port = DVR_CMD_PORT
-        self.driver_event_port = DVR_EVT_PORT
+#        self.driver_server_addr = DVR_SVR_ADDR
+#        self.driver_cmd_port = DVR_CMD_PORT
+#        self.driver_event_port = DVR_EVT_PORT
         self.driver_module = DVR_MOD
     
     def setUp(self):
