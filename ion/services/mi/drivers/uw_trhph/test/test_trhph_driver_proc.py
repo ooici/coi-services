@@ -72,7 +72,7 @@ class DriverIntTest(TrhphTestCase):
         mi_logger.info('start')
 
         COMMS_CONFIG['port'] = self._support.start_pagent()
-        self.addCleanup(self._support._top_pagent)
+        self.addCleanup(self._support.stop_pagent)
 
 
         # Create and start the driver.
