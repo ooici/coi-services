@@ -15,12 +15,12 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
+import os
+import gevent
 
-#for agent mgmt
+
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
-#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-#from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+
 
 from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -40,10 +40,8 @@ from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
 from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
 
-#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-#from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
-
+from ion.services.mi.logger_process import EthernetDeviceLogger
+from ion.services.mi.instrument_agent import InstrumentAgentState
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -57,6 +55,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         IonObject("Resource")
 
         self.override_clients(self.clients)
+        self._pagent = None
 
     def override_clients(self, new_clients):
         """
@@ -122,7 +121,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.assign_instrument_agent_instance_to_instrument_agent(instrument_agent_instance_id, instrument_agent_id)
 
+
         self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
+        log.debug("create_instrument_agent_instance: device %s now connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         return instrument_agent_instance_id
 
@@ -175,6 +176,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if len(inst_device_ids) > 1:
             raise BadRequest("Instrument Agent Instance should only have ONE Instrument Device" + str(instrument_agent_instance_id))
         instrument_device_id = inst_device_ids[0]
+        log.debug("start_instrument_agent_instance: device is %s connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         #retrieve the instrument model
         model_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
@@ -246,6 +248,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             else:
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
 
+
+        # Start port agent, add stop to cleanup.
+        self._start_pagent(instrument_agent_instance_obj)
+
         # todo: this is hardcoded to the SBE37 model; need to abstract the driver configuration when more instruments are coded
         # todo: how to tell which prod is raw and which is parsed? Check the name?
         #stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
@@ -268,29 +274,30 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #                }
 #            }
 
-        driver_config = {
-            'svr_addr': instrument_agent_instance_obj.svr_addr,
-            'cmd_port': int(instrument_agent_instance_obj.cmd_port),
-            'evt_port':int(instrument_agent_instance_obj.evt_port),
-            'dvr_mod': instrument_agent_instance_obj.driver_module,
-            'dvr_cls': instrument_agent_instance_obj.driver_class,
-            'comms_config': {
-                    'addr': instrument_agent_instance_obj.comms_device_address,
-                    'port': int(instrument_agent_instance_obj.comms_device_port),
-                }
-            }
+#        driver_config = {
+#            'svr_addr': instrument_agent_instance_obj.svr_addr,
+#            'cmd_port': int(instrument_agent_instance_obj.cmd_port),
+#            'evt_port':int(instrument_agent_instance_obj.evt_port),
+#            'dvr_mod': instrument_agent_instance_obj.driver_module,
+#            'dvr_cls': instrument_agent_instance_obj.driver_class,
+#            'comms_config': {
+#                    'addr': instrument_agent_instance_obj.comms_device_address,
+#                    'port': int(instrument_agent_instance_obj.comms_device_port),
+#                }
+#            }
 
         # Create agent config.
-        agent_config = {
-            'driver_config' : driver_config,
+        instrument_agent_instance_obj.agent_config = {
+            'driver_config' : instrument_agent_instance_obj.driver_config,
             'stream_config' : out_streams,
             'agent'         : {'resource_id': instrument_device_id}
         }
-        log.debug("activate_instrument: agent_config %s ", str(agent_config))
+
+        log.debug("activate_instrument: agent_config %s ", str(instrument_agent_instance_obj.agent_config))
 
         pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,
-                                                               configuration=agent_config)
+                                                               configuration=instrument_agent_instance_obj.agent_config)
         log.debug("activate_instrument: schedule_process %s", pid)
 
 
@@ -299,6 +306,40 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.update_instrument_agent_instance(instrument_agent_instance_obj)
 
         return
+
+    def _start_pagent(self, instrument_agent_instance=None):
+        """
+        Construct and start the port agent.
+        """
+
+        # Create port agent object.
+        this_pid = os.getpid()
+        self._pagent = EthernetDeviceLogger.launch_process(
+            instrument_agent_instance.comms_device_address,
+            int(instrument_agent_instance.comms_device_port),
+            instrument_agent_instance.port_agent_work_dir,
+            instrument_agent_instance.port_agent_delimeter,
+            this_pid)
+
+
+        # Get the pid and port agent server port number.
+        pid = self._pagent.get_pid()
+        while not pid:
+            gevent.sleep(.1)
+            pid = self._pagent.get_pid()
+        port = self._pagent.get_port()
+        while not port:
+            gevent.sleep(.1)
+            port = self._pagent.get_port()
+
+        # Configure driver to use port agent port number.
+        instrument_agent_instance.driver_config['comms_config'] = {
+            'addr' : 'localhost',
+            'port' : port
+        }
+
+        # Report.
+        log.info('Started port agent pid %d listening at port %d.', pid, port)
 
 
     def stop_instrument_agent_instance(self, instrument_agent_instance_id=''):
@@ -313,6 +354,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj.agent_process_id = None
 
         self.RR.update(instrument_agent_instance_obj)
+
+        """
+        Stop the port agent.
+        """
+        if self._pagent:
+            pid = self._pagent.get_pid()
+            if pid:
+                log.info('Stopping pagent pid %i.', pid)
+                self._pagent.stop()
+            else:
+                log.warning('No port agent running.')
 
         return
 

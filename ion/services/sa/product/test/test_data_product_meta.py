@@ -33,7 +33,7 @@ class TestDataProductManagementServiceMeta(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         print 'started services'
 

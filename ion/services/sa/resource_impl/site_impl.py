@@ -16,32 +16,21 @@ class SiteImpl(ResourceSimpleImpl):
     @brief resource management for Site resources
     """
 
-    def _primary_object_name(self):
-        return RT.Site
-
-    def _primary_object_label(self):
-        return "site"
-
-    def link_platform(self, site_id='', logical_platform_id=''):
-        return self._link_resources(site_id, PRED.hasPlatform, logical_platform_id)
-
-    def unlink_platform(self, site_id='', logical_platform_id=''):
-        return self._unlink_resources(site_id, PRED.hasPlatform, logical_platform_id)
-
     def link_site(self, site_id='', site_child_id=''):
         return self._link_resources(site_id, PRED.hasSite, site_child_id)
 
     def unlink_site(self, site_id='', site_child_id=''):
         return self._unlink_resources(site_id, PRED.hasSite, site_child_id)
 
-    def find_having_platform(self, logical_platform_id):
-        return self._find_having(PRED.hasPlatform, logical_platform_id)
-
-    def find_stemming_platform(self, logical_platform_id):
-        return self._find_stemming(logical_platform_id, PRED.hasPlatform, RT.LogicalPlatform)
-
     def find_having_site(self, site_child_id):
         return self._find_having(PRED.hasSite, site_child_id)
 
     def find_stemming_site(self, site_id):
         return self._find_stemming(site_id, PRED.hasSite, RT.Site)
+
+    # special methods, sort of a hack
+    def link_parent(self, site_id='', parent_id=''):
+        return self._link_resources_single_subject(parent_id, PRED.hasSite, site_id)
+
+    def unlink_parent(self, site_id='', parent_id=''):
+        return self._unlink_resources(parent_id, PRED.hasSite, site_id)

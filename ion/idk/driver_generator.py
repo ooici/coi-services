@@ -16,7 +16,7 @@ from string import Template
 
 import yaml
 
-from pyon.util.config import CFG
+from pyon.util.config import Config
 from ion.idk.metadata import Metadata
 
 
@@ -33,22 +33,22 @@ class DriverGenerator:
         @brief base directory for the new driver
         @retval dir name
         """
-        #return os.environ['HOME'] + "/Workspace/code/wfrench"
-        return "/".join([os.environ['HOME'], CFG.idk.driver_path])
+        #print self.IDK_CFG.idk.driver_path
+        return "/".join([os.environ['HOME'], self.IDK_CFG.idk.driver_path])
 
     def template_dir(self):
         """
         @brief directory where code templates are stored
         @retval template dir name
         """
-        return "/".join([self.base_dir(), CFG.idk.repo, CFG.idk.template_dir])
+        return "/".join([self.base_dir(), self.IDK_CFG.idk.repo, self.IDK_CFG.idk.template_dir])
 
     def driver_dir(self):
         """
         @brief directory to store the new driver code
         @retval driver dir name
         """
-        return "/".join([self.base_dir(), CFG.idk.repo, CFG.idk.driver_dir, self.metadata.name.lower()])
+        return "/".join([self.base_dir(), self.IDK_CFG.idk.driver_repo, self.IDK_CFG.idk.driver_dir, self.metadata.name.lower()])
 
     def test_dir(self):
         """
@@ -90,7 +90,7 @@ class DriverGenerator:
         @brief relative path in the code base.
         @retval relative driver path
         """
-        replace = "/".join([self.base_dir(), CFG.idk.repo]) + '/'
+        replace = "/".join([self.base_dir(), self.IDK_CFG.idk.repo]) + '/'
         path = self.driver_path()
         return path.replace(replace, '')
 
@@ -121,7 +121,7 @@ class DriverGenerator:
         @retval driver test module name
         """
         test_file = self.test_dir() + "/" + self.test_filename()
-        module_name = test_file.replace(self.base_dir() + '/' + CFG.idk.repo + '/', '')
+        module_name = test_file.replace(self.base_dir() + '/' + self.IDK_CFG.idk.repo + '/', '')
         module_name = module_name.replace('/', '.')
         module_name = module_name.replace('.py', '')
 
@@ -134,13 +134,14 @@ class DriverGenerator:
         @retval driver test module name
         """
         driver_file = self.driver_dir() + "/" + self.driver_filename()
-        module_name = driver_file.replace(self.base_dir() + '/' + CFG.idk.repo + '/', '')
+        module_name = driver_file.replace(self.base_dir() + '/' + self.IDK_CFG.idk.repo + '/', '')
         module_name = module_name.replace('/', '.')
         module_name = module_name.replace('.py', '')
 
         return module_name
 
     def driver_version(self):
+
         if(self.metadata.version and self.metadata.version > 0):
             return self.metadata.version
         else:
@@ -157,6 +158,10 @@ class DriverGenerator:
         """
         self.metadata = metadata
         self.force = force
+
+        conf_paths = ['../coi-services/res/config/idk.yml', '../coi-services/res/config/idk.local.yml']
+        self.IDK_CFG = Config(conf_paths, ignore_not_found=True).data
+        #print  str(self.IDK_CFG)
 
     def _touch_init(self, dir):
         """
