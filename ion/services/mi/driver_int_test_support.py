@@ -22,11 +22,10 @@ mi_logger = logging.getLogger('mi_logger')
 class DriverIntegrationTestSupport(object):
     """
     Common functionality helpful for driver integration testing.
-    See test_trhph_driver_proc.py for usage example.
     """
 
     def __init__(self, driver_module, driver_class,
-                 device_addr, device_port, delim,
+                 device_addr, device_port, delim=None,
                  work_dir='/tmp/'):
 
         """
@@ -34,11 +33,10 @@ class DriverIntegrationTestSupport(object):
         @param driver_class
         @param device_addr
         @param device_port
-        @param delim
-        @param driver_cmd_port
-        @param driver_event_port
-        @param driver_server_addr
-        @param work_dir
+        @param delim 2-element delimiter to indicate traffic from the driver
+               in the logfile. See EthernetDeviceLogger.launch_process for
+               default value.
+        @param work_dir by default, '/tmp/'
         """
 
         object.__init__(self)
@@ -54,7 +52,7 @@ class DriverIntegrationTestSupport(object):
         # Should clear this in setup
         self._events = []
         self._dvr_client = None
-        
+
     def start_pagent(self):
         """
         Construct and start the port agent.
@@ -76,10 +74,10 @@ class DriverIntegrationTestSupport(object):
         while not port:
             gevent.sleep(.1)
             port = self._pagent.get_port()
-            
+
         mi_logger.info('Started port agent pid %d listening at port %d', pid, port)
         return port
-    
+
     def stop_pagent(self):
         """
         Stop the port agent.
@@ -91,12 +89,12 @@ class DriverIntegrationTestSupport(object):
                 self._pagent.stop()
             else:
                 mi_logger.info('No port agent running.')
-            
+
     def start_driver(self):
         """
         Start the driver process.
         """
-        
+
         # Launch driver process based on test config.
         this_pid = os.getpid()
         (dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(self.driver_module,
@@ -107,24 +105,24 @@ class DriverIntegrationTestSupport(object):
         mi_logger.info('Started driver process for %d %d %s %s', cmd_port,
             evt_port, self.driver_module, self.driver_class)
         mi_logger.info('Driver process pid %d', self._dvr_proc.pid)
-            
-        # Create driver client.            
+
+        # Create driver client.
         self._dvr_client = ZmqDriverClient('localhost', cmd_port,
             evt_port)
         mi_logger.info('Created driver client for %d %d %s %s', cmd_port,
             evt_port, self.driver_module, self.driver_class)
-        
+
         # Start client messaging.
         self._dvr_client.start_messaging(self.evt_recd)
         mi_logger.info('Driver messaging started.')
         gevent.sleep(.5)
-            
+
     def stop_driver(self):
         """
         Method to shut down the driver process. Attempt normal shutdown,
         and kill the process if unsuccessful.
         """
-        
+
         if self._dvr_proc:
             mi_logger.info('Stopping driver process pid %d', self._dvr_proc.pid)
             if self._dvr_client:
