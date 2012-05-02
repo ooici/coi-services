@@ -264,13 +264,13 @@ class IONLoader(ImmediateProcess):
                 svc_client.set_lifecycle_state(res_id, "%s_%s" % (mat, vis))
 
     def _resource_assign_mf(self, row, res_id):
-        svc_client = self._get_service_client("marine_facility_management")
+        svc_client = self._get_service_client("observatory_management")
 
         mf_ids = row.get(self.COL_MF, None)
         if mf_ids:
             mf_ids = self._get_typed_value(mf_ids, targettype="simplelist")
             for mf_id in mf_ids:
-                svc_client.assign_resource_to_marine_facility(res_id, self.resource_ids[mf_id])
+                svc_client.assign_resource_to_observatory(res_id, self.resource_ids[mf_id])
 
 
     def _preload_ids(self):
@@ -306,8 +306,8 @@ class IONLoader(ImmediateProcess):
         ims.create_user_info(user_id, user_info_obj)
 
     def _load_MarineFacility(self, row):
-        res_id = self._basic_resource_create(row, "MarineFacility", "mf/",
-                                            "marine_facility_management", "create_marine_facility")
+        res_id = self._basic_resource_create(row, "Observatory", "mf/",
+                                            "observatory_management", "create_observatory")
 
     def _load_UserRole(self, row):
         log.info("Loading UserRole")
@@ -375,14 +375,14 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentModel(fakerow)
 
     def _load_Site(self, row):
-        res_id = self._basic_resource_create(row, "Site", "site/",
-                                            "marine_facility_management", "create_site")
+        res_id = self._basic_resource_create(row, "Subsite", "site/",
+                                            "observatory_management", "create_subsite")
 
-        svc_client = self._get_service_client("marine_facility_management")
+        svc_client = self._get_service_client("observatory_management")
         mf_id = row.get("marine_facility_id", None)
         psite_id = row.get("parent_site_id", None)
         if mf_id:
-            svc_client.assign_site_to_marine_facility(res_id, self.resource_ids[mf_id])
+            svc_client.assign_site_to_site(res_id, self.resource_ids[mf_id])
         elif psite_id:
             svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
 
@@ -411,10 +411,10 @@ class IONLoader(ImmediateProcess):
             self._load_Site(fakerow)
 
     def _load_LogicalPlatform(self, row):
-        res_id = self._basic_resource_create(row, "LogicalPlatform", "lp/",
-                                            "marine_facility_management", "create_logical_platform")
+        res_id = self._basic_resource_create(row, "PlatformSite", "lp/",
+                                            "observatory_management", "create_platform_site")
 
-        svc_client = self._get_service_client("marine_facility_management")
+        svc_client = self._get_service_client("observatory_management")
         site_id = row["site_id"]
         svc_client.assign_logical_platform_to_site(res_id, self.resource_ids[site_id])
 
@@ -440,10 +440,10 @@ class IONLoader(ImmediateProcess):
             self._load_LogicalPlatform(fakerow)
 
     def _load_LogicalInstrument(self, row):
-        res_id = self._basic_resource_create(row, "LogicalInstrument", "li/",
-                                            "marine_facility_management", "create_logical_instrument")
+        res_id = self._basic_resource_create(row, "InstrumentSite", "li/",
+                                            "observatory_management", "create_instrument_site")
 
-        svc_client = self._get_service_client("marine_facility_management")
+        svc_client = self._get_service_client("observatory_management")
         lp_id = row["logical_platform_id"]
         svc_client.assign_logical_instrument_to_logical_platform(res_id, self.resource_ids[lp_id])
 
