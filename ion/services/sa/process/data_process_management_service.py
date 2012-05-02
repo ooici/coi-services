@@ -159,6 +159,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
 
+        if configuration is None:
+            configuration = {}
+
         # Create and store a new DataProcess with the resource registry
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry")
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
@@ -219,11 +222,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
-        instdevice_ids, _ = self.clients.resource_registry.find_objects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
+        instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
         for instdevice_id in instdevice_ids:
+            log.debug("DataProcessManagementService:create_data_process instdevice_id assoc to the input data product: %s", str(instdevice_id))
             self._find_lookup_tables(instdevice_id, configuration)
             instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
             for instmodel_id in instmodel_ids:
+                log.debug("DataProcessManagementService:create_data_process instmodel_id assoc to the instDevice: %s", str(instmodel_id))
                 self._find_lookup_tables(instmodel_id, configuration)
 
         #-------------------------------
@@ -293,17 +298,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_process_id
 
 
-    def _find_lookup_tables(self, resource_id="", configuration=None):
-
+    def _find_lookup_tables(self, resource_id="", configuration={}):
         #check if resource has lookup tables attached
         attachment_objs, _ = self.clients.resource_registry.find_objects(resource_id, PRED.hasAttachment, RT.Attachment, False)
         for attachment_obj in attachment_objs:
-            try:
-                i = attachment_obj.keywords.index('DataProcessInput')
-                configuration[attachment_obj.name] = attachment_obj.contents
-                log.debug("DataProcessManagementService:proceess_attachments lookup table found in attachment %s", attachment_obj.name)
-            except ValueError:
-                log.debug("DataProcessManagementService:proceess_attachments NO lookup table in attachment %s", attachment_obj.name)
+            log.debug("DataProcessManagementService:_find_lookup_tables  attachment %s", str(attachment_obj))
+            words = set(attachment_obj.keywords)
+            if 'DataProcessInput' in words:
+                configuration[attachment_obj.name] = attachment_obj.content
+                log.debug("DataProcessManagementService:_find_lookup_tables lookup table found in attachment %s", attachment_obj.name)
+            else:
+                log.debug("DataProcessManagementService:_find_lookup_tables NO lookup table in attachment %s", attachment_obj.name)
 
 
     def update_data_process(self,):

@@ -48,7 +48,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-@unittest.skip('not working')
+#@unittest.skip('not working')
 class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
     def setUp(self):
@@ -104,7 +104,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         print 'test_createTransformsThenActivateInstrument: new InstrumentDevice id = ', instDevice_id
 
         contents = "this is the lookup table  contents, replace with a file..."
-        att = IonObject(RT.Attachment, name='deviceLookupTable', content=base64.encodestring(contents), attachment_type=AttachmentType.ASCII)
+        att = IonObject(RT.Attachment, name='deviceLookupTable', content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
         deviceAttachment = self.rrclient.create_attachment(instDevice_id, att)
         print 'test_createTransformsThenActivateInstrument: InstrumentDevice attachment id = ', deviceAttachment
 
@@ -174,7 +174,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
         #-------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition ctd_L0_all")
+        log.debug("TestDataProcessWithLookupTable: create data process definition ctd_L0_all")
         dpd_obj = IonObject(RT.DataProcessDefinition,
                             name='ctd_L0_all',
                             description='transform ctd package into three separate L0 streams',
@@ -187,10 +187,11 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
 
         contents = "this is the lookup table  contents for L0 Conductivity - Temperature - Pressure: Data Process Definition, replace with a file..."
-        att = IonObject(RT.Attachment, name='processDefinitionLookupTable',content=base64.encodestring(contents), attachment_type=AttachmentType.ASCII)
+        att = IonObject(RT.Attachment, name='processDefinitionLookupTable',content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
         processDefinitionAttachment = self.rrclient.create_attachment(ctd_L0_all_dprocdef_id, att)
-        print 'test_createTransformsThenActivateInstrument: InstrumentDevice attachment id = ', processDefinitionAttachment
-
+        log.debug("TestDataProcessWithLookupTable:test_createTransformsThenActivateInstrument: InstrumentDevice attachment id %s", str(processDefinitionAttachment) )
+        processDefinitionAttachment_obj = self.rrclient.read(processDefinitionAttachment)
+        log.debug("TestDataProcessWithLookupTable:test_createTransformsThenActivateInstrument: InstrumentDevice attachment obj %s", str(processDefinitionAttachment_obj) )
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Output Data Products
@@ -242,7 +243,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
 
         contents = "this is the lookup table  contents for L0 Conductivity - Temperature - Pressure: Data Process , replace with a file..."
-        att = IonObject(RT.Attachment, name='processLookupTable',content=base64.encodestring(contents), attachment_type=AttachmentType.ASCII)
+        att = IonObject(RT.Attachment, name='processLookupTable',content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
         processAttachment = self.rrclient.create_attachment(ctd_l0_all_data_process_id, att)
         print 'test_createTransformsThenActivateInstrument: InstrumentDevice attachment id = ', processAttachment
 
