@@ -58,11 +58,13 @@ from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
+DEV_ADDR = CFG.device.sbe37.host
+DEV_PORT = CFG.device.sbe37.port
 # Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
-DEV_PORT = 4001 # Moxa port or simulator random data.
+#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+#DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
 # Work dir and logger delimiter.
