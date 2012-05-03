@@ -26,7 +26,7 @@ from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDevic
 from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
-
+from interface.objects import OrgTypeEnum
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
@@ -77,27 +77,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ##########################################################################
 
 
+    def create_marine_facility(self, org=None):
+        """Create an Org (domain of authority) that realizes a marine facility. This Org will have
+        set up roles for a marine facility. Shared resources, such as a device can only be
+        registered in one marine facility Org, and additionally in many virtual observatory Orgs. The
+        marine facility operators will have more extensive permissions and will supercede virtual
+        observatory commands
 
-    def create_marine_facility(self, observatory=None):
-        """Create a SPECIAL marine facility Observatory resource. An observatory  is coupled
-        with one Org. The Org is created and associated as part of this call.
-
-        @param observatory    Observatory
-        @retval observatory_id    str
+        @param org    Org
+        @retval org_id    str
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        log.debug("ObservatoryManagementService.create_observatory(): %s" %str(observatory))
+        log.debug("ObservatoryManagementService.create_marine_facility(): %s" % org)
         
-        observatory_id = self.create_observatory(observatory)
-        
-        # create the org 
-        org_obj = IonObject(RT.Org, name=observatory.name+'_org')
-        org_id = self.clients.org_management.create_org(org_obj)
-        
-        # Associate the facility with the org
-        asso_id, _ = self.clients.resource_registry.create_association(org_id,  PRED.hasObservatory, observatory_id)
-        
+        # create the org
+        org.org_type = OrgTypeEnum.MARINE_FACILITY
+        org_id = self.clients.org_management.create_org(org)
+
         #Instantiate initial set of User Roles for this marine facility
         instrument_operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, 
                                              label='Instrument Operator', description='Marine Facility Instrument Operator')
@@ -109,7 +106,27 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                              label='Data Operator', description='Marine Facility Data Operator')
         self.clients.org_management.add_user_role(org_id, data_operator_role)
         
-        return observatory_id
+        return org_id
+
+    def create_virtual_observatory(self, org=None):
+        """Create an Org (domain of authority) that realizes a virtual observatory. This Org will have
+        set up roles for a virtual observatory. Shared resources, such as a device can only be
+        registered in one marine facility Org, and additionally in many virtual observatory Orgs. The
+        marine facility operators will have more extensive permissions and will supercede virtual
+        observatory commands
+
+        @param org    Org
+        @retval org_id    str
+        @throws BadRequest    if object does not have _id or _rev attribute
+        @throws NotFound    object with specified id does not exist
+        """
+        log.debug("ObservatoryManagementService.create_virtual_observatory(): %s" % org)
+
+        # create the org
+        org.org_type = OrgTypeEnum.VIRTUAL_OBSERVATORY
+        org_id = self.clients.org_management.create_org(org)
+
+        return org_id
 
 
     def create_observatory(self, observatory=None):
@@ -408,38 +425,31 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     
 
-    def assign_resource_to_observatory(self, resource_id='', observatory_id=''):
-        #resource_obj = self.clients.resource_registry.read(resource_id)
-        #observatory_obj = self.clients.resource_registry.read(observatory_id)
+    def assign_resource_to_observatory_org(self, resource_id='', org_id=''):
+        if not org_id:
+            raise BadRequest("Org id not given")
+        if not resource_id:
+            raise BadRequest("Resource id not given")
 
-        org_objs = self.org.find_having_observatory(observatory_id)
-
-        if not org_objs:
-            raise NotFound ("Observatory is not associated with an Org: %s ", observatory_id)
-
-        org_id = org_objs[0]._id
-
-        log.debug("ObservatoryManagementService:assign_resource_to_observatory org id: %s     resource id:  %s ", str(org_id), str(resource_id))
+        log.debug("assign_resource_to_observatory_org: org_id=%s, resource_id=%s " % (org_id, resource_id))
         self.clients.org_management.share_resource(org_id, resource_id)
 
-        return
 
     def unassign_resource_from_observatory(self, resource_id='', observatory_id=''):
-        #resource_obj = self.clients.resource_registry.read(resource_id)
-        #observatory_obj = self.clients.resource_registry.read(observatory_id)
-
-
-        org_objs = self.org.find_having_observatory(observatory_id)
-
-        if not org_objs:
-            raise NotFound ("Observatory is not associated with an Org: %s ", observatory_id)
-
-        org_id = org_objs[0]._id
+        if not org_id:
+            raise BadRequest("Org id not given")
+        if not resource_id:
+            raise BadRequest("Resource id not given")
 
         self.clients.org_management.unshare_resource(org_id, resource_id)
-        return
 
 
+
+    def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
+        pass
+
+    def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
+        pass
 
 
     ##########################################################################
