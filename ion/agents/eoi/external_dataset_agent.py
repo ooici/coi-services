@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.external_data_agent
-@file ion/agents/eoi/external_data_agent.py
+@package ion.agents.eoi.external_dataset_agent
+@file ion/agents/eoi/external_dataset_agent.py
 @author Tim Giguere
 @author Christopher Mueller
-@brief Class derived from InstrumentAgent that provides a one-to-one relationship between an ExternalDataAgent instance
+@brief Class derived from InstrumentAgent that provides a one-to-one relationship between an ExternalDatasetAgent instance
  and a given external dataset
 """
 
@@ -14,10 +14,10 @@ from pyon.core.exception import InstDriverError
 
 from ion.services.mi.instrument_agent import InstrumentAgent, InstrumentAgentState, InstrumentAgentEvent
 
-class ExternalDataAgent(InstrumentAgent):
+class ExternalDatasetAgent(InstrumentAgent):
 
     def __init__(self, initial_state=InstrumentAgentState.UNINITIALIZED):
-        log.debug('ExternalDataAgent.__init__: initial_state = {0}'.format(initial_state))
+        log.debug('ExternalDatasetAgent.__init__: initial_state = {0}'.format(initial_state))
         InstrumentAgent.__init__(self, initial_state)
         self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
         # TODO: Do we need to (can we even?) remove handlers that aren't supported (i.e. Direct Access?)
@@ -65,7 +65,7 @@ class ExternalDataAgent(InstrumentAgent):
         #TODO: Temporarily construct packet factories to utilize pathways provided by IA
         self._construct_packet_factories(dvr_mod)
 
-        log.info('ExternalDataAgent \'{0}\' loaded DataHandler'.format(self._proc_name))
+        log.info('ExternalDatasetAgent \'{0}\' loaded DataHandler'.format(self._proc_name))
 
     def _stop_driver(self):
         """
@@ -78,7 +78,7 @@ class ExternalDataAgent(InstrumentAgent):
         @retval None.
         """
         self._dvr_client = None
-        log.info('ExternalDataAgent \'{0}\' unloaded DataHandler: {1}'.format(self._proc_name, self._dvr_client))
+        log.info('ExternalDatasetAgent \'{0}\' unloaded DataHandler: {1}'.format(self._proc_name, self._dvr_client))
         return None
 
     def _validate_driver_config(self):

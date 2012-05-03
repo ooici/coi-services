@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.test.test_external_data_agent
-@file ion/agents/eoi/test/test_external_data_agent.py
+@package ion.agents.eoi.test.test_external_dataset_agent
+@file ion/agents/eoi/test/test_external_dataset_agent.py
 @author Tim Giguere
 @author Christopher Mueller
-@brief Test cases for R2 ExternalDataAgent
+@brief Test cases for R2 ExternalDatasetAgent
 
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_acquire_data
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_get_set_param
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_initialize
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_states
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_observatory
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_acquire_sample
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_autosample
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_capabilities
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_data_agent:TestExternalDataAgent.test_errors
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_get_set_param
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_initialize
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_states
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_observatory
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_sample
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_autosample
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_capabilities
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_errors
 
 """
 
@@ -48,15 +48,15 @@ from pyon.event.event import EventSubscriber
 # MI imports
 from ion.services.mi.instrument_agent import InstrumentAgentState
 
-from ion.agents.eoi.handler.data_handler import DataHandlerParameter
+from ion.agents.eoi.handler.base_data_handler import DataHandlerParameter
 
 # todo: rethink this
-from ion.agents.eoi.handler.data_handler import PACKET_CONFIG
+from ion.agents.eoi.handler.base_data_handler import PACKET_CONFIG
 
 # DataHandler config
 DVR_CONFIG = {
     'dvr_mod' : 'ion.agents.eoi.handler.data_handler',
-#    'dvr_cls' : 'DataHandler',
+#    'dvr_cls' : 'BaseDataHandler',
     'dvr_cls' : 'FibonacciDataHandler',
 #    'dvr_cls' : 'DummyDataHandler'
 }
@@ -64,8 +64,8 @@ DVR_CONFIG = {
 # Agent parameters.
 EDA_RESOURCE_ID = '123xyz'
 EDA_NAME = 'ExampleEDA'
-EDA_MOD = 'ion.agents.eoi.external_data_agent'
-EDA_CLS = 'ExternalDataAgent'
+EDA_MOD = 'ion.agents.eoi.external_dataset_agent'
+EDA_CLS = 'ExternalDatasetAgent'
 
 #########################
 # For Validation Purposes
@@ -114,7 +114,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('INT', group='eoi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
-class TestExternalDataAgent(IonIntegrationTestCase):
+class TestExternalDatasetAgent(IonIntegrationTestCase):
     """
     Test cases for instrument agent class. Functions in this class provide
     instrument agent integration tests and provide a tutorial on use of

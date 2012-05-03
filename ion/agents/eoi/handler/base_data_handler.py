@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.handler.data_handler
-@file ion/agents/eoi/handler/data_handler.py
+@package ion.agents.eoi.handler.base_data_handler
+@file ion/agents/eoi/handler/base_data_handler.py
 @author Tim Giguere
 @author Christopher Mueller
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data
@@ -35,7 +35,7 @@ class DataHandlerParameter(DriverParameter):
     """
     POLLING_INTERVAL = 'POLLING_INTERVAL'
 
-class DataHandler(object):
+class BaseDataHandler(object):
     _params = {DataHandlerParameter.POLLING_INTERVAL : 3600}
     _polling = False
     _polling_glet = None
@@ -86,37 +86,37 @@ class DataHandler(object):
 
         reply = None
         if cmd == 'configure':
-            # Delegate to DataHandler.configure()
+            # Delegate to BaseDataHandler.configure()
             reply = self.configure(*args, **kwargs)
         elif cmd == 'initialize':
-            # Delegate to DataHandler.initialize()
+            # Delegate to BaseDataHandler.initialize()
             reply = self.initialize(*args, **kwargs)
         elif cmd == 'get':
-            # Delegate to DataHandler.get()
+            # Delegate to BaseDataHandler.get()
             reply = self.get(*args, **kwargs)
         elif cmd == 'set':
-            # Delegate to DataHandler.set()
+            # Delegate to BaseDataHandler.set()
             reply = self.set(*args, **kwargs)
         elif cmd == 'get_resource_params':
-            # Delegate to DataHandler.get_resource_params()
+            # Delegate to BaseDataHandler.get_resource_params()
             reply = self.get_resource_params(*args, **kwargs)
         elif cmd == 'get_resource_commands':
-            # Delegate to DataHandler.get_resource_commands()
+            # Delegate to BaseDataHandler.get_resource_commands()
             reply = self.get_resource_commands(*args, **kwargs)
         elif cmd == 'execute_acquire_data':
-            # Delegate to DataHandler.execute_acquire_data()
+            # Delegate to BaseDataHandler.execute_acquire_data()
             reply = self.execute_acquire_data(*args, **kwargs)
         elif cmd == 'execute_acquire_sample':
             #TODO: Can we change these names?  acquire_data would be a better name for EOI...
-            # Delegate to DataHandler.execute_acquire_sample()
+            # Delegate to BaseDataHandler.execute_acquire_sample()
             reply = self.execute_acquire_sample(*args, **kwargs)
         elif cmd == 'execute_start_autosample':
             #TODO: Can we change these names?  stop_polling would be a better name for EOI...
-            # Delegate to DataHandler.execute_start_autosample()
+            # Delegate to BaseDataHandler.execute_start_autosample()
             reply = self.execute_start_autosample(*args, **kwargs)
         elif cmd == 'execute_stop_autosample':
             #TODO: Can we change these names?  stop_polling would be a better name for EOI...
-            # Delegate to DataHandler.execute_stop_autosample()
+            # Delegate to BaseDataHandler.execute_stop_autosample()
             reply = self.execute_stop_autosample(*args, **kwargs)
         else:
             log.info('Command \'{0}\' unhandled by DataHandler'.format(cmd))
@@ -156,8 +156,8 @@ class DataHandler(object):
     def execute_acquire_data(self, *args):
         """
         Spawns a greenlet to perform a data acquisition
-        Calls DataHandler._acquire_data
-        Disallows multiple "new data" (unconstrained) requests using DataHandler._semaphore lock
+        Calls BaseDataHandler._acquire_data
+        Disallows multiple "new data" (unconstrained) requests using BaseDataHandler._semaphore lock
         Called from:
                       InstrumentAgent._handler_observatory_execute_resource
                        |-->  ExternalDataAgent._handler_streaming_execute_resource
@@ -314,10 +314,10 @@ class DataHandler(object):
     def _acquire_data(cls, config, unlock_new_data_callback):
         """
         Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
-             DataHandler._new_data_constraints (only if config does not contain 'constraints')
-             DataHandler._publish_data passing DataHandler._get_data as a parameter
+             BaseDataHandler._new_data_constraints (only if config does not contain 'constraints')
+             BaseDataHandler._publish_data passing BaseDataHandler._get_data as a parameter
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
-        @param unlock_new_data_callback DataHandler callback function to allow conditional unlocking of the DataHandler._semaphore
+        @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
         """
         stream_id = get_safe(config, 'stream_id')
         if not stream_id:
@@ -337,7 +337,7 @@ class DataHandler(object):
         if get_safe(config,'TESTING'):
             log.debug('Publish TestingFinished event')
             pub = EventPublisher('DeviceCommonLifecycleEvent')
-            pub.publish_event(origin='DataHandler._acquire_data', description='TestingFinished')
+            pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -354,7 +354,7 @@ class DataHandler(object):
     def _get_data(cls, config):
         """
         Generator function that acquires data from a source iteratively based on constraints provided by config
-        Passed into DataHandler._publish_data and iterated to publish samples.
+        Passed into BaseDataHandler._publish_data and iterated to publish samples.
         Data should be conformant with the requirements of the publisher (granule)
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         """
@@ -392,7 +392,7 @@ class ConfigurationError(DataHandlerError):
 
 import numpy.random as npr
 
-class FibonacciDataHandler(DataHandler):
+class FibonacciDataHandler(BaseDataHandler):
     """
     Sample concrete DataHandler implementation that returns sequential Fibonacci numbers
     """
@@ -430,7 +430,7 @@ class FibonacciDataHandler(DataHandler):
 
 
 
-class DummyDataHandler(DataHandler):
+class DummyDataHandler(BaseDataHandler):
     @classmethod
     def _new_data_constraints(cls, config):
         """
