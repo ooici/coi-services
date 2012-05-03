@@ -21,6 +21,8 @@ from pyon.event.event import EventPublisher
 from pyon.util.containers import get_safe
 
 # Pyon exceptions
+from pyon.core.exception import exception_map
+from pyon.core.exception import IonException
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
 from pyon.core.exception import Timeout
@@ -40,6 +42,7 @@ from pyon.core.exception import InstDriverError
 import time
 import socket
 import os
+import traceback
 
 # ION service imports.
 from ion.services.mi.instrument_fsm import InstrumentFSM
@@ -528,11 +531,12 @@ class InstrumentAgent(ResourceAgent):
         to retrieve
         @retval Dict of (channel, name) : value parameter values if handled.
         """
+        
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, name)
         
         except StateError:
-            raise InstStateError('get_params not allowed in state %s.', self._fsm.get_current_state())       
+            raise InstStateError('get_params not allowed in state %s.', self._fsm.get_current_state())        
         
     def set_param(self, resource_id="", name='', value=''):
         """
@@ -561,12 +565,56 @@ class InstrumentAgent(ResourceAgent):
         @retval Resrouce agent command response object if handled.
         """
         
-        try:
-            return self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE, command)
+        
+        if not command:
+            raise iex.BadRequest("execute argument 'command' not present")
+        if not command.command:
+            raise iex.BadRequest("command not set")
+
+        cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
+                            command=command.command)
+        cmd_res.ts_execute = get_ion_ts()
+        command.command = 'execute_' + command.command
             
+        try:
+            ex = None
+            res = self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE,
+                                        command.command, *command.args,
+                                        **command.kwargs)            
+            cmd_res.status = 0
+            cmd_res.result = res
+            result = cmd_res
+           
+        except TimeoutError:
+            ex = InstTimeoutError('Instrument timed out attempting %s.',str(command.command))
+        
+        except ProtocolError:
+            ex = InstProtocolError('Instrument protocol error attempting %s.', str(command.command))
+        
+        except UnknownCommandError:
+            ex = InstUnknownCommandError('Command %s unknown.', str(command.command))
+
+        except ParameterError:
+            ex = InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%s.',
+                                     str(command.command), str(command.args), str(command.kwargs))
+
         except StateError:
-            raise InstStateError('execute not allowed in state %s.', self._fsm.get_current_state())        
-                
+            ex = InstStateError('execute not allowed in state %s.', self._fsm.get_current_state())        
+
+        except InstrumentException:
+            ex = IonInstrumentError('Unknown driver error.')
+
+        except:
+            ex = IonException('Unknown error.')
+        
+        if ex:
+            # TODO: Distinguish application vs. uncaught exception
+            cmd_res.status = getattr(ex, 'status_code', -1)
+            cmd_res.result = str(ex)
+            log.info("Agent command %s failed with trace=%s" % (command.command, traceback.format_exc()))
+
+        return cmd_res
+        
     ###############################################################################
     # Instrument agent transaction interface.
     ###############################################################################
@@ -1038,36 +1086,8 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-
-        if not command:
-            raise iex.BadRequest("execute argument 'command' not present")
-        if not command.command:
-            raise iex.BadRequest("command not set")
-
-        cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
-                            command=command.command)
-        cmd_res.ts_execute = get_ion_ts()
-        command.command = 'execute_' + command.command
         
-        try:
-            res = self._dvr_client.cmd_dvr(command.command, *command.args,
-                                           **command.kwargs)
-            cmd_res.status = 0
-            cmd_res.result = res
-            result = cmd_res
-            
-        except TimeoutError:
-            raise InstTimeoutError('Instrument timed out attempting %s.',str(command.command))
-        
-        except ProtocolError:
-            raise InstProtocolError('Instrument protocol error attempting %s.', str(command.command))
-        
-        except UnknownCommandError:
-            raise InstUnknownCommandError('Command %s unknown.', st(command.command))
-
-        except ParameterError:
-            raise InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%s.',
-                                     str(command.command), str(command.args), str(command.kwargs))
+        result = self._dvr_client.cmd_dvr(command, *args, **kwargs)
 
         return (next_state, result)
 
@@ -1208,7 +1228,7 @@ class InstrumentAgent(ResourceAgent):
         # Get driver configuration and pid for test case.        
         dvr_mod = self._dvr_config['dvr_mod']
         dvr_cls = self._dvr_config['dvr_cls']
-        workdir = self._dvr_config['workdir']
+        workdir = self._dvr_config.get('workdir','/tmp/')
         this_pid = os.getpid() if self._test_mode else None
 
         (self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, workdir, this_pid)

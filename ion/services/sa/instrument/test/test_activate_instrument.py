@@ -54,7 +54,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='foo')
+@attr('HARDWARE', group='sa')
 #@attr('INT', group='foo')
 #@unittest.skip('run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
@@ -68,7 +68,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         print 'started services'
 
@@ -82,28 +82,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
 
     def test_activateInstrument(self):
-
-        # Set up the preconditions
-        # ingestion configuration parameters
-        self.exchange_point_id = 'science_data'
-        self.number_of_workers = 2
-        self.hdf_storage = HdfStorage(relative_path='ingest')
-        self.couch_storage = CouchStorage(datastore_name='test_datastore')
-        self.XP = 'science_data'
-        self.exchange_name = 'ingestion_queue'
-
-        # Create ingestion configuration and activate it
-        ingestion_configuration_id =  self.ingestclient.create_ingestion_configuration(
-            exchange_point_id=self.exchange_point_id,
-            couch_storage=self.couch_storage,
-            hdf_storage=self.hdf_storage,
-            number_of_workers=self.number_of_workers
-        )
-        print 'test_activateInstrument: ingestion_configuration_id', ingestion_configuration_id
-
-        # activate an ingestion configuration
-        ret = self.ingestclient.activate_ingestion_configuration(ingestion_configuration_id)
-        log.debug("test_activateInstrument: activate = %s"  % str(ret))
 
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model_label="SBE37IMModel" )
@@ -133,14 +111,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             self.fail("failed to create new InstrumentDevice: %s" %ex)
             
         log.debug("test_activateInstrument: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
-
-#        # Create InstrumentAgentInstance to hold configuration information
-#        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-#                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
-#                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
-#                                          comms_server_address="localhost", comms_server_port=8888)
-#        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
-
 
         driver_config = {
             'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',

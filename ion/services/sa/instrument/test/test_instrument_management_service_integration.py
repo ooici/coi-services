@@ -37,7 +37,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         
         print 'started services'
