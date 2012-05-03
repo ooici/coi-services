@@ -25,9 +25,6 @@ class SiteImpl(ResourceSimpleImpl):
     def find_having_site(self, site_child_id):
         return self._find_having(PRED.hasSite, site_child_id)
 
-    def find_stemming_site(self, site_id):
-        return self._find_stemming(site_id, PRED.hasSite, RT.Site)
-
     # special methods, sort of a hack
     def link_parent(self, site_id='', parent_id=''):
         return self._link_resources_single_subject(parent_id, PRED.hasSite, site_id)

@@ -28,9 +28,9 @@ from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImp
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 
 
-INSTRUMENT_OPERATOR_ROLE = 'INSTRUMENT_OPERATOR'
+INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
-DATA_OPERATOR_ROLE = 'DATA_OPERATOR'
+DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
 
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
@@ -324,7 +324,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        parent_site_obj = self.subsite.read_one(parent_site_id)
+        parent_site_type = parent_site_obj._get_type()
+
+        if RT.Subsite == parent_site_type:
+            self.subsite.link_site(parent_site_id, child_site_id)
+        elif RT.PlatformSite == parent_site_type:
+            self.platform_site.link_site(parent_site_id, child_site_id)
+        else:
+            raise BadRequest("Tried to assign a child site to a %s resource" % parent_site_type)
+
+
 
     def unassign_site_from_site(self, child_site_id='', parent_site_id=''):
         """Disconnects a child site (any subtype) from a parent site (any subtype)
@@ -333,7 +343,59 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        parent_site_obj = self.subsite.read_one(parent_site_id)
+        parent_site_type = parent_site_obj._get_type()
+
+        if RT.Subsite == parent_site_type:
+            self.subsite.unlink_site(parent_site_id, child_site_id)
+        elif RT.PlatformSite == parent_site_type:
+            self.platform_site.unlink_site(parent_site_id, child_site_id)
+        else:
+            raise BadRequest("Tried to unassign a child site from a %s resource" % parent_site_type)
+
+
+    def assign_instrument_device_to_instrument_site(self, instrument_device_id='', instrument_site_id=''):
+        """Connects a instrument device to instrument site
+
+        @param instrument_device_id    str
+        @param instrument_site_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        
+        self.instrument_site.link_site(instrument_device_id, instrument_site_id)
+
+
+    def unassign_instrument_device_from_instrument_site(self, instrument_device_id='', instrument_site_id=''):
+        """Connects a instrument device to instrument site
+
+        @param instrument_device_id    str
+        @param instrument_site_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        self.instrument_site.unlink_site(instrument_device_id, instrument_site_id)
+
+
+    def assign_platform_device_to_platform_site(self, platform_device_id='', platform_site_id=''):
+        """Connects a platform device to platform site
+
+        @param platform_device_id    str
+        @param platform_site_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        
+        self.platform_site.link_site(platform_device_id, platform_site_id)
+
+
+    def unassign_platform_device_from_platform_site(self, platform_device_id='', platform_site_id=''):
+        """Connects a platform device to platform site
+
+        @param platform_device_id    str
+        @param platform_site_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        self.platform_site.unlink_site(platform_device_id, platform_site_id)
 
 
     def assign_site_to_observatory(self, site_id='', observatory_id=''):
@@ -344,7 +406,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.observatory.unlink_site(observatory_id, site_id)
 
 
-    #these don't seem to be doing any associations... should they be renamed???
+    
 
     def assign_resource_to_observatory(self, resource_id='', observatory_id=''):
         #resource_obj = self.clients.resource_registry.read(resource_id)
@@ -423,5 +485,205 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return self.org.find_having_observatory(observatory_id)
 
 
+        
+    def find_data_product_by_platform_site(self, platform_site_id=''):
+        ret = []
+        for i in self.find_instrument_device_by_platform_site(platform_site_id):
+            for dp in self.IMS.find_data_product_by_instrument_device(i):
+                if not dp in ret:
+                    ret.append(dp)
+
+        return ret
 
 
+
+
+    def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=[]):
+
+        # the relative depth of each resource type in our tree
+        depth = {RT.InstrumentSite: 4,
+                 RT.PlatformSite: 3,
+                 RT.Subsite: 2,
+                 RT.Observatory: 1,
+                 }
+
+        input_obj  = self.RR.read(input_resource_id)
+        input_type = input_obj._get_type()
+
+        #input type checking
+        if not input_type in depth:
+            raise BadRequest("Input resource type (got %s) must be one of %s" % 
+                             (input_type, str(depth.keys())))
+        for t in output_resource_type_list:
+            if not t in depth:
+                raise BadRequest("Output resource types (got %s) must be one of %s" %
+                                 (str(output_resource_type_list), str(depth.keys())))
+
+                             
+
+        subordinates = [x for x in output_resource_type_list if depth[x] > depth[input_type]]
+        superiors    = [x for x in output_resource_type_list if depth[x] < depth[input_type]]
+
+        acc = {}
+        acc[input_type] = [input_obj]
+
+
+        if subordinates:
+            # figure out the actual depth we need to go
+            deepest_type = input_type #initial value
+            for output_type in output_resource_type_list:
+                if depth[deepest_type] < depth[output_type]:
+                    deepest_type = output_type
+
+            log.debug("Deepest level for search will be '%s'" % deepest_type)
+
+            acc = self._traverse_entity_tree(acc, input_type, deepest_type, True)
+
+
+        if superiors:
+            highest_type = input_type #initial value
+
+            for output_type in output_resource_type_list:
+                if depth[highest_type] > depth[output_type]:
+                    highest_type = output_type
+
+            log.debug("Highest level for search will be '%s'" % highest_type)
+
+            acc = self._traverse_entity_tree(acc, highest_type, input_type, False)
+
+        # Don't include input type in response            
+        if input_type in acc:
+            acc.pop(input_type)            
+        return acc
+                    
+
+    def _traverse_entity_tree(self, acc, top_type, bottom_type, downward):
+
+        call_list = self._build_call_list(top_type, bottom_type, downward)
+
+        # reverse the list and start calling functions
+        if downward:
+            call_list.reverse()
+            for (p, c) in call_list:
+                acc = self._find_subordinate(acc, p, c)
+        else:
+            for (p, c) in call_list:
+                acc = self._find_superior(acc, p, c)
+
+        return acc
+
+
+    def _build_call_list(self, top_type, bottom_type, downward):
+        # the possible parent types that a resource can have
+        hierarchy_dependencies =  {
+            RT.InstrumentSite: [RT.PlatformSite],
+            RT.PlatformSite:   [RT.PlatformSite, RT.Subsite],
+            RT.Subsite:        [RT.Subsite, RT.Observatory],
+            }
+
+        call_list = []
+        target_type = bottom_type
+        while True:
+            if downward and (target_type == top_type):
+                return call_list
+
+            if (not downward) and (target_type == top_type):
+                if not (target_type in hierarchy_dependencies and
+                        target_type in hierarchy_dependencies[target_type]):
+                    return call_list
+
+            for requisite_type in hierarchy_dependencies[target_type]:
+                #should cause errors if they stray from allowed inputs
+                call_list.append((requisite_type, target_type))
+
+                if not downward and top_type == requisite_type == target_type:
+                    return call_list
+            
+            #latest solved type is the latest result
+            target_type = requisite_type
+        
+                
+            
+
+
+    def _find_subordinate(self, acc, parent_type, child_type):
+        #acc is an accumulated dictionary
+
+        if not child_type in acc:
+            acc[child_type] = []
+            
+        find_fn = {
+            (RT.Observatory, RT.Subsite):         self.observatory.find_stemming_site,
+            (RT.Subsite, RT.Subsite):             self.subsite.find_stemming_subsite,
+            (RT.Subsite, RT.PlatformSite):        self.subsite.find_stemming_platform_site,
+            (RT.PlatformSite, RT.PlatformSite):   self.platform_site.find_stemming_platform_site,
+            (RT.PlatformSite, RT.InstrumentSite): self.platform_site.find_stemming_instrument_site,
+            }[(parent_type, child_type)]
+        
+        log.debug("Subordinates: '%s'x%d->'%s'" % (parent_type, len(acc[parent_type]), child_type))
+
+        #for all parents in the acc, add all their children
+        for parent_obj in acc[parent_type]:
+            parent_id = parent_obj._id
+            for child_obj in find_fn(parent_id):
+                acc[child_type].append(child_obj)
+
+        return acc
+
+
+
+    def _find_superior(self, acc, parent_type, child_type):
+        # acc is an accumualted dictionary
+
+        if not parent_type in acc:
+            acc[parent_type] = []
+
+        #log.debug("Superiors: '%s'->'%s'" % (parent_type, child_type))
+        #if True:
+        #    return acc
+            
+        find_fn = {
+            (RT.Observatory, RT.Subsite):         self.observatory.find_having_site,
+            (RT.Subsite, RT.Subsite):             self.subsite.find_having_site,
+            (RT.Subsite, RT.PlatformSite):        self.subsite.find_having_site,
+            (RT.PlatformSite, RT.PlatformSite):   self.platform_site.find_having_site,
+            (RT.PlatformSite, RT.InstrumentSite): self.platform_site.find_having_site,
+            }[(parent_type, child_type)]
+        
+        log.debug("Superiors: '%s'->'%s'x%d" % (parent_type, child_type, len(acc[child_type])))
+
+        #for all children in the acc, add all their parents
+        for child_obj in acc[child_type]:
+            child_id = child_obj._id
+            for parent_obj in find_fn(child_id):
+                acc[parent_obj._get_type()].append(parent_obj)
+
+        return acc
+
+
+
+
+
+"""
+  
+    def find_data_product_by_site(self, site_id=''):
+        ret = []
+        for i in self.find_instrument_device_by_site(site_id):
+            for dp in self.IMS.find_data_product_by_instrument_device(i):
+                if not dp in ret:
+                    ret.append(dp)
+
+        return ret
+  
+    def find_data_product_by_marine_facility(self, marine_facility_id=''):
+        ret = []
+        for i in self.find_instrument_device_by_marine_facility(marine_facility_id):
+            for dp in self.IMS.find_data_product_by_instrument_device(i):
+                if not dp in ret:
+                    ret.append(dp)
+
+        return ret
+  
+
+
+"""
