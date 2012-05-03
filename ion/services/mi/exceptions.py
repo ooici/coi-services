@@ -12,6 +12,7 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 from ion.services.mi.common import InstErrorCode
+import traceback
 
 class InstrumentException(Exception):
     """Base class for an exception related to physical instruments or their

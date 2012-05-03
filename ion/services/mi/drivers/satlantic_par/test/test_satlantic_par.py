@@ -226,6 +226,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         driver_class = 'SatlanticPARInstrumentDriver'
         device_addr = '10.180.80.179'
         device_port = 2101
+        delim = ['<<', '>>']
 
         # Zmq parameters used by driver process and client.
         self.config_params = {'addr': 'localhost'}                
@@ -233,7 +234,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
                                                      driver_class,
                                                      device_addr,
                                                      device_port,
-                                                     None)
+                                                     delim)
         # Clear the driver event list
         self._events = []
         self._pagent = None
@@ -266,7 +267,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self._clean_up()
 
     def _initialize(self):
-        reply = self._dvr_client.cmd_dvr('initialize')
+        reply = self._dvr_client.cmd_dvr('execute_init_device')
         time.sleep(1)
 
     def _connect(self):
@@ -274,12 +275,17 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertEqual(DriverState.UNCONFIGURED, reply)
         configs = self.config_params
         reply = self._dvr_client.cmd_dvr('configure', configs)
+        self.assertEqual(reply, None)
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(DriverState.DISCONNECTED, reply)
-        rply = self._dvr_client.cmd_dvr('connect')
+        reply = self._dvr_client.cmd_dvr('connect')
+        self.assertEqual(reply, None)
+        reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(DriverProtocolState.UNKNOWN, reply)
 
         self._initialize()
+        
+        reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(DriverProtocolState.COMMAND, reply)
 
         time.sleep(1)
@@ -289,8 +295,6 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(DriverState.DISCONNECTED, reply)
         time.sleep(1)
-
-        self._initialize()
 
     def _start_stop_autosample(self):
         """Wrap the steps and asserts for going into and out of auto sample.
