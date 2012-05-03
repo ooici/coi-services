@@ -344,12 +344,15 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         parent_site_obj = self.subsite.read_one(parent_site_id)
         parent_site_type = parent_site_obj._get_type()
 
-        if RT.Subsite == parent_site_type:
-            self.subsite.link_site(parent_site_id, child_site_id)
-        elif RT.PlatformSite == parent_site_type:
-            self.platform_site.link_site(parent_site_id, child_site_id)
-        else:
-            raise BadRequest("Tried to assign a child site to a %s resource" % parent_site_type)
+        self.subsite.link_site(parent_site_id, child_site_id)
+
+        # TODO: MM - Commented out checks - too restrictive
+        #if RT.Subsite == parent_site_type:
+        #    self.subsite.link_site(parent_site_id, child_site_id)
+        #elif RT.PlatformSite == parent_site_type:
+        #    self.platform_site.link_site(parent_site_id, child_site_id)
+        #else:
+        #    raise BadRequest("Tried to assign a child site to a %s resource" % parent_site_type)
 
 
 
@@ -447,9 +450,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
         pass
+        # TODO: MM - Finish implementation
 
     def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
         pass
+        # TODO: MM - Finish implementation
 
 
     ##########################################################################
