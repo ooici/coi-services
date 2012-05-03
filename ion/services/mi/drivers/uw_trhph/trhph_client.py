@@ -22,7 +22,7 @@ A demo program can be run as follows:
 USE_GEVENT = False
 # Original version was gevent-based but it turns out gevent should not
 # be used in driver code (at least for now). This flag is to easily "switch"
-# back to gevent in some internal tests.
+# back to gevent for some internal tests.
 
 import time
 
@@ -53,6 +53,13 @@ NEWLINE = trhph.NEWLINE
 EOF = '\x04'
 CONTROL_S = '\x13'
 
+# number of backspaces to send to instrument in _refresh_state().
+# Set arbitrarily to 5. Note that in typical interactions there is actually
+# no need to send any backspaces, but the goal has been to make the
+# _refresh_state operation as robust as possible (see documentation on
+# confluence).
+NO_BACKSPACES = 5
+
 DATA_LINE_PATTERN = re.compile(r'.*((\d+\.\d+\s*){12})$')
 
 MAIN_MENU_PATTERN = re.compile(
@@ -70,7 +77,8 @@ SYSTEM_PARAM_MENU_PROMPT_PATTERN = re.compile(
 SYSTEM_INFO_PATTERN = re.compile(
 r'.*(System Name|System Owner|Contact Info|System Serial #): (.*)$')
 
-ENTER_NUM_SCANS_PATTERN = re.compile(r'.*How Many Scans do you want\? --> ')
+ENTER_NUM_SCANS_PATTERN = re.compile(
+        r'.*How Many Scans do you want.* --> ')
 
 DIAGNOSTICS_HEADER_PATTERN = re.compile('-Res/5-.*-VBatt-')
 
@@ -91,7 +99,7 @@ MAX_NUM_LINES = 30
 DEFAULT_GENERIC_TIMEOUT = 30
 
 
-# map from power status key to the command to toggle it:
+# map from power status key to the command in the corresp. menu to toggle it:
 _toggle_power_cmd = {
     'Res Sensor Power': '1',
     'Instrumentation Amp Power': '2',
@@ -523,26 +531,29 @@ class TrhphClient(object):
         time_limit = time.time() + 5
         while self._bt._state is None and time.time() <= time_limit:
             sleep(1)
+
         if self._bt._state:
             return  # we got the state
 
         # 2. send a few "backspaces" (^H) to delete any ongoing partial entry
         log.info("sending backspaces ...")
-        for i in range(5):
+        for i in range(NO_BACKSPACES):
             self._send_control('h')
             sleep(0.5)
 
-        # 3. send ^M in case the instrument is in some menu, and check
+        # 3. send ^M in case the instrument is in some menu or prompt,
+        # and check:
         log.info("sending ^M as a refresh/cancel command ...")
         self.send_enter('as a refresh/cancel command')
         time_limit = time.time() + 10
         while self._bt._state is None and time.time() <= time_limit:
             sleep(2)
+
         if self._bt._state:
             return  # we got the state
 
-        # 4. the instrument does not react to ^M in streaming mode,
-        # so just assume it is collecting data:
+        # 4. the instrument does not react to ^H or ^M in streaming mode,
+        # so, if we got this far, it's safe to assume it is collecting data:
         self._bt._state = State.COLLECTING_DATA
         log.info("assuming %s" % self._bt._state)
 
@@ -1095,22 +1106,24 @@ class TrhphClient(object):
         return self._send(chr(a), info if info else '^%s' % char)
 
 
-def main(host, port, timeout, outfile=sys.stdout, prefix_state=False):
+def main(host, port, timeout, outfile=sys.stdout, prefix_state=False,
+         only_get_state=False):
     """
     Demo program:
-    - checks if the instrument is collecting data
-    - if not, this function returns False
-    - breaks data streaming to enter main menu
-    - selects 6 to get system info
-    - sends enter to return to main menu
-    - resumes data streaming
-    - sleeps a few seconds to let some data to come in
+    - gets and reports the current state of the instrument
+    - returns if only_get_state is True
+    - gets system info
+    - resume data streaming
 
     @param host Host of the instrument
     @param port Port of the instrument
     @param timeout Generic timeout
     @param outfile File object used to echo all received data from the socket
                    (by default, sys.stdout).
+    @param prefix_state True to prefix each line in the outfile with the
+              current state; False by default.
+    @param only_get_state If True, this program only gets and reports the
+            current state of the instrument.
     """
     client = TrhphClient(host, port, outfile, prefix_state)
     try:
@@ -1118,15 +1131,18 @@ def main(host, port, timeout, outfile=sys.stdout, prefix_state=False):
             client.set_generic_timeout(timeout)
         client.connect()
 
-        print ":: getting instrument state"
+        print "\n:: getting instrument state"
         state = client.get_current_state()
-        print ":: current instrument state: %s" % str(state)
+        print "\n:: current instrument state: %s" % str(state)
 
-        print ":: getting system info"
+        if only_get_state:
+            return
+
+        print "\n:: getting system info"
         system_info = client.get_system_info()
-        print ":: system_info = %s" % str(system_info)
+        print "\n:: system_info = %s" % str(system_info)
 
-        print ":: resuming data streaming"
+        print "\n:: resuming data streaming"
         client.resume_data_streaming()
     finally:
         print ":: bye"
@@ -1134,21 +1150,33 @@ def main(host, port, timeout, outfile=sys.stdout, prefix_state=False):
 
 
 if __name__ == '__main__':
-    usage = """USAGE: trhph_client.py [options]
+    usage = """
+    USAGE: bin/python ion/services/mi/drivers/uw_trhph/trhph_client.py [options]
        --host address      # instrument address (localhost)
        --port port         # instrument port (required)
        --timeout secs      # generic timeout (%s secs)
        --outfile filename  # file to save all received data (stdout)
        --prefix_state      # prefix state to each line in outfile (false)
+       --only_get_state    # only get and report current state (false)
        --loglevel level    # used to eval mi_logger.setLevel(logging.%%s)
     """ % DEFAULT_GENERIC_TIMEOUT
-    usage += """\nExample: trhph_client.py --host 10.180.80.172 --port 2001"""
+    usage += """
+    Examples:
+
+    Only get current state of real instrument:
+    $ bin/python ion/services/mi/drivers/uw_trhph/trhph_client.py --host 10.180.80.172 --port 2001 --only_get_state --outfile /dev/null
+
+    Simple interaction:
+    $ bin/python ion/services/mi/drivers/uw_trhph/trhph_client.py trhph_client.py --host 10.180.80.172 --port 2001
+    """
 
     host = 'localhost'
     port = None
     timeout = None
     outfile = sys.stdout
     prefix_state = False
+
+    only_get_state = False
 
     arg = 1
     while arg < len(sys.argv):
@@ -1166,6 +1194,8 @@ if __name__ == '__main__':
             outfile = file(sys.argv[arg], 'w')
         elif sys.argv[arg] == "--prefix_state":
             prefix_state = True
+        elif sys.argv[arg] == "--only_get_state":
+            only_get_state = True
         elif sys.argv[arg] == "--loglevel":
             arg += 1
             loglevel = sys.argv[arg].upper()
@@ -1180,4 +1210,4 @@ if __name__ == '__main__':
     if port is None:
         print usage
     else:
-        main(host, port, timeout, outfile, prefix_state)
+        main(host, port, timeout, outfile, prefix_state, only_get_state)

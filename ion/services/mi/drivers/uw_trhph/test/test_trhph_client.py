@@ -21,10 +21,14 @@ import datetime
 
 from ion.services.mi.drivers.uw_trhph.test import TrhphTestCase
 from nose.plugins.attrib import attr
-from unittest import skipIf, SkipTest
+
+import unittest
 import os
 
 
+@unittest.skipIf(os.getenv('run_it') is None,
+'''Not run by default because of mixed monkey-patching issues. \
+Define environment variable run_it to force execution.''')
 @attr('UNIT', group='mi')
 class TrhphClientTest(TrhphTestCase):
 

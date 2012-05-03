@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+#########################################################################
+# NOTE
+# This source is obsolete -- see trhph_driver.py
+#########################################################################
+
 """
 @package ion.services.mi.drivers.uw_trhph.protocol
 @file ion/services/mi/drivers/uw_trhph/protocol.py
