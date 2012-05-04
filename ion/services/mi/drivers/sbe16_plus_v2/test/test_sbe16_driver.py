@@ -67,8 +67,10 @@ mi_logger = logging.getLogger('mi_logger')
 DVR_MOD = 'ion.services.mi.drivers.sbe16_plus_v2.sbe16_driver'
 DVR_CLS = 'SBE16Driver'
 
-DEV_ADDR = CFG.device.sbe16.host
-DEV_PORT = CFG.device.sbe16.port
+#DEV_ADDR = CFG.device.sbe16.host
+#DEV_PORT = CFG.device.sbe16.port
+DEV_ADDR = CFG.device.sbe37.host
+DEV_PORT = CFG.device.sbe37.port
 # Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
