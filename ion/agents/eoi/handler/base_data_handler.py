@@ -40,8 +40,6 @@ class BaseDataHandler(object):
     _polling = False
     _polling_glet = None
 
-
-
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
 
@@ -257,17 +255,24 @@ class BaseDataHandler(object):
             log.warn("No argument provided to get, return all parameters")
             pnames = [DataHandlerParameter.ALL]
 
+        result = None
         if DataHandlerParameter.ALL in pnames:
-            return self._params
+            result = self._params
         else:
-            ret={}
+            if not isinstance(pnames, (list,tuple)):
+                raise ParameterError('Get argument not a list or tuple: {0}'.format(pnames))
+            result={}
             for pn in pnames:
-                ret[pn] = get_safe(self._params, pn)
-            return ret
+                try:
+                    result[pn] = self._params.get(pn)
+                except KeyError:
+                    raise ParameterError('{0} is not a valid parameter for this DataHandler.'.format(pn))
+
+        return result
 
     def set(self, *args, **kwargs):
         #TODO: Add documentation
-        #TODO: Fix raises statementstion
+        #TODO: Fix raises statements
         """
         Called from:
                       InstrumentAgent._handler_observatory_set_params
@@ -415,8 +420,7 @@ class FibonacciDataHandler(BaseDataHandler):
         A generator that retrieves config['constraints']['count'] number of sequential Fibonacci numbers
         @param config Dict of configuration parameters - must contain ['constraints']['count']
         """
-        constraints = get_safe(config,'constraints')
-        cnt = get_safe(constraints,'count',1)
+        cnt = get_safe(config,'constraints.count',1)
 
         def fibGenerator():
             """
@@ -447,9 +451,8 @@ class DummyDataHandler(BaseDataHandler):
         Retrieves config['constraints']['count'] number of random samples of length config['constraints']['array_len']
         @param config Dict of configuration parameters - must contain ['constraints']['count'] and ['constraints']['count']
         """
-        constraints = get_safe(config,'constraints')
-        count = get_safe(constraints, 'count',1)
-        array_len = get_safe(constraints, 'array_len',1)
+        count = get_safe(config, 'constraints.count',1)
+        array_len = get_safe(config, 'constraints.array_len',1)
 
         for i in xrange(count):
             time.sleep(0.1)

@@ -39,8 +39,7 @@ class NetcdfDataHandler(BaseDataHandler):
         Retrieves config['constraints']['count'] number of random samples of length config['constraints']['array_len']
         @param config Dict of configuration parameters - must contain ['constraints']['count'] and ['constraints']['count']
         """
-        constraints = get_safe(config, 'constraints')
-        t_slice = get_safe(constraints, 'temporal_slice', (slice(0,2)))
+        t_slice = get_safe(config, 'constraints.temporal_slice', (slice(0,2)))
         if isinstance(t_slice,str):
             t_slice=eval(t_slice)
 

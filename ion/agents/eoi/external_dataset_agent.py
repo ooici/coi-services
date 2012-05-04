@@ -19,7 +19,7 @@ class ExternalDatasetAgent(InstrumentAgent):
     def __init__(self, initial_state=InstrumentAgentState.UNINITIALIZED):
         log.debug('ExternalDatasetAgent.__init__: initial_state = {0}'.format(initial_state))
         InstrumentAgent.__init__(self, initial_state)
-        self._fsm.add_handler(InstrumentAgentState.OBSERVATORY, InstrumentAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
+        self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
         # TODO: Do we need to (can we even?) remove handlers that aren't supported (i.e. Direct Access?)
 
     ###############################################################################
@@ -126,8 +126,10 @@ class ExternalDatasetAgent(InstrumentAgent):
         Handler for execute_resource command in streaming state.
         Delegates to InstrumentAgent._handler_observatory_execute_resource
         """
-
-        return self._handler_observatory_execute_resource(command, *args, **kwargs)
+        if command.command == 'execute_acquire_data':
+            return self._handler_observatory_execute_resource(command, *args, **kwargs)
+        else:
+            raise StateError('Command \'{0}\' not allowed in current state {1}'.format(command.command, self._fsm.get_current_state()))
 
 #    def _construct_data_publishers(self):
 #        """

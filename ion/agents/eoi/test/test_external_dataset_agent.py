@@ -20,6 +20,7 @@
 """
 
 # Import pyon first for monkey patching.
+from pyon.core.exception import InstParameterError
 from pyon.public import log
 
 # Standard imports.
@@ -55,12 +56,12 @@ from ion.agents.eoi.handler.base_data_handler import PACKET_CONFIG
 
 # DataHandler config
 DVR_CONFIG = {
-#    'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
+    'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
 #    'dvr_cls' : 'BaseDataHandler',
 #    'dvr_cls' : 'FibonacciDataHandler',
-#    'dvr_cls' : 'DummyDataHandler',
-    'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
-    'dvr_cls' : 'NetcdfDataHandler'
+    'dvr_cls' : 'DummyDataHandler',
+#    'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
+#    'dvr_cls' : 'NetcdfDataHandler'
 }
 
 # Agent parameters.
@@ -403,6 +404,77 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    def test_acquire_data_while_streaming(self):
+        # Test instrument driver execute interface to start and stop streaming mode.
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Make sure the polling interval is appropriate for a test
+        params = {
+            'POLLING_INTERVAL':5
+        }
+        self._ia_client.set_param(params)
+
+        self._finished_count = 2
+
+        # Begin streaming.
+        cmd = AgentCommand(command='go_streaming')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.STREAMING)
+
+        #TODO: !!! Remove whacky handling for manually changed DataHandler testing !!!
+        log.info('Send a constrained request for data (\'historical data\')')
+        constraints = {'count':15}
+        if DVR_CONFIG['dvr_cls'] is 'DummyDataHandler':
+            constraints['array_len'] = 15
+        elif DVR_CONFIG['dvr_cls'] is 'NetcdfDataHandler':
+            constraints['temporal_slice'] = '(slice(4,10))'
+        config={'stream_id':'first_historical','TESTING':True, 'constraints':constraints}
+        cmd = AgentCommand(command='acquire_data', args=[config])
+        reply = self._ia_client.execute(cmd)
+        self.assertNotEqual(reply.status, 660)
+
+        gevent.sleep(12)
+
+        # Halt streaming.
+        cmd = AgentCommand(command='go_observatory')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Assert that data was received
+        self._async_finished_result.get(timeout=10)
+        self.assertTrue(len(self._finished_events_received) >= 3)
+
+
     def test_acquire_sample(self):
         # Test observatory polling function.
 
@@ -504,7 +576,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
         # Wait for some samples to roll in.
-        gevent.sleep(15)
+        gevent.sleep(12)
 
         # Halt streaming.
         cmd = AgentCommand(command='go_observatory')
@@ -837,9 +909,9 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute(cmd)
         self.assertEqual(retval.status, 670)
 
-#        # 630 Parameter error.
-#        with self.assertRaises(InstParameterError):
-#            reply = self._ia_client.get_param('bogus bogus')
+        # 630 Parameter error.
+        with self.assertRaises(InstParameterError):
+            reply = self._ia_client.get_param('bogus bogus')
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -847,3 +919,4 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
