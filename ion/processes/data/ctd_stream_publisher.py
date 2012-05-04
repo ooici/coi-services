@@ -35,6 +35,14 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
+### For new granule and stream interface
+
+from prototype.coverage.granule_and_record import build_granule, RecordDictionaryTool
+from prototype.coverage.taxonomy import TaxyCab
+from interface.objects import Granule, Taxonomy
+
+
+
 class SimpleCtdPublisher(StandaloneProcess):
     def __init__(self, *args, **kwargs):
         super(SimpleCtdPublisher, self).__init__(*args,**kwargs)
@@ -46,6 +54,7 @@ class SimpleCtdPublisher(StandaloneProcess):
     def on_start(self):
 
 
+        log.warn('Entering On Start!!!')
         # Get the stream(s)
         stream_id = self.CFG.get_safe('process.stream_id',{})
 
@@ -80,6 +89,7 @@ class SimpleCtdPublisher(StandaloneProcess):
         g = Greenlet(self._trigger_func, stream_id)
         log.debug('Starting publisher thread for simple ctd data.')
         g.start()
+        log.warn('Publisher Greenlet started in "%s"' % self.__class__.__name__)
         self.greenlet_queue.append(g)
 
     def on_quit(self):
@@ -157,5 +167,82 @@ class PointCtdPublisher(StandaloneProcess):
 
             log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
+
+            time.sleep(2.0)
+
+# New Stream and Granule Stuff....
+'''
+To Run:
+bin/pycc --rel res/deploy/r2dm.yml
+### In the shell...
+
+# create a stream id and pass it in...
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+pmsc = PubsubManagementServiceClient(node=cc.node)
+stream_id = pmsc.create_stream(name='pfoo')
+pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_publisher',cls='NewGranuleCTDPublisher',config={'process':{'stream_id':stream_id}})
+
+
+'''
+
+
+### Taxonomies are defined before hand out of band... somehow.
+tx = TaxyCab()
+tx.add_taxonomy_set('temp','long name for temp')
+tx.add_taxonomy_set('cond','long name for cond')
+tx.add_taxonomy_set('lat','long name for latitude')
+tx.add_taxonomy_set('lon','long name for longitude')
+tx.add_taxonomy_set('pres','long name for pres')
+tx.add_taxonomy_set('time','long name for time')
+# This is an example of using groups it is not a normative statement about how to use groups
+tx.add_taxonomy_set('group1','This group contains coordinates...')
+tx.add_taxonomy_set('group0','This group contains data...')
+
+class NewGranuleCTDPublisher(SimpleCtdPublisher):
+
+    #overriding trigger function here to use PointSupplementConstructor
+    def _trigger_func(self, stream_id):
+
+        while True:
+
+            length = 1
+
+            c = [random.uniform(0.0,75.0)  for i in xrange(length)]
+
+            t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
+
+            p = [random.lognormvariate(1,2) for i in xrange(length)]
+
+            lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
+
+            lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
+
+            tvar = [self.last_time + i for i in xrange(1,length+1)]
+
+            self.last_time = max(tvar)
+
+            rdt = RecordDictionaryTool(taxonomy=tx)
+
+            # This is an example of using groups it is not a normative statement about how to use groups
+
+            rdt0 = RecordDictionaryTool(taxonomy=tx)
+
+            rdt0['temp'] = t
+            rdt0['cond'] = c
+            rdt0['pres'] = p
+
+            rdt1 = RecordDictionaryTool(taxonomy=tx)
+
+            rdt1['time'] = tvar
+            rdt1['lat'] = lat
+            rdt1['lon'] = lon
+
+            rdt['group1'] = rdt1
+            rdt['group0'] = rdt0
+
+            g = build_granule(data_producer_id='Bobs Potatoes', taxonomy=tx, record_dictionary=rdt)
+
+            log.info('%s sending %d values!' % (self.__class__.__name__, length))
+            self.publisher.publish(g)
 
             time.sleep(2.0)
