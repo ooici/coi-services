@@ -33,4 +33,4 @@ class ObservatoryImpl(ResourceSimpleImpl):
         return self._find_having(PRED.hasSite, site_id)
 
     def find_stemming_site(self, site_id):
-        return self._find_stemming(site_id, PRED.hasSite, RT.Site)
+        return self._find_stemming(site_id, PRED.hasSite, RT.Subsite)
