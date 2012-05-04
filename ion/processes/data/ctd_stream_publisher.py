@@ -171,6 +171,9 @@ class PointCtdPublisher(StandaloneProcess):
             time.sleep(2.0)
 
 # New Stream and Granule Stuff....
+
+#@todo - move this to: ion.processes.data.example_ctd_data_producer
+
 '''
 To Run:
 bin/pycc --rel res/deploy/r2dm.yml
@@ -200,12 +203,15 @@ tx.add_taxonomy_set('group0','This group contains data...')
 
 class NewGranuleCTDPublisher(SimpleCtdPublisher):
 
-    #overriding trigger function here to use PointSupplementConstructor
+    #@todo Change name to ExampleCTDDataProducer
+
+    #overriding trigger function here to use new granule
     def _trigger_func(self, stream_id):
 
+        #@todo - add lots of comments in here
         while True:
 
-            length = 1
+            length = 10
 
             c = [random.uniform(0.0,75.0)  for i in xrange(length)]
 
@@ -227,6 +233,9 @@ class NewGranuleCTDPublisher(SimpleCtdPublisher):
 
             rdt0 = RecordDictionaryTool(taxonomy=tx)
 
+            #@todo - add a value sequence of raw bytes - not sure the type below is correct?
+            #rdt[raw] = numpy.ndarray(['Raw stuff',], dtype='bytes')
+
             rdt0['temp'] = t
             rdt0['cond'] = c
             rdt0['pres'] = p
@@ -246,3 +255,4 @@ class NewGranuleCTDPublisher(SimpleCtdPublisher):
             self.publisher.publish(g)
 
             time.sleep(2.0)
+

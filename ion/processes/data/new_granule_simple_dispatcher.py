@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#@todo move to ion.processes.data.stream_granule_logger
+
 '''
 @author David Stuebe <dstuebe@asascience.com>
 @file
@@ -35,6 +37,7 @@ import os
 
 class NewGranuleExampleDispatcher(StandaloneProcess):
 
+    #@todo change name to StreamGranuleLogger
 
     def on_start(self):
 
@@ -63,6 +66,7 @@ class NewGranuleExampleDispatcher(StandaloneProcess):
 
             last_data = ''
 
+            #@todo Use RecordDictionaryTool.pretty_print() once it is complete
             for k,v in rdt.iteritems():
                 if isinstance(v, RecordDictionaryTool):
 
