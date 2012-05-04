@@ -129,7 +129,7 @@ PARAMS = {
 
 
 @attr('HARDWARE', group='mi')
-#@unittest.skip('Ready to go, remove skip when tested against simulator.')
+@unittest.skip('Ready to go, remove skip when tested against simulator.')
 class TestSBE16Driver(PyonTestCase):    
     """
     Integration tests for the sbe16 driver. This class tests and shows
