@@ -26,12 +26,15 @@ from ion.services.mi.instrument_driver import DriverConnectionState
 from ion.services.mi.instrument_driver import DriverProtocolState
 from ion.services.mi.instrument_protocol import InterfaceType
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticPARInstrumentProtocol
+from ion.services.mi.drivers.satlantic_par.satlantic_par import PARProtocolState
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Parameter
 from ion.services.mi.drivers.satlantic_par.satlantic_par import Command
 from ion.services.mi.drivers.satlantic_par.satlantic_par import SatlanticChecksumDecorator
 from ion.services.mi.drivers.satlantic_par.satlantic_par import sample_regex
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentDataException
+from ion.services.mi.exceptions import InstrumentCommandException
+
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -250,6 +253,8 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         
         self._dvr_client = self._support._dvr_client
         
+        # we never get to the protocol if we never connect!
+        self._connect()
 
     def _clean_up(self):
         # set back to command mode
@@ -286,7 +291,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self._initialize()
         
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)
+        self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
 
         time.sleep(1)
 
@@ -305,7 +310,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         time.sleep(5)
         
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.AUTOSAMPLE, reply)
+        self.assertEqual(PARProtocolState.AUTOSAMPLE_MODE, reply)
         
         # @todo check samples arriving here
         # @todo check publishing samples from here
@@ -313,17 +318,18 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         reply = self._dvr_client.cmd_dvr('execute_stop_autosample')
                 
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)
+        self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
 
     def test_connect_disconnect(self):
         """Instrument connect and disconnect"""
-        # Make sure we are connected
-        self._connect()
-
+        # Basic behavior for all tests includes connect and disconnect
+        # in test harness
+        pass
+    
     def test_bad_driver_command(self):
         """Test a bad driver command being sent to the driver client"""
-        reply = self._dvr_client.cmd_dvr('get_status')
-        self.assertEqual(reply, 'Unknown driver command: get_status') 
+        self.assertRaises(InstrumentCommandException,
+                          self._dvr_client.cmd_dvr, 'get_status')
         
     def test_start_stop_autosample(self):
         """
@@ -343,12 +349,6 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         
     def test_get(self):
         # Should default to command mode
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.UNCONFIGURED, reply)        
-        reply = self._dvr_client.cmd_dvr('configure')
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)        
-        
         reply = self._dvr_client.cmd_dvr('get', [Parameter.TELBAUD,
                                                    Parameter.MAXRATE],
                                            timeout=20)
@@ -365,13 +365,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         config_A = {config_key:2}
         config_B = {config_key:1}
         
-        # Should defaults to command mode
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.UNCONFIGURED, reply)        
-        reply = self._dvr_client.cmd_dvr('configure')
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)        
-        
+        # Should default to command mode
         reply = self._dvr_client.cmd_dvr('set', config_A, timeout=20)
         self.assertEquals(reply[config_key], 2)
                  
@@ -392,7 +386,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         reply = self._dvr_client.cmd_dvr('execute_start_autosample')
         self.assert_(reply)
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.AUTOSAMPLE, reply)
+        self.assertEqual(PARProtocolState.AUTOSAMPLE_MODE, reply)
 
         self.assertRaises(InstrumentProtocolException,
                           self._dvr_client.cmd_dvr,
@@ -405,7 +399,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         reply = self._dvr_client.cmd_dvr('execute_start_autosample')
         self.assert_(reply)
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.AUTOSAMPLE, reply)
+        self.assertEqual(PARProtocolState.AUTOSAMPLE_MODE, reply)
 
         self.assertRaises(InstrumentProtocolException,
                           self._dvr_client.cmd_dvr,
@@ -476,7 +470,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assert_(reply)
         # confirm prompt?
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)
+        self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
 
     def test_break_from_fast_autosample(self):
         # test break from autosample at high data rates
@@ -491,7 +485,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assert_(reply)
         # confirm prompt?
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)
+        self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
 
 
     def test_break_from_poll(self):
@@ -509,7 +503,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertEqual(reply, InstErrorCode.OK)
         
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)
+        self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
     
     def test_state_changes(self):
         # Cycle through them and verify with get state
@@ -524,12 +518,6 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
     
     def test_get_sample_from_cmd_mode(self):
         """Get some samples directly from command mode"""
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.UNCONFIGURED, reply)        
-        reply = self._dvr_client.cmd_dvr('configure')
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)        
-        
         reply_1 = self._dvr_client.cmd_dvr('execute_acquire_sample')        
         self.assertTrue(sample_regex.match(reply_1))        
     
@@ -539,18 +527,12 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertNotEqual(reply_1, reply_2)
         
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)
+        self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
         
     def test_get_data_sample_via_poll_mode(self):
         """Mainly check the format of the manual sample that comes out
         @todo Finish this out...is the transition right for getting into poll mode?
         """
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.UNCONFIGURED, reply)        
-        reply = self._dvr_client.cmd_dvr('configure')
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)        
-
         reply = self._dvr_client.cmd_dvr('execute_poll')
         self.assert_(reply)
         reply = self._dvr_client.cmd_dvr('get_current_state')
@@ -574,7 +556,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertEqual(reply, InstErrorCode.OK)
         
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)
+        self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
             
     
     def test_publish(self):
@@ -587,13 +569,6 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         config_A = {config_key:2}
         config_B = {config_key:1}
         
-        # Should defaults to command mode
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.UNCONFIGURED, reply)        
-        reply = self._dvr_client.cmd_dvr('configure')
-        reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverProtocolState.COMMAND, reply)        
-
         # get max rate value
         reply = self._dvr_client.cmd_dvr('get', [config_key], timeout=10)
         self.assertEquals(reply, config_B)

@@ -40,14 +40,15 @@ class ParameterDictVal(object):
         Attempt to udpate a parameter value. If the input string matches the
         value regex, extract and update the dictionary value.
         @param input A string possibly containing the parameter value.
-        @retval True if match was found, False otherwise.
+        @retval True if an update was successful, False otherwise.
         """
         match = self.regex.match(input)
         if match:
             self.value = self.f_getval(match)
             mi_logger.debug('Updated parameter %s=%s', self.name, str(self.value))
             return True
-        else: return False
+        else:
+            return False
 
 
 class ProtocolParameterDict(object):
@@ -95,10 +96,12 @@ class ProtocolParameterDict(object):
         Update the dictionaray with a line input. Iterate through all objects
         and attempt to match and update a parameter.
         @param input A string to match to a dictionary object.
+        @retval The name that was successfully updated, None if not updated
         """
         for (name, val) in self._param_dict.iteritems():
             if val.update(input):
-                break
+                return name
+        return False
     
     def get_config(self):
         """
