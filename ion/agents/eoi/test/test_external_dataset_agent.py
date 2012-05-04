@@ -58,8 +58,8 @@ from ion.agents.eoi.handler.base_data_handler import PACKET_CONFIG
 DVR_CONFIG = {
     'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
 #    'dvr_cls' : 'BaseDataHandler',
-#    'dvr_cls' : 'FibonacciDataHandler',
-    'dvr_cls' : 'DummyDataHandler',
+    'dvr_cls' : 'FibonacciDataHandler',
+#    'dvr_cls' : 'DummyDataHandler',
 #    'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
 #    'dvr_cls' : 'NetcdfDataHandler'
 }
@@ -729,6 +729,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
+        self._finished_count = 1
+
         cmd = AgentCommand(command='go_streaming')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
@@ -742,6 +744,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        self._async_finished_result.get(timeout=5)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)

@@ -98,7 +98,7 @@ class ExternalDatasetAgent(InstrumentAgent):
         #TODO: Temporarily construct packet factories to utilize pathways provided by IA
         self._construct_packet_factories(dvr_mod)
 
-        log.info('ExternalDatasetAgent \'{0}\' loaded DataHandler'.format(self._proc_name))
+        log.info('ExternalDatasetAgent \'{0}\' loaded DataHandler \'{1}\''.format(self._proc_name,''.join([dvr_mod,'.',dvr_cls])))
 
     def _stop_driver(self):
         """
@@ -119,6 +119,16 @@ class ExternalDatasetAgent(InstrumentAgent):
         Test the driver config for validity.
         @retval True if the current config is valid, False otherwise.
         """
+        try:
+            dvr_mod = self._dvr_config['dvr_mod']
+            dvr_cls = self._dvr_config['dvr_cls']
+
+        except TypeError, KeyError:
+            return False
+
+        if not isinstance(dvr_mod, str) or not isinstance(dvr_cls, str):
+            return False
+
         return True
 
     def _handler_streaming_execute_resource(self, command, *args, **kwargs):

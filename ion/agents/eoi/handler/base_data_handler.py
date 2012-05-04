@@ -14,7 +14,6 @@ from pyon.public import log
 from pyon.util.async import spawn, wait
 from pyon.util.containers import get_safe
 
-
 from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.services.mi.exceptions import ParameterError, UnknownCommandError
 
@@ -39,6 +38,7 @@ class BaseDataHandler(object):
     _params = {DataHandlerParameter.POLLING_INTERVAL : 3600}
     _polling = False
     _polling_glet = None
+    _config = {}
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -152,8 +152,14 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_inactive_go_active
         """
-        log.debug('Configuring DataHandler...')
-        return {}
+        log.debug('Configuring DataHandler: args = {0}'.format(args))
+        try:
+            self._config = args[0]
+
+        except IndexError:
+            raise ParameterError('\'acquire_data\' command requires a config dict as the first argument')
+
+        return
 
     def execute_acquire_data(self, *args):
         """
@@ -295,6 +301,7 @@ class BaseDataHandler(object):
         else:
             for (key, val) in params.iteritems():
                 self._params[key] = val
+                #TODO: Add rejection of unknown parameter
 
     def get_resource_params(self, *args, **kwargs):
         """
