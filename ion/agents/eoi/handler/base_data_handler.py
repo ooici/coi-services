@@ -16,7 +16,7 @@ from pyon.util.containers import get_safe
 
 
 from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
-from ion.services.mi.exceptions import ParameterError
+from ion.services.mi.exceptions import ParameterError, UnknownCommandError
 
 import gevent
 from gevent.coros import Semaphore
@@ -118,9 +118,13 @@ class BaseDataHandler(object):
             #TODO: Can we change these names?  stop_polling would be a better name for EOI...
             # Delegate to BaseDataHandler.execute_stop_autosample()
             reply = self.execute_stop_autosample(*args, **kwargs)
+        elif cmd in ['connect','disconnect','get_current_state','discover']:
+            # Disregard
+            pass
         else:
-            log.info('Command \'{0}\' unhandled by DataHandler'.format(cmd))
-#            raise UnknownCommandError('Could not process command: {0}'.format(cmd))
+            desc='Command unknown by DataHandler: {0}'.format(cmd)
+            log.info(desc)
+            raise UnknownCommandError(desc)
 
         return reply
 
@@ -427,8 +431,6 @@ class FibonacciDataHandler(BaseDataHandler):
         gen=fibGenerator()
         for i in xrange(cnt):
             yield gen.next()
-
-
 
 class DummyDataHandler(BaseDataHandler):
     @classmethod

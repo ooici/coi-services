@@ -55,10 +55,12 @@ from ion.agents.eoi.handler.base_data_handler import PACKET_CONFIG
 
 # DataHandler config
 DVR_CONFIG = {
-    'dvr_mod' : 'ion.agents.eoi.handler.data_handler',
+#    'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
 #    'dvr_cls' : 'BaseDataHandler',
-    'dvr_cls' : 'FibonacciDataHandler',
-#    'dvr_cls' : 'DummyDataHandler'
+#    'dvr_cls' : 'FibonacciDataHandler',
+#    'dvr_cls' : 'DummyDataHandler',
+    'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
+    'dvr_cls' : 'NetcdfDataHandler'
 }
 
 # Agent parameters.
@@ -368,18 +370,25 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
 
+
+        #TODO: !!! Remove whacky handling for manually changed DataHandler testing !!!
         log.info('Send a constrained request for data (\'historical data\')')
         constraints = {'count':15}
         if DVR_CONFIG['dvr_cls'] is 'DummyDataHandler':
             constraints['array_len'] = 15
+        elif DVR_CONFIG['dvr_cls'] is 'NetcdfDataHandler':
+            constraints['temporal_slice'] = '(slice(4,10))'
         config={'stream_id':'first_historical','TESTING':True, 'constraints':constraints}
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
 
+        #TODO: !!! Remove whacky handling for manually changed DataHandler testing !!!
         log.info('Send a second constrained request for data (\'historical data\')')
         constraints = {'count':10}
         if DVR_CONFIG['dvr_cls'] is 'DummyDataHandler':
             constraints['array_len'] = 10
+        elif DVR_CONFIG['dvr_cls'] is 'NetcdfDataHandler':
+            constraints['temporal_slice'] = '(slice(0,16,2))'
         config={'stream_id':'second_historical','TESTING':True, 'constraints':constraints}
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
@@ -771,6 +780,70 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    @unittest.skip("")
+#    @unittest.skip("")
     def test_errors(self):
-        pass
+        # Test illegal behavior and replies.
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        # Can't go active in unitialized state.
+        # Status 660 is state error.
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('GO ACTIVE CMD %s',str(retval))
+        self.assertEquals(retval.status, 660)
+
+        # Can't command driver in this state.
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertEqual(reply.status, 660)
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # OK, I can do this now.
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)
+
+        # 404 unknown agent command.
+        cmd = AgentCommand(command='kiss_edward')
+        retval = self._ia_client.execute_agent(cmd)
+        self.assertEquals(retval.status, 404)
+
+        # 670 unknown driver command.
+        cmd = AgentCommand(command='acquire_sample_please')
+        retval = self._ia_client.execute(cmd)
+        self.assertEqual(retval.status, 670)
+
+#        # 630 Parameter error.
+#        with self.assertRaises(InstParameterError):
+#            reply = self._ia_client.get_param('bogus bogus')
+
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
