@@ -8,6 +8,8 @@
 @brief Class derived from InstrumentAgent that provides a one-to-one relationship between an ExternalDatasetAgent instance
  and a given external dataset
 """
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.ion.resource import PRED, RT
 
 from pyon.public import log
 from pyon.core.exception import InstDriverError
@@ -42,9 +44,11 @@ class ExternalDatasetAgent(InstrumentAgent):
         dvr_mod = self._dvr_config['dvr_mod']
         dvr_cls = self._dvr_config['dvr_cls']
 
-        # TODO: Retrieve all resources needed by the DataHandler, they will be provided during configuration
+#        # TODO: Retrieve all resources needed by the DataHandler, they will be provided during configuration
 #        ## Here to !!!! END from external_observatory_agent
 #        resreg_cli = ResourceRegistryServiceClient()
+#
+#        ext_dataset_id = self.resource_id
 #
 #        ext_ds_res = resreg_cli.read(object_id=ext_dataset_id)
 #        log.debug("Retrieved ExternalDataset: %s" % ext_ds_res)
@@ -73,12 +77,14 @@ class ExternalDatasetAgent(InstrumentAgent):
 #        stream_id = stream_id[0]
 #        log.debug("Found associated Stream: %s" % stream_id)
 #
+#        comms_config = {'dataset_id':self.resource_id,'dataset_res': ext_ds_res}
 #        ## !!!! END
-        # TODO: Add the bits the DataHandler needs to know about to the 'comms_config' portion of the _dvr_config
+#        # TODO: Add the bits the DataHandler needs to know about to the 'comms_config' portion of the _dvr_config
 
+        comms_config = {'dataset_id':self.resource_id}
 
         # The 'comms_config' portion of dvr_config is passed to configure()
-        self._dvr_config['comms_config'] = {'dataset_id':self.resource_id}
+        self._dvr_config['comms_config'] = comms_config
 
         # Instantiate the DataHandler based on the configuration
         try:

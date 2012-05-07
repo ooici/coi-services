@@ -20,6 +20,8 @@
 """
 
 # Import pyon first for monkey patching.
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from pyon.core.exception import InstParameterError
 from pyon.public import log
 
@@ -34,7 +36,7 @@ from nose.plugins.attrib import attr
 from mock import patch
 
 # ION imports.
-from interface.objects import StreamQuery
+from interface.objects import StreamQuery, ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.public import StreamSubscriberRegistrar
@@ -141,7 +143,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._start_container()
 
         # Bring up services in a deploy file (no need to message)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+#        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
 
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
@@ -170,6 +173,22 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._start_finished_event_subscriber()
         self.addCleanup(self._stop_finished_event_subscriber)
 
+        # TODO: Finish dealing with the resources and whatnot
+#        # Build the test resources for the dataset
+#        self.dams_cli = DataAcquisitionManagementServiceClient()
+#        self.dpms_cli = DataProductManagementServiceClient()
+#
+#        eda = ExternalDatasetAgent()
+#        self.eda_id = self.dams_cli.create_external_dataset_agent(eda)
+#
+#        eda_inst = ExternalDatasetAgentInstance()
+#        self.eda_inst_id = self.dams_cli.create_external_dataset_agent_instance(eda_inst, external_dataset_agent_id=self.eda_id)
+#
+#        self._setup_usgs()
+#
+#        EDA_RESOURCE_ID = self.usgs_ds_id
+#        EDA_NAME = 'usgs_test'
+
         # Create agent config.
         agent_config = {
             'driver_config' : DVR_CONFIG,
@@ -191,6 +210,65 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._ia_client = None
         self._ia_client = ResourceAgentClient(EDA_RESOURCE_ID, process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))
+
+
+    def _setup_usgs(self):
+        # TODO: some or all of this (or some variation) should move to DAMS
+
+        # Create and register the necessary resources/objects
+
+        # Create DataProvider
+        dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
+        dprov.contact.name = "Christopher Mueller"
+        dprov.contact.email = "cmueller@asascience.com"
+
+        # Create DataSource
+        dsrc = DataSource(protocol_type="DAP", institution=Institution(), contact=ContactInformation())
+        dsrc.connection_params["base_data_url"] = ""
+        dsrc.contact.name="Rich Signell"
+        dsrc.contact.email = "rsignell@usgs.gov"
+
+        # Create ExternalDataset
+        dset = ExternalDataset(name="usgs_test", dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
+
+        dset.dataset_description.parameters["dataset_path"] = "test_data/usgs.nc"
+        dset.dataset_description.parameters["temporal_dimension"] = "time"
+        dset.dataset_description.parameters["zonal_dimension"] = "lon"
+        dset.dataset_description.parameters["meridional_dimension"] = "lat"
+        dset.dataset_description.parameters['variables'] = ['water_temperature','streamflow']
+
+        # Create DataSourceModel
+        dsrc_model = DataSourceModel(name="dap_model")
+        dsrc_model.model = "DAP"
+        dsrc_model.data_handler_module = "N/A"
+        dsrc_model.data_handler_class = "N/A"
+
+        ## Run everything through DAMS
+        ds_id = self.usgs_ds_id = self.dams_cli.create_external_dataset(external_dataset=dset)
+        ext_dprov_id = self.dams_cli.create_external_data_provider(external_data_provider=dprov)
+        ext_dsrc_id = self.dams_cli.create_data_source(data_source=dsrc)
+        ext_dsrc_model_id = self.dams_cli.create_data_source_model(dsrc_model)
+
+        # Register the ExternalDataset
+        dproducer_id = self.dams_cli.register_external_data_set(external_dataset_id=ds_id)
+
+        # Or using each method
+        self.dams_cli.assign_data_source_to_external_data_provider(data_source_id=ext_dsrc_id, external_data_provider_id=ext_dprov_id)
+        self.dams_cli.assign_data_source_to_data_model(data_source_id=ext_dsrc_id, data_source_model_id=ext_dsrc_model_id)
+        self.dams_cli.assign_external_dataset_to_data_source(external_dataset_id=ds_id, data_source_id=ext_dsrc_id)
+        self.dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=self.eda_inst_id)
+        #        self.dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
+
+        # Generate the data product and associate it to the ExternalDataset
+        dprod = DataProduct(name='ncom_product', description='raw usgs product')
+        dproduct_id = self.dpms_cli.create_data_product(data_product=dprod)
+
+        self.dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
+
+        log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id}))
+
+
+
 
     def _start_data_subscribers(self):
         """
