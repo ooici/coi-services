@@ -65,8 +65,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='foo')
-#@unittest.skip('not working yet...')
+@attr('INT', group='sa')
+@unittest.skip('not working yet...')
 class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
 
     def setUp(self):
