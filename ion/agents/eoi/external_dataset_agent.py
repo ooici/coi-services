@@ -44,44 +44,51 @@ class ExternalDatasetAgent(InstrumentAgent):
         dvr_mod = self._dvr_config['dvr_mod']
         dvr_cls = self._dvr_config['dvr_cls']
 
-#        # TODO: Retrieve all resources needed by the DataHandler, they will be provided during configuration
-#        ## Here to !!!! END from external_observatory_agent
-#        resreg_cli = ResourceRegistryServiceClient()
-#
-#        ext_dataset_id = self.resource_id
-#
-#        ext_ds_res = resreg_cli.read(object_id=ext_dataset_id)
-#        log.debug("Retrieved ExternalDataset: %s" % ext_ds_res)
-#
-#        dsrc_res, dsrc_acc = resreg_cli.find_objects(subject=ext_dataset_id, predicate=PRED.hasSource, object_type=RT.DataSource)
-#        dsrc_res = dsrc_res[0]
-#        dsrc_id = dsrc_acc[0].o
-#        log.debug("Found associated DataSource: %s" % dsrc_id)
-#
-#        edp_res, edp_acc = resreg_cli.find_objects(subject=dsrc_id, predicate=PRED.hasProvider, object_type=RT.ExternalDataProvider)
-#        edp_res = edp_res[0]
-#        edp_id = edp_acc[0].o
-#        log.debug("Found associated ExternalDataProvider: %s" % edp_id)
-#
-#        mdl_res, mdl_acc = resreg_cli.find_objects(subject=dsrc_id, predicate=PRED.hasModel, object_type=RT.DataSourceModel)
-#        mdl_res = mdl_res[0]
-#        mdl_id = mdl_acc[0].o
-#        log.debug("Found associated DataSourceModel: %s" % mdl_id)
-#
-#        dprod_id, _ = resreg_cli.find_objects(subject=ext_dataset_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
-#        dprod_id = dprod_id[0]
-#        log.debug("Found associated DataProduct: %s" % dprod_id)
-#
-#        stream_id, _ = resreg_cli.find_objects(subject=dprod_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-#        log.debug(">>>>> stream_id: %s" % stream_id)
-#        stream_id = stream_id[0]
-#        log.debug("Found associated Stream: %s" % stream_id)
-#
-#        comms_config = {'dataset_id':self.resource_id,'dataset_res': ext_ds_res}
-#        ## !!!! END
-#        # TODO: Add the bits the DataHandler needs to know about to the 'comms_config' portion of the _dvr_config
+        # TODO: Retrieve all resources needed by the DataHandler, they will be provided during configuration
+        ## Here to !!!! END from external_observatory_agent
+        resreg_cli = ResourceRegistryServiceClient()
 
-        comms_config = {'dataset_id':self.resource_id}
+        ext_dataset_id = self.resource_id
+
+        ext_ds_res = resreg_cli.read(object_id=ext_dataset_id)
+        ext_resources = {'dataset':ext_ds_res}
+        log.debug('Retrieved ExternalDataset: {0}'.format(ext_ds_res))
+
+        dsrc_res, dsrc_assn = resreg_cli.find_objects(subject=ext_dataset_id, predicate=PRED.hasSource, object_type=RT.DataSource)
+        dsrc_res = dsrc_res[0]
+        dsrc_id = dsrc_assn[0].o
+        ext_resources['datasource'] = dsrc_res
+        log.debug('Found associated DataSource: {0}'.format(dsrc_id))
+
+        edp_res, edp_assn = resreg_cli.find_objects(subject=dsrc_id, predicate=PRED.hasProvider, object_type=RT.ExternalDataProvider)
+        edp_res = edp_res[0]
+        edp_id = edp_assn[0].o
+        ext_resources['provider'] = edp_res
+        log.debug('Found associated ExternalDataProvider: {0}'.format(edp_id))
+
+        dsrc_mdl_res, dsrc_mdl_assn = resreg_cli.find_objects(subject=dsrc_id, predicate=PRED.hasModel, object_type=RT.DataSourceModel)
+        dsrc_mdl_res = dsrc_mdl_res[0]
+        dsrc_mdl_id = dsrc_mdl_assn[0].o
+        ext_resources['datasource_model'] = dsrc_mdl_res
+        log.debug('Found associated DataSourceModel: {0}'.format(dsrc_mdl_id))
+
+        dprod_res, dprod_assn = resreg_cli.find_objects(subject=ext_dataset_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
+        dprod_res = dprod_res[0]
+        dprod_id = dprod_assn[0].o
+        ext_resources['data_products'] = dprod_res
+        log.debug('Found associated DataProduct: {0}'.format(dprod_id))
+
+        stream_res, stream_assn = resreg_cli.find_objects(subject=dprod_id, predicate=PRED.hasStream, object_type=RT.Stream)
+        stream_res = stream_res[0]
+        stream_id = stream_assn[0].o
+        ext_resources['stream_res'] = stream_res
+        log.debug('Found associated Stream: {0}'.format(stream_id))
+
+        comms_config = {'dataset_id':self.resource_id,'resources':ext_resources}
+        ## !!!! END
+        # TODO: Add the bits the DataHandler needs to know about to the 'comms_config' portion of the _dvr_config
+
+#        comms_config = {'dataset_id':self.resource_id}
 
         # The 'comms_config' portion of dvr_config is passed to configure()
         self._dvr_config['comms_config'] = comms_config
@@ -123,6 +130,7 @@ class ExternalDatasetAgent(InstrumentAgent):
     def _validate_driver_config(self):
         """
         Test the driver config for validity.
+        Called BEFORE comms_config is added to self._dvr_config, so only validate core portions
         @retval True if the current config is valid, False otherwise.
         """
         try:

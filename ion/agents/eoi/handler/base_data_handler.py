@@ -172,6 +172,7 @@ class BaseDataHandler(object):
 
         @parameter args First argument should be a config dictionary
         """
+        log.debug('Executing acquire_data: args = {0}'.format(args))
         try:
             config = args[0]
 

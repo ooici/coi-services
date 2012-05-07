@@ -8,12 +8,13 @@
 @brief Test cases for R2 ExternalDatasetAgent
 
 # bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data_while_streaming
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_sample
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_streaming
+# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_observatory
 # bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_get_set_param
 # bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_initialize
 # bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_states
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_observatory
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_sample
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_autosample
 # bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_capabilities
 # bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_errors
 
@@ -58,12 +59,12 @@ from ion.agents.eoi.handler.base_data_handler import PACKET_CONFIG
 
 # DataHandler config
 DVR_CONFIG = {
-    'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
+#    'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
 #    'dvr_cls' : 'BaseDataHandler',
-    'dvr_cls' : 'FibonacciDataHandler',
+#    'dvr_cls' : 'FibonacciDataHandler',
 #    'dvr_cls' : 'DummyDataHandler',
-#    'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
-#    'dvr_cls' : 'NetcdfDataHandler'
+    'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
+    'dvr_cls' : 'NetcdfDataHandler'
 }
 
 # Agent parameters.
@@ -144,7 +145,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
         # Bring up services in a deploy file (no need to message)
 #        self.container.start_rel_from_url('res/deploy/r2dm.yml')
-        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
+#        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
@@ -174,20 +176,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self.addCleanup(self._stop_finished_event_subscriber)
 
         # TODO: Finish dealing with the resources and whatnot
-#        # Build the test resources for the dataset
-#        self.dams_cli = DataAcquisitionManagementServiceClient()
-#        self.dpms_cli = DataProductManagementServiceClient()
-#
-#        eda = ExternalDatasetAgent()
-#        self.eda_id = self.dams_cli.create_external_dataset_agent(eda)
-#
-#        eda_inst = ExternalDatasetAgentInstance()
-#        self.eda_inst_id = self.dams_cli.create_external_dataset_agent_instance(eda_inst, external_dataset_agent_id=self.eda_id)
-#
-#        self._setup_usgs()
-#
-#        EDA_RESOURCE_ID = self.usgs_ds_id
-#        EDA_NAME = 'usgs_test'
+        # TODO: DVR_CONFIG and (potentially) stream_config could both come from self._setup_usgs()
+        EDA_RESOURCE_ID, EDA_NAME = self._setup_usgs()
 
         # Create agent config.
         agent_config = {
@@ -199,7 +189,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
         # Start instrument agent.
         self._ia_pid = None
-        log.debug("TestInstrumentAgent.setup(): starting EDA.")
+        log.debug('TestInstrumentAgent.setup(): starting EDA.')
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self._ia_pid = container_client.spawn_process(name=EDA_NAME,
@@ -211,64 +201,79 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._ia_client = ResourceAgentClient(EDA_RESOURCE_ID, process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))
 
+    ########################################
+    # Private "setup" functions
+    ########################################
 
     def _setup_usgs(self):
         # TODO: some or all of this (or some variation) should move to DAMS
 
+        # Build the test resources for the dataset
+        dams_cli = DataAcquisitionManagementServiceClient()
+        dpms_cli = DataProductManagementServiceClient()
+
+        eda = ExternalDatasetAgent()
+        eda_id = dams_cli.create_external_dataset_agent(eda)
+
+        eda_inst = ExternalDatasetAgentInstance()
+        eda_inst_id = dams_cli.create_external_dataset_agent_instance(eda_inst, external_dataset_agent_id=eda_id)
+        
         # Create and register the necessary resources/objects
 
         # Create DataProvider
         dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
-        dprov.contact.name = "Christopher Mueller"
-        dprov.contact.email = "cmueller@asascience.com"
+        dprov.contact.name = 'Christopher Mueller'
+        dprov.contact.email = 'cmueller@asascience.com'
 
         # Create DataSource
-        dsrc = DataSource(protocol_type="DAP", institution=Institution(), contact=ContactInformation())
-        dsrc.connection_params["base_data_url"] = ""
-        dsrc.contact.name="Rich Signell"
-        dsrc.contact.email = "rsignell@usgs.gov"
+        dsrc = DataSource(protocol_type='DAP', institution=Institution(), contact=ContactInformation())
+        dsrc.connection_params['base_data_url'] = ''
+        dsrc.contact.name='Rich Signell'
+        dsrc.contact.email = 'rsignell@usgs.gov'
 
         # Create ExternalDataset
-        dset = ExternalDataset(name="usgs_test", dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
+        ds_name = 'usgs_test_dataset'
+        dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
 
-        dset.dataset_description.parameters["dataset_path"] = "test_data/usgs.nc"
-        dset.dataset_description.parameters["temporal_dimension"] = "time"
-        dset.dataset_description.parameters["zonal_dimension"] = "lon"
-        dset.dataset_description.parameters["meridional_dimension"] = "lat"
+        # The usgs.nc test dataset is a download of the R1 dataset found here:
+        # http://thredds-test.oceanobservatories.org/thredds/dodsC/ooiciData/E66B1A74-A684-454A-9ADE-8388C2C634E5.ncml
+        dset.dataset_description.parameters['dataset_path'] = 'test_data/usgs.nc'
+        dset.dataset_description.parameters['temporal_dimension'] = 'time'
+        dset.dataset_description.parameters['zonal_dimension'] = 'lon'
+        dset.dataset_description.parameters['meridional_dimension'] = 'lat'
         dset.dataset_description.parameters['variables'] = ['water_temperature','streamflow']
 
         # Create DataSourceModel
-        dsrc_model = DataSourceModel(name="dap_model")
-        dsrc_model.model = "DAP"
-        dsrc_model.data_handler_module = "N/A"
-        dsrc_model.data_handler_class = "N/A"
+        dsrc_model = DataSourceModel(name='dap_model')
+        dsrc_model.model = 'DAP'
+        dsrc_model.data_handler_module = 'N/A'
+        dsrc_model.data_handler_class = 'N/A'
 
         ## Run everything through DAMS
-        ds_id = self.usgs_ds_id = self.dams_cli.create_external_dataset(external_dataset=dset)
-        ext_dprov_id = self.dams_cli.create_external_data_provider(external_data_provider=dprov)
-        ext_dsrc_id = self.dams_cli.create_data_source(data_source=dsrc)
-        ext_dsrc_model_id = self.dams_cli.create_data_source_model(dsrc_model)
+        ds_id = dams_cli.create_external_dataset(external_dataset=dset)
+        ext_dprov_id = dams_cli.create_external_data_provider(external_data_provider=dprov)
+        ext_dsrc_id = dams_cli.create_data_source(data_source=dsrc)
+        ext_dsrc_model_id = dams_cli.create_data_source_model(dsrc_model)
 
         # Register the ExternalDataset
-        dproducer_id = self.dams_cli.register_external_data_set(external_dataset_id=ds_id)
+        dproducer_id = dams_cli.register_external_data_set(external_dataset_id=ds_id)
 
         # Or using each method
-        self.dams_cli.assign_data_source_to_external_data_provider(data_source_id=ext_dsrc_id, external_data_provider_id=ext_dprov_id)
-        self.dams_cli.assign_data_source_to_data_model(data_source_id=ext_dsrc_id, data_source_model_id=ext_dsrc_model_id)
-        self.dams_cli.assign_external_dataset_to_data_source(external_dataset_id=ds_id, data_source_id=ext_dsrc_id)
-        self.dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=self.eda_inst_id)
-        #        self.dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
+        dams_cli.assign_data_source_to_external_data_provider(data_source_id=ext_dsrc_id, external_data_provider_id=ext_dprov_id)
+        dams_cli.assign_data_source_to_data_model(data_source_id=ext_dsrc_id, data_source_model_id=ext_dsrc_model_id)
+        dams_cli.assign_external_dataset_to_data_source(external_dataset_id=ds_id, data_source_id=ext_dsrc_id)
+        dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=eda_inst_id)
+        #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='ncom_product', description='raw usgs product')
-        dproduct_id = self.dpms_cli.create_data_product(data_product=dprod)
+        dprod = DataProduct(name='usgs_raw_product', description='raw usgs product')
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod)
 
-        self.dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
+        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
 
         log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id}))
 
-
-
+        return ds_id, ds_name
 
     def _start_data_subscribers(self):
         """
@@ -370,6 +375,11 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
             self._finished_event_subscriber.deactivate()
             self._finished_event_subscriber = None
 
+
+    ########################################
+    # Custom assertion functions
+    ########################################
+
     def assertSampleDict(self, val):
         """
         Verify the value is a sample dictionary for the sbe37.
@@ -426,6 +436,11 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
             else:
                 # int, bool, str.
                 self.assertEqual(val, correct_val)
+
+
+    ########################################
+    # Test functions
+    ########################################
 
     def test_acquire_data(self):
         cmd=AgentCommand(command='initialize')
@@ -552,7 +567,6 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._async_finished_result.get(timeout=10)
         self.assertTrue(len(self._finished_events_received) >= 3)
 
-
     def test_acquire_sample(self):
         # Test observatory polling function.
 
@@ -609,7 +623,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    def test_autosample(self):
+    def test_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -667,6 +681,70 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         # Assert that data was received
         self._async_finished_result.get(timeout=10)
         self.assertTrue(len(self._finished_events_received) >= 3)
+
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_observatory(self):
+        # Test instrument driver get and set interface.
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Retrieve all resource parameters.
+        reply = self._ia_client.get_param(DataHandlerParameter.ALL)
+        self.assertParamDict(reply, True)
+        orig_config = reply
+
+        ## Retrieve a subset of resource parameters.
+        params = [
+            DataHandlerParameter.POLLING_INTERVAL
+        ]
+        reply = self._ia_client.get_param(params)
+        self.assertParamDict(reply)
+        orig_params = reply
+
+        # Set a subset of resource parameters.
+        new_params = {
+            DataHandlerParameter.POLLING_INTERVAL : (orig_params[DataHandlerParameter.POLLING_INTERVAL] * 2),
+            }
+        self._ia_client.set_param(new_params)
+        check_new_params = self._ia_client.get_param(params)
+        self.assertParamVals(check_new_params, new_params)
+
+        #        # Reset the parameters back to their original values.
+        #        self._ia_client.set_param(orig_params)
+        #        reply = self._ia_client.get_param(DataHandlerParameter.POLLING_INTERVAL)
+        #        reply.pop(DataHandlerParameter.POLLING_INTERVAL)
+        #        orig_config.pop(DataHandlerParameter.POLLING_INTERVAL)
+        #        self.assertParamVals(reply, orig_config)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -832,70 +910,6 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    def test_observatory(self):
-        # Test instrument driver get and set interface.
-
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.INACTIVE)
-
-        cmd = AgentCommand(command='go_active')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.IDLE)
-
-        cmd = AgentCommand(command='run')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
-
-        # Retrieve all resource parameters.
-        reply = self._ia_client.get_param(DataHandlerParameter.ALL)
-        self.assertParamDict(reply, True)
-        orig_config = reply
-
-        ## Retrieve a subset of resource parameters.
-        params = [
-            DataHandlerParameter.POLLING_INTERVAL
-        ]
-        reply = self._ia_client.get_param(params)
-        self.assertParamDict(reply)
-        orig_params = reply
-
-        # Set a subset of resource parameters.
-        new_params = {
-            DataHandlerParameter.POLLING_INTERVAL : (orig_params[DataHandlerParameter.POLLING_INTERVAL] * 2),
-            }
-        self._ia_client.set_param(new_params)
-        check_new_params = self._ia_client.get_param(params)
-        self.assertParamVals(check_new_params, new_params)
-
-        #        # Reset the parameters back to their original values.
-        #        self._ia_client.set_param(orig_params)
-        #        reply = self._ia_client.get_param(DataHandlerParameter.POLLING_INTERVAL)
-        #        reply.pop(DataHandlerParameter.POLLING_INTERVAL)
-        #        orig_config.pop(DataHandlerParameter.POLLING_INTERVAL)
-        #        self.assertParamVals(reply, orig_config)
-
-        cmd = AgentCommand(command='reset')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
     def test_capabilities(self):
         # Test the ability to retrieve agent and resource parameter and command capabilities.
         acmds = self._ia_client.get_capabilities(['AGT_CMD'])
@@ -934,7 +948,6 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-#    @unittest.skip("")
     def test_errors(self):
         # Test illegal behavior and replies.
 
