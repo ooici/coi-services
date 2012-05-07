@@ -16,7 +16,8 @@ from ion.services.mi.drivers.uw_trhph.trhph_driver import TrhphDriverState
 from ion.services.mi.drivers.uw_trhph.common import TrhphParameter
 
 from ion.services.mi.instrument_driver import DriverParameter
-from ion.services.mi.common import InstErrorCode
+from ion.services.mi.exceptions import ParameterError
+#from ion.services.mi.common import InstErrorCode
 
 import random
 import time
@@ -109,7 +110,7 @@ class DriverTestMixin(object):
             self.assertTrue(p in result)
 
         for p in valid_params:
-            self.assertFalse(InstErrorCode.is_error(result.get(p)))
+#            self.assertFalse(InstErrorCode.is_error(result.get(p)))
             if TrhphParameter.TIME_BETWEEN_BURSTS == p:
                 seconds = result.get(p)
                 self.assertTrue(isinstance(seconds, int))
@@ -118,7 +119,9 @@ class DriverTestMixin(object):
                 self.assertTrue(isinstance(is_data_only, bool))
 
         for p in invalid_params:
-            self.assertTrue(InstErrorCode.is_error(result.get(p)))
+            res_p = result.get(p)
+            print '::::: %s' % str(res_p)
+            self.assertTrue(InstErrorCode.is_error(res_p))
 
         return result
 
@@ -133,15 +136,23 @@ class DriverTestMixin(object):
 
         self._get_params(DriverParameter.ALL)
 
-        self._get_params(DriverParameter.ALL,
-                         ["bad-param1", "bad-param2"])
+        with self.assertRaises(ParameterError):
+            self._get_params(DriverParameter.ALL,
+                             ["bad-param1", "bad-param2"])
 
-        self._get_params([TrhphParameter.TIME_BETWEEN_BURSTS],
-                         ["bad-param1", "bad-param2"])
+        with self.assertRaises(ParameterError):
+            self._get_params([TrhphParameter.TIME_BETWEEN_BURSTS],
+                             ["bad-param1", "bad-param2"])
 
         self._disconnect()
 
-    def _set_params(self, valid_params, invalid_params=None):
+    def _set_params_OLD(self, valid_params, invalid_params=None):
+        """
+        Method used when the status or result could be given to individual
+        params, so there could be a mix of valid and invalid parameters.
+        Now (May 6 2012) I see from the mainline that a ParameterError is
+        raised even when just an individual parameter is invalid.
+        """
 
         invalid_params = invalid_params or {}
         params = dict(valid_params.items() + invalid_params.items())
@@ -157,6 +168,18 @@ class DriverTestMixin(object):
                 self.assertTrue(InstErrorCode.is_ok(result.get(p)))
             else:
                 self.assertFalse(InstErrorCode.is_ok(result.get(p)))
+
+    def _set_params(self, params):
+        """
+        Sets the given parameters, which are assumed to be all valid.
+        """
+        result = self.driver.set(params=params, timeout=self._timeout)
+        log.info("set result = %s" % str(result))
+        assert isinstance(result, dict)
+
+        # check all requested params are in the result
+        for (p, v) in params.items():
+            self.assertTrue(p in result)
 
     def _get_verbose_flag_for_set_test(self):
         """
@@ -177,8 +200,8 @@ class DriverTestMixin(object):
         else:
             return 0 == random.randint(0, 1)
 
-    def test_20_set_params(self):
-        """-- DRIVER SET TESTS"""
+    def test_20_set_params_valid(self):
+        """-- DRIVER SET VALID PARAMS TESTS"""
         self._prepare_and_connect()
 
         p1 = TrhphParameter.TIME_BETWEEN_BURSTS
@@ -188,9 +211,22 @@ class DriverTestMixin(object):
         verbose = self._get_verbose_flag_for_set_test()
 
         valid_params = {p1: new_seconds, p2: verbose}
-        invalid_params = {"bad-param": "dummy-value"}
 
-        self._set_params(valid_params, invalid_params)
+        self._set_params(valid_params)
+
+        self._disconnect()
+
+    def test_21_set_params_invalid(self):
+        """-- DRIVER SET INVALID PARAMS TESTS"""
+        self._prepare_and_connect()
+
+        p1 = TrhphParameter.TIME_BETWEEN_BURSTS
+        new_seconds = random.randint(15, 60)
+
+        invalid_params = {p1: new_seconds, "bad-param": "dummy-value"}
+
+        with self.assertRaises(ParameterError):
+            self._set_params(invalid_params)
 
         self._disconnect()
 
@@ -231,7 +267,7 @@ class DriverTestMixin(object):
         log.info("stopping autosample")
         result = self.driver.execute_stop_autosample(timeout=self._timeout)
         log.info("execute_stop_autosample result = %s" % str(result))
-        self.assertTrue(InstErrorCode.is_ok(result))
+#        self.assertTrue(InstErrorCode.is_ok(result))
 
         self._disconnect()
 
@@ -277,7 +313,7 @@ class DriverTestMixin(object):
         log.info("starting autosample")
         result = self.driver.execute_start_autosample(timeout=self._timeout)
         log.info("execute_start_autosample result = %s" % str(result))
-        self.assertTrue(InstErrorCode.is_ok(result))
+#        self.assertTrue(InstErrorCode.is_ok(result))
         # just sleep for a few secs (note: not necessarily data will come
         # in this short interval).
         time.sleep(10)

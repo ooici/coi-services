@@ -5,6 +5,13 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-05-06:
+- Merged into coi-service mainline directly, including preliminary version of
+  test_instrument_agent_with_trhph.py for tests on the TRHPH driver via the
+  instrument agent.
+  Also removed the old BARS code in the mainline.
+
+
 2012-05-02:
 - Now using a DriverTestMixin to avoid duplication of code in the TRHPH
   driver tests.
