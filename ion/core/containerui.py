@@ -83,7 +83,7 @@ def process_index():
             "<li><a href='/restypes'><b>Browse Resource Registry and Resource Objects</b></a>",
             "<ul>",
             "<li>Observatory: <a href='/list/MarineFacility'>Marine Facility</a>, <a href='/list/Site'>Site</a>, <a href='/list/Org'>Org</a>, <a href='/list/UserRole'>Role</a></li>",
-            "<li>Users: <a href='/list/UserIdentity'>Identity</a>, <a href='/list/UserInfo'>Info</a>, <a href='/list/UserCredentials'>Credential Set</a></li>",
+            "<li>Users: <a href='/list/ActorIdentity'>Identity</a>, <a href='/list/ActorCredentials'>Credential Set</a></li>",
             "<li>Platforms: <a href='/list/PlatformDevice'>Device</a>, <a href='/list/LogicalPlatform'>Logical</a>, <a href='/list/PlatformModel'>Models</a>, <a href='/list/PlatformAgent'>Agent</a>, <a href='/list/PlatformAgentInstance'>Agent Instance</a></li>",
             "<li>Instruments: <a href='/list/InstrumentDevice'>Device</a>, <a href='/list/LogicalInstrument'>Logical</a>, <a href='/list/InstrumentModel'>Models</a>, <a href='/list/InstrumentAgent'>Agent</a>, <a href='/list/InstrumentAgentInstance'>Agent Instance</a></li>",
             "<li>Data: <a href='/list/DataProduct'>Data Product</a>, <a href='/list/DataSet'>DataSet</a>, <a href='/list/Stream'>Stream</a></li>",

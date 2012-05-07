@@ -80,7 +80,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ion_org = self.org_client.find_org()
 
 
-        self.system_actor = self.id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+        self.system_actor = self.id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
         log.debug('system actor:' + self.system_actor._id)
 
 

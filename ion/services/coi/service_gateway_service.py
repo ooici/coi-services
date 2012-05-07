@@ -64,7 +64,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.server_port = DEFAULT_WEB_SERVER_PORT
         self.web_server_enabled = True
         self.logging = None
-        self.user_cache_size = DEFAULT_USER_CACHE_SIZE
+        self.actor_cache_size = DEFAULT_USER_CACHE_SIZE
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
@@ -97,20 +97,20 @@ class ServiceGatewayService(BaseServiceGatewayService):
             log.info("Service Gateway will not check requests against trusted originators since none are configured.")
 
         try:
-            #Get the user_cache_size
-            self.user_cache_size = self.CFG['container']['service_gateway']['user_cache_size']
+            #Get the actor_cache_size
+            self.actor_cache_size = self.CFG['container']['service_gateway']['actor_cache_size']
         except Exception, e:
-            self.user_cache_size = DEFAULT_USER_CACHE_SIZE
+            self.actor_cache_size = DEFAULT_USER_CACHE_SIZE
 
 
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
             self.start_service(self.server_hostname,self.server_port)
 
-        #Initialize an LRU Cache to keep user roles cached for performance reasons
+        #Initialize an LRU Cache to keep actor roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
         #maxAgeMs = oldest entry to keep
-        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
+        self.actor_data_cache = LRUCache(self.actor_cache_size,0,0)
 
     def on_quit(self):
         self.stop_service()
@@ -224,7 +224,7 @@ def process_gateway_request(service_name, operation):
         param_list = create_parameter_list('serviceRequest', service_name, target_client,operation, json_params)
 
 
-        #Validate requesting user and expiry and add governance headers
+        #Validate requesting actor and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
         param_list['headers'] = build_message_headers(ion_actor_id, expiry)
@@ -234,14 +234,14 @@ def process_gateway_request(service_name, operation):
         result = methodToCall(**param_list)
 
 
-        #For service operations that add or remove user roles, remove the cached roles so that
-        #the next request will get the latest set of user roles
+        #For service operations that add or remove actor roles, remove the cached roles so that
+        #the next request will get the latest set of actor roles
         #TODO - this will only work while there is a single Service Gateway running - need to replace with Event
-        #framework to evict from the cache when a user roles get updated.
+        #framework to evict from the cache when a actor roles get updated.
         if operation == 'grant_role' or operation == 'revoke_role':
-            #Look for a user_id in the set of parameters and remove it from the user role cache
-            if param_list.has_key('user_id'):
-                service_gateway_instance.user_data_cache.evict(param_list['user_id'])
+            #Look for a actor_id in the set of parameters and remove it from the actor role cache
+            if param_list.has_key('actor_id'):
+                service_gateway_instance.actor_data_cache.evict(param_list['actor_id'])
 
 
         return gateway_json_response(result)
@@ -297,7 +297,7 @@ def process_gateway_agent_request(resource_id, operation):
 
         param_list = create_parameter_list('agentRequest', 'resource_agent', ResourceAgentProcessClient, operation, json_params)
 
-        #Validate requesting user and expiry and add governance headers
+        #Validate requesting actor and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request('agentRequest', json_params)
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
         param_list['headers'] = build_message_headers(ion_actor_id, expiry)
@@ -367,7 +367,7 @@ def get_governance_info_from_request(request_type = '', json_params = None):
 
 def validate_request(ion_actor_id, expiry):
 
-    #There is no point in looking up an anonymous user - so return default values.
+    #There is no point in looking up an anonymous actor - so return default values.
     if ion_actor_id == DEFAULT_ACTOR_ID:
         expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
         return ion_actor_id, expiry
@@ -375,9 +375,9 @@ def validate_request(ion_actor_id, expiry):
     idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
     try:
-        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
+        actor = idm_client.read_actor_identity(actor_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
     except NotFound, e:
-        ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
+        ion_actor_id = DEFAULT_ACTOR_ID  # If the actor isn't found default to anonymous
         expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it
         return ion_actor_id, expiry
 
@@ -387,10 +387,10 @@ def validate_request(ion_actor_id, expiry):
     except Exception, e:
         raise Inconsistent("Unable to read the expiry value in the request '%s' as an int" % expiry)
 
-    #The user has been validated as being known in the system, so not check the expiry and raise exception if
+    #The actor has been validated as being known in the system, so not check the expiry and raise exception if
     # the expiry is not set to 0 and less than the current time.
     if int_expiry > 0 and int_expiry < current_time_millis():
-        raise Unauthorized('The certificate associated with the user and expiry time in the request has expired.')
+        raise Unauthorized('The certificate associated with the actor and expiry time in the request has expired.')
 
     return ion_actor_id, expiry
 
@@ -408,33 +408,33 @@ def build_message_headers( ion_actor_id, expiry):
         return headers
 
     try:
-        #Check to see if the user's roles are cached already - keyed by user id
+        #Check to see if the actor's roles are cached already - keyed by actor id
         #TODO - May need to synchronize this if there are "threading" issues
-#        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
-#            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+#        if service_gateway_instance.actor_data_cache.has_key(ion_actor_id):
+#            role_header = service_gateway_instance.actor_data_cache.get(ion_actor_id)
 #            if role_header is not None:
 #                headers['ion-actor-roles'] = role_header
 #                return headers
 
 
-        #The user's roles were not cached so hit the datastore to find it.
+        #The actor's roles were not cached so hit the datastore to find it.
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
 
         role_header = get_role_message_headers(org_roles)
 
-        #Cache the roles by user id
-        service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
+        #Cache the roles by actor id
+        service_gateway_instance.actor_data_cache.put(ion_actor_id, role_header)
 
     except Exception, e:
-        role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
+        role_header = dict()  # Default to empty dict if there is a problem finding roles for the actor
 
     headers['ion-actor-roles'] = role_header
 
     return headers
 
-#Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
-#to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
+#Iterate the Org(s) that the actor belongs to and create a header that lists only the role names per Org assigned
+#to the actor; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
 def get_role_message_headers(org_roles):
 
     role_header = dict()
@@ -530,7 +530,7 @@ def list_resource_types():
     try:
 
 
-        #Validate requesting user and expiry and add governance headers
+        #Validate requesting actor and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
@@ -561,7 +561,7 @@ def get_resource_schema(resource_type):
 
     try:
 
-        #Validate requesting user and expiry and add governance headers
+        #Validate requesting actor and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
@@ -602,7 +602,7 @@ def get_resource(resource_id):
 
             client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
-            #Validate requesting user and expiry and add governance headers
+            #Validate requesting actor and expiry and add governance headers
             ion_actor_id, expiry = get_governance_info_from_request()
             ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
@@ -628,7 +628,7 @@ def list_resources_by_type(resource_type):
 
         client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
-        #Validate requesting user and expiry and add governance headers
+        #Validate requesting actor and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
