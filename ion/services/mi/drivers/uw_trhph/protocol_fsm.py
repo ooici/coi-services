@@ -26,7 +26,7 @@ from ion.services.mi.drivers.uw_bars.common import BarsParameter
 import ion.services.mi.drivers.uw_bars.bars as bars
 from ion.services.mi.common import InstErrorCode
 from ion.services.mi.common import DriverAnnouncement
-from ion.services.mi.instrument_fsm_args import InstrumentFSM
+from ion.services.mi.instrument_fsm import InstrumentFSM
 #from ion.services.mi.exceptions import InstrumentProtocolException
 #from ion.services.mi.exceptions import InstrumentTimeoutException
 
@@ -101,8 +101,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         self._fsm = InstrumentFSM(BarsProtocolState, BarsProtocolEvent,
                                   None,
-                                  None,
-                                  InstErrorCode.UNHANDLED_EVENT)
+                                  None)
 
         # PRE_INIT
         self._fsm.add_handler(BarsProtocolState.PRE_INIT,
