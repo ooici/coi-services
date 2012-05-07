@@ -460,11 +460,8 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
     def test_break_from_slow_autosample(self):
         # test break from autosample at low data rates
         reply = self._dvr_client.cmd_dvr('execute_start_autosample')
-        self.assert_(reply)
         time.sleep(5)
         reply = self._dvr_client.cmd_dvr('execute_break')
-        self.assert_(reply)
-        # confirm prompt?
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
 
@@ -475,11 +472,8 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
                                            timeout=20)
 
         reply = self._dvr_client.cmd_dvr('execute_start_autosample')
-        self.assert_(reply)
         time.sleep(5)
         reply = self._dvr_client.cmd_dvr('execute_break')
-        self.assert_(reply)
-        # confirm prompt?
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
 
