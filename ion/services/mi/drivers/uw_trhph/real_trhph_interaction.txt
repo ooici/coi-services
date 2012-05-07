@@ -1,0 +1,1996 @@
+Trying 10.180.80.172...
+Connected to 10.180.80.172.
+Escape character is '^]'.
+0.197  0.992  4.095  0.147  0.747  3.730  1.990  1.038  24.83  0.000   24.8   9.2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      *********************************************************************
+      *                                                                   *
+      *  Welcome to the Consortium for Ocean Leadership Program Main Menu *
+      *              (TRHPH - Temperature Resistivity Probe)              *
+      *                      (Serial Number 001)                          *
+      *                                                                   *
+      *********************************************************************
+
+                 Version 1.2 - Last Revision: Mar. 27, 2012
+
+                               Written by:
+
+                               Rex Johnson
+                               Ocean Engineering Services
+                               School of Oceanography
+                               University of Washington
+                               Seattle, WA 98195
+
+
+                  Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Restart Data Collection.
+                      2).  Change Data Collection Parameters.
+                      3).  System Diagnostics.
+                      4).  Control Power to Sensors.
+                      5).  Provide Information on this System.
+                      6).  Exit this Program.
+
+                    Enter 0, 1, 2, 3, 4, 5, or 6 here  --> 1
+
+  System Name:  Temperature Resistivity Probe - TRHPH
+  System Owner: Consortium for Ocean Leadership
+                University of Washington, OOI-RCN
+  Contact Info: Giora Proskurowski, 206-685-3507
+  System Serial #: 001
+  Software Version 1.2, Last Update March 27, 2012
+  Made by Ocean Engineering Services, March 2012 (206-543-9688)
+
+ This System is presently setup with the following Parameters:
+1  = Eprom Status (0 means not setup yet, 1 means ready to use)
+20 = Cycle Time (Actual Time in Seconds or Minutes)
+0  = Minutes or Seconds Cycle Time (0 = Seconds mode, 1 = Minutes mode)
+55 = Power Control Word (Power Control Word = 1+2+4+16+32 = 55 if all On)
+1  = Res Power Status (0 = Off, 1 = On)
+1  = Thermocouple & Hydrogen Amp Power Status (0 = Off, 1 = On)
+1  = eh Amp Power Status (0 = Off, 1 = On)
+1  = Hydrogen Sensor Power Status (0 = Off, 1 = On)
+1  = Reference Temperature Power Status (0 = Off, 1 = On)
+1  = Metadata Print Status on Power up (0 = No Print on Powerup, 1 = Print)
+1  = Metadata Print Status on Restart Data Collection (0 = No Print on Restart Data, 1 = Print)
+
+0.197  0.992  4.095  0.135  0.687  3.441  1.990  1.038  24.83  0.000   24.8   9.1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      *********************************************************************
+      *                                                                   *
+      *  Welcome to the Consortium for Ocean Leadership Program Main Menu *
+      *              (TRHPH - Temperature Resistivity Probe)              *
+      *                      (Serial Number 001)                          *
+      *                                                                   *
+      *********************************************************************
+
+                 Version 1.2 - Last Revision: Mar. 27, 2012
+
+                               Written by:
+
+                               Rex Johnson
+                               Ocean Engineering Services
+                               School of Oceanography
+                               University of Washington
+                               Seattle, WA 98195
+
+
+                  Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Restart Data Collection.
+                      2).  Change Data Collection Parameters.
+                      3).  System Diagnostics.
+                      4).  Control Power to Sensors.
+                      5).  Provide Information on this System.
+                      6).  Exit this Program.
+
+                    Enter 0, 1, 2, 3, 4, 5, or 6 here  --> 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 20 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    Do you want to specify a Cycle Time in
+                           in Seconds or Minutes?
+                    Enter 1 for Seconds, 2 for Minutes --> 1
+
+
+                    Enter a new value between 15 and 59 here --> 15
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 15 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    Do you want to specify a Cycle Time in
+                           in Seconds or Minutes?
+                    Enter 1 for Seconds, 2 for Minutes --> 2
+
+
+                    Enter a new value between 1 and 60 here --> 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 1 Minutes.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    Do you want to specify a Cycle Time in
+                           in Seconds or Minutes?
+                    Enter 1 for Seconds, 2 for Minutes --> 1
+
+
+                    Enter a new value between 15 and 59 here --> 15
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 15 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Do you want Verbose Status Information during Logging
+               or just the Data?
+    Enter 2 for Verbose, 1 for just Data. --> 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 15 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                  Verbose Printing of Status Information with the Data.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Do you want Verbose Status Information during Logging
+               or just the Data?
+    Enter 2 for Verbose, 1 for just Data. --> 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 15 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Do you want the Metadata Information printed out at Power up?
+
+    Enter 2 for Yes, 1 for No. --> 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 15 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Do you want the Metadata Information printed out at restart of data collection?
+
+    Enter 2 for Yes, 1 for No. --> 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 15 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 5
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 20 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ This System is presently setup with the following Parameters:
+1  = Eprom Status (0 means not setup yet, 1 means ready to use)
+20 = Cycle Time (Actual Time in Seconds or Minutes)
+0  = Minutes or Seconds Cycle Time (0 = Seconds mode, 1 = Minutes mode)
+55 = Power Control Word (Power Control Word = 1+2+4+16+32 = 55 if all On)
+1  = Res Power Status (0 = Off, 1 = On)
+1  = Thermocouple & Hydrogen Amp Power Status (0 = Off, 1 = On)
+1  = eh Amp Power Status (0 = Off, 1 = On)
+1  = Hydrogen Sensor Power Status (0 = Off, 1 = On)
+1  = Reference Temperature Power Status (0 = Off, 1 = On)
+1  = Metadata Print Status on Power up (0 = No Print on Powerup, 1 = Print)
+1  = Metadata Print Status on Restart Data Collection (0 = No Print on Restart Data, 1 = Print)
+
+ Press ENTER to continue. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                               System Parameter Menu
+
+*****************************************************************************
+
+                       The present value for the Cycle Time is
+                                 20 Seconds.
+
+                  The present setting for Verbose versus Data only is
+                                     Data Only.
+
+                  Printing of the Metadata Printing on Power up is enabled.
+
+                  Printing of the Metadata Printing on Restart of Data is enabled.
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Change the Cycle Time.
+                      2).  Change the Verbose Setting.
+                      3).  Change Print Status of Metadata on Powerup.
+                      4).  Change Print Status of Metadata on Restart of Data.
+                      5).  Reset all Parameters back to Default Settings.
+                      6).  Print out all Parameters.
+                 7 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 7
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      *********************************************************************
+      *                                                                   *
+      *  Welcome to the Consortium for Ocean Leadership Program Main Menu *
+      *              (TRHPH - Temperature Resistivity Probe)              *
+      *                      (Serial Number 001)                          *
+      *                                                                   *
+      *********************************************************************
+
+                 Version 1.2 - Last Revision: Mar. 27, 2012
+
+                               Written by:
+
+                               Rex Johnson
+                               Ocean Engineering Services
+                               School of Oceanography
+                               University of Washington
+                               Seattle, WA 98195
+
+
+                  Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Restart Data Collection.
+                      2).  Change Data Collection Parameters.
+                      3).  System Diagnostics.
+                      4).  Control Power to Sensors.
+                      5).  Provide Information on this System.
+                      6).  Exit this Program.
+
+                    Enter 0, 1, 2, 3, 4, 5, or 6 here  --> 3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+             This Test Routine Prints out the actual Analog Voltages
+                          from all the Analog Inputs.
+                   This should be helpful for system testing.
+
+
+                       How Many Scans do you want? --> 5
+
+
+-Res/5-  -ResX1-  -ResX5-  -*H2/5-  -*H2X1-  -*H2X5-  -*Eh**- RefTemp  ResTemp  -VBatt-
+0.199    0.993    4.096    0.022    0.182    1.328    1.990    1.041    0.000    9.172    
+0.195    0.993    4.096    0.148    0.745    3.731    1.989    1.042    0.000    9.182    
+0.197    0.997    4.096    0.150    0.746    3.727    1.991    1.038    0.000    9.182    
+0.196    0.992    4.096    0.149    0.742    3.734    1.989    1.038    0.000    9.152    
+0.197    0.997    4.096    0.151    0.744    3.731    1.990    1.041    0.000    9.192    
+Press Enter to return to Main Menu.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      *********************************************************************
+      *                                                                   *
+      *  Welcome to the Consortium for Ocean Leadership Program Main Menu *
+      *              (TRHPH - Temperature Resistivity Probe)              *
+      *                      (Serial Number 001)                          *
+      *                                                                   *
+      *********************************************************************
+
+                 Version 1.2 - Last Revision: Mar. 27, 2012
+
+                               Written by:
+
+                               Rex Johnson
+                               Ocean Engineering Services
+                               School of Oceanography
+                               University of Washington
+                               Seattle, WA 98195
+
+
+                  Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Restart Data Collection.
+                      2).  Change Data Collection Parameters.
+                      3).  System Diagnostics.
+                      4).  Control Power to Sensors.
+                      5).  Provide Information on this System.
+                      6).  Exit this Program.
+
+                    Enter 0, 1, 2, 3, 4, 5, or 6 here  --> 4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                             Sensor Power Control Menu
+
+*****************************************************************************
+
+                 Here is the current status of power to each sensor
+
+                      Res Sensor Power is ............. On
+                      Instrumentation Amp Power is .... On
+                      eH Isolation Amp Power is ....... On
+                      Hydrogen Power .................. On
+                      Reference Temperature Power ..... On
+
+*****************************************************************************
+
+
+                Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Toggle Power to Res Sensor.
+                      2).  Toggle Power to the Instrumentation Amp.
+                      3).  Toggle Power to the eH Isolation Amp.
+                      4).  Toggle Power to the Hydrogen Sensor.
+                      5).  Toggle Power to the Reference Temperature Sensor.
+                 6 to 9).  Return to the Main Menu.
+
+                    Enter 0 through 9 here  --> 6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      *********************************************************************
+      *                                                                   *
+      *  Welcome to the Consortium for Ocean Leadership Program Main Menu *
+      *              (TRHPH - Temperature Resistivity Probe)              *
+      *                      (Serial Number 001)                          *
+      *                                                                   *
+      *********************************************************************
+
+                 Version 1.2 - Last Revision: Mar. 27, 2012
+
+                               Written by:
+
+                               Rex Johnson
+                               Ocean Engineering Services
+                               School of Oceanography
+                               University of Washington
+                               Seattle, WA 98195
+
+
+                  Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Restart Data Collection.
+                      2).  Change Data Collection Parameters.
+                      3).  System Diagnostics.
+                      4).  Control Power to Sensors.
+                      5).  Provide Information on this System.
+                      6).  Exit this Program.
+
+                    Enter 0, 1, 2, 3, 4, 5, or 6 here  --> 5
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  System Name:  Temperature Resistivity Probe - TRHPH
+  System Owner: Consortium for Ocean Leadership
+                University of Washington, OOI-RCN
+  Contact Info: Giora Proskurowski, 206-685-3507
+  System Serial #: 001
+  Software Version 1.2, Last Update March 27, 2012
+  Made by Ocean Engineering Services, March 2012 (206-543-9688)
+
+ This System is presently setup with the following Parameters:
+1  = Eprom Status (0 means not setup yet, 1 means ready to use)
+20 = Cycle Time (Actual Time in Seconds or Minutes)
+0  = Minutes or Seconds Cycle Time (0 = Seconds mode, 1 = Minutes mode)
+55 = Power Control Word (Power Control Word = 1+2+4+16+32 = 55 if all On)
+1  = Res Power Status (0 = Off, 1 = On)
+1  = Thermocouple & Hydrogen Amp Power Status (0 = Off, 1 = On)
+1  = eh Amp Power Status (0 = Off, 1 = On)
+1  = Hydrogen Sensor Power Status (0 = Off, 1 = On)
+1  = Reference Temperature Power Status (0 = Off, 1 = On)
+1  = Metadata Print Status on Power up (0 = No Print on Powerup, 1 = Print)
+1  = Metadata Print Status on Restart Data Collection (0 = No Print on Restart Data, 1 = Print)
+
+  Press Enter to return to the Main Menu. --> 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      *********************************************************************
+      *                                                                   *
+      *  Welcome to the Consortium for Ocean Leadership Program Main Menu *
+      *              (TRHPH - Temperature Resistivity Probe)              *
+      *                      (Serial Number 001)                          *
+      *                                                                   *
+      *********************************************************************
+
+                 Version 1.2 - Last Revision: Mar. 27, 2012
+
+                               Written by:
+
+                               Rex Johnson
+                               Ocean Engineering Services
+                               School of Oceanography
+                               University of Washington
+                               Seattle, WA 98195
+
+
+                  Select one of the following functions:
+
+                      0).  Reprint this Menu.
+                      1).  Restart Data Collection.
+                      2).  Change Data Collection Parameters.
+                      3).  System Diagnostics.
+                      4).  Control Power to Sensors.
+                      5).  Provide Information on this System.
+                      6).  Exit this Program.
+
+                    Enter 0, 1, 2, 3, 4, 5, or 6 here  --> 1
+
+  System Name:  Temperature Resistivity Probe - TRHPH
+  System Owner: Consortium for Ocean Leadership
+                University of Washington, OOI-RCN
+  Contact Info: Giora Proskurowski, 206-685-3507
+  System Serial #: 001
+  Software Version 1.2, Last Update March 27, 2012
+  Made by Ocean Engineering Services, March 2012 (206-543-9688)
+
+ This System is presently setup with the following Parameters:
+1  = Eprom Status (0 means not setup yet, 1 means ready to use)
+20 = Cycle Time (Actual Time in Seconds or Minutes)
+0  = Minutes or Seconds Cycle Time (0 = Seconds mode, 1 = Minutes mode)
+55 = Power Control Word (Power Control Word = 1+2+4+16+32 = 55 if all On)
+1  = Res Power Status (0 = Off, 1 = On)
+1  = Thermocouple & Hydrogen Amp Power Status (0 = Off, 1 = On)
+1  = eh Amp Power Status (0 = Off, 1 = On)
+1  = Hydrogen Sensor Power Status (0 = Off, 1 = On)
+1  = Reference Temperature Power Status (0 = Off, 1 = On)
+1  = Metadata Print Status on Power up (0 = No Print on Powerup, 1 = Print)
+1  = Metadata Print Status on Restart Data Collection (0 = No Print on Restart Data, 1 = Print)
+
+0.197  0.992  4.095  0.135  0.687  3.442  1.990  1.038  24.83  0.000   24.8   9.2
+
+telnet> Connection closed.
