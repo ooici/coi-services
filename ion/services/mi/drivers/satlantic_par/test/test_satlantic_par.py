@@ -360,10 +360,9 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertEquals(reply, {Parameter.TELBAUD:19200,
                                   Parameter.MAXRATE:1})
         
-        """ @todo Probably need some better error handling...a code at least! """
-        #self.assertRaises(InstrumentProtocolException,
-        #                  self._dvr_client.cmd_dvr,
-        #                  'bogus', [Parameter.TELBAUD])
+        self.assertRaises(InstrumentProtocolException,
+                          self._dvr_client.cmd_dvr,
+                          'bogus', [Parameter.TELBAUD])
 
     def test_set(self):
         config_key = Parameter.MAXRATE
@@ -480,32 +479,34 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
 
     def test_break_from_poll(self):
         # Now try it from poll mode
-        reply_1 = self._dvr_client.cmd_dvr('execute_poll')
-        self.assert_(reply_1)
+        self._dvr_client.cmd_dvr('execute_poll')
         time.sleep(2)
 
+        mi_logger.debug("***about to except....wait for it...")
         # Already in poll mode, so this shouldnt give us anything
-        reply_2 = self._dvr_client.cmd_dvr('execute_poll')
-        self.assertEqual(reply_2, None)
-        self.assertNotEqual(reply_1, reply_2)
+        self.assertRaises(InstrumentStateException,
+                  self._dvr_client.cmd_dvr,
+                  'execute_poll')
         
-        reply = self._dvr_client.cmd_dvr('execute_break')
-        self.assertEqual(reply, InstErrorCode.OK)
-        
+        reply = self._dvr_client.cmd_dvr('execute_break')        
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
     
     def test_state_changes(self):
         # Cycle through them and verify with get state
         pass
-    
+
+    """
+    @todo Test reset function
     def test_reset(self):
         pass
-    
+    """
+    """
+    @todo test any commands not already tested
     def test_commands(self):
         # check all the exec commands that havent been tested already
         pass
-    
+    """
     def test_get_sample_from_cmd_mode(self):
         """Get some samples directly from command mode"""
         reply_1 = self._dvr_client.cmd_dvr('execute_acquire_sample')        

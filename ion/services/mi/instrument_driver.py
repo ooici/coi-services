@@ -476,7 +476,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         @param args[0] parameter : value dict of parameters to set.
         @param timeout=timeout Optional command timeout.
         @raises InstrumentParameterException if missing or invalid set parameters.
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if set command not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.                        
@@ -489,7 +489,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Poll for a sample.
         @param timeout=timeout Optional command timeout.        
         @ retval Device sample dict.
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if acquire command not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.                        
@@ -501,7 +501,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         Switch to autosample mode.
         @param timeout=timeout Optional command timeout.        
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.                        
         """
@@ -512,7 +512,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         Leave autosample mode.
         @param timeout=timeout Optional command timeout.        
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if stop command not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.                        
@@ -525,7 +525,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Execute device tests.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal test commands).
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if test commands not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.                        
@@ -538,7 +538,7 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         Execute device calibration.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal calibration commands).
-        @riases InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if test commands not recognized.
         @raises InstrumentStateException if command not allowed in current state.
         @raises NotImplementedException if not implemented by subclass.                        

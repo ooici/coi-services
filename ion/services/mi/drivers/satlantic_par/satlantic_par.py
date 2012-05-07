@@ -302,7 +302,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException on missing or bad config
         """
         if (config == None):
-            raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_PARAMETER)
+            raise InstrumentParameterException()
         
         if ((config.has_key(Parameter.TELBAUD))
             and (config.has_key(Parameter.MAXRATE))):  
@@ -310,7 +310,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             assert (len(config) == 2)
             return self._protocol_fsm.on_event(PARProtocolEvent.SET, config, **kwargs)
         else:
-            raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_PARAMETER)
+            raise InstrumentParameterException()
     
     ################
     # State handlers
@@ -523,18 +523,17 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             # get into auto-sample mode guaranteed, then stop and sample
             kwargs.update({KwargsKey.COMMAND:Command.EXIT_AND_RESET})
             result = self._protocol_fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
-            if (result == InstErrorCode.OK):
-                result = self._protocol_fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
-                if (result == InstErrorCode.OK):    
-                    next_state = PARProtocolState.POLL_MODE
-                 
+            result = self._protocol_fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
+            next_state = PARProtocolState.POLL_MODE     
         except (InstrumentTimeoutException, InstrumentProtocolException) as e:
             mi_logger.debug("Caught exception while moving to manual poll mode: %s", e)
             if self._protocol_fsm.current_state == PARProtocolState.AUTOSAMPLE_MODE:
                 result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+                raise e
             elif (self._protocol_fsm.current_state == PARProtocolState.POLL_MODE):
                 result = self._protocol_fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
                 result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
+                raise e
 
         return (next_state, result)
     
@@ -580,11 +579,11 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             params = [Parameter.TELBAUD, Parameter.MAXRATE]
 
         if ((params == None) or (not isinstance(params, list))):
-                raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_PARAMETER)
+                raise InstrumentParameterException()
                 
         for param in params:
             if not Parameter.has(param):
-                raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_PARAMETER)
+                raise InstrumentParameterException()
                 break
             result_vals[param] = self._do_cmd_resp(Command.GET, param,
                                                    expected_prompt=Prompt.COMMAND,
@@ -606,11 +605,11 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         result_vals = {}    
 
         if ((params == None) or (not isinstance(params, dict))):
-            raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_PARAMETER)
+            raise InstrumentParameterException()
         name_values = params
         for key in name_values.keys():
             if not Parameter.has(key):
-                raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_PARAMETER)
+                raise InstrumentParameterException()
                 break
             result_vals[key] = self._do_cmd_resp(Command.SET, key, name_values[key],
                                                  expected_prompt=Prompt.COMMAND,

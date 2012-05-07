@@ -19,7 +19,7 @@ class InstrumentException(Exception):
     representation in ION.
     """
     
-    def __init__ (self, error_code=None, msg=None):
+    def __init__ (self, msg=None, error_code=None):
         self.args = (error_code, msg)
         self.error_code = error_code
         self.msg = msg
@@ -44,7 +44,7 @@ class InstrumentStateException(InstrumentException):
 class InstrumentTimeoutException(InstrumentException):
     """Exception related to a command, request, or communication timing out"""
     def __init__(self, error_code=InstErrorCode.TIMEOUT, msg=None):
-        InstrumentException.__init__(self, error_code, msg)
+        InstrumentException.__init__(self, msg=msg, error_code=error_code)
     
 class InstrumentDataException(InstrumentException):
     """Exception related to the data returned by an instrument or developed
@@ -57,7 +57,7 @@ class InstrumentCommandException(InstrumentException):
     
 class InstrumentParameterException(InstrumentException):
     """A required parameter is not supplied"""
-    def __init__(self, error_code=None, msg=None):
+    def __init__(self, msg=None, error_code=None):
         if error_code == None:
             error_code = InstErrorCode.REQUIRED_PARAMETER
         if msg == None:
