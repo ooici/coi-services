@@ -199,38 +199,6 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                              r'Maximum Frame Rate:\s+(\d+) Hz',
                              lambda match : int(match.group(1)),
                              self._int_to_string)
-                
-    '''
-    # The normal interface for a protocol. These should drive the FSM
-    # transitions as they get things done.
-    def get(self, *args, **kwargs):
-        """ Get the given parameters from the instrument
-        
-        @param params The parameter names to get
-        @retval Result of FSM event handle, hould be a dict of parameters and values
-        @throws InstrumentProtocolException On invalid parameter
-        """
-        # Parameters checked in Handler
-        result = self._protocol_fsm.on_event(PARProtocolEvent.GET, *args, **kwargs)
-        if result == None:
-            raise InstrumentProtocolException(error_code=InstErrorCode.INCORRECT_STATE)
-        assert (isinstance(result, dict))
-        return result
-   
-    def set(self, *args, **kwargs):
-        """ Set the given parameters on the instrument
-        
-        @param params The dict of parameters and values to set
-        @retval result of FSM event handle
-        @throws InstrumentProtocolException On invalid parameter
-        """
-        # Parameters checked in handler
-        result = self._protocol_fsm.on_event(PARProtocolEvent.SET, *args, **kwargs)
-        if result == None:
-            raise InstrumentProtocolException(error_code=InstErrorCode.INCORRECT_STATE)
-        assert(isinstance(result, dict))
-        return result
-    '''
     
     def execute_exit(self, *args, **kwargs):
         """ Execute the exit command
@@ -340,7 +308,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
             and (config.has_key(Parameter.MAXRATE))):  
             assert (isinstance(config, dict))
             assert (len(config) == 2)
-            self._protocol_fsm.on_event(PARProtocolEvent.SET, config, **kwargs)
+            return self._protocol_fsm.on_event(PARProtocolEvent.SET, config, **kwargs)
         else:
             raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_PARAMETER)
     
@@ -1163,7 +1131,7 @@ class SatlanticPARInstrumentDriver(SingleConnectionInstrumentDriver):
         return self._protocol.get_config([Parameter.TELBAUD, Parameter.MAXRATE], *args, **kwargs)
         
     def restore_config(self, config, *args, **kwargs):
-        return self._protocol.set_config(config, *args, **kwargs)
+        return self._protocol.restore_config(config, *args, **kwargs)
         
 class SatlanticChecksumDecorator(ChecksumDecorator):
     """Checks the data checksum for the Satlantic PAR sensor"""
