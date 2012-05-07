@@ -22,7 +22,8 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG
 
-
+# MI imports
+from ion.services.mi.instrument_agent import InstrumentAgentState
 
 from pyon.public import CFG
 from pyon.agent.agent import ResourceAgentClient
@@ -65,8 +66,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
-@unittest.skip('not working yet...')
+@attr('INT', group='foo')
+#@unittest.skip('not working yet...')
 class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
 
     def setUp(self):
@@ -95,7 +96,7 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         log.debug("TestExternalDatasetAgentMgmt: new ExternalDatasetModel id = %s", str(datasetModel_id) )
 
         # Create ExternalDatasetAgent
-        datasetAgent_obj = IonObject(RT.ExternalDatasetAgent, name='datasetagent007', description="datasetagent007", handler_module="ion.agents.eoi", handler_class="ExternalDatasetAgent" )
+        datasetAgent_obj = IonObject(RT.ExternalDatasetAgent, name='datasetagent007', description="datasetagent007", handler_module="ion.agents.eoi.external_dataset_agent", handler_class="ExternalDatasetAgent" )
         try:
             datasetAgent_id = self.damsclient.create_external_dataset_agent(datasetAgent_obj, datasetModel_id)
         except BadRequest as ex:
@@ -159,18 +160,40 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         dataset_agent_instance_obj= self.damsclient.read_external_dataset_agent_instance(extDatasetAgentInstance_id)
         log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance obj: = %s", str(dataset_agent_instance_obj) )
 
-#        # Start a resource agent client to talk with the instrument agent.
-#        self._dsa_client = ResourceAgentClient(instDevice_id,  process=FakeProcess())
-#        print 'activate_instrument: got ia client %s', self._dsa_client
-#        log.debug("test_activateInstrument: got dataset client %s", str(self._dsa_client))
-#
-#
-#
-#
-#        #-------------------------------
-#        # Deactivate InstrumentAgentInstance
-#        #-------------------------------
-#        self.damsclient.stop_external_dataset_agent_instance(extDatasetInstance_id)
+        # Start a resource agent client to talk with the instrument agent.
+        self._dsa_client = ResourceAgentClient(extDataset_id,  process=FakeProcess())
+        print 'activate_instrument: got ia client %s', self._dsa_client
+        log.debug("test_activateInstrument: got dataset client %s", str(self._dsa_client))
+
+        cmd=AgentCommand(command='initialize')
+        _ = self._dsa_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._dsa_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._dsa_client.execute_agent(cmd)
+
+        log.info('Send an unconstrained request for data (\'new data\')')
+        config={'stream_id':'first_new','TESTING':True}
+        cmd = AgentCommand(command='acquire_data', args=[config])
+        self._dsa_client.execute(cmd)
+
+        log.info('Send a second unconstrained request for data (\'new data\'), should be rejected')
+        config={'stream_id':'second_new','TESTING':True}
+        cmd = AgentCommand(command='acquire_data', args=[config])
+        self._dsa_client.execute(cmd)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._dsa_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._dsa_client.execute_agent(cmd)
+        state = retval.result
+
+        #-------------------------------
+        # Deactivate InstrumentAgentInstance
+        #-------------------------------
+        self.damsclient.stop_external_dataset_agent_instance(extDatasetAgentInstance_id)
 
 
 

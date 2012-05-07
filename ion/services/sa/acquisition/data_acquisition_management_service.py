@@ -756,11 +756,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
             out_streams['parsed'] = stream_ids[0]
 
+
         # Create agent config.
         dataset_agent_instance_obj.dataset_agent_config = {
             'driver_config' : dataset_agent_instance_obj.dataset_driver_config,
             'stream_config' : out_streams,
-            'agent'         : {'resource_id': ext_dataset_id}
+            'agent'         : {'resource_id': ext_dataset_id},
+            'test_mode' : True
         }
 
         log.debug("start_external_dataset_agent_instance: agent_config %s ", str(dataset_agent_instance_obj.dataset_agent_config))
