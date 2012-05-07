@@ -420,7 +420,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
     """ 
     @classmethod
     def launch_process(cls, device_host, device_port, workdir='/tmp/',
-                       delim=['<<','>>'], ppid=None):
+                       delim=None, ppid=None):
         """
         Class method to be used in place of a constructor to launch a logger in
         a fully seperate python interpreter process. Builds command line for
@@ -429,11 +429,13 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         @param device_port Port of the device.
         @param workdir The work directory.
         @param delim 2-element delimiter to indicate traffic from the driver
-        in the logfile.
+        in the logfile. If not given or if None, ['<<', '>>'] is used.
         @param ppid Parent process ID, used to self destruct when parents
         die in test cases.      
         @retval An EthernetDeviceLogger object to control the remote process.
         """
+        delim = delim or ['<<','>>']
+
         start_time = datetime.datetime.now()
         dt_string = '%i_%i_%i_%i_%i_%i' % \
                 (start_time.year, start_time.month,

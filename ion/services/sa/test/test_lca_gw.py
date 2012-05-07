@@ -50,7 +50,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         #self.client.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         #self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
-        self.client.OMS = ObservatoryManagementServiceClient(node=self.container.node)
+        self.client.OMS  = ObservatoryManagementServiceClient(node=self.container.node)
 
     #@unittest.skip('temporarily')
     def test_just_the_setup(self):
@@ -59,8 +59,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
 
 
 
-    #@unittest.skip('temporarily')
-    @unittest.skip('Fixing data product creation and need MFMS refactor')
+    @unittest.skip('service GW gives AttributeError(hostname)')
     def test_lca_step_1_to_6(self):
         c = self.client
 
@@ -95,8 +94,8 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
                                                      True)
 
         log.info("LCA step 4.3, 4.4: CF logical platform")
-        logical_platform_id = self.generic_fcruf_script(RT.LogicalPlatform, 
-                                                    "logical_platform", 
+        platform_site_id = self.generic_fcruf_script(RT.PlatformSite, 
+                                                    "platform_site", 
                                                     "observatory_management", 
                                                     True)
         
@@ -108,13 +107,13 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
 
         log.info("LCA step 4.6: Assign logical platform to site")
         self.generic_association_script("observatory_management",
-                                        "assign_logical_platform_to_site",
-                                        "find_site_by_logical_platform",
-                                        "find_logical_platform_by_site",
+                                        "assign_platform_site_to_site",
+                                        "find_site_by_platform_site",
+                                        "find_platform_site_by_site",
                                         "site_id",
-                                        "logical_platform_id",
+                                        "platform_site_id",
                                         site_id,
-                                        logical_platform_id)
+                                        platform_site_id)
 
         log.info("LCA <missing step>: assign_platform_model_to_platform_device")
         self.generic_association_script("instrument_management",
@@ -127,15 +126,15 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
                                         platform_model_id)
 
 
-        log.info("LCA <missing step>: assign_logical_platform_to_platform_device")
+        log.info("LCA <missing step>: assign_platform_site_to_platform_device")
         self.generic_association_script("instrument_management",
-                                        "assign_logical_platform_to_platform_device",
-                                        "find_platform_device_by_logical_platform",
-                                        "find_logical_platform_by_platform_device",
+                                        "assign_platform_site_to_platform_device",
+                                        "find_platform_device_by_platform_site",
+                                        "find_platform_site_by_platform_device",
                                         "platform_device_id",
-                                        "logical_platform_id",
+                                        "platform_site_id",
                                         platform_device_id,
-                                        logical_platform_id)
+                                        platform_site_id)
 
 
         log.info("LCA step 5.1, 5.2: FCU instrument model")
@@ -145,8 +144,8 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
                                                        True)
 
         log.info("LCA step 5.3: CU logical instrument")
-        logical_instrument_id = self.generic_fcruf_script(RT.LogicalInstrument, 
-                                                    "logical_instrument", 
+        instrument_site_id = self.generic_fcruf_script(RT.InstrumentSite, 
+                                                    "instrument_site", 
                                                     "observatory_management", 
                                                     True)
 
@@ -161,10 +160,10 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         #### this is probably not how we'll end up establishing logical instruments
         # log.info("add data product to a logical instrument")
         # log.info("LCA <possible step>: find data products by logical instrument")
-        # self.generic_association_script(c.OMS.assign_data_product_to_logical_instrument,
-        #                                 c.OMS.find_logical_instrument_by_data_product,
-        #                                 c.OMS.find_data_product_by_logical_instrument,
-        #                                 logical_instrument_id,
+        # self.generic_association_script(c.OMS.assign_data_product_to_instrument_site,
+        #                                 c.OMS.find_instrument_site_by_data_product,
+        #                                 c.OMS.find_data_product_by_instrument_site,
+        #                                 instrument_site_id,
         #                                 log_data_product_id)
 
 
@@ -172,13 +171,13 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         log.info("Assigning logical instrument to logical platform")
         log.info("LCA step 5.4: list logical instrument by platform")
         self.generic_association_script("observatory_management",
-                                        "assign_logical_instrument_to_logical_platform",
-                                        "find_logical_platform_by_logical_instrument",
-                                        "find_logical_instrument_by_logical_platform",
-                                        "logical_platform_id",
-                                        "logical_instrument_id",
-                                        logical_platform_id,
-                                        logical_instrument_id)
+                                        "assign_instrument_site_to_platform_site",
+                                        "find_platform_site_by_instrument_site",
+                                        "find_instrument_site_by_platform_site",
+                                        "platform_site_id",
+                                        "instrument_site_id",
+                                        platform_site_id,
+                                        instrument_site_id)
 
 
 
@@ -212,11 +211,11 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         #
         # We are not using the low-level association script right now.  
         #
-        #self.generic_association_script(c.IMS.assign_logical_instrument_to_instrument_device,
-        #                                c.IMS.find_instrument_device_by_logical_instrument,
-        #                                c.IMS.find_logical_instrument_by_instrument_device,
+        #self.generic_association_script(c.IMS.assign_instrument_site_to_instrument_device,
+        #                                c.IMS.find_instrument_device_by_instrument_site,
+        #                                c.IMS.find_instrument_site_by_instrument_device,
         #                                instrument_device_id,
-        #                                logical_instrument_id)
+        #                                instrument_site_id)
         #
         # Instead, we are using a more complete call that handles the data products
         # in addition to the instrument assignment.  Deciding what instrument data products
@@ -228,7 +227,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
  #       inst_data_product_id = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)[0]
 
         #now GO!  2nd and 5th arguments are blank, because there is no prior instrument 
-        c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
+        c.IMS.reassign_instrument_site_to_instrument_device(instrument_site_id,
                                                                "",
                                                                instrument_device_id,
                                                                [log_data_product_id],
@@ -258,7 +257,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         #self.assertIn(data_product_id, products)
 
         log.info("LCA step 5.10c: find data products by logical platform")
-        products = self.client.OMS.find_data_product_by_logical_platform(logical_platform_id)
+        products = self.client.OMS.find_data_product_by_platform_site(platform_site_id)
         #self.assertIn(data_product_id, products)
 
         log.info("LCA step 5.10d: find data products by site")
@@ -318,7 +317,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         inst_data_product_id2 = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id2)[0]
 
         #now GO!  2nd and 5th arguments are filled in with the old instrument
-        c.IMS.reassign_logical_instrument_to_instrument_device(logical_instrument_id,
+        c.IMS.reassign_instrument_site_to_instrument_device(instrument_site_id,
                                                                instrument_device_id,
                                                                instrument_device_id2,
                                                                [log_data_product_id],
@@ -464,7 +463,7 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         #UX team: generic script for LCA resource operations begins here.
         # some_service will be replaced with whatever service you're calling
         # widget will be replaced with whatever resource you're working with
-        # resource_label will be data_product or logical_instrument
+        # resource_label will be data_product or instrument_site
 
 
         resource_labels = make_plural(resource_label)

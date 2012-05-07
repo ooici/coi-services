@@ -298,7 +298,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_process_id
 
 
-    def _find_lookup_tables(self, resource_id="", configuration={}):
+    def _find_lookup_tables(self, resource_id="", configuration=None):
         #check if resource has lookup tables attached
         attachment_objs, _ = self.clients.resource_registry.find_objects(resource_id, PRED.hasAttachment, RT.Attachment, False)
         for attachment_obj in attachment_objs:

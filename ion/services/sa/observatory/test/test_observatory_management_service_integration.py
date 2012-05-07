@@ -46,13 +46,13 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
     def test_just_the_setup(self):
         return
 
-    
+    #@unittest.skip('targeting')
     def test_resources_associations(self):
         self._make_associations()
 
 
-    @unittest.skip('needs refactoring')    
-    def test_find_subordinate(self):
+    #@unittest.skip('targeting')    
+    def test_find_related_frames_of_reference_subordinate(self):
         # find_subordinates gives a dict of obj lists, convert objs to ids
         def idify(adict):
             ids = {}
@@ -67,24 +67,24 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         stuff = self._make_associations()
 
         #full traversal of tree down to instrument
-        ret = self.OMS.find_subordinate_entity(stuff.observatory_id, [RT.InstrumentSite])
+        ret = self.OMS.find_related_frames_of_reference(stuff.observatory_id, [RT.InstrumentSite])
         ids = idify(ret)
         self.assertIn(RT.InstrumentSite, ids)
         self.assertIn(stuff.instrument_site_id, ids[RT.InstrumentSite])
 
         #partial traversal, only down to platform
-        ret = self.OMS.find_subordinate_entity(stuff.observatory_id, [RT.Site, RT.PlatformSite])
+        ret = self.OMS.find_related_frames_of_reference(stuff.observatory_id, [RT.Subsite, RT.PlatformSite])
         ids = idify(ret)
         self.assertIn(RT.PlatformSite, ids)
-        self.assertIn(RT.Site, ids)
+        self.assertIn(RT.Subsite, ids)
         self.assertIn(stuff.platform_site_id, ids[RT.PlatformSite])
         self.assertIn(stuff.platform_site2_id, ids[RT.PlatformSite])
-        self.assertIn(stuff.site_id, ids[RT.Site])
-        self.assertIn(stuff.site2_id, ids[RT.Site])
+        self.assertIn(stuff.subsite_id, ids[RT.Subsite])
+        self.assertIn(stuff.subsite2_id, ids[RT.Subsite])
         self.assertNotIn(RT.InstrumentSite, ids)
         
-    @unittest.skip('needs refactoring')    
-    def test_find_superior(self):
+
+    def test_find_related_frames_of_reference_superior(self):
         # find_superiors gives a dict of obj lists, convert objs to ids
         def idify(adict):
             ids = {}
@@ -97,20 +97,20 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         stuff = self._make_associations()
 
         #full traversal of tree down to instrument
-        ret = self.OMS.find_subordinate_entity(stuff.instrument_site_id, [RT.Observatory])
+        ret = self.OMS.find_related_frames_of_reference(stuff.instrument_site_id, [RT.Observatory])
         ids = idify(ret)
-        # self.assertIn(RT.Observatory, ids)
-        # self.assertIn(stuff.observatory_id, ids[RT.Observatory])
+        self.assertIn(RT.Observatory, ids)
+        self.assertIn(stuff.observatory_id, ids[RT.Observatory])
 
         #partial traversal, only down to platform
-        ret = self.OMS.find_subordinate_entity(stuff.instrument_site_id, [RT.Site, RT.PlatformSite])
+        ret = self.OMS.find_related_frames_of_reference(stuff.instrument_site_id, [RT.Subsite, RT.PlatformSite])
         ids = idify(ret)
         self.assertIn(RT.PlatformSite, ids)
-        self.assertIn(RT.Site, ids)
+        self.assertIn(RT.Subsite, ids)
         self.assertIn(stuff.platform_site_id, ids[RT.PlatformSite])
         #self.assertIn(stuff.platform_site2_id, ids[RT.PlatformSite])
-        self.assertIn(stuff.site_id, ids[RT.Site])
-        self.assertIn(stuff.site2_id, ids[RT.Site])
+        self.assertIn(stuff.subsite_id, ids[RT.Subsite])
+        self.assertIn(stuff.subsite2_id, ids[RT.Subsite])
         self.assertNotIn(RT.Observatory, ids)
         
 
@@ -127,12 +127,12 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         platform_site_id, _   = self.RR.create(any_old(RT.PlatformSite))
         platform_site2_id, _  = self.RR.create(any_old(RT.PlatformSite))
         observatory_id, _     = self.RR.create(any_old(RT.Observatory))
-        subsite_id, _            = self.RR.create(any_old(RT.Subsite))
-        subsite2_id, _           = self.RR.create(any_old(RT.Subsite))
+        subsite_id, _         = self.RR.create(any_old(RT.Subsite))
+        subsite2_id, _        = self.RR.create(any_old(RT.Subsite))
 
         #stuff we associate to
-        instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
-        platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
+        instrument_agent_id, _ =  self.RR.create(any_old(RT.InstrumentAgent))
+        platform_agent_id, _ =    self.RR.create(any_old(RT.PlatformAgent))
 
         #instrument_site
         self.RR.create_association(instrument_site_id, PRED.hasAgent, instrument_agent_id)
@@ -146,30 +146,30 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         #observatory
         self.RR.create_association(observatory_id, PRED.hasSite, subsite_id)
-        if True: return DotDict()
 
         #site
         self.RR.create_association(subsite_id, PRED.hasSite, subsite2_id)
-        self.RR.create_association(subsite2_id, PRED.hasPlatform, platform_site_id)
+        self.RR.create_association(subsite2_id, PRED.hasSite, platform_site_id)
         
 
         ret = DotDict()
         ret.observatory_id      = observatory_id
-        ret.subsite_id             = subsite_id
-        ret.subsite2_id            = subsite2_id
+        ret.subsite_id          = subsite_id
+        ret.subsite2_id         = subsite2_id
         ret.platform_site_id    = platform_site_id
         ret.platform_site2_id   = platform_site2_id
         ret.instrument_site_id  = instrument_site_id
         
         return ret
 
+    #@unittest.skip("targeting")
     def test_create_observatory(self):
         observatory_obj = IonObject(RT.Observatory,
                                         name='TestFacility',
                                         description='some new mf')
         self.OMS.create_observatory(observatory_obj)
 
-    #@unittest.skip('temporarily')
+    #@unittest.skip('targeting')
     def test_find_observatory_org(self):
         observatory_obj = IonObject(RT.Observatory,
                                         name='TestFacility',
@@ -271,10 +271,10 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         # remove the Site as a resource of this Observatory
         self.OMS.unassign_resource_from_observatory(site_id, observatory_id)
         # verify that Site is linked to Org
-        assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.Site, id_only=True )
+        assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.Subsite, id_only=True )
         self.assertEqual(len(assocs), 0)
 
         # remove the Site
         self.OMS.delete_site(site_id)
-        assocs, _ = self.RR.find_objects(observatory_id, PRED.hasSite, RT.Site, id_only=True )
+        assocs, _ = self.RR.find_objects(observatory_id, PRED.hasSite, RT.Subsite, id_only=True )
         self.assertEqual(len(assocs), 0)
