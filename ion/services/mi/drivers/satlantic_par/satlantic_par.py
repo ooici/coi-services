@@ -139,6 +139,8 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                               self._handler_command_poll)
         self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.SAMPLE,
                               self._handler_command_sample)
+        self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.BREAK,
+                              self._handler_noop)
         self._protocol_fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.BREAK,
                               self._handler_autosample_break)
         self._protocol_fsm.add_handler(PARProtocolState.AUTOSAMPLE_MODE, PARProtocolEvent.STOP,
@@ -750,6 +752,12 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
+    
+    def _handler_noop(self, *args, **kwargs):
+        """ Do nothing as a hander...for when an even is acceptable, but
+        not worth acting on.
+        """
+        return (None, None)
 
     ###################################################################
     # Builders

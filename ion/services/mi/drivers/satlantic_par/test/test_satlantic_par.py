@@ -260,7 +260,11 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
     def _clean_up(self):
         # set back to command mode
         if self._dvr_client:
-            reply = self._dvr_client.cmd_dvr('execute_break')
+            try:
+                reply = self._dvr_client.cmd_dvr('execute_break')
+            except InstrumentStateError:
+                # no biggie if we are already in cmd mode
+                pass
             reply = self._dvr_client.cmd_dvr('set',
                                              {Parameter.MAXRATE:1},
                                               timeout=20)
@@ -396,18 +400,16 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         """Test set() from wrong state
         @todo exception across thread
         """
-        reply = self._dvr_client.cmd_dvr('execute_start_autosample')
-        self.assert_(reply)
+        self._dvr_client.cmd_dvr('execute_start_autosample')
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.AUTOSAMPLE_MODE, reply)
 
-        self.assertRaises(InstrumentProtocolException,
+        self.assertRaises(InstrumentStateException,
                           self._dvr_client.cmd_dvr,
                           'set', {Parameter.MAXRATE:10})
 
     def test_get_config(self):
         """
-        @todo Exception across thread
         """
         # Should default to command mode
         reply = self._dvr_client.cmd_dvr('get_config')
@@ -415,21 +417,17 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertEquals(reply[Parameter.TELBAUD], 19200)
         self.assertEquals(reply[Parameter.MAXRATE], 1)
 
-        """
         # Put in the wrong mode, then try it
         reply = self._dvr_client.cmd_dvr('execute_start_autosample')
-        self.assert_(reply)
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.AUTOSAMPLE, reply)
+        self.assertEqual(PARProtocolState.AUTOSAMPLE_MODE, reply)
 
-        self.assertRaises(InstrumentProtocolException,
+        self.assertRaises(InstrumentStateException,
                           self._dvr_client.cmd_dvr,
                           'get_config')
-        """
         
     def test_restore_config(self):
         """
-        @todo Exception across thread
         """
         config = self._dvr_client.cmd_dvr('get_config')
         self.assertEquals(len(config.items()), 2)
@@ -450,17 +448,15 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         config = self._dvr_client.cmd_dvr('restore_config', config)
         self.assertEquals(config[Parameter.MAXRATE], 1)
 
-        """
         # test from wrong state
         reply = self._dvr_client.cmd_dvr('execute_start_autosample')
-        self.assert_(reply)
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.AUTOSAMPLE, reply)
+        self.assertEqual(PARProtocolState.AUTOSAMPLE_MODE, reply)
 
-        self.assertRaises(InstrumentProtocolException,
+        self.assertRaises(InstrumentStateException,
                           self._dvr_client.cmd_dvr,
                           'restore_config', config)
-        """
+
     def test_break_from_slow_autosample(self):
         # test break from autosample at low data rates
         reply = self._dvr_client.cmd_dvr('execute_start_autosample')
