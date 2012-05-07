@@ -34,6 +34,7 @@ from ion.services.mi.drivers.satlantic_par.satlantic_par import sample_regex
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentDataException
 from ion.services.mi.exceptions import InstrumentCommandException
+from ion.services.mi.exceptions import InstrumentStateException
 
 
 mi_logger = logging.getLogger('mi_logger')
@@ -383,12 +384,11 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         
         @todo Fix this to handle exceptions/errors across the zmq boundry
         """
-        reply = self._dvr_client.cmd_dvr('execute_start_autosample')
-        self.assert_(reply)
+        self._dvr_client.cmd_dvr('execute_start_autosample')
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.AUTOSAMPLE_MODE, reply)
 
-        self.assertRaises(InstrumentProtocolException,
+        self.assertRaises(InstrumentStateException,
                           self._dvr_client.cmd_dvr,
                           'get', [Parameter.MAXRATE])
 

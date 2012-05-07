@@ -24,7 +24,7 @@ from ion.services.mi.instrument_driver import DriverProtocolState
 from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_driver import DriverParameter
 from ion.services.mi.common import InstErrorCode
-from ion.services.mi.instrument_fsm_args import InstrumentFSM
+from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.exceptions import InstrumentException
 from ion.services.mi.exceptions import InstrumentProtocolException
 from ion.services.mi.exceptions import InstrumentTimeoutException
@@ -124,8 +124,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         self.eoln = EOLN
         
         self._protocol_fsm = InstrumentFSM(PARProtocolState, PARProtocolEvent, PARProtocolEvent.ENTER_STATE,
-                                  PARProtocolEvent.EXIT_STATE,
-                                  InstErrorCode.UNHANDLED_EVENT)
+                                  PARProtocolEvent.EXIT_STATE)
         self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.AUTOSAMPLE,
                               self._handler_command_autosample)
         self._protocol_fsm.add_handler(PARProtocolState.COMMAND_MODE, PARProtocolEvent.COMMAND,
