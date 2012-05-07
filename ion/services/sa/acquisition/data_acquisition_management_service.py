@@ -542,9 +542,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     # External Data Set
     #
     ##########################################################################
-    def create_external_dataset(self, external_dataset=None):
+    def create_external_dataset(self, external_dataset=None, external_dataset_model_id=''):
         # Persist ExternalDataSet object and return object _id as OOI id
         external_dataset_id, version = self.clients.resource_registry.create(external_dataset)
+        if external_dataset_model_id:
+            self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasModel, external_dataset_model_id)
         return external_dataset_id
 
     def update_external_dataset(self, external_dataset=None):
@@ -600,12 +602,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         process_definition = ProcessDefinition()
         process_definition.executable['module']='ion.agents.eoi.external_dataset_agent'
         process_definition.executable['class'] = 'ExternalDatasetAgent'
+#        process_definition.executable['module']='ion.services.mi.instrument_agent'
+#        process_definition.executable['class'] = 'InstrumentAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         log.debug("create_external_dataset_agent: create_process_definition id %s"  +  str(process_definition_id))
 
         #associate the agent and the process def
         self.clients.resource_registry.create_association(external_dataset_agent_id,  PRED.hasProcessDefinition, process_definition_id)
-
 
         return external_dataset_agent_id
 
@@ -692,14 +695,14 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         ext_dataset_ids, _ = self.clients.resource_registry.find_subjects(RT.ExternalDataset, PRED.hasAgentInstance, external_dataset_agent_instance_id, True)
         if not ext_dataset_ids:
             raise NotFound("No External Dataset attached to this Dataset Agent Instance " + str(external_dataset_agent_instance_id))
-        if len(inst_device_ids) > 1:
+        if len(ext_dataset_ids) > 1:
             raise BadRequest("Dataset Agent Instance should only have ONE External Dataset" + str(external_dataset_agent_instance_id))
         ext_dataset_id = ext_dataset_ids[0]
         log.debug("start_external_dataset_agent_instance: external dataset is %s connected to dataset agent instance %s ", str(ext_dataset_id),  str(external_dataset_agent_instance_id))
 
 
         #retrieve the external dataset model
-        model_ids, _ = self.RR.find_objects(ext_dataset_id, PRED.hasModel, RT.ExternalDatasetModel, True)
+        model_ids, _ = self.clients.resource_registry.find_objects(ext_dataset_id, PRED.hasModel, RT.ExternalDatasetModel, True)
         if not model_ids:
             raise NotFound("No External Dataset Model  attached to this External Dataset " + str(ext_dataset_id))
 
@@ -708,7 +711,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
         #retrieve the associated instrument agent
-        agent_ids, _ = self.RR.find_subjects(RT.ExternalDatasetAgent, PRED.hasModel, ext_dataset_model_id, True)
+        agent_ids, _ = self.clients.resource_registry.find_subjects(RT.ExternalDatasetAgent, PRED.hasModel, ext_dataset_model_id, True)
         if not agent_ids:
             raise NotFound("No External Dataset Agent  attached to this External Dataset Model " + str(ext_dataset_model_id))
 
@@ -755,7 +758,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # Create agent config.
         dataset_agent_instance_obj.dataset_agent_config = {
-            'driver_config' : dataset_agent_instance_obj.driver_config,
+            'driver_config' : dataset_agent_instance_obj.dataset_driver_config,
             'stream_config' : out_streams,
             'agent'         : {'resource_id': ext_dataset_id}
         }
@@ -772,7 +775,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         dataset_agent_instance_obj.agent_process_id = pid
         self.update_external_dataset_agent_instance(dataset_agent_instance_obj)
 
-        return self._ia_pid
+        return pid
 
     def stop_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """Deactivate the  agent instance process
