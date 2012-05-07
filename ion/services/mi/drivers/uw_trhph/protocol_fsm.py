@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 
+#########################################################################
+# NOTE
+# This source is obsolete -- NOT USED.
+# it was a preliminary version of an instrument protocol class for the
+# BARS instrument that was initially made available by UW.
+#########################################################################
+
 """
-@package ion.services.mi.drivers.uwash_bars U. Washington TRHPH BARS driver
-module
-@file ion/services/mi/drivers/uwash_bars.py
+@package ion.services.mi.drivers.uwash_bars.protocol_fsm
+@file ion/services/mi/drivers/uwash_bars/protocol_fsm.py
 @author Carlos Rueda
-@brief Instrument driver classes to support interaction with the U. Washington
- TRHPH BARS sensor .
+@brief BARS instrument protocol, using FSM
 """
 
 __author__ = 'Carlos Rueda'
@@ -19,10 +24,9 @@ from ion.services.mi.drivers.uw_bars.common import BarsChannel
 from ion.services.mi.drivers.uw_bars.common import BarsParameter
 
 import ion.services.mi.drivers.uw_bars.bars as bars
-
-#from ion.services.mi.common import InstErrorCode
-from ion.services.mi.instrument_fsm import InstrumentFSM
-
+from ion.services.mi.common import InstErrorCode
+from ion.services.mi.common import DriverAnnouncement
+from ion.services.mi.instrument_fsm_args import InstrumentFSM
 #from ion.services.mi.exceptions import InstrumentProtocolException
 #from ion.services.mi.exceptions import InstrumentTimeoutException
 
@@ -31,15 +35,13 @@ import sys
 import os
 import re
 
-
-import ion.services.mi.mi_logger
 import logging
-log = logging.getLogger('mi_logger')
+from ion.services.mi.mi_logger import mi_logger
+log = mi_logger
 
 CONTROL_S = '\x13'
 CONTROL_M = '\x0d'
 
-# TODO synchronize with actual instrument and simulator
 NEWLINE = '\r\n'
 
 GENERIC_PROMPT_PATTERN = re.compile(r'--> $')
@@ -48,8 +50,6 @@ DATA_LINE_PATTERN = re.compile(r'(\d+\.\d*\s*){12}.*')
 
 CYCLE_TIME_PATTERN = re.compile(
         r'present value for the Cycle Time is\s+([^.]*)\.')
-
-
 
 
 class BarsProtocolState(BaseEnum):
@@ -83,20 +83,18 @@ class BarsPrompt(BaseEnum):
 
 
 class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
-    """The instrument protocol classes to deal with a TRHPH BARS sensor.
+    """The instrument protocol classes to deal with a BARS sensor.
 
     """
 
-    def __init__(self):
+    def __init__(self, callback=None):
         """
         Creates an instance of this protocol. This basically sets up the
         state machine, which is initialized in the INIT state.
         """
 
-#        InstrumentProtocol.__init__(self)
-        callback, prompts, newline = None, BarsPrompt, NEWLINE
-        CommandResponseInstrumentProtocol.__init__(self, callback, prompts,
-                                                   newline)
+        CommandResponseInstrumentProtocol.__init__(self, callback, BarsPrompt,
+                                                   NEWLINE)
 
         self._outfile = sys.stdout
         self._outfile = file("protoc_output.txt", "w")
@@ -145,7 +143,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         self._add_build_handler(CONTROL_S, self._build_simple_cmd)
         self._add_build_handler(CONTROL_M, self._build_simple_cmd)
         for c in range(8):
-            char ='%d' % c
+            char = '%d' % c
             self._add_build_handler(char, self._build_simple_cmd)
 
         # add response handlers
@@ -192,7 +190,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         """
         """
         msg = prefix + buffer.replace('\n', prefix)
-        print("%s:%s" % (title, msg))
+        log.debug("%s:%s" % (title, msg))
 
     def _process_streaming_data(self, data):
         """
@@ -206,20 +204,29 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
     def get(self, params, *args, **kwargs):
 
-        # TODO only handles (INSTRUMENT, TIME_BETWEEN_BURSTS) for the moment
+        # TODO it only handles BarsParameter.TIME_BETWEEN_BURSTS
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("params=%s args=%s kwargs=%s" %
                       (str(params), str(args), str(kwargs)))
 
+        #self._assert_state(DriverState.AUTOSAMPLE)
+
         assert isinstance(params, list)
-        assert len(params) == 1
 
-        channel, param = cp = params[0]
+        params = list(set(params))  # remove any duplicates
 
-        assert channel == BarsChannel.INSTRUMENT
-        assert param == BarsParameter.TIME_BETWEEN_BURSTS
+        result = {}
+        for param in params:
+            if param == BarsParameter.TIME_BETWEEN_BURSTS:
+                value = self._get_cycle_time(params)
+            else:
+                value = InstErrorCode.INVALID_PARAMETER
+            result[param] = value
 
+        return result
+
+    def _get_cycle_time(self, params):
         #
         # enter main menu
         #
@@ -261,10 +268,48 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         if seconds is None:
             raise InstrumentProtocolException(
-                    msg="Unexpected: string could not be matched: %s" % string)
+                    msg="Unexpected: string could not be matched: %s" % menu)
 
-        result = {cp: seconds}
+        return seconds
+
+    def set(self, params, *args, **kwargs):
+        """
+        """
+        # TODO it only handles BarsParameter.TIME_BETWEEN_BURSTS
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("params=%s args=%s kwargs=%s" %
+                      (str(params), str(args), str(kwargs)))
+
+        assert isinstance(params, dict)
+
+        updated_params = 0
+        result = {}
+        for (param, value) in params.items():
+            if param == BarsParameter.TIME_BETWEEN_BURSTS:
+                result[param] = self._set_cycle_time(value)
+                if InstErrorCode.is_ok(result[param]):
+                    updated_params += 1
+            else:
+                result[param] = InstErrorCode.INVALID_PARAMETER
+
+        msg = "%s parameter(s) successfully set." % updated_params
+        log.debug("announcing to driver: %s" % msg)
+        self.announce_to_driver(DriverAnnouncement.CONFIG_CHANGE, msg=msg)
         return result
+
+    def _set_cycle_time(self, seconds):
+        if not isinstance(seconds, int):
+            return InstErrorCode.INVALID_PARAM_VALUE
+
+        if seconds < 15:
+            return InstErrorCode.INVALID_PARAM_VALUE
+
+        # TODO implement me!
+
+        log.debug("_set_cycle_time NOT IMPLEMENTED YET!")
+
+        return InstErrorCode.OK
 
     ########################################################################
 
@@ -280,11 +325,28 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         self._assert_state(BarsProtocolState.PRE_INIT)
         super(BarsInstrumentProtocol, self).connect(channels, *args, **kwargs)
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("connected.")
+        log.info("connected.")
 
         self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
 
+    def disconnect(self, channels=None, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("channels=%s args=%s kwargs=%s" %
+                      (str(channels), str(args), str(kwargs)))
+
+        channels = channels or [BarsChannel.INSTRUMENT]
+
+        #self._assert_state(BarsProtocolState.PRE_INIT)
+        super(BarsInstrumentProtocol, self).disconnect(channels, *args,
+                                                      **kwargs)
+
+        log.info("disconnected.")
+
+        #self._fsm.on_event(BarsProtocolEvent.INITIALIZE)
+
+    ########################################################################
     # State handlers
     ########################################################################
 
@@ -342,8 +404,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
             got_prompt = GENERIC_PROMPT_PATTERN.search(string) is not None
 
         if not got_prompt:
-            # TODO: raise InstrumentTimeoutException()
-            raise InstrumentTimeoutException(InstErrorCode.TIMEOUT)
+            raise InstrumentTimeoutException()
 
         log.debug("### got prompt. Sending one ^m to clean up any ^S leftover")
         result = self._do_cmd_resp(CONTROL_M, timeout=10)
@@ -381,7 +442,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
         # send '1' not expecting response:
         result = self._do_cmd_no_resp('1', timeout=60)
 
-        print "restart_data_coll result='%s'" % str(result)
+        log.debug("restart_data_coll result='%s'" % str(result))
 
         # TODO confirm that data is streaming again?
         # ...
@@ -405,7 +466,7 @@ class BarsInstrumentProtocol(CommandResponseInstrumentProtocol):
 
         result = self._do_cmd_resp('2', timeout=10)
 
-        print "XXX2 result='%s'" % str(result)
+        log.debug("result='%s'" % str(result))
 
         next_state = BarsProtocolState.CHANGE_PARAMS_MENU
 
