@@ -15,6 +15,7 @@ import time
 import re
 import datetime
 from threading import Timer
+import string
 
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.single_connection_instrument_driver import SingleConnectionInstrumentDriver
@@ -61,6 +62,8 @@ class SBE37ProtocolEvent(BaseEnum):
     RUN_TEST = DriverEvent.RUN_TEST
     CALIBRATE = DriverEvent.CALIBRATE
     EXECUTE_DIRECT = DriverEvent.EXECUTE_DIRECT
+    START_DIRECT = DriverEvent.START_DIRECT
+    STOP_DIRECT = DriverEvent.STOP_DIRECT
 
 # Device specific parameters.
 class SBE37Parameter(DriverParameter):
@@ -198,6 +201,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.GET, self._handler_command_autosample_test_get)
         self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.SET, self._handler_command_set)
         self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.TEST, self._handler_command_test)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.COMMAND, SBE37ProtocolEvent.START_DIRECT, self._handler_command_start_direct)
         self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.ENTER, self._handler_autosample_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.EXIT, self._handler_autosample_exit)
         self._protocol_fsm.add_handler(SBE37ProtocolState.AUTOSAMPLE, SBE37ProtocolEvent.GET, self._handler_command_autosample_test_get)
@@ -208,6 +212,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._protocol_fsm.add_handler(SBE37ProtocolState.TEST, SBE37ProtocolEvent.GET, self._handler_command_autosample_test_get)
         self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.ENTER, self._handler_direct_access_enter)
         self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.EXIT, self._handler_direct_access_exit)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.EXECUTE_DIRECT, self._handler_direct_access_execute_direct)
+        self._protocol_fsm.add_handler(SBE37ProtocolState.DIRECT_ACCESS, SBE37ProtocolEvent.STOP_DIRECT, self._handler_direct_access_stop_direct)
 
         # Construct the parameter dictionary containing device parameters,
         # current parameter values, and set formatting functions.
@@ -242,6 +248,11 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
 
         # State state machine in UNKNOWN state. 
         self._protocol_fsm.start(SBE37ProtocolState.UNKNOWN)
+        
+        # commands sent sent to device to be filtered in responses for telnet DA
+        self._sent_cmds = []
+
+
 
     ########################################################################
     # Unknown handlers.
@@ -394,6 +405,16 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         result = None
 
         next_state = SBE37ProtocolState.TEST
+        
+        return (next_state, result)
+
+    def _handler_command_start_direct(self):
+        """
+        """
+        next_state = None
+        result = None
+
+        next_state = SBE37ProtocolState.DIRECT_ACCESS
         
         return (next_state, result)
 
@@ -557,12 +578,38 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         # Tell driver superclass to send a state change event.
         # Superclass will query the state.                
         self._driver_event(DriverAsyncEvent.STATE_CHANGE)
+        
+        self._sent_cmds = []
     
     def _handler_direct_access_exit(self, *args, **kwargs):
         """
         Exit direct access state.
         """
         pass
+
+    def _handler_direct_access_execute_direct(self, data):
+        """
+        """
+        next_state = None
+        result = None
+
+        self._do_cmd_direct(data)
+                        
+        # add sent command to list for 'echo' filtering in callback
+        self._sent_cmds.append(cmd)        
+
+        return (next_state, result)
+
+    def _handler_direct_access_stop_direct(self):
+        """
+        @throw InstrumentProtocolException on invalid command
+        """
+        next_state = None
+        result = None
+
+        next_state = SBE37ProtocolState.COMMAND
+            
+        return (next_state, result)
 
     ########################################################################
     # Private helpers.
@@ -702,17 +749,38 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         Callback for receiving new data from the device.
         """
-        # Call the superclass to update line and promp buffers.
-        CommandResponseInstrumentProtocol.got_data(self, data)
-
-        # If in streaming mode, process the buffer for samples to publish.
-        cur_state = self.get_current_state()
-        if cur_state == SBE37ProtocolState.AUTOSAMPLE:
-            if SBE37_NEWLINE in self._linebuf:
-                lines = self._linebuf.split(SBE37_NEWLINE)
-                self._linebuf = lines[-1]
-                for line in lines:
-                    self._extract_sample(line)                    
+        if self._fsm.get_current_state() == SBE37ProtocolState.DIRECT_ACCESS:
+            # direct access mode
+            if len(data) > 0:
+                mi_logger.debug("SBE37Protocol._got_data(): <" + data + ">") 
+                # check for echoed commands from instrument (TODO: this should only be done for telnet?)
+                if len(self._sent_cmds) > 0:
+                    # there are sent commands that need to have there echoes filtered out
+                    oldest_sent_cmd = self._sent_cmds[0]
+                    if string.count(data, oldest_sent_cmd) > 0:
+                        # found a command echo, so remove it from data and delete the command form list
+                        data = string.replace(data, oldest_sent_cmd, "", 1) 
+                        self._sent_cmds.pop(0)            
+                if len(data) > 0 and self.send_event:
+                    event = {'type':'direct_access',
+                             'value':data
+                    }
+                    self.send_event(event)
+                    # TODO: what about logging this as an event?
+            return
+        
+        if len(data)>0:
+            # Call the superclass to update line and prompt buffers.
+            CommandResponseInstrumentProtocol.got_data(self, data)
+    
+            # If in streaming mode, process the buffer for samples to publish.
+            cur_state = self.get_current_state()
+            if cur_state == SBE37ProtocolState.AUTOSAMPLE:
+                if SBE37_NEWLINE in self._linebuf:
+                    lines = self._linebuf.split(SBE37_NEWLINE)
+                    self._linebuf = lines[-1]
+                    for line in lines:
+                        self._extract_sample(line)                    
                 
     def _extract_sample(self, line, publish=True):
         """

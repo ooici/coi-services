@@ -51,7 +51,6 @@ class DriverEvent(BaseEnum):
     GET = 'DRIVER_EVENT_GET'
     DISCOVER = 'DRIVER_EVENT_DISCOVER'
     EXECUTE = 'DRIVER_EVENT_EXECUTE'
-    EXECUTE_DIRECT = 'DRIVER_EVENT_EXECUTE_DIRECT'
     ACQUIRE_SAMPLE = 'DRIVER_EVENT_ACQUIRE_SAMPLE'
     START_AUTOSAMPLE = 'DRIVER_EVENT_START_AUTOSAMPLE'
     STOP_AUTOSAMPLE = 'DRIVER_EVENT_STOP_AUTOSAMPLE'
@@ -63,6 +62,9 @@ class DriverEvent(BaseEnum):
     ENTER = 'DRIVER_EVENT_ENTER'
     EXIT = 'DRIVER_EVENT_EXIT'
     UPDATE_PARAMS = 'DRIVER_EVENT_UPDATE_PARAMS'
+    EXECUTE_DIRECT = 'EXECUTE_DIRECT'    
+    START_DIRECT = 'DRIVER_EVENT_START_DIRECT'
+    STOP_DIRECT = 'DRIVER_EVENT_STOP_DIRECT'
 
 class DriverAsyncEvent(BaseEnum):
     """
@@ -169,7 +171,7 @@ class InstrumentDriver(object):
         @param args[0] parameter : value dict of parameters to set.
         @param timeout=timeout Optional command timeout.
         @raises ParameterError if missing or invalid set parameters.
-        @riases TimeoutError if could not wake device or no response.
+        @raises TimeoutError if could not wake device or no response.
         @raises ProtocolError if set command not recognized.
         @raises StateError if command not allowed in current state.
         @raises NotImplementedError if not implemented by subclass.
@@ -181,7 +183,7 @@ class InstrumentDriver(object):
         Poll for a sample.
         @param timeout=timeout Optional command timeout.        
         @ retval Device sample dict.
-        @riases TimeoutError if could not wake device or no response.
+        @raises TimeoutError if could not wake device or no response.
         @raises ProtocolError if acquire command not recognized.
         @raises StateError if command not allowed in current state.
         @raises NotImplementedError if not implemented by subclass.        
@@ -192,7 +194,7 @@ class InstrumentDriver(object):
         """
         Switch to autosample mode.
         @param timeout=timeout Optional command timeout.        
-        @riases TimeoutError if could not wake device or no response.
+        @raises TimeoutError if could not wake device or no response.
         @raises StateError if command not allowed in current state.
         @raises NotImplementedError if not implemented by subclass.                
         """
@@ -202,7 +204,7 @@ class InstrumentDriver(object):
         """
         Leave autosample mode.
         @param timeout=timeout Optional command timeout.        
-        @riases TimeoutError if could not wake device or no response.
+        @raises TimeoutError if could not wake device or no response.
         @raises ProtocolError if stop command not recognized.
         @raises StateError if command not allowed in current state.
         @raises NotImplementedError if not implemented by subclass.                
@@ -214,7 +216,7 @@ class InstrumentDriver(object):
         Execute device tests.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal test commands).
-        @riases TimeoutError if could not wake device or no response.
+        @raises TimeoutError if could not wake device or no response.
         @raises ProtocolError if test commands not recognized.
         @raises StateError if command not allowed in current state.
         @raises NotImplementedError if not implemented by subclass.                        
@@ -226,17 +228,40 @@ class InstrumentDriver(object):
         Execute device calibration.
         @param timeout=timeout Optional command timeout (for wakeup only --
         device specific timeouts for internal calibration commands).
-        @riases TimeoutError if could not wake device or no response.
+        @raises TimeoutError if could not wake device or no response.
         @raises ProtocolError if test commands not recognized.
         @raises StateError if command not allowed in current state.
         @raises NotImplementedError if not implemented by subclass.                        
         """
         raise NotImplementedError('execute_calibrate() not implemented.')
 
-    def execute_direct(self, *args, **kwargs):
+    def execute_start_direct_access(self, *args, **kwargs):
         """
+        Switch to direct access mode.
+        @raises TimeoutError if could not wake device or no response.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.                
         """
-        raise NotImplementedError('execute_direct() not implemented.')
+        raise NotImplementedError('execute_start_direct_access() not implemented.')
+
+    def execute_direct_access(self, *args, **kwargs):
+        """
+        output direct access data to device.
+        @raises TimeoutError if could not wake device or no response.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.                
+        """
+        raise NotImplementedError('execute_direct_access() not implemented.')
+
+    def execute_stop_direct_access(self, *args, **kwargs):
+        """
+        Leave direct access mode.
+        @raises TimeoutError if could not wake device or no response.
+        @raises ProtocolError if stop command not recognized.
+        @raises StateError if command not allowed in current state.
+        @raises NotImplementedError if not implemented by subclass.                
+        """
+        raise NotImplementedError('execute_stop_direct_access() not implemented.')
 
     ########################################################################
     # Resource query interface.
@@ -245,7 +270,7 @@ class InstrumentDriver(object):
     
     def get_resource_commands(self):
         """
-        Retrun list of device execute commands available.
+        Return list of device execute commands available.
         """
         cmds = [cmd for cmd in dir(self) if cmd.startswith('execute_')]
         cmds = [item.replace('execute_','') for item in cmds]

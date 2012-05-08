@@ -284,6 +284,25 @@ class InstrumentAgent(ResourceAgent):
 
 
     ###############################################################################
+    # Event callback and handling for direct access.
+    ###############################################################################
+    
+    def telnet_input_processor(self, data):
+        # callback passed to DA Server for receiving input from server       
+        if isinstance(data, int):
+            # not character data, so check for lost connection
+            if data == -1:
+                log.warning("InstAgent.telnetInputProcessor: connection lost")
+                self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
+            else:
+                log.error("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
+            return
+        log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
+        # send the data to the driver
+        self._dvr_client.cmd_dvr('execute_direct_access', data + chr(13) + chr(10))
+            
+
+    ###############################################################################
     # Event callback and handling.
     ###############################################################################
 
@@ -330,8 +349,15 @@ class InstrumentAgent(ResourceAgent):
                 pub.publish_event(origin=self.resource_id ,description=desc_str)
             
             elif type == DriverAsyncEvent.DIRECT_ACCESS:
-                # TBD.
-                pass
+                if (self.da_server):
+                    if (value):
+                        self.da_server.send(value)
+                    else:
+                        log.error('Instrument agent %s error %s processing driver event %s',
+                                  self._proc_name, '<no value present in event>', str(evt))
+                else:
+                    log.error('Instrument agent %s error %s processing driver event %s',
+                              self._proc_name, '<no DA server>', str(evt))
             
             else:
                 log.warning('Instrument agent %s recieved unhandled driver event %s',
@@ -1021,11 +1047,34 @@ class InstrumentAgent(ResourceAgent):
     def _handler_observatory_go_direct_access(self,  *args, **kwargs):
         """
         Handler for go_direct_access agent command in observatory state.
-        @todo Complete this when DA is complete and ready to port in.
         """
         result = None
         next_state = None
         
+        log.info("Instrument agent requested to go to direct access mode")
+        
+        # get 'address' of host
+        hostname = socket.gethostname()
+        log.debug("hostname = " + hostname)        
+        ip_addresses = socket.gethostbyname_ex(hostname)
+        log.debug("ip_address=" + str(ip_addresses))
+        ip_address = ip_addresses[2][0]
+        ip_address = hostname
+        # create a DA server instance (TODO: just telnet for now) and pass in callback method
+        try:
+            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor, ip_address)
+        except Exception as ex:
+            log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
+            raise ex
+
+        # get the connection info from the DA server to return to the user
+        port, token = self.da_server.get_connection_info()
+        result = {'ip_address':ip_address, 'port':port, 'token':token}
+        next_state = InstrumentAgentState.DIRECT_ACCESS
+
+        # tell driver to start direct access mode
+        self._dvr_client.cmd_dvr('execute_start_direct_access')
+
         return (next_state, result)
 
     def _handler_get_params(self, *args, **kwargs):
@@ -1164,7 +1213,6 @@ class InstrumentAgent(ResourceAgent):
 
     ###############################################################################
     # Direct access state handlers.
-    # @todo add handlers when DA work is done.
     ###############################################################################
 
     def _handler_direct_access_enter(self,  *args, **kwargs):
@@ -1182,11 +1230,18 @@ class InstrumentAgent(ResourceAgent):
     def _handler_direct_access_go_observatory(self,  *args, **kwargs):
         """
         Handler for go_observatory agent command within direct access state.
-        @todo.
         """
         result = None
         next_state = None
         
+        # tell driver to stop direct access mode
+        result = self._dvr_client.cmd_dvr('execute_stop_direct_access')
+        # stop and delete DA server
+        if (self.da_server):
+            self.da_server.stop()
+            del self.da_server
+        next_state = InstrumentAgentState.OBSERVATORY
+
         return (next_state, result)
 
     ###############################################################################
