@@ -35,8 +35,8 @@ class DriverGenerator:
         @retval dir name
         """
         if DEBUG:
-            print "base_dir() = " + self.IDK_CFG.idk.dev_base_path
-        return self.IDK_CFG.idk.dev_base_path
+            print "base_dir() = " + self.IDK_CFG.idk.dev_base_path.replace('~', os.getenv("HOME"))
+        return self.IDK_CFG.idk.dev_base_path.replace('~', os.getenv("HOME"))
 
     def template_dir(self):
         """
@@ -300,7 +300,7 @@ class DriverGenerator:
         @brief Generate stub driver code
         """
         if(os.path.exists(self.driver_full_name()) and not self.force):
-            print "Warning: driver exists (" + self.driver_dir() + ") not overwriting"
+            print "Warning: driver exists (" + self.driver_full_name() + ") not overwriting"
         else:
             template = self._get_template(self.driver_template())
             ofile = open( self.driver_full_name(), 'w' )
