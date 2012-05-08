@@ -341,10 +341,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        parent_site_obj = self.subsite.read_one(parent_site_id)
-        parent_site_type = parent_site_obj._get_type()
+        self.RR.create_association(parent_site_id, PRED.hasSite, child_site_id)
 
-        self.subsite.link_site(parent_site_id, child_site_id)
+        #parent_site_obj = self.subsite.read_one(parent_site_id)
+        #parent_site_type = parent_site_obj._get_type()
+
+        #self.subsite.link_site(parent_site_id, child_site_id)
 
         # TODO: MM - Commented out checks - too restrictive
         #if RT.Subsite == parent_site_type:
@@ -539,7 +541,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         """
-        return self.org.find_having_observatory(observatory_id)
+        orgs,_ = self.RR.find_subjects(RT.Org, PRED.hasResource, observatory_id, id_only=False)
+        return orgs
+
 
 
         
