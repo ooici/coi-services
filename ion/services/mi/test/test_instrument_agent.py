@@ -131,9 +131,11 @@ PARAMS = {
 CMDS = [
     'acquire_sample',
     'calibrate',
-    'direct',
+    'direct_access',
     'start_autosample',
+    'start_direct_access',
     'stop_autosample',
+    'stop_direct_access',
     'test'    
 ]
 
@@ -824,7 +826,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
         
         
-    #@unittest.skip('Direct access test to be finished by adding the telnet client.')
+    @unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
