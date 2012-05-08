@@ -297,8 +297,8 @@ class IONLoader(ImmediateProcess):
 
         ims = self._get_service_client("identity_management")
 
-        user_identity_obj = IonObject("UserIdentity", {"name": subject})
-        user_id = ims.create_user_identity(user_identity_obj)
+        actor_identity_obj = IonObject("ActorIdentity", {"name": subject})
+        user_id = ims.create_actor_identity(actor_identity_obj)
         self._register_user_id(name, user_id)
         self._register_id(row[self.COL_ID], user_id)
 

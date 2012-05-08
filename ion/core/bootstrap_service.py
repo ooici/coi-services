@@ -97,12 +97,12 @@ class BootstrapService(BaseBootstrapService):
 
         #Create the ION System Agent user which should be passed in subsequent bootstraping calls
         system_actor = CFG.system.system_actor
-        user = IonObject(RT.UserIdentity, name=system_actor, description="ION System Agent")
-        self.clients.identity_management.create_user_identity(user)
+        user = IonObject(RT.ActorIdentity, name=system_actor, description="ION System Agent")
+        self.clients.identity_management.create_actor_identity(user)
 
     def post_org_management(self, config):
 
-        system_actor = self.clients.identity_management.find_user_identity_by_name(name=CFG.system.system_actor)
+        system_actor = self.clients.identity_management.find_actor_identity_by_name(name=CFG.system.system_actor)
 
         # Create root Org: ION
         root_orgname = CFG.system.root_org
@@ -157,7 +157,7 @@ class BootstrapService(BaseBootstrapService):
 
     def post_exchange_management(self, config):
 
-        system_actor = self.clients.identity_management.find_user_identity_by_name(name=CFG.system.system_actor)
+        system_actor = self.clients.identity_management.find_actor_identity_by_name(name=CFG.system.system_actor)
 
         # find root org
         root_orgname = CFG.system.root_org      # @TODO: THIS CAN BE SPECIFIED ON A PER LAUNCH BASIS, HOW TO FIND?

@@ -399,7 +399,7 @@ class PolicyManagementService(BasePolicyManagementService):
         if not user_role:
             raise NotFound("Role %s does not exist" % user_role_id)
 
-        alist,_ = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasRole, user_role)
+        alist,_ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasRole, user_role)
         if len(alist) > 0:
             raise BadRequest('The User Role %s cannot be removed as there are %s users associated to it' % (user_role.name, str(len(alist))))
 
