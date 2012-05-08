@@ -18,8 +18,9 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_ctd_da
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 ### For new granule and stream interface
 
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool, build_granule
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
 from pyon.public import log
 
 import random
