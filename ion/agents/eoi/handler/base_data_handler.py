@@ -378,7 +378,7 @@ class BaseDataHandler(object):
         """
         Generator function that acquires data from a source iteratively based on constraints provided by config
         Passed into BaseDataHandler._publish_data and iterated to publish samples.
-        Data should be conformant with the requirements of the publisher (granule)
+        Each iteration should return a well-formed Granule
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         """
         raise NotImplementedError
@@ -392,7 +392,11 @@ class BaseDataHandler(object):
         log.debug('Start publishing to stream_id = {0}'.format(stream_id))
         for count, ivals in enumerate(data_generator):
             log.info('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,ivals))
-            #TODO: Publish the data - optionally after going through a formatter (from config)??
+            #TODO: Publish the data granule
+
+            #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
+
+        #TODO: When finished publishing, update (either directly, or via an event callback to the agent) the UpdateDescription
 
 
 class DataHandlerError(Exception):
