@@ -48,7 +48,7 @@ class TestLCASA(IonIntegrationTestCase):
         self.client.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
-        self.client.MFMS = ObservatoryManagementServiceClient(node=self.container.node)
+        self.client.OMS = ObservatoryManagementServiceClient(node=self.container.node)
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
@@ -84,9 +84,7 @@ class TestLCASA(IonIntegrationTestCase):
 
 
 
-    @unittest.skip('refactoring')
-    #@unittest.skip('temporarily')
-    #@unittest.skip('Fixing data product creation')
+    #@unittest.skip('refactoring')
     def test_lca_step_1_to_6(self):
         c = self.client
 
@@ -106,19 +104,19 @@ class TestLCASA(IonIntegrationTestCase):
         log.info("LCA steps 1.3, 1.4, 1.5, 1.6, 1.7: FCRUF marine facility")
         observatory_id = self.generic_fcruf_script(RT.Observatory, 
                                           "observatory", 
-                                          self.client.MFMS, 
+                                          self.client.OMS, 
                                           True)
 
         log.info("LCA steps 3.1, 3.2, 3.3, 3.4: FCRF site")
 #        site_id = self.generic_fcruf_script(RT.Site,
 #                                            "site",
-#                                            self.client.MFMS,
+#                                            self.client.OMS,
 #                                            True)
 
         log.info("LCA <missing step>: associate site with marine facility")
-#        self.generic_association_script(c.MFMS.assign_site_to_observatory,
-#                                        c.MFMS.find_observatory_by_site,
-#                                        c.MFMS.find_site_by_observatory,
+#        self.generic_association_script(c.OMS.assign_site_to_observatory,
+#                                        c.OMS.find_observatory_by_site,
+#                                        c.OMS.find_site_by_observatory,
 #                                        observatory_id,
 #                                        site_id)
 
@@ -133,7 +131,7 @@ class TestLCASA(IonIntegrationTestCase):
         log.info("LCA step 4.3, 4.4: CF logical platform")
 #        logical_platform_id = self.generic_fcruf_script(RT.LogicalPlatform,
 #                                                    "logical_platform",
-#                                                    self.client.MFMS,
+#                                                    self.client.OMS,
 #                                                    True)
         
         log.info("LCA step 4.5: C platform device")
@@ -143,9 +141,9 @@ class TestLCASA(IonIntegrationTestCase):
                                                     False)
 
         log.info("LCA step 4.6: Assign logical platform to site")
-#        self.generic_association_script(c.MFMS.assign_logical_platform_to_site,
-#                                        c.MFMS.find_site_by_logical_platform,
-#                                        c.MFMS.find_logical_platform_by_site,
+#        self.generic_association_script(c.OMS.assign_logical_platform_to_site,
+#                                        c.OMS.find_site_by_logical_platform,
+#                                        c.OMS.find_logical_platform_by_site,
 #                                        site_id,
 #                                        logical_platform_id)
 
@@ -179,7 +177,7 @@ class TestLCASA(IonIntegrationTestCase):
         log.info("LCA step 5.3: CU logical instrument")
 #        logical_instrument_id = self.generic_fcruf_script(RT.LogicalInstrument,
 #                                                    "logical_instrument",
-#                                                    self.client.MFMS,
+#                                                    self.client.OMS,
 #                                                    True)
 
 
@@ -193,9 +191,9 @@ class TestLCASA(IonIntegrationTestCase):
         #### this is probably not how we'll end up establishing logical instruments
         # log.info("add data product to a logical instrument")
         # log.info("LCA <possible step>: find data products by logical instrument")
-        # self.generic_association_script(c.MFMS.assign_data_product_to_logical_instrument,
-        #                                 c.MFMS.find_logical_instrument_by_data_product,
-        #                                 c.MFMS.find_data_product_by_logical_instrument,
+        # self.generic_association_script(c.OMS.assign_data_product_to_logical_instrument,
+        #                                 c.OMS.find_logical_instrument_by_data_product,
+        #                                 c.OMS.find_data_product_by_logical_instrument,
         #                                 logical_instrument_id,
         #                                 log_data_product_id)
 
@@ -203,9 +201,9 @@ class TestLCASA(IonIntegrationTestCase):
 
         log.info("Assigning logical instrument to logical platform")
         log.info("LCA step 5.4: list logical instrument by platform")
-#        self.generic_association_script(c.MFMS.assign_logical_instrument_to_logical_platform,
-#                                        c.MFMS.find_logical_platform_by_logical_instrument,
-#                                        c.MFMS.find_logical_instrument_by_logical_platform,
+#        self.generic_association_script(c.OMS.assign_logical_instrument_to_logical_platform,
+#                                        c.OMS.find_logical_platform_by_logical_instrument,
+#                                        c.OMS.find_logical_instrument_by_logical_platform,
 #                                        logical_platform_id,
 #                                        logical_instrument_id)
 
@@ -213,8 +211,10 @@ class TestLCASA(IonIntegrationTestCase):
 
         #THIS STEP IS IN THE WRONG PLACE...
         log.info("LCA step 5.5: list instruments by observatory")
-        insts = c.MFMS.find_instrument_device_by_observatory(observatory_id)
-        self.assertEqual(0, len(insts))
+        #entities = c.OMS.find_related_frames_of_reference(observatory_id, [RT.InstrumentSite])
+        #inst_sites = entities[RT.InstrumentSite]
+        #todo: insts = some_op_on(inst_sites
+        #self.assertEqual(0, len(insts))
         #self.assertIn(instrument_device_id, insts)
 
         log.info("LCA step 5.6, 5.7, 5.9: CRU instrument_device")
@@ -252,7 +252,7 @@ class TestLCASA(IonIntegrationTestCase):
 
         #THIS IS WHERE STEP 5.5 SHOULD BE
         log.info("LCA step 5.5: list instruments by observatory")
-        insts = c.MFMS.find_instrument_device_by_observatory(observatory_id)
+        #insts = c.OMS.find_instrument_device_by_observatory(observatory_id)
         #self.assertIn(instrument_device_id, insts)
 
 
@@ -271,15 +271,15 @@ class TestLCASA(IonIntegrationTestCase):
         #self.assertIn(data_product_id, products)
 
         log.info("LCA step 5.10c: find data products by logical platform")
-        #products = self.client.MFMS.find_data_product_by_logical_platform(logical_platform_id)
+        #products = self.client.OMS.find_data_product_by_logical_platform(logical_platform_id)
         #self.assertIn(data_product_id, products)
 
         log.info("LCA step 5.10d: find data products by site")
-        #products = self.client.MFMS.find_data_product_by_site(site_id)
+        #products = self.client.OMS.find_data_product_by_site(site_id)
         #self.assertIn(data_product_id, products)
 
         log.info("LCA step 5.10e: find data products by marine facility")
-        products = self.client.MFMS.find_data_product_by_observatory(observatory_id)
+        #products = self.client.OMS.find_data_product_by_observatory(observatory_id)
         #self.assertIn(data_product_id, products)
 
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_sbe37_driver
-@file ion/services/mi/test_sbe37_driver.py
-@author Edward Hunter
-@brief Test cases for SBE37Driver
+@package ion.services.mi.drivers.sbe16_plus_v2.test.test_sbe16_driver
+@file ion/services/mi/drivers/sbe16_plus_v2/test_sbe16_driver.py
+@author David Everett 
+@brief Test cases for SBE16Driver
 """
 
-__author__ = 'Edward Hunter'
+__author__ = 'David Everett'
 __license__ = 'Apache 2.0'
 
 # Ensure the test class is monkey patched for gevent
@@ -31,9 +31,9 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.public import CFG
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-from ion.services.mi.drivers.sbe37_driver import SBE37Driver
-from ion.services.mi.drivers.sbe37_driver import SBE37ProtocolState
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe16_plus_v2.sbe16_driver import SBE16Driver
+from ion.services.mi.drivers.sbe16_plus_v2.sbe16_driver import SBE16ProtocolState
+from ion.services.mi.drivers.sbe16_plus_v2.sbe16_driver import SBE16Parameter
 from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_driver import DriverConnectionState
 from ion.services.mi.logger_process import EthernetDeviceLogger
@@ -51,28 +51,30 @@ import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
 # Make tests verbose and provide stdout
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_process
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_config
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_test
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_errors
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_discover_autosample
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_process
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_config
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_connect
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_get_set
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_poll
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_autosample
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_test
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_errors
+# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe16_driver.py:TestSBE16Driver.test_discover_autosample
 
 # Driver and port agent configuration
 
 # Driver module and class.
-DVR_MOD = 'ion.services.mi.drivers.sbe37_driver'
-DVR_CLS = 'SBE37Driver'
+DVR_MOD = 'ion.services.mi.drivers.sbe16_plus_v2.sbe16_driver'
+DVR_CLS = 'SBE16Driver'
 
+#DEV_ADDR = CFG.device.sbe16.host
+#DEV_PORT = CFG.device.sbe16.port
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
 # Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+#DEV_ADDR = 'sbe16-simulator.oceanobservatories.org' # Simulator addr.
 #DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
@@ -88,52 +90,52 @@ COMMS_CONFIG = {
 
 # Used to validate param config retrieved from driver.
 PARAMS = {
-    SBE37Parameter.OUTPUTSAL : bool,
-    SBE37Parameter.OUTPUTSV : bool,
-    SBE37Parameter.NAVG : int,
-    SBE37Parameter.SAMPLENUM : int,
-    SBE37Parameter.INTERVAL : int,
-    SBE37Parameter.STORETIME : bool,
-    SBE37Parameter.TXREALTIME : bool,
-    SBE37Parameter.SYNCMODE : bool,
-    SBE37Parameter.SYNCWAIT : int,
-    SBE37Parameter.TCALDATE : tuple,
-    SBE37Parameter.TA0 : float,
-    SBE37Parameter.TA1 : float,
-    SBE37Parameter.TA2 : float,
-    SBE37Parameter.TA3 : float,
-    SBE37Parameter.CCALDATE : tuple,
-    SBE37Parameter.CG : float,
-    SBE37Parameter.CH : float,
-    SBE37Parameter.CI : float,
-    SBE37Parameter.CJ : float,
-    SBE37Parameter.WBOTC : float,
-    SBE37Parameter.CTCOR : float,
-    SBE37Parameter.CPCOR : float,
-    SBE37Parameter.PCALDATE : tuple,
-    SBE37Parameter.PA0 : float,
-    SBE37Parameter.PA1 : float,
-    SBE37Parameter.PA2 : float,
-    SBE37Parameter.PTCA0 : float,
-    SBE37Parameter.PTCA1 : float,
-    SBE37Parameter.PTCA2 : float,
-    SBE37Parameter.PTCB0 : float,
-    SBE37Parameter.PTCB1 : float,
-    SBE37Parameter.PTCB2 : float,
-    SBE37Parameter.POFFSET : float,
-    SBE37Parameter.RCALDATE : tuple,
-    SBE37Parameter.RTCA0 : float,
-    SBE37Parameter.RTCA1 : float,
-    SBE37Parameter.RTCA2 : float
+    SBE16Parameter.OUTPUTSAL : bool,
+    SBE16Parameter.OUTPUTSV : bool,
+    SBE16Parameter.NAVG : int,
+    SBE16Parameter.SAMPLENUM : int,
+    SBE16Parameter.INTERVAL : int,
+    SBE16Parameter.STORETIME : bool,
+    SBE16Parameter.TXREALTIME : bool,
+    SBE16Parameter.SYNCMODE : bool,
+    SBE16Parameter.SYNCWAIT : int,
+    SBE16Parameter.TCALDATE : tuple,
+    SBE16Parameter.TA0 : float,
+    SBE16Parameter.TA1 : float,
+    SBE16Parameter.TA2 : float,
+    SBE16Parameter.TA3 : float,
+    SBE16Parameter.CCALDATE : tuple,
+    SBE16Parameter.CG : float,
+    SBE16Parameter.CH : float,
+    SBE16Parameter.CI : float,
+    SBE16Parameter.CJ : float,
+    SBE16Parameter.WBOTC : float,
+    SBE16Parameter.CTCOR : float,
+    SBE16Parameter.CPCOR : float,
+    SBE16Parameter.PCALDATE : tuple,
+    SBE16Parameter.PA0 : float,
+    SBE16Parameter.PA1 : float,
+    SBE16Parameter.PA2 : float,
+    SBE16Parameter.PTCA0 : float,
+    SBE16Parameter.PTCA1 : float,
+    SBE16Parameter.PTCA2 : float,
+    SBE16Parameter.PTCB0 : float,
+    SBE16Parameter.PTCB1 : float,
+    SBE16Parameter.PTCB2 : float,
+    SBE16Parameter.POFFSET : float,
+    SBE16Parameter.RCALDATE : tuple,
+    SBE16Parameter.RTCA0 : float,
+    SBE16Parameter.RTCA1 : float,
+    SBE16Parameter.RTCA2 : float
 }
 
 
 @attr('HARDWARE', group='mi')
-#@unittest.skip('Ready to go, remove skip when tested against simulator.')
-class TestSBE37Driver(PyonTestCase):    
+@unittest.skip('Ready to go, remove skip when tested against simulator.')
+class TestSBE16Driver(PyonTestCase):    
     """
-    Integration tests for the sbe37 driver. This class tests and shows
-    use patterns for the sbe37 driver as a zmq driver process.
+    Integration tests for the sbe16 driver. This class tests and shows
+    use patterns for the sbe16 driver as a zmq driver process.
     """    
     
     def setUp(self):
@@ -250,7 +252,7 @@ class TestSBE37Driver(PyonTestCase):
     
     def assertSampleDict(self, val):
         """
-        Verify the value is a sample dictionary for the sbe37.
+        Verify the value is a sample dictionary for the sbe16.
         """
         #{'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}        
         self.assertTrue(isinstance(val, dict))
@@ -395,14 +397,14 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
 
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('discover')
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
 
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('disconnect')
@@ -437,17 +439,17 @@ class TestSBE37Driver(PyonTestCase):
                 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
                 
         reply = self._dvr_client.cmd_dvr('discover')
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
 
         # Get all device parameters. Confirm all expected keys are retrived
         # and have correct type.
-        reply = self._dvr_client.cmd_dvr('get', SBE37Parameter.ALL)
+        reply = self._dvr_client.cmd_dvr('get', SBE16Parameter.ALL)
         self.assertParamDict(reply, True)
 
         # Remember original configuration.
@@ -455,10 +457,10 @@ class TestSBE37Driver(PyonTestCase):
         
         # Grab a subset of parameters.
         params = [
-            SBE37Parameter.TA0,
-            SBE37Parameter.INTERVAL,
-            SBE37Parameter.STORETIME,
-            SBE37Parameter.TCALDATE
+            SBE16Parameter.TA0,
+            SBE16Parameter.INTERVAL,
+            SBE16Parameter.STORETIME,
+            SBE16Parameter.TCALDATE
             ]
         reply = self._dvr_client.cmd_dvr('get', params)
         self.assertParamDict(reply)        
@@ -467,12 +469,12 @@ class TestSBE37Driver(PyonTestCase):
         orig_params = reply
         
         # Construct new parameters to set.
-        old_date = orig_params[SBE37Parameter.TCALDATE]
+        old_date = orig_params[SBE16Parameter.TCALDATE]
         new_params = {
-            SBE37Parameter.TA0 : orig_params[SBE37Parameter.TA0] * 1.2,
-            SBE37Parameter.INTERVAL : orig_params[SBE37Parameter.INTERVAL] + 1,
-            SBE37Parameter.STORETIME : not orig_params[SBE37Parameter.STORETIME],
-            SBE37Parameter.TCALDATE : (old_date[0], old_date[1], old_date[2] + 1)
+            SBE16Parameter.TA0 : orig_params[SBE16Parameter.TA0] * 1.2,
+            SBE16Parameter.INTERVAL : orig_params[SBE16Parameter.INTERVAL] + 1,
+            SBE16Parameter.STORETIME : not orig_params[SBE16Parameter.STORETIME],
+            SBE16Parameter.TCALDATE : (old_date[0], old_date[1], old_date[2] + 1)
         }
 
         # Set parameters and verify.
@@ -487,7 +489,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Retrieve the configuration and ensure it matches the original.
         # Remove samplenum as it is switched by autosample and storetime.
-        reply = self._dvr_client.cmd_dvr('get', SBE37Parameter.ALL)
+        reply = self._dvr_client.cmd_dvr('get', SBE16Parameter.ALL)
         reply.pop('SAMPLENUM')
         orig_config.pop('SAMPLENUM')
         self.assertParamVals(reply, orig_config)
@@ -525,13 +527,13 @@ class TestSBE37Driver(PyonTestCase):
                 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
                 
         reply = self._dvr_client.cmd_dvr('discover')
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
 
         # Poll for a sample and confirm result.
         reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
@@ -585,21 +587,21 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
 
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('discover')
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
         
         # Make sure the device parameters are set to sample frequently and
         # to transmit.
         params = {
-            SBE37Parameter.NAVG : 1,
-            SBE37Parameter.INTERVAL : 5,
-            SBE37Parameter.TXREALTIME : True
+            SBE16Parameter.NAVG : 1,
+            SBE16Parameter.INTERVAL : 5,
+            SBE16Parameter.TXREALTIME : True
         }
         reply = self._dvr_client.cmd_dvr('set', params)
         
@@ -607,7 +609,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in autosample mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.AUTOSAMPLE)
+        self.assertEqual(state, SBE16ProtocolState.AUTOSAMPLE)
         
         # Wait for a few samples to roll in.
         gevent.sleep(30)
@@ -628,7 +630,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
 
         # Verify we received at least 2 samples.
         sample_events = [evt for evt in self._events if evt['type']==DriverAsyncEvent.SAMPLE]
@@ -669,23 +671,23 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
 
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('discover')
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
 
         start_time = time.time()
         reply = self._dvr_client.cmd_dvr('execute_test')
 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.TEST)
+        self.assertEqual(state, SBE16ProtocolState.TEST)
         
-        while state != SBE37ProtocolState.COMMAND:
+        while state != SBE16ProtocolState.COMMAND:
             gevent.sleep(5)
             elapsed = time.time() - start_time
             mi_logger.info('Device testing %f seconds elapsed.' % elapsed)
@@ -763,7 +765,7 @@ class TestSBE37Driver(PyonTestCase):
                 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
 
         # Assert for a known command, invalid state.
         with self.assertRaises(StateError):
@@ -773,7 +775,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
 
         # Poll for a sample and confirm result.
         reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
@@ -789,7 +791,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Get all device parameters. Confirm all expected keys are retrived
         # and have correct type.
-        reply = self._dvr_client.cmd_dvr('get', SBE37Parameter.ALL)
+        reply = self._dvr_client.cmd_dvr('get', SBE16Parameter.ALL)
         self.assertParamDict(reply, True)
         
         # Assert get fails without a parameter.
@@ -806,9 +808,9 @@ class TestSBE37Driver(PyonTestCase):
         with self.assertRaises(ParameterError):
             bogus_params = [
                 'a bogus parameter name',
-                SBE37Parameter.INTERVAL,
-                SBE37Parameter.STORETIME,
-                SBE37Parameter.TCALDATE
+                SBE16Parameter.INTERVAL,
+                SBE16Parameter.STORETIME,
+                SBE16Parameter.TCALDATE
                 ]
             reply = self._dvr_client.cmd_dvr('get', bogus_params)        
         
@@ -822,7 +824,7 @@ class TestSBE37Driver(PyonTestCase):
         # Assert we cannot set a real parameter to a bogus value.
         with self.assertRaises(ParameterError):
             bogus_params = {
-                SBE37Parameter.INTERVAL : 'bogus value'
+                SBE16Parameter.INTERVAL : 'bogus value'
             }
             reply = self._dvr_client.cmd_dvr('set', bogus_params)
         
@@ -862,19 +864,19 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
 
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('discover')
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
         
         # Make sure the device parameters are set to sample frequently.
         params = {
-            SBE37Parameter.NAVG : 1,
-            SBE37Parameter.INTERVAL : 5
+            SBE16Parameter.NAVG : 1,
+            SBE16Parameter.INTERVAL : 5
         }
         reply = self._dvr_client.cmd_dvr('set', params)
         
@@ -882,7 +884,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in autosample mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.AUTOSAMPLE)
+        self.assertEqual(state, SBE16ProtocolState.AUTOSAMPLE)
     
         # Let a sample or two come in.
         gevent.sleep(30)
@@ -916,7 +918,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in unknown state.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.UNKNOWN)
+        self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
 
         # Configure driver for comms and transition to disconnected.
         count = 0
@@ -934,7 +936,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.AUTOSAMPLE)
+        self.assertEqual(state, SBE16ProtocolState.AUTOSAMPLE)
 
         # Let a sample or two come in.
         # This device takes awhile to begin transmitting again after you
@@ -957,7 +959,7 @@ class TestSBE37Driver(PyonTestCase):
 
         # Test the driver is in command mode.
         state = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(state, SBE37ProtocolState.COMMAND)
+        self.assertEqual(state, SBE16ProtocolState.COMMAND)
 
         # Configure driver for comms and transition to disconnected.
         reply = self._dvr_client.cmd_dvr('disconnect')

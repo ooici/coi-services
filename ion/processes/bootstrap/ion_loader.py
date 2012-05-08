@@ -22,6 +22,9 @@ DEBUG = True
 class IONLoader(ImmediateProcess):
     """
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO system.force_clean=False
+
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadooi=True
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadui=True
@@ -33,7 +36,7 @@ class IONLoader(ImmediateProcess):
     COL_ID = "ID"
     COL_OWNER = "owner_id"
     COL_LCSTATE = "lcstate"
-    COL_MF = "mf_ids"
+    COL_ORGS = "org_ids"
 
     ID_ORG_ION = "ORG_ION"
 
@@ -73,13 +76,14 @@ class IONLoader(ImmediateProcess):
 
         log.info("Start preloading from path=%s" % path)
         categories = ['User',
-                      'MarineFacility',
+                      'Org',
                       'UserRole',
                       'PlatformModel',
                       'InstrumentModel',
-                      'Site',
-                      'LogicalPlatform',
-                      'LogicalInstrument',
+                      'Observatory',
+                      'Subsite',
+                      'PlatformSite',
+                      'InstrumentSite',
                       'StreamDefinition',
                       'PlatformDevice',
                       'InstrumentDevice',
@@ -244,7 +248,7 @@ class IONLoader(ImmediateProcess):
         res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
         self._register_id(row[self.COL_ID], res_id)
 
-        self._resource_assign_mf(row, res_id)
+        self._resource_assign_org(row, res_id)
 
         return res_id
 
@@ -263,15 +267,14 @@ class IONLoader(ImmediateProcess):
             if vis != ivis:
                 svc_client.set_lifecycle_state(res_id, "%s_%s" % (mat, vis))
 
-    def _resource_assign_mf(self, row, res_id):
-        svc_client = self._get_service_client("marine_facility_management")
+    def _resource_assign_org(self, row, res_id):
+        svc_client = self._get_service_client("observatory_management")
 
-        mf_ids = row.get(self.COL_MF, None)
-        if mf_ids:
-            mf_ids = self._get_typed_value(mf_ids, targettype="simplelist")
-            for mf_id in mf_ids:
-                svc_client.assign_resource_to_marine_facility(res_id, self.resource_ids[mf_id])
-
+        org_ids = row.get(self.COL_ORGS, None)
+        if org_ids:
+            org_ids = self._get_typed_value(org_ids, targettype="simplelist")
+            for org_id in org_ids:
+                svc_client.assign_resource_to_observatory_org(res_id, self.resource_ids[org_id])
 
     def _preload_ids(self):
         if not DEBUG:
@@ -305,9 +308,24 @@ class IONLoader(ImmediateProcess):
         user_info_obj = IonObject("UserInfo", {"contact": {"name": name, "email": email}})
         ims.create_user_info(user_id, user_info_obj)
 
-    def _load_MarineFacility(self, row):
-        res_id = self._basic_resource_create(row, "MarineFacility", "mf/",
-                                            "marine_facility_management", "create_marine_facility")
+    def _load_Org(self, row):
+        log.info("Loading Org (ID=%s)" % (row[self.COL_ID]))
+        res_obj = self._create_object_from_row("Org", row, "org/")
+        log.info("Org: %s" % (res_obj))
+
+        headers = self._get_op_headers(row)
+
+        org_type = row["org_type"]
+        if org_type == "MarineFacility":
+            svc_client = self._get_service_client("observatory_management")
+            res_id = svc_client.create_marine_facility(res_obj, headers=headers)
+        elif org_type == "VirtualObservatory":
+            svc_client = self._get_service_client("observatory_management")
+            res_id = svc_client.create_virtual_observatory(res_obj, headers=headers)
+        else:
+            log.warn("Unknown Org type: %s" % org_type)
+
+        self._register_id(row[self.COL_ID], res_id)
 
     def _load_UserRole(self, row):
         log.info("Loading UserRole")
@@ -319,14 +337,6 @@ class IONLoader(ImmediateProcess):
             if org_id == self.ID_ORG_ION and DEBUG:
                 return
             org_id = self.resource_ids[org_id]
-        mf_id = row["marine_facility_id"]
-        if mf_id:
-            mf_id = self.resource_ids[mf_id]
-            org_ids, _ = rr_client.find_subjects(RT.Org, PRED.hasObservatory, mf_id, id_only=True)
-            if len(org_ids) == 1:
-                org_id = org_ids[0]
-            else:
-                raise iex.BadRequest("Org for MarineFacility %s not found" % mf_id)
 
         user_id = self.resource_ids[row["user_id"]]
         role_name = row["role_name"]
@@ -374,99 +384,100 @@ class IONLoader(ImmediateProcess):
 
             self._load_InstrumentModel(fakerow)
 
-    def _load_Site(self, row):
-        res_id = self._basic_resource_create(row, "Site", "site/",
-                                            "marine_facility_management", "create_site")
+    def _load_Observatory(self, row):
+        res_id = self._basic_resource_create(row, "Observatory", "obs/",
+            "observatory_management", "create_observatory")
 
-        svc_client = self._get_service_client("marine_facility_management")
-        mf_id = row.get("marine_facility_id", None)
+    def _load_Subsite(self, row):
+        res_id = self._basic_resource_create(row, "Subsite", "site/",
+                                            "observatory_management", "create_subsite")
+
+        svc_client = self._get_service_client("observatory_management")
         psite_id = row.get("parent_site_id", None)
-        if mf_id:
-            svc_client.assign_site_to_marine_facility(res_id, self.resource_ids[mf_id])
-        elif psite_id:
+        if psite_id:
             svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
 
-    def _load_Site_OOI(self):
-        log.info("Loading OOI Site assets")
+    def _load_Subsite_OOI(self):
+        log.info("Loading OOI Observatory assets")
         for site_def in self.obs_sites.values():
             fakerow = {}
             fakerow[self.COL_ID] = site_def['code']
-            fakerow['site/name'] = site_def['name']
-            fakerow['site/description'] = site_def['name']
-            mf_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
-            fakerow['marine_facility_id'] = mf_id
-            fakerow['mf_ids'] = mf_id
+            fakerow['obs/name'] = site_def['name']
+            fakerow['obs/description'] = site_def['name']
+            org_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['org_ids'] = org_id
 
-            self._load_Site(fakerow)
+            self._load_Observatory(fakerow)
 
+        log.info("Loading OOI Subsite assets")
         for site_def in self.sub_sites.values():
             fakerow = {}
             fakerow[self.COL_ID] = site_def['code']
             fakerow['site/name'] = site_def['name']
             fakerow['site/description'] = site_def['name']
             fakerow['parent_site_id'] = site_def['parent_site']
-            mf_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
-            fakerow['mf_ids'] = mf_id
+            org_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['org_ids'] = org_id
 
-            self._load_Site(fakerow)
+            self._load_Subsite(fakerow)
 
-    def _load_LogicalPlatform(self, row):
-        res_id = self._basic_resource_create(row, "LogicalPlatform", "lp/",
-                                            "marine_facility_management", "create_logical_platform")
+    def _load_PlatformSite(self, row):
+        res_id = self._basic_resource_create(row, "PlatformSite", "ps/",
+                                            "observatory_management", "create_platform_site")
 
-        svc_client = self._get_service_client("marine_facility_management")
-        site_id = row["site_id"]
-        svc_client.assign_logical_platform_to_site(res_id, self.resource_ids[site_id])
+        svc_client = self._get_service_client("observatory_management")
+        site_id = row["parent_site_id"]
+        if site_id:
+            svc_client.assign_site_to_site(res_id, self.resource_ids[site_id])
 
-        #ims_client = self._get_service_client("instrument_management")
         pm_ids = row["platform_model_ids"]
         if pm_ids:
             pm_ids = self._get_typed_value(pm_ids, targettype="simplelist")
             for pm_id in pm_ids:
-                svc_client.assign_platform_model_to_logical_platform(self.resource_ids[pm_id], res_id)
+                svc_client.assign_platform_model_to_platform_site(self.resource_ids[pm_id], res_id)
 
-    def _load_LogicalPlatform_OOI(self):
-        log.info("Loading OOI LogicalPlatform assets")
+    def _load_PlatformSite_OOI(self):
+        log.info("Loading OOI PlatformSite assets")
         for i, lp_def in enumerate(self.logical_platforms.values()):
             fakerow = {}
             fakerow[self.COL_ID] = lp_def['code']
-            fakerow['lp/name'] = lp_def['name']+" "+str(i)
-            fakerow['lp/description'] = lp_def['name']
-            fakerow['site_id'] = lp_def['site']
+            fakerow['ps/name'] = lp_def['name']+" "+str(i)
+            fakerow['ps/description'] = lp_def['name']
+            fakerow['parent_site_id'] = lp_def['site']
             fakerow['platform_model_ids'] = lp_def['platform_model']
-            mf_id = 'MF_RSN' if lp_def['code'].startswith("R") else 'MF_CGSN'
-            fakerow['mf_ids'] = mf_id
+            org_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['org_ids'] = org_id
 
-            self._load_LogicalPlatform(fakerow)
+            self._load_PlatformSite(fakerow)
 
-    def _load_LogicalInstrument(self, row):
-        res_id = self._basic_resource_create(row, "LogicalInstrument", "li/",
-                                            "marine_facility_management", "create_logical_instrument")
+    def _load_InstrumentSite(self, row):
+        res_id = self._basic_resource_create(row, "InstrumentSite", "is/",
+                                            "observatory_management", "create_instrument_site")
 
-        svc_client = self._get_service_client("marine_facility_management")
-        lp_id = row["logical_platform_id"]
-        svc_client.assign_logical_instrument_to_logical_platform(res_id, self.resource_ids[lp_id])
+        svc_client = self._get_service_client("observatory_management")
+        lp_id = row["parent_site_id"]
+        if lp_id:
+            svc_client.assign_site_to_site(res_id, self.resource_ids[lp_id])
 
-        #ims_client = self._get_service_client("instrument_management")
         im_ids = row["instrument_model_ids"]
         if im_ids:
             im_ids = self._get_typed_value(im_ids, targettype="simplelist")
             for im_id in im_ids:
-                svc_client.assign_instrument_model_to_logical_instrument(self.resource_ids[im_id], res_id)
+                svc_client.assign_instrument_model_to_instrument_site(self.resource_ids[im_id], res_id)
 
-    def _load_LogicalInstrument_OOI(self):
-        log.info("Loading OOI LogicalInstrument assets")
+    def _load_InstrumentSite_OOI(self):
+        log.info("Loading OOI InstrumentSite assets")
         for i, li_def in enumerate(self.logical_instruments.values()):
             fakerow = {}
             fakerow[self.COL_ID] = li_def['code']
-            fakerow['li/name'] = li_def['name']+" "+str(i)
-            fakerow['li/description'] = li_def['name']
-            fakerow['logical_platform_id'] = li_def['logical_platform']
+            fakerow['is/name'] = li_def['name']+" "+str(i)
+            fakerow['is/description'] = li_def['name']
+            fakerow['parent_site_id'] = li_def['logical_platform']
             fakerow['instrument_model_ids'] = li_def['instrument_model']
-            mf_id = 'MF_RSN' if li_def['code'].startswith("R") else 'MF_CGSN'
-            fakerow['mf_ids'] = mf_id
+            org_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
+            fakerow['org_ids'] = org_id
 
-            self._load_LogicalInstrument(fakerow)
+            self._load_InstrumentSite(fakerow)
 
             if DEBUG and i>20:
                 break
@@ -492,13 +503,14 @@ class IONLoader(ImmediateProcess):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
                                             "instrument_management", "create_platform_device")
 
-        ims_client = self._get_service_client("instrument_management")
+        oms_client = self._get_service_client("observatory_management")
         ass_ids = row["deployment_lp_ids"]
         if ass_ids:
             ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
             for ass_id in ass_ids:
-                ims_client.deploy_platform_device_to_logical_platform(res_id, self.resource_ids[ass_id])
+                oms_client.deploy_platform_device_to_platform_site(res_id, self.resource_ids[ass_id])
 
+        ims_client = self._get_service_client("instrument_management")
         ass_id = row["platform_model_id"]
         if ass_id:
             ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
@@ -507,19 +519,20 @@ class IONLoader(ImmediateProcess):
 
         ass_id = row["primary_deployment_lp_id"]
         if ass_id:
-            ims_client.deploy_as_primary_platform_device_to_logical_platform(res_id, self.resource_ids[ass_id])
+            oms_client.deploy_as_primary_platform_device_to_platform_site(res_id, self.resource_ids[ass_id])
 
     def _load_InstrumentDevice(self, row):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
                                             "instrument_management", "create_instrument_device")
 
-        ims_client = self._get_service_client("instrument_management")
+        oms_client = self._get_service_client("observatory_management")
         ass_ids = row["deployment_li_ids"]
         if ass_ids:
             ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
             for ass_id in ass_ids:
-                ims_client.deploy_instrument_device_to_logical_instrument(res_id, self.resource_ids[ass_id])
+                oms_client.deploy_instrument_device_to_instrument_site(res_id, self.resource_ids[ass_id])
 
+        ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
             ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
@@ -532,7 +545,7 @@ class IONLoader(ImmediateProcess):
 
         ass_id = row["primary_deployment_li_id"]
         if ass_id:
-            ims_client.deploy_as_primary_instrument_device_to_logical_instrument(res_id, self.resource_ids[ass_id])
+            oms_client.deploy_as_primary_instrument_device_to_instrument_site(res_id, self.resource_ids[ass_id])
 
 
     def _load_InstrumentAgent(self, row):
@@ -628,7 +641,7 @@ class IONLoader(ImmediateProcess):
         res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products, configuration, headers=headers)
         self._register_id(row[self.COL_ID], res_id)
 
-        self._resource_assign_mf(row, res_id)
+        self._resource_assign_org(row, res_id)
 
         res_id = svc_client.activate_data_process(res_id)
 

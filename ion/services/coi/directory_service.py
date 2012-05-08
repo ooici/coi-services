@@ -89,8 +89,37 @@ class DirectoryService(BaseDirectoryService):
             #ui_specs[pred] = assoc_ids
             for assoc_obj in assoc_list:
                 #ui_objs[assoc_obj._id] = assoc_obj
-                ui_sub_assoc[assoc_obj.s] = [pred, assoc_obj.o]
-                ui_obj_assoc[assoc_obj.o] = [pred, assoc_obj.s]
+
+                if assoc_obj.s in ui_sub_assoc:
+                    ui_sub_assoc[assoc_obj.s].append([pred, assoc_obj.o])
+                else:
+                    ui_sub_assoc[assoc_obj.s] = [[pred, assoc_obj.o]]
+
+                if assoc_obj.o in ui_obj_assoc:
+                    ui_obj_assoc[assoc_obj.o].append([pred, assoc_obj.s])
+                else:
+                    ui_obj_assoc[assoc_obj.o] = [[pred, assoc_obj.s]]
+
+        ui_views = {}
+        ui_specs['views'] = ui_views
+        for obj in ui_objs.values():
+            if obj._get_type() == "UIView":
+                group_list = []
+                ui_views[obj._id] = group_list
+                for viewassoc_p, group_id in ui_sub_assoc.get(obj._id, []):
+                    if viewassoc_p == "hasUIGroup":
+                        # TODO: Sort by position
+                        block_list = []
+                        group_list.append([group_id, block_list])
+                        for groupassoc_p, block_id in ui_sub_assoc.get(group_id, []):
+                            if groupassoc_p == "hasUIBlock":
+                                # TODO: Sort by position
+                                attr_list = []
+                                block_list.append([block_id, attr_list])
+                                for blockassoc_p, attr_id in ui_sub_assoc.get(block_id, []):
+                                    if blockassoc_p == "hasUIAttribute":
+                                        # TODO: Sort by position
+                                        attr_list.append(attr_id)
 
         return ui_specs
 
