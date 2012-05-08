@@ -16,7 +16,7 @@ from ion.services.mi.drivers.uw_trhph.trhph_driver import TrhphDriverState
 from ion.services.mi.drivers.uw_trhph.common import TrhphParameter
 
 from ion.services.mi.instrument_driver import DriverParameter
-from ion.services.mi.exceptions import ParameterError
+from ion.services.mi.exceptions import InstrumentParameterException
 #from ion.services.mi.common import InstErrorCode
 
 import random
@@ -43,7 +43,7 @@ class DriverTestMixin(object):
     1) As shown in test_trhph_driver_proc, a driver proxy that interacts with
     corresponding driver client (which itself interacts with the actual
     driver process running separately).
-     
+
     2) As shown in test_trhph_driver, the driver object is directly an
     instance of TrhphInstrumentDriver.
     """
@@ -83,7 +83,9 @@ class DriverTestMixin(object):
         log.info("disconnect -> %s" % str(state))
         self.assertEqual(TrhphDriverState.DISCONNECTED, state)
 
-    def _get_params(self, valid_params, invalid_params=None):
+    def _get_params_OLD(self, valid_params, invalid_params=None):
+
+        # TODO Remove this method
 
         invalid_params = invalid_params or []
 
@@ -110,7 +112,7 @@ class DriverTestMixin(object):
             self.assertTrue(p in result)
 
         for p in valid_params:
-#            self.assertFalse(InstErrorCode.is_error(result.get(p)))
+            self.assertFalse(InstErrorCode.is_error(result.get(p)))
             if TrhphParameter.TIME_BETWEEN_BURSTS == p:
                 seconds = result.get(p)
                 self.assertTrue(isinstance(seconds, int))
@@ -125,24 +127,60 @@ class DriverTestMixin(object):
 
         return result
 
+    def _get_params(self, params):
+
+        result = self.driver.get(params=params, timeout=self._timeout)
+        log.info("get result = %s" % str(result))
+        self.assertTrue(isinstance(result, dict))
+
+        if params == DriverParameter.ALL:
+            all_requested_params = TrhphParameter.list()
+        else:
+            all_requested_params = params
+
+        # check all requested params are in the result
+        for p in all_requested_params:
+            self.assertTrue(p in result)
+
+            if TrhphParameter.TIME_BETWEEN_BURSTS == p:
+                seconds = result.get(p)
+                self.assertTrue(isinstance(seconds, int))
+            elif TrhphParameter.VERBOSE_MODE == p:
+                is_data_only = result.get(p)
+                self.assertTrue(isinstance(is_data_only, bool))
+
+        return result
+
     def test_00_basic(self):
-        """-- DRIVER BASIC TESTS"""
+        """
+        -- TRHPH DRIVER: basic tests
+        """
         self._prepare_and_connect()
         self._disconnect()
 
-    def test_10_get_params(self):
-        """-- DRIVER GET PARAMS TESTS"""
+    def test_10_get_params_valid(self):
+        """
+        -- TRHPH DRIVER: get valid params
+        """
         self._prepare_and_connect()
 
         self._get_params(DriverParameter.ALL)
+        self._get_params([TrhphParameter.TIME_BETWEEN_BURSTS])
 
-        with self.assertRaises(ParameterError):
-            self._get_params(DriverParameter.ALL,
-                             ["bad-param1", "bad-param2"])
+        self._disconnect()
 
-        with self.assertRaises(ParameterError):
-            self._get_params([TrhphParameter.TIME_BETWEEN_BURSTS],
-                             ["bad-param1", "bad-param2"])
+    def test_15_get_params_invalid(self):
+        """
+        -- TRHPH DRIVER: get invalid params
+        """
+        self._prepare_and_connect()
+
+        with self.assertRaises(InstrumentParameterException):
+            self._get_params(["bad-param1", "bad-param2"])
+
+        with self.assertRaises(InstrumentParameterException):
+            self._get_params([TrhphParameter.TIME_BETWEEN_BURSTS,
+                             "bad-param3"])
 
         self._disconnect()
 
@@ -150,9 +188,10 @@ class DriverTestMixin(object):
         """
         Method used when the status or result could be given to individual
         params, so there could be a mix of valid and invalid parameters.
-        Now (May 6 2012) I see from the mainline that a ParameterError is
+        Now (May 6 2012) I see from the mainline that a exception is
         raised even when just an individual parameter is invalid.
         """
+        # TODO Remove this method
 
         invalid_params = invalid_params or {}
         params = dict(valid_params.items() + invalid_params.items())
@@ -201,7 +240,9 @@ class DriverTestMixin(object):
             return 0 == random.randint(0, 1)
 
     def test_20_set_params_valid(self):
-        """-- DRIVER SET VALID PARAMS TESTS"""
+        """
+        -- TRHPH DRIVER: set valid params
+        """
         self._prepare_and_connect()
 
         p1 = TrhphParameter.TIME_BETWEEN_BURSTS
@@ -217,7 +258,9 @@ class DriverTestMixin(object):
         self._disconnect()
 
     def test_21_set_params_invalid(self):
-        """-- DRIVER SET INVALID PARAMS TESTS"""
+        """
+        -- TRHPH DRIVER: set invalid params
+        """
         self._prepare_and_connect()
 
         p1 = TrhphParameter.TIME_BETWEEN_BURSTS
@@ -225,13 +268,15 @@ class DriverTestMixin(object):
 
         invalid_params = {p1: new_seconds, "bad-param": "dummy-value"}
 
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             self._set_params(invalid_params)
 
         self._disconnect()
 
     def test_25_get_set_params(self):
-        """-- DRIVER GET/SET TESTS"""
+        """
+        -- TRHPH DRIVER: get and set params
+        """
         self._prepare_and_connect()
 
         p1 = TrhphParameter.TIME_BETWEEN_BURSTS
@@ -261,7 +306,9 @@ class DriverTestMixin(object):
         self._disconnect()
 
     def test_35_execute_stop_autosample(self):
-        """-- DRIVER STOP AUTOSAMPLE TEST"""
+        """
+        -- TRHPH DRIVER: stop autosample
+        """
         self._prepare_and_connect()
 
         log.info("stopping autosample")
@@ -272,7 +319,9 @@ class DriverTestMixin(object):
         self._disconnect()
 
     def test_70_execute_get_metadata(self):
-        """-- DRIVER EXECUTE GET METADATA TEST"""
+        """
+        -- TRHPH DRIVER: get metadata
+        """
         self._prepare_and_connect()
 
         log.info("getting metadata")
@@ -284,7 +333,9 @@ class DriverTestMixin(object):
         self._disconnect()
 
     def test_80_execute_diagnostics(self):
-        """-- DRIVER EXECUTE DIAGNOSTICS TEST"""
+        """
+        -- TRHPH DRIVER: diagnostics
+        """
         self._prepare_and_connect()
 
         log.info("executing diagnotics")
@@ -296,7 +347,9 @@ class DriverTestMixin(object):
         self._disconnect()
 
     def test_90_execute_get_power_statuses(self):
-        """-- DRIVER EXECUTE GET POWER STATUSES TEST"""
+        """
+        -- TRHPH DRIVER: get power statuses
+        """
         self._prepare_and_connect()
 
         log.info("getting power statuses")
@@ -307,7 +360,9 @@ class DriverTestMixin(object):
         self._disconnect()
 
     def test_99_execute_start_autosample(self):
-        """-- DRIVER START AUTOSAMPLE TEST"""
+        """
+        -- TRHPH DRIVER: start autosample
+        """
         self._prepare_and_connect()
 
         log.info("starting autosample")

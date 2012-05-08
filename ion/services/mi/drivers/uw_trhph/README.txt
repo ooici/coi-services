@@ -5,6 +5,97 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-05-07:
+- Various adjustments to align again with sfoley's master branch (which is to
+  be merged into the mainline hopefully soon).
+
+- test_instrument_agent_with_trhph.py completed with basically the same set of
+  tests as with the other test cases:
+    $ UW_TRHPH="simulator" bin/nosetests -v ion/services/mi/drivers/uw_trhph/test/test_instrument_agent_with_trhph.py
+    -- INSTR-AGENT/TRHPH: initialize ... ok
+    -- INSTR-AGENT/TRHPH: state transitions ... ok
+    -- INSTR-AGENT/TRHPH: get valid and invalid params ... ok
+    -- INSTR-AGENT/TRHPH: set valid params ... ok
+    -- INSTR-AGENT/TRHPH: set invalid params ... ok
+    -- INSTR-AGENT/TRHPH: get and set params ... ok
+    -- INSTR-AGENT/TRHPH: execute stop autosample ... ok
+    -- INSTR-AGENT/TRHPH: execute get metadata ... ok
+    -- INSTR-AGENT/TRHPH: execute diagnostics ... ok
+    -- INSTR-AGENT/TRHPH: execute get power statuses ... ok
+    -- INSTR-AGENT/TRHPH: execute start autosample ... ok
+
+    ----------------------------------------------------------------------
+    Ran 11 tests in 273.497s
+
+    OK
+
+- All the other tests go as follows at this point:
+
+  DRIVER via driver_client:
+    $ UW_TRHPH="simulator" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_driver_proc.py
+    -- TRHPH DRIVER: basic tests ... ok
+    -- TRHPH DRIVER: get valid params ... ok
+    -- TRHPH DRIVER: get invalid params ... ok
+    -- TRHPH DRIVER: set valid params ... ok
+    -- TRHPH DRIVER: set invalid params ... ok
+    -- TRHPH DRIVER: get and set params ... ok
+    -- TRHPH DRIVER: stop autosample ... ok
+    -- TRHPH DRIVER: get metadata ... ok
+    -- TRHPH DRIVER: diagnostics ... ok
+    -- TRHPH DRIVER: get power statuses ... ok
+    -- TRHPH DRIVER: start autosample ... ok
+
+    ----------------------------------------------------------------------
+    Ran 11 tests in 291.347s
+
+    OK
+
+
+  The following two test cases with these prior and temporary preparations as
+  a workround for the outstanding issue involving mixed monkey-patching wrt
+  threading performed by some Nose plugin (even though that no pyon package is
+  imported in any way):
+    - remove the "pyon" path from the sys.path setting in bin/nosetests
+    - define environment variable run_it
+
+  DRIVER directly:
+    $ run_it= UW_TRHPH="simulator" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_driver.py
+    -- TRHPH DRIVER: basic tests ... ok
+    -- TRHPH DRIVER: get valid params ... ok
+    -- TRHPH DRIVER: get invalid params ... ok
+    -- TRHPH DRIVER: set valid params ... ok
+    -- TRHPH DRIVER: set invalid params ... ok
+    -- TRHPH DRIVER: get and set params ... ok
+    -- TRHPH DRIVER: stop autosample ... ok
+    -- TRHPH DRIVER: get metadata ... ok
+    -- TRHPH DRIVER: diagnostics ... ok
+    -- TRHPH DRIVER: get power statuses ... ok
+    -- TRHPH DRIVER: start autosample ... ok
+
+    ----------------------------------------------------------------------
+    Ran 11 tests in 94.056s
+
+    OK
+
+
+  TrhphClient directly:
+    $ run_it= UW_TRHPH="simulator" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_client.py
+    -- TRHPH CLIENT: Connect, get current state, sleep, disconnect ... ok
+    -- TRHPH CLIENT: Get system info ... ok
+    -- TRHPH CLIENT: Get data collection params ... ok
+    -- TRHPH CLIENT: Set cycle time ... ok
+    -- TRHPH CLIENT: Toggle data-only flag twice ... ok
+    -- TRHPH CLIENT: Execute instrument diagnostics ... ok
+    -- TRHPH CLIENT: Get sensor power statuses ... ok
+    -- TRHPH CLIENT: Toggle all sensor power statuses twice ... ok
+    -- TRHPH CLIENT: Go to main menu and resume streaming ... ok
+
+    ----------------------------------------------------------------------
+    Ran 9 tests in 151.666s
+
+    OK
+
+
 2012-05-06:
 - Merged into coi-service mainline directly, including preliminary version of
   test_instrument_agent_with_trhph.py for tests on the TRHPH driver via the

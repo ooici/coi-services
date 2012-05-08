@@ -27,15 +27,22 @@ from ion.services.mi.instrument_driver import DriverParameter
 
 from ion.services.mi.instrument_driver import DriverConnectionState
 from ion.services.mi.exceptions import InstrumentException
-from ion.services.mi.exceptions import StateError
-from ion.services.mi.exceptions import ParameterError
-from ion.services.mi.exceptions import TimeoutError
+#from ion.services.mi.exceptions import StateError
+from ion.services.mi.exceptions import InstrumentStateException
+#from ion.services.mi.exceptions import ParameterError
+from ion.services.mi.exceptions import InstrumentParameterException
+#from ion.services.mi.exceptions import TimeoutError
+from ion.services.mi.exceptions import InstrumentTimeoutException
 
 import time
 
 import logging
 from ion.services.mi.mi_logger import mi_logger
 log = mi_logger
+
+
+# TODO define Packet config for TRHPH data granules.
+PACKET_CONFIG = {}
 
 
 class TrhphDriverState(BaseEnum):
@@ -76,18 +83,18 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Asserts that the current state is either the same as the one given (if
         not a list) or one of the elements of the given list.
 
-        @raises StateError if the assertion fails
+        @raises InstrumentStateException if the assertion fails
         """
         cs = self.get_current_state()
         if isinstance(obj, list):
             if cs in obj:
                 return  # OK
             else:
-                raise StateError(
+                raise InstrumentStateException(msg=
                         "current state=%s not one of %s" % (cs, str(obj)))
         state = obj
         if cs != state:
-            raise StateError(
+            raise InstrumentStateException(
                     "current state=%s, expected=%s" % (cs, state))
 
     #############################################################
@@ -99,7 +106,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Initialize driver connection, bringing communications parameters
         into unconfigured state (no connection object).
 
-        @raises StateError if command not allowed in current
+        @raises InstrumentStateException if command not allowed in current
                  state
         """
 
@@ -136,9 +143,9 @@ class TrhphInstrumentDriver(InstrumentDriver):
 
         @param config comms config dict.
 
-        @raises StateError if command not allowed in current
+        @raises InstrumentStateException if command not allowed in current
                 state
-        @throws ParameterError if missing comms or invalid
+        @throws InstrumentParameterException if missing comms or invalid
                 config dict.
         """
 
@@ -149,7 +156,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
 
         config = kwargs.get('config', None)
         if config is None:
-#            raise ParameterError("'config' parameter required")
+#            raise InstrumentParameterException(msg="'config' parameter required")
             config = args[0]
 
         # Verify dict and construct connection client.
@@ -171,10 +178,10 @@ class TrhphInstrumentDriver(InstrumentDriver):
                 self.trhph_client.set_data_listener(_data_listener)
 
             else:
-                raise ParameterError('Invalid comms config dict')
+                raise InstrumentParameterException(msg='Invalid comms config dict')
 
         except (TypeError, KeyError):
-            raise ParameterError('Invalid comms config dict.')
+            raise InstrumentParameterException(msg='Invalid comms config dict.')
 
         self._state = TrhphDriverState.DISCONNECTED
 
@@ -183,7 +190,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
         Establish communications with the device via port agent / logger
         (connected connection object).
 
-        @raises StateError if command not allowed in current
+        @raises InstrumentStateException if command not allowed in current
                 state
         @throws InstrumentConnectionException if the connection failed.
         """
@@ -200,7 +207,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
     def disconnect(self, *args, **kwargs):
         """
         Disconnect from device via port agent / logger.
-        @raises StateError if command not allowed in current
+        @raises InstrumentStateException if command not allowed in current
                 state
         """
 
@@ -227,8 +234,8 @@ class TrhphInstrumentDriver(InstrumentDriver):
                 self._timeout by default.
 
         @retval parameter : value dict.
-        @raises ParameterError if missing or invalid get parameters.
-        @raises StateError if command not allowed in current state
+        @raises InstrumentParameterException if missing or invalid get parameters.
+        @raises InstrumentStateException if command not allowed in current state
         """
         
         if log.isEnabledFor(logging.DEBUG):
@@ -238,13 +245,14 @@ class TrhphInstrumentDriver(InstrumentDriver):
 
         params = kwargs.get('params', None)
         if params is None:
-            raise ParameterError(
-                    "'params' parameter required")
+#            raise InstrumentParameterException(msg=
+#                    "'params' parameter required")
+            params = args[0]
 
         if params == DriverParameter.ALL:
             params = TrhphParameter.list()
         elif not isinstance(params, (list, tuple)):
-            raise ParameterError(
+            raise InstrumentParameterException(msg=
                     'params must be list or tuple.')
 
         timeout = kwargs.get('timeout', self._timeout)
@@ -267,7 +275,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
                 value = data_collec_params[param]
             else:
 #                value = InstErrorCode.INVALID_PARAMETER
-                raise ParameterError('invalid parameter %s' % param)
+                raise InstrumentParameterException(msg='invalid parameter %s' % param)
             result[param] = value
 
         return result
@@ -279,7 +287,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
         try:
             return self.trhph_client.get_data_collection_params(timeout)
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
             raise InstrumentException(str(e))
 
@@ -292,10 +300,10 @@ class TrhphInstrumentDriver(InstrumentDriver):
         @param timeout Timeout for each involved instrument interation,
                 self._timeout by default.
 
-        @raises ParameterError if missing or invalid set parameters.
-        @raises TimeoutError if could not wake device or no response.
+        @raises InstrumentParameterException if missing or invalid set parameters.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if set command not recognized.
-        @raises StateError if command not allowed in current state.
+        @raises InstrumentStateException if command not allowed in current state.
         """
 
         if log.isEnabledFor(logging.DEBUG):
@@ -305,11 +313,12 @@ class TrhphInstrumentDriver(InstrumentDriver):
 
         params = kwargs.get('params', None)
         if params is None:
-            raise ParameterError(
-                    "'params' parameter required")
+#            raise InstrumentParameterException(msg=
+#                    "'params' parameter required")
+            params = args[0]
 
         if not isinstance(params, dict):
-            raise ParameterError(
+            raise InstrumentParameterException(msg=
                     "'params' parameter not a dict.")
 
         timeout = kwargs.get('timeout', self._timeout)
@@ -331,7 +340,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
                 updated_params += 1
             else:
 #                result[param] = InstErrorCode.INVALID_PARAMETER
-                raise ParameterError('invalid parameter %s' % param)
+                raise InstrumentParameterException(msg='invalid parameter %s' % param)
 
 #        msg = "%s parameter(s) successfully set." % updated_params
 #        log.debug("announcing to driver: %s" % msg)
@@ -341,18 +350,18 @@ class TrhphInstrumentDriver(InstrumentDriver):
     def _set_cycle_time(self, seconds, timeout):
         if not isinstance(seconds, int):
 #            return InstErrorCode.INVALID_PARAM_VALUE
-            raise ParameterError('seconds object is not an int: %s' % seconds)
+            raise InstrumentParameterException(msg='seconds object is not an int: %s' % seconds)
 
         if seconds < 15:
 #            return InstErrorCode.INVALID_PARAM_VALUE
-            raise ParameterError('seconds must be >= 15: %s' % seconds)
+            raise InstrumentParameterException(msg='seconds must be >= 15: %s' % seconds)
 
         try:
             self.trhph_client.set_cycle_time(seconds, timeout)
 #            return InstErrorCode.OK
             return
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
 #            return InstErrorCode.MESSAGING_ERROR
             raise InstrumentException('TrhphClientException: %s' % str(e))
@@ -360,14 +369,14 @@ class TrhphInstrumentDriver(InstrumentDriver):
     def _set_is_data_only(self, data_only, timeout):
         if not isinstance(data_only, bool):
 #            return InstErrorCode.INVALID_PARAM_VALUE
-            raise ParameterError('data_only object is not a bool: %s' % data_only)
+            raise InstrumentParameterException(msg='data_only object is not a bool: %s' % data_only)
 
         try:
             self.trhph_client.set_is_data_only(data_only, timeout)
 #            return InstErrorCode.OK
             return
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
 #            return InstErrorCode.MESSAGING_ERROR
             raise InstrumentException('TrhphClientException: %s' % str(e))
@@ -379,8 +388,8 @@ class TrhphInstrumentDriver(InstrumentDriver):
         @param timeout Timeout for each involved instrument interation,
                 self._timeout by default.
 
-        @raises TimeoutError if could not wake device or no response.
-        @raises StateError if command not allowed in current state.
+        @raises InstrumentTimeoutException if could not wake device or no response.
+        @raises InstrumentStateException if command not allowed in current state.
         """
         if log.isEnabledFor(logging.DEBUG):
             log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
@@ -395,7 +404,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
             result = None
             return result
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
             log.warn("TrhphClientException while resume_data_streaming: %s" %
                      str(e))
@@ -409,9 +418,9 @@ class TrhphInstrumentDriver(InstrumentDriver):
         @param timeout Timeout for each involved instrument interation,
                 self._timeout by default.
 
-        @raises TimeoutError if could not wake device or no response.
+        @raises InstrumentTimeoutException if could not wake device or no response.
         @raises InstrumentProtocolException if stop command not recognized.
-        @raises StateError if command not allowed in current state.
+        @raises InstrumentStateException if command not allowed in current state.
         """
         if log.isEnabledFor(logging.DEBUG):
             log.debug("args=%s kwargs=%s" % (str(args), str(kwargs)))
@@ -426,7 +435,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
             result = None
             return result
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
             log.warn("TrhphClientException while calling go_to_main_menu: %s" %
                      str(e))
@@ -461,7 +470,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
             result = system_info
             return result
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
             log.warn("TrhphClientException while getting system info: %s" %
                      str(e))
@@ -487,10 +496,11 @@ class TrhphInstrumentDriver(InstrumentDriver):
 
         num_scans = kwargs.get('num_scans', None)
         if num_scans is None:
-            raise ParameterError(
-                    'num_scans parameter required')
+#            raise InstrumentParameterException(msg=
+#                    'num_scans parameter required')
+            num_scans = 7
         if not isinstance(num_scans, int) or num_scans < 0:
-            raise ParameterError(
+            raise InstrumentParameterException(msg=
                     'Invalid num_scans parameter value')
 
         timeout = kwargs.get('timeout', self._timeout)
@@ -499,7 +509,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
             result = self.trhph_client.execute_diagnostics(num_scans, timeout)
             return result
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
             log.warn("TrhphClientException while executing diagnostics: %s" %
                      str(e))
@@ -530,7 +540,7 @@ class TrhphInstrumentDriver(InstrumentDriver):
             result = self.trhph_client.get_power_statuses(timeout)
             return result
         except TimeoutException, e:
-            raise TimeoutError(str(e))
+            raise InstrumentTimeoutException(msg=str(e))
         except TrhphClientException, e:
             log.warn("TrhphClientException executing get_power_statuses: %s" %
                      str(e))
