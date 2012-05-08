@@ -8,7 +8,6 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
-from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import HdfStorage, CouchStorage
 
@@ -21,12 +20,10 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RA
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
-#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-#from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 from pyon.public import CFG
 
-
+# MI imports
+from ion.services.mi.instrument_agent import InstrumentAgentState
 
 from pyon.public import CFG
 from pyon.agent.agent import ResourceAgentClient
@@ -69,22 +66,16 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
-@unittest.skip('not working yet...')
+@attr('INT', group='foo')
+#@unittest.skip('not working yet...')
 class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
-        #print 'instantiating container'
         self._start_container()
-        #container = Container()
-        #print 'starting container'
-        #container.start()
-        #print 'started container'
-
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        print 'started services'
+        log.debug("TestExternalDatasetAgentMgmt: started services")
 
         # Now create client to DataProductManagementService
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
@@ -102,27 +93,26 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
             datasetModel_id = self.damsclient.create_external_dataset_model(datsetModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new ExternalDatasetModel: %s" %ex)
-        print 'new ExternalDatasetModel id = ', datasetModel_id
+        log.debug("TestExternalDatasetAgentMgmt: new ExternalDatasetModel id = %s", str(datasetModel_id) )
 
         # Create ExternalDatasetAgent
-        datasetAgent_obj = IonObject(RT.ExternalDatasetAgent, name='datasetagent007', description="datasetagent007", handler_module="ion.agents.eoi", handler_class="ExternalDatasetAgent" )
+        datasetAgent_obj = IonObject(RT.ExternalDatasetAgent, name='datasetagent007', description="datasetagent007", handler_module="ion.agents.eoi.external_dataset_agent", handler_class="ExternalDatasetAgent" )
         try:
-            datasetAgent_id = self.damsclient.create_external_dataset_agent(datasetAgent_obj)
+            datasetAgent_id = self.damsclient.create_external_dataset_agent(datasetAgent_obj, datasetModel_id)
         except BadRequest as ex:
             self.fail("failed to create new ExternalDatasetAgent: %s" %ex)
-        print 'new ExternalDatasetAgent id = ', datasetAgent_id
+        log.debug("TestExternalDatasetAgentMgmt: new ExternalDatasetAgent id = %s", str(datasetAgent_id) )
 
-        self.damsclient.assign_dataset_agent_to_external_dataset_model(datasetAgent_id, datasetModel_id)
 
         # Create ExternalDataset
-        log.debug('test_activateDatasetAgent: Create external dataset resource ')
-        extDataset_obj = IonObject(RT.ExternalDataset, name='ExtDataset', description="ExtDataset", serial_number="12345" )
+        log.debug('TestExternalDatasetAgentMgmt: Create external dataset resource ')
+        extDataset_obj = IonObject(RT.ExternalDataset, name='ExtDataset', description="ExtDataset" )
         try:
-            extDataset_id = self.damsclient.create_external_dataset(extDataset_obj)
+            extDataset_id = self.damsclient.create_external_dataset(extDataset_obj, datasetModel_id)
         except BadRequest as ex:
             self.fail("failed to create new external dataset resource: %s" %ex)
 
-        log.debug("test_activateDatasetAgent: new ExternalDataset id = %s  ", extDataset_id)
+        log.debug("TestExternalDatasetAgentMgmt: new ExternalDataset id = %s  ", str(extDataset_id))
 
         #register the dataset as a data producer
         self.damsclient.register_external_data_set(extDataset_id)
@@ -137,26 +127,23 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
             'test_mode' : True
         }
 
-        extDatasetInstance_obj = IonObject(RT.ExternalDatasetAgentInstance, name='DatasetAgentInstance', description="DatasetAgentInstance", dataset_driver_config = DVR_CONFIG, dataset_agent_config = agent_config)
-        extDatasetInstance_id = self.damsclient.create_external_dataset_agent_instance(extDatasetInstance_obj)
-
-        self.damsclient.assign_external_dataset_to_agent_instance(extDataset_id, extDatasetInstance_id)
-        self.damsclient.assign_external_data_agent_to_agent_instance(datasetAgent_id, extDatasetInstance_id)
-
-
+        extDatasetAgentInstance_obj = IonObject(RT.ExternalDatasetAgentInstance, name='DatasetAgentInstance', description="DatasetAgentInstance", dataset_driver_config = DVR_CONFIG, dataset_agent_config = agent_config)
+        extDatasetAgentInstance_id = self.damsclient.create_external_dataset_agent_instance(external_dataset_agent_instance=extDatasetAgentInstance_obj, external_dataset_agent_id=datasetAgent_id, external_dataset_id=extDataset_id)
+        log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance obj: = %s", str(extDatasetAgentInstance_obj) )
+        log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance id: = %s", str(extDatasetAgentInstance_id) )
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
 
-        print 'new Stream Definition id = ', ctd_stream_def_id
+        log.debug("TestExternalDatasetAgentMgmt: new Stream Definition id = %s", str(ctd_stream_def_id))
 
-        print 'Creating new data product with a stream definition'
+        log.debug("TestExternalDatasetAgentMgmt: Creating new data product with a stream definition")
         dp_obj = IonObject(RT.DataProduct,name='eoi dataset data',description=' stream test')
         try:
             data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
-        print 'new dp_id = ', data_product_id1
+        log.debug("TestExternalDatasetAgentMgmt: new dp_id = %s", str(data_product_id1) )
 
         self.damsclient.assign_data_product(input_resource_id=extDataset_id, data_product_id=data_product_id1)
 
@@ -164,27 +151,49 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
-        print 'Data product streams1 = ', stream_ids
+        log.debug("TestExternalDatasetAgentMgmt: Data product streams1 = %s", str(stream_ids) )
 
 
-        self.damsclient.start_external_dataset_agent_instance(extDatasetInstance_id)
+        self.damsclient.start_external_dataset_agent_instance(extDatasetAgentInstance_id)
 
 
-        dataset_agent_instance_obj= self.damsclient.read_external_dataset_agent_instance()
-        print 'Dataset agent instance obj: = ', dataset_agent_instance_obj
+        dataset_agent_instance_obj= self.damsclient.read_external_dataset_agent_instance(extDatasetAgentInstance_id)
+        log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance obj: = %s", str(dataset_agent_instance_obj) )
 
         # Start a resource agent client to talk with the instrument agent.
-        self._dsa_client = ResourceAgentClient(instDevice_id,  process=FakeProcess())
+        self._dsa_client = ResourceAgentClient(extDataset_id,  process=FakeProcess())
         print 'activate_instrument: got ia client %s', self._dsa_client
         log.debug("test_activateInstrument: got dataset client %s", str(self._dsa_client))
 
+        cmd=AgentCommand(command='initialize')
+        _ = self._dsa_client.execute_agent(cmd)
 
+        cmd = AgentCommand(command='go_active')
+        _ = self._dsa_client.execute_agent(cmd)
 
+        cmd = AgentCommand(command='run')
+        _ = self._dsa_client.execute_agent(cmd)
+
+        log.info('Send an unconstrained request for data (\'new data\')')
+        config={'stream_id':'first_new','TESTING':True}
+        cmd = AgentCommand(command='acquire_data', args=[config])
+        self._dsa_client.execute(cmd)
+
+        log.info('Send a second unconstrained request for data (\'new data\'), should be rejected')
+        config={'stream_id':'second_new','TESTING':True}
+        cmd = AgentCommand(command='acquire_data', args=[config])
+        self._dsa_client.execute(cmd)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._dsa_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._dsa_client.execute_agent(cmd)
+        state = retval.result
 
         #-------------------------------
         # Deactivate InstrumentAgentInstance
         #-------------------------------
-        self.damsclient.stop_external_dataset_agent_instance(extDatasetInstance_id)
+        self.damsclient.stop_external_dataset_agent_instance(extDatasetAgentInstance_id)
 
 
 
