@@ -1,7 +1,5 @@
 # New Stream and Granule Stuff....
 
-#@todo - move this to: ion.processes.data.example_ctd_data_producer
-
 '''
 To Run:
 bin/pycc --rel res/deploy/r2dm.yml
@@ -11,14 +9,23 @@ bin/pycc --rel res/deploy/r2dm.yml
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 pmsc = PubsubManagementServiceClient(node=cc.node)
 stream_id = pmsc.create_stream(name='pfoo')
-pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_publisher',cls='NewGranuleCTDPublisher',config={'process':{'stream_id':stream_id}})
-
+pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_ctd_data_producer',cls='ExampleCTDDataProducer',config={'process':{'stream_id':stream_id}})
 
 '''
 
 
 ### Taxonomies are defined before hand out of band... somehow.
-tx = TaxyCab()
+from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
+### For new granule and stream interface
+
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool, build_granule
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.public import log
+
+import random
+import time
+
+tx = TaxyTool()
 tx.add_taxonomy_set('temp','long name for temp')
 tx.add_taxonomy_set('cond','long name for cond')
 tx.add_taxonomy_set('lat','long name for latitude')
@@ -29,9 +36,7 @@ tx.add_taxonomy_set('time','long name for time')
 tx.add_taxonomy_set('group1','This group contains coordinates...')
 tx.add_taxonomy_set('group0','This group contains data...')
 
-class NewGranuleCTDPublisher(SimpleCtdPublisher):
-
-    #@todo Change name to ExampleCTDDataProducer
+class ExampleCTDDataProducer(SimpleCtdPublisher):
 
     #overriding trigger function here to use new granule
     def _trigger_func(self, stream_id):

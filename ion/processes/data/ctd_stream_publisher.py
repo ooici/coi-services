@@ -35,12 +35,6 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
-### For new granule and stream interface
-
-from prototype.coverage.granule_and_record import build_granule, RecordDictionaryTool
-from prototype.coverage.taxonomy import TaxyCab
-from interface.objects import Granule, Taxonomy
-
 
 
 class SimpleCtdPublisher(StandaloneProcess):
