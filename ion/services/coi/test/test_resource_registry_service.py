@@ -26,26 +26,26 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # Some quick registry tests
         # Can't call new with fields that aren't defined in the object's schema
         with self.assertRaises(TypeError) as cm:
-            IonObject("UserInfo", name="name", foo="bar")
+            IonObject("ActorCredentials", name="name", foo="bar")
         self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
         # Can't call new with fields that aren't defined in the object's schema
         with self.assertRaises(TypeError) as cm:
-            IonObject("UserInfo", {"name": "name", "foo": "bar"})
+            IonObject("ActorCredentials", {"name": "name", "foo": "bar"})
         self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
         # Can't call new with fields that aren't defined in the object's schema
         with self.assertRaises(TypeError) as cm:
-            IonObject("UserInfo", {"name": "name"}, foo="bar")
+            IonObject("ActorCredentials", {"name": "name"}, foo="bar")
         self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
         # Instantiate an object
-        obj = IonObject("UserInfo", name="name")
+        obj = IonObject("ActorCredentials", name="name")
         
         # Can set attributes that aren't in the object's schema
         with self.assertRaises(AttributeError) as cm:
             setattr(obj, "foo", "bar")
-        self.assertTrue(cm.exception.message == "'UserInfo' object has no attribute 'foo'")
+        self.assertTrue(cm.exception.message == "'ActorCredentials' object has no attribute 'foo'")
 
         # Cam't call update with object that hasn't been persisted
         with self.assertRaises(BadRequest) as cm:
@@ -91,13 +91,13 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message.startswith("Object with id"))
 
         # Owner creation tests
-        user = IonObject("UserIdentity", name='user')
-        uid,_ = self.resource_registry_service.create(user)
+        actor = IonObject("ActorIdentity", name='actor')
+        uid,_ = self.resource_registry_service.create(actor)
 
         inst = IonObject("InstrumentDevice", name='instrument')
         iid,_ = self.resource_registry_service.create(inst, headers={'ion-actor-id':str(uid)})
 
-        ids,_ = self.resource_registry_service.find_objects(iid, PRED.hasOwner, RT.UserIdentity, id_only=True)
+        ids,_ = self.resource_registry_service.find_objects(iid, PRED.hasOwner, RT.ActorIdentity, id_only=True)
         self.assertEquals(len(ids), 1)
 
         assoc = self.resource_registry_service.read(ids[0])
@@ -136,110 +136,110 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertEquals(att1.lcstate, LCS.INTEGRATED_PRIVATE)
 
     def test_association(self):
-        # Instantiate UserIdentity object
-        user_identity_obj = IonObject("UserIdentity", name="name")
-        user_identity_obj_id, user_identity_obj_rev = self.resource_registry_service.create(user_identity_obj)
-        read_user_identity_obj = self.resource_registry_service.read(user_identity_obj_id)
+        # Instantiate ActorIdentity object
+        actor_identity_obj = IonObject("ActorIdentity", name="name")
+        actor_identity_obj_id, actor_identity_obj_rev = self.resource_registry_service.create(actor_identity_obj)
+        read_actor_identity_obj = self.resource_registry_service.read(actor_identity_obj_id)
 
-        # Instantiate UserInfo object
-        user_info_obj = IonObject("UserInfo", name="name")
-        user_info_obj_id, user_info_obj_rev = self.resource_registry_service.create(user_info_obj)
-        read_user_info_obj = self.resource_registry_service.read(user_info_obj_id)
+        # Instantiate ActorCredentials object
+        actor_credentials_obj = IonObject("ActorCredentials", name="name")
+        actor_credentials_obj_id, actor_credentials_obj_rev = self.resource_registry_service.create(actor_credentials_obj)
+        read_actor_credentials_obj = self.resource_registry_service.read(actor_credentials_obj_id)
 
         # Test create failures
         with self.assertRaises(AttributeError) as cm:
-            self.resource_registry_service.create_association(user_identity_obj_id, PRED.bogus, user_info_obj_id)
+            self.resource_registry_service.create_association(actor_identity_obj_id, PRED.bogus, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "bogus")
 
         # Predicate not provided
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(user_identity_obj_id, None, user_info_obj_id)
+            self.resource_registry_service.create_association(actor_identity_obj_id, None, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Association must have all elements set")
 
         # Bad association type
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, 'bogustype')
+            self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasCredentials, actor_credentials_obj_id, 'bogustype')
         self.assertTrue(cm.exception.message == "Unsupported assoc_type: bogustype")
 
         # Subject id or object not provided
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(None, PRED.hasInfo, user_info_obj_id)
+            self.resource_registry_service.create_association(None, PRED.hasCredentials, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Association must have all elements set")
 
         # Object id or object not provided
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, None)
+            self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasCredentials, None)
         self.assertTrue(cm.exception.message == "Association must have all elements set")
 
         # Bad subject id
         with self.assertRaises(NotFound) as cm:
-            self.resource_registry_service.create_association("bogus", PRED.hasInfo, user_info_obj_id)
+            self.resource_registry_service.create_association("bogus", PRED.hasCredentials, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Object with id bogus does not exist.")
 
         # Bad object id
         with self.assertRaises(NotFound) as cm:
-            self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, "bogus")
+            self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasCredentials, "bogus")
         self.assertTrue(cm.exception.message == "Object with id bogus does not exist.")
 
         # _id missing from subject
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(user_identity_obj, PRED.hasInfo, user_info_obj_id)
+            self.resource_registry_service.create_association(actor_identity_obj, PRED.hasCredentials, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Subject id or rev not available")
 
         # _id missing from object
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj)
+            self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasCredentials, actor_credentials_obj)
         self.assertTrue(cm.exception.message == "Object id or rev not available")
 
         # Wrong subject type
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(user_info_obj_id, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Illegal subject type UserInfo for predicate hasInfo")
+            self.resource_registry_service.create_association(actor_credentials_obj_id, PRED.hasCredentials, actor_credentials_obj_id)
+        self.assertTrue(cm.exception.message == "Illegal subject type ActorCredentials for predicate hasCredentials")
 
         # Wrong object type
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_identity_obj_id)
-        self.assertTrue(cm.exception.message == "Illegal object type UserIdentity for predicate hasInfo")
+            self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasCredentials, actor_identity_obj_id)
+        self.assertTrue(cm.exception.message == "Illegal object type ActorIdentity for predicate hasCredentials")
 
-        # Create two different association types between the same subject and predicate
-        assoc_id1, assoc_rev1 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
+        # Create association good case
+        assoc_id1, assoc_rev1 = self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasCredentials, actor_credentials_obj_id)
 
         # Read object, subject
-        res_obj1 = self.resource_registry_service.read_object(user_identity_obj_id, PRED.hasInfo, RT.UserInfo)
-        self.assertEquals(res_obj1._id, user_info_obj_id)
-        res_obj1 = self.resource_registry_service.read_object(user_identity_obj_id, PRED.hasInfo, RT.UserInfo, id_only=True)
-        self.assertEquals(res_obj1, user_info_obj_id)
-        res_obj2 = self.resource_registry_service.read_subject(RT.UserIdentity, PRED.hasInfo, user_info_obj_id)
-        self.assertEquals(res_obj2._id, user_identity_obj_id)
-        res_obj2 = self.resource_registry_service.read_subject(RT.UserIdentity, PRED.hasInfo, user_info_obj_id, id_only=True)
-        self.assertEquals(res_obj2, user_identity_obj_id)
+        res_obj1 = self.resource_registry_service.read_object(actor_identity_obj_id, PRED.hasCredentials, RT.ActorCredentials)
+        self.assertEquals(res_obj1._id, actor_credentials_obj_id)
+        res_obj1 = self.resource_registry_service.read_object(actor_identity_obj_id, PRED.hasCredentials, RT.ActorCredentials, id_only=True)
+        self.assertEquals(res_obj1, actor_credentials_obj_id)
+        res_obj2 = self.resource_registry_service.read_subject(RT.ActorIdentity, PRED.hasCredentials, actor_credentials_obj_id)
+        self.assertEquals(res_obj2._id, actor_identity_obj_id)
+        res_obj2 = self.resource_registry_service.read_subject(RT.ActorIdentity, PRED.hasCredentials, actor_credentials_obj_id, id_only=True)
+        self.assertEquals(res_obj2, actor_identity_obj_id)
 
         # Create a similar association to a specific revision
         # TODO: This is not a supported case so far
-        assoc_id2, assoc_rev2 = self.resource_registry_service.create_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, "H2R")
+        assoc_id2, assoc_rev2 = self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasCredentials, actor_credentials_obj_id, "H2R")
 
         # Search for associations (good cases)
-        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
-        ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo)
-        ret3 = self.resource_registry_service.find_associations(None, PRED.hasInfo)
+        ret1 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasCredentials, actor_credentials_obj_id)
+        ret2 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasCredentials)
+        ret3 = self.resource_registry_service.find_associations(None, PRED.hasCredentials)
         self.assertTrue(len(ret1) == len(ret2) == len(ret3))
         self.assertTrue(ret1[0]._id == ret2[0]._id == ret3[0]._id)
 
-        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, user_info_obj_id, None, False)
-        ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=False)
-        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=False)
+        ret1 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasCredentials, actor_credentials_obj_id, None, False)
+        ret2 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasCredentials, id_only=False)
+        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasCredentials, id_only=False)
         self.assertTrue(ret1 == ret2 == ret3)
 
         # Search for associations (good cases)
-        ret1 = self.resource_registry_service.find_associations(read_user_identity_obj, PRED.hasInfo, read_user_info_obj)
-        ret2 = self.resource_registry_service.find_associations(read_user_identity_obj, PRED.hasInfo)
-        ret3 = self.resource_registry_service.find_associations(None, PRED.hasInfo)
+        ret1 = self.resource_registry_service.find_associations(read_actor_identity_obj, PRED.hasCredentials, read_actor_credentials_obj)
+        ret2 = self.resource_registry_service.find_associations(read_actor_identity_obj, PRED.hasCredentials)
+        ret3 = self.resource_registry_service.find_associations(None, PRED.hasCredentials)
         self.assertTrue(len(ret1) == len(ret2) == len(ret3))
         self.assertTrue(ret1[0]._id == ret2[0]._id == ret3[0]._id)
 
-        ret1 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, read_user_info_obj, None, True)
-        ret2 = self.resource_registry_service.find_associations(user_identity_obj_id, PRED.hasInfo, id_only=True)
-        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasInfo, id_only=True)
+        ret1 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasCredentials, read_actor_credentials_obj, None, True)
+        ret2 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasCredentials, id_only=True)
+        ret3 = self.resource_registry_service.find_associations(predicate=PRED.hasCredentials, id_only=True)
         self.assertTrue(ret1 == ret2 == ret3)
 
         # Search for associations (bad cases)
@@ -248,36 +248,36 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message == "Illegal parameters")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(user_identity_obj_id, None, None)
+            self.resource_registry_service.find_associations(actor_identity_obj_id, None, None)
         self.assertTrue(cm.exception.message == "Illegal parameters")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(None, None, user_info_obj_id)
+            self.resource_registry_service.find_associations(None, None, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Illegal parameters")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(user_identity_obj, None, user_info_obj_id)
+            self.resource_registry_service.find_associations(actor_identity_obj, None, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Object id not available in subject")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(user_identity_obj_id, None, user_info_obj)
+            self.resource_registry_service.find_associations(actor_identity_obj_id, None, actor_credentials_obj)
         self.assertTrue(cm.exception.message == "Object id not available in object")
 
         # Find subjects (good cases)
-        subj_ret1 = self.resource_registry_service.find_subjects(RT.UserIdentity, PRED.hasInfo, user_info_obj_id, True)
-        subj_ret2 = self.resource_registry_service.find_subjects(RT.UserIdentity, PRED.hasInfo, read_user_info_obj, True)
+        subj_ret1 = self.resource_registry_service.find_subjects(RT.ActorIdentity, PRED.hasCredentials, actor_credentials_obj_id, True)
+        subj_ret2 = self.resource_registry_service.find_subjects(RT.ActorIdentity, PRED.hasCredentials, read_actor_credentials_obj, True)
         self.assertTrue(len(subj_ret1) == len(subj_ret2))
         self.assertTrue(subj_ret1[0] == subj_ret2[0])
         self.assertTrue(subj_ret1[1][0]._id == subj_ret2[1][0]._id)
 
-        subj_ret3 = self.resource_registry_service.find_subjects(None, PRED.hasInfo, user_info_obj_id, True)
-        subj_ret4 = self.resource_registry_service.find_subjects(None, None, read_user_info_obj, True)
+        subj_ret3 = self.resource_registry_service.find_subjects(None, PRED.hasCredentials, actor_credentials_obj_id, True)
+        subj_ret4 = self.resource_registry_service.find_subjects(None, None, read_actor_credentials_obj, True)
         self.assertTrue(len(subj_ret3) == len(subj_ret4))
         self.assertTrue(subj_ret3[0] == subj_ret4[0])
         self.assertTrue(subj_ret3[1][0]._id == subj_ret4[1][0]._id)
 
-        subj_ret5 = self.resource_registry_service.find_subjects(None, PRED.hasInfo, user_info_obj_id, False)
-        subj_ret6 = self.resource_registry_service.find_subjects(None, None, read_user_info_obj, False)
+        subj_ret5 = self.resource_registry_service.find_subjects(None, PRED.hasCredentials, actor_credentials_obj_id, False)
+        subj_ret6 = self.resource_registry_service.find_subjects(None, None, read_actor_credentials_obj, False)
         self.assertTrue(len(subj_ret5) == len(subj_ret6))
         self.assertTrue(subj_ret5[0][0]._id == subj_ret6[0][0]._id)
         self.assertTrue(subj_ret5[1][0]._id == subj_ret6[1][0]._id)
@@ -288,34 +288,34 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message == "Must provide object")
 
         with self.assertRaises(AttributeError) as cm:
-            self.resource_registry_service.find_subjects(RT.UserCredentials, PRED.bogus, user_info_obj_id, True)
+            self.resource_registry_service.find_subjects(RT.ActorCredentials, PRED.bogus, actor_credentials_obj_id, True)
         self.assertTrue(cm.exception.message == "bogus")
 
-        ret = self.resource_registry_service.find_subjects(RT.UserInfo, PRED.hasCredentials, user_info_obj_id, True)
+        ret = self.resource_registry_service.find_subjects(RT.ActorCredentials, PRED.hasCredentials, actor_credentials_obj_id, True)
         self.assertTrue(len(ret[0]) == 0)
 
-        ret = self.resource_registry_service.find_subjects(RT.UserCredentials, PRED.hasInfo, user_info_obj_id, True)
+        ret = self.resource_registry_service.find_subjects(RT.ActorCredentials, PRED.hasCredentials, actor_credentials_obj_id, True)
         self.assertTrue(len(ret[0]) == 0)
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_subjects(RT.UserCredentials, PRED.hasInfo, user_info_obj, True)
+            self.resource_registry_service.find_subjects(RT.ActorCredentials, PRED.hasCredentials, actor_credentials_obj, True)
         self.assertTrue(cm.exception.message == "Object id not available in object")
 
         # Find objects (good cases)
-        subj_ret1 = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasInfo, RT.UserInfo, True)
-        subj_ret2 = self.resource_registry_service.find_objects(read_user_identity_obj, PRED.hasInfo, RT.UserInfo, True)
+        subj_ret1 = self.resource_registry_service.find_objects(actor_identity_obj_id, PRED.hasCredentials, RT.ActorCredentials, True)
+        subj_ret2 = self.resource_registry_service.find_objects(read_actor_identity_obj, PRED.hasCredentials, RT.ActorCredentials, True)
         self.assertTrue(len(subj_ret1) == len(subj_ret2))
         self.assertTrue(subj_ret1[0] == subj_ret2[0])
         self.assertTrue(subj_ret1[1][0]._id == subj_ret2[1][0]._id)
 
-        subj_ret3 = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasInfo, None, True)
-        subj_ret4 = self.resource_registry_service.find_objects(user_identity_obj_id, None, None, True)
+        subj_ret3 = self.resource_registry_service.find_objects(actor_identity_obj_id, PRED.hasCredentials, None, True)
+        subj_ret4 = self.resource_registry_service.find_objects(actor_identity_obj_id, None, None, True)
         self.assertTrue(len(subj_ret3) == len(subj_ret4))
         self.assertTrue(subj_ret3[0] == subj_ret4[0])
         self.assertTrue(subj_ret3[1][0]._id == subj_ret4[1][0]._id)
 
-        subj_ret5 = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasInfo, None, False)
-        subj_ret6 = self.resource_registry_service.find_objects(read_user_identity_obj, None, None, False)
+        subj_ret5 = self.resource_registry_service.find_objects(actor_identity_obj_id, PRED.hasCredentials, None, False)
+        subj_ret6 = self.resource_registry_service.find_objects(read_actor_identity_obj, None, None, False)
         self.assertTrue(len(subj_ret5) == len(subj_ret6))
         self.assertTrue(subj_ret5[0][0]._id == subj_ret6[0][0]._id)
         self.assertTrue(subj_ret5[1][0]._id == subj_ret6[1][0]._id)
@@ -326,17 +326,14 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message == "Must provide subject")
 
         with self.assertRaises(AttributeError) as cm:
-            self.resource_registry_service.find_objects(user_identity_obj_id, PRED.bogus, RT.UserCredentials, True)
+            self.resource_registry_service.find_objects(actor_identity_obj_id, PRED.bogus, RT.ActorCredentials, True)
         self.assertTrue(cm.exception.message == "bogus")
 
-        ret = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasCredentials, RT.UserIdentity, True)
-        self.assertTrue(len(ret[0]) == 0)
-
-        ret = self.resource_registry_service.find_objects(user_identity_obj_id, PRED.hasInfo, RT.UserCredentials, True)
+        ret = self.resource_registry_service.find_objects(actor_identity_obj_id, PRED.hasCredentials, RT.ActorIdentity, True)
         self.assertTrue(len(ret[0]) == 0)
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_objects(user_identity_obj, PRED.hasInfo, RT.UserInfo, True)
+            self.resource_registry_service.find_objects(actor_identity_obj, PRED.hasCredentials, RT.ActorCredentials, True)
         self.assertTrue(cm.exception.message == "Object id not available in subject")
 
         # Get association (bad cases)
@@ -345,25 +342,25 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message == "Illegal parameters")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(user_identity_obj_id, None, None)
+            self.resource_registry_service.get_association(actor_identity_obj_id, None, None)
         self.assertTrue(cm.exception.message == "Illegal parameters")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(None, None, user_info_obj_id)
+            self.resource_registry_service.get_association(None, None, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Illegal parameters")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(user_identity_obj, None, user_info_obj_id)
+            self.resource_registry_service.get_association(actor_identity_obj, None, actor_credentials_obj_id)
         self.assertTrue(cm.exception.message == "Object id not available in subject")
 
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(user_identity_obj_id, None, user_info_obj)
+            self.resource_registry_service.get_association(actor_identity_obj_id, None, actor_credentials_obj)
         self.assertTrue(cm.exception.message == "Object id not available in object")
 
         # Delete one of the associations
         self.resource_registry_service.delete_association(assoc_id2)
 
-        assoc = self.resource_registry_service.get_association(user_identity_obj_id, PRED.hasInfo, user_info_obj_id)
+        assoc = self.resource_registry_service.get_association(actor_identity_obj_id, PRED.hasCredentials, actor_credentials_obj_id)
         self.assertTrue(assoc._id == assoc_id1)
 
         # Delete (bad cases)
@@ -375,15 +372,15 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.resource_registry_service.delete_association(assoc_id1)
 
         # Delete resources
-        self.resource_registry_service.delete(user_identity_obj_id)
-        self.resource_registry_service.delete(user_info_obj_id)
+        self.resource_registry_service.delete(actor_identity_obj_id)
+        self.resource_registry_service.delete(actor_credentials_obj_id)
 
     def test_find_resources(self):
         with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_resources(RT.UserInfo, LCS.DRAFT, "name", False)
+            self.resource_registry_service.find_resources(RT.ActorCredentials, LCS.DRAFT, "name", False)
         self.assertTrue(cm.exception.message == "find by name does not support lcstate")
         
-        ret = self.resource_registry_service.find_resources(RT.UserInfo, None, "name", False)
+        ret = self.resource_registry_service.find_resources(RT.ActorCredentials, None, "name", False)
         self.assertTrue(len(ret[0]) == 0)
 
         # Instantiate an object

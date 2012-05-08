@@ -43,31 +43,31 @@ class TestDatastore(IonIntegrationTestCase):
 
     def test_create_delete(self):
         # Persist IonObject
-        user_info_obj = IonObject(RT.UserInfo, name="John Smith")
-        user_info_obj_id, user_info_obj_rev = self.datastore_service.create(user_info_obj)
+        actor_identity_obj = IonObject(RT.ActorIdentity, name="John Smith")
+        actor_identity_obj_id, actor_identity_obj_rev = self.datastore_service.create(actor_identity_obj)
 
         # Make sure attempt to create object with same id fails
         with self.assertRaises(BadRequest) as cm:
-            self.datastore_service.create(user_info_obj, user_info_obj_id)
+            self.datastore_service.create(actor_identity_obj, actor_identity_obj_id)
         self.assertTrue(cm.exception.message.startswith("Object with id"))
 
         # Persist raw doc
-        user_info_doc = {"name": "John Smith"}
-        user_info_doc_id, user_info_doc_rev = self.datastore_service.create_doc(user_info_doc)
+        actor_identity_doc = {"name": "John Smith"}
+        actor_identity_doc_id, actor_identity_doc_rev = self.datastore_service.create_doc(actor_identity_doc)
 
         # Make sure attempt to send object with _id to create fails
-        bad_user_info_doc = {"name": "John Smith", "_id": "foo"}
+        bad_actor_identity_doc = {"name": "John Smith", "_id": "foo"}
         with self.assertRaises(BadRequest) as cm:
-            self.datastore_service.create_doc(bad_user_info_doc)
+            self.datastore_service.create_doc(bad_actor_identity_doc)
         self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
 
-        bad_user_info_doc = {"name": "John Smith", "_rev": "1"}
+        bad_actor_identity_doc = {"name": "John Smith", "_rev": "1"}
         with self.assertRaises(BadRequest) as cm:
-            self.datastore_service.create_doc(bad_user_info_doc)
+            self.datastore_service.create_doc(bad_actor_identity_doc)
         self.assertTrue(cm.exception.message.startswith("Doc must not have '_rev'"))
 
         # Read IonObject
-        read_user_info_obj = self.datastore_service.read(user_info_obj_id)
+        read_actor_identity_obj = self.datastore_service.read(actor_identity_obj_id)
 
         # Pass something other than str id to read
         with self.assertRaises(BadRequest) as cm:
@@ -75,32 +75,32 @@ class TestDatastore(IonIntegrationTestCase):
         self.assertTrue(cm.exception.message == "Object id param is not string")
 
         # Read raw dict
-        read_user_info_doc = self.datastore_service.read_doc(user_info_doc_id)
+        read_actor_identity_doc = self.datastore_service.read_doc(actor_identity_doc_id)
 
         # Update IonObject and raw doc
-        read_user_info_obj.name = "Jane Doe"
-        read_user_info_doc["name"] = "Jane Doe"
+        read_actor_identity_obj.name = "Jane Doe"
+        read_actor_identity_doc["name"] = "Jane Doe"
 
         # Update IonObject
-        updated_user_info_obj_id, updated_user_info_obj_rev = self.datastore_service.update(read_user_info_obj)
+        updated_actor_identity_obj_id, updated_actor_identity_obj_rev = self.datastore_service.update(read_actor_identity_obj)
 
         # Try to pass non-IonObject to update
         with self.assertRaises(BadRequest) as cm:
-            self.datastore_service.update(read_user_info_doc)
+            self.datastore_service.update(read_actor_identity_doc)
         self.assertTrue(cm.exception.message == "Obj param is not instance of IonObjectBase")
 
         # Update raw doc
-        updated_user_info_doc_id, updated_user_info_doc_rev = self.datastore_service.update_doc(read_user_info_doc)
+        updated_actor_identity_doc_id, updated_actor_identity_doc_rev = self.datastore_service.update_doc(read_actor_identity_doc)
 
         # Delete IonObject
-        self.datastore_service.delete(user_info_obj_id)
+        self.datastore_service.delete(actor_identity_obj_id)
 
         # Re-read raw doc, try to pass non-IonObject to delete
-        re_read_user_info_doc = self.datastore_service.read_doc(user_info_doc_id)
+        re_read_actor_identity_doc = self.datastore_service.read_doc(actor_identity_doc_id)
         with self.assertRaises(BadRequest) as cm:
-            self.datastore_service.delete(re_read_user_info_doc)
+            self.datastore_service.delete(re_read_actor_identity_doc)
         self.assertTrue(cm.exception.message == "Obj param is not instance of IonObjectBase or string id")
 
         # Delete raw doc
-        self.datastore_service.delete_doc(user_info_doc_id)
+        self.datastore_service.delete_doc(actor_identity_doc_id)
 
