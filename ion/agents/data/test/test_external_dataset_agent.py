@@ -52,6 +52,8 @@ from ion.agents.data.handlers.base_data_handler import DataHandlerParameter
 # todo: rethink this
 from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
 
+import unittest
+
 
 #########################
 # For Validation Purposes
@@ -106,8 +108,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
         'dvr_cls' : 'DummyDataHandler',
-        'dvr_cfg' : {},
-        }
+    }
 
     # Constraints dict
     HIST_CONSTRAINTS_1 = {
@@ -153,19 +154,20 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 #        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        # Start data suscribers, add stop to cleanup.
         # Define stream_config.
-        self._no_samples = None
-        self._async_data_result = AsyncResult()
-        self._data_greenlets = []
         self._stream_config = {}
-        self._samples_received = []
-        self._data_subscribers = []
-        # This assigns self._stream_config based on the contents of PACKET_CONFIG and starts subscribers on those streams
-        self._start_data_subscribers()
-        self.addCleanup(self._stop_data_subscribers)
 
-        # Start event subscribers, add stop to cleanup.
+        # Sample async and subscription
+#        self._no_samples = None
+#        self._async_data_result = AsyncResult()
+#        self._data_greenlets = []
+#        self._samples_received = []
+#        self._data_subscribers = []
+#        # This assigns self._stream_config based on the contents of PACKET_CONFIG and starts subscribers on those streams
+#        self._start_data_subscribers()
+#        self.addCleanup(self._stop_data_subscribers)
+
+        # Event async and subscription
         self._no_events = None
         self._async_event_result = AsyncResult()
         self._events_received = []
@@ -173,6 +175,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._start_event_subscribers()
         self.addCleanup(self._stop_event_subscribers)
 
+        # Data async and subscription  TODO: Replace with new subscriber
         self._finished_count = None
         self._async_finished_result = AsyncResult()
         self._finished_events_received = []
@@ -211,7 +214,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
     ########################################
 
     def _setup_resources(self):
-        pass
+        self.DVR_CONFIG['dh_cfg'] = {}
 
     def _start_data_subscribers(self):
         """
@@ -486,6 +489,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._async_finished_result.get(timeout=10)
         self.assertTrue(len(self._finished_events_received) >= 3)
 
+    @unittest.skip('Not used in DataHandler')
     def test_acquire_sample(self):
         # Test observatory polling function.
 
@@ -950,5 +954,5 @@ class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
     }
 
     def _setup_resources(self):
-        self.DVR_CONFIG['dvr_cfg'] = {'external_dataset_res':None}
+        self.DVR_CONFIG['dh_cfg'] = {}
 

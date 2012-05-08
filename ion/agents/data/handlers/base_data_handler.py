@@ -8,11 +8,11 @@
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data
 
 """
-from pyon.event.event import EventPublisher
 
 from pyon.public import log
 from pyon.util.async import spawn, wait
 from pyon.util.containers import get_safe
+from pyon.event.event import EventPublisher
 
 from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.services.mi.exceptions import ParameterError, UnknownCommandError
@@ -32,16 +32,16 @@ class DataHandlerParameter(DriverParameter):
     """
     Base DataHandler parameters.  Inherits from DriverParameter.  Subclassed by specific handlers
     """
-    POLLING_INTERVAL = 'POLLING_INTERVAL'
+    POLLING_INTERVAL = 'POLLING_INTERVAL',
 
 class BaseDataHandler(object):
     _params = {DataHandlerParameter.POLLING_INTERVAL : 3600}
     _polling = False
     _polling_glet = None
-    _config = {}
+    _dh_config = {}
 
     def __init__(self, dh_config):
-        self._config=dh_config
+        self._dh_config=dh_config
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -158,7 +158,7 @@ class BaseDataHandler(object):
         """
         log.debug('Configuring DataHandler: args = {0}'.format(args))
         try:
-            self._config = args[0]
+            self._dh_config = args[0]
 
         except IndexError:
             raise ParameterError('\'acquire_data\' command requires a config dict as the first argument')
@@ -186,8 +186,8 @@ class BaseDataHandler(object):
         if not isinstance(config, dict):
             raise TypeError('args[0] of \'acquire_data\' is not a dict.')
         else:
-            #Add the 'dvr_cfg' from self._config to the config dict
-            config['dvr_cfg'] = get_safe(self._config, 'dvr_cfg', None)
+            #Add the 'dvr_cfg' from self.dh_config to the config dict
+            config['dh_cfg'] = self._dh_config
             if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
                 log.warn('Already acquiring new data - action not duplicated')
                 return

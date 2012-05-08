@@ -109,6 +109,6 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
-        self.DVR_CONFIG['dvr_cfg'] = {'external_dataset_res':dset}
+        self.DVR_CONFIG['dh_cfg'] = {'external_dataset_res':dset}
 
 

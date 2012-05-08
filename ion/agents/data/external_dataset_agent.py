@@ -10,6 +10,7 @@
 """
 from pyon.public import log
 from pyon.ion.resource import PRED, RT
+from pyon.util.containers import get_safe
 from pyon.core.exception import InstDriverError
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -42,8 +43,12 @@ class ExternalDatasetAgent(InstrumentAgent):
         """
 
         # Get driver configuration and pid for test case.
-        dvr_mod = self._dvr_config['dvr_mod']
-        dvr_cls = self._dvr_config['dvr_cls']
+        dvr_mod = get_safe(self._dvr_config, 'dvr_mod', None)
+        dvr_cls = get_safe(self._dvr_config, 'dvr_cls', None)
+        dh_cfg = get_safe(self._dvr_config, 'dh_cfg', {})
+
+        if not dvr_mod or not dvr_cls:
+            raise InstDriverError('DataHandler module ({0}) and class ({1}) cannot be None'.format(dvr_mod, dvr_cls))
 
 #        # TODO: Retrieve all resources needed by the DataHandler, they will be provided during configuration
 #        ## Here to !!!! END from external_observatory_agent
@@ -92,22 +97,21 @@ class ExternalDatasetAgent(InstrumentAgent):
         comms_config = {}
 
         # The 'comms_config' portion of dvr_config is passed to configure()
-        self._dvr_config['comms_config'] = comms_config
+#        self._dvr_config['comms_config'] = comms_config
 
         # Instantiate the DataHandler based on the configuration
         try:
 
             module = __import__(dvr_mod, fromlist=[dvr_cls])
             classobj = getattr(module, dvr_cls)
-            self._dvr_client = classobj(self._dvr_config)
-#            self._dvr_client = classobj(data_provider=edp_res, data_source=dsrc_res, ext_dataset=ext_ds_res)
+            self._dvr_client = classobj(dh_cfg)
             self._dvr_client.set_event_callback(self.evt_recv)
             # Initialize the DataHandler
             self._dvr_client.cmd_dvr('initialize')
 
         except Exception:
             self._dvr_client = None
-            raise InstDriverError('Error instantiating DataHandler: {0}.{1}'.format(dvr_mod,dvr_cls))
+            raise InstDriverError('Error instantiating DataHandler: {0}.{1}'.format(dvr_mod, dvr_cls))
 
         #TODO: Temporarily construct packet factories to utilize pathways provided by IA
         self._construct_packet_factories(dvr_mod)
@@ -137,7 +141,7 @@ class ExternalDatasetAgent(InstrumentAgent):
         try:
             dvr_mod = self._dvr_config['dvr_mod']
             dvr_cls = self._dvr_config['dvr_cls']
-            dvr_cfg = self._dvr_config['dvr_cfg']
+            dvr_cfg = self._dvr_config['dh_cfg']
 
         except TypeError, KeyError:
             return False
