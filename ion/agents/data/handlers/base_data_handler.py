@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.handler.base_data_handler
-@file ion/agents/eoi/handler/base_data_handler.py
+@package ion.agents.data.handlers.base_data_handler
+@file ion/agents/data/handlers/base_data_handler.py
 @author Tim Giguere
 @author Christopher Mueller
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data

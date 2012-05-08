@@ -1,22 +1,22 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.test.test_external_dataset_agent
-@file ion/agents/eoi/test/test_external_dataset_agent.py
+@package ion.agents.data.test.test_external_dataset_agent
+@file ion/agents/data/test/test_external_dataset_agent.py
 @author Tim Giguere
 @author Christopher Mueller
 @brief Test cases for R2 ExternalDatasetAgent
 
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data_while_streaming
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_sample
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_streaming
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_observatory
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_get_set_param
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_initialize
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_states
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_capabilities
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_errors
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data_while_streaming
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_sample
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_streaming
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_observatory
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_get_set_param
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_initialize
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_states
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_capabilities
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_errors
 
 """
 
@@ -24,7 +24,6 @@
 from pyon.public import log, CFG
 from pyon.core.exception import InstParameterError
 # Standard imports.
-import unittest
 
 # 3rd party imports.
 from gevent import spawn
@@ -48,10 +47,10 @@ from pyon.event.event import EventSubscriber
 # MI imports
 from ion.services.mi.instrument_agent import InstrumentAgentState
 
-from ion.agents.eoi.handler.base_data_handler import DataHandlerParameter
+from ion.agents.data.handlers.base_data_handler import DataHandlerParameter
 
 # todo: rethink this
-from ion.agents.eoi.handler.base_data_handler import PACKET_CONFIG
+from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
 
 
 #########################
@@ -105,7 +104,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
     # DataHandler config
     DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
+        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
         'dvr_cls' : 'DummyDataHandler',
         'dvr_cfg' : {},
         }
@@ -123,7 +122,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
     # Agent parameters.
     EDA_RESOURCE_ID = '123xyz'
     EDA_NAME = 'ExampleEDA'
-    EDA_MOD = 'ion.agents.eoi.external_dataset_agent'
+    EDA_MOD = 'ion.agents.data.external_dataset_agent'
     EDA_CLS = 'ExternalDatasetAgent'
 
 
@@ -938,7 +937,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
 class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
     DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
+        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
         'dvr_cls' : 'FibonacciDataHandler',
     }
 

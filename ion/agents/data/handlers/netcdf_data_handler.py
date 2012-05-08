@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.handler.netcdf_data_handler
-@file ion/agents/eoi/handler/netcdf_data_handler.py
+@package ion.agents.data.handlers.netcdf_data_handler
+@file ion/agents/data/handlers/netcdf_data_handler.py
 @author Christopher Mueller
 @brief
 
@@ -13,7 +13,7 @@ from pyon.util.containers import get_safe
 
 import time
 
-from ion.agents.eoi.handler.base_data_handler import BaseDataHandler
+from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 from netCDF4 import Dataset
 
 PACKET_CONFIG = {

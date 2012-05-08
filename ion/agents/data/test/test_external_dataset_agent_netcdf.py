@@ -1,24 +1,23 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.test.test_external_dataset_agent_netcdf
-@file ion/agents/eoi/test/test_external_dataset_agent_netcdf
+@package ion.agents.data.test.test_external_dataset_agent_netcdf
+@file ion/agents/data/test/test_external_dataset_agent_netcdf
 @author Christopher Mueller
 @brief 
 """
 
 # Import pyon first for monkey patching.
-from pyon.public import log, CFG
-from pyon.core.exception import InstParameterError
+from pyon.public import log
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
-from ion.agents.eoi.test.test_external_dataset_agent import TestExternalDatasetAgent
+from ion.agents.data.test.test_external_dataset_agent import TestExternalDatasetAgent
 
 class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
     DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
+        'dvr_mod' : 'ion.agents.data.handlers.netcdf_data_handler',
         'dvr_cls' : 'NetcdfDataHandler',
         }
 

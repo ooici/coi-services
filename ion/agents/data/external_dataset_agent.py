@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.external_dataset_agent
-@file ion/agents/eoi/external_dataset_agent.py
+@package ion.agents.data.external_dataset_agent
+@file ion/agents/data/external_dataset_agent.py
 @author Tim Giguere
 @author Christopher Mueller
 @brief Class derived from InstrumentAgent that provides a one-to-one relationship between an ExternalDatasetAgent instance
