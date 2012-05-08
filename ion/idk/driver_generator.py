@@ -19,6 +19,7 @@ import yaml
 from pyon.util.config import Config
 from ion.idk.metadata import Metadata
 
+DEBUG = False
 
 class DriverGenerator:
     """
@@ -33,28 +34,27 @@ class DriverGenerator:
         @brief base directory for the new driver
         @retval dir name
         """
-        #print self.IDK_CFG.idk.driver_path
-        return "/".join([os.environ['HOME'], self.IDK_CFG.idk.driver_path])
+        if DEBUG:
+            print "base_dir() = " + self.IDK_CFG.idk.dev_base_path
+        return self.IDK_CFG.idk.dev_base_path
 
     def template_dir(self):
         """
         @brief directory where code templates are stored
         @retval template dir name
         """
-        return "/".join([self.base_dir(), self.IDK_CFG.idk.repo, self.IDK_CFG.idk.template_dir])
+        if DEBUG:
+            print "template_dir() = " + "/".join([self.base_dir(), self.IDK_CFG.idk.coi_repo_dir_name, "ion/idk/templates"])
+        return "/".join([self.base_dir(), self.IDK_CFG.idk.coi_repo_dir_name, "ion/idk/templates"]) 
 
-    def driver_dir(self):
-        """
-        @brief directory to store the new driver code
-        @retval driver dir name
-        """
-        return "/".join([self.base_dir(), self.IDK_CFG.idk.driver_repo, self.IDK_CFG.idk.driver_dir, self.metadata.name.lower()])
 
-    def test_dir(self):
+    def driver_test_dir(self):
         """
         @brief directory to store the new driver test code
         @retval driver test dir name
         """
+        if DEBUG:
+            print "driver_test_dir() = " + "/".join([self.driver_dir(), "test"])
         return "/".join([self.driver_dir(), "test"])
 
     def resource_dir(self):
@@ -62,6 +62,8 @@ class DriverGenerator:
         @brief directory to store the driver resources
         @retval driver resource dir name
         """
+        if DEBUG:
+            print "resource_dir() = " + "/".join([self.driver_dir(), "resource"])
         return "/".join([self.driver_dir(), "resource"])
 
     def driver_filename(self):
@@ -69,63 +71,89 @@ class DriverGenerator:
         @brief file name of the new driver
         @retval driver filename
         """
+        if DEBUG:
+            print "driver_filename() = " + "%s_v%02d_driver.py" % (self.metadata.name.lower(), self.driver_version())
         return "%s_v%02d_driver.py" % (self.metadata.name.lower(), self.driver_version())
 
-    def driver_path(self):
+    def driver_full_name(self):
         """
-        @brief full path to the driver code
+        @brief full path and filename to the driver code
         @retval driver path
         """
         return "/".join([self.driver_dir(), self.driver_filename()])
 
-    def test_path(self):
+    def driver_dir(self):
         """
-        @brief full path to the driver test code
-        @retval driver test path
+        @brief full path to the driver code
+        @retval driver path
         """
-        return "/".join([self.test_dir(), self.test_filename()])
+        if DEBUG:
+            print "driver_dir() = " + "/".join([self.base_dir(), 
+                  self.IDK_CFG.idk.mi_repo_dir_name, self.IDK_CFG.idk.driver_dir, 
+                  'instrument', self.metadata.instrument_class, self.metadata.name.lower()])
+        return "/".join([self.base_dir(), self.IDK_CFG.idk.mi_repo_dir_name, 
+               self.IDK_CFG.idk.driver_dir, 'instrument', 
+               self.metadata.instrument_class, self.metadata.name.lower()])
 
-    def driver_relative_path(self):
-        """
-        @brief relative path in the code base.
-        @retval relative driver path
-        """
-        replace = "/".join([self.base_dir(), self.IDK_CFG.idk.repo]) + '/'
-        path = self.driver_path()
-        return path.replace(replace, '')
 
-    def test_filename(self):
+    def driver_test_filename(self):
         """
         @brief file name of the new driver tests
         @retval driver test filename
         """
-        return "%s_v%02d_driver_test.py" % (self.metadata.name.lower(), self.driver_version())
+        if DEBUG:
+            print "driver_test_filename() = " + self.driver_filename().replace('driver', 'driver_test')
+        return self.driver_filename().replace('driver', 'driver_test')
+
+    def driver_test_full_name(self):
+        """
+        @brief full-path file name of the new driver tests
+        @retval full-path driver test filename
+        """
+        if DEBUG:
+            print "/".join([self.driver_test_dir(), self.driver_test_filename()])
+        return "/".join([self.driver_test_dir(), self.driver_test_filename()])
+
+
+    def template_dir(self): 
+        """
+        @brief path to the driver template dir
+        @retval driver test code template path
+        """
+        if DEBUG:
+            print "template_dir() = " + "/".join([self.base_dir(), self.IDK_CFG.idk.coi_repo_dir_name, "ion/idk/templates"])
+        return "/".join([self.base_dir(), self.IDK_CFG.idk.coi_repo_dir_name, "ion/idk/templates"])
 
     def test_template(self):
         """
         @brief path to the driver test code template
         @retval driver test code template path
         """
-        return self.template_dir() + "/driver_test.tmpl"
+        if DEBUG:
+            print "test_template() = " + "/".join([self.template_dir(), "driver_test.tmpl"])
+        return "/".join([self.template_dir(), "driver_test.tmpl"])
 
     def driver_template(self):
         """
         @brief path to the driver code template
         @retval driver code template path
         """
-        return self.template_dir() + "/driver.tmpl"
+        if DEBUG:
+            print "driver_template() = " + "/".join([self.template_dir(), "driver.tmpl"])
+        return "/".join([self.template_dir(), "driver.tmpl"])
 
     def test_modulename(self):
         """
         @brief module name of the new driver tests
         @retval driver test module name
         """
-        test_file = self.test_dir() + "/" + self.test_filename()
-        module_name = test_file.replace(self.base_dir() + '/' + self.IDK_CFG.idk.repo + '/', '')
-        module_name = module_name.replace('/', '.')
-        module_name = module_name.replace('.py', '')
+        if DEBUG:
+            print "test_modulename() = " + ".".join([self.IDK_CFG.idk.driver_dir, 
+                  'instrument', self.metadata.instrument_class, self.metadata.name.lower(), 
+                  'test', self.driver_test_filename().replace('/', '.').replace('.py', '')])
+        return ".".join([self.IDK_CFG.idk.driver_dir, 'instrument', self.metadata.instrument_class, 
+               self.metadata.name.lower(), 'test', self.driver_test_filename().replace('/', '.').replace('.py', '')])
 
-        return module_name
 
 
     def driver_modulename(self):
@@ -133,12 +161,14 @@ class DriverGenerator:
         @brief module name of the new driver tests
         @retval driver test module name
         """
-        driver_file = self.driver_dir() + "/" + self.driver_filename()
-        module_name = driver_file.replace(self.base_dir() + '/' + self.IDK_CFG.idk.repo + '/', '')
-        module_name = module_name.replace('/', '.')
-        module_name = module_name.replace('.py', '')
 
-        return module_name
+        if DEBUG:
+            print "driver_modulename() = " + ".".join([self.IDK_CFG.idk.driver_dir, 
+                  'instrument', self.metadata.instrument_class, self.metadata.name.lower(), 
+                  self.driver_filename().replace('/', '.').replace('.py', '')])
+        return ".".join([self.IDK_CFG.idk.driver_dir, 'instrument', 
+               self.metadata.instrument_class, self.metadata.name.lower(), 
+               self.driver_filename().replace('/', '.').replace('.py', '')])
 
     def driver_version(self):
 
@@ -161,11 +191,13 @@ class DriverGenerator:
 
         conf_paths = ['../coi-services/res/config/idk.yml', '../coi-services/res/config/idk.local.yml']
         self.IDK_CFG = Config(conf_paths, ignore_not_found=True).data
-        #print  str(self.IDK_CFG)
 
     def _touch_init(self, dir):
         """
         @brief touch a python __init.py__ file if it doesn't exist
+
+        @todo NEED to add in a __init__.py for the instrument_class dir
+
         """
         file = dir + "/__init__.py";
 
@@ -195,7 +227,7 @@ class DriverGenerator:
         """
         return {
             'driver_module': self.driver_modulename(),
-            'file': self.driver_relative_path(),
+            'file': self.driver_full_name(),
             'author': self.metadata.author,
             'driver_name': self.metadata.name,
             'release_notes': self.metadata.notes
@@ -210,8 +242,9 @@ class DriverGenerator:
         return {
             'test_module': self.test_modulename(),
             'driver_module': self.driver_modulename(),
-            'driver_path': self.driver_relative_path(),
-            'file': self.driver_relative_path(),
+            'driver_dir': self.driver_dir(),
+            'driver_path': self.driver_dir(),
+            'file': self.driver_full_name(),
             'author': self.metadata.author,
             'driver_name': self.metadata.name
         }
@@ -243,14 +276,14 @@ class DriverGenerator:
         if not os.path.exists(self.driver_dir()):
             os.makedirs(self.driver_dir())
 
-        if not os.path.exists(self.test_dir()):
-            os.makedirs(self.test_dir())
+        if not os.path.exists(self.driver_test_dir()):
+            os.makedirs(self.driver_test_dir())
 
         if not os.path.exists(self.resource_dir()):
             os.makedirs(self.resource_dir())
 
         self._touch_init(self.driver_dir())
-        self._touch_init(self.test_dir())
+        self._touch_init(self.driver_test_dir())
 
 
     def generate_code(self):
@@ -266,11 +299,11 @@ class DriverGenerator:
         """
         @brief Generate stub driver code
         """
-        if(os.path.exists(self.driver_path()) and not self.force):
-            print "Warning: driver exists (" + self.driver_path() + ") not overwriting"
+        if(os.path.exists(self.driver_full_name()) and not self.force):
+            print "Warning: driver exists (" + self.driver_dir() + ") not overwriting"
         else:
             template = self._get_template(self.driver_template())
-            ofile = open( self.driver_path(), 'w' )
+            ofile = open( self.driver_full_name(), 'w' )
             code = template.substitute(self._driver_template_data())
             ofile.write(code)
             ofile.close()
@@ -280,11 +313,11 @@ class DriverGenerator:
         """
         @brief Generate stub driver test code
         """
-        if(os.path.exists(self.test_path()) and not self.force):
-            print "Warning: driver test file exists (" + self.test_path() + ") not overwriting"
+        if(os.path.exists(self.driver_test_full_name()) and not self.force):
+            print "Warning: driver test file exists (" + self.driver_test_full_name() + ") not overwriting"
         else:
             template = self._get_template(self.test_template())
-            ofile = open( self.test_path(), 'w' )
+            ofile = open( self.driver_test_full_name(), 'w' )
             code = template.substitute(self._test_template_data())
             ofile.write(code)
             ofile.close()
@@ -296,7 +329,7 @@ class DriverGenerator:
         """
         print( "*** Generation Complete ***" )
         print(" - Driver File: " + self.driver_dir() + "/" + self.driver_filename())
-        print(" - Test File: " + self.test_dir() + "/" + self.test_filename())
+        print(" - Test File: " + self.driver_test_dir() + "/" + self.driver_test_filename())
         print(" - Resource Directory: " + self.resource_dir())
 
 
