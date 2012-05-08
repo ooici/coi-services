@@ -56,7 +56,7 @@ class InstrumentDriverTestCase(PyonTestCase):
         TODO: Update this method so it pulls simulator settings from pyon.  If there aren't
               any simulators available tests should be skipped if a device isn't configured.
         """
-        raise Exception("Vitual method must be overloaded")
+        raise Exception("Virtual method init_comm must be overloaded")
     
     @classmethod
     def init_log(cls):
@@ -74,14 +74,14 @@ class InstrumentDriverTestCase(PyonTestCase):
         @brief Name of the driver module in python dot notation
         @retval driver module name as string object
         """
-        raise Exception("Virtual method must be overloaded")
+        raise Exception("Virtual method driver_module must be overloaded")
         
     def driver_class(self):
         """
         @brief Name of the driver class
         @retval driver class name as string object
         """
-        raise Exception("Virtual method must be overloaded")
+        raise Exception("Virtual method driver_class must be overloaded")
         
         
     ###
@@ -97,8 +97,7 @@ class InstrumentDriverTestCase(PyonTestCase):
         """
         @brief tear down the driver process if it has been configured and ensure that it is killed properly
         """
-        self.log.debug("Tear down test. Ensure driver process stopped")
-        
+        #self.log.debug("Tear down test. Ensure driver process stopped")
         if(self._driver_client):
             self._driver_client.done()
             self._driver_process.wait()

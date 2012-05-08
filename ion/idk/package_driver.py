@@ -191,8 +191,8 @@ class PackageDriver():
         """
 
         # Add python source files
-        self._add_file(self.generator.driver_path(), 'src', 'driver source code')
-        self._add_file(self.generator.test_path(), 'src/test', 'driver test code')
+        self._add_file(self.generator.driver_full_name(), 'src', 'driver source code')
+        self._add_file(self.generator.driver_test_full_name(), 'src/test', 'driver test code')
 
         # Add the package metadata file
         self._add_file(self.metadata.metadata_path(), description = 'package metadata')
