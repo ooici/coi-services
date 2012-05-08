@@ -40,6 +40,9 @@ class BaseDataHandler(object):
     _polling_glet = None
     _config = {}
 
+    def __init__(self, dh_config):
+        self._config=dh_config
+
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
 
@@ -85,7 +88,8 @@ class BaseDataHandler(object):
         reply = None
         if cmd == 'configure':
             # Delegate to BaseDataHandler.configure()
-            reply = self.configure(*args, **kwargs)
+#            reply = self.configure(*args, **kwargs)
+            pass
         elif cmd == 'initialize':
             # Delegate to BaseDataHandler.initialize()
             reply = self.initialize(*args, **kwargs)
@@ -182,6 +186,8 @@ class BaseDataHandler(object):
         if not isinstance(config, dict):
             raise TypeError('args[0] of \'acquire_data\' is not a dict.')
         else:
+            #Add the 'dvr_cfg' from self._config to the config dict
+            config['dvr_cfg'] = get_safe(self._config, 'dvr_cfg', None)
             if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
                 log.warn('Already acquiring new data - action not duplicated')
                 return
