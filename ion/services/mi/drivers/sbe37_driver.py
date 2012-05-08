@@ -596,7 +596,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         self._do_cmd_direct(data)
                         
         # add sent command to list for 'echo' filtering in callback
-        self._sent_cmds.append(cmd)        
+        self._sent_cmds.append(data)        
 
         return (next_state, result)
 
@@ -749,7 +749,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         """
         Callback for receiving new data from the device.
         """
-        if self._fsm.get_current_state() == SBE37ProtocolState.DIRECT_ACCESS:
+        if self.get_current_state() == SBE37ProtocolState.DIRECT_ACCESS:
             # direct access mode
             if len(data) > 0:
                 mi_logger.debug("SBE37Protocol._got_data(): <" + data + ">") 
@@ -761,11 +761,8 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
                         # found a command echo, so remove it from data and delete the command form list
                         data = string.replace(data, oldest_sent_cmd, "", 1) 
                         self._sent_cmds.pop(0)            
-                if len(data) > 0 and self.send_event:
-                    event = {'type':'direct_access',
-                             'value':data
-                    }
-                    self.send_event(event)
+                if len(data) > 0 and self._driver_event:
+                    self._driver_event(DriverAsyncEvent.DIRECT_ACCESS, data)
                     # TODO: what about logging this as an event?
             return
         

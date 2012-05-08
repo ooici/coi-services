@@ -75,6 +75,7 @@ class DriverAsyncEvent(BaseEnum):
     SAMPLE = 'DRIVER_ASYNC_EVENT_SAMPLE'
     ERROR = 'DRIVER_ASYNC_EVENT_ERROR'
     TEST_RESULT = 'DRIVER_ASYNC_TEST_RESULT'
+    DIRECT_ACCESS = 'DRIVER_ASYNC_EVENT_DIRECT_ACCESS'
 
 class DriverParameter(BaseEnum):
     """
@@ -324,6 +325,10 @@ class InstrumentDriver(object):
             pass
 
         elif type == DriverAsyncEvent.TEST_RESULT:
+            event['value'] = val
+            self._send_event(event)
+
+        elif type == DriverAsyncEvent.DIRECT_ACCESS:
             event['value'] = val
             self._send_event(event)
 

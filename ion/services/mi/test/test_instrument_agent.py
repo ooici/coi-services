@@ -14,6 +14,7 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 
 # Standard imports.
+import time
 import os
 import signal
 import time
@@ -823,7 +824,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
         
         
-    @unittest.skip('Direct access to be finished and added.')
+    #@unittest.skip('Direct access test to be finished by adding the telnet client.')
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
@@ -857,10 +858,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         cmd = AgentCommand(command='go_direct_access')
         retval = self._ia_client.execute_agent(cmd)
+        print("go_direct_access retval=" + str(retval))       
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.DIRECT_ACCESS)
+
+        # sleep to let tester run telnet client manually
+        print "sleeping to run telnet client"
+        time.sleep(60)
 
         # Halt DA.
         cmd = AgentCommand(command='go_observatory')
