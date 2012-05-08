@@ -112,7 +112,7 @@ class TestServiceGateway(IonIntegrationTestCase):
         self.assertIn('TaskableResource', gateway_resp)
         self.assertIn('Transform', gateway_resp)
         self.assertIn('UserCredentials', gateway_resp)
-        self.assertIn('UserIdentity', gateway_resp)
+        self.assertIn('ActorIdentity', gateway_resp)
         self.assertIn('UserInfo', gateway_resp)
         self.assertIn('UserRole', gateway_resp)
         self.assertIn('View', gateway_resp)
