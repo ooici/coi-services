@@ -13,9 +13,14 @@ from pyon.public import log
 from pyon.util.async import spawn, wait
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
+from pyon.ion.endpoint import StreamPublisherRegistrar
 
 from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.services.mi.exceptions import ParameterError, UnknownCommandError
+
+### For new granule and stream interface
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.ion.granule.granule import build_granule
 
 import gevent
 from gevent.coros import Semaphore
@@ -42,6 +47,8 @@ class BaseDataHandler(object):
 
     def __init__(self, dh_config):
         self._dh_config=dh_config
+
+        self._stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -188,6 +195,10 @@ class BaseDataHandler(object):
         if not isinstance(config, dict):
             raise TypeError('args[0] of \'acquire_data\' is not a dict.')
         else:
+            stream_id = get_safe(config, 'stream_id')
+            if not stream_id:
+                raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
+
             # Make a copy of the config to ensure no cross-pollution
             config_copy = config.copy()
 
@@ -195,7 +206,9 @@ class BaseDataHandler(object):
                 log.warn('Already acquiring new data - action not duplicated')
                 return
 
-            g = spawn(self._acquire_data, config_copy, self._unlock_new_data_callback)
+            publisher = self._stream_publisher_registrar.create_publisher(stream_id=stream_id)
+
+            g = spawn(self._acquire_data, config_copy, publisher, self._unlock_new_data_callback)
             log.debug('** Spawned {0}'.format(g))
             self._glet_queue.append(g)
 
@@ -337,7 +350,7 @@ class BaseDataHandler(object):
         self._semaphore.release()
 
     @classmethod
-    def _acquire_data(cls, config, unlock_new_data_callback):
+    def _acquire_data(cls, config, publisher, unlock_new_data_callback):
         """
         Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
              BaseDataHandler._new_data_constraints (only if config does not contain 'constraints')
@@ -345,11 +358,6 @@ class BaseDataHandler(object):
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
         """
-        stream_id = get_safe(config, 'stream_id')
-        if not stream_id:
-            raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
-        #TODO: Configure the publisher
-        publisher=None
 
         constraints = get_safe(config,'constraints')
         if not constraints:
@@ -392,10 +400,11 @@ class BaseDataHandler(object):
         Iterates over the data_generator and publishes granules to the stream indicated in stream_id
         """
         stream_id=config['stream_id']
-        log.debug('Start publishing to stream_id = {0}'.format(stream_id))
+        log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
         for count, ivals in enumerate(data_generator):
+            #TG: Validate that ivals is a Granule object => If Granule, publish, else, just print
             log.info('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,ivals))
-            #TODO: Publish the data granule
+            publisher.publish(ivals)
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
@@ -475,9 +484,17 @@ class DummyDataHandler(BaseDataHandler):
         count = get_safe(config, 'constraints.count',1)
         array_len = get_safe(config, 'constraints.array_len',1)
 
+        tx = get_safe(config, 'dh_cfg.taxonomy', None)
+
         for i in xrange(count):
+            #TODO: Build & Use RecordDictionaryTool
+            rdt = RecordDictionaryTool(taxonomy=tx)
+            rdt['data'] = npr.random_sample(array_len)
             time.sleep(0.1)
-            yield npr.random_sample(array_len)
+            g = build_granule(data_producer_id='DummyDataHandler', taxonomy=tx, record_dictionary=rdt)
+            #TODO: Return granule
+            yield g
+            #yield npr.random_sample(array_len)
 
 
 

@@ -113,8 +113,11 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
 
         log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
 
+        #TG: Build TaxonomyTool & add to dh_cfg.taxonomy
+
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
         self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':stream_id,'external_dataset_res':dset,}
+
 
 

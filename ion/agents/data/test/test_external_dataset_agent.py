@@ -53,6 +53,8 @@ from ion.agents.data.handlers.base_data_handler import DataHandlerParameter
 # todo: rethink this
 from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
 
+from pyon.ion.granule.taxonomy import TaxyTool
+
 import unittest
 
 
@@ -155,8 +157,11 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 #        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        # Define stream_config.
-        self._stream_config = {}
+        # Create a pubsub client to create streams.
+        self.pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+
+#        # Define stream_config.
+#        self._stream_config = {}
 
         # Sample async and subscription
 #        self._no_samples = None
@@ -189,6 +194,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         # TODO: DVR_CONFIG and (potentially) stream_config could both be reconfigured in self._setup_resources()
         self._setup_resources()
 
+        #TG: Setup/configure the granule logger to log granules as they're published
+
         # Create agent config.
         agent_config = {
             'driver_config' : self.DVR_CONFIG,
@@ -216,14 +223,16 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
     ########################################
 
     def _setup_resources(self):
-        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':'dummydata_stream',}
+        stream_id = self.pubsub_client.create_stream(name='dummydata_stream',encoding='ION R2')
+
+        tx = TaxyTool()
+        tx.add_taxonomy_set('data', 'external_data')
+        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':stream_id,}
+        self.DVR_CONFIG['dh_cfg']['taxonomy'] = tx._t
 
     def _start_data_subscribers(self):
         """
         """
-        # Create a pubsub client to create streams.
-        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-
         # A callback for processing subscribed-to data.
         def consume_data(message, headers):
             log.info('Subscriber received data message: %s.', str(message))
@@ -962,5 +971,8 @@ class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
     }
 
     def _setup_resources(self):
-        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':'fibonacci_stream',}
+        stream_id = self.pubsub_client.create_stream(name='fibonacci_stream',encoding='ION R2')
+
+        #TG: Build TaxonomyTool & add to dh_cfg.taxonomy
+        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':stream_id,}
 
