@@ -397,6 +397,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.transform_management.activate_transform(transforms[0])
         return
 
+    def deactivate_data_process(self, data_process_id=""):
+
+        data_process_obj = self.read_data_process(data_process_id)
+
+        #find the Transform
+        log.debug("DataProcessManagementService:activate_data_process - get the transform associated with this data process")
+        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
+        if not transforms:
+            raise NotFound("No Transform created for this Data Process " + str(transforms))
+        if len(transforms) != 1:
+            raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
+
+        log.debug("DataProcessManagementService:activate_data_process - transform_management.deactivate_transform")
+        self.clients.transform_management.deactivate_transform(transforms[0])
+        return
+
+
 
     def attach_process(self, process=''):
         """
