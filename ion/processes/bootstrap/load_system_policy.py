@@ -50,7 +50,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
         id_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=calling_process )
 
-        system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+        system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
         log.debug('system actor:' + system_actor._id)
 
 
@@ -331,7 +331,7 @@ class LoadSystemPolicy(ImmediateProcess):
                 <Actions>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_user_identity</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_actor_identity</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>

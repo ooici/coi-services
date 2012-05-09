@@ -82,18 +82,36 @@ class DriverGenerator:
         """
         return "/".join([self.driver_dir(), self.driver_filename()])
 
+    def instrument_dir(self):
+        """
+        @brief full path to the instrument dir
+        @retval driver path
+        """
+        if DEBUG:
+            print "instrument_dir() = " + "/".join([self.base_dir(), 
+                  self.IDK_CFG.idk.mi_repo_dir_name, self.IDK_CFG.idk.driver_dir, 
+                  'instrument'])
+        return "/".join([self.base_dir(), self.IDK_CFG.idk.mi_repo_dir_name, 
+               self.IDK_CFG.idk.driver_dir, 'instrument'])
+      
+    def class_dir(self):
+        """
+        @brief full path to the driver class dir
+        @retval driver path
+        """
+        if DEBUG:
+            print "/".join([self.instrument_dir(), self.metadata.instrument_class])
+
+        return "/".join([self.instrument_dir(), self.metadata.instrument_class])
+
     def driver_dir(self):
         """
         @brief full path to the driver code
         @retval driver path
         """
         if DEBUG:
-            print "driver_dir() = " + "/".join([self.base_dir(), 
-                  self.IDK_CFG.idk.mi_repo_dir_name, self.IDK_CFG.idk.driver_dir, 
-                  'instrument', self.metadata.instrument_class, self.metadata.name.lower()])
-        return "/".join([self.base_dir(), self.IDK_CFG.idk.mi_repo_dir_name, 
-               self.IDK_CFG.idk.driver_dir, 'instrument', 
-               self.metadata.instrument_class, self.metadata.name.lower()])
+            print "driver_dir() = " + "/".join([self.class_dir(), self.metadata.name.lower()])
+        return "/".join([self.class_dir(), self.metadata.name.lower()])
 
 
     def driver_test_filename(self):
@@ -282,6 +300,8 @@ class DriverGenerator:
         if not os.path.exists(self.resource_dir()):
             os.makedirs(self.resource_dir())
 
+        self._touch_init(self.instrument_dir())
+        self._touch_init(self.class_dir())
         self._touch_init(self.driver_dir())
         self._touch_init(self.driver_test_dir())
 
