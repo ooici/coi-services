@@ -20,7 +20,7 @@ import threading
 import gevent
 
 from pyon.service.service import BaseService
-from pyon.ion.process import StandaloneProcess
+from pyon.ion.process import ImmediateProcess
 from pyon.public import PRED,RT,Container, log, IonObject, StreamPublisherRegistrar
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -37,7 +37,7 @@ from interface.objects import HdfStorage, CouchStorage
 
 
 
-class VisStreamLauncher(StandaloneProcess):
+class VisStreamLauncher(ImmediateProcess):
     """
     Class emulates a stream source from a NetCDF file. It emits a record of data every few seconds on a
     stream identified by a routing key.
