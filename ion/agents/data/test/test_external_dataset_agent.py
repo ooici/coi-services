@@ -642,13 +642,13 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
         # Retrieve all resource parameters.
-        reply = self._ia_client.get_param(DataHandlerParameter.ALL)
+        reply = self._ia_client.get_param('DRIVER_PARAMETER_ALL')
         self.assertParamDict(reply, True)
         orig_config = reply
 
         ## Retrieve a subset of resource parameters.
         params = [
-            DataHandlerParameter.POLLING_INTERVAL
+            'POLLING_INTERVAL'
         ]
         reply = self._ia_client.get_param(params)
         self.assertParamDict(reply)
@@ -656,8 +656,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
         # Set a subset of resource parameters.
         new_params = {
-            DataHandlerParameter.POLLING_INTERVAL : (orig_params[DataHandlerParameter.POLLING_INTERVAL] * 2),
-            }
+            'POLLING_INTERVAL' : (orig_params['POLLING_INTERVAL'] * 2),
+        }
         self._ia_client.set_param(new_params)
         check_new_params = self._ia_client.get_param(params)
         self.assertParamVals(check_new_params, new_params)
@@ -687,17 +687,17 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         _ = self._ia_client.execute_agent(cmd)
 
         # Get a couple parameters, one that exists, one that doesn't
-        self._ia_client.set_param({DataHandlerParameter.POLLING_INTERVAL:3600})
-        retval = self._ia_client.get_param([DataHandlerParameter.POLLING_INTERVAL,'BAD_PARAM'])
+        self._ia_client.set_param({'POLLING_INTERVAL':3600})
+        retval = self._ia_client.get_param(['POLLING_INTERVAL','BAD_PARAM'])
         self.assertTrue(isinstance(retval,dict))
-        self.assertEqual(retval[DataHandlerParameter.POLLING_INTERVAL],3600)
+        self.assertEqual(retval['POLLING_INTERVAL'],3600)
         self.assertEqual(retval['BAD_PARAM'],None)
 
         # Set the polling_interval to a new value, then get it to make sure it set properly
-        self._ia_client.set_param({DataHandlerParameter.POLLING_INTERVAL:10})
-        retval = self._ia_client.get_param([DataHandlerParameter.POLLING_INTERVAL])
+        self._ia_client.set_param({'POLLING_INTERVAL':10})
+        retval = self._ia_client.get_param(['POLLING_INTERVAL'])
         self.assertTrue(isinstance(retval,dict))
-        self.assertEqual(retval[DataHandlerParameter.POLLING_INTERVAL],10)
+        self.assertEqual(retval['POLLING_INTERVAL'],10)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)

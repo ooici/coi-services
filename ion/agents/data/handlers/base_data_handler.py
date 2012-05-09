@@ -35,7 +35,7 @@ class DataHandlerParameter(DriverParameter):
     POLLING_INTERVAL = 'POLLING_INTERVAL',
 
 class BaseDataHandler(object):
-    _params = {DataHandlerParameter.POLLING_INTERVAL : 3600}
+    _params = {'POLLING_INTERVAL' : 3600}
     _polling = False
     _polling_glet = None
     _dh_config = {}
@@ -60,9 +60,9 @@ class BaseDataHandler(object):
         The polling interval (in seconds) is retrieved from the POLLING_INTERVAL parameter
         """
         self._polling = True
-        interval = get_safe(self._params, DataHandlerParameter.POLLING_INTERVAL, 3600)
         while True:
             self.execute_acquire_data({'stream_id':'first_new','TESTING':True})
+        interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
             time.sleep(interval)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
@@ -318,7 +318,7 @@ class BaseDataHandler(object):
         """
         # TODO: Should raise NotImplementedError here, return temporarily for prototyping
 #        raise NotImplementedError('get_resource_params() not implemented in BaseDataHandler')
-        return [DataHandlerParameter.POLLING_INTERVAL]
+        return ['POLLING_INTERVAL']
 
     def get_resource_commands(self, *args, **kwargs):
         """
