@@ -2,13 +2,13 @@
 
 '''
 @author David Stuebe <dstuebe@asascience.com>
-@file
+@file ion/processes/data/stream_granule_logger.py
 @description A simple example process which publishes prototype ctd data
 
 
 $ bin/pycc --rel res/deploy/r2dm.yml
 
-### To Create a data product and get some data on the stream copy this and use %paste
+### To Create a data stream and get some data on the stream copy this and use %paste
 """
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 pmsc = PubsubManagementServiceClient(node=cc.node)
@@ -23,14 +23,12 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.stream_granule
 from gevent.greenlet import Greenlet
 from pyon.ion.endpoint import StreamPublisherRegistrar
 from pyon.ion.process import StandaloneProcess
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from pyon.public import log, StreamSubscriberRegistrar, PRED
 from pyon.util.containers import get_datetime
 from interface.objects import StreamQuery
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
-import os
 
 
 class StreamGranuleLogger(StandaloneProcess):
@@ -60,20 +58,7 @@ class StreamGranuleLogger(StandaloneProcess):
 
             rdt = RecordDictionaryTool.load_from_granule(granule)
 
-            last_data = ''
-
-            #@todo Use RecordDictionaryTool.pretty_print() once it is complete
-#            for k,v in rdt.iteritems():
-#                if isinstance(v, RecordDictionaryTool):
-#
-#                    last_data += 'RDT: "%s" contains:\n' % k.pop()
-#
-#                    for k2, v2 in v.iteritems():
-#                        last_data += '    item: "%s" values: %s\n' % (k2.pop(), v2)
-#                else:
-#                    last_data += 'item: "%s" values: %s\n' % (k.pop(), v)
-
-            log.warn('\nLast values in the message:\n%s' % rdt.pretty_print())
+            log.warn('Logging Record Dictionary received in logger subscription  \n%s', rdt.pretty_print())
 
         subscriber = stream_subscriber.create_subscriber(exchange_name=exchange_name, callback=message_received)
         subscriber.start()

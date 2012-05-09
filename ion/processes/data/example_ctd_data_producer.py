@@ -1,6 +1,8 @@
 # New Stream and Granule Stuff....
 
 '''
+See also: ion/processes/data/stream_granule_logger.py for an example with subscription!
+
 To Run:
 bin/pycc --rel res/deploy/r2dm.yml
 ### In the shell...
@@ -13,11 +15,10 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_ctd_da
 
 '''
 
-
-### Taxonomies are defined before hand out of band... somehow.
+# Inherit some old machinery for this example
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
-### For new granule and stream interface
 
+### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
@@ -26,6 +27,7 @@ from pyon.public import log
 import random
 import time
 
+### Taxonomies are defined before hand out of band... somehow.
 tx = TaxyTool()
 tx.add_taxonomy_set('temp','long name for temp')
 tx.add_taxonomy_set('cond','long name for cond')
@@ -36,6 +38,7 @@ tx.add_taxonomy_set('time','long name for time')
 # This is an example of using groups it is not a normative statement about how to use groups
 tx.add_taxonomy_set('group1','This group contains coordinates...')
 tx.add_taxonomy_set('group0','This group contains data...')
+
 
 class ExampleCTDDataProducer(SimpleCtdPublisher):
 
@@ -83,9 +86,11 @@ class ExampleCTDDataProducer(SimpleCtdPublisher):
             rdt['group1'] = rdt1
             rdt['group0'] = rdt0
 
+            log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
+
             g = build_granule(data_producer_id='Bobs Potatoes', taxonomy=tx, record_dictionary=rdt)
 
-            log.info('%s sending %d values!' % (self.__class__.__name__, length))
+            log.info('Sending %d values!' % length)
             self.publisher.publish(g)
 
             time.sleep(2.0)
