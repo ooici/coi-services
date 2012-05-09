@@ -179,11 +179,14 @@ class TelnetServer(object):
 				self.connection_socket.shutdown(socket.SHUT_RDWR)
 			except Exception as ex:
 				# can happen if telnet client closes session first
-				log.debug("TelnetServer.stop(): exception caught for socket shutdown:" + str(ex))
+				log.debug("TelnetServer.stop(): exception caught for socket shutdown: " + str(ex))
 			gevent.sleep(.2)
-			self.server.kill()
-		else:
-			self.server_socket.close()
+			try:
+				self.server.kill()
+			except Exception as ex:
+				# can happen if telnet client closes session first
+				log.debug("TelnetServer.stop(): exception caught for server kill: " + str(ex))
+		self.server_socket.close()
 		del self.server_socket
 			
 

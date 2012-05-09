@@ -1051,7 +1051,7 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        log.info("Instrument agent requested to go to direct access mode")
+        log.info("Instrument agent requested to start direct access mode")
         
         # get 'address' of host
         hostname = socket.gethostname()
@@ -1233,6 +1233,8 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
+        
+        log.info("Instrument agent requested to stop direct access mode")
         
         # tell driver to stop direct access mode
         result = self._dvr_client.cmd_dvr('execute_stop_direct_access')
