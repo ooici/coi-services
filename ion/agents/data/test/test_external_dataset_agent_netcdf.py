@@ -9,8 +9,10 @@
 
 # Import pyon first for monkey patching.
 from pyon.public import log
+from pyon.ion.resource import PRED, RT
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
 from ion.agents.data.test.test_external_dataset_agent import TestExternalDatasetAgent
@@ -38,6 +40,7 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
         # Build the test resources for the dataset
         dams_cli = DataAcquisitionManagementServiceClient()
         dpms_cli = DataProductManagementServiceClient()
+        rr_cli = ResourceRegistryServiceClient()
 
         eda = ExternalDatasetAgent()
         eda_id = dams_cli.create_external_dataset_agent(eda)
@@ -105,10 +108,13 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
 
-        log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id}))
+        stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        stream_id = stream_id[0]
+
+        log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
-        self.DVR_CONFIG['dh_cfg'] = {'external_dataset_res':dset}
+        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':stream_id,'external_dataset_res':dset,}
 
 

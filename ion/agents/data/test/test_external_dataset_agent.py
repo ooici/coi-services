@@ -40,6 +40,7 @@ from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
+from pyon.util.containers import get_safe
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
@@ -168,15 +169,16 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 #        self.addCleanup(self._stop_data_subscribers)
 
         # Event async and subscription
-        self._no_events = None
-        self._async_event_result = AsyncResult()
-        self._events_received = []
-        self._event_subscribers = []
-        self._start_event_subscribers()
-        self.addCleanup(self._stop_event_subscribers)
+#        self._no_events = None
+#        self._async_event_result = AsyncResult()
+#        self._events_received = []
+#        self._event_subscribers = []
+#        self._start_event_subscribers()
+#        self.addCleanup(self._stop_event_subscribers)
 
         # Data async and subscription  TODO: Replace with new subscriber
         self._finished_count = None
+        #TODO: Use the improved methodology that Luke came up with
         self._async_finished_result = AsyncResult()
         self._finished_events_received = []
         self._finished_event_subscriber = None
@@ -190,7 +192,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         # Create agent config.
         agent_config = {
             'driver_config' : self.DVR_CONFIG,
-            'stream_config' : self._stream_config,
+            'stream_config' : {},
             'agent'         : {'resource_id': self.EDA_RESOURCE_ID},
             'test_mode' : True
         }
@@ -214,7 +216,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
     ########################################
 
     def _setup_resources(self):
-        self.DVR_CONFIG['dh_cfg'] = {}
+        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':'dummydata_stream',}
 
     def _start_data_subscribers(self):
         """
@@ -395,23 +397,26 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
         self._finished_count = 3
 
+        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
+
         log.info('Send an unconstrained request for data (\'new data\')')
-        config={'stream_id':'first_new','TESTING':True}
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
         log.info('Send a second unconstrained request for data (\'new data\'), should be rejected')
-        config={'stream_id':'second_new','TESTING':True}
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config={'stream_id':'first_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_1}
+        config['stream_id'] = 'stream_id_for_historical_1'
+        config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
 
         log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
-        config={'stream_id':'second_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_2}
+        config['stream_id'] = 'stream_id_for_historical_2'
+        config['constraints']=self.HIST_CONSTRAINTS_2
+#        config={'stream_id':'second_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_2}
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
 
@@ -469,8 +474,11 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
+        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
+
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config={'stream_id':'first_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_1}
+        config['stream_id'] = 'stream_id_for_historical_1'
+        config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command='acquire_data', args=[config])
         reply = self._ia_client.execute(cmd)
         self.assertNotEqual(reply.status, 660)
@@ -912,10 +920,10 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
-        # OK, I can do this now.
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
+#        # OK, I can do this now.
+#        cmd = AgentCommand(command='acquire_sample')
+#        reply = self._ia_client.execute(cmd)
+#        self.assertSampleDict(reply.result)
 
         # 404 unknown agent command.
         cmd = AgentCommand(command='kiss_edward')
@@ -954,5 +962,5 @@ class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
     }
 
     def _setup_resources(self):
-        self.DVR_CONFIG['dh_cfg'] = {}
+        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':'fibonacci_stream',}
 

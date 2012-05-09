@@ -29,7 +29,7 @@ class NetcdfDataHandler(BaseDataHandler):
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
         """
         #TODO: Sort out what the config needs to look like - dataset_in??
-        ext_dset_res = get_safe(config, 'dh_cfg.external_dataset_res', None)
+        ext_dset_res = get_safe(config, 'external_dataset_res', None)
         log.debug('ExternalDataset Resource: {0}'.format(ext_dset_res))
         if ext_dset_res:
             #TODO: Use the external dataset resource to determine what data is new (i.e. pull 'old' fingerprint from here)
@@ -43,7 +43,7 @@ class NetcdfDataHandler(BaseDataHandler):
         Retrieves config['constraints']['count'] number of random samples of length config['constraints']['array_len']
         @param config Dict of configuration parameters - must contain ['constraints']['count'] and ['constraints']['count']
         """
-        ext_dset_res = get_safe(config, 'dh_cfg.external_dataset_res', None)
+        ext_dset_res = get_safe(config, 'external_dataset_res', None)
         if ext_dset_res:
             ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
             log.debug('External Dataset URL: \'{0}\''.format(ds_url))

@@ -50,6 +50,9 @@ class ExternalDatasetAgent(InstrumentAgent):
         if not dvr_mod or not dvr_cls:
             raise InstDriverError('DataHandler module ({0}) and class ({1}) cannot be None'.format(dvr_mod, dvr_cls))
 
+        if not 'stream_id' in dh_cfg:
+            raise InstDriverError('DataHandler config must contain dh_cfg.stream_id: {0}'.format(self._dvr_config))
+
 #        # TODO: Retrieve all resources needed by the DataHandler, they will be provided during configuration
 #        ## Here to !!!! END from external_observatory_agent
 #        resreg_cli = ResourceRegistryServiceClient()
@@ -94,7 +97,7 @@ class ExternalDatasetAgent(InstrumentAgent):
 #        ## !!!! END
 #        # TODO: Add the bits the DataHandler needs to know about to the 'comms_config' portion of the _dvr_config
 
-        comms_config = {}
+#        comms_config = {}
 
         # The 'comms_config' portion of dvr_config is passed to configure()
 #        self._dvr_config['comms_config'] = comms_config
@@ -128,8 +131,11 @@ class ExternalDatasetAgent(InstrumentAgent):
                     InstrumentAgent._handler_observatory_reset
         @retval None.
         """
+        dvr_mod = get_safe(self._dvr_config, 'dvr_mod', None)
+        dvr_cls = get_safe(self._dvr_config, 'dvr_cls', None)
+
         self._dvr_client = None
-        log.info('ExternalDatasetAgent \'{0}\' unloaded DataHandler: {1}'.format(self._proc_name, self._dvr_client))
+        log.info('ExternalDatasetAgent \'{0}\' unloaded DataHandler: {1}'.format(self._proc_name, ''.join([dvr_mod,'.',dvr_cls])))
         return None
 
     def _validate_driver_config(self):
@@ -142,11 +148,12 @@ class ExternalDatasetAgent(InstrumentAgent):
             dvr_mod = self._dvr_config['dvr_mod']
             dvr_cls = self._dvr_config['dvr_cls']
             dvr_cfg = self._dvr_config['dh_cfg']
+            stream_id = dvr_cfg['stream_id']
 
         except TypeError, KeyError:
             return False
 
-        if not isinstance(dvr_mod, str) or not isinstance(dvr_cls, str) or not isinstance(dvr_cfg, dict):
+        if not isinstance(dvr_mod, str) or not isinstance(dvr_cls, str) or not isinstance(dvr_cfg, dict) or not isinstance(stream_id, str):
             return False
 
         return True

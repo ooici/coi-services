@@ -60,9 +60,9 @@ class BaseDataHandler(object):
         The polling interval (in seconds) is retrieved from the POLLING_INTERVAL parameter
         """
         self._polling = True
-        while True:
-            self.execute_acquire_data({'stream_id':'first_new','TESTING':True})
         interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
+        while self._polling:
+            self.execute_acquire_data()
             time.sleep(interval)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
@@ -181,18 +181,21 @@ class BaseDataHandler(object):
             config = args[0]
 
         except IndexError:
-            raise ParameterError('\'acquire_data\' command requires a config dict.')
+            # If there is no argument provided, treat this as a new_data request and simply use the self._dh_config
+            config = self._dh_config
+#            raise ParameterError('\'acquire_data\' command requires a config dict.')
 
         if not isinstance(config, dict):
             raise TypeError('args[0] of \'acquire_data\' is not a dict.')
         else:
-            #Add the 'dvr_cfg' from self.dh_config to the config dict
-            config['dh_cfg'] = self._dh_config
-            if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
+            # Make a copy of the config to ensure no cross-pollution
+            config_copy = config.copy()
+
+            if get_safe(config_copy,'constraints') is None and not self._semaphore.acquire(blocking=False):
                 log.warn('Already acquiring new data - action not duplicated')
                 return
 
-            g = spawn(self._acquire_data, config, self._unlock_new_data_callback)
+            g = spawn(self._acquire_data, config_copy, self._unlock_new_data_callback)
             log.debug('** Spawned {0}'.format(g))
             self._glet_queue.append(g)
 
