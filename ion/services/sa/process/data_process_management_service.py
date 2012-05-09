@@ -175,7 +175,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
         #TODO: should this be outside this method? Called by orchestration?
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
-        log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s", str(data_producer_id) )
+        log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s   (L4-CI-SA-RQ-181)", str(data_producer_id) )
 
 
         self.output_stream_dict = {}
@@ -224,7 +224,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
         instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
         for instdevice_id in instdevice_ids:
-            log.debug("DataProcessManagementService:create_data_process instdevice_id assoc to the input data product: %s", str(instdevice_id))
+            log.debug("DataProcessManagementService:create_data_process instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
             self._find_lookup_tables(instdevice_id, configuration)
             instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
             for instmodel_id in instmodel_ids:
@@ -393,7 +393,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if len(transforms) != 1:
             raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
 
-        log.debug("DataProcessManagementService:activate_data_process - transform_management.activate_transform")
+        log.debug("DataProcessManagementService:activate_data_process call transform_management.activate_transform to activate the subscription (L4-CI-SA-RQ-181)")
         self.clients.transform_management.activate_transform(transforms[0])
         return
 
