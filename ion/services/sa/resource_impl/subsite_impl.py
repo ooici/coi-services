@@ -33,6 +33,9 @@ class SubsiteImpl(SiteImpl):
         for child_site in self.find_stemming_site(obj_id):
             self.unlink_site(child_site._id, obj_id)
 
+
+    def find_stemming_site(self, site_id):
+        return self.find_stemming_subsite(site_id) + self.find_stemming_platform_site(site_id)
         
     def find_stemming_subsite(self, site_id):
         return self._find_stemming(site_id, PRED.hasSite, RT.Subsite)

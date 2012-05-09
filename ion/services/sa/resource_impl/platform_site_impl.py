@@ -65,6 +65,9 @@ class PlatformSiteImpl(SiteImpl):
         return self._find_stemming(site_id, PRED.hasSite, RT.InstrumentSite)
 
 
+    def find_stemming_site(self, site_id):
+        return self.find_stemming_instrument_site(site_id) + self.find_stemming_platform_site(site_id)
+        
 
     def on_pre_delete(self, obj_id, obj):
         #todo: unlink parent/children sites, agents, models, devices?
