@@ -5,6 +5,14 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-05-09:
+- Removed files protocol.py, protocol_fsm.py, and driver.py that, although not
+  used (obsolete at the moment) happen to be causing issues with
+  bin/generate_interfaces. Putting stuff like this in cellar would be convenient
+  but Tom L. says "you should remove them."
+  Last commit containing those files:
+  https://github.com/sfoley/coi-services/tree/c3af12c50ab562e6210c676d5d88f92638acf316/ion/services/mi/drivers/uw_trhph
+
 2012-05-07:
 - Various adjustments to align again with sfoley's master branch (which is to
   be merged into the mainline hopefully soon).
