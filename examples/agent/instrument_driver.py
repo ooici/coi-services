@@ -36,7 +36,7 @@ def instrument_test_driver(container):
     org_client = OrgManagementServiceClient(node=container.node)
     id_client = IdentityManagementServiceClient(node=container.node)
 
-    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+    system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
     log.info('system actor:' + system_actor._id)
 
     sa_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))

@@ -375,7 +375,7 @@ def validate_request(ion_actor_id, expiry):
     idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
     try:
-        user = idm_client.read_user_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
+        user = idm_client.read_actor_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
     except NotFound, e:
         ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
         expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it

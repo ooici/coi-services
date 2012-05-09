@@ -10,7 +10,7 @@ directions to implement the driver and diagnose any potential problem at the
 communication level.
 
 Usage example:
-   bin/python ion/services/mi/drivers/uw_bars/test/direct.py 10.180.80.172 2001
+ bin/python ion/services/mi/drivers/uw_trhph/test/direct.py 10.180.80.172 2001
 
 It establishes a TCP connection with the provided service, starts a thread to
 print all incoming data from the associated socket, and goes into a loop to

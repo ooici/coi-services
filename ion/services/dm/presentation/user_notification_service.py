@@ -264,7 +264,7 @@ class UserNotificationService(BaseUserNotificationService):
             raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
 
         # get the user that this notification is associated with 
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasNotification, notification._id)
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification._id)
         if not subjects:
             raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification._id)
         if len(subjects) != 1:
@@ -312,7 +312,7 @@ class UserNotificationService(BaseUserNotificationService):
             raise NotFound("UserNotificationService.delete_notification(): Notification %s does not exist" % notification_id)
 
         #now get the user that this notification is associated with 
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasNotification, notification_id)
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification_id)
         if not subjects:
             raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification_id)
         if len(subjects) != 1:

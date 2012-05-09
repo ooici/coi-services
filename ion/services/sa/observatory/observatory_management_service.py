@@ -341,10 +341,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        parent_site_obj = self.subsite.read_one(parent_site_id)
-        parent_site_type = parent_site_obj._get_type()
+        self.RR.create_association(parent_site_id, PRED.hasSite, child_site_id)
 
-        self.subsite.link_site(parent_site_id, child_site_id)
+        #parent_site_obj = self.subsite.read_one(parent_site_id)
+        #parent_site_type = parent_site_obj._get_type()
+
+        #self.subsite.link_site(parent_site_id, child_site_id)
 
         # TODO: MM - Commented out checks - too restrictive
         #if RT.Subsite == parent_site_type:
@@ -426,6 +428,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.observatory.unlink_site(observatory_id, site_id)
 
 
+    def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
+        self.instrument_site.link_model(instrument_site_id, instrument_model_id)
+
+    def unassign_instrument_model_from_instrument_site(self, instrument_model_id='', instrument_site_id=''):
+        self.instrument_site.unlink_model(instrument_site_id, instrument_model_id)
+
+    def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
+        self.platform_site.link_model(platform_site_id, platform_model_id)
+
+    def unassign_platform_model_from_platform_site(self, platform_model_id='', platform_site_id=''):
+        self.platform_site.link_model(platform_site_id, platform_model_id)
+
     
 
     def assign_resource_to_observatory_org(self, resource_id='', org_id=''):
@@ -438,7 +452,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.clients.org_management.share_resource(org_id, resource_id)
 
 
-    def unassign_resource_from_observatory(self, resource_id='', observatory_id=''):
+    def unassign_resource_from_observatory_org(self, resource_id='', org_id=''):
         if not org_id:
             raise BadRequest("Org id not given")
         if not resource_id:
@@ -448,13 +462,43 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        pass
-        # TODO: MM - Finish implementation
 
-    def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
-        pass
-        # TODO: MM - Finish implementation
+
+
+
+    ##########################################################################
+    #
+    # DEPLOYMENTS
+    #
+    ##########################################################################
+
+
+
+    def deploy_instrument_device_to_instrument_site(self, instrument_device_id='', instrument_site_id=''):
+        self.instrument_device.link_deployment(instrument_device_id, instrument_site_id)
+
+    def undeploy_instrument_device_from_instrument_site(self, instrument_device_id='', instrument_site_id=''):
+        self.instrument_device.unlink_deployment(instrument_device_id, instrument_site_id)
+
+    def deploy_platform_device_to_platform_site(self, platform_device_id='', platform_site_id=''):
+        self.platform_device.link_deployment(platform_device_id, platform_site_id)
+
+    def undeploy_platform_device_from_platform_site(self, platform_device_id='', platform_site_id=''):
+        self.platform_device.unlink_deployment(platform_device_id, platform_site_id)
+
+
+    def deploy_as_primary_instrument_device_to_instrument_site(self, instrument_device_id='', instrument_site_id=''):
+        self.instrument_device.assign_primary_deployment(instrument_device_id, instrument_site_id)
+
+    def undeploy_primary_instrument_device_from_instrument_site(self, instrument_device_id='', instrument_site_id=''):
+        self.instrument_device.unassign_primary_deployment(instrument_device_id, instrument_site_id)
+
+    def deploy_as_primary_platform_device_to_platform_site(self, platform_device_id='', platform_site_id=''):
+        self.platform_device.link_primary_deployment(platform_device_id, platform_site_id)
+
+    def undeploy_primary_platform_device_from_platform_site(self, platform_device_id='', platform_site_id=''):
+        self.platform_device.unlink_primary_deployment(platform_device_id, platform_site_id)
+
 
 
     ##########################################################################
@@ -497,7 +541,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         """
-        return self.org.find_having_observatory(observatory_id)
+        orgs,_ = self.RR.find_subjects(RT.Org, PRED.hasResource, observatory_id, id_only=False)
+        return orgs
+
 
 
         
@@ -510,10 +556,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return ret
 
+    
 
 
-
-    def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=[]):
+    def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=None):
 
         # the relative depth of each resource type in our tree
         depth = {RT.InstrumentSite: 4,
@@ -567,6 +613,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             acc = self._traverse_entity_tree(acc, highest_type, input_type, False)
 
         # Don't include input type in response            
+        #TODO: maybe just remove the input resource id 
         if input_type in acc:
             acc.pop(input_type)            
         return acc

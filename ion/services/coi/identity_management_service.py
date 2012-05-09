@@ -21,42 +21,42 @@ class IdentityManagementService(BaseIdentityManagementService):
     def on_init(self):
         self.authentication = Authentication()
     
-    def create_user_identity(self, user_identity=None):
-        # Persist UserIdentity object and return object _id as OOI id
-        user_id, version = self.clients.resource_registry.create(user_identity)
+    def create_actor_identity(self, actor_identity=None):
+        # Persist ActorIdentity object and return object _id as OOI id
+        user_id, version = self.clients.resource_registry.create(actor_identity)
         return user_id
 
-    def update_user_identity(self, user_identity=None):
-        # Overwrite UserIdentity object
-        self.clients.resource_registry.update(user_identity)
+    def update_actor_identity(self, actor_identity=None):
+        # Overwrite ActorIdentity object
+        self.clients.resource_registry.update(actor_identity)
 
-    def read_user_identity(self, user_id=''):
-        # Read UserIdentity object with _id matching passed user id
-        user_identity = self.clients.resource_registry.read(user_id)
-        if not user_identity:
-            raise NotFound("UserIdentity %s does not exist" % user_id)
-        return user_identity
+    def read_actor_identity(self, user_id=''):
+        # Read ActorIdentity object with _id matching passed user id
+        actor_identity = self.clients.resource_registry.read(user_id)
+        if not actor_identity:
+            raise NotFound("ActorIdentity %s does not exist" % user_id)
+        return actor_identity
 
-    def delete_user_identity(self, user_id=''):
-        # Read and delete specified UserIdentity object
-        user_identity = self.clients.resource_registry.read(user_id)
-        if not user_identity:
-            raise NotFound("UserIdentity %s does not exist" % user_id)
+    def delete_actor_identity(self, user_id=''):
+        # Read and delete specified ActorIdentity object
+        actor_identity = self.clients.resource_registry.read(user_id)
+        if not actor_identity:
+            raise NotFound("ActorIdentity %s does not exist" % user_id)
         self.clients.resource_registry.delete(user_id)
 
-    def find_user_identity_by_name(self, name=''):
-        """Return the UserIdentity object whose name attribute matches the passed value.
+    def find_actor_identity_by_name(self, name=''):
+        """Return the ActorIdentity object whose name attribute matches the passed value.
 
         @param name    str
-        @retval user_info    UserIdentity
-        @throws NotFound    failed to find UserIdentity
-        @throws Inconsistent    Multiple UserIdentity objects matched name
+        @retval user_info    ActorIdentity
+        @throws NotFound    failed to find ActorIdentity
+        @throws Inconsistent    Multiple ActorIdentity objects matched name
         """
-        objects, matches = self.clients.resource_registry.find_resources(RT.UserIdentity, None, name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.ActorIdentity, None, name, False)
         if not objects:
-            raise NotFound("UserIdentity with name %s does not exist" % name)
+            raise NotFound("ActorIdentity with name %s does not exist" % name)
         if len(objects) > 1:
-            raise Inconsistent("Multiple UserIdentity objects with name %s exist" % name)
+            raise Inconsistent("Multiple ActorIdentity objects with name %s exist" % name)
         return objects[0]
 
 
@@ -74,10 +74,10 @@ class IdentityManagementService(BaseIdentityManagementService):
         if len(objects) > 1:
             raise Conflict("Multiple UserCredentials objects found for subject %s" % credentials_name)
         user_credentials_id = objects[0]._id
-        # Find and break association with UserIdentity
+        # Find and break association with ActorIdentity
         assocs = self.clients.resource_registry.find_associations(user_id, PRED.hasCredentials, user_credentials_id)
         if not assocs or len(assocs) == 0:
-            raise NotFound("UserIdentity to UserCredentials association for user id %s to credential %s does not exist" % (user_id,credentials_name))
+            raise NotFound("ActorIdentity to UserCredentials association for user id %s to credential %s does not exist" % (user_id,credentials_name))
         association_id = assocs[0]._id
         self.clients.resource_registry.delete_association(association_id)
         # Delete the UserCredentials
@@ -110,15 +110,15 @@ class IdentityManagementService(BaseIdentityManagementService):
         user_info = self.clients.resource_registry.read(user_info_id)
         if not user_info:
             raise NotFound("UserInfo %s does not exist" % user_info_id)
-        # Find and break association with UserIdentity
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasInfo, user_info_id)
+        # Find and break association with ActorIdentity
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasInfo, user_info_id)
         if not assocs:
-            raise NotFound("UserIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
-        user_identity_id = subjects[0]._id
+            raise NotFound("ActorIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
+        actor_identity_id = subjects[0]._id
 
-        assocs = self.clients.resource_registry.find_associations(user_identity_id, PRED.hasInfo, user_info_id)
+        assocs = self.clients.resource_registry.find_associations(actor_identity_id, PRED.hasInfo, user_info_id)
         if not assocs:
-            raise NotFound("UserIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
+            raise NotFound("ActorIdentity to UserInfo association for user info id %s does not exist" % user_info_id)
         association_id = assocs[0]._id
         
         self.clients.resource_registry.delete_association(association_id)
@@ -126,7 +126,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         self.clients.resource_registry.delete(user_info_id)
 
     def find_user_info_by_id(self, user_id=''):
-        # Look up UserInfo via association with UserIdentity
+        # Look up UserInfo via association with ActorIdentity
         objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
         if not objects:
             raise NotFound("UserInfo for user id %s does not exist" % user_id)
@@ -149,14 +149,14 @@ class IdentityManagementService(BaseIdentityManagementService):
         if len(objects) > 1:
             raise Inconsistent("Multiple UserCredentials with subject %s exist" % subject)
         user_credentials_id = objects[0]._id
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasCredentials, user_credentials_id)
+        subjects, assocs = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasCredentials, user_credentials_id)
         if not subjects or len(subjects) == 0:
-            raise NotFound("UserIdentity to UserCredentials association for subject %s does not exist" % subject)
+            raise NotFound("ActorIdentity to UserCredentials association for subject %s does not exist" % subject)
         if len(subjects) > 1:
-            raise Inconsistent("Multiple UserIdentity to UserCredentials associations for subject %s exist" % subject)
-        user_identity_id = subjects[0]._id
-        # Look up UserInfo via association with UserIdentity
-        objects, assocs = self.clients.resource_registry.find_objects(user_identity_id, PRED.hasInfo, RT.UserInfo)
+            raise Inconsistent("Multiple ActorIdentity to UserCredentials associations for subject %s exist" % subject)
+        actor_identity_id = subjects[0]._id
+        # Look up UserInfo via association with ActorIdentity
+        objects, assocs = self.clients.resource_registry.find_objects(actor_identity_id, PRED.hasInfo, RT.UserInfo)
         if not objects:
             raise NotFound("UserInfo for subject %s does not exist" % subject)
         if len(objects) > 1:
@@ -184,15 +184,15 @@ class IdentityManagementService(BaseIdentityManagementService):
         if len(objects) > 1:
             raise Conflict("More than one UserCredentials object was found for subject %s" % subject)
         if len(assocs) > 1:
-            raise Conflict("More than one UserIdentity object is associated with subject %s" % subject)
+            raise Conflict("More than one ActorIdentity object is associated with subject %s" % subject)
         if len(objects) == 1:
             log.debug("Signon known subject %s" % (subject))
-            # Known user, get UserIdentity object
+            # Known user, get ActorIdentity object
             user_credentials_id = objects[0]
-            subjects, assocs = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasCredentials, user_credentials_id)
+            subjects, assocs = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasCredentials, user_credentials_id)
 
             if len(subjects) == 0:
-                raise Conflict("UserIdentity object with subject %s was previously created but is not associated with a UserIdentity object" % subject)
+                raise Conflict("ActorIdentity object with subject %s was previously created but is not associated with a ActorIdentity object" % subject)
             user_id = subjects[0]._id
             # Find associated UserInfo
             registered = True
@@ -204,9 +204,9 @@ class IdentityManagementService(BaseIdentityManagementService):
             return user_id, valid_until, registered
         else:
             log.debug("Signon new subject %s" % (subject))
-            # New user.  Create UserIdentity and UserCredentials
-            user_identity = IonObject("UserIdentity", {"name": subject})
-            user_id = self.create_user_identity(user_identity)
+            # New user.  Create ActorIdentity and UserCredentials
+            actor_identity = IonObject("ActorIdentity", {"name": subject})
+            user_id = self.create_actor_identity(actor_identity)
 
             user_credentials = IonObject("UserCredentials", {"name": subject})
             self.register_user_credentials(user_id, user_credentials)
