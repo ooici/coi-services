@@ -358,13 +358,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Stop the port agent.
         """
-        if self._pagent:
-            pid = self._pagent.get_pid()
-            if pid:
-                log.info('Stopping pagent pid %i.', pid)
-                self._pagent.stop()
-            else:
-                log.warning('No port agent running.')
+#        if self._pagent:
+#            pid = self._pagent.get_pid()
+#            if pid:
+#                log.info('Stopping pagent pid %i.', pid)
+#                self._pagent.stop()
+#            else:
+#                log.warning('No port agent running.')
 
         return
 
