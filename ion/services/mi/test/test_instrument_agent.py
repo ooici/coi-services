@@ -826,7 +826,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
         
         
-    #@unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
+    @unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
