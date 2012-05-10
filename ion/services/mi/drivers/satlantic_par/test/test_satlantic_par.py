@@ -360,7 +360,7 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertEquals(reply, {Parameter.TELBAUD:19200,
                                   Parameter.MAXRATE:1})
         
-        self.assertRaises(InstrumentProtocolException,
+        self.assertRaises(InstrumentCommandException,
                           self._dvr_client.cmd_dvr,
                           'bogus', [Parameter.TELBAUD])
 
