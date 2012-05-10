@@ -5,6 +5,262 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-05-09:
+- Removed files protocol.py, protocol_fsm.py, and driver.py that, although not
+  used (obsolete at the moment) happen to be causing issues with
+  bin/generate_interfaces. Putting stuff like this in cellar would be convenient
+  but Tom L. says "you should remove them."
+  Last commit containing those files:
+  https://github.com/sfoley/coi-services/tree/c3af12c50ab562e6210c676d5d88f92638acf316/ion/services/mi/drivers/uw_trhph
+
+2012-05-07:
+- Various adjustments to align again with sfoley's master branch (which is to
+  be merged into the mainline hopefully soon).
+
+- test_instrument_agent_with_trhph.py completed with basically the same set of
+  tests as with the other test cases:
+    $ UW_TRHPH="simulator" bin/nosetests -v ion/services/mi/drivers/uw_trhph/test/test_instrument_agent_with_trhph.py
+    -- INSTR-AGENT/TRHPH: initialize ... ok
+    -- INSTR-AGENT/TRHPH: state transitions ... ok
+    -- INSTR-AGENT/TRHPH: get valid and invalid params ... ok
+    -- INSTR-AGENT/TRHPH: set valid params ... ok
+    -- INSTR-AGENT/TRHPH: set invalid params ... ok
+    -- INSTR-AGENT/TRHPH: get and set params ... ok
+    -- INSTR-AGENT/TRHPH: execute stop autosample ... ok
+    -- INSTR-AGENT/TRHPH: execute get metadata ... ok
+    -- INSTR-AGENT/TRHPH: execute diagnostics ... ok
+    -- INSTR-AGENT/TRHPH: execute get power statuses ... ok
+    -- INSTR-AGENT/TRHPH: execute start autosample ... ok
+
+    ----------------------------------------------------------------------
+    Ran 11 tests in 273.497s
+
+    OK
+
+- All the other tests go as follows at this point:
+
+  DRIVER via driver_client:
+    $ UW_TRHPH="simulator" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_driver_proc.py
+    -- TRHPH DRIVER: basic tests ... ok
+    -- TRHPH DRIVER: get valid params ... ok
+    -- TRHPH DRIVER: get invalid params ... ok
+    -- TRHPH DRIVER: set valid params ... ok
+    -- TRHPH DRIVER: set invalid params ... ok
+    -- TRHPH DRIVER: get and set params ... ok
+    -- TRHPH DRIVER: stop autosample ... ok
+    -- TRHPH DRIVER: get metadata ... ok
+    -- TRHPH DRIVER: diagnostics ... ok
+    -- TRHPH DRIVER: get power statuses ... ok
+    -- TRHPH DRIVER: start autosample ... ok
+
+    ----------------------------------------------------------------------
+    Ran 11 tests in 291.347s
+
+    OK
+
+
+  The following two test cases with these prior and temporary preparations as
+  a workround for the outstanding issue involving mixed monkey-patching wrt
+  threading performed by some Nose plugin (even though that no pyon package is
+  imported in any way):
+    - remove the "pyon" path from the sys.path setting in bin/nosetests
+    - define environment variable run_it
+
+  DRIVER directly:
+    $ run_it= UW_TRHPH="simulator" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_driver.py
+    -- TRHPH DRIVER: basic tests ... ok
+    -- TRHPH DRIVER: get valid params ... ok
+    -- TRHPH DRIVER: get invalid params ... ok
+    -- TRHPH DRIVER: set valid params ... ok
+    -- TRHPH DRIVER: set invalid params ... ok
+    -- TRHPH DRIVER: get and set params ... ok
+    -- TRHPH DRIVER: stop autosample ... ok
+    -- TRHPH DRIVER: get metadata ... ok
+    -- TRHPH DRIVER: diagnostics ... ok
+    -- TRHPH DRIVER: get power statuses ... ok
+    -- TRHPH DRIVER: start autosample ... ok
+
+    ----------------------------------------------------------------------
+    Ran 11 tests in 94.056s
+
+    OK
+
+
+  TrhphClient directly:
+    $ run_it= UW_TRHPH="simulator" bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_client.py
+    -- TRHPH CLIENT: Connect, get current state, sleep, disconnect ... ok
+    -- TRHPH CLIENT: Get system info ... ok
+    -- TRHPH CLIENT: Get data collection params ... ok
+    -- TRHPH CLIENT: Set cycle time ... ok
+    -- TRHPH CLIENT: Toggle data-only flag twice ... ok
+    -- TRHPH CLIENT: Execute instrument diagnostics ... ok
+    -- TRHPH CLIENT: Get sensor power statuses ... ok
+    -- TRHPH CLIENT: Toggle all sensor power statuses twice ... ok
+    -- TRHPH CLIENT: Go to main menu and resume streaming ... ok
+
+    ----------------------------------------------------------------------
+    Ran 9 tests in 151.666s
+
+    OK
+
+
+2012-05-06:
+- Merged into coi-service mainline directly, including preliminary version of
+  test_instrument_agent_with_trhph.py for tests on the TRHPH driver via the
+  instrument agent.
+  Also removed the old BARS code in the mainline.
+
+
+2012-05-02:
+- Now using a DriverTestMixin to avoid duplication of code in the TRHPH
+  driver tests.
+    The only requirement for a subclass is to provide the concrete driver
+    implementation object by assigning it to self.driver, and to provide
+    a configuration object and assign it to self.comm_config, which is
+    used for the self.driver.configure call.
+
+    Actual driver implementations currently tested with this mixin are:
+
+    1) As shown in test_trhph_driver_proc, a driver proxy that interacts with
+    corresponding driver client (which itself interacts with the actual
+    driver process running separately).
+
+    2) As shown in test_trhph_driver, the driver object is directly an
+    instance of TrhphInstrumentDriver.
+
+- Driver and simulator updated according to changes in new TRHPH instrument
+  interface released on 2012-04-30, identified as "Version 1.25 - Last
+  Revision: April 14, 2012."
+
+- ALL important tests passing, both with real instrument and the simulator:
+
+    $ export UW_TRHPH="10.180.80.172:2001"
+
+
+    DRIVER via driver_client:
+
+    $ bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_driver_proc.py
+    -- DRIVER BASIC TESTS ... ok
+    -- DRIVER GET PARAMS TESTS ... ok
+    -- DRIVER SET TESTS ... ok
+    -- DRIVER GET/SET TESTS ... ok
+    -- DRIVER STOP AUTOSAMPLE TEST ... ok
+    -- DRIVER EXECUTE GET METADATA TEST ... ok
+    -- DRIVER EXECUTE DIAGNOSTICS TEST ... ok
+    -- DRIVER EXECUTE GET POWER STATUSES TEST ... ok
+    -- DRIVER START AUTOSAMPLE TEST ... ok
+
+    ----------------------------------------------------------------------
+    Ran 9 tests in 239.762s
+
+    OK
+
+
+    DRIVER directly:  (see note below)
+
+    $ run_it= bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_driver.py
+    -- DRIVER BASIC TESTS ... ok
+    -- DRIVER GET PARAMS TESTS ... ok
+    -- DRIVER SET TESTS ... ok
+    -- DRIVER GET/SET TESTS ... ok
+    -- DRIVER STOP AUTOSAMPLE TEST ... ok
+    -- DRIVER EXECUTE GET METADATA TEST ... ok
+    -- DRIVER EXECUTE DIAGNOSTICS TEST ... ok
+    -- DRIVER EXECUTE GET POWER STATUSES TEST ... ok
+    -- DRIVER START AUTOSAMPLE TEST ... ok
+
+    ----------------------------------------------------------------------
+    Ran 9 tests in 171.095s
+
+    OK
+
+    TrhphClient directly:  (see note below)
+
+    $ run_it= bin/nosetests -sv ion/services/mi/drivers/uw_trhph/test/test_trhph_client.py
+    -- Connect, get current state, sleep self._timeout and disconnect ... ok
+    -- Get system info ... ok
+    -- Get data collection params ... ok
+    -- Set cycle time ... ok
+    -- Toggle data-only flag twice ... ok
+    -- Execute instrument diagnostics ... ok
+    -- Get sensor power statuses ... ok
+    -- Toggle all sensor power statuses twice ... ok
+    -- Go to main menu and resume streaming ... ok
+
+    ----------------------------------------------------------------------
+    Ran 9 tests in 250.581s
+
+    OK
+
+
+  **note**
+    I recently learned that driver code should not in general use Gevent (!),
+    so my core supporting module, trhph_client, is again implemented using
+    threading.Thread (and not Greenlet). One important consequence of this is
+    that the tests involving the TrhphClient in the same execution
+    environment (that is, not in an external process) are *not* running
+    properly because of a mix of monkey-patching and non mokey-patching
+    triggered by bin/nosetests (apparently there is a Nose plugin that
+    somehow executes pyon/__init__.py, where some special monkey-patching
+    takes place). Note that this happens even when absolutely no packages
+    with prefix "pyon" are imported, either directly or via other imports.
+    So, these test cases are skipped unless the environment variable "run_it"
+    is defined (its value is ignored).
+
+
+- Some clean-up: Removed test cases related with obsolete files (protocol.py,
+  driver.py): test_protocol.py, test_driver.py, test_driver_proc.py
+
+
+- The whole set of tests with only the UW_TRHPH environment variable defined
+  (and with value "simulator" to launch the simulator as part of the test
+  cases) goes as follows:
+
+    $ UW_TRHPH="simulator" bin/nosetests -sv ion/services/mi/drivers/uw_trhph
+    test_get_cycle_time (ion.services.mi.drivers.uw_trhph.test.test_basic.BasicTrhphTest) ... ok
+    test_get_power_statuses (ion.services.mi.drivers.uw_trhph.test.test_basic.BasicTrhphTest) ... ok
+    test_get_system_info_metadata (ion.services.mi.drivers.uw_trhph.test.test_basic.BasicTrhphTest) ... ok
+    test_get_verbose_vs_data_only (ion.services.mi.drivers.uw_trhph.test.test_basic.BasicTrhphTest) ... ok
+    test_simple (ion.services.mi.drivers.uw_trhph.test.test_greenlet.Test) ... SKIP: define run_it to run this.
+    -- Connect, get current state, sleep self._timeout and disconnect ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Get system info ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Get data collection params ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Set cycle time ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Toggle data-only flag twice ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Execute instrument diagnostics ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Get sensor power statuses ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Toggle all sensor power statuses twice ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- Go to main menu and resume streaming ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER BASIC TESTS ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER GET PARAMS TESTS ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER SET TESTS ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER GET/SET TESTS ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER STOP AUTOSAMPLE TEST ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER EXECUTE GET METADATA TEST ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER EXECUTE DIAGNOSTICS TEST ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER EXECUTE GET POWER STATUSES TEST ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER START AUTOSAMPLE TEST ... SKIP: Not run by default because of mixed monkey-patching issues. Define environment variable run_it to force execution.
+    -- DRIVER BASIC TESTS ... ok
+    -- DRIVER GET PARAMS TESTS ... ok
+    -- DRIVER SET TESTS ... ok
+    -- DRIVER GET/SET TESTS ... ok
+    -- DRIVER STOP AUTOSAMPLE TEST ... ok
+    -- DRIVER EXECUTE GET METADATA TEST ... ok
+    -- DRIVER EXECUTE DIAGNOSTICS TEST ... ok
+    -- DRIVER EXECUTE GET POWER STATUSES TEST ... ok
+    -- DRIVER START AUTOSAMPLE TEST ... ok
+
+    ----------------------------------------------------------------------
+    Ran 32 tests in 240.888s
+
+    OK (SKIP=19)
+
+  Only test_trhph_driver_proc will be run if ``-a INT'' is added to the
+  bin/nosetests command above.
+
+
+
+
 2012-04-30:
 - Added ion/services/mi/driver_int_test_support.py to factor out common
   supporting functionality for driver integration tests (based on initial
@@ -29,7 +285,7 @@ Some development notes:
 - TRHPH simulator now implemented using greenlets to facilitate integration
   with the rest of the pyon ecosystem. This is particularly important when
   the simulator is launched as part of the test setup (in concrete when
-  indicating the environment variable UW_BARS="embsimulator", eg:
+  indicating the environment variable UW_TRHPH="embsimulator", eg:
   $ UW_TRHPH="embsimulator" bin/nosetests -v ion/services/mi/drivers/uw_trhph/test/test_trhph_client.py
 
 2012-04-21,24:

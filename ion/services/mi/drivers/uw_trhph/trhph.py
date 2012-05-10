@@ -231,7 +231,7 @@ HOW_MANY_SCANS_FOR_SYSTEM_DIAGNOSTICS = _newline("""
                    This should be helpful for system testing.
 
 
-                       How Many Scans do you want? --> """)
+               How Many Scans do you want? (Enter 1 to 1000) --> """)
 
 SYSTEM_DIAGNOSTICS_HEADER = "-Res/5-  -ResX1-  -ResX5-  -*H2/5-  -*H2X1-  -*H2X5-  -*Eh**- RefTemp  ResTemp  -VBatt-"
 SYSTEM_DIAGNOSTICS_RETURN_PROMPT = "Press Enter to return to Main Menu."

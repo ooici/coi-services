@@ -21,10 +21,14 @@ import datetime
 
 from ion.services.mi.drivers.uw_trhph.test import TrhphTestCase
 from nose.plugins.attrib import attr
-from unittest import skipIf, SkipTest
+
+import unittest
 import os
 
 
+@unittest.skipIf(os.getenv('run_it') is None,
+'''Not run by default because of mixed monkey-patching issues. \
+Define environment variable run_it to force execution.''')
 @attr('UNIT', group='mi')
 class TrhphClientTest(TrhphTestCase):
 
@@ -103,7 +107,9 @@ class TrhphClientTest(TrhphTestCase):
             log.info("\t %s = %s" % (name, str(value)))
 
     def test_00_connect_disconnect(self):
-        """-- Connect, get current state, sleep self._timeout and disconnect"""
+        """
+        -- TRHPH CLIENT: Connect, get current state, sleep, disconnect
+        """
 
         state = self._client.get_current_state()
         log.info("current instrument state: %s" % str(state))
@@ -114,7 +120,9 @@ class TrhphClientTest(TrhphTestCase):
             time.sleep(self._timeout)
 
     def test_10_get_system_info(self):
-        """-- Get system info"""
+        """
+        -- TRHPH CLIENT: Get system info
+        """
 
         log.info("getting system info")
         system_info = self._client.get_system_info()
@@ -135,12 +143,15 @@ class TrhphClientTest(TrhphTestCase):
         return (seconds, is_data_only)
 
     def test_14_get_data_collection_params(self):
-        """-- Get data collection params"""
+        """
+        -- TRHPH CLIENT: Get data collection params
+        """
         seconds, is_data_only = self._get_data_collection_params()
 
     def test_15_set_cycle_time(self):
-        """-- Set cycle time"""
-
+        """
+        -- TRHPH CLIENT: Set cycle time
+        """
         seconds, _ = self._get_data_collection_params()
 
         new_seconds = seconds + 5
@@ -166,7 +177,9 @@ class TrhphClientTest(TrhphTestCase):
         self.assertEqual(new_is_data_only, is_data_only)
 
     def test_19_toggle_data_only(self):
-        """-- Toggle data-only flag twice"""
+        """
+        -- TRHPH CLIENT: Toggle data-only flag twice
+        """
 
         _, is_data_only = self._get_data_collection_params()
 
@@ -179,7 +192,9 @@ class TrhphClientTest(TrhphTestCase):
         self._set_and_assert_is_data_only(is_data_only)
 
     def test_20_diagnostics(self):
-        """-- Execute instrument diagnostics"""
+        """
+        -- TRHPH CLIENT: Execute instrument diagnostics
+        """
 
         num_scans = 12  # 12 is just arbitrary
         log.info("execute diagnostics, num_scans=%d" % num_scans)
@@ -196,7 +211,9 @@ class TrhphClientTest(TrhphTestCase):
         return power_statuses
 
     def test_30_get_sensor_power_info(self):
-        """-- Get sensor power statuses"""
+        """
+        -- TRHPH CLIENT: Get sensor power statuses
+        """
 
         self._get_power_statuses()
 
@@ -215,7 +232,9 @@ class TrhphClientTest(TrhphTestCase):
             self.assertEqual(new_power_statuses[k], v)
 
     def test_35_set_sensor_power_info(self):
-        """-- Toggle all sensor power statuses twice"""
+        """
+        -- TRHPH CLIENT: Toggle all sensor power statuses twice
+        """
 
         power_statuses = self._get_power_statuses()
         new_power_statuses = {}
@@ -229,7 +248,9 @@ class TrhphClientTest(TrhphTestCase):
         self._set_and_assert_power_statuses(power_statuses)
 
     def test_99_resume_streaming(self):
-        """-- Go to main menu and resume streaming"""
+        """
+        -- TRHPH CLIENT: Go to main menu and resume streaming
+        """
 
         log.info("going to main menu")
         self._client.go_to_main_menu(timeout=self._timeout)

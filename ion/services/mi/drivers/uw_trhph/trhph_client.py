@@ -19,14 +19,28 @@ A demo program can be run as follows:
            --host 10.180.80.172 --port 2001 --outfile output.txt
 """
 
+USE_GEVENT = False
+# Original version was gevent-based but it turns out gevent should not
+# be used in driver code (at least for now). This flag is to easily "switch"
+# back to gevent for some internal tests.
+
+import time
+
+if USE_GEVENT:
+    import gevent
+    from gevent import Greenlet
+    sleep = gevent.sleep
+    def _yield(): sleep()  # "the canonical way of expressing a cooperative yield"
+else:
+    from threading import Thread
+    Greenlet = Thread
+    sleep = time.sleep
+    def _yield(): pass  # not needed
+
 import sys
 import socket
 import os
 import re
-import time
-
-import gevent
-from gevent import Greenlet, sleep
 
 import logging
 from ion.services.mi.mi_logger import mi_logger
@@ -38,6 +52,13 @@ import ion.services.mi.drivers.uw_trhph.trhph as trhph
 NEWLINE = trhph.NEWLINE
 EOF = '\x04'
 CONTROL_S = '\x13'
+
+# number of backspaces to send to instrument in _refresh_state().
+# Set arbitrarily to 5. Note that in typical interactions there is actually
+# no need to send any backspaces, but the goal has been to make the
+# _refresh_state operation as robust as possible (see documentation on
+# confluence).
+NO_BACKSPACES = 5
 
 DATA_LINE_PATTERN = re.compile(r'.*((\d+\.\d+\s*){12})$')
 
@@ -56,7 +77,8 @@ SYSTEM_PARAM_MENU_PROMPT_PATTERN = re.compile(
 SYSTEM_INFO_PATTERN = re.compile(
 r'.*(System Name|System Owner|Contact Info|System Serial #): (.*)$')
 
-ENTER_NUM_SCANS_PATTERN = re.compile(r'.*How Many Scans do you want\? --> ')
+ENTER_NUM_SCANS_PATTERN = re.compile(
+        r'.*How Many Scans do you want.* --> ')
 
 DIAGNOSTICS_HEADER_PATTERN = re.compile('-Res/5-.*-VBatt-')
 
@@ -77,7 +99,7 @@ MAX_NUM_LINES = 30
 DEFAULT_GENERIC_TIMEOUT = 30
 
 
-# map from power status key to the command to toggle it:
+# map from power status key to the command in the corresp. menu to toggle it:
 _toggle_power_cmd = {
     'Res Sensor Power': '1',
     'Instrumentation Amp Power': '2',
@@ -323,7 +345,13 @@ class _Recv(Greenlet):
             os.write(self._outfile.fileno(), '\n\n<_Recv ended.>\n\n')
             self._outfile.flush()
 
-    def _run(self):
+    def run(self):  # in case of Thread
+        self.__run()
+
+    def _run(self):  # in case of Greenlet
+        self.__run()
+
+    def __run(self):
         """
         Runs the receiver while updating buffers and state as appropriate.
         """
@@ -345,6 +373,7 @@ class _Recv(Greenlet):
             self._update_state()
             self._update_values(c)
             self._update_outfile(c)
+            _yield()
         log.debug("_Recv.run done.")
         self._end_outfile()
 
@@ -433,7 +462,7 @@ class TrhphClient(object):
                 if attempt < max_attempts:
                     log.info("Re-attempting in %s secs ..." %
                               str(time_between_attempts))
-                    gevent.sleep(time_between_attempts)
+                    sleep(time_between_attempts)
 
         if self._sock:
             log.info("Connected to %s:%s" % (host, port))
@@ -501,25 +530,30 @@ class TrhphClient(object):
         # in case some output is currently being generated
         time_limit = time.time() + 5
         while self._bt._state is None and time.time() <= time_limit:
-            gevent.sleep(1)
+            sleep(1)
+
         if self._bt._state:
             return  # we got the state
 
         # 2. send a few "backspaces" (^H) to delete any ongoing partial entry
-        for i in range(5):
+        log.info("sending backspaces ...")
+        for i in range(NO_BACKSPACES):
             self._send_control('h')
-            gevent.sleep(0.5)
+            sleep(0.5)
 
-        # 3. send ^M in case the instrument is in some menu, and check
-        self.send_enter()
+        # 3. send ^M in case the instrument is in some menu or prompt,
+        # and check:
+        log.info("sending ^M as a refresh/cancel command ...")
+        self.send_enter('as a refresh/cancel command')
         time_limit = time.time() + 10
         while self._bt._state is None and time.time() <= time_limit:
-            gevent.sleep(2)
+            sleep(2)
+
         if self._bt._state:
             return  # we got the state
 
-        # 4. the instrument does not react to ^M in streaming mode,
-        # so just assume it is collecting data:
+        # 4. the instrument does not react to ^H or ^M in streaming mode,
+        # so, if we got this far, it's safe to assume it is collecting data:
         self._bt._state = State.COLLECTING_DATA
         log.info("assuming %s" % self._bt._state)
 
@@ -551,14 +585,15 @@ class TrhphClient(object):
         got_prompt = False
         while not got_prompt and time.time() <= time_limit:
             log.debug("sending ^S")
-            self._send_control('s')
-            gevent.sleep(2)
+            self._send_control('s', 'to break streaming')
+            sleep(2)
             string = self._bt._new_line
+            log.info(":::::: string=[%s]" % string)
             got_prompt = GENERIC_PROMPT_PATTERN.match(string) is not None
 
         if got_prompt:
             log.debug("got prompt. Sending one ^M to clean up any ^S leftover")
-            self._send_control('m')
+            self._send_control('m', 'to clean up any ^S leftover')
         else:
             raise TimeoutException(timeout,
                                    msg="while trying to enter main menu")
@@ -602,10 +637,10 @@ class TrhphClient(object):
         for cmd, msg in cmds:
             log.info("sending '%s' to %s" % (cmd, msg))
             if '\r' == cmd:
-                self.send_enter()
+                self.send_enter(msg)
             else:
-                self.send(cmd)
-            gevent.sleep(4)
+                self.send(cmd, msg)
+            sleep(4)
 
         self.expect_generic_prompt(timeout=timeout)
 
@@ -807,7 +842,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while self._bt._state != State.SYSTEM_INFO and time.time() <= \
                                                        time_limit:
-            gevent.sleep(1)
+            sleep(1)
 
         if self._bt._state != State.SYSTEM_INFO:
             raise TimeoutException(
@@ -818,8 +853,8 @@ class TrhphClient(object):
 
         # send enter to return to main menu
         log.info("send enter to return to main menu")
-        self.send_enter()
-        gevent.sleep(1)
+        self.send_enter('to return to main menu')
+        sleep(1)
 
         return self._bt._system_info
 
@@ -846,7 +881,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while (self._bt._state != State.ENTER_NUM_SCANS) and\
               (time.time() <= time_limit):
-            gevent.sleep(1)
+            sleep(1)
 
         if self._bt._state != State.ENTER_NUM_SCANS:
             raise TimeoutException(
@@ -859,7 +894,7 @@ class TrhphClient(object):
 
         # send enter to return to main menu
         log.info("send enter to return to main menu")
-        self.send_enter()
+        self.send_enter('to return to main menus')
         self.expect_generic_prompt(timeout=timeout)
 
         return self._bt._diagnostic_data
@@ -886,7 +921,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while (self._bt._state != State.POWER_STATUS_MENU) and\
               (time.time() <= time_limit):
-            gevent.sleep(1)
+            sleep(1)
 
         if self._bt._state != State.POWER_STATUS_MENU:
             raise TimeoutException(
@@ -928,7 +963,7 @@ class TrhphClient(object):
         time_limit = time.time() + timeout
         while (self._bt._state != State.POWER_STATUS_MENU) and\
               (time.time() <= time_limit):
-            gevent.sleep(1)
+            sleep(1)
 
         if self._bt._state != State.POWER_STATUS_MENU:
             raise TimeoutException(
@@ -969,12 +1004,12 @@ class TrhphClient(object):
         # to actually check for new information
         self.send(string)
 
-        gevent.sleep(2)
+        sleep(2)
 
         timeout = timeout or self._generic_timeout
         time_limit = time.time() + timeout
         while self._bt._state != state and time.time() <= time_limit:
-            gevent.sleep(1)
+            sleep(1)
 
         if self._bt._state != state:
             raise TimeoutException(
@@ -984,21 +1019,22 @@ class TrhphClient(object):
     def get_last_buffer(self):
         return '\n'.join(self._bt._lines)
 
-    def send_enter(self):
+    def send_enter(self, info=None):
         """
-        Sleeps for self.delay_before_send and calls self._send_control('m').
+        Sleeps for self.delay_before_send and calls
+        self._send_control('m', info).
         """
-        gevent.sleep(self.delay_before_send)
-        log.debug("send_enter")
-        self._send_control('m')
+        sleep(self.delay_before_send)
+        log.debug("send_enter %s" % info if info else '')
+        self._send_control('m', info)
 
-    def send(self, string):
+    def send(self, string, info=None):
         """
         Sleeps for self.delay_before_send and then sends string + '\r'
         """
-        gevent.sleep(self.delay_before_send)
+        sleep(self.delay_before_send)
         s = string + '\r'
-        self._send(s)
+        self._send(s, info)
 
     def expect_line(self, pattern, pre_delay=None, timeout=None):
         """
@@ -1016,14 +1052,14 @@ class TrhphClient(object):
 
         timeout = timeout or self.generic_timeout
         pre_delay = pre_delay or self.delay_before_expect
-        gevent.sleep(pre_delay)
+        sleep(pre_delay)
 
         patt_str = pattern if isinstance(pattern, str) else pattern.pattern
         log.debug("expecting '%s'" % patt_str)
         time_limit = time.time() + timeout
         got_it = False
         while not got_it and time.time() <= time_limit:
-            gevent.sleep(0.5)
+            sleep(0.5)
             string = self._bt._new_line
             got_it = re.match(pattern, string) is not None
 
@@ -1046,15 +1082,19 @@ class TrhphClient(object):
         """
         return self.expect_line(GENERIC_PROMPT_PATTERN, pre_delay, timeout)
 
-    def _send(self, s):
+    def _send(self, s, info=None):
         """
         Sends a string. Returns the number of bytes written.
+
+        @param s the string to send
+        @param info string for logging purposes
         """
         c = os.write(self._sock.fileno(), s)
-        log.info("OUTPUT=%s" % repr(s))
+        info_str = (' (%s)' % info) if info else ''
+        log.info("OUTPUT=%s%s" % (repr(s), info_str))
         return c
 
-    def _send_control(self, char):
+    def _send_control(self, char, info=None):
         """
         Sends a control character.
         @param char must satisfy 'a' <= char.lower() <= 'z'
@@ -1063,25 +1103,27 @@ class TrhphClient(object):
         assert 'a' <= char <= 'z'
         a = ord(char)
         a = a - ord('a') + 1
-        return self._send(chr(a))
+        return self._send(chr(a), info if info else '^%s' % char)
 
 
-def main(host, port, timeout, outfile=sys.stdout, prefix_state=False):
+def main(host, port, timeout, outfile=sys.stdout, prefix_state=False,
+         only_get_state=False):
     """
     Demo program:
-    - checks if the instrument is collecting data
-    - if not, this function returns False
-    - breaks data streaming to enter main menu
-    - selects 6 to get system info
-    - sends enter to return to main menu
-    - resumes data streaming
-    - sleeps a few seconds to let some data to come in
+    - gets and reports the current state of the instrument
+    - returns if only_get_state is True
+    - gets system info
+    - resume data streaming
 
     @param host Host of the instrument
     @param port Port of the instrument
     @param timeout Generic timeout
     @param outfile File object used to echo all received data from the socket
                    (by default, sys.stdout).
+    @param prefix_state True to prefix each line in the outfile with the
+              current state; False by default.
+    @param only_get_state If True, this program only gets and reports the
+            current state of the instrument.
     """
     client = TrhphClient(host, port, outfile, prefix_state)
     try:
@@ -1089,15 +1131,18 @@ def main(host, port, timeout, outfile=sys.stdout, prefix_state=False):
             client.set_generic_timeout(timeout)
         client.connect()
 
-        print ":: getting instrument state"
+        print "\n:: getting instrument state"
         state = client.get_current_state()
-        print ":: current instrument state: %s" % str(state)
+        print "\n:: current instrument state: %s" % str(state)
 
-        print ":: getting system info"
+        if only_get_state:
+            return
+
+        print "\n:: getting system info"
         system_info = client.get_system_info()
-        print ":: system_info = %s" % str(system_info)
+        print "\n:: system_info = %s" % str(system_info)
 
-        print ":: resuming data streaming"
+        print "\n:: resuming data streaming"
         client.resume_data_streaming()
     finally:
         print ":: bye"
@@ -1105,21 +1150,33 @@ def main(host, port, timeout, outfile=sys.stdout, prefix_state=False):
 
 
 if __name__ == '__main__':
-    usage = """USAGE: trhph_client.py [options]
+    usage = """
+    USAGE: bin/python ion/services/mi/drivers/uw_trhph/trhph_client.py [options]
        --host address      # instrument address (localhost)
        --port port         # instrument port (required)
        --timeout secs      # generic timeout (%s secs)
        --outfile filename  # file to save all received data (stdout)
        --prefix_state      # prefix state to each line in outfile (false)
+       --only_get_state    # only get and report current state (false)
        --loglevel level    # used to eval mi_logger.setLevel(logging.%%s)
     """ % DEFAULT_GENERIC_TIMEOUT
-    usage += """\nExample: trhph_client.py --host 10.180.80.172 --port 2001"""
+    usage += """
+    Examples:
+
+    Only get current state of real instrument:
+    $ bin/python ion/services/mi/drivers/uw_trhph/trhph_client.py --host 10.180.80.172 --port 2001 --only_get_state --outfile /dev/null
+
+    Simple interaction:
+    $ bin/python ion/services/mi/drivers/uw_trhph/trhph_client.py trhph_client.py --host 10.180.80.172 --port 2001
+    """
 
     host = 'localhost'
     port = None
     timeout = None
     outfile = sys.stdout
     prefix_state = False
+
+    only_get_state = False
 
     arg = 1
     while arg < len(sys.argv):
@@ -1137,6 +1194,8 @@ if __name__ == '__main__':
             outfile = file(sys.argv[arg], 'w')
         elif sys.argv[arg] == "--prefix_state":
             prefix_state = True
+        elif sys.argv[arg] == "--only_get_state":
+            only_get_state = True
         elif sys.argv[arg] == "--loglevel":
             arg += 1
             loglevel = sys.argv[arg].upper()
@@ -1151,4 +1210,4 @@ if __name__ == '__main__':
     if port is None:
         print usage
     else:
-        main(host, port, timeout, outfile, prefix_state)
+        main(host, port, timeout, outfile, prefix_state, only_get_state)
