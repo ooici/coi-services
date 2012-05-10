@@ -560,11 +560,12 @@ class ResourceImplMetatest(object):
 
                             #set up Mock
                             reply = (['333'], ['444'])
-                            svc.clients.resource_registry.find_objects.return_value = reply
+                            fo = svc.clients.resource_registry.find_objects
+                            fo.return_value = reply
 
                             #call the impl
                             response = myfind("111")
-                            self.assertEqual(response, ['333'])
+                            self.assertEqual(response, fo.call_count * ['333'])
                         
                         name = make_name("resource_impl_find_stemming_%s_links" % assn_type)
                         doc  = make_doc("Checking find %s stemming from %s" % (assn_type, impl_instance.iontype))
