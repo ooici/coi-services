@@ -324,7 +324,86 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    
+    def create_deployment(self, deployment=None, site_id='', device_id=''):
+        """
+        Create a Deployment resource. Represents a (possibly open-ended) time interval
+        grouping one or more resources within a given context, such as an instrument
+        deployment on a platform at an observatory site.
+        """
+
+        #Verify that site and device exist
+        site_obj = self.clients.resource_registry.read(site_id)
+        if not site_obj:
+            raise NotFound("Deployment site %s does not exist" % site_id)
+        device_obj = self.clients.resource_registry.read(device_id)
+        if not device_obj:
+            raise NotFound("Deployment device %s does not exist" % device_id)
+
+        deployment_id, version = self.clients.resource_registry.create(deployment)
+
+        # Create the links
+        self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
+        self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
+
+        return deployment_id
+
+    def update_deployment(self, deployment=None):
+        # Overwrite Deployment object
+        self.clients.resource_registry.update(deployment)
+
+    def read_deployment(self, deployment_id=''):
+        # Read Deployment object with _id matching id
+        log.debug("Reading DEployment object id: %s" % deployment_id)
+        deployment_obj = self.clients.resource_registry.read(deployment_id)
+
+        return deployment_obj
+
+    def delete_deployment(self, deployment_id=''):
+        """
+        Delete a Deployment resource
+        """
+        #Verify that the deployment exist
+        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        if not deployment_obj:
+            raise NotFound("Deployment  %s does not exist" % deployment_id)
+
+        # Remove the link between the Stream Definition resource and the Data Process Definition resource
+        associations = self.clients.resource_registry.find_associations(None, PRED.hasDeployment, deployment_id, id_only=True)
+        if not associations:
+            raise NotFound("No Sites or Devices associated with this Deployment identifier " + str(deployment_id))
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
+
+        # Delete the deployment
+        self.clients.resource_registry.delete(deployment_id)
+
+
+    def activate_deployment(self, deployment_id=''):
+        """Make the devices on this deployment the primary devices for the sites
+
+        @param deployment_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
+
+    def deploy_device_to_site(self, device_id='', site_id=''):
+        """link a device to a site as the primary instrument
+
+        @param device_id    str
+        @param site_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
+
+    def undeploy_device_from_site(self, device_id='', site_id=''):
+        """remove the link between a device and site which designates the instrument as primary
+
+        @param device_id    str
+        @param site_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
+
 
 
     ############################
