@@ -18,10 +18,10 @@ from pyon.util.log import log
 
 from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
 
-from ion.services.sa.resource_impl.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.resource_impl.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.resource_impl.observatory_impl import ObservatoryImpl
-from ion.services.sa.resource_impl.subsite_impl import SubsiteImpl
+from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
+from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
+from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
+from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 
 
 
