@@ -146,16 +146,14 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         """
         # Grab time for timeout and wait for prompt.
         starttime = time.time()
-        
+                
         if expected_prompt == None:
             prompt_list = self.prompts.list()
         else:
             assert isinstance(expected_prompt, str)
             prompt_list = [expected_prompt]            
-        
         while True:
             for item in prompt_list:
-
                 if self._promptbuf.endswith(item):
                     return (item, self._linebuf)
                 else:
@@ -196,8 +194,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         self._promptbuf = ''
 
         # Send command.
-        mi_logger.debug('_do_cmd_resp: %s, timeout=%s, write_delay=%s,',
-                        repr(cmd_line), timeout, write_delay)
+        mi_logger.debug('_do_cmd_resp: %s, timeout=%s, write_delay=%s, expected_prompt=%s,',
+                        repr(cmd_line), timeout, write_delay, expected_prompt)
         if (write_delay == 0):
             self._connection.send(cmd_line)
         else:
@@ -208,7 +206,8 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         # Wait for the prompt, prepare result and return, timeout exception
         (prompt, result) = self._get_response(timeout,
                                               expected_prompt=expected_prompt)
-        resp_handler = self._response_handlers.get(cmd, None)
+        resp_handler = self._response_handlers.get((self.get_current_state(), cmd), None) or \
+            self._response_handlers.get(cmd, None)
         resp_result = None
         if resp_handler:
             resp_result = resp_handler(result, prompt)

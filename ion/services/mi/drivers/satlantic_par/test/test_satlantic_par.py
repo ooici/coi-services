@@ -492,10 +492,6 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
     
-    def test_state_changes(self):
-        # Cycle through them and verify with get state
-        pass
-
     """
     @todo Test reset function
     def test_reset(self):
@@ -509,11 +505,13 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
     """
     def test_get_sample_from_cmd_mode(self):
         """Get some samples directly from command mode"""
-        reply_1 = self._dvr_client.cmd_dvr('execute_acquire_sample')        
+        reply_1 = self._dvr_client.cmd_dvr('execute_acquire_sample')
+        mi_logger.debug("*** reply_1: %s", reply_1)
         self.assertTrue(sample_regex.match(reply_1))        
     
         # Get data
         reply_2 = self._dvr_client.cmd_dvr('execute_acquire_sample')
+        mi_logger.debug("*** reply_2: %s", reply_2)
         self.assertTrue(sample_regex.match(reply_2))
         self.assertNotEqual(reply_1, reply_2)
         
