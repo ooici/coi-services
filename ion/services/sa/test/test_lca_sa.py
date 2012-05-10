@@ -18,7 +18,7 @@ from nose.plugins.attrib import attr
 import unittest
 
 from ion.services.sa.test.helpers import any_old
-from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
 
 # some stuff for logging info to the console
 import sys

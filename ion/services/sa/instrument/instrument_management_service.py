@@ -22,23 +22,22 @@ import gevent
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 
 
-from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 
-from ion.services.sa.resource_impl.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.resource_impl.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.resource_impl.platform_model_impl import PlatformModelImpl
-from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
+from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
-from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
-from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
+from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
+from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
-from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
-from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
-from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
+from ion.services.sa.instrument.data_product_impl import DataProductImpl
+from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
@@ -95,7 +94,65 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #TODO: may not belong in this service
         self.data_product        = DataProductImpl(self.clients)
         self.data_producer       = DataProducerImpl(self.clients)
-        self.logical_instrument  = LogicalInstrumentImpl(self.clients)
+
+
+
+    ##########################################################################
+    #
+    # REGISTER INSTRUMENT DRIVER
+    #
+    ##########################################################################
+
+    def register_instrument_driver(self, 
+                                   driver_name='',
+                                   instrument_model_ids=None, 
+                                   agent_metadata={}, 
+                                   source_url="", 
+                                   source_tag="", 
+                                   attachments=None):
+        """
+        IDK script calls IMS:register_instrument_driver with:
+            instrument agent resource metadata: 
+                agent_version, 
+                connection_method, 
+                model it supports #TODO: how to select model?
+            MI Git repository URL
+            MI git repository tag
+            test results / attachments
+            additional context: firmware specs, release notes
+
+        """
+
+        modelnames = []
+        #make sure that model ids exist
+        for m in instrument_model_ids:
+            modelnames.append(self.read_instrument_model(m).name)
+
+        #create an instrument agent resource
+        inst_agent_obj = IonObject(RT.InstrumentAgent,
+                                   name=driver_name,
+                                   description=str("Driver for instruments of models: " % ", ".join(modelnames)))
+
+        inst_agent_id = self.create_instrument_agent(inst_agent_obj)
+
+
+        #store the metadata in the resource registry as an attachment
+        #TODO
+    
+        #create an attachment resource for other context documents, adds metadata and creates association
+        #TODO
+
+        #create the correct associations for this InstAgent (Model, etc)
+        for m in instrument_model_ids:
+            self.assign_instrument_model_to_instrument_agent(m, inst_agent_id)
+
+        #builds the egg from the manifest or tag then places the egg on the web server
+        #TODO
+
+        #updates the state of this InstAgent to deployed
+        #TODO
+    
+        return inst_agent_id
 
 
     ##########################################################################

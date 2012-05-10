@@ -19,7 +19,7 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 
-from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
+from ion.services.sa.instrument.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
 

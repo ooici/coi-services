@@ -15,15 +15,15 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
 
 #from pyon.util.log import log
-from ion.services.sa.resource_impl.org_impl import OrgImpl
-from ion.services.sa.resource_impl.observatory_impl import ObservatoryImpl
-from ion.services.sa.resource_impl.subsite_impl import SubsiteImpl
-from ion.services.sa.resource_impl.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.resource_impl.instrument_site_impl import InstrumentSiteImpl
+from ion.services.sa.observatory.org_impl import OrgImpl
+from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
+from ion.services.sa.observatory.subsite_impl import SubsiteImpl
+from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
+from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 
 #for logical/physical associations, it makes sense to search from MFMS
-from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.objects import OrgTypeEnum

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.resource_impl.management.instrument_site_impl
+@package  ion.services.sa.observatory.management.instrument_site_impl
 @author   Ian Katz
 """
 
@@ -9,7 +9,7 @@
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED, RT
 
-from ion.services.sa.resource_impl.site_impl import SiteImpl
+from ion.services.sa.observatory.site_impl import SiteImpl
 
 class InstrumentSiteImpl(SiteImpl):
     """
