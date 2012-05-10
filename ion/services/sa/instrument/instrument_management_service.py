@@ -109,6 +109,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                    agent_metadata={}, 
                                    source_url="", 
                                    source_tag="", 
+                                   test_result=None,
                                    attachments=None):
         """
         IDK script calls IMS:register_instrument_driver with:
@@ -1111,6 +1112,26 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_agent_instance_from_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
         self.instrument_agent.unlink_device_instance(instrument_device_id, instrument_agent_instance_id)
 
+    # reassigning a logical instrument to an instrument device is a little bit special
+    # TODO: someday we may be able to dig up the correct data products automatically,
+    #       but once we have them this is the function that does all the work.
+    def reassign_logical_instrument_to_instrument_device(self, logical_instrument_id='', 
+                                                         old_instrument_device_id='', 
+                                                         new_instrument_device_id='',
+                                                         logical_data_product_ids=[],
+                                                         old_instrument_data_product_ids=[],
+                                                         new_instrument_data_product_ids=[]):
+        """
+        associate a logical instrument with a physical one.  this involves linking the
+        physical instrument's data product(s) to the logical one(s).
+        
+        the 2 lists of data products must be of equal length, and will map 1-1
+
+        @param logical_instrument_id
+        @param instrument_device_id
+        @param logical_data_product_ids a list of data products associated to a logical instrument
+        @param instrument_data_product_ids a list of data products coming from an instrument device
+        """
         
         def verify_dp_origin(supplied_dps, assigned_dps, instrument_id, instrument_label):
             """
