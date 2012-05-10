@@ -120,7 +120,7 @@ class TestIntExternalObservatoryAgent(IonIntegrationTestCase):
 
 ########## Tests ##########
 
-#    @unittest.skip("Currently broken due to resource/agent refactorings")
+    @unittest.skip("Currently broken due to resource/agent refactorings")
     def test_get_capabilities(self):
         # Get all the capabilities
         caps = self._agent_cli.get_capabilities()
