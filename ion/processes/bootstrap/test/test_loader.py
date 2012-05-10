@@ -18,7 +18,7 @@ class TestLoader(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
     def test_lca_load(self):
-        config = dict(op="load", path="res/preload/lca_demo", scenario="LCA_DEMO_PRE")
+        config = dict(op="load", path="res/preload/r2_ioc", scenario="R2_DEMO")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
         res,_ = self.container.resource_registry.find_resources(RT.Org, id_only=True)
