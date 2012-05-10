@@ -543,6 +543,9 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         
         self.assertTrue(sample_regex.match(reply_1))        
     
+        reply = self._dvr_client.cmd_dvr('get_current_state')
+        self.assertEqual(PARProtocolState.POLL_MODE, reply)
+
         # Get data
         reply_2 = self._dvr_client.cmd_dvr('execute_acquire_sample')
         
@@ -550,10 +553,9 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self.assertNotEqual(reply_1, reply_2)
 
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.ACQUIRE_SAMPLE, reply)
+        self.assertEqual(PARProtocolState.POLL_MODE, reply)
         
-        reply = self._dvr_client.cmd_dvr('execute_break')
-        self.assertEqual(reply, InstErrorCode.OK)
+        self._dvr_client.cmd_dvr('execute_break')
         
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
