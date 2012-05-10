@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.resource_impl.data_product_impl
+@package  ion.services.sa.instrument.data_product_impl
 @author   Ian Katz
 """
 
