@@ -38,7 +38,6 @@ from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
 from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
-from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
 
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
@@ -95,7 +94,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #TODO: may not belong in this service
         self.data_product        = DataProductImpl(self.clients)
         self.data_producer       = DataProducerImpl(self.clients)
-        self.logical_instrument  = LogicalInstrumentImpl(self.clients)
 
 
 
