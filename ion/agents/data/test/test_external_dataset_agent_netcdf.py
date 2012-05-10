@@ -132,6 +132,9 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
         ttool.add_taxonomy_set('coords','This group contains coordinate parameters')
         ttool.add_taxonomy_set('data','This group contains data parameters')
 
+        # Create the logger for receiving publications
+        self.create_stream_and_logger(name='usgs',stream_id=stream_id)
+
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
         self.DVR_CONFIG['dh_cfg'] = {

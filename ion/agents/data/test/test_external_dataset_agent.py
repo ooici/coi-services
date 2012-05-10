@@ -158,7 +158,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Create a pubsub client to create streams.
-        self.pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        self._container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
 
 #        # Define stream_config.
 #        self._stream_config = {}
@@ -207,10 +208,12 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         # Start instrument agent.
         self._ia_pid = None
         log.debug('TestInstrumentAgent.setup(): starting EDA.')
-        container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
-        self._ia_pid = container_client.spawn_process(name=self.EDA_NAME,
-            module=self.EDA_MOD, cls=self.EDA_CLS, config=agent_config)
+        self._ia_pid = self._container_client.spawn_process(
+            name=self.EDA_NAME,
+            module=self.EDA_MOD,
+            cls=self.EDA_CLS,
+            config=agent_config
+        )
         log.info('Agent pid=%s.', str(self._ia_pid))
 
         # Start a resource agent client to talk with the instrument agent.
@@ -223,16 +226,30 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
     ########################################
 
     def _setup_resources(self):
-        stream_id = self.pubsub_client.create_stream(name='dummydata_stream',encoding='ION R2')
+        stream_id = self.create_stream_and_logger(name='dummydata_stream')
 
         tx = TaxyTool()
         tx.add_taxonomy_set('data', 'external_data')
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
-            'stream_id':stream_id,
+            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
             'data_producer_id':'dummy_data_producer_id',
             'taxonomy':tx._t,
-            }
+        }
+
+    def create_stream_and_logger(self, name, stream_id=''):
+        if not stream_id or stream_id is '':
+            stream_id = self._pubsub_client.create_stream(name=name, encoding='ION R2')
+
+        pid = self._container_client.spawn_process(
+            name=name+'_logger',
+            module='ion.processes.data.stream_granule_logger',
+            cls='StreamGranuleLogger',
+            config={'process':{'stream_id':stream_id}}
+        )
+        log.warn('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
+
+        return stream_id
 
     def _start_data_subscribers(self):
         """
@@ -421,13 +438,13 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._ia_client.execute(cmd)
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config['stream_id'] = self.pubsub_client.create_stream(name='stream_id_for_historical_1',encoding='ION R2')
+        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
         config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
 
         log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
-        config['stream_id'] = self.pubsub_client.create_stream(name='stream_id_for_historical_2',encoding='ION R2')
+        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_2')
         config['constraints']=self.HIST_CONSTRAINTS_2
 #        config={'stream_id':'second_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_2}
         cmd = AgentCommand(command='acquire_data', args=[config])
@@ -490,7 +507,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config['stream_id'] = self.pubsub_client.create_stream(name='stream_id_for_historical_1',encoding='ION R2')
+        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
         config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command='acquire_data', args=[config])
         reply = self._ia_client.execute(cmd)
@@ -977,7 +994,7 @@ class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
     }
 
     def _setup_resources(self):
-        stream_id = self.pubsub_client.create_stream(name='fibonacci_stream', encoding='ION R2')
+        stream_id = self.create_stream_and_logger(name='fibonacci_stream')
 
         tx = TaxyTool()
         tx.add_taxonomy_set('data', 'external_data')

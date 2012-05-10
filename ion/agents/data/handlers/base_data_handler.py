@@ -205,6 +205,7 @@ class BaseDataHandler(object):
                 log.warn('Already acquiring new data - action not duplicated')
                 return
 
+            # Create a publisher to pass into the greenlet
             publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
 
             g = spawn(self._acquire_data, config_copy, publisher, self._unlock_new_data_callback)
@@ -402,7 +403,7 @@ class BaseDataHandler(object):
         log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
         for count, gran in enumerate(data_generator):
             #TG: Validate that ivals is a Granule object => If Granule, publish, else, just print
-            log.info('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
+#            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
             publisher.publish(gran)
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
@@ -462,14 +463,14 @@ class FibonacciDataHandler(BaseDataHandler):
             """
             a, b = 1, 1
             while 1:
-                yield a
+                yield np.array([a],dtype='float')
                 a, b = b, a + b
 
         gen=fibGenerator()
         for i in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
-            #CBM: RDict handling of numpy?? Need to convert to a list - len() is called on it - of python primitives
-            rdt['data'] = [gen.next()]
+            #CBM: MsgPack handling of numpy scalars (int in particular)
+            rdt['data'] = gen.next()
             time.sleep(0.1)
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             yield g
