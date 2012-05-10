@@ -1152,11 +1152,15 @@ class SatlanticPARInstrumentDriver(SingleConnectionInstrumentDriver):
         
     def execute_stop_autosample(self, *args, **kwargs):
         return self._protocol.execute_stop_autosample(*args, **kwargs)    
-
+        
     def execute_acquire_sample(self, *args, **kwargs):
-        self._protocol.execute_poll(*args, **kwargs)
-        result = self._protocol.execute_sample(*args, **kwargs)
-        self._protocol.execute_break(*args, **kwargs)  
+        if (self._protocol.get_current_state() == PARProtocolState.COMMAND_MODE):
+            self._protocol.execute_poll(*args, **kwargs)
+            result = self._protocol.execute_sample(*args, **kwargs)
+            self._protocol.execute_break(*args, **kwargs)  
+        if (self._protocol.get_current_state() == PARProtocolState.POLL_MODE):
+            result = self._protocol.execute_sample(*args, **kwargs)
+
         return result
         
     def execute_init_device(self, *args, **kwargs):

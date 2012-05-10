@@ -518,14 +518,25 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
         
+    def test_double_poll_mode(self):
+        """Mainly check the format of the manual sample that comes out
+        @todo Finish this out...is the transition right for getting into poll mode?
+        """
+        self._dvr_client.cmd_dvr('execute_poll')
+        reply = self._dvr_client.cmd_dvr('get_current_state')
+        self.assertEqual(PARProtocolState.POLL_MODE, reply)
+        
+        # Get data
+        result = self._dvr_client.cmd_dvr('execute_acquire_sample')        
+        self.assertTrue(sample_regex.match(result))
+        
     def test_get_data_sample_via_poll_mode(self):
         """Mainly check the format of the manual sample that comes out
         @todo Finish this out...is the transition right for getting into poll mode?
         """
-        reply = self._dvr_client.cmd_dvr('execute_poll')
-        self.assert_(reply)
+        self._dvr_client.cmd_dvr('execute_poll')
         reply = self._dvr_client.cmd_dvr('get_current_state')
-        self.assertEqual(DriverState.ACQUIRE_SAMPLE, reply)
+        self.assertEqual(PARProtocolState.POLL_MODE, reply)
         
         # Get data
         reply_1 = self._dvr_client.cmd_dvr('execute_acquire_sample')
@@ -546,11 +557,11 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         
         reply = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(PARProtocolState.COMMAND_MODE, reply)
-            
-    
+        
+    '''
     def test_publish(self):
         """Test publishing of data...somehow"""
-    
+    '''
     def test_save(self):
         """Test saving parameters, regardless of specific save since we save
         at every set."""
