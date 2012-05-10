@@ -210,7 +210,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         # Associate with dataProcess
-        self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
+        self.clients.resource_registry.create_association(data_process_id,  PRED.hasProcessDefinition, data_process_definition_id)
 
         #check if data process has lookup tables attached
         self._find_lookup_tables(data_process_definition_id, configuration)
@@ -360,7 +360,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(transform)
 
         # Delete the assoc with Data Process Definition
-        data_process_defs = self.clients.resource_registry.find_associations(None, PRED.hasInstance, data_process_id)
+        data_process_defs = self.clients.resource_registry.find_associations(data_process_id, PRED.hasProcessDefinition, None)
         if len(data_process_defs) < 1:
             raise NotFound('The the Data Process %s is not linked to a Data Process Definition.' % str(data_process_id))
         for data_process_def in data_process_defs:
