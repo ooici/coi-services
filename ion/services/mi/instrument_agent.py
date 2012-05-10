@@ -49,7 +49,7 @@ from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
+from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes, SessionCloseReasons
 
 # MI imports.
 from ion.services.mi.exceptions import ConnectionError
@@ -250,6 +250,8 @@ class InstrumentAgent(ResourceAgent):
         # can instruct drivers to self destruct if it disappears.
         self._test_mode = False
         
+        self.da_session_close_reason = ''
+        
         ###############################################################################
         # Instrument agent parameter capabilities.
         ###############################################################################
@@ -291,11 +293,17 @@ class InstrumentAgent(ResourceAgent):
         # callback passed to DA Server for receiving input from server       
         if isinstance(data, int):
             # not character data, so check for lost connection
-            if data == -1:
-                log.warning("InstAgent.telnetInputProcessor: connection lost")
-                self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
+            if data == SessionCloseReasons.client_closed:
+                self.da_session_close_reason = "due to client closing session"
+            elif data == SessionCloseReasons.session_timeout:
+                self.da_session_close_reason = "due to session exceeding maximum time"
+            elif data == SessionCloseReasons.inactivity_timeout:
+                self.da_session_close_reason = "due to inactivity"
             else:
-                log.error("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
+                log.error("InstAgent.telnet_input_processor: got unexpected integer " + str(data))
+                return
+            log.warning("InstAgent.telnet_input_processor: connection closed %s" %self.da_session_close_reason)
+            self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
@@ -1051,7 +1059,11 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        log.info("Instrument agent requested to start direct access mode")
+        session_timeout = kwargs.get('session_timeout', 10)
+        inactivity_timeout = kwargs.get('inactivity_timeout', 5)
+
+        log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d" 
+                 %(session_timeout, inactivity_timeout))
         
         # get 'address' of host
         hostname = socket.gethostname()
@@ -1062,7 +1074,11 @@ class InstrumentAgent(ResourceAgent):
         ip_address = hostname
         # create a DA server instance (TODO: just telnet for now) and pass in callback method
         try:
-            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor, ip_address)
+            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, 
+                                                self.telnet_input_processor, 
+                                                ip_address,
+                                                session_timeout,
+                                                inactivity_timeout)
         except Exception as ex:
             log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
             raise ex
@@ -1220,11 +1236,13 @@ class InstrumentAgent(ResourceAgent):
         Handler upon direct access entry.
         """
         self._common_state_enter()
+        self.da_session_close_reason = "due to ION user request"
     
     def _handler_direct_access_exit(self,  *args, **kwargs):
         """
         Handler upon direct access exit.
         """
+        # TODO: add sending 'DA session closed' event
         pass
 
     def _handler_direct_access_go_observatory(self,  *args, **kwargs):
@@ -1234,7 +1252,7 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        log.info("Instrument agent requested to stop direct access mode")
+        log.info("Instrument agent requested to stop direct access mode - %s" %self.da_session_close_reason)
         
         # tell driver to stop direct access mode
         result = self._dvr_client.cmd_dvr('execute_stop_direct_access')
@@ -1242,6 +1260,7 @@ class InstrumentAgent(ResourceAgent):
         if (self.da_server):
             self.da_server.stop()
             del self.da_server
+            
         next_state = InstrumentAgentState.OBSERVATORY
 
         return (next_state, result)

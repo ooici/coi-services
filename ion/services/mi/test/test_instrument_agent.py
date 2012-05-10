@@ -826,7 +826,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
         
         
-    @unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
+    #@unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
@@ -858,7 +858,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
-        cmd = AgentCommand(command='go_direct_access')
+        cmd = AgentCommand(command='go_direct_access', kwargs={'session_timeout':5,'inactivity_timeout':15})
         retval = self._ia_client.execute_agent(cmd)
         print("go_direct_access retval=" + str(retval))       
         cmd = AgentCommand(command='get_current_state')
@@ -868,7 +868,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # sleep to let tester run telnet client manually
         print "sleeping to run telnet client"
-        time.sleep(60)
+        time.sleep(30)
 
         # Halt DA.
         cmd = AgentCommand(command='go_observatory')
