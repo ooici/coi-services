@@ -98,6 +98,65 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.logical_instrument  = LogicalInstrumentImpl(self.clients)
 
 
+
+    ##########################################################################
+    #
+    # REGISTER INSTRUMENT DRIVER
+    #
+    ##########################################################################
+
+    def register_instrument_driver(self, 
+                                   driver_name='',
+                                   instrument_model_ids=None, 
+                                   agent_metadata={}, 
+                                   source_url="", 
+                                   source_tag="", 
+                                   attachments=None):
+        """
+        IDK script calls IMS:register_instrument_driver with:
+            instrument agent resource metadata: 
+                agent_version, 
+                connection_method, 
+                model it supports #TODO: how to select model?
+            MI Git repository URL
+            MI git repository tag
+            test results / attachments
+            additional context: firmware specs, release notes
+
+        """
+
+        modelnames = []
+        #make sure that model ids exist
+        for m in instrument_model_ids:
+            modelnames.append(self.read_instrument_model(m).name)
+
+        #create an instrument agent resource
+        inst_agent_obj = IonObject(RT.InstrumentAgent,
+                                   name=driver_name,
+                                   description=str("Driver for instruments of models: " % ", ".join(modelnames)))
+
+        inst_agent_id = self.create_instrument_agent(inst_agent_obj)
+
+
+        #store the metadata in the resource registry as an attachment
+        #TODO
+    
+        #create an attachment resource for other context documents, adds metadata and creates association
+        #TODO
+
+        #create the correct associations for this InstAgent (Model, etc)
+        for m in instrument_model_ids:
+            self.assign_instrument_model_to_instrument_agent(m, inst_agent_id)
+
+        #builds the egg from the manifest or tag then places the egg on the web server
+        #TODO
+
+        #updates the state of this InstAgent to deployed
+        #TODO
+    
+        return inst_agent_id
+
+
     ##########################################################################
     #
     # INSTRUMENT AGENT INSTANCE
