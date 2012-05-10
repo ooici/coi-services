@@ -225,7 +225,6 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid command or missing
         @todo fix this to handle change to poll mode from different states
         """
-        mi_logger.debug("*** entering execute_poll")
         return self._protocol_fsm.on_event(PARProtocolEvent.POLL, *args, **kwargs)
         
     def execute_sample(self, *args, **kwargs):
@@ -237,7 +236,6 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         @throws InstrumentProtocolException On invalid command or missing
         @todo fix this to handle change to poll mode from different states
         """
-        mi_logger.debug("*** entering execute_sample")
         return self._protocol_fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
         
     def execute_reset(self, *args, **kwargs):
@@ -499,30 +497,6 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                                           write_delay=self.write_delay)
         else:
             raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_COMMAND)
-
-        '''            
-        elif cmd == Command.SAMPLE:
-            try:
-                mi_logger.debug("*** Current state 1: %s", self._protocol_fsm.current_state)
-                result = self._protocol_fsm.on_event(PARProtocolEvent.POLL, *args, **kwargs)
-                mi_logger.debug("*** Current state 2: %s", self._protocol_fsm.current_state)
-                result = self._protocol_fsm.on_event(PARProtocolEvent.SAMPLE, *args, **kwargs)
-                mi_logger.debug("*** Current state 3: %s", self._protocol_fsm.current_state)
-                break_result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
-                mi_logger.debug("*** Current state 4: %s", self._protocol_fsm.current_state)
-                next_state = PARProtocolState.POLL_MODE
-                
-            except (InstrumentTimeoutException, InstrumentProtocolException) as e:
-                mi_logger.debug("Caught exception while polling: %s", e)
-                if self._protocol_fsm.current_state == PARProtocolState.AUTOSAMPLE_MODE:
-                    result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
-                elif (self._protocol_fsm.current_state == PARProtocolState.POLL_MODE):
-                    result = self._protocol_fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
-                    result = self._protocol_fsm.on_event(PARProtocolEvent.BREAK, *args, **kwargs)
-        
-        else:
-            raise InstrumentProtocolException(error_code=InstErrorCode.INVALID_COMMAND)
-        '''
         
         mi_logger.debug("next: %s, result: %s", next_state, result) 
         return (next_state, result)
@@ -540,9 +514,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         try:
             # get into auto-sample mode guaranteed, then stop and sample
             kwargs.update({KwargsKey.COMMAND:Command.EXIT_AND_RESET})
-            mi_logger.debug("*** Current state 5: %s", self._protocol_fsm.current_state)
             result = self._protocol_fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
-            mi_logger.debug("*** Current state 6: %s", self._protocol_fsm.current_state)
             result = self._protocol_fsm.on_event(PARProtocolEvent.STOP, *args, **kwargs)
             next_state = PARProtocolState.POLL_MODE
             self._driver_event(DriverAsyncEvent.STATE_CHANGE)
@@ -558,21 +530,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
                 raise e
 
         return (next_state, result)
-    '''
-    def _handler_command_sample(self, *args, **kwargs):
-        """Handle getting a SAMPLE event when in command mode. This should move
-        the state machine into poll mode via autosample mode, get the sample,
-        then move back...but only by translating this into a sample command.
-        
-        @retval return (next state, result)
-        @throw InstrumentProtocolException For invalid parameter
-        """
-        next_state = None
-        result = None
-        kwargs.update({KwargsKey.COMMAND:Command.SAMPLE})
-        result = self._protocol_fsm.on_event(PARProtocolEvent.COMMAND, *args, **kwargs)
-        return (next_state, result)
-    '''    
+
     def _handler_command_autosample(self, params=None, *args, **kwargs):
         """Handle getting an autosample event when in command mode
         @param params List of the parameters to pass to the state
@@ -675,18 +633,13 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         next_state = None
         result = None
         
-        delay = self.write_delay + 5
+        # This sometimes takes a few seconds, so stall after our sample cmd
+        # and before the read/parse
+        delay = self.write_delay + 2
         result = self._do_cmd_resp(Command.SAMPLE, None,
                                    expected_prompt=Prompt.NULL,
                                    write_delay=delay)    
-        # Get a second one for good measure...sometimes the first one fails if
-        # the connection isnt so great.
-        #result = self._do_cmd_resp(Command.SAMPLE, None,
-        #                           expected_prompt=Prompt.NULL,
-        #                           write_delay=self.write_delay)
-        # Stall a bit to let the device keep up
         
-        #time.sleep(2)
         mi_logger.debug("Polled sample: %s", result)
         
         if (result):
@@ -737,7 +690,6 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         
         cmd = kwargs.get(KwargsKey.COMMAND, None)
 
-        mi_logger.debug("*** command: %s", cmd)        
         if (cmd == Command.AUTOSAMPLE):
             result = self._protocol_fsm.on_event(PARProtocolEvent.AUTOSAMPLE, *args, **kwargs)
         elif (cmd == Command.RESET):
@@ -753,7 +705,7 @@ class SatlanticPARInstrumentProtocol(CommandResponseInstrumentProtocol):
         return (next_state, result)
     
     def _handler_noop(self, *args, **kwargs):
-        """ Do nothing as a hander...for when an even is acceptable, but
+        """ Do nothing as a handler...for when an event is acceptable, but
         not worth acting on.
         """
         return (None, None)

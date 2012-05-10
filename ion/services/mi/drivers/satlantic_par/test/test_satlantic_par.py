@@ -482,7 +482,6 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
         self._dvr_client.cmd_dvr('execute_poll')
         time.sleep(2)
 
-        mi_logger.debug("***about to except....wait for it...")
         # Already in poll mode, so this shouldnt give us anything
         self.assertRaises(InstrumentStateException,
                   self._dvr_client.cmd_dvr,
@@ -506,12 +505,10 @@ class SatlanticParProtocolIntegrationTest(unittest.TestCase):
     def test_get_sample_from_cmd_mode(self):
         """Get some samples directly from command mode"""
         reply_1 = self._dvr_client.cmd_dvr('execute_acquire_sample')
-        mi_logger.debug("*** reply_1: %s", reply_1)
         self.assertTrue(sample_regex.match(reply_1))        
     
         # Get data
         reply_2 = self._dvr_client.cmd_dvr('execute_acquire_sample')
-        mi_logger.debug("*** reply_2: %s", reply_2)
         self.assertTrue(sample_regex.match(reply_2))
         self.assertNotEqual(reply_1, reply_2)
         
