@@ -13,7 +13,7 @@ from pyon.public import log
 from pyon.util.async import spawn, wait
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
-from pyon.ion.endpoint import StreamPublisherRegistrar
+from pyon.ion.granule.taxonomy import TaxyTool
 
 from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.services.mi.exceptions import ParameterError, UnknownCommandError
@@ -45,10 +45,9 @@ class BaseDataHandler(object):
     _polling_glet = None
     _dh_config = {}
 
-    def __init__(self, dh_config):
+    def __init__(self, stream_registrar, dh_config):
         self._dh_config=dh_config
-
-        self._stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
+        self._stream_registrar = stream_registrar
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -206,7 +205,7 @@ class BaseDataHandler(object):
                 log.warn('Already acquiring new data - action not duplicated')
                 return
 
-            publisher = self._stream_publisher_registrar.create_publisher(stream_id=stream_id)
+            publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
 
             g = spawn(self._acquire_data, config_copy, publisher, self._unlock_new_data_callback)
             log.debug('** Spawned {0}'.format(g))
@@ -401,10 +400,10 @@ class BaseDataHandler(object):
         """
         stream_id=config['stream_id']
         log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
-        for count, ivals in enumerate(data_generator):
+        for count, gran in enumerate(data_generator):
             #TG: Validate that ivals is a Granule object => If Granule, publish, else, just print
-            log.info('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,ivals))
-            publisher.publish(ivals)
+            log.info('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
+            publisher.publish(gran)
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
@@ -429,6 +428,7 @@ class ConfigurationError(DataHandlerError):
 # Example DataHandlers #
 ########################
 
+import numpy as np
 import numpy.random as npr
 
 class FibonacciDataHandler(BaseDataHandler):
@@ -452,19 +452,27 @@ class FibonacciDataHandler(BaseDataHandler):
         """
         cnt = get_safe(config,'constraints.count',1)
 
+        dprod_id = get_safe(config, 'data_producer_id')
+        tx = get_safe(config, 'taxonomy')
+        ttool = TaxyTool(tx)
+
         def fibGenerator():
             """
             A Fibonacci sequence generator
             """
             a, b = 1, 1
             while 1:
-                time.sleep(0.1)
                 yield a
                 a, b = b, a + b
 
         gen=fibGenerator()
         for i in xrange(cnt):
-            yield gen.next()
+            rdt = RecordDictionaryTool(taxonomy=ttool)
+            #CBM: RDict handling of numpy?? Need to convert to a list - len() is called on it - of python primitives
+            rdt['data'] = [gen.next()]
+            time.sleep(0.1)
+            g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
+            yield g
 
 class DummyDataHandler(BaseDataHandler):
     @classmethod
@@ -484,14 +492,16 @@ class DummyDataHandler(BaseDataHandler):
         count = get_safe(config, 'constraints.count',1)
         array_len = get_safe(config, 'constraints.array_len',1)
 
-        tx = get_safe(config, 'dh_cfg.taxonomy', None)
+        dprod_id = get_safe(config, 'data_producer_id')
+        tx = get_safe(config, 'taxonomy')
+        ttool = TaxyTool(tx)
 
         for i in xrange(count):
             #TODO: Build & Use RecordDictionaryTool
-            rdt = RecordDictionaryTool(taxonomy=tx)
+            rdt = RecordDictionaryTool(taxonomy=ttool)
             rdt['data'] = npr.random_sample(array_len)
             time.sleep(0.1)
-            g = build_granule(data_producer_id='DummyDataHandler', taxonomy=tx, record_dictionary=rdt)
+            g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             #TODO: Return granule
             yield g
             #yield npr.random_sample(array_len)

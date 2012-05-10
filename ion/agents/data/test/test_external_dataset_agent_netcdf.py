@@ -10,6 +10,7 @@
 # Import pyon first for monkey patching.
 from pyon.public import log
 from pyon.ion.resource import PRED, RT
+from pyon.ion.granule.taxonomy import TaxyTool
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -71,6 +72,7 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
         dset.dataset_description.parameters['temporal_dimension'] = 'time'
         dset.dataset_description.parameters['zonal_dimension'] = 'lon'
         dset.dataset_description.parameters['meridional_dimension'] = 'lat'
+        dset.dataset_description.parameters['vertical_dimension'] = 'z'
         dset.dataset_description.parameters['variables'] = [
             'water_temperature',
             'streamflow',
@@ -113,11 +115,32 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
 
         log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
 
-        #TG: Build TaxonomyTool & add to dh_cfg.taxonomy
+        #CBM: Use CF standard_names
+
+        ttool = TaxyTool()
+        ttool.add_taxonomy_set('time','time')
+        ttool.add_taxonomy_set('lon','longitude')
+        ttool.add_taxonomy_set('lat','latitude')
+        ttool.add_taxonomy_set('z','water depth')
+        ttool.add_taxonomy_set('water_temperature', 'average water temperature')
+        ttool.add_taxonomy_set('water_temperature_bottom','water temperature at bottom of water column')
+        ttool.add_taxonomy_set('water_temperature_middle', 'water temperature at middle of water column')
+        ttool.add_taxonomy_set('streamflow', 'flow velocity of stream')
+        ttool.add_taxonomy_set('specific_conductance', 'specific conductance of water')
+        ttool.add_taxonomy_set('data_qualifier','data qualifier flag')
+
+        ttool.add_taxonomy_set('coords','This group contains coordinate parameters')
+        ttool.add_taxonomy_set('data','This group contains data parameters')
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
-        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':stream_id,'external_dataset_res':dset,}
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,
+            'external_dataset_res':dset,
+            'taxonomy':ttool._t,
+            'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
+        }
 
 
 

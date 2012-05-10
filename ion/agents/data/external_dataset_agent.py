@@ -26,6 +26,7 @@ class ExternalDatasetAgent(InstrumentAgent):
         self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
         # TODO: Do we need to (can we even?) remove handlers that aren't supported (i.e. Direct Access?)
 
+
     ###############################################################################
     # Private helpers.
     ###############################################################################
@@ -107,19 +108,19 @@ class ExternalDatasetAgent(InstrumentAgent):
 
             module = __import__(dvr_mod, fromlist=[dvr_cls])
             classobj = getattr(module, dvr_cls)
-            self._dvr_client = classobj(dh_cfg)
+            self._dvr_client = classobj(self._stream_registrar, dh_cfg)
             self._dvr_client.set_event_callback(self.evt_recv)
             # Initialize the DataHandler
             self._dvr_client.cmd_dvr('initialize')
 
-        except Exception:
+        except Exception as ex:
             self._dvr_client = None
-            raise InstDriverError('Error instantiating DataHandler: {0}.{1}'.format(dvr_mod, dvr_cls))
+            raise InstDriverError('Error instantiating DataHandler \'{0}.{1}\': {2}'.format(dvr_mod, dvr_cls, ex))
 
         #TODO: Temporarily construct packet factories to utilize pathways provided by IA
         self._construct_packet_factories(dvr_mod)
 
-        log.info('ExternalDatasetAgent \'{0}\' loaded DataHandler \'{1}\''.format(self._proc_name,''.join([dvr_mod,'.',dvr_cls])))
+        log.info('ExternalDatasetAgent \'{0}\' loaded DataHandler \'{1}.{2}\''.format(self._proc_name,dvr_mod,dvr_cls))
 
     def _stop_driver(self):
         """
@@ -135,7 +136,7 @@ class ExternalDatasetAgent(InstrumentAgent):
         dvr_cls = get_safe(self._dvr_config, 'dvr_cls', None)
 
         self._dvr_client = None
-        log.info('ExternalDatasetAgent \'{0}\' unloaded DataHandler: {1}'.format(self._proc_name, ''.join([dvr_mod,'.',dvr_cls])))
+        log.info('ExternalDatasetAgent \'{0}\' unloaded DataHandler \'{1}.{2}\''.format(self._proc_name,dvr_mod,dvr_cls))
         return None
 
     def _validate_driver_config(self):

@@ -183,7 +183,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
         # Data async and subscription  TODO: Replace with new subscriber
         self._finished_count = None
-        #TODO: Use the improved methodology that Luke came up with
+        #TODO: Switch to gevent.queue.Queue
         self._async_finished_result = AsyncResult()
         self._finished_events_received = []
         self._finished_event_subscriber = None
@@ -227,8 +227,12 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
         tx = TaxyTool()
         tx.add_taxonomy_set('data', 'external_data')
-        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':stream_id,}
-        self.DVR_CONFIG['dh_cfg']['taxonomy'] = tx._t
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,
+            'data_producer_id':'dummy_data_producer_id',
+            'taxonomy':tx._t,
+            }
 
     def _start_data_subscribers(self):
         """
@@ -417,13 +421,13 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._ia_client.execute(cmd)
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config['stream_id'] = 'stream_id_for_historical_1'
+        config['stream_id'] = self.pubsub_client.create_stream(name='stream_id_for_historical_1',encoding='ION R2')
         config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
 
         log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
-        config['stream_id'] = 'stream_id_for_historical_2'
+        config['stream_id'] = self.pubsub_client.create_stream(name='stream_id_for_historical_2',encoding='ION R2')
         config['constraints']=self.HIST_CONSTRAINTS_2
 #        config={'stream_id':'second_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_2}
         cmd = AgentCommand(command='acquire_data', args=[config])
@@ -486,7 +490,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config['stream_id'] = 'stream_id_for_historical_1'
+        config['stream_id'] = self.pubsub_client.create_stream(name='stream_id_for_historical_1',encoding='ION R2')
         config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command='acquire_data', args=[config])
         reply = self._ia_client.execute(cmd)
@@ -834,6 +838,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
+        gevent.sleep(5)
+
         cmd = AgentCommand(command='go_observatory')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
@@ -971,8 +977,15 @@ class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
     }
 
     def _setup_resources(self):
-        stream_id = self.pubsub_client.create_stream(name='fibonacci_stream',encoding='ION R2')
+        stream_id = self.pubsub_client.create_stream(name='fibonacci_stream', encoding='ION R2')
 
+        tx = TaxyTool()
+        tx.add_taxonomy_set('data', 'external_data')
         #TG: Build TaxonomyTool & add to dh_cfg.taxonomy
-        self.DVR_CONFIG['dh_cfg'] = {'TESTING':True,'stream_id':stream_id,}
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,
+            'data_producer_id':'fibonacci_data_producer_id',
+            'taxonomy':tx._t,
+            }
 
