@@ -148,7 +148,7 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
         starttime = time.time()
                 
         if expected_prompt == None:
-            prompt_list = self.prompts.list()
+            prompt_list = self._prompts.list()
         else:
             assert isinstance(expected_prompt, str)
             prompt_list = [expected_prompt]            

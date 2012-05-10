@@ -222,7 +222,7 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
     def test_get_status(self):
         pass
 
-@attr('INT', group='mi')
+@attr('HARDWARE', group='mi')
 class SatlanticParProtocolIntegrationTest(unittest.TestCase):
 
     def setUp(self):        

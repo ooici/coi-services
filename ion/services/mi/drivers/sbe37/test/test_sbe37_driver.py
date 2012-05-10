@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_sbe37_driver
-@file ion/services/mi/test_sbe37_driver.py
+@package ion.services.mi.drivers.sbe37.test.test_sbe37_driver
+@file ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py
 @author Edward Hunter
 @brief Test cases for SBE37Driver
 """
@@ -27,6 +27,7 @@ from nose.plugins.attrib import attr
 
 # Pyon and ION imports
 from pyon.util.unit_test import PyonTestCase
+from ion.services.mi.driver_int_test_support import DriverIntegrationTestSupport
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Driver
@@ -50,15 +51,15 @@ import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
 # Make tests verbose and provide stdout
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_process
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_config
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_test
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_errors
-# bin/nosetests -s -v ion/services/mi/drivers/test/test_sbe37_driver.py:TestSBE37Driver.test_discover_autosample
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_process
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_config
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_connect
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_get_set
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_poll
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_autosample
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_test
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_errors
+# bin/nosetests -s -v ion/services/mi/drivers/sbe37/test/test_sbe37_driver.py:TestSBE37Driver.test_discover_autosample
 
 DVR_MOD = 'ion.services.mi.drivers.sbe37.sbe37_driver'
 
@@ -118,12 +119,12 @@ PARAMS = {
 
 @attr('HARDWARE', group='mi')
 #@unittest.skip('Ready to go, remove skip when tested against simulator.')
-class TestSBE37Driver(PyonTestCase):    
+class TestSBE37Driver(unittest.TestCase):    
     """
     Integration tests for the sbe37 driver. This class tests and shows
     use patterns for the sbe37 driver as a zmq driver process.
     """    
-    
+    """
     def __init__(self):
         self.device_addr = DEV_ADDR
         self.device_port = DEV_PORT
@@ -138,11 +139,24 @@ class TestSBE37Driver(PyonTestCase):
                                                      self.device_port,
                                                      self.delim,
                                                      self.work_dir)
-    
+    """
     def setUp(self):
         """
         Setup test cases.
         """
+        self.device_addr = DEV_ADDR
+        self.device_port = DEV_PORT
+        self.work_dir = WORK_DIR
+        self.delim = DELIM
+        
+        self.driver_class = DVR_CLS
+        self.driver_module = DVR_MOD
+        self._support = DriverIntegrationTestSupport(self.driver_module,
+                                                     self.driver_class,
+                                                     self.device_addr,
+                                                     self.device_port,
+                                                     self.delim,
+                                                     self.work_dir)
 
         # Clear driver event list.
         self._events = []
@@ -163,8 +177,14 @@ class TestSBE37Driver(PyonTestCase):
 
         # Create and start the driver.
         self._support.start_driver()
-        self.addCleanup(self._support.stop_driver)        
-    
+        self.addCleanup(self._support.stop_driver)
+
+        # Grab some variables from support that we need
+        self._dvr_client = self._support._dvr_client
+        self._dvr_proc = self._support._dvr_proc
+        self._pagent = self._support._pagent
+        self._events = self._support._events
+
     def assertSampleDict(self, val):
         """
         Verify the value is a sample dictionary for the sbe37.
