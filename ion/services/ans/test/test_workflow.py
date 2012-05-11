@@ -47,7 +47,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='as')
-class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
+class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
