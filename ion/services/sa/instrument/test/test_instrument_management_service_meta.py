@@ -18,16 +18,16 @@ from pyon.util.log import log
 
 from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
 
-from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.resource_impl.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.resource_impl.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
-from ion.services.sa.resource_impl.platform_model_impl import PlatformModelImpl
-from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
-from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
+from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
+from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
+from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 
 
 class FakeProcess(LocalContextMixin):
@@ -35,7 +35,6 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('META', group='sa')
-@unittest.skip('Need to align.')
 class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 
     def setUp(self):
@@ -47,7 +46,7 @@ class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         
         print 'started services'

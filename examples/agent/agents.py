@@ -12,7 +12,7 @@ from pyon.agent.agent import ResourceAgent, UserAgent, ResourceAgentClient
 from pyon.ion.process import StandaloneProcess
 from pyon.public import log
 
-from interface.objects import AgentCommand, Org, InstrumentDevice, UserIdentity
+from interface.objects import AgentCommand, Org, InstrumentDevice, ActorIdentity
 
 # For this example only. Proc_name -> proc id
 agent_instances = {}
@@ -58,7 +58,7 @@ class ResAgentTwo(ResourceAgent):
 
 class UserAgentOne(UserAgent):
     def on_init(self):
-        res_obj = UserIdentity(name="user1")
+        res_obj = ActorIdentity(name="user1")
         rid,_ = self.clients.resource_registry.create(res_obj)
         agent_resources[self.id] = rid
         self.resource_id = rid
@@ -81,7 +81,7 @@ class UserAgentOne(UserAgent):
 
 class UserAgentTwo(UserAgent):
     def on_init(self):
-        res_obj = UserIdentity(name="user1")
+        res_obj = ActorIdentity(name="user1")
         rid,_ = self.clients.resource_registry.create(res_obj)
         agent_resources[self.id] = rid
         self.resource_id = rid

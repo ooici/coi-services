@@ -37,15 +37,12 @@ from pyon.event.event import EventSubscriber, EventPublisher
 
 from pyon.core.exception import InstParameterError
 
-
 from ion.services.mi.drivers.uw_trhph.test import TrhphTestCase
 from ion.services.mi.drivers.uw_trhph.common import TrhphParameter
 from ion.services.mi.drivers.uw_trhph.common import TrhphMetadataParameter
-
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
 from ion.services.mi.instrument_driver import DriverParameter
-
 
 
 # Work dir and logger delimiter.
@@ -641,4 +638,3 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         self._test_80_execute_diagnostics()
         self._test_90_execute_get_power_statuses()
         self._test_99_execute_start_autosample()
-

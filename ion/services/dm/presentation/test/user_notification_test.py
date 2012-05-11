@@ -86,8 +86,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         
     def test_create_two_user_notifications(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.UserIdentity, name="user1")
-        user_id = self.imc.create_user_identity(user_identty_object)
+        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
+        user_id = self.imc.create_actor_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
         
@@ -116,8 +116,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     def test_delete_user_notifications(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.UserIdentity, name="user1")
-        user_id = self.imc.create_user_identity(user_identty_object)
+        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
+        user_id = self.imc.create_actor_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
         
@@ -148,8 +148,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         
     def test_find_user_notifications(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.UserIdentity, name="user1")
-        user_id = self.imc.create_user_identity(user_identty_object)
+        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
+        user_id = self.imc.create_actor_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
 
@@ -172,8 +172,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     def test_update_user_notification(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.UserIdentity, name="user1")
-        user_id = self.imc.create_user_identity(user_identty_object)
+        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
+        user_id = self.imc.create_actor_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
 
@@ -195,8 +195,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     def test_send_notification_emails(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.UserIdentity, name="user1")
-        user_id = self.imc.create_user_identity(user_identty_object)
+        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
+        user_id = self.imc.create_actor_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'myooici@gmail.com'}})
         self.imc.create_user_info(user_id, user_info_object)
 

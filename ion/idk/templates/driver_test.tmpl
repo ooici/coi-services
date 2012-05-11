@@ -24,28 +24,71 @@ USAGE:
 __author__ = '${author}'
 __license__ = 'Apache 2.0'
 
-import time
-import pprint
-from mock import Mock, call, DEFAULT
+#from mock import Mock, call, DEFAULT
 
-from nose.plugins.attrib import attr
+#from nose.plugins.attrib import attr
 
 from ion.idk.metadata import Metadata
 from ion.idk.comm_config import CommConfig
 from ion.idk.unit_test import InstrumentDriverTestCase
 from ion.idk.test.driver_qualification import DriverQualificationTestCase
-from ${driver_module} import State
-from ${driver_module} import Event
-from ${driver_module} import Error
-from ${driver_module} import Status
-from ${driver_module} import Prompt
-from ${driver_module} import Channel
-from ${driver_module} import Command
-from ${driver_module} import Parameter
-from ${driver_module} import Capability
-from ${driver_module} import MetadataParameter
-from ${driver_module} import ${driver_name}InstrumentProtocol
-from ${driver_module} import ${driver_name}InstrumentDriver
+
+#from ${driver_module} import State
+#from ${driver_module} import Event
+#from ${driver_module} import Error
+#from ${driver_module} import Status
+#from ${driver_module} import Prompt
+#from ${driver_module} import Channel
+#from ${driver_module} import Command
+#from ${driver_module} import Parameter
+#from ${driver_module} import Capability
+#from ${driver_module} import MetadataParameter
+#from ${driver_module} import ${driver_name}InstrumentProtocol
+#from ${driver_module} import ${driver_name}InstrumentDriver
+
+
+# Import pyon first for monkey patching.
+from pyon.public import log
+
+# Standard imports.
+import os
+import signal
+import time
+import unittest
+from datetime import datetime
+
+# 3rd party imports.
+from gevent import spawn
+from gevent.event import AsyncResult
+import gevent
+from nose.plugins.attrib import attr
+from mock import patch
+import uuid
+
+# ION imports.
+from interface.objects import StreamQuery
+from interface.services.dm.itransform_management_service import TransformManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.icontainer_agent import ContainerAgentClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from pyon.public import StreamSubscriberRegistrar
+from prototype.sci_data.stream_defs import ctd_stream_definition
+from pyon.agent.agent import ResourceAgentClient
+from interface.objects import AgentCommand
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.context import LocalContextMixin
+from pyon.public import CFG
+from pyon.event.event import EventSubscriber, EventPublisher
+
+from pyon.core.exception import InstParameterError
+
+
+# MI imports.
+from ion.services.mi.logger_process import EthernetDeviceLogger
+from ion.services.mi.instrument_agent import InstrumentAgentState
+from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
+# next line should match the above line mostly
+from ${driver_module} import ${driver_name}Parameter    
 
 
 ###############################################################################
@@ -60,20 +103,20 @@ class Test${driver_name}_UNIT(InstrumentDriverTestCase):
         """
         @brief initalize mock objects for the protocol object.
         """
-        self.callback = Mock(name='callback')
-        self.logger = Mock(name='logger')
-        self.logger_client = Mock(name='logger_client')
-        self.protocol = ${driver_name}InstrumentProtocol()
+        #self.callback = Mock(name='callback')
+        #self.logger = Mock(name='logger')
+        #self.logger_client = Mock(name='logger_client')
+        #self.protocol = ${driver_name}InstrumentProtocol()
     
-        self.protocol.configure(self.comm_config)
-        self.protocol.initialize()
-        self.protocol._logger = self.logger 
-        self.protocol._logger_client = self.logger_client
-        self.protocol._get_response = Mock(return_value=('$$', None))
+        #self.protocol.configure(self.comm_config)
+        #self.protocol.initialize()
+        #self.protocol._logger = self.logger 
+        #self.protocol._logger_client = self.logger_client
+        #self.protocol._get_response = Mock(return_value=('$$', None))
         
         # Quick sanity check to make sure the logger got mocked properly
-        self.assertEquals(self.protocol._logger, self.logger)
-        self.assertEquals(self.protocol._logger_client, self.logger_client)
+        #self.assertEquals(self.protocol._logger, self.logger)
+        #self.assertEquals(self.protocol._logger_client, self.logger_client)
         
     ###
     #    Add driver specific unit tests
@@ -97,38 +140,40 @@ class Test${driver_name}_INT(InstrumentDriverTestCase):
         return '${driver_name}InstrumentDriver'    
     
     def setUp(self):
-        self.protocol = ${driver_name}InstrumentProtocol()
-        self.protocol.configure(self.comm_config)
+        """
+        """
+        #self.protocol = ${driver_name}InstrumentProtocol()
+        #self.protocol.configure(self.comm_config)
         
     def test_process(self):
         """
         @brief Test for correct launch of driver process and communications, including
         asynchronous driver events.
         """
-        driver_process, driver_client = self.init_driver_process_client();
+        #driver_process, driver_client = self.init_driver_process_client();
         
         # Add test to verify process exists.
 
         # Send a test message to the process interface, confirm result.
-        msg = 'I am a ZMQ message going to the process.'
-        reply = driver_client.cmd_dvr('process_echo', msg)
-        self.assertEqual(reply,'process_echo: '+msg)
+        #msg = 'I am a ZMQ message going to the process.'
+        #reply = driver_client.cmd_dvr('process_echo', msg)
+        #self.assertEqual(reply,'process_echo: '+msg)
 
         # Send a test message to the driver interface, confirm result.
-        msg = 'I am a ZMQ message going to the driver.'
-        reply = driver_client.cmd_dvr('driver_echo', msg)
-        self.assertEqual(reply, 'driver_echo: '+msg)
+        #msg = 'I am a ZMQ message going to the driver.'
+        #reply = driver_client.cmd_dvr('driver_echo', msg)
+        #self.assertEqual(reply, 'driver_echo: '+msg)
         
         # Test the event thread publishes and client side picks up events.
-        events = [
-            'I am important event #1!',
-            'And I am important event #2!'
-            ]
-        reply = driver_client.cmd_dvr('test_events', events=events)
-        time.sleep(2)
+        #events = [
+        #    'I am important event #1!',
+        #    'And I am important event #2!'
+        #    ]
+        #reply = driver_client.cmd_dvr('test_events', events=events)
+        #time.sleep(2)
         
         # Confirm the events received are as expected.
-        self.assertEqual(self.events, events)
+        #self.assertEqual(self.events, events)
 
     ###
     #    Add driver specific integration tests

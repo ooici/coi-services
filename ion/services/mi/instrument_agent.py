@@ -21,6 +21,8 @@ from pyon.event.event import EventPublisher
 from pyon.util.containers import get_safe
 
 # Pyon exceptions
+from pyon.core.exception import exception_map
+from pyon.core.exception import IonException
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
 from pyon.core.exception import Timeout
@@ -40,6 +42,7 @@ from pyon.core.exception import InstDriverError
 import time
 import socket
 import os
+import traceback
 
 # ION service imports.
 from ion.services.mi.instrument_fsm import InstrumentFSM
@@ -280,6 +283,25 @@ class InstrumentAgent(ResourceAgent):
 
 
     ###############################################################################
+    # Event callback and handling for direct access.
+    ###############################################################################
+    
+    def telnet_input_processor(self, data):
+        # callback passed to DA Server for receiving input from server       
+        if isinstance(data, int):
+            # not character data, so check for lost connection
+            if data == -1:
+                log.warning("InstAgent.telnetInputProcessor: connection lost")
+                self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
+            else:
+                log.error("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
+            return
+        log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
+        # send the data to the driver
+        self._dvr_client.cmd_dvr('execute_direct_access', data + chr(13) + chr(10))
+            
+
+    ###############################################################################
     # Event callback and handling.
     ###############################################################################
 
@@ -326,8 +348,15 @@ class InstrumentAgent(ResourceAgent):
                 pub.publish_event(origin=self.resource_id ,description=desc_str)
             
             elif type == DriverAsyncEvent.DIRECT_ACCESS:
-                # TBD.
-                pass
+                if (self.da_server):
+                    if (value):
+                        self.da_server.send(value)
+                    else:
+                        log.error('Instrument agent %s error %s processing driver event %s',
+                                  self._proc_name, '<no value present in event>', str(evt))
+                else:
+                    log.error('Instrument agent %s error %s processing driver event %s',
+                              self._proc_name, '<no DA server>', str(evt))
             
             else:
                 log.warning('Instrument agent %s recieved unhandled driver event %s',
@@ -527,6 +556,7 @@ class InstrumentAgent(ResourceAgent):
         to retrieve
         @retval Dict of (channel, name) : value parameter values if handled.
         """
+        
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, name)
         
@@ -560,12 +590,56 @@ class InstrumentAgent(ResourceAgent):
         @retval Resrouce agent command response object if handled.
         """
         
-        try:
-            return self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE, command)
+        
+        if not command:
+            raise iex.BadRequest("execute argument 'command' not present")
+        if not command.command:
+            raise iex.BadRequest("command not set")
+
+        cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
+                            command=command.command)
+        cmd_res.ts_execute = get_ion_ts()
+        command.command = 'execute_' + command.command
             
+        try:
+            ex = None
+            res = self._fsm.on_event(InstrumentAgentEvent.EXECUTE_RESOURCE,
+                                        command.command, *command.args,
+                                        **command.kwargs)            
+            cmd_res.status = 0
+            cmd_res.result = res
+            result = cmd_res
+           
+        except InstrumentTimeoutException:
+            ex = InstTimeoutError('Instrument timed out attempting %s.',str(command.command))
+        
+        except InstrumentProtocolException:
+            ex = InstProtocolError('Instrument protocol error attempting %s.', str(command.command))
+        
+        except InstrumentCommandException:
+            ex = InstUnknownCommandError('Command %s unknown.', str(command.command))
+
+        except InstrumentParameterException:
+            ex = InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%s.',
+                                     str(command.command), str(command.args), str(command.kwargs))
+
         except InstrumentStateException:
-            raise InstStateError('execute not allowed in state %s.', self._fsm.get_current_state())        
-                
+            ex = InstStateError('execute not allowed in state %s.', self._fsm.get_current_state())        
+
+        except InstrumentException:
+            ex = IonInstrumentError('Unknown driver error.')
+
+        except:
+            ex = IonException('Unknown error.')
+        
+        if ex:
+            # TODO: Distinguish application vs. uncaught exception
+            cmd_res.status = getattr(ex, 'status_code', -1)
+            cmd_res.result = str(ex)
+            log.info("Agent command %s failed with trace=%s" % (command.command, traceback.format_exc()))
+
+        return cmd_res
+        
     ###############################################################################
     # Instrument agent transaction interface.
     ###############################################################################
@@ -972,11 +1046,34 @@ class InstrumentAgent(ResourceAgent):
     def _handler_observatory_go_direct_access(self,  *args, **kwargs):
         """
         Handler for go_direct_access agent command in observatory state.
-        @todo Complete this when DA is complete and ready to port in.
         """
         result = None
         next_state = None
         
+        log.info("Instrument agent requested to start direct access mode")
+        
+        # get 'address' of host
+        hostname = socket.gethostname()
+        log.debug("hostname = " + hostname)        
+        ip_addresses = socket.gethostbyname_ex(hostname)
+        log.debug("ip_address=" + str(ip_addresses))
+        ip_address = ip_addresses[2][0]
+        ip_address = hostname
+        # create a DA server instance (TODO: just telnet for now) and pass in callback method
+        try:
+            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor, ip_address)
+        except Exception as ex:
+            log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
+            raise ex
+
+        # get the connection info from the DA server to return to the user
+        port, token = self.da_server.get_connection_info()
+        result = {'ip_address':ip_address, 'port':port, 'token':token}
+        next_state = InstrumentAgentState.DIRECT_ACCESS
+
+        # tell driver to start direct access mode
+        self._dvr_client.cmd_dvr('execute_start_direct_access')
+
         return (next_state, result)
 
     def _handler_get_params(self, *args, **kwargs):
@@ -1037,36 +1134,8 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-
-        if not command:
-            raise iex.BadRequest("execute argument 'command' not present")
-        if not command.command:
-            raise iex.BadRequest("command not set")
-
-        cmd_res = IonObject("AgentCommandResult", command_id=command.command_id,
-                            command=command.command)
-        cmd_res.ts_execute = get_ion_ts()
-        command.command = 'execute_' + command.command
         
-        try:
-            res = self._dvr_client.cmd_dvr(command.command, *command.args,
-                                           **command.kwargs)
-            cmd_res.status = 0
-            cmd_res.result = res
-            result = cmd_res
-            
-        except InstrumentTimeoutException:
-            raise InstTimeoutError('Instrument timed out attempting %s.',str(command.command))
-        
-        except InstrumentProtocolException:
-            raise InstProtocolError('Instrument protocol error attempting %s.', str(command.command))
-        
-        except InstrumentCommandException:
-            raise InstUnknownCommandError('Command %s unknown.', st(command.command))
-
-        except InstrumentParameterException:
-            raise InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%s.',
-                                     str(command.command), str(command.args), str(command.kwargs))
+        result = self._dvr_client.cmd_dvr(command, *args, **kwargs)
 
         return (next_state, result)
 
@@ -1143,7 +1212,6 @@ class InstrumentAgent(ResourceAgent):
 
     ###############################################################################
     # Direct access state handlers.
-    # @todo add handlers when DA work is done.
     ###############################################################################
 
     def _handler_direct_access_enter(self,  *args, **kwargs):
@@ -1161,11 +1229,20 @@ class InstrumentAgent(ResourceAgent):
     def _handler_direct_access_go_observatory(self,  *args, **kwargs):
         """
         Handler for go_observatory agent command within direct access state.
-        @todo.
         """
         result = None
         next_state = None
         
+        log.info("Instrument agent requested to stop direct access mode")
+        
+        # tell driver to stop direct access mode
+        result = self._dvr_client.cmd_dvr('execute_stop_direct_access')
+        # stop and delete DA server
+        if (self.da_server):
+            self.da_server.stop()
+            del self.da_server
+        next_state = InstrumentAgentState.OBSERVATORY
+
         return (next_state, result)
 
     ###############################################################################
@@ -1207,7 +1284,7 @@ class InstrumentAgent(ResourceAgent):
         # Get driver configuration and pid for test case.        
         dvr_mod = self._dvr_config['dvr_mod']
         dvr_cls = self._dvr_config['dvr_cls']
-        workdir = self._dvr_config['workdir']
+        workdir = self._dvr_config.get('workdir','/tmp/')
         this_pid = os.getpid() if self._test_mode else None
 
         (self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, workdir, this_pid)
@@ -1352,6 +1429,3 @@ class InstrumentAgent(ResourceAgent):
 
     def test_ia(self):
         log.info('Hello from the instrument agent!')
-
-
-

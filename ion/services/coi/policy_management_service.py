@@ -31,7 +31,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
         if not is_basic_identifier(policy.name):
-            raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+            raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % policy.name)
 
         policy.rule = policy.rule % (policy.name, policy.description)
         policy_id, version = self.clients.resource_registry.create(policy)
@@ -49,7 +49,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws Conflict    object not based on latest persisted object version
         """
         if not is_basic_identifier(policy.name):
-            raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+            raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % policy.name)
 
         self.clients.resource_registry.update(policy)
 
@@ -399,7 +399,7 @@ class PolicyManagementService(BasePolicyManagementService):
         if not user_role:
             raise NotFound("Role %s does not exist" % user_role_id)
 
-        alist,_ = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasRole, user_role)
+        alist,_ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasRole, user_role)
         if len(alist) > 0:
             raise BadRequest('The User Role %s cannot be removed as there are %s users associated to it' % (user_role.name, str(len(alist))))
 

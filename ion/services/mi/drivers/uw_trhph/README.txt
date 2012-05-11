@@ -114,7 +114,6 @@ Some development notes:
 
     OK
 
-
 2012-05-06:
 - Merged into coi-service mainline directly, including preliminary version of
   test_instrument_agent_with_trhph.py for tests on the TRHPH driver via the

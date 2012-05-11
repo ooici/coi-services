@@ -13,7 +13,7 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from interface.objects import ProcessDefinition, StreamQuery
 
-from ion.services.sa.resource_impl.data_process_impl import DataProcessImpl
+from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 
 
 class DataProcessManagementService(BaseDataProcessManagementService):
@@ -159,6 +159,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
 
+        if configuration is None:
+            configuration = {}
+
         # Create and store a new DataProcess with the resource registry
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry")
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
@@ -172,7 +175,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
         #TODO: should this be outside this method? Called by orchestration?
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
-        log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s", str(data_producer_id) )
+        log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s   (L4-CI-SA-RQ-181)", str(data_producer_id) )
 
 
         self.output_stream_dict = {}
@@ -207,11 +210,26 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         # Associate with dataProcess
-        self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInstance, data_process_id)
+        self.clients.resource_registry.create_association(data_process_id,  PRED.hasProcessDefinition, data_process_definition_id)
 
-        #Todo: currently this is handled explicitly after creating the dat product, that code then calls DMAS:assign_data_product
+        #check if data process has lookup tables attached
+        self._find_lookup_tables(data_process_definition_id, configuration)
+            
+
+        #Todo: currently this is handled explicitly after creating the data product, that code then calls DMAS:assign_data_product
         log.debug("DataProcessManagementService:create_data_process associate data process workflows with source data products %s hasInputProduct  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_id))
         self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
+
+
+        #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
+        instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
+        for instdevice_id in instdevice_ids:
+            log.debug("DataProcessManagementService:create_data_process instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
+            self._find_lookup_tables(instdevice_id, configuration)
+            instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
+            for instmodel_id in instmodel_ids:
+                log.debug("DataProcessManagementService:create_data_process instmodel_id assoc to the instDevice: %s", str(instmodel_id))
+                self._find_lookup_tables(instmodel_id, configuration)
 
         #-------------------------------
         # Create subscription from in_data_product, which should already be associated with a stream via the Data Producer
@@ -274,11 +292,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(data_process_id, PRED.hasTransform, transform_id)
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process   transform_id"  +  str(transform_id))
 
-        # TODO: Flesh details of transform mgmt svc schedule and bind methods
+        # TODO: Flesh details of transform mgmt svc schedule method
 #        self.clients.transform_management_service.schedule_transform(transform_id)
-#        self.clients.transform_management_service.bind_transform(transform_id)
 
         return data_process_id
+
+
+    def _find_lookup_tables(self, resource_id="", configuration=None):
+        #check if resource has lookup tables attached
+        attachment_objs, _ = self.clients.resource_registry.find_objects(resource_id, PRED.hasAttachment, RT.Attachment, False)
+        for attachment_obj in attachment_objs:
+            log.debug("DataProcessManagementService:_find_lookup_tables  attachment %s", str(attachment_obj))
+            words = set(attachment_obj.keywords)
+            if 'DataProcessInput' in words:
+                configuration[attachment_obj.name] = attachment_obj.content
+                log.debug("DataProcessManagementService:_find_lookup_tables lookup table found in attachment %s", attachment_obj.name)
+            else:
+                log.debug("DataProcessManagementService:_find_lookup_tables NO lookup table in attachment %s", attachment_obj.name)
 
 
     def update_data_process(self,):
@@ -330,7 +360,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(transform)
 
         # Delete the assoc with Data Process Definition
-        data_process_defs = self.clients.resource_registry.find_associations(None, PRED.hasInstance, data_process_id)
+        data_process_defs = self.clients.resource_registry.find_associations(data_process_id, PRED.hasProcessDefinition, None)
         if len(data_process_defs) < 1:
             raise NotFound('The the Data Process %s is not linked to a Data Process Definition.' % str(data_process_id))
         for data_process_def in data_process_defs:
@@ -363,9 +393,26 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if len(transforms) != 1:
             raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
 
-        log.debug("DataProcessManagementService:activate_data_process - transform_management.activate_transform")
+        log.debug("DataProcessManagementService:activate_data_process call transform_management.activate_transform to activate the subscription (L4-CI-SA-RQ-181)")
         self.clients.transform_management.activate_transform(transforms[0])
         return
+
+    def deactivate_data_process(self, data_process_id=""):
+
+        data_process_obj = self.read_data_process(data_process_id)
+
+        #find the Transform
+        log.debug("DataProcessManagementService:activate_data_process - get the transform associated with this data process")
+        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
+        if not transforms:
+            raise NotFound("No Transform created for this Data Process " + str(transforms))
+        if len(transforms) != 1:
+            raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
+
+        log.debug("DataProcessManagementService:activate_data_process - transform_management.deactivate_transform")
+        self.clients.transform_management.deactivate_transform(transforms[0])
+        return
+
 
 
     def attach_process(self, process=''):

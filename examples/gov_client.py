@@ -29,7 +29,7 @@ def seed_gov(container, process=FakeProcess()):
         log.info("This should fail")
         log.info(e.message)
 
-    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+    system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
     log.info('system actor:' + system_actor._id)
 
 
@@ -128,7 +128,7 @@ def test_policy(container, process=FakeProcess()):
 
     id_client = IdentityManagementServiceProcessClient(node=container.node, process=process)
 
-    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+    system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
     log.info('system actor:' + system_actor._id)
 
     policy_client = PolicyManagementServiceProcessClient(node=container.node, process=process)
@@ -139,7 +139,7 @@ def test_policy(container, process=FakeProcess()):
     for u in users:
         log.info( str(u))
 
-    user = id_client.find_user_identity_by_name('/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254')
+    user = id_client.find_actor_identity_by_name('/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254')
     log.debug('user_id: ' + user._id)
 
     roles = org_client.find_roles_by_user(ion_org._id, user._id)
@@ -252,14 +252,14 @@ def test_requests(container, process=FakeProcess()):
 
     rr_client = ResourceRegistryServiceProcessClient(node=container.node, process=process)
 
-    system_actor = id_client.find_user_identity_by_name(name=CFG.system.system_actor)
+    system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
     log.info('system actor:' + system_actor._id)
 
     sa_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
 
 
     try:
-        user = id_client.find_user_identity_by_name('/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254')
+        user = id_client.find_actor_identity_by_name('/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254')
     except:
         raise Inconsistent("The test user is not found; did you seed the data?")
 
