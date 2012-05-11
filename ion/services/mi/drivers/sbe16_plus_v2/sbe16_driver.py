@@ -24,11 +24,11 @@ from ion.services.mi.instrument_driver import DriverEvent
 from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_driver import DriverProtocolState
 from ion.services.mi.instrument_driver import DriverParameter
-from ion.services.mi.exceptions import TimeoutError
-from ion.services.mi.exceptions import ParameterError
-from ion.services.mi.exceptions import SampleError
-from ion.services.mi.exceptions import StateError
-from ion.services.mi.exceptions import ProtocolError
+from ion.services.mi.exceptions import InstrumentTimeoutException
+from ion.services.mi.exceptions import InstrumentParameterException
+from ion.services.mi.exceptions import SampleException
+from ion.services.mi.exceptions import InstrumentStateException
+from ion.services.mi.exceptions import InstrumentProtocolException
 
 #import ion.services.mi.mi_logger
 mi_logger = logging.getLogger('mi_logger')
@@ -266,8 +266,8 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Discover current state; can be COMMAND or AUTOSAMPLE.
         @retval (next_state, result), (SBE16ProtocolState.COMMAND or
         SBE16State.AUTOSAMPLE, None) if successful.
-        @throws TimeoutError if the device cannot be woken.
-        @throws ProtocolError if the device response does not correspond to
+        @throws InstrumentTimeoutException if the device cannot be woken.
+        @throws InstrumentProtocolException if the device response does not correspond to
         an expected state.
         """
         next_state = None
@@ -287,7 +287,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
             next_state = SBE16ProtocolState.AUTOSAMPLE
             result = SBE16ProtocolState.AUTOSAMPLE
         else:
-            raise ProtocolError('Failure to recognzie device state.')
+            raise InstrumentProtocolException('Failure to recognzie device state.')
             
         return (next_state, result)
 
@@ -298,8 +298,8 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
     def _handler_command_enter(self, *args, **kwargs):
         """
         Enter command state.
-        @throws TimeoutError if the device cannot be woken.
-        @throws ProtocolError if the update commands and not recognized.
+        @throws InstrumentTimeoutException if the device cannot be woken.
+        @throws InstrumentProtocolException if the update commands and not recognized.
         """
         # Command device to update parameters and send a config change event.
         self._update_params()
@@ -319,10 +319,10 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Perform a set command.
         @param args[0] parameter : value dict.
         @retval (next_state, result) tuple, (None, None).
-        @throws ParameterError if missing set parameters, if set parameters not ALL and
+        @throws InstrumentParameterException if missing set parameters, if set parameters not ALL and
         not a dict, or if paramter can't be properly formatted.
-        @throws TimeoutError if device cannot be woken for set command.
-        @throws ProtocolError if set command could not be built or misunderstood.
+        @throws InstrumentTimeoutException if device cannot be woken for set command.
+        @throws InstrumentProtocolException if set command could not be built or misunderstood.
         """
         next_state = None
         result = None
@@ -333,10 +333,10 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
             params = args[0]
             
         except IndexError:
-            raise ParameterError('Set command requires a parameter dict.')
+            raise InstrumentParameterException('Set command requires a parameter dict.')
 
         if not isinstance(params, dict):
-            raise ParameterError('Set parameters not a dict.')
+            raise InstrumentParameterException('Set parameters not a dict.')
         
         # For each key, val in the dict, issue set command to device.
         # Raise if the command not understood.
@@ -352,9 +352,9 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         """
         Acquire sample from SBE16.
         @retval (next_state, result) tuple, (None, sample dict).        
-        @throws TimeoutError if device cannot be woken for command.
-        @throws ProtocolError if command could not be built or misunderstood.
-        @throws SampleError if a sample could not be extracted from result.
+        @throws InstrumentTimeoutException if device cannot be woken for command.
+        @throws InstrumentProtocolException if command could not be built or misunderstood.
+        @throws SampleException if a sample could not be extracted from result.
         """
         next_state = None
         result = None
@@ -368,8 +368,8 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Switch into autosample mode.
         @retval (next_state, result) tuple, (SBE16ProtocolState.AUTOSAMPLE,
         None) if successful.
-        @throws TimeoutError if device cannot be woken for command.
-        @throws ProtocolError if command could not be built or misunderstood.
+        @throws InstrumentTimeoutException if device cannot be woken for command.
+        @throws InstrumentProtocolException if command could not be built or misunderstood.
         """
         next_state = None
         result = None
@@ -420,8 +420,8 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Stop autosample and switch back to command mode.
         @retval (next_state, result) tuple, (SBE16ProtocolState.COMMAND,
         None) if successful.
-        @throws TimeoutError if device cannot be woken for command.
-        @throws ProtocolError if command misunderstood or
+        @throws InstrumentTimeoutException if device cannot be woken for command.
+        @throws InstrumentProtocolException if command misunderstood or
         incorrect prompt received.
         """
         next_state = None
@@ -449,7 +449,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         """
         Get device parameters from the parameter dict.
         @param args[0] list of parameters to retrieve, or DriverParameter.ALL.
-        @throws ParameterError if missing or invalid parameter.
+        @throws InstrumentParameterException if missing or invalid parameter.
         """
         next_state = None
         result = None
@@ -459,7 +459,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
             params = args[0]
            
         except IndexError:
-            raise ParameterError('Get command requires a parameter list or tuple.')
+            raise InstrumentParameterException('Get command requires a parameter list or tuple.')
 
         # If all params requested, retrieve config.
         if params == DriverParameter.ALL:
@@ -470,7 +470,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         # Retireve each key in the list, raise if any are invalid.
         else:
             if not isinstance(params, (list, tuple)):
-                raise ParameterError('Get argument not a list or tuple.')
+                raise InstrumentParameterException('Get argument not a list or tuple.')
             result = {}
             for key in params:
                 try:
@@ -478,7 +478,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
                     result[key] = val
 
                 except KeyError:
-                    raise ParameterError(('%s is not a valid parameter.' % key))
+                    raise InstrumentParameterException(('%s is not a valid parameter.' % key))
             
         return (next_state, result)
 
@@ -507,8 +507,8 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
     def _handler_test_run_tests(self, *args, **kwargs):
         """
         Run test routines and validate results.
-        @throws TimeoutError if device cannot be woken for command.
-        @throws ProtocolError if command misunderstood or
+        @throws InstrumentTimeoutException if device cannot be woken for command.
+        @throws InstrumentProtocolException if command misunderstood or
         incorrect prompt received.
         """
         next_state = None
@@ -579,8 +579,8 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Update the parameter dictionary. Wake the device then issue
         display status and display calibration commands. The parameter
         dict will match line output and udpate itself.
-        @throws TimeoutError if device cannot be timely woken.
-        @throws ProtocolError if ds/dc misunderstood.
+        @throws InstrumentTimeoutException if device cannot be timely woken.
+        @throws InstrumentProtocolException if ds/dc misunderstood.
         """
 
         
@@ -613,7 +613,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         @param param the parameter key to set.
         @param val the parameter value to set.
         @ retval The set command to be sent to the device.
-        @throws ProtocolError if the parameter is not valid or
+        @throws InstrumentProtocolException if the parameter is not valid or
         if the formatting function could not accept the value passed.
         """
         try:
@@ -622,7 +622,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
             set_cmd = set_cmd + SBE16_NEWLINE
             
         except KeyError:
-            raise ParameterError('Unknown driver parameter %s' % param)
+            raise InstrumentParameterException('Unknown driver parameter %s' % param)
             
         return set_cmd
 
@@ -631,20 +631,20 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Parse handler for set command.
         @param response command response string.
         @param prompt prompt following command response.        
-        @throws ProtocolError if set command misunderstood.
+        @throws InstrumentProtocolException if set command misunderstood.
         """
         if prompt != SBE16Prompt.COMMAND:
-            raise ProtocolError('Set command not recognized: %s' % response)
+            raise InstrumentProtocolException('Set command not recognized: %s' % response)
 
     def _parse_dsdc_response(self, response, prompt):
         """
         Parse handler for dsdc commands.
         @param response command response string.
         @param prompt prompt following command response.        
-        @throws ProtocolError if dsdc command misunderstood.
+        @throws InstrumentProtocolException if dsdc command misunderstood.
         """
         if prompt != SBE16Prompt.COMMAND:
-            raise ProtocolError('dsdc command not recognized: %s.' % response)
+            raise InstrumentProtocolException('dsdc command not recognized: %s.' % response)
             
         for line in response.split(SBE16_NEWLINE):
             self._param_dict.update(line)
@@ -655,12 +655,12 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         @param response command response string.
         @param prompt prompt following command response.
         @retval sample dictionary containig c, t, d values.
-        @throws ProtocolError if ts command misunderstood.
-        @throws InstrumentSampleError if response did not contain a sample
+        @throws InstrumentProtocolException if ts command misunderstood.
+        @throws InstrumentSampleException if response did not contain a sample
         """
         
         if prompt != SBE16Prompt.COMMAND:
-            raise ProtocolError('ts command not recognized: %s', response)
+            raise InstrumentProtocolException('ts command not recognized: %s', response)
         
         sample = None
         for line in response.split(SBE16_NEWLINE):
@@ -669,7 +669,7 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
                 break
         
         if not sample:     
-            raise SampleError('Response did not contain sample: %s' % repr(response))
+            raise SampleException('Response did not contain sample: %s' % repr(response))
             
         return sample
                 
@@ -905,11 +905,11 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Write a boolean value to string formatted for sbe16 set operations.
         @param v a boolean value.
         @retval A yes/no string formatted for sbe16 set operations.
-        @throws ParameterError if value not a bool.
+        @throws InstrumentParameterException if value not a bool.
         """
         
         if not isinstance(v,bool):
-            raise ParameterError('Value %s is not a bool.' % str(v))
+            raise InstrumentParameterException('Value %s is not a bool.' % str(v))
         if v:
             return 'y'
         else:
@@ -921,11 +921,11 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Write an int value to string formatted for sbe16 set operations.
         @param v An int val.
         @retval an int string formatted for sbe16 set operations.
-        @throws ParameterError if value not an int.
+        @throws InstrumentParameterException if value not an int.
         """
         
         if not isinstance(v,int):
-            raise ParameterError('Value %s is not an int.' % str(v))
+            raise InstrumentParameterException('Value %s is not an int.' % str(v))
         else:
             return '%i' % v
 
@@ -935,11 +935,11 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Write a float value to string formatted for sbe16 set operations.
         @param v A float val.
         @retval a float string formatted for sbe16 set operations.
-        @throws ParameterError if value is not a float.
+        @throws InstrumentParameterException if value is not a float.
         """
 
         if not isinstance(v,float):
-            raise ParameterError('Value %s is not a float.' % v)
+            raise InstrumentParameterException('Value %s is not a float.' % v)
         else:
             return '%e' % v
 
@@ -949,14 +949,14 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Write a date tuple to string formatted for sbe16 set operations.
         @param v a date tuple: (day,month,year).
         @retval A date string formatted for sbe16 set operations.
-        @throws ParameterError if date tuple is not valid.
+        @throws InstrumentParameterException if date tuple is not valid.
         """
 
         if not isinstance(v,(list,tuple)):
-            raise ParameterError('Value %s is not a list, tuple.' % str(v))
+            raise InstrumentParameterException('Value %s is not a list, tuple.' % str(v))
         
         if not len(v)==3:
-            raise ParameterError('Value %s is not length 3.' % str(v))
+            raise InstrumentParameterException('Value %s is not length 3.' % str(v))
         
         months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep',
                   'Oct','Nov','Dec']
@@ -968,13 +968,13 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
             year = int(str(year)[-2:])
         
         if not isinstance(day,int) or day < 1 or day > 31:
-            raise ParameterError('Value %s is not a day of month.' % str(day))
+            raise InstrumentParameterException('Value %s is not a day of month.' % str(day))
         
         if not isinstance(month,int) or month < 1 or month > 12:
-            raise ParameterError('Value %s is not a month.' % str(month))
+            raise InstrumentParameterException('Value %s is not a month.' % str(month))
 
         if not isinstance(year,int) or year < 0 or year > 99:
-            raise ParameterError('Value %s is not a 0-99 year.' % str(year))
+            raise InstrumentParameterException('Value %s is not a 0-99 year.' % str(year))
         
         return '%02i-%s-%02i' % (day,months[month-1],year)
 
@@ -984,17 +984,17 @@ class SBE16Protocol(CommandResponseInstrumentProtocol):
         Extract a date tuple from an sbe16 date string.
         @param str a string containing date information in sbe16 format.
         @retval a date tuple.
-        @throws ParameterError if datestr cannot be formatted to
+        @throws InstrumentParameterException if datestr cannot be formatted to
         a date.
         """
         if not isinstance(datestr,str):
-            raise ParameterError('Value %s is not a string.' % str(datestr))
+            raise InstrumentParameterException('Value %s is not a string.' % str(datestr))
         try:
             date_time = time.strptime(datestr,fmt)
             date = (date_time[2],date_time[1],date_time[0])
 
         except ValueError:
-            raise ParameterError('Value %s could not be formatted to a date.' % str(datestr))
+            raise InstrumentParameterException('Value %s could not be formatted to a date.' % str(datestr))
                         
         return date
 

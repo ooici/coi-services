@@ -22,11 +22,12 @@ mi_logger = logging.getLogger('mi_logger')
 
 #@unittest.skip('Do not run hardware test.')
 @attr('UNIT', group='mi')
-class TestRSNDataDecorator(IonIntegrationTestCase):
+class TestRSNDataDecorator(unittest.TestCase):
 
     def setUp(self):
         self.decorator = RSNTimestampDecorator()
     
+    @unittest.skip('not finished yet')
     def test_timestamp_split(self):
         good_timestamp = "<OOI-TS 2012-04-11T23:39:53.092182 TS>\r\nh<\00I-TS>"
         good_multiline_timestamp = "<OOI-TS 2012-04-11T23:39:56.620364 TS>\r\n\r\nInvalid command\r\n\r\n$<\00I-TS>"

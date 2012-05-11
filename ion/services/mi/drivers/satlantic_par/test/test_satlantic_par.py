@@ -222,6 +222,7 @@ class SatlanticParProtocolUnitTest(PyonTestCase):
     def test_get_status(self):
         pass
 
+@unittest.skip("Need a VPN setup to test against RSN installation")
 @attr('HARDWARE', group='mi')
 class SatlanticParProtocolIntegrationTest(unittest.TestCase):
 

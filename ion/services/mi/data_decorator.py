@@ -102,7 +102,7 @@ class RSNTimestampDecorator(TimestampDecorator):
         '''
         ts = None
         data = None
-        if TS_REGEX.matches(s):
+        if self.TS_REGEX.matches(s):
             # get the timestamp and data string
             pass
         return (ts, data)

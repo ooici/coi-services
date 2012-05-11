@@ -51,8 +51,8 @@ from pyon.core.exception import InstParameterError
 from ion.services.mi.driver_int_test_support import DriverIntegrationTestSupport
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_states
