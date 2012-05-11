@@ -5,6 +5,17 @@ Main documentation page: https://confluence.oceanobservatories.org/display/CIDev
 
 Some development notes:
 
+2012-05-10:
+- NOTE: test_instrument_agent_with_trhph.py is incrementally launching new
+  processes as the individual tests are run, so seems like the clean-up
+  methods are not terminating those processes(?). Another symptom is a
+  "too many files open" exception raised after a while when a whole set of
+  TRHPH cases is launched. (BTW, some of those processes run at >99% CPU!).
+  Need to investigate but for the moment I just combined all instrument
+  agent tests in a single test_all sequence to at least alleviate the problem
+  a bit.
+
+
 2012-05-09:
 - Removed files protocol.py, protocol_fsm.py, and driver.py that, although not
   used (obsolete at the moment) happen to be causing issues with

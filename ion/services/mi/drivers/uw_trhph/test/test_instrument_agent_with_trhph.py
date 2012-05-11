@@ -278,7 +278,7 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         for sub in self._event_subscribers:
             sub.deactivate()
 
-    def test_01_initialize(self):
+    def _test_01_initialize(self):
         """
         -- INSTR-AGENT/TRHPH: initialize
         """
@@ -304,7 +304,7 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    def test_10_states(self):
+    def _test_10_states(self):
         """
         -- INSTR-AGENT/TRHPH: state transitions
         """
@@ -435,11 +435,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
 
         return result
 
-    def test_15_get_params(self):
+    def _test_15_get_params(self):
         """
         -- INSTR-AGENT/TRHPH: get valid and invalid params
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         self._get_params(DriverParameter.ALL)
 
@@ -488,11 +488,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         else:
             return 0 == random.randint(0, 1)
 
-    def test_20_set_params_valid(self):
+    def _test_20_set_params_valid(self):
         """
         -- INSTR-AGENT/TRHPH: set valid params
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         p1 = TrhphParameter.TIME_BETWEEN_BURSTS
         new_seconds = random.randint(15, 60)
@@ -504,11 +504,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
 
         self._set_params(valid_params)
 
-    def test_21_set_params_invalid(self):
+    def _test_21_set_params_invalid(self):
         """
         -- INSTR-AGENT/TRHPH: set invalid params
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         p1 = TrhphParameter.TIME_BETWEEN_BURSTS
         new_seconds = random.randint(15, 60)
@@ -518,11 +518,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         with self.assertRaises(InstParameterError):
             self._set_params(invalid_params)
 
-    def test_25_get_set_params(self):
+    def _test_25_get_set_params(self):
         """
         -- INSTR-AGENT/TRHPH: get and set params
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         p1 = TrhphParameter.TIME_BETWEEN_BURSTS
         result = self._get_params([p1])
@@ -548,11 +548,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         verbose = result[p2]
         self.assertEqual(verbose, new_verbose)
 
-    def test_60_execute_stop_autosample(self):
+    def _test_60_execute_stop_autosample(self):
         """
         -- INSTR-AGENT/TRHPH: execute stop autosample
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         log.info("stopping autosample")
         cmd = AgentCommand(command='stop_autosample',
@@ -560,11 +560,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         reply = self._ia_client.execute(cmd)
         log.info("stop_autosample reply = %s" % str(reply))
 
-    def test_70_execute_get_metadata(self):
+    def _test_70_execute_get_metadata(self):
         """
         -- INSTR-AGENT/TRHPH: execute get metadata
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         log.info("getting metadata")
         cmd = AgentCommand(command='get_metadata',
@@ -573,11 +573,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         log.info("get_metadata reply = %s" % str(reply))
         self.assertTrue(isinstance(reply.result, dict))
 
-    def test_80_execute_diagnostics(self):
+    def _test_80_execute_diagnostics(self):
         """
         -- INSTR-AGENT/TRHPH: execute diagnostics
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         log.info("executing diagnostics")
         num_scans = 11
@@ -588,11 +588,11 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         self.assertTrue(isinstance(reply.result, list))
         self.assertEqual(len(reply.result), num_scans)
 
-    def test_90_execute_get_power_statuses(self):
+    def _test_90_execute_get_power_statuses(self):
         """
         -- INSTR-AGENT/TRHPH: execute get power statuses
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         log.info("executing get_power_statuses")
         cmd = AgentCommand(command='get_power_statuses',
@@ -601,14 +601,44 @@ class TestInstrumentAgentWithTrhph(TrhphTestCase, IonIntegrationTestCase):
         log.info("get_power_statuses reply = %s" % str(reply))
         self.assertTrue(isinstance(reply.result, dict))
 
-    def test_99_execute_start_autosample(self):
+    def _test_99_execute_start_autosample(self):
         """
         -- INSTR-AGENT/TRHPH: execute start autosample
         """
-        self._prepare_and_connect()
+#        self._prepare_and_connect()
 
         log.info("executing start_autosample")
         cmd = AgentCommand(command='start_autosample',
                            kwargs=dict(timeout=self._timeout))
         reply = self._ia_client.execute(cmd)
         log.info("start_autosample reply = %s" % str(reply))
+
+    def test_all(self):
+        """
+        -- INSTR-AGENT/TRHPH: All tests
+        """
+
+        #
+        # NOTE: Aggregating ALL tests in the same sequence to avoid issue
+        # about the launch of increasing number of python processes and
+        # also an issue with "Too many open files" when running the whole
+        # set of TRHPH test cases in the same nose session.
+        # TODO: Do proper clean-up to be able to run the individual tests
+        # in a cleaner way.
+        #
+
+        self._test_01_initialize()
+        self._test_10_states()
+
+        # the following need a _prepare_and_connect
+        self._prepare_and_connect()
+        self._test_15_get_params()
+        self._test_20_set_params_valid()
+        self._test_21_set_params_invalid()
+        self._test_25_get_set_params()
+        self._test_60_execute_stop_autosample()
+        self._test_70_execute_get_metadata()
+        self._test_80_execute_diagnostics()
+        self._test_90_execute_get_power_statuses()
+        self._test_99_execute_start_autosample()
+
