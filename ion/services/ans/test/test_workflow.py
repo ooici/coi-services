@@ -393,7 +393,7 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
 
         #Add a transformation process definition
         ctd_L2_salinity_dprocdef_id = self._create_salinity_data_process_definition()
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=True)
+        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=False)  #Don't persist the intermediate data product
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Add a transformation process definition
