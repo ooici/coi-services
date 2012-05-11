@@ -26,7 +26,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='mmm')
 class TestDeployment(IonIntegrationTestCase):
 
     def setUp(self):
@@ -81,4 +81,56 @@ class TestDeployment(IonIntegrationTestCase):
             self.fail("deleted deployment was found during read")
 
 
-  
+
+
+    #@unittest.skip("targeting")
+    def test_activate_deployment(self):
+
+        #create a deployment with metadata and an initial site and device
+        platform_site__obj = IonObject(RT.PlatformSite,
+                                        name='PlatformSite1',
+                                        description='test platform site')
+        site_id = self.omsclient.create_platform_site(platform_site__obj)
+
+        platform_device__obj = IonObject(RT.PlatformDevice,
+                                        name='PlatformDevice1',
+                                        description='test platform device')
+        device_id = self.imsclient.create_platform_device(platform_device__obj)
+
+        platform_model__obj = IonObject(RT.PlatformModel,
+                                        name='PlatformModel1',
+                                        description='test platform model')
+        model_id = self.imsclient.create_platform_model(platform_model__obj)
+        self.imsclient.assign_platform_model_to_platform_device(model_id, device_id)
+        self.omsclient.assign_platform_model_to_platform_site(model_id, site_id)
+
+
+
+        #create a deployment with metadata and an initial site and device
+        instrument_site__obj = IonObject(RT.InstrumentSite,
+                                        name='InstrumentSite1',
+                                        description='test instrument site')
+        instrument_site_id = self.omsclient.create_instrument_site(instrument_site__obj, site_id)
+
+        instrument_device__obj = IonObject(RT.InstrumentDevice,
+                                        name='InstrumentDevice1',
+                                        description='test instrument device')
+        instrument_device_id = self.imsclient.create_instrument_device(instrument_device__obj)
+        self.rrclient.create_association(device_id, PRED.hasDevice, instrument_device_id)
+
+        instrument_model__obj = IonObject(RT.InstrumentModel,
+                                        name='InstrumentModel1',
+                                        description='test instrument model')
+        instrument_model_id = self.imsclient.create_instrument_model(instrument_model__obj)
+        self.imsclient.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
+        self.omsclient.assign_instrument_model_to_instrument_site(instrument_model_id, instrument_site_id)
+        #self.rrclient.create_association(instrument_site_id, PRED.hasModel, instrument_model_id)
+
+        deployment_obj = IonObject(RT.Deployment,
+                                        name='TestDeployment',
+                                        description='some new deployment')
+        deployment_id = self.omsclient.create_deployment(deployment_obj, site_id, device_id)
+
+        log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
+
+        self.omsclient.activate_deployment(deployment_id)

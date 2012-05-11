@@ -353,7 +353,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def read_deployment(self, deployment_id=''):
         # Read Deployment object with _id matching id
-        log.debug("Reading DEployment object id: %s" % deployment_id)
+        log.debug("Reading Deployment object id: %s" % deployment_id)
         deployment_obj = self.clients.resource_registry.read(deployment_id)
 
         return deployment_obj
@@ -379,31 +379,107 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def activate_deployment(self, deployment_id=''):
-        """Make the devices on this deployment the primary devices for the sites
-
-        @param deployment_id    str
-        @throws NotFound    object with specified id does not exist
         """
-        pass
+        Make the devices on this deployment the primary devices for the sites
+        """
+
+        #todo: FOR NOW the deployment must have one platform site and one platform device
+
+        #Verify that the deployment exist
+        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        if not deployment_obj:
+            raise NotFound("Deployment  %s does not exist", str(deployment_id))
+
+        # get the device and site attached to this deployment
+        #todo: generalize this to handle multi devices?  How to pair the Sites and Devices attached?
+        site_ids, _ = self.clients.resource_registry.find_subjects(RT.PlatformSite, PRED.hasDeployment, deployment_id, True)
+        if len(site_ids) < 1:
+            raise NotFound("Deployment  %s does not have associated Sites", str(deployment_id))
+        else:
+            site_id = site_ids[0]
+
+        device_ids, _ = self.clients.resource_registry.find_subjects(RT.PlatformDevice, PRED.hasDeployment, deployment_id, True)
+        if len(device_ids) < 1:
+            raise NotFound("Deployment  %s does not have associated Devices", str(deployment_id))
+        else:
+            device_id = device_ids[0]
+
+        #Check that the models match at the Platform level
+        device_models, _ = self.clients.resource_registry.find_objects(device_id, PRED.hasModel, RT.PlatformModel, True)
+        if len(device_models) != 1:
+            raise BadRequest("Platform Device %s has multiple models associated %s", str(device_id), str(len(device_models)))
+        site_models, _ = self.clients.resource_registry.find_objects(site_id, PRED.hasModel, RT.PlatformModel, True)
+        if len(site_models) != 1:
+            raise BadRequest("Platform Site %s has multiple models associated %s", str(device_id), str(len(device_models)))
+        if device_models[0] != site_models[0]:
+            raise BadRequest("Platform Site Model %s does not match Platform Device Model %s", str(site_models[0]), str(device_models[0]) )
+
+        #Check that the Site does not already have an associated primary device
+        prim_device_ids, _ = self.clients.resource_registry.find_objects(site_id, PRED.hasDevice, RT.Device, True)
+        if len(prim_device_ids) > 0:
+            raise BadRequest("Site %s already has a primary device associated with id %s", str(site_id), str(prim_device_ids[0]))
+        else:
+            self.deploy_device_to_site(device_id, site_id)
+            log.debug("ObsMS:activate_deployment plaform device: %s deployed to platform site: %s", str(device_id), str(site_id))
+
+        #retrieve the assoc instrument devices on this platform device
+        inst_device_ids, _ = self.clients.resource_registry.find_objects(device_id, PRED.hasDevice, RT.InstrumentDevice, True)
+
+        #retrieve the assoc instrument sites on this platform site
+        inst_site_ids, _ = self.clients.resource_registry.find_objects(site_id, PRED.hasDevice, RT.InstrumentDevice, True)
+
+        #pair the instrument devices to instrument sites if they have equivalent models
+        for inst_device_id in inst_device_ids:
+            log.debug("ObsMS:activate_deployment find match for instrument device: %s", str(inst_device_id))
+            inst_device_models, _ = self.clients.resource_registry.find_objects(inst_device_id, PRED.hasModel, RT.InstrumentModel, True)
+            if len(inst_device_models) != 1:
+                raise BadRequest("Instrument Device %s has multiple models associated %s", str(inst_device_id), str(len(inst_device_models)))
+            log.debug("ObsMS:activate_deployment inst_device_model: %s", str(inst_device_models[0]) )
+            for inst_site_id in inst_site_ids:
+                inst_site_models, _ = self.clients.resource_registry.find_objects(inst_site_id, PRED.hasModel, RT.InstrumentModel, True)
+                if len(inst_device_models) != 1:
+                    raise BadRequest("Instrument Site %s has multiple models associated: %s", str(inst_device_id), str(len(inst_device_models)))
+                else:
+                    log.debug("ObsMS:activate_deployment inst_site_model: %s", str(inst_site_models[0]) )
+                    #if the models match then deply this device into this site and remove this site from the list
+                    if inst_site_models[0] == inst_device_models[0]:
+                        self.deploy_device_to_site(inst_device_id, inst_site_id)
+                        log.debug("ObsMS:activate_deployment match found for instrument device: %s and site: %s", str(inst_device_id), str(inst_site_id))
+                        inst_site_ids.remove(inst_site_id)
+                        log.debug("ObsMS:activate_deployment instrument site list size: %s ", str(inst_site_ids))
+                        break # go to the next  inst_device on this platform and try to find a match
+
+            log.debug("ObsMS:activate_deployment No match found for instrument device: %s", str(inst_device_id))
+
+        return
 
     def deploy_device_to_site(self, device_id='', site_id=''):
-        """link a device to a site as the primary instrument
-
-        @param device_id    str
-        @param site_id    str
-        @throws NotFound    object with specified id does not exist
         """
-        pass
+        link a device to a site as the primary instrument
+        """
+        #Check that the Site does not already have an associated primary device
+        prim_device_ids, _ = self.clients.resource_registry.find_objects(site_id, PRED.hasDevice, RT.InstrumentDevice, True)
+        if len(prim_device_ids) != 0:
+            raise BadRequest("Site %s already has a primary device associated with id %s", str(site_id), str(prim_device_ids[0]))
+        else:
+            # Create the links
+            self.clients.resource_registry.create_association(site_id, PRED.hasDevice, device_id)
+
+        return
 
     def undeploy_device_from_site(self, device_id='', site_id=''):
-        """remove the link between a device and site which designates the instrument as primary
-
-        @param device_id    str
-        @param site_id    str
-        @throws NotFound    object with specified id does not exist
         """
-        pass
+        remove the link between a device and site which designates the instrument as primary
+        """
+        #Check that the Site and Device are associated as primary device
+        assoc_ids, _ = self.clients.resource_registry.find_associations(site_id, PRED.hasDevice, device_id, True)
+        if len(assoc_ids) != 1:
+            raise BadRequest("Site %s does not have device %s associated as the primary device", str(site_id), str(device_id))
+        else:
+            # Create the links
+            self.clients.resource_registry.delete_association(assoc_ids[0])
 
+        return
 
 
     ############################
