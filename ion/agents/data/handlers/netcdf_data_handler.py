@@ -10,14 +10,16 @@
 
 from pyon.public import log
 from pyon.util.containers import get_safe
-from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.agents.data.handlers.base_data_handler import BaseDataHandler, DataHandlerParameter
+import numpy as np
 
 import time
 
-from ion.agents.data.handlers.base_data_handler import BaseDataHandler, DataHandlerParameter
 from netCDF4 import Dataset
+
 
 PACKET_CONFIG = {
     'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
@@ -64,37 +66,47 @@ class NetcdfDataHandler(BaseDataHandler):
 
             # Open the netcdf file, obtain the appropriate variables
             ds=Dataset(ds_url)
-            lon = ds.variables[x_vname][0]
-            lat = ds.variables[y_vname][0]
-            z = ds.variables[z_vname][0]
+            lon = ds.variables[x_vname][:]
+            lat = ds.variables[y_vname][:]
+            z = ds.variables[z_vname][:]
 
             t_arr = ds.variables[t_vname][t_slice]
             data_arrays = {}
             for varn in var_lst:
                 data_arrays[varn] = ds.variables[varn][t_slice]
 
+            max_rec = get_safe(config, 'max_records', 1)
             dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
             tx = get_safe(config, 'taxonomy')
             ttool = TaxyTool(tx) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
 
-            for i in xrange(t_arr.size):
-                time.sleep(0.1)
-                #TODO: Build and return granule here
+            cnt = cls._calc_iter_cnt(t_arr.size, max_rec)
+            for x in xrange(cnt):
+                ta = t_arr[x*max_rec:(x+1)*max_rec]
+
+                # Make a 'master' RecDict
                 rdt = RecordDictionaryTool(taxonomy=ttool)
+                # Make a 'coordinate' RecDict
                 rdt_c = RecordDictionaryTool(taxonomy=ttool)
+                # Make a 'data' RecDict
                 rdt_d = RecordDictionaryTool(taxonomy=ttool)
-                #CBM: RDict handling of numpy?? Need to convert to a list - len() is called on it - of python primitives
-                rdt_c[t_vname] = [t_arr[i].tolist()]
-                rdt_c[x_vname] = [lon.tolist()]
-                rdt_c[y_vname] = [lat.tolist()]
-                rdt_c[z_vname] = [z.tolist()]
 
+                # Assign values to the coordinate RecDict
+                rdt_c[x_vname] = lon
+                rdt_c[y_vname] = lat
+                rdt_c[z_vname] = z
+
+                # Assign values to the data RecDict
+                rdt_d[t_vname] = ta
                 for key, arr in data_arrays.iteritems():
-                    rdt_d[key] = [arr[i].tolist()]
+                    d = arr[x*max_rec:(x+1)*max_rec]
+                    rdt_d[key] = d
 
+                # Add the coordinate and data RecDicts to the master RecDict
                 rdt['coords'] = rdt_c
                 rdt['data'] = rdt_d
 
+                # Build and return a granule
                 # CBM: ttool must be passed
                 g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
                 yield g

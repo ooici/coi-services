@@ -194,6 +194,10 @@ class BaseDataHandler(object):
         if not isinstance(config, dict):
             raise TypeError('args[0] of \'acquire_data\' is not a dict.')
         else:
+            if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
+                log.warn('Already acquiring new data - action not duplicated')
+                return
+
             stream_id = get_safe(config, 'stream_id')
             if not stream_id:
                 raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
@@ -201,13 +205,10 @@ class BaseDataHandler(object):
             # Make a copy of the config to ensure no cross-pollution
             config_copy = config.copy()
 
-            if get_safe(config_copy,'constraints') is None and not self._semaphore.acquire(blocking=False):
-                log.warn('Already acquiring new data - action not duplicated')
-                return
-
             # Create a publisher to pass into the greenlet
             publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
 
+            # Spawn a greenlet to do the data acquisition and publishing
             g = spawn(self._acquire_data, config_copy, publisher, self._unlock_new_data_callback)
             log.debug('** Spawned {0}'.format(g))
             self._glet_queue.append(g)
@@ -358,6 +359,7 @@ class BaseDataHandler(object):
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
         """
+        log.debug('start _acquire_data: config={0}'.format(config))
 
         constraints = get_safe(config,'constraints')
         if not constraints:
@@ -402,7 +404,7 @@ class BaseDataHandler(object):
         stream_id=config['stream_id']
         log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
         for count, gran in enumerate(data_generator):
-            #TG: Validate that ivals is a Granule object => If Granule, publish, else, just print
+            #TG: Validate that gran is a Granule object => If Granule, publish, else, just print
 #            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
             publisher.publish(gran)
 
@@ -410,6 +412,19 @@ class BaseDataHandler(object):
 
         #TODO: When finished publishing, update (either directly, or via an event callback to the agent) the UpdateDescription
 
+    @classmethod
+    def _calc_iter_cnt(cls, total_recs, max_rec):
+        """
+        Given the total number of records and the maximum records allowed in a granule,
+        calculates the number of iterations required to traverse the entire array in chunks of size max_rec
+        @param total_recs The total number of records
+        @param max_rec The maximum number of records allowed in a granule
+        """
+        cnt = total_recs / max_rec
+        if total_recs % max_rec > 0:
+            cnt += 1
+
+        return cnt
 
 class DataHandlerError(Exception):
     """
@@ -453,6 +468,7 @@ class FibonacciDataHandler(BaseDataHandler):
         """
         cnt = get_safe(config,'constraints.count',1)
 
+        max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
         tx = get_safe(config, 'taxonomy')
         ttool = TaxyTool(tx)
@@ -461,17 +477,23 @@ class FibonacciDataHandler(BaseDataHandler):
             """
             A Fibonacci sequence generator
             """
+            count = 0
+            ret = []
             a, b = 1, 1
             while 1:
-                yield np.array([a],dtype='float')
+                count += 1
+                ret.append(a)
+                if count == max_rec:
+                    yield np.array([ret])
+                    ret=[]
+                    count = 0
+
                 a, b = b, a + b
 
         gen=fibGenerator()
         for i in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
-            #CBM: MsgPack handling of numpy scalars (int in particular)
             rdt['data'] = gen.next()
-            time.sleep(0.1)
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             yield g
 
@@ -482,7 +504,9 @@ class DummyDataHandler(BaseDataHandler):
         Returns a constraints dictionary with 'array_len' and 'count' assigned random integers
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
         """
-        return {'array_len':npr.randint(1,10,1)[0], 'count':npr.randint(5,20,1)[0]}
+        # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
+        max_rec = get_safe(config, 'max_records', 1)
+        return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
 
     @classmethod
     def _get_data(cls, config):
@@ -490,22 +514,22 @@ class DummyDataHandler(BaseDataHandler):
         Retrieves config['constraints']['count'] number of random samples of length config['constraints']['array_len']
         @param config Dict of configuration parameters - must contain ['constraints']['count'] and ['constraints']['count']
         """
-        count = get_safe(config, 'constraints.count',1)
         array_len = get_safe(config, 'constraints.array_len',1)
 
+        max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
         tx = get_safe(config, 'taxonomy')
         ttool = TaxyTool(tx)
 
-        for i in xrange(count):
-            #TODO: Build & Use RecordDictionaryTool
+        arr = npr.random_sample(array_len)
+        log.debug('Array To Send using max_rec={0}: {1}'.format(max_rec, arr))
+        cnt = cls._calc_iter_cnt(arr.size, max_rec)
+        for x in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
-            rdt['data'] = npr.random_sample(array_len)
-            time.sleep(0.1)
+            d = arr[x*max_rec:(x+1)*max_rec]
+            rdt['data'] = d
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
-            #TODO: Return granule
             yield g
-            #yield npr.random_sample(array_len)
 
 
 

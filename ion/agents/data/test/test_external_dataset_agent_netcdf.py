@@ -105,7 +105,7 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='usgs_raw_product', description='raw usgs product')
+        dprod = DataProduct(name='usgs_parsed_product', description='parsed usgs product')
         dproduct_id = dpms_cli.create_data_product(data_product=dprod)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
@@ -143,6 +143,7 @@ class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
             'external_dataset_res':dset,
             'taxonomy':ttool._t,
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
+            'max_records':4,
         }
 
 

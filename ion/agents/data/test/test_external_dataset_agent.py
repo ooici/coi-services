@@ -115,11 +115,9 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 
     # Constraints dict
     HIST_CONSTRAINTS_1 = {
-        'count':15,
         'array_len':15,
     }
     HIST_CONSTRAINTS_2 = {
-        'count':10,
         'array_len':10,
     }
 
@@ -235,6 +233,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
             'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
             'data_producer_id':'dummy_data_producer_id',
             'taxonomy':tx._t,
+            'max_records':4,
         }
 
     def create_stream_and_logger(self, name, stream_id=''):
@@ -1004,5 +1003,6 @@ class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
             'stream_id':stream_id,
             'data_producer_id':'fibonacci_data_producer_id',
             'taxonomy':tx._t,
+            'max_records':4,
             }
 
