@@ -426,16 +426,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         inst_device_ids, _ = self.clients.resource_registry.find_objects(device_id, PRED.hasDevice, RT.InstrumentDevice, True)
 
         #retrieve the assoc instrument sites on this platform site
-        inst_site_ids, _ = self.clients.resource_registry.find_objects(site_id, PRED.hasDevice, RT.InstrumentDevice, True)
+        inst_site_ids, _ = self.clients.resource_registry.find_objects(site_id, PRED.hasSite, RT.InstrumentSite, True)
 
         #pair the instrument devices to instrument sites if they have equivalent models
         for inst_device_id in inst_device_ids:
             log.debug("ObsMS:activate_deployment find match for instrument device: %s", str(inst_device_id))
+            #get the model of this inst device, should be exactly one model attached
             inst_device_models, _ = self.clients.resource_registry.find_objects(inst_device_id, PRED.hasModel, RT.InstrumentModel, True)
             if len(inst_device_models) != 1:
                 raise BadRequest("Instrument Device %s has multiple models associated %s", str(inst_device_id), str(len(inst_device_models)))
             log.debug("ObsMS:activate_deployment inst_device_model: %s", str(inst_device_models[0]) )
             for inst_site_id in inst_site_ids:
+                #get the model of this inst site, should be exactly one model attached
                 inst_site_models, _ = self.clients.resource_registry.find_objects(inst_site_id, PRED.hasModel, RT.InstrumentModel, True)
                 if len(inst_device_models) != 1:
                     raise BadRequest("Instrument Site %s has multiple models associated: %s", str(inst_device_id), str(len(inst_device_models)))
@@ -445,11 +447,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     if inst_site_models[0] == inst_device_models[0]:
                         self.deploy_device_to_site(inst_device_id, inst_site_id)
                         log.debug("ObsMS:activate_deployment match found for instrument device: %s and site: %s", str(inst_device_id), str(inst_site_id))
+                        #remove this site from the list of available instrument sites on the platform
                         inst_site_ids.remove(inst_site_id)
                         log.debug("ObsMS:activate_deployment instrument site list size: %s ", str(inst_site_ids))
                         break # go to the next  inst_device on this platform and try to find a match
 
-            log.debug("ObsMS:activate_deployment No match found for instrument device: %s", str(inst_device_id))
+                #todo: throw an error if no match found?
+                log.debug("ObsMS:activate_deployment No matching site found for instrument device: %s", str(inst_device_id))
 
         return
 
