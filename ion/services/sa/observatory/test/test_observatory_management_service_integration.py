@@ -131,17 +131,23 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         subsite2_id, _        = self.RR.create(any_old(RT.Subsite))
 
         #stuff we associate to
-        instrument_agent_id, _ =  self.RR.create(any_old(RT.InstrumentAgent))
-        platform_agent_id, _ =    self.RR.create(any_old(RT.PlatformAgent))
+        instrument_model_id, _ = self.RR.create(any_old(RT.InstrumentModel))
+        instrument_device_id, _ = self.RR.create(any_old(RT.InstrumentDevice))
+        platform_model_id, _   = self.RR.create(any_old(RT.PlatformModel))
+        platform_device_id, _   = self.RR.create(any_old(RT.PlatformDevice))
+        deployment_id, _       = self.RR.create(any_old(RT.Deployment))
 
         #instrument_site
-        self.RR.create_association(instrument_site_id, PRED.hasAgent, instrument_agent_id)
-
+        self.RR.create_association(instrument_site_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_site_id, PRED.hasDevice, instrument_device_id)
+        self.RR.create_association(instrument_site_id, PRED.hasDeployment, deployment_id)
 
         #platform_site
         self.RR.create_association(platform_site_id, PRED.hasSite, platform_site2_id)
         self.RR.create_association(platform_site_id, PRED.hasSite, instrument_site_id)
-        self.RR.create_association(platform_site_id, PRED.hasAgent, platform_agent_id)
+        self.RR.create_association(platform_site_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
+        self.RR.create_association(platform_site_id, PRED.hasDeployment, deployment_id)
 
 
         #observatory
