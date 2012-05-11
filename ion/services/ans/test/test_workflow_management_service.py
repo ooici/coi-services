@@ -42,10 +42,17 @@ class TestWorkflowManagementService(PyonTestCase):
     def test_create_workflow_definition(self):
         self.mock_create.return_value = ['111', 1]
 
+        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id='123')
+        self.workflow_definition.workflow_steps.append(workflow_step_obj)
+
+        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id='456')
+        self.workflow_definition.workflow_steps.append(workflow_step_obj)
+
         workflow_definition_id = self.workflow_management_service.create_workflow_definition(self.workflow_definition)
 
         assert workflow_definition_id == '111'
         self.mock_create.assert_called_once_with(self.workflow_definition)
+
 
     def test_read_and_update_workflow_definition(self):
         self.mock_read.return_value = self.workflow_definition
@@ -55,9 +62,17 @@ class TestWorkflowManagementService(PyonTestCase):
         assert workflow_definition is self.mock_read.return_value
         self.mock_read.assert_called_once_with('111', '')
 
-        workflow_definition.name = 'Bar'
+        workflow_definition.name = 'Bar space'
 
         self.mock_update.return_value = ['111', 2]
+
+        with self.assertRaises(BadRequest) as cm:
+            self.workflow_management_service.update_workflow_definition(workflow_definition)
+
+        ex = cm.exception
+        self.assertEqual(ex.message, "The workflow definition name 'Bar space' can only contain alphanumeric and underscore characters")
+
+        workflow_definition.name = 'Bar'
 
         self.workflow_management_service.update_workflow_definition(workflow_definition)
 

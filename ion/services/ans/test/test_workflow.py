@@ -1,3 +1,4 @@
+from pyon.core.object import IonObjectSerializer
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from interface.objects import CouchStorage, ProcessDefinition, StreamQuery
@@ -11,6 +12,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
@@ -23,10 +25,10 @@ from pyon.public import StreamSubscriberRegistrar
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG, RT, LCS, PRED
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, Inconsistent
 
 from nose.plugins.attrib import attr
-
+import unittest, os
 import gevent, numpy
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
@@ -64,7 +66,7 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
-
+        self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
@@ -115,8 +117,8 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
         # process definition for the ctd simulator...
         producer_definition = ProcessDefinition()
         producer_definition.executable = {
-            'module':'ion.processes.data.sinusoidal_stream_publisher',
-            'class':'SinusoidalCtdPublisher'
+            'module':'ion.processes.data.ctd_stream_publisher',
+            'class':'SimpleCtdPublisher'
         }
 
         ctd_sim_procdef_id = self.process_dispatcher.create_process_definition(process_definition=producer_definition)
@@ -159,7 +161,7 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
             # Heads
             log.warn(' data received!')
             results.append(message)
-            if len(results) >30:   #Only wait for so many messages
+            if len(results) >= len(data_product_stream_ids) * 10:   #Only wait for so many messages - per stream
                 result.set(True)
 
         subscriber = subscriber_registrar.create_subscriber(exchange_name='workflow_test', callback=message_received)
@@ -229,6 +231,12 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
     def _create_salinity_data_process_definition(self):
 
         # Salinity: Data Process Definition
+
+        #First look to see if it exists and if not, then create it
+        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='ctd_salinity')
+        if len(dpd) > 0:
+            return dpd[0]
+
         log.debug("Create data process definition SalinityTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_salinity',
@@ -241,9 +249,18 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
         except Excpetion as ex:
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
+        # create a stream definition for the data from the salinity Transform
+        sal_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityTransform.outgoing_stream_def,  name='Salinity')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
+
         return ctd_L2_salinity_dprocdef_id
 
     def _create_salinity_doubler_data_process_definition(self):
+
+        #First look to see if it exists and if not, then create it
+        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='salinity_doubler')
+        if len(dpd) > 0:
+            return dpd[0]
 
         # Salinity Doubler: Data Process Definition
         log.debug("Create data process definition SalinityDoublerTransform")
@@ -258,17 +275,59 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
         except Exception as ex:
             self.fail("failed to create new SalinityDoubler data process definition: %s" %ex)
 
+
+        # create a stream definition for the data from the salinity Transform
+        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityDoubler.outgoing_stream_def,  name='SalinityDoubler')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id )
+
         return salinity_doubler_dprocdef_id
 
 
+    def create_transform_process(self, data_process_definition_id, data_process_input_dp_id):
 
-    def test_transform_components(self):
+        data_process_definition = self.rrclient.read(data_process_definition_id)
 
-        cc = self.container
+        # Find the link between the output Stream Definition resource and the Data Process Definition resource
+        stream_ids,_ = self.rrclient.find_objects(data_process_definition._id, PRED.hasStreamDefinition, RT.StreamDefinition,  id_only=True)
+        if len(stream_ids) == 0:
+            raise Inconsistent("The data process definition %s is missing an association to an output stream definition" % data_process_definition._id )
+        process_output_stream_def_id = stream_ids[0]
+
+        #Concatenate the name of the workflow and data process definition for the name of the data product output
+        data_process_name = data_process_definition.name
+
+        # Create the output data product of the transform
+        transform_dp_obj = IonObject(RT.DataProduct, name=data_process_name,description=data_process_definition.description)
+        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=True, persist_metadata=True)
+
+        #last one out of the for loop is the output product id
+        output_data_product_id = transform_dp_id
+
+        # Create the  transform data process
+        log.debug("create data_process and start it")
+        data_process_id = self.dataprocessclient.create_data_process(data_process_definition._id, data_process_input_dp_id, {'output':transform_dp_id})
+        self.dataprocessclient.activate_data_process(data_process_id)
+
+
+        #Find the id of the output data stream
+        stream_ids, _ = self.rrclient.find_objects(transform_dp_id, PRED.hasStream, None, True)
+        if len(stream_ids) == 0:
+            raise Inconsistent("The data process %s is missing an association to an output stream" % data_process_id )
+
+        return data_process_id, output_data_product_id
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    def test_SA_transform_components(self):
+
         assertions = self.assertTrue
 
+        #The list of data product streams to monitor
         data_product_stream_ids = list()
 
+        #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self._create_ctd_input_stream_and_data_product()
         data_product_stream_ids.append(ctd_stream_id)
 
@@ -280,26 +339,7 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
         # Salinity: Data Process Definition
         ctd_L2_salinity_dprocdef_id = self._create_salinity_data_process_definition()
 
-        # create a stream definition for the data from the salinity Transform
-        sal_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityTransform.outgoing_stream_def,  name='L2_salinity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
-
-        # Create the output data product of the transform
-        log.debug("create output data product L2 Salinity")
-        ctd_l2_salinity_output_dp_obj = IonObject(RT.DataProduct, name='L2_Salinity',description='transform output L2 salinity')
-        ctd_l2_salinity_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_salinity_output_dp_obj, sal_stream_def_id)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_salinity_output_dp_id, persist_data=True, persist_metadata=True)
-
-
-        # Create the Salinity transform data process
-        log.debug("create L2_salinity data_process and start it")
-        try:
-            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, ctd_parsed_data_product_id, {'output':ctd_l2_salinity_output_dp_id})
-            self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data process: %s" %ex)
-
-        log.debug("test_createTransformsThenActivateInstrument: create L2_salinity data_process return")
+        l2_salinity_all_data_process_id, ctd_l2_salinity_output_dp_id = self.create_transform_process(ctd_L2_salinity_dprocdef_id,ctd_parsed_data_product_id )
 
         ## get the stream id for the transform outputs
         stream_ids, _ = self.rrclient.find_objects(ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
@@ -315,23 +355,7 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
         # Salinity Doubler: Data Process Definition
         salinity_doubler_dprocdef_id = self._create_salinity_doubler_data_process_definition()
 
-        # create a stream definition for the data from the salinity Transform
-        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityDoubler.outgoing_stream_def,  name='SalinityDoubler')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id )
-
-        # Create the output data product of the transform
-        log.debug("create output data product SalinityDoubler")
-        salinity_doubler_output_dp_obj = IonObject(RT.DataProduct, name='SalinityDoubler',description='transform output salinity doubler')
-        salinity_doubler_output_dp_id = self.dataproductclient.create_data_product(salinity_doubler_output_dp_obj, salinity_double_stream_def_id)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=salinity_doubler_output_dp_id, persist_data=True, persist_metadata=True)
-
-        # Create the Salinity transform data process
-        log.debug("create L2_salinity data_process and start it")
-        try:
-            salinity_double_data_process_id = self.dataprocessclient.create_data_process(salinity_doubler_dprocdef_id, ctd_l2_salinity_output_dp_id, {'output':salinity_doubler_output_dp_id})
-            self.dataprocessclient.activate_data_process(salinity_double_data_process_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data process: %s" %ex)
+        salinity_double_data_process_id, salinity_doubler_output_dp_id = self.create_transform_process(salinity_doubler_dprocdef_id, ctd_l2_salinity_output_dp_id )
 
         stream_ids, _ = self.rrclient.find_objects(salinity_doubler_output_dp_id, PRED.hasStream, None, True)
         assertions(len(stream_ids) > 0 )
@@ -358,3 +382,70 @@ class TestVisualizationWorkflowIntegration(IonIntegrationTestCase):
         #Validate the data from each of the messages along the way
         self._validate_messages(results)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    def test_transform_workflow(self):
+
+        assertions = self.assertTrue
+
+        # Build the workflow definition
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
+
+        #Add a transformation process definition
+        ctd_L2_salinity_dprocdef_id = self._create_salinity_data_process_definition()
+        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=True)
+        workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Add a transformation process definition
+        salinity_doubler_dprocdef_id = self._create_salinity_doubler_data_process_definition()
+        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id)
+        workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+
+
+        #The list of data product streams to monitor
+        data_product_stream_ids = list()
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self._create_ctd_input_stream_and_data_product()
+        data_product_stream_ids.append(ctd_stream_id)
+
+        #Create and start the workflow
+        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id)
+
+
+
+        #Walk the associations to find the appropriate output data streams to validate the messages
+        workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
+        assertions(len(workflow_ids) == 1 )
+
+        process_ids,_ = self.rrclient.find_objects(workflow_ids[0], PRED.hasProcess, RT.DataProcess, True)
+        assertions(len(process_ids) == 2 )
+
+        for p in process_ids:
+
+            out_dp_ids, _ = self.rrclient.find_objects(p, PRED.hasOutputProduct, None, True)
+            assertions(len(out_dp_ids) == 1 )
+
+            stream_ids, _ = self.rrclient.find_objects(out_dp_ids[0], PRED.hasStream, None, True)
+            assertions(len(stream_ids) == 1 )
+            data_product_stream_ids.append(stream_ids[0])
+
+
+        #Start the input stream process
+        ctd_sim_pid = self._start_input_stream_process(ctd_stream_id)
+
+        #Start the output stream listener to monitor and verify messages
+        results = self._start_output_stream_listener(data_product_stream_ids)
+
+        #Stop the workflow processes
+        for p in process_ids:
+            self.dataprocessclient.deactivate_data_process(p)
+
+        # stop the flow parse the messages...
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+        #Validate the data from each of the messages along the way
+        self._validate_messages(results)
