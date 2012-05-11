@@ -14,6 +14,7 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 
 # Standard imports.
+import time
 import os
 import signal
 import time
@@ -43,6 +44,9 @@ from pyon.util.context import LocalContextMixin
 from pyon.public import CFG
 from pyon.event.event import EventSubscriber, EventPublisher
 
+from pyon.core.exception import InstParameterError
+
+
 # MI imports.
 from ion.services.mi.driver_int_test_support import DriverIntegrationTestSupport
 from ion.services.mi.logger_process import EthernetDeviceLogger
@@ -57,11 +61,13 @@ from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 # bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
+DEV_ADDR = CFG.device.sbe37.host
+DEV_PORT = CFG.device.sbe37.port
 # Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
-DEV_PORT = 4001 # Moxa port or simulator random data.
+#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+#DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
 DRV_MOD = 'ion.services.mi.drivers.sbe37_driver'
@@ -129,9 +135,11 @@ PARAMS = {
 CMDS = [
     'acquire_sample',
     'calibrate',
-    'direct',
+    'direct_access',
     'start_autosample',
+    'start_direct_access',
     'stop_autosample',
+    'stop_direct_access',
     'test'    
 ]
 
@@ -590,6 +598,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
+        
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
         
@@ -732,14 +741,130 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     @unittest.skip('Never written')
     def test_errors(self):
         """
+        Test illegal behavior and replies.
         """
-        pass
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    @unittest.skip('Direct access to be finished and added.')
+        # Can't go active in unitialized state.
+        # Status 660 is state error.
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        log.info('GO ACTIVE CMD %s',str(retval))
+        self.assertEquals(retval.status, 660)
+        
+        # Can't command driver in this state.
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertEqual(reply.status, 660)
+        
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+        
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # OK, I can do this now.        
+        cmd = AgentCommand(command='acquire_sample')
+        reply = self._ia_client.execute(cmd)
+        self.assertSampleDict(reply.result)
+
+        # 404 unknown agent command.
+        cmd = AgentCommand(command='kiss_edward')
+        retval = self._ia_client.execute_agent(cmd)
+        self.assertEquals(retval.status, 404)
+        
+        # 670 unknown driver command.
+        cmd = AgentCommand(command='acquire_sample_please')
+        retval = self._ia_client.execute(cmd)
+        self.assertEqual(retval.status, 670)
+
+        # 630 Parameter error.
+        with self.assertRaises(InstParameterError):
+            reply = self._ia_client.get_param('bogus bogus')
+
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+        
+        
+    @unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
         driver process and transition to direct access.
         """
-        pass
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+        
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        cmd = AgentCommand(command='go_direct_access')
+        retval = self._ia_client.execute_agent(cmd)
+        print("go_direct_access retval=" + str(retval))       
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.DIRECT_ACCESS)
+
+        # sleep to let tester run telnet client manually
+        print "sleeping to run telnet client"
+        time.sleep(60)
+
+        # Halt DA.
+        cmd = AgentCommand(command='go_observatory')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
 

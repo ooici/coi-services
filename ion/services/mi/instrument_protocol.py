@@ -250,6 +250,19 @@ class CommandResponseInstrumentProtocol(InstrumentProtocol):
                 self._connection.send(char)
                 time.sleep(write_delay)
     
+    def _do_cmd_direct(self, cmd):
+        """
+        Issue an untranslated command to the instrument. No response is handled 
+        as a result of the command.
+        
+        @param cmd The high level command to issue
+        """
+
+        # Send command.
+        mi_logger.debug('_do_cmd_direct: <%s>', cmd)
+        self._connection.send(cmd)
+
+ 
     ########################################################################
     # Incomming data callback.
     ########################################################################            

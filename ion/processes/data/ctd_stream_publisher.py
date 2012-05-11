@@ -35,6 +35,8 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
+
+
 class SimpleCtdPublisher(StandaloneProcess):
     def __init__(self, *args, **kwargs):
         super(SimpleCtdPublisher, self).__init__(*args,**kwargs)
@@ -46,6 +48,7 @@ class SimpleCtdPublisher(StandaloneProcess):
     def on_start(self):
 
 
+        log.warn('Entering On Start!!!')
         # Get the stream(s)
         stream_id = self.CFG.get_safe('process.stream_id',{})
 
@@ -80,6 +83,7 @@ class SimpleCtdPublisher(StandaloneProcess):
         g = Greenlet(self._trigger_func, stream_id)
         log.debug('Starting publisher thread for simple ctd data.')
         g.start()
+        log.warn('Publisher Greenlet started in "%s"' % self.__class__.__name__)
         self.greenlet_queue.append(g)
 
     def on_quit(self):
@@ -159,3 +163,4 @@ class PointCtdPublisher(StandaloneProcess):
             self.publisher.publish(ctd_packet)
 
             time.sleep(2.0)
+

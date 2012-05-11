@@ -279,9 +279,9 @@ class CommConfigEthernet(CommConfig):
         CommConfig._init_from_yaml(self, yamlInput)
 
         if( yamlInput ):
-            self.device_addr = yamlInput['comm'].get('device_address')
+            self.device_addr = yamlInput['comm'].get('device_addr')
             self.device_port = yamlInput['comm'].get('device_port')
-            self.server_addr = yamlInput['comm'].get('server_address')
+            self.server_addr = yamlInput['comm'].get('server_addr')
             self.server_port = yamlInput['comm'].get('server_port')
 
     def get_from_console(self):

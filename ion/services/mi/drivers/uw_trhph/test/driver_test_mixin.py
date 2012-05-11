@@ -43,7 +43,6 @@ class DriverTestMixin(object):
     1) As shown in test_trhph_driver_proc, a driver proxy that interacts with
     corresponding driver client (which itself interacts with the actual
     driver process running separately).
-
     2) As shown in test_trhph_driver, the driver object is directly an
     instance of TrhphInstrumentDriver.
     """
@@ -84,7 +83,6 @@ class DriverTestMixin(object):
         self.assertEqual(TrhphDriverState.DISCONNECTED, state)
 
     def _get_params_OLD(self, valid_params, invalid_params=None):
-
         # TODO Remove this method
 
         invalid_params = invalid_params or []
@@ -192,7 +190,6 @@ class DriverTestMixin(object):
         raised even when just an individual parameter is invalid.
         """
         # TODO Remove this method
-
         invalid_params = invalid_params or {}
         params = dict(valid_params.items() + invalid_params.items())
 

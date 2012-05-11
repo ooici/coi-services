@@ -19,7 +19,7 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 
-from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
+from ion.services.sa.instrument.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
 
@@ -104,7 +104,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
 
 
-@attr('INT', group='mmm')
+@attr('INT', group='sa')
 #@unittest.skip('not working')
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 

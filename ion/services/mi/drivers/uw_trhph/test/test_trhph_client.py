@@ -110,7 +110,7 @@ class TrhphClientTest(TrhphTestCase):
         """
         -- TRHPH CLIENT: Connect, get current state, sleep, disconnect
         """
-
+        
         state = self._client.get_current_state()
         log.info("current instrument state: %s" % str(state))
 
@@ -123,7 +123,7 @@ class TrhphClientTest(TrhphTestCase):
         """
         -- TRHPH CLIENT: Get system info
         """
-
+        
         log.info("getting system info")
         system_info = self._client.get_system_info()
         log.info("system info = %s" % str(system_info))

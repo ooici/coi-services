@@ -28,6 +28,7 @@ from nose.plugins.attrib import attr
 # Pyon and ION imports
 from pyon.util.unit_test import PyonTestCase
 from ion.services.mi.driver_int_test_support import DriverIntegrationTestSupport
+from pyon.public import CFG
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
 from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Driver
@@ -64,10 +65,13 @@ mi_logger = logging.getLogger('mi_logger')
 DVR_MOD = 'ion.services.mi.drivers.sbe37.sbe37_driver'
 
 DVR_CLS = 'SBE37Driver'
+DEV_ADDR = CFG.device.sbe37.host
+DEV_PORT = CFG.device.sbe37.port
+# Device ethernet address and port
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
-DEV_PORT = 4001 # Moxa port or simulator random data.
+#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
+#DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
@@ -124,22 +128,6 @@ class TestSBE37Driver(unittest.TestCase):
     Integration tests for the sbe37 driver. This class tests and shows
     use patterns for the sbe37 driver as a zmq driver process.
     """    
-    """
-    def __init__(self):
-        self.device_addr = DEV_ADDR
-        self.device_port = DEV_PORT
-        self.work_dir = WORK_DIR
-        self.delim = DELIM
-        
-        self.driver_class = DVR_CLS
-        self.driver_module = DVR_MOD
-        self._support = DriverIntegrationTestSupport(self.driver_module,
-                                                     self.driver_class,
-                                                     self.device_addr,
-                                                     self.device_port,
-                                                     self.delim,
-                                                     self.work_dir)
-    """
     def setUp(self):
         """
         Setup test cases.
@@ -908,6 +896,3 @@ class TestSBE37Driver(unittest.TestCase):
         # Test the driver is in state unconfigured.
         state = self._dvr_client.cmd_dvr('get_current_state')
         self.assertEqual(state, DriverConnectionState.UNCONFIGURED)
-        
-        
-        

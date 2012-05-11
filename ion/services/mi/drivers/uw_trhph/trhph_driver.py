@@ -40,7 +40,6 @@ import logging
 from ion.services.mi.mi_logger import mi_logger
 log = mi_logger
 
-
 # TODO define Packet config for TRHPH data granules.
 PACKET_CONFIG = {}
 

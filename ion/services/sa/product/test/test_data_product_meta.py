@@ -10,7 +10,7 @@ from pyon.util.context import LocalContextMixin
 from nose.plugins.attrib import attr
 import unittest
 
-from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
+from ion.services.sa.instrument.data_product_impl import DataProductImpl
 
 from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
 
@@ -33,7 +33,7 @@ class TestDataProductManagementServiceMeta(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2sa.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         print 'started services'
 

@@ -262,7 +262,7 @@ class OrgManagementService(BaseOrgManagementService):
         user_role = param_objects['user_role']
 
         if not force_removal:
-            alist,_ = self.clients.resource_registry.find_subjects(RT.UserIdentity, PRED.hasRole, user_role)
+            alist,_ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasRole, user_role)
             if len(alist) > 0:
                 raise BadRequest('The User Role %s cannot be removed as there are %s users associated to it' %
                                  (user_role.name, str(len(alist))))
@@ -631,9 +631,9 @@ class OrgManagementService(BaseOrgManagementService):
 
         #Membership into the Root ION Org is implied as part of registration
         if org.name == ROOT_ION_ORG_NAME:
-            user_list,_ = self.clients.resource_registry.find_resources(RT.UserIdentity)
+            user_list,_ = self.clients.resource_registry.find_resources(RT.ActorIdentity)
         else:
-            user_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasMembership, RT.UserIdentity)
+            user_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasMembership, RT.ActorIdentity)
 
         return user_list
 
