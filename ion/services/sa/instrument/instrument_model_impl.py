@@ -44,15 +44,4 @@ class InstrumentModelImpl(ResourceSimpleImpl):
 
         return ""
        
-    def link_stream_definition(self, instrument_model_id='', stream_definition_id=''):
-        return self._link_resources(instrument_model_id, PRED.hasStreamDefinition, stream_definition_id)
-
-    def unlink_stream_definition(self, instrument_model_id='', stream_definition_id=''):
-        return self._unlink_resources(instrument_model_id, PRED.hasStreamDefinition, stream_definition_id)
-
-    def find_having_stream_definition(self, stream_definition_id):
-        return self._find_having(PRED.hasStreamDefinition, stream_definition_id)
-
-    def find_stemming_stream_definition(self, instrument_model_id):
-        return self._find_stemming(instrument_model_id, PRED.hasStreamDefinition, RT.StreamDefinition)
 

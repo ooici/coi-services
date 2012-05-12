@@ -33,9 +33,9 @@ log.warn = lambda x: printout("WARNING: %s\n" % x)
 
 
 @attr('INT', group='sa')
-class TestLCASA(IonIntegrationTestCase):
+class TestAssembly(IonIntegrationTestCase):
     """
-    LCA integration tests at the service level
+    assembly integration tests at the service level
     """
 
     def setUp(self):
@@ -75,7 +75,7 @@ class TestLCASA(IonIntegrationTestCase):
             
             response = self.client.PSMS.create_stream_definition(container=container,
                                                                  name=n,
-                                                                 description="inserted by test_lca_sa.py")
+                                                                 description="inserted by test_assembly.py")
             resource_ids[RT.StreamDefinition][n] = response
 
 
@@ -84,8 +84,8 @@ class TestLCASA(IonIntegrationTestCase):
 
 
 
-    #@unittest.skip('refactoring')
-    def test_lca_step_1_to_6(self):
+    @unittest.skip('refactoring')
+    def test_observatory_structure(self):
         c = self.client
 
         c2 = DotDict()

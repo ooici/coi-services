@@ -503,7 +503,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         parent_site_obj = self.subsite.read_one(parent_site_id)
         parent_site_type = parent_site_obj._get_type()
 
-        if RT.OBservatory == parent_site_type:
+        if RT.Observatory == parent_site_type:
             self.observatory.link_site(parent_site_id, child_site_id)
         elif RT.Subsite == parent_site_type:
            self.subsite.link_site(parent_site_id, child_site_id)
@@ -524,7 +524,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         parent_site_obj = self.subsite.read_one(parent_site_id)
         parent_site_type = parent_site_obj._get_type()
 
-        if RT.OBservatory == parent_site_type:
+        if RT.Observatory == parent_site_type:
             self.observatory.unlink_site(parent_site_id, child_site_id)
         elif RT.Subsite == parent_site_type:
             self.subsite.unlink_site(parent_site_id, child_site_id)

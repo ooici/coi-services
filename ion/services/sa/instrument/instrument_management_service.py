@@ -177,7 +177,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
 
-        self.assign_instrument_agent_instance_to_instrument_agent(instrument_agent_instance_id, instrument_agent_id)
+        self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
 
 
         self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
@@ -504,12 +504,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return self.instrument_agent.delete_one(instrument_agent_id)
 
-    def find_instrument_agents(self, filters=None):
-        """
-
-        """
-        return self.instrument_agent.find_some(filters)
-
 
 
     ##########################################################################
@@ -555,12 +549,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.instrument_model.delete_one(instrument_model_id)
-
-    def find_instrument_models(self, filters=None):
-        """
-
-        """
-        return self.instrument_model.find_some(filters)
 
 
 
@@ -656,12 +644,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_device.delete_one(instrument_device_id)
 
-    def find_instrument_devices(self, filters=None):
-        """
-
-        """
-        return self.instrument_device.find_some(filters)
-
 
 
     ##
@@ -749,13 +731,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
-    def find_platform_agent_instances(self, filters=None):
-        """
-
-        """
-        return self.platform_agent_instance.find_some(filters)
-
-
 
 
 
@@ -807,13 +782,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent.delete_one(platform_agent_id)
 
-    def find_platform_agents(self, filters=None):
-        """
-
-        """
-        return self.platform_agent.find_some(filters)
-
-
 
     ##########################################################################
     #
@@ -860,13 +828,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.platform_model.delete_one(platform_model_id)
-
-    def find_platform_models(self, filters=None):
-        """
-
-        """
-        return self.platform_model.find_some(filters)
-
 
 
 
@@ -917,13 +878,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.platform_device.delete_one(platform_device_id)
-
-    def find_platform_devices(self, filters=None):
-        """
-
-        """
-        return self.platform_device.find_some(filters)
-
 
 
 
@@ -976,12 +930,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_model.delete_one(sensor_model_id)
 
-    def find_sensor_models(self, filters=None):
-        """
-
-        """
-        return self.sensor_model.find_some(filters)
-
 
 
     ##########################################################################
@@ -1032,12 +980,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_device.delete_one(sensor_device_id)
 
-    def find_sensor_devices(self, filters=None):
-        """
-
-        """
-        return self.sensor_device.find_some(filters)
-
 
 
     ##########################################################################
@@ -1070,11 +1012,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_model_from_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
-    def assign_stream_definition_to_instrument_model(self, stream_definition_id='', instrument_model_id=''):
-        self.instrument_model.link_stream_definition(instrument_model_id, stream_definition_id)
+    def assign_platform_model_to_platform_agent(self, platform_model_id='', platform_agent_id=''):
+        self.platform_agent.link_model(platform_agent_id, platform_model_id)
 
-    def unassign_stream_definition_from_instrument_model(self, stream_definition_id='', instrument_model_id=''):
-        self.instrument_model.unlink_stream_definition(instrument_model_id, stream_definition_id)
+    def unassign_platform_model_from_platform_agent(self, platform_model_id='', platform_agent_id=''):
+        self.platform_agent.unlink_model(platform_agent_id, platform_model_id)
 
     def assign_sensor_model_to_sensor_device(self, sensor_model_id='', sensor_device_id=''):
         self.sensor_device.link_model(sensor_device_id, sensor_model_id)
@@ -1089,29 +1031,56 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.link_instrument(platform_device_id, instrument_device_id)
+        self.platform_device.link_device(platform_device_id, instrument_device_id)
 
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.unlink_instrument(platform_device_id, instrument_device_id)
+        self.platform_device.unlink_device(platform_device_id, instrument_device_id)
 
-    def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
-        self.platform_agent.link_instance(platform_agent_id, platform_agent_instance_id)
+    def assign_platform_agent_to_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
+        self.platform_agent_instance.link_agent_definition(platform_agent_instance_id, platform_agent_id)
 
-    def unassign_platform_agent_instance_from_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
-        self.platform_agent.unlink_instance(platform_agent_id, platform_agent_instance_id)
+    def unassign_platform_agent_from_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
+        self.platform_agent_instance.unlink_agent_definition(platform_agent_instance_id, platform_agent_id)
 
-    def assign_instrument_agent_instance_to_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
-        self.instrument_agent.link_instance(instrument_agent_id, instrument_agent_instance_id)
+    def assign_instrument_agent_to_instrument_agent_instance(self, instrument_agent_id='', instrument_agent_instance_id=''):
+        self.instrument_agent_instance.link_agent_definition(instrument_agent_instance_id, instrument_agent_id)
 
-    def unassign_instrument_agent_instance_from_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
-        self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
+    def unassign_instrument_agent_from_instrument_agent_instance(self, instrument_agent_id='', instrument_agent_instance_id=''):
+        self.instrument_agent_instance.unlink_agent_definition(instrument_agent_instance_id, instrument_agent_id)
 
     def assign_instrument_agent_instance_to_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
-        self.instrument_agent.link_device_instance(instrument_device_id, instrument_agent_instance_id)
+        self.instrument_device.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
 
     def unassign_instrument_agent_instance_from_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
-        self.instrument_agent.unlink_device_instance(instrument_device_id, instrument_agent_instance_id)
+        self.instrument_device.unlink_agent_instance(instrument_device_id, instrument_agent_instance_id)
 
+    def assign_platform_agent_instance_to_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
+        self.platform_agent.link_device_instance(platform_device_id, platform_agent_instance_id)
+
+    def unassign_platform_agent_instance_from_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
+        self.platform_agent.unlink_device_instance(platform_device_id, platform_agent_instance_id)
+
+
+
+    ##########################################################################
+    #
+    # DEPLOYMENTS
+    #
+    ##########################################################################
+
+
+
+    def deploy_instrument_device(self, instrument_device_id='', deployment_id=''):
+        self.instrument_device.link_deployment(instrument_device_id, deployment_id)
+
+    def undeploy_instrument_device(self, instrument_device_id='', deployment_id=''):
+        self.instrument_device.unlink_deployment(instrument_device_id, deployment_id)
+
+    def deploy_platform_device(self, platform_device_id='', deployment_id=''):
+        self.platform_device.link_deployment(platform_device_id, deployment_id)
+
+    def undeploy_platform_device(self, platform_device_id='', deployment_id=''):
+        self.platform_device.unlink_deployment(platform_device_id, deployment_id)
 
 
 
