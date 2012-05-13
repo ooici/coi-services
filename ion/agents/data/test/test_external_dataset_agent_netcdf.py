@@ -16,9 +16,12 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
-from ion.agents.data.test.test_external_dataset_agent import TestExternalDatasetAgent
+from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 
-class TestExternalDatasetAgent_Netcdf(TestExternalDatasetAgent):
+from nose.plugins.attrib import attr
+
+@attr('INT', group='eoi')
+class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.netcdf_data_handler',
         'dvr_cls' : 'NetcdfDataHandler',

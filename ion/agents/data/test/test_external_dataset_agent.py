@@ -105,21 +105,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('INT', group='eoi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
-class TestExternalDatasetAgent(IonIntegrationTestCase):
-
-    # DataHandler config
-    DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
-        'dvr_cls' : 'DummyDataHandler',
-    }
-
-    # Constraints dict
-    HIST_CONSTRAINTS_1 = {
-        'array_len':15,
-    }
-    HIST_CONSTRAINTS_2 = {
-        'array_len':10,
-    }
+class ExternalDatasetAgentTestBase(object):
 
     # Agent parameters.
     EDA_RESOURCE_ID = '123xyz'
@@ -147,16 +133,20 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 #        self._start_pagent()
 #        self.addCleanup(self._stop_pagent)
 
+        log.warn('Starting the container')
         # Start container.
         self._start_container()
 
         # Bring up services in a deploy file (no need to message)
 #        self.container.start_rel_from_url('res/deploy/r2dm.yml')
 #        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
+        log.warn('Starting the rel')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Create a pubsub client to create streams.
+        log.warn('Init a pubsub client')
         self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        log.warn('Init a ContainerAgentClient')
         self._container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
 
 #        # Define stream_config.
@@ -186,6 +176,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._async_finished_result = AsyncResult()
         self._finished_events_received = []
         self._finished_event_subscriber = None
+        log.warn('Init finished event subscriber')
         self._start_finished_event_subscriber()
         self.addCleanup(self._stop_finished_event_subscriber)
 
@@ -224,17 +215,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
     ########################################
 
     def _setup_resources(self):
-        stream_id = self.create_stream_and_logger(name='dummydata_stream')
-
-        tx = TaxyTool()
-        tx.add_taxonomy_set('data', 'external_data')
-        self.DVR_CONFIG['dh_cfg'] = {
-            'TESTING':True,
-            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
-            'data_producer_id':'dummy_data_producer_id',
-            'taxonomy':tx._t,
-            'max_records':4,
-        }
+        raise NotImplementedError('_setup_resources must be implemented in the subclass')
 
     def create_stream_and_logger(self, name, stream_id=''):
         if not stream_id or stream_id is '':
@@ -525,6 +506,13 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         # Assert that data was received
         self._async_finished_result.get(timeout=10)
         self.assertTrue(len(self._finished_events_received) >= 3)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
     @unittest.skip('Not used in DataHandler')
     def test_acquire_sample(self):
@@ -977,8 +965,37 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+@attr('INT', group='eoi')
+class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+    # DataHandler config
+    DVR_CONFIG = {
+        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
+        'dvr_cls' : 'DummyDataHandler',
+        }
 
-class TestExternalDatasetAgent_Fibonacci(TestExternalDatasetAgent):
+    # Constraints dict
+    HIST_CONSTRAINTS_1 = {
+        'array_len':15,
+        }
+    HIST_CONSTRAINTS_2 = {
+        'array_len':10,
+        }
+
+    def _setup_resources(self):
+        stream_id = self.create_stream_and_logger(name='dummydata_stream')
+
+        tx = TaxyTool()
+        tx.add_taxonomy_set('data', 'external_data')
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
+            'data_producer_id':'dummy_data_producer_id',
+            'taxonomy':tx._t,
+            'max_records':4,
+            }
+
+@attr('INT', group='eoi')
+class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
         'dvr_cls' : 'FibonacciDataHandler',
