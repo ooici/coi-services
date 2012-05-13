@@ -384,7 +384,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("Skipping for now to get build to pass - some service calls are taking longer than 10 seconds")
+    #unittest.skip("Skipping for now to get build to pass - some service calls are taking longer than 10 seconds")
     def test_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -414,7 +414,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id)
+        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
 
 
 
@@ -450,3 +450,5 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         #Validate the data from each of the messages along the way
         self._validate_messages(results)
+
+
