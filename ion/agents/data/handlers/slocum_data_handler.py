@@ -86,8 +86,8 @@ class SlocumDataHandler(BaseDataHandler):
 
             max_rec = get_safe(config, 'max_records', 1)
             dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
-            tx = get_safe(config, 'taxonomy')
-            ttool = TaxyTool(tx) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
+            tx_yml = get_safe(config, 'taxonomy')
+            ttool = TaxyTool.load(tx_yml) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
 
             cnt = cls._calc_iter_cnt(len(parser.sensor_map), max_rec)
             for x in xrange(cnt):

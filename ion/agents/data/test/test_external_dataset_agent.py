@@ -176,7 +176,6 @@ class ExternalDatasetAgentTestBase(object):
         self._async_finished_result = AsyncResult()
         self._finished_events_received = []
         self._finished_event_subscriber = None
-        log.warn('Init finished event subscriber')
         self._start_finished_event_subscriber()
         self.addCleanup(self._stop_finished_event_subscriber)
 
@@ -227,7 +226,7 @@ class ExternalDatasetAgentTestBase(object):
             cls='StreamGranuleLogger',
             config={'process':{'stream_id':stream_id}}
         )
-        log.warn('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
+        log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
 
         return stream_id
 
@@ -317,8 +316,8 @@ class ExternalDatasetAgentTestBase(object):
                 self._finished_events_received.append(args[0])
                 if self._finished_count and self._finished_count == len(self._finished_events_received):
                     log.debug('Finishing test...')
-                    self._async_finished_result.set()
-                    log.debug('Called self._async_finished_result.set()')
+                    self._async_finished_result.set(len(self._finished_events_received))
+                    log.debug('Called self._async_finished_result.set({0})'.format(len(self._finished_events_received)))
 
         self._finished_event_subscriber = EventSubscriber(event_type='DeviceEvent', callback=consume_event)
         self._finished_event_subscriber.activate()
@@ -430,8 +429,8 @@ class ExternalDatasetAgentTestBase(object):
         cmd = AgentCommand(command='acquire_data', args=[config])
         self._ia_client.execute(cmd)
 
-        self._async_finished_result.get(timeout=10)
-        self.assertEqual(len(self._finished_events_received),self._finished_count)
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)
@@ -990,7 +989,7 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
             'TESTING':True,
             'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
             'data_producer_id':'dummy_data_producer_id',
-            'taxonomy':tx._t,
+            'taxonomy':tx.dump(),
             'max_records':4,
             }
 
@@ -1019,7 +1018,7 @@ class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegr
             'TESTING':True,
             'stream_id':stream_id,
             'data_producer_id':'fibonacci_data_producer_id',
-            'taxonomy':tx._t,
+            'taxonomy':tx.dump(),
             'max_records':4,
             }
 

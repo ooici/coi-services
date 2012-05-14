@@ -470,8 +470,8 @@ class FibonacciDataHandler(BaseDataHandler):
 
         max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
-        tx = get_safe(config, 'taxonomy')
-        ttool = TaxyTool(tx)
+        tx_yml = get_safe(config, 'taxonomy')
+        ttool = TaxyTool.load(tx_yml)
 
         def fibGenerator():
             """
@@ -484,7 +484,7 @@ class FibonacciDataHandler(BaseDataHandler):
                 count += 1
                 ret.append(a)
                 if count == max_rec:
-                    yield np.array([ret])
+                    yield np.array(ret)
                     ret=[]
                     count = 0
 
@@ -493,7 +493,8 @@ class FibonacciDataHandler(BaseDataHandler):
         gen=fibGenerator()
         for i in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
-            rdt['data'] = gen.next()
+            d = gen.next()
+            rdt['data'] = d
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             yield g
 
@@ -518,11 +519,11 @@ class DummyDataHandler(BaseDataHandler):
 
         max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
-        tx = get_safe(config, 'taxonomy')
-        ttool = TaxyTool(tx)
+        tx_yml = get_safe(config, 'taxonomy')
+        ttool = TaxyTool.load(tx_yml)
 
         arr = npr.random_sample(array_len)
-        log.debug('Array To Send using max_rec={0}: {1}'.format(max_rec, arr))
+        log.debug('Array to send using max_rec={0}: {1}'.format(max_rec, arr))
         cnt = cls._calc_iter_cnt(arr.size, max_rec)
         for x in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)

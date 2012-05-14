@@ -11,7 +11,7 @@
 from pyon.public import log
 from pyon.ion.resource import PRED, RT
 from pyon.util.containers import get_safe
-from pyon.core.exception import InstDriverError
+from pyon.core.exception import InstDriverError, NotFound
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.mi.exceptions import StateError
@@ -48,20 +48,32 @@ class ExternalDatasetAgent(InstrumentAgent):
         dvr_cls = get_safe(self._dvr_config, 'dvr_cls', None)
         dh_cfg = get_safe(self._dvr_config, 'dh_cfg', {})
 
+        log.debug('_start_driver: dvr_mod.dvr_cls={0}.{1} dh_cfg={2}'.format(dvr_mod,dvr_cls,dh_cfg))
+
         if not dvr_mod or not dvr_cls:
             raise InstDriverError('DataHandler module ({0}) and class ({1}) cannot be None'.format(dvr_mod, dvr_cls))
 
+        #CBM: Could also follow the "stream_config" pattern and simply copy the stream_id(s) from agent.stream_config into dh_cfg
         if not 'stream_id' in dh_cfg:
             raise InstDriverError('DataHandler config must contain dh_cfg.stream_id: {0}'.format(self._dvr_config))
 
 #        # TODO: Retrieve all resources needed by the DataHandler, they will be provided during configuration
 #        ## Here to !!!! END from external_observatory_agent
-#        resreg_cli = ResourceRegistryServiceClient()
-#
-#        ext_dataset_id = self.resource_id
-#
-#        ext_ds_res = resreg_cli.read(object_id=ext_dataset_id)
-#        ext_resources = {'dataset':ext_ds_res}
+        resreg_cli = ResourceRegistryServiceClient()
+
+        # CBM: WTF - If not wrapped - exception DISAPPEARS!!  Why?
+
+        ext_ds_res = None
+        try:
+            ext_ds_res = resreg_cli.read(object_id=self.resource_id)
+            log.info('Dataset Resource (id={0}): {1}'.format(self.resource_id,ext_ds_res))
+        except NotFound as ex:
+            if not ext_ds_res and not get_safe(self._dvr_config, 'dh_cfg.TESTING'):
+                raise InstDriverError('No resource associated with id = {0}'.format(self.resource_id))
+
+        dh_cfg['external_dataset_res'] = ext_ds_res
+
+            #        ext_resources = {'dataset':ext_ds_res}
 #        log.debug('Retrieved ExternalDataset: {0}'.format(ext_ds_res))
 #
 #        dsrc_res, dsrc_assn = resreg_cli.find_objects(subject=ext_dataset_id, predicate=PRED.hasSource, object_type=RT.DataSource)
@@ -108,6 +120,9 @@ class ExternalDatasetAgent(InstrumentAgent):
 
             module = __import__(dvr_mod, fromlist=[dvr_cls])
             classobj = getattr(module, dvr_cls)
+
+            log.debug('Load DataHandler: module={0}  classojb={1}'.format(module,classobj))
+
             self._dvr_client = classobj(self._stream_registrar, dh_cfg)
             self._dvr_client.set_event_callback(self.evt_recv)
             # Initialize the DataHandler
@@ -169,7 +184,8 @@ class ExternalDatasetAgent(InstrumentAgent):
         else:
             raise StateError('Command \'{0}\' not allowed in current state {1}'.format(command, self._fsm.get_current_state()))
 
-#    def _construct_data_publishers(self):
+    def _construct_data_publishers(self):
+        pass
 #        """
 #        Construct the stream publishers from the stream_config agent
 #        config variable.
@@ -177,7 +193,8 @@ class ExternalDatasetAgent(InstrumentAgent):
 #        """
 #        InstrumentAgent._construct_data_publishers(self)
 
-#    def _construct_packet_factories(self, dvr_mod):
+    def _construct_packet_factories(self, dvr_mod):
+        pass
 #        """
 #        Construct packet factories from packet_config member of the
 #        driver_config.
