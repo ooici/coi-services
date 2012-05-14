@@ -133,20 +133,20 @@ class ExternalDatasetAgentTestBase(object):
 #        self._start_pagent()
 #        self.addCleanup(self._stop_pagent)
 
-        log.warn('Starting the container')
+#        log.warn('Starting the container')
         # Start container.
         self._start_container()
 
         # Bring up services in a deploy file (no need to message)
 #        self.container.start_rel_from_url('res/deploy/r2dm.yml')
 #        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
-        log.warn('Starting the rel')
+#        log.warn('Starting the rel')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Create a pubsub client to create streams.
-        log.warn('Init a pubsub client')
+#        log.warn('Init a pubsub client')
         self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-        log.warn('Init a ContainerAgentClient')
+#        log.warn('Init a ContainerAgentClient')
         self._container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
 
 #        # Define stream_config.
