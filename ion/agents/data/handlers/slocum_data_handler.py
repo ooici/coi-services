@@ -100,4 +100,10 @@ class SlocumDataHandler(BaseDataHandler):
                 g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
                 yield g
 
-
+    @classmethod
+    def _init_dataset_object(cls, config):
+        """
+        Initialize a dataset object specific to the data handler
+        Result is assigned to dh_cfg.dataset_object
+        """
+        return None

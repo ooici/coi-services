@@ -361,11 +361,16 @@ class BaseDataHandler(object):
         """
         log.debug('start _acquire_data: config={0}'.format(config))
 
+        cls._init_acquisition_cycle(config)
+
         constraints = get_safe(config,'constraints')
         if not constraints:
             gevent.getcurrent().link(unlock_new_data_callback)
             constraints = cls._new_data_constraints(config)
-            config['constraints']=constraints
+            config['constraints'] = constraints
+
+        if not constraints:
+            raise ParameterError("Data constraints not set properly")
 
         cls._publish_data(publisher, config, cls._get_data(config))
 
@@ -374,6 +379,13 @@ class BaseDataHandler(object):
             log.debug('Publish TestingFinished event')
             pub = EventPublisher('DeviceCommonLifecycleEvent')
             pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
+
+    @classmethod
+    def _init_acquisition_cycle(cls, config):
+        """
+        Initialize anything the data handler will need to use, such as a dataset
+        """
+        raise NotImplementedError("Initialize acquisition cycle not implemented in data handler")
 
     @classmethod
     def _new_data_constraints(cls, config):

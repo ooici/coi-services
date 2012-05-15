@@ -24,3 +24,11 @@ class RuvDataHandler(BaseDataHandler):
     @classmethod
     def _get_data(cls, config):
         return None
+
+    @classmethod
+    def _init_dataset_object(cls, config):
+        """
+        Initialize a dataset object specific to the data handler
+        Result is assigned to dh_cfg.dataset_object
+        """
+        return None
