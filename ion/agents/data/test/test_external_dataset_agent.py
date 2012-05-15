@@ -103,7 +103,6 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@attr('INT', group='eoi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class ExternalDatasetAgentTestBase(object):
 
@@ -964,7 +963,7 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-@attr('INT', group='eoi')
+@attr('INT_EOI', group='eoi')
 class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     # DataHandler config
     DVR_CONFIG = {
@@ -993,7 +992,7 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
             'max_records':4,
             }
 
-@attr('INT', group='eoi')
+@attr('INT_EOI', group='eoi')
 class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
