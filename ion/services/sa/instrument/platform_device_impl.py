@@ -72,7 +72,7 @@ class PlatformDeviceImpl(ResourceImpl):
         return self._find_stemming(platform_device_id, PRED.hasModel, RT.PlatformModel)
 
     def find_having_device(self, instrument_device_id):
-        return self._find_having(PRED.hasInstrument, instrument_device_id)
+        return self._find_having(PRED.hasDevice, instrument_device_id)
 
     def find_stemming_device(self, platform_device_id):
         return self._find_stemming(platform_device_id, PRED.hasDevice, RT.InstrumentDevice)

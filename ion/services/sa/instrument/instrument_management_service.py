@@ -1123,10 +1123,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.instrument_device.find_stemming_agent_instance(instrument_device_id)
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_instrument(platform_device_id)
+        return self.platform_device.find_stemming_device(platform_device_id)
 
     def find_platform_device_by_instrument_device(self, instrument_device_id=''):
-        return self.platform_device.find_having_instrument(instrument_device_id)
+        return self.platform_device.find_having_device(instrument_device_id)
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
         return self.instrument_device.find_having_assignment(logical_instrument_id)
