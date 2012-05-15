@@ -29,7 +29,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 @attr('INT', group='cei')
-class ExecutionEngineAgentIntTest(IonIntegrationTestCase):
+class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 
     def setUp(self):
         self._start_container()
@@ -39,7 +39,8 @@ class ExecutionEngineAgentIntTest(IonIntegrationTestCase):
         self._eea_name = "eeagent"
 
         self.supd_directory = "/tmp/pyon-eeagent-supd-test"
-        os.mkdir(self.supd_directory)
+        if not os.path.exists(self.supd_directory):
+            os.mkdir(self.supd_directory)
 
         self.agent_config = {
             'eeagent': {
@@ -54,17 +55,17 @@ class ExecutionEngineAgentIntTest(IonIntegrationTestCase):
               },
             },
             'agent': {'resource_id': self.resource_id},
-            'logging': {                                                           
-            'loggers': {                                                         
-              'eeagent': {                                                       
-                'level': 'DEBUG',                                                
-                'handlers': ['console']                                  
-              }                                                                  
-            },                                                                   
-            'root': {                                                            
-              'handlers': ['console']                                    
-            },                                                                   
-          }                         
+            'logging': {
+            'loggers': {
+              'eeagent': {
+                'level': 'DEBUG',
+                'handlers': ['console']
+              }
+            },
+            'root': {
+              'handlers': ['console']
+            },
+          }
         }
 
 
@@ -107,12 +108,103 @@ class ExecutionEngineAgentIntTest(IonIntegrationTestCase):
         proc = get_proc_for_upid(state, cat_u_pid)
         self.assertEqual(proc.get('state'), [500, 'RUNNING'])
 
-        
+
         self.eea_client.terminate_process(cat_u_pid, round)
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, cat_u_pid)
         self.assertEqual(proc.get('state'), [700, 'TERMINATED'])
 
+@attr('INT', group='cei')
+class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
+
+        self.resource_id = "eeagent_123456"
+        self._eea_name = "eeagent"
+
+        self.supd_directory = "/tmp/pyon-eeagent-pyon-supd-test"
+        os.mkdir(self.supd_directory)
+
+        self.agent_config = {
+            'eeagent': {
+              'heartbeat': 2,
+              'slots': 100,
+              'name': 'pyon_eeagent',
+              'launch_type': {
+                'name': 'pyon_single',
+                'pyon_directory': os.getcwd(),
+                'supd_directory': self.supd_directory,
+                'supdexe': 'bin/supervisord'
+              },
+            },
+            'agent': {'resource_id': self.resource_id},
+            'logging': {
+            'loggers': {
+              'eeagent': {
+                'level': 'DEBUG',
+                'handlers': ['console']
+              }
+            },
+            'root': {
+              'handlers': ['console']
+            },
+          }
+        }
+
+
+        # Start eeagent.
+        self._eea_pid = None
+        log.debug("TestInstrumentAgent.setup(): starting EDA.")
+        container_client = ContainerAgentClient(node=self.container.node,
+            name=self.container.name)
+        self._eea_pid = container_client.spawn_process(name=self._eea_name,
+            module="ion.agents.cei.execution_engine_agent",
+            cls="ExecutionEngineAgent", config=self.agent_config)
+        log.info('Agent pid=%s.', str(self._eea_pid))
+
+        # Start a resource agent client to talk with the instrument agent.
+        self._eea_pyon_client = ResourceAgentClient(self.resource_id, process=FakeProcess())
+        log.info('Got eea client %s.', str(self._eea_pyon_client))
+
+        self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
+
+    def tearDown(self):
+        shutil.rmtree(self.supd_directory)
+
+    def test_basics(self):
+        u_pid = "test0"
+        round = 0
+        run_type = "pyon_single"
+        rel = {
+            'type': 'release',
+            'name': 'test_deploy',
+            'verstion': '0.1',
+            'description': 'test',
+            'ion': '0.0.1',
+            'apps': [
+                {
+                'name': 'process_dispatcher',
+                'description': 'pd',
+                'version': '0.1',
+                'processapp': ['process_dispatcher',
+                               'ion.services.cei.process_dispatcher_service',
+                               'ProcessDispatcherService']
+                }
+            ]
+        }
+        parameters = {'rel': rel}
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+
+        self.eea_client.terminate_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+        self.assertEqual(proc.get('state'), [700, 'TERMINATED'])
 
 
 def get_proc_for_upid(state, upid):
