@@ -16,7 +16,7 @@ from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
 from pyon.core import exception as iex
 from pyon.util.containers import get_ion_ts
-from pyon.ion.endpoint import StreamPublisherRegistrar
+from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.event.event import EventPublisher
 from pyon.util.containers import get_safe
 

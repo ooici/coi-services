@@ -6,7 +6,7 @@
 @test ion.services.sa.acquisition.DataAcquisitionManagementService integration test
 '''
 
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.public import RT
 from pyon.core.exception import BadRequest, NotFound, Conflict

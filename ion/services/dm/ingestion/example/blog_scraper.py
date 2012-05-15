@@ -9,7 +9,7 @@
 
 import json, urllib2
 from interface.objects import BlogPost, BlogAuthor, BlogComment
-from pyon.ion.endpoint import StreamPublisher
+from pyon.ion.stream import StreamPublisher
 from pyon.ion.streamproc import StreamProcess
 from gevent.greenlet import Greenlet
 from pyon.util.config import CFG

@@ -1,5 +1,5 @@
 from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 

@@ -1,5 +1,5 @@
 from pyon.public import Container
-from pyon.net.endpoint import ProcessRPCClient
+from pyon.ion.endpoint import ProcessRPCClient
 from interface.services.examples.bank.ibank_service import BankServiceProcessClient
 from pyon.util.context import LocalContextMixin
 
