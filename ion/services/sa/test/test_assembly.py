@@ -61,22 +61,23 @@ class TestAssembly(IonIntegrationTestCase):
     def _low_level_init(self):
         resource_ids = {}
 
-        # some stream definitions
-        resource_ids[RT.StreamDefinition] = {}
+        #TODO: still relevant?
+        ## some stream definitions
+        #resource_ids[RT.StreamDefinition] = {}
 
-        # get module and function by name specified in strings
-        sc_module = "prototype.sci_data.stream_defs"
-        sc_method = "ctd_stream_definition"
-        module = __import__(sc_module, fromlist=[sc_method])
-        creator_func = getattr(module, sc_method)
+        # # get module and function by name specified in strings
+        # sc_module = "prototype.sci_data.stream_defs"
+        # sc_method = "ctd_stream_definition"
+        # module = __import__(sc_module, fromlist=[sc_method])
+        # creator_func = getattr(module, sc_method)
 
-        for n in ["SeabirdSim_raw", "SeabirdSim_parsed"]:
-            container = creator_func()
+        # for n in ["SeabirdSim_raw", "SeabirdSim_parsed"]:
+        #     container = creator_func()
             
-            response = self.client.PSMS.create_stream_definition(container=container,
-                                                                 name=n,
-                                                                 description="inserted by test_assembly.py")
-            resource_ids[RT.StreamDefinition][n] = response
+        #     response = self.client.PSMS.create_stream_definition(container=container,
+        #                                                          name=n,
+        #                                                          description="inserted by test_assembly.py")
+        #     resource_ids[RT.StreamDefinition][n] = response
 
 
 
@@ -84,7 +85,7 @@ class TestAssembly(IonIntegrationTestCase):
 
 
 
-    @unittest.skip('refactoring')
+    #@unittest.skip('refactoring')
     def test_observatory_structure(self):
         c = self.client
 
@@ -92,62 +93,74 @@ class TestAssembly(IonIntegrationTestCase):
         c2.resource_registry = self.client.RR
         inst_model_impl = InstrumentModelImpl(c2)
         
-        def find_instrument_model_by_stream_definition(stream_definition_id):
-            return inst_model_impl.find_having_stream_definition(stream_definition_id)
+        #generate a function that finds direct associations, using the more complex one in the service
+        def gen_find_oms_association(output_type):
+            def freeze():
+                def finder_fun(obj_id):
+                    ret = c.OMS.find_related_frames_of_reference(obj_id, [output_type])
+                    return ret[output_type]
+                return finder_fun
+            
+            return freeze()
 
-        def find_stream_definition_by_instrument_model(instrument_model_id):
-            return inst_model_impl.find_stemming_stream_definition(instrument_model_id)
 
+        # #TODO: still relevant?
+        # def find_instrument_model_by_stream_definition(stream_definition_id):
+        #     return inst_model_impl.find_having_stream_definition(stream_definition_id)
+        
+        # def find_stream_definition_by_instrument_model(instrument_model_id):
+        #     return inst_model_impl.find_stemming_stream_definition(instrument_model_id)
+        
         
         resource_ids = self._low_level_init()
 
-        log.info("LCA steps 1.3, 1.4, 1.5, 1.6, 1.7: FCRUF marine facility")
+        log.info("Create an observatory")
         observatory_id = self.generic_fcruf_script(RT.Observatory, 
                                           "observatory", 
                                           self.client.OMS, 
                                           True)
 
-        log.info("LCA steps 3.1, 3.2, 3.3, 3.4: FCRF site")
-#        site_id = self.generic_fcruf_script(RT.Site,
-#                                            "site",
-#                                            self.client.OMS,
-#                                            True)
+        log.info("Create a site")
+        subsite_id = self.generic_fcruf_script(RT.Subsite,
+                                            "subsite",
+                                            self.client.OMS,
+                                            True)
 
-        log.info("LCA <missing step>: associate site with marine facility")
-#        self.generic_association_script(c.OMS.assign_site_to_observatory,
-#                                        c.OMS.find_observatory_by_site,
-#                                        c.OMS.find_site_by_observatory,
-#                                        observatory_id,
-#                                        site_id)
+        log.info("Associate subsite with observatory")
+        self.generic_association_script(c.OMS.assign_site_to_site,
+                                        gen_find_oms_association(RT.Observatory),
+                                        gen_find_oms_association(RT.Subsite),
+                                        observatory_id,
+                                        subsite_id)
 
         
-
-        log.info("LCA step 4.1, 4.2: FCU platform model")
+        
+        log.info("Create a platform model")
         platform_model_id = self.generic_fcruf_script(RT.PlatformModel, 
                                                      "platform_model", 
                                                      self.client.IMS, 
                                                      True)
 
-        log.info("LCA step 4.3, 4.4: CF logical platform")
-#        logical_platform_id = self.generic_fcruf_script(RT.LogicalPlatform,
-#                                                    "logical_platform",
-#                                                    self.client.OMS,
-#                                                    True)
+        log.info("Create a platform site")
+        platform_site_id = self.generic_fcruf_script(RT.PlatformSite,
+                                                     "platform_site",
+                                                     self.client.OMS,
+                                                     True)
         
-        log.info("LCA step 4.5: C platform device")
+        log.info("Create a platform device")
         platform_device_id = self.generic_fcruf_script(RT.PlatformDevice, 
                                                     "platform_device", 
                                                     self.client.IMS, 
                                                     False)
 
-        log.info("LCA step 4.6: Assign logical platform to site")
-#        self.generic_association_script(c.OMS.assign_logical_platform_to_site,
-#                                        c.OMS.find_site_by_logical_platform,
-#                                        c.OMS.find_logical_platform_by_site,
-#                                        site_id,
-#                                        logical_platform_id)
+        log.info("Associate platform site with subsite")
+        self.generic_association_script(c.OMS.assign_site_to_site,
+                                        gen_find_oms_association(RT.Subsite),
+                                        gen_find_oms_association(RT.PlatformSite),
+                                        subsite_id,
+                                        platform_site_id)
 
-        log.info("LCA <missing step>: assign_platform_model_to_platform_device")
+        log.info("Associate platform model with platform device")
         self.generic_association_script(c.IMS.assign_platform_model_to_platform_device,
                                         c.IMS.find_platform_device_by_platform_model,
                                         c.IMS.find_platform_model_by_platform_device,
@@ -155,79 +168,59 @@ class TestAssembly(IonIntegrationTestCase):
                                         platform_model_id)
 
 
-        log.info("LCA <missing step>: deploy_platform_device_to_logical_platform")
-        #c.IMS.deploy_platform_device_to_logical_platform(platform_device_id, logical_platform_id)
-        # currently no find ops available to verify this operation
+        log.info("Associate platform device with platform site")
+        c.OMS.assign_device_to_site(platform_device_id, platform_site_id)
+        #self.generic_association_script(c.OMS.assign_device_to_site,
+        #                                c.OMS.find_platform_device_by_platform
+        #
 
-
-        log.info("LCA step 5.1, 5.2: FCU instrument model")
-        instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel, 
-                                                       "instrument_model", 
-                                                       self.client.IMS, 
-                                                       True)
-
-        log.info("LCA <missing step>: assign stream definitions to instrument model")
-        for name, stream_definition_id in resource_ids[RT.StreamDefinition].iteritems():
-            self.generic_association_script(c.IMS.assign_stream_definition_to_instrument_model,
-                                            find_instrument_model_by_stream_definition,
-                                            find_stream_definition_by_instrument_model,
-                                            instrument_model_id,
-                                            stream_definition_id)
-
-        log.info("LCA step 5.3: CU logical instrument")
-#        logical_instrument_id = self.generic_fcruf_script(RT.LogicalInstrument,
-#                                                    "logical_instrument",
-#                                                    self.client.OMS,
-#                                                    True)
-
-
-        log.info("Create a data product to be the 'logical' one")
-        #TODO: do this automatically as part of logical instrument association with model?
-        log_data_product_id = self.generic_fcruf_script(RT.DataProduct,
-                                                        "data_product",
-                                                        self.client.DPMS,
-                                                        False)
         
-        #### this is probably not how we'll end up establishing logical instruments
-        # log.info("add data product to a logical instrument")
-        # log.info("LCA <possible step>: find data products by logical instrument")
-        # self.generic_association_script(c.OMS.assign_data_product_to_logical_instrument,
-        #                                 c.OMS.find_logical_instrument_by_data_product,
-        #                                 c.OMS.find_data_product_by_logical_instrument,
-        #                                 logical_instrument_id,
-        #                                 log_data_product_id)
+        log.info("Create instrument model")
+        instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel, 
+                                                        "instrument_model", 
+                                                        self.client.IMS, 
+                                                        True)
+
+        # #TODO: still relevant?
+        # log.info("LCA <missing step>: assign stream definitions to instrument model")
+        # for name, stream_definition_id in resource_ids[RT.StreamDefinition].iteritems():
+        #     self.generic_association_script(c.IMS.assign_stream_definition_to_instrument_model,
+        #                                     find_instrument_model_by_stream_definition,
+        #                                     find_stream_definition_by_instrument_model,
+        #                                     instrument_model_id,
+        #                                     stream_definition_id)
+
+        log.info("Create instrument site")
+        instrument_site_id = self.generic_fcruf_script(RT.InstrumentSite,
+                                                       "instrument_site",
+                                                       self.client.OMS,
+                                                       True)
+        
+        log.info("Associate instrument site with platform site")
+        self.generic_association_script(c.OMS.assign_site_to_site,
+                                        gen_find_oms_association(RT.PlatformSite),
+                                        gen_find_oms_association(RT.InstrumentSite),
+                                        platform_site_id,
+                                        instrument_site_id)
 
 
+        log.info("Find an instrument site by observatory")
 
-        log.info("Assigning logical instrument to logical platform")
-        log.info("LCA step 5.4: list logical instrument by platform")
-#        self.generic_association_script(c.OMS.assign_logical_instrument_to_logical_platform,
-#                                        c.OMS.find_logical_platform_by_logical_instrument,
-#                                        c.OMS.find_logical_instrument_by_logical_platform,
-#                                        logical_platform_id,
-#                                        logical_instrument_id)
-
+        entities = c.OMS.find_related_frames_of_reference(observatory_id, [RT.InstrumentSite])
+        self.assertIn(RT.InstrumentSite, entities)
+        inst_sites = entities[RT.InstrumentSite]
+        self.assertEqual(1, len(inst_sites))
+        self.assertEqual(instrument_site_id, inst_sites[0]._id)
 
 
-        #THIS STEP IS IN THE WRONG PLACE...
-        log.info("LCA step 5.5: list instruments by observatory")
-        #entities = c.OMS.find_related_frames_of_reference(observatory_id, [RT.InstrumentSite])
-        #inst_sites = entities[RT.InstrumentSite]
-        #todo: insts = some_op_on(inst_sites
-        #self.assertEqual(0, len(insts))
-        #self.assertIn(instrument_device_id, insts)
-
-        log.info("LCA step 5.6, 5.7, 5.9: CRU instrument_device")
+        log.info("Create an instrument device")
         instrument_device_id = self.generic_fcruf_script(RT.InstrumentDevice, 
-                                                    "instrument_device", 
-                                                    self.client.IMS, 
-                                                    False)
+                                                         "instrument_device", 
+                                                         self.client.IMS, 
+                                                         False)
 
 
-        log.info("LCA <missing step>: assign instrument model to instrument device")
-        log.info("LCA <missing step>: create data products for instrument")
-
-
+        log.info("Associate instrument model with instrument device")
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
                                         c.IMS.find_instrument_device_by_instrument_model,
                                         c.IMS.find_instrument_model_by_instrument_device,
@@ -236,62 +229,30 @@ class TestAssembly(IonIntegrationTestCase):
 
 
 
-        log.info("LCA <missing step>: assign instrument device to platform device")
+        log.info("Associate instrument device with platform device")
         self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
                                         c.IMS.find_platform_device_by_instrument_device,
                                         c.IMS.find_instrument_device_by_platform_device,
                                         platform_device_id,
                                         instrument_device_id)
 
-        #STEP 6.6 should really go here, otherwise there is no way to find instruments
-        #         by a marine facility; only logical platforms are linked to sites
-        log.info("LCA <6.6>: assign logical instrument to instrument device")
-        #c.IMS.deploy_instrument_device_to_logical_instrument(instrument_device_id, logical_instrument_id)
+
+        log.info("Associate instrument device with instrument site")
+        c.OMS.assign_device_to_site(instrument_device_id, instrument_site_id)
+        #self.generic_association_script(c.OMS.assign_device_to_site,
+        #                                c.OMS.find_platform_device_by_platform
+        #
 
 
+        #TODO: find data products?
 
-        #THIS IS WHERE STEP 5.5 SHOULD BE
-        log.info("LCA step 5.5: list instruments by observatory")
-        #insts = c.OMS.find_instrument_device_by_observatory(observatory_id)
-        #self.assertIn(instrument_device_id, insts)
-
-
-        log.info("LCA step 5.8: instrument device policy?")
-        #TODO
-
-        #todo: there is no default product created, need to remove asserts or add products based on instrument model first
-
-        log.info("LCA step 5.10a: find data products by instrument device")
-        products = self.client.IMS.find_data_product_by_instrument_device(instrument_device_id)
-        #self.assertNotEqual(0, len(products))
-        #data_product_id = products[0]
-
-        log.info("LCA step 5.10b: find data products by platform")
-        products = self.client.IMS.find_data_product_by_platform_device(platform_device_id)
-        #self.assertIn(data_product_id, products)
-
-        log.info("LCA step 5.10c: find data products by logical platform")
-        #products = self.client.OMS.find_data_product_by_logical_platform(logical_platform_id)
-        #self.assertIn(data_product_id, products)
-
-        log.info("LCA step 5.10d: find data products by site")
-        #products = self.client.OMS.find_data_product_by_site(site_id)
-        #self.assertIn(data_product_id, products)
-
-        log.info("LCA step 5.10e: find data products by marine facility")
-        #products = self.client.OMS.find_data_product_by_observatory(observatory_id)
-        #self.assertIn(data_product_id, products)
-
-
-
-        log.info("LCA step 6.1, 6.2: FCU instrument agent")
+        log.info("Create instrument agent")
         instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent, 
-                                                       "instrument_agent", 
-                                                       self.client.IMS, 
-                                                       False)
-        
-        log.info("LCA step <6.3, out of order>: associate instrument model to instrument agent")
-        log.info("LCA step <6.4, out of order>: find instrument model by instrument agent")
+                                                        "instrument_agent", 
+                                                        self.client.IMS, 
+                                                        False)
+
+        log.info("Associate instrument model with instrument agent")
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_agent,
                                         c.IMS.find_instrument_agent_by_instrument_model,
                                         c.IMS.find_instrument_model_by_instrument_agent,
@@ -299,35 +260,6 @@ class TestAssembly(IonIntegrationTestCase):
                                         instrument_model_id)
 
 
-
-
-        #  .-.  .               .    .  
-        # (   )_|_            .'|  .'|  
-        #  `-.  |  .-. .,-.     |    |  
-        # (   ) | (.-' |   )    |    |  
-        #  `-'  `-'`--'|`-'   '---''---'
-        #              |                
-        #  step 11
-
-        #first, create an entire new instrument on this platform
-
-        instrument_device_id2 = self.generic_fcruf_script(RT.InstrumentDevice, 
-                                                          "instrument_device", 
-                                                          self.client.IMS, 
-                                                          False)
-        self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
-                                        c.IMS.find_instrument_device_by_instrument_model,
-                                        c.IMS.find_instrument_model_by_instrument_device,
-                                        instrument_device_id2,
-                                        instrument_model_id)
-
-        self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
-                                        c.IMS.find_platform_device_by_instrument_device,
-                                        c.IMS.find_instrument_device_by_platform_device,
-                                        platform_device_id,
-                                        instrument_device_id2)
-        
-        #TODO: some sort of transform stuff
 
 
 
@@ -421,14 +353,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         some_service = DotDict()
 
-        def make_plural(noun):
-            if "y" == noun[-1]:
-                return noun[:-1] + "ies"
-            else:
-                return noun + "s"
-            
-        
-        def fill(svc, method, plural=False):
+        def fill(svc, method):
             """
             make a "shortcut service" for testing crud ops.  
             @param svc a dotdict 
@@ -436,14 +361,10 @@ class TestAssembly(IonIntegrationTestCase):
             @param plural whether to make the resource label plural
             """
 
-            reallabel = resource_label
             realmethod = "%s_widget" % method
-            if plural:
-                reallabel = make_plural(reallabel)
-                realmethod = realmethod + "s"
                 
             setattr(svc, realmethod,  
-                    getattr(owner_service, "%s_%s" % (method, reallabel)))
+                    getattr(owner_service, "%s_%s" % (method, resource_label)))
 
 
         
@@ -451,9 +372,10 @@ class TestAssembly(IonIntegrationTestCase):
         fill(some_service, "read")
         fill(some_service, "update")
         fill(some_service, "delete")
-        fill(some_service, "find", True)
 
-
+        def find_widgets():
+            ret, _ = self.client.RR.find_resources(resource_iontype, None, None, False)
+            return ret
 
         #UX team: generic script for LCA resource operations begins here.
         # some_service will be replaced with whatever service you're calling
@@ -461,11 +383,10 @@ class TestAssembly(IonIntegrationTestCase):
         # resource_label will be data_product or logical_instrument
 
 
-        resource_labels = make_plural(resource_label)
 
-        log.info("Finding %s" % resource_labels)
-        num_objs = len(some_service.find_widgets())
-        log.info("I found %d %s" % (num_objs, resource_labels))
+        log.info("Finding %s objects" % resource_label)
+        num_objs = len(find_widgets())
+        log.info("I found %d %s objects" % (num_objs, resource_label))
 
         log.info("Creating a %s" % resource_label)
         generic_obj = any_old(resource_iontype)
@@ -496,7 +417,7 @@ class TestAssembly(IonIntegrationTestCase):
         self.assertEqual(generic_obj.description, generic_ret.description)
 
         log.info("Finding platform models... checking that there's a new one")
-        num_objs2 = len(some_service.find_widgets())
+        num_objs2 = len(find_widgets())
 
         self.assertTrue(num_objs2 > num_objs)
 
