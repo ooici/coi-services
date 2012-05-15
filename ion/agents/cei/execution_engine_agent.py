@@ -44,12 +44,12 @@ class ExecutionEngineAgent(ResourceAgent):
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)
 
-        self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
+        #self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
+        #interval = 0.5 #TODO get from CFG
+        #looping_call(interval, self.heartbeater.poll)
 
-        interval = 0.5 #TODO get from CFG
-
-        looping_call(interval, self.heartbeater.poll)
-
+    def on_quit(self):
+        self._factory.terminate()
 
     def acmd_launch_process(self, u_pid, round, run_type, parameters):
         self.core.launch_process(u_pid, round, run_type, parameters)
