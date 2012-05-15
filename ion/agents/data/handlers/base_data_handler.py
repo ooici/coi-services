@@ -10,7 +10,8 @@
 """
 
 from pyon.public import log
-from pyon.util.async import spawn, wait
+from pyon.util.async import spawn
+from pyon.ion.resource import PRED, RT
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
@@ -44,10 +45,12 @@ class BaseDataHandler(object):
     _polling = False
     _polling_glet = None
     _dh_config = {}
+    _rr_cli = None
 
-    def __init__(self, stream_registrar, dh_config):
+    def __init__(self, rr_cli, stream_registrar, dh_config):
         self._dh_config=dh_config
         self._stream_registrar = stream_registrar
+        self._rr_cli = rr_cli
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -191,7 +194,7 @@ class BaseDataHandler(object):
                 raise IndexError()
 
             log.debug('Configuration modifications provided: {0}'.format(config_mods))
-            modable_keys = ['stream_id','constraints','new_data_check']
+            modable_keys = ['stream_id','constraints']
             for k in modable_keys:
                 if get_safe(config_mods, k):
                    config[k] = config_mods[k]
@@ -209,12 +212,26 @@ class BaseDataHandler(object):
         if not stream_id:
             raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
 
-        ndc = get_safe(config,'new_data_check')
-        if not ndc:
-            #CBM: Sort out where/how to get the appropriate info from the database - insert it here (for 'default' new_data)
-            pass
+        # Get any NewDataCheck attachments and add them to the config
+        ext_ds_id = get_safe(config,'external_dataset_res_id')
+        if ext_ds_id:
+            try:
+                attachment_objs, _ = self._rr_cli.find_objects(ext_ds_id, PRED.hasAttachment, RT.Attachment, False)
+                for attachment_obj in attachment_objs:
+                    kwds = set(attachment_obj.keywords)
+                    if 'NewDataCheck' in kwds:
+                        config['new_data_check'] = attachment_obj.content
+                        log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj))
+                    else:
+                        log.debug('Found attachment: {0}'.format(attachment_obj))
+            except NotFound:
+                log.debug('No attachments found for resource: {0}'.format(ext_ds_id))
+                pass
 
-        # Create a publisher to pass into the greenlet
+        if not get_safe(config, 'new_data_check'):
+            config['new_data_check'] = None
+
+            # Create a publisher to pass into the greenlet
         publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
 
         # Spawn a greenlet to do the data acquisition and publishing

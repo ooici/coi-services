@@ -22,7 +22,7 @@
 
 # Import pyon first for monkey patching.
 from pyon.public import log, CFG
-from pyon.core.exception import InstParameterError
+from pyon.core.exception import InstParameterError, NotFound
 # Standard imports.
 
 # 3rd party imports.
@@ -33,9 +33,10 @@ from nose.plugins.attrib import attr
 from mock import patch
 
 # ION imports.
-from interface.objects import StreamQuery
+from interface.objects import StreamQuery, Attachment, AttachmentType
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
@@ -537,6 +538,53 @@ class ExternalDatasetAgentTestBase(object):
         log.info('Send an unconstrained request for data (\'new data\')')
         cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_attachment(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        rr_cli = ResourceRegistryServiceClient()
+
+        #TG: Move this to test_acquire_new_data
+        for key, value in self.NDC.iteritems():
+            # build attachment
+            # create in registry
+            # run acquire_data
+            pass
+
+        att = Attachment(name='newDataCheck',
+            content='some content for the attachment, something to allow new data to be determined',
+            keywords=['NewDataCheck'],
+            attachment_type=AttachmentType.ASCII
+        )
+        try:
+            ncd_att_id = rr_cli.create_attachment(self.EDA_RESOURCE_ID, att)
+            log.warn('Created attachment: {0}'.format(ncd_att_id))
+        except NotFound as ex:
+            log.warn('Not a valid resource id - it\'s just a test!!')
+
+        #        #TG: Change this to be appropriate
+        #        self._finished_count = 3
+
+        #TG: This one should return some new data
+        log.info('Send an unconstrained request for data (\'new data\')')
+        cmd = AgentCommand(command='acquire_data')
+        self._ia_client.execute(cmd)
+
+        gevent.sleep(5)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)

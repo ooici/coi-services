@@ -33,6 +33,7 @@ class ExternalDatasetAgent(InstrumentAgent):
 
     def on_init(self):
         InstrumentAgent.on_init(self)
+        self._rr_cli = ResourceRegistryServiceClient()
 
     def _start_driver(self, dvr_config):
         """
@@ -72,6 +73,7 @@ class ExternalDatasetAgent(InstrumentAgent):
                 raise InstDriverError('No resource associated with id = {0}'.format(self.resource_id))
 
         dh_cfg['external_dataset_res'] = ext_ds_res
+        dh_cfg['external_dataset_res_id'] = self.resource_id
 
             #        ext_resources = {'dataset':ext_ds_res}
 #        log.debug('Retrieved ExternalDataset: {0}'.format(ext_ds_res))
@@ -123,7 +125,7 @@ class ExternalDatasetAgent(InstrumentAgent):
 
             log.debug('Load DataHandler: module={0}  classojb={1}'.format(module,classobj))
 
-            self._dvr_client = classobj(self._stream_registrar, dh_cfg)
+            self._dvr_client = classobj(self._rr_cli, self._stream_registrar, dh_cfg)
             self._dvr_client.set_event_callback(self.evt_recv)
             # Initialize the DataHandler
             self._dvr_client.cmd_dvr('initialize')

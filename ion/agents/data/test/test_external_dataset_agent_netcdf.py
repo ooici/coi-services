@@ -37,6 +37,10 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         'temporal_slice':'(slice(0,16,2))',
         }
 
+    NDC = {
+        'BASE':'encoded time array from the base dataset',
+        'WINDOWED':'encoded time array for the windowed sample'
+    }
 
     def _setup_resources(self):
         # TODO: some or all of this (or some variation) should move to DAMS'
