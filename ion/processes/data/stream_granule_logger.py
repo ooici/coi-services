@@ -13,7 +13,7 @@ $ bin/pycc --rel res/deploy/r2dm.yml
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 pmsc = PubsubManagementServiceClient(node=cc.node)
 stream_id = pmsc.create_stream(name='pfoo')
-pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_ctd_data_producer',cls='ExampleCTDDataProducer',config={'process':{'stream_id':stream_id}})
+pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_data_producer',cls='ExampleDataProducer',config={'process':{'stream_id':stream_id}})
 
 pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.stream_granule_logger',cls='StreamGranuleLogger',config={'process':{'stream_id':stream_id}})
 
