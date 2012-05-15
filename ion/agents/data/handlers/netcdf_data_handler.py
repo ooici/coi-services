@@ -41,11 +41,31 @@ class NetcdfDataHandler(BaseDataHandler):
             #TODO: Use the external dataset resource to determine what data is new (i.e. pull 'old' fingerprint from here)
             log.debug('ext_dset_res.dataset_description = {0}'.format(ext_dset_res.dataset_description))
             log.debug('ext_dset_res.update_description = {0}'.format(ext_dset_res.update_description))
-            base_fingerprint = ext_dset_res.update_description
-            new_fingerprint = _get_fingerprint(get_safe(config, 'dataset_object', None))
+#            base_fingerprint = ext_dset_res.update_description
+#            new_fingerprint = cls._get_fingerprint(get_safe(config, 'dataset_object', None))
+            base_nd_check = get_safe(ext_dset_res.update_description.parameters,'new_data_check')
+#            base_nd_check = '\x83\xa7content\xdc\x00\xc9\xceM\xa0\xf3\x00\xceM\xa2D\x80\xceM\xa3\x96\x00\xceM\xa4\xe7\x80\xceM\xa69\x00\xceM\xa7\x8a\x80\xceM\xa8\xdc\x00\xceM\xaa-\x80\xceM\xab\x7f\x00\xceM\xac\xd0\x80\xceM\xae"\x00\xceM\xafs\x80\xceM\xb0\xc5\x00\xceM\xb2\x16\x80\xceM\xb3h\x00\xceM\xb4\xb9\x80\xceM\xb6\x0b\x00\xceM\xb7\\\x80\xceM\xb8\xae\x00\xceM\xb9\xff\x80\xceM\xbbQ\x00\xceM\xbc\xa2\x80\xceM\xbd\xf4\x00\xceM\xbfE\x80\xceM\xc0\x97\x00\xceM\xc1\xe8\x80\xceM\xc3:\x00\xceM\xc4\x8b\x80\xceM\xc5\xdd\x00\xceM\xc7.\x80\xceM\xc8\x80\x00\xceM\xc9\xd1\x80\xceM\xcb#\x00\xceM\xcct\x80\xceM\xcd\xc6\x00\xceM\xcf\x17\x80\xceM\xd0i\x00\xceM\xd1\xba\x80\xceM\xd3\x0c\x00\xceM\xd4]\x80\xceM\xd5\xaf\x00\xceM\xd7\x00\x80\xceM\xd8R\x00\xceM\xd9\xa3\x80\xceM\xda\xf5\x00\xceM\xdcF\x80\xceM\xdd\x98\x00\xceM\xde\xe9\x80\xceM\xe0;\x00\xceM\xe1\x8c\x80\xceM\xe2\xde\x00\xceM\xe4/\x80\xceM\xe5\x81\x00\xceM\xe6\xd2\x80\xceM\xe8$\x00\xceM\xe9u\x80\xceM\xea\xc7\x00\xceM\xec\x18\x80\xceM\xedj\x00\xceM\xee\xbb\x80\xceM\xf0\r\x00\xceM\xf1^\x80\xceM\xf2\xb0\x00\xceM\xf4\x01\x80\xceM\xf5S\x00\xceM\xf6\xa4\x80\xceM\xf7\xf6\x00\xceM\xf9G\x80\xceM\xfa\x99\x00\xceM\xfb\xea\x80\xceM\xfd<\x00\xceM\xfe\x8d\x80\xceM\xff\xdf\x00\xceN\x010\x80\xceN\x02\x82\x00\xceN\x03\xd3\x80\xceN\x05%\x00\xceN\x06v\x80\xceN\x07\xc8\x00\xceN\t\x19\x80\xceN\nk\x00\xceN\x0b\xbc\x80\xceN\r\x0e\x00\xceN\x0e_\x80\xceN\x0f\xb1\x00\xceN\x11\x02\x80\xceN\x12T\x00\xceN\x13\xa5\x80\xceN\x14\xf7\x00\xceN\x16H\x80\xceN\x17\x9a\x00\xceN\x18\xeb\x80\xceN\x1a=\x00\xceN\x1b\x8e\x80\xceN\x1c\xe0\x00\xceN\x1e1\x80\xceN\x1f\x83\x00\xceN \xd4\x80\xceN"&\x00\xceN#w\x80\xceN$\xc9\x00\xceN&\x1a\x80\xceN\'l\x00\xceN(\xbd\x80\xceN*\x0f\x00\xceN+`\x80\xceN,\xb2\x00\xceN.\x03\x80\xceN/U\x00\xceN0\xa6\x80\xceN1\xf8\x00\xceN3I\x80\xceN4\x9b\x00\xceN5\xec\x80\xceN7>\x00\xceN8\x8f\x80\xceN9\xe1\x00\xceN;2\x80\xceN<\x84\x00\xceN=\xd5\x80\xceN?\'\x00\xceN@x\x80\xceNA\xca\x00\xceNC\x1b\x80\xceNDm\x00\xceNE\xbe\x80\xceNG\x10\x00\xceNHa\x80\xceNI\xb3\x00\xceNK\x04\x80\xceNLV\x00\xceNM\xa7\x80\xceNN\xf9\x00\xceNPJ\x80\xceNQ\x9c\x00\xceNR\xed\x80\xceNT?\x00\xceNU\x90\x80\xceNV\xe2\x00\xceNX3\x80\xceNY\x85\x00\xceNZ\xd6\x80\xceN\\(\x00\xceN]y\x80\xceN^\xcb\x00\xceN`\x1c\x80\xceNan\x00\xceNb\xbf\x80\xceNd\x11\x00\xceNeb\x80\xceNf\xb4\x00\xceNh\x05\x80\xceNiW\x00\xceNj\xa8\x80\xceNk\xfa\x00\xceNmK\x80\xceNn\x9d\x00\xceNo\xee\x80\xceNq@\x00\xceNr\x91\x80\xceNs\xe3\x00\xceNu4\x80\xceNv\x86\x00\xceNw\xd7\x80\xceNy)\x00\xceNzz\x80\xceN{\xcc\x00\xceN}\x1d\x80\xceN~o\x00\xceN\x7f\xc0\x80\xceN\x81\x12\x00\xceN\x82c\x80\xceN\x83\xb5\x00\xceN\x85\x06\x80\xceN\x86X\x00\xceN\x87\xa9\x80\xceN\x88\xfb\x00\xceN\x8aL\x80\xceN\x8b\x9e\x00\xceN\x8c\xef\x80\xceN\x8eA\x00\xceN\x8f\x92\x80\xceN\x90\xe4\x00\xceN\x925\x80\xceN\x93\x87\x00\xceN\x94\xd8\x80\xceN\x96*\x00\xceN\x97{\x80\xceN\x98\xcd\x00\xceN\x9a\x1e\x80\xceN\x9bp\x00\xceN\x9c\xc1\x80\xceN\x9e\x13\x00\xceN\x9fd\x80\xceN\xa0\xb6\x00\xceN\xa2\x07\x80\xceN\xa3Y\x00\xceN\xa4\xaa\x80\xceN\xa5\xfc\x00\xceN\xa7M\x80\xceN\xa8\x9f\x00\xa6header\x83\xa2nd\x01\xa5shape\x91\xcc\xc9\xa4type\xa5int32\xad__ion_array__\xc3'
+
+#            log.warn(base_nd_check)
+
+#            from pyon.core.interceptor.encode import encode_ion, decode_ion
+#            import msgpack
+#            old_arr=msgpack.unpackb(base_nd_check,object_hook=decode_ion)
+#            log.warn(old_arr)
 
 
-        return {'temporal_slice':'(slice(0,10))'}
+            t_slice = slice(None)
+            if base_nd_check:
+                #TG: Get new temporal data and encode it
+                #TG: Compare the old with the new, if different, decode old and sort out what's different
+                #TG: Build appropriate temproral_slice
+                pass
+
+            return {
+                'temporal_slice':t_slice
+            }
+
+        return None
 
     @classmethod
     def _get_data(cls, config):
@@ -54,10 +74,10 @@ class NetcdfDataHandler(BaseDataHandler):
         @param config Dict of configuration parameters - must contain ['constraints']['count'] and ['constraints']['count']
         """
         ext_dset_res = get_safe(config, 'external_dataset_res', None)
-        if ext_dset_res:
-            ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
-            log.debug('External Dataset URL: \'{0}\''.format(ds_url))
 
+        # Get the Dataset object from the config (should have been instantiated in _init_acquisition_cycle)
+        ds=get_safe(config, 'dataset_object')
+        if ext_dset_res and ds:
             t_vname = ext_dset_res.dataset_description.parameters['temporal_dimension']
             x_vname = ext_dset_res.dataset_description.parameters['zonal_dimension']
             y_vname = ext_dset_res.dataset_description.parameters['meridional_dimension']
@@ -69,8 +89,6 @@ class NetcdfDataHandler(BaseDataHandler):
             if isinstance(t_slice,str):
                 t_slice=eval(t_slice)
 
-            # Open the netcdf file, obtain the appropriate variables
-            ds=Dataset(ds_url)
             lon = ds.variables[x_vname][:]
             lat = ds.variables[y_vname][:]
             z = ds.variables[z_vname][:]
@@ -126,6 +144,7 @@ class NetcdfDataHandler(BaseDataHandler):
         ext_dset_res = get_safe(config, 'external_dataset_res', None)
         if ext_dset_res:
             ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
+            log.debug('External Dataset URL: \'{0}\''.format(ds_url))
             config['dataset_object'] = Dataset(ds_url)
 
     @classmethod
@@ -140,18 +159,15 @@ class NetcdfDataHandler(BaseDataHandler):
         ## Open the netcdf file, obtain the appropriate variables
         #ds = Dataset(ds_url)
 
-        if not ds.variables is None:
+        if len(ds.variables) > 0:
             var_map = {}
-            for vk in ds.variables:
-                #var = self._data_array[vk.column_name]
-                #print vk.key
-                #print var[:]
-
+            for vk, var in ds.variables.iteritems():
                 var_sha = hashlib.sha1()
                 var_atts = {}
-                for att in vk.attributes:
-                    var_atts[att.name] = hashlib.sha1(str(att.value)).hexdigest()
-                    var_sha.update(var_atts[att.name])
+                for ak in var.ncattrs():
+                    att = var.getncattr(ak)
+                    var_atts[ak] = hashlib.sha1(str(att)).hexdigest()
+                    var_sha.update(var_atts[ak])
 
 #                if not data_sampling is DatasetDescriptionDataSamplingEnum.NONE:
 #                    var = self.get_variable_data(vk.index_key)
@@ -180,7 +196,7 @@ class NetcdfDataHandler(BaseDataHandler):
 #                    else:
 #                        pass
 
-                var_map[vk.name] = var_sha.hexdigest(), var_atts
+                var_map[vk] = var_sha.hexdigest(), var_atts
 
             sha_vars = hashlib.sha1()
             for key in var_map:
@@ -188,12 +204,11 @@ class NetcdfDataHandler(BaseDataHandler):
 
             ret["vars"] = sha_vars.hexdigest(), var_map
 
-        if not ds.dimensions is None:
+        if len(ds.dimensions) > 0:
             # sha for dimensions
             dim_map = {}
-            for dk in ds.dimensions:
-                #print dk.name, dk.size
-                dim_map[dk.name] = hashlib.sha1(str(dk)).hexdigest()
+            for dk, dim in ds.dimensions.iteritems():
+                dim_map[dk] = hashlib.sha1(str(dim)).hexdigest()
 
             sha_dim = hashlib.sha1()
             for key in dim_map:
@@ -201,12 +216,12 @@ class NetcdfDataHandler(BaseDataHandler):
 
             ret["dims"] = sha_dim.hexdigest(), dim_map
 
-        if not ds.ncattrs() is None:
+        if len(ds.ncattrs()) > 0:
             # sha for globals
             gbl_map = {}
             for gk in ds.ncattrs():
-                #print gk.name, gk.value
-                gbl_map[gk.name] = hashlib.sha1(str(gk.value)).hexdigest()
+                gatt = ds.getncattr(gk)
+                gbl_map[gk] = hashlib.sha1(str(gatt)).hexdigest()
 
             sha_gbl = hashlib.sha1()
             for key in gbl_map:

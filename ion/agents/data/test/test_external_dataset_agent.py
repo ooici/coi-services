@@ -405,8 +405,6 @@ class ExternalDatasetAgentTestBase(object):
 
         self._finished_count = 3
 
-        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
-
         log.info('Send an unconstrained request for data (\'new data\')')
         cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
@@ -414,6 +412,8 @@ class ExternalDatasetAgentTestBase(object):
         log.info('Send a second unconstrained request for data (\'new data\'), should be rejected')
         cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
+
+        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
         config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
@@ -504,6 +504,39 @@ class ExternalDatasetAgentTestBase(object):
         # Assert that data was received
         self._async_finished_result.get(timeout=10)
         self.assertTrue(len(self._finished_events_received) >= 3)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_acquire_new_data(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        ret = self._ia_client.get_param(['DH_CONFIG'])
+        config = ret['DH_CONFIG']
+
+        #TG: Now can edit config's ext_dataset_res to modify the update parameter...
+        config['max_records'] = 10
+
+        self._ia_client.set_param({'DH_CONFIG':config})
+
+#        #TG: Change this to be appropriate
+#        self._finished_count = 3
+
+        #TG: This one should return some new data
+        log.info('Send an unconstrained request for data (\'new data\')')
+        cmd = AgentCommand(command='acquire_data')
+        self._ia_client.execute(cmd)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)
