@@ -55,3 +55,7 @@ bin/buildout
 
 echo -e "\n\n=== GENERATING INTERFACES ===\n"
 bin/generate_interfaces --force
+
+
+echo -e "\n\n=== DONE  Printing git stashes: ===\n"
+git stash list
