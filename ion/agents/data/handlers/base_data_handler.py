@@ -182,36 +182,45 @@ class BaseDataHandler(object):
 
         @parameter args First argument should be a config dictionary
         """
+        # Make a copy of the config to ensure no cross-pollution
+        config = self._dh_config.copy()
         log.debug('Executing acquire_data: args = {0}'.format(args))
         try:
-            config = args[0]
+            config_mods = args[0]
+            if not isinstance(config_mods, dict):
+                raise IndexError()
+
+            log.debug('Configuration modifications provided: {0}'.format(config_mods))
+            modable_keys = ['stream_id','constraints','new_data_check']
+            for k in modable_keys:
+                if get_safe(config_mods, k):
+                   config[k] = config_mods[k]
 
         except IndexError:
             # If there is no argument provided, treat this as a new_data request and simply use the self._dh_config
-            config = self._dh_config
-#            raise ParameterError('\'acquire_data\' command requires a config dict.')
+            log.debug('No configuration modifications were provided')
+            pass
 
-        if not isinstance(config, dict):
-            raise TypeError('args[0] of \'acquire_data\' is not a dict.')
-        else:
-            if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
-                log.warn('Already acquiring new data - action not duplicated')
-                return
+        if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
+            log.warn('Already acquiring new data - action not duplicated')
+            return
 
-            stream_id = get_safe(config, 'stream_id')
-            if not stream_id:
-                raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
+        stream_id = get_safe(config, 'stream_id')
+        if not stream_id:
+            raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
 
-            # Make a copy of the config to ensure no cross-pollution
-            config_copy = config.copy()
+        ndc = get_safe(config,'new_data_check')
+        if not ndc:
+            #CBM: Sort out where/how to get the appropriate info from the database - insert it here (for 'default' new_data)
+            pass
 
-            # Create a publisher to pass into the greenlet
-            publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
+        # Create a publisher to pass into the greenlet
+        publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
 
-            # Spawn a greenlet to do the data acquisition and publishing
-            g = spawn(self._acquire_data, config_copy, publisher, self._unlock_new_data_callback)
-            log.debug('** Spawned {0}'.format(g))
-            self._glet_queue.append(g)
+        # Spawn a greenlet to do the data acquisition and publishing
+        g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback)
+        log.debug('** Spawned {0}'.format(g))
+        self._glet_queue.append(g)
 
     def execute_acquire_sample(self, *args, **kwargs):
         #TODO: Add documentation
@@ -417,7 +426,7 @@ class BaseDataHandler(object):
         log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
         for count, gran in enumerate(data_generator):
             #TG: Validate that gran is a Granule object => If Granule, publish, else, just print
-#            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
+            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
             publisher.publish(gran)
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure

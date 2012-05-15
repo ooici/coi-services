@@ -413,19 +413,19 @@ class ExternalDatasetAgentTestBase(object):
         cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
-        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
+        config_mods={}
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
-        config['constraints']=self.HIST_CONSTRAINTS_1
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
         self._ia_client.execute(cmd)
 
         log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
-        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_2')
-        config['constraints']=self.HIST_CONSTRAINTS_2
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_2')
+        config_mods['constraints']=self.HIST_CONSTRAINTS_2
 #        config={'stream_id':'second_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_2}
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
         self._ia_client.execute(cmd)
 
         finished = self._async_finished_result.get(timeout=10)
