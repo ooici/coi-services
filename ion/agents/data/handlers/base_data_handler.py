@@ -426,7 +426,7 @@ class BaseDataHandler(object):
         log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
         for count, gran in enumerate(data_generator):
             #TG: Validate that gran is a Granule object => If Granule, publish, else, just print
-            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
+#            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
             publisher.publish(gran)
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
@@ -472,6 +472,12 @@ class FibonacciDataHandler(BaseDataHandler):
     """
     Sample concrete DataHandler implementation that returns sequential Fibonacci numbers
     """
+    @classmethod
+    def _init_acquisition_cycle(cls, config):
+        """
+        Initialize anything the data handler will need to use, such as a dataset
+        """
+        pass
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -520,6 +526,13 @@ class FibonacciDataHandler(BaseDataHandler):
             yield g
 
 class DummyDataHandler(BaseDataHandler):
+    @classmethod
+    def _init_acquisition_cycle(cls, config):
+        """
+        Initialize anything the data handler will need to use, such as a dataset
+        """
+        pass
+
     @classmethod
     def _new_data_constraints(cls, config):
         """
