@@ -250,7 +250,8 @@ class InstrumentAgent(ResourceAgent):
         # can instruct drivers to self destruct if it disappears.
         self._test_mode = False
         
-        self.da_session_close_reason = ''
+        # set the 'reason' to be the default
+        self.da_session_close_reason = 'due to ION request'
         
         ###############################################################################
         # Instrument agent parameter capabilities.
@@ -1256,12 +1257,14 @@ class InstrumentAgent(ResourceAgent):
         
         # tell driver to stop direct access mode
         result = self._dvr_client.cmd_dvr('execute_stop_direct_access')
-        # stop and delete DA server
+        # stop DA server
         if (self.da_server):
             self.da_server.stop()
-            del self.da_server
             
         next_state = InstrumentAgentState.OBSERVATORY
+        
+        # re-set the 'reason' to be the default
+        self.da_session_close_reason = 'due to ION request'
 
         return (next_state, result)
 

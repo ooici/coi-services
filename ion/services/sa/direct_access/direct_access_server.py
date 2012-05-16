@@ -9,11 +9,16 @@ import time
 import gevent
 import uuid
 
+
 class DirectAccessTypes:
     (telnet, vsp, ssh) = range(1, 4)
     
 class SessionCloseReasons:
-    (agent_closed, client_closed, session_timeout, inactivity_timeout) = range(1, 5)
+    # set up range so values line up with attributes of class to get enum names back
+    # using 'dir(SessionCloseReasons)[enum_value]
+    # NOTE: list names must be alphabetical for this to work
+    (client_closed, inactivity_timeout, parent_closed, session_timeout) = range(2, 6)
+           
 
 """
 TELNET server class
@@ -33,6 +38,7 @@ class TelnetServer(object):
     PORT_RANGE_UPPER = 8010
     close_reason = SessionCloseReasons.client_closed
     activity_seen = False
+    already_stopping = False
 
 
     def write(self, text):
@@ -40,7 +46,7 @@ class TelnetServer(object):
         if self.fileobj:
             self.fileobj.write(text)
             self.fileobj.flush()
-            activity_seen = True;
+            self.activity_seen = True;
         else:
             log.warning("TelnetServer.write(): no connection yet, can not write text")            
 
@@ -58,21 +64,11 @@ class TelnetServer(object):
             return False
     
 
-    def close_connection(self):
-        if self.close_reason != SessionCloseReasons.agent_closed:
-            # indicate to agent that connection has been closed
-            self.parent_input_callback(self.close_reason)
-        try:
-            self.server_socket.shutdown(socket.SHUT_RDWR)
-        except Exception as ex:
-            # can happen if telnet client closes session first
-            log.debug("TelnetServer.close_connection(): exception caught for socket shutdown:" + str(ex))
-        self.server_socket.close()
-    
-
     def exit_handler (self, reason):
-        self.close_connection()
-        log.debug("TelnetServer.handler(): stopping, " + reason)
+        log.debug("TelnetServer.exit_handler(): stopping, " + reason)
+        self.already_stopping = True
+        # indicate to parent that connection seems to have been closed by client
+        self.parent_input_callback(self.close_reason)
     
 
     def handler(self):
@@ -83,22 +79,17 @@ class TelnetServer(object):
         username = None
         token = None
         self.write("Username: ")
-        try:
-            username = self.fileobj.readline().rstrip('\n\r')
-        except EOFError:
-            self.exit_handler("lost connection")
-            return
+        username = self.fileobj.readline().rstrip('\n\r')
         if username == '':
             self.exit_handler("lost connection")
             return
-        activity_seen = True;
+        self.activity_seen = True;
         self.write("token: ")
-        try:
-            token = self.fileobj.readline().rstrip('\n\r')
-        except EOFError:
+        token = self.fileobj.readline().rstrip('\n\r')
+        if token == '':
             self.exit_handler("lost connection")
             return
-        activity_seen = True;
+        self.activity_seen = True;
         if not self.authorized(token):
             log.debug("login failed")
             self.writeline("login failed")
@@ -107,15 +98,11 @@ class TelnetServer(object):
         self.writeline("connected")   # let telnet client user know they are connected
         while True:
             #self.write(self.TELNET_PROMPT)
-            try:
-                input_line = self.fileobj.readline()
-            except EOFError:
-                self.exit_handler("lost connection")
-                break
+            input_line = self.fileobj.readline()
             if input_line == '':
                 self.exit_handler("lost connection")
                 break
-            activity_seen = True;
+            self.activity_seen = True;
             log.debug("rcvd: " + input_line)
             log.debug("len=" + str(len(input_line)))
             self.parent_input_callback(input_line.rstrip('\n\r'))
@@ -127,14 +114,14 @@ class TelnetServer(object):
         try:
             self.server_socket.listen(1)
             self.connection_socket, address = self.server_socket.accept()
+            self.handler()
         except Exception as ex:
             log.info("TelnetServer.server_greenlet(): exception caught <%s>" %str(ex))
-            if self.close_reason != SessionCloseReasons.agent_closed:
-                # indicate to parent that connection has been lost
+            if self.close_reason != SessionCloseReasons.parent_closed:
+                # indicate to parent that connection has been closed if it didn't initiate it
+                log.debug("TelnetServer.server_greenlet(): telling parent to close session")
                 self.parent_input_callback(self.close_reason)
-        else:
-            self.handler()
-        log.debug("TelnetServer.server_greenlet(): stopping")
+        log.debug("TelnetServer.server_greenlet(): stopped")
         
 
     def __init__(self, input_callback=None, ip_address=None):
@@ -189,24 +176,14 @@ class TelnetServer(object):
     
     
     def stop(self, reason=None):
-        log.debug("TelnetServer.stop()")
+        if self.already_stopping == True:
+            log.debug("TelnetServer.stop(): already stopping")
+            return
+        log.debug("TelnetServer.stop(): stopping telnet server - reason = %s", dir(SessionCloseReasons)[reason])
         if (reason):
             self.close_reason = reason
-        if self.connection_socket:
-            # telnet connection has been made
-            try:
-                self.connection_socket.shutdown(gevent.socket.SHUT_RDWR)
-            except Exception as ex:
-                # can happen if telnet client closes session first
-                log.debug("TelnetServer.stop(): exception caught for socket shutdown: " + str(ex))
-            gevent.sleep(.2)
-            try:
-                self.server.kill()
-            except Exception as ex:
-                # can happen if telnet client closes session first
-                log.debug("TelnetServer.stop(): exception caught for server kill: " + str(ex))
-        self.server_socket.close()
-        del self.server_socket
+        self.server.kill()
+        log.debug("TelnetServer.stop(): server killed")
             
 
     def send(self, data):
@@ -221,6 +198,7 @@ class DirectAccessServer(object):
     """
     
     server = None
+    already_stopping = False
     
     def __init__(self, 
                  direct_access_type=None, 
@@ -265,33 +243,44 @@ class DirectAccessServer(object):
         log.debug("DirectAccessServer.timer_greenlet(): started - sessionTO=%d, inactivityTO=%d"
                   %(session_timeout, inactivity_timeout))
         session_start_time = inactivity_start_time = time.time()
-        while True:
-            gevent.sleep(1)
-            timenow = time.time()
-            if ((timenow - session_start_time) > session_timeout):
-                log.debug("DirectAccessServer.timer_greenlet(): session exceeded session timeout of %d"
-                          %session_timeout)
-                self.stop(SessionCloseReasons.session_timeout)
-                break
-            if self.server.any_activity():
-                inactivity_start_time = time.time()
-            elif ((timenow - inactivity_start_time) > inactivity_timeout):
-                log.debug("DirectAccessServer.timer_greenlet(): session exceeded inactivity timeout of %d"
-                          %inactivity_timeout)
-                self.stop(reason=SessionCloseReasons.inactivity_timeout)
-                break
+        try:
+            while True:
+                gevent.sleep(1)
+                timenow = time.time()
+                if ((timenow - session_start_time) > session_timeout):
+                    log.debug("DirectAccessServer.timer_greenlet(): session exceeded session timeout of %d seconds"
+                              %session_timeout)
+                    self.stop(SessionCloseReasons.session_timeout)
+                    break
+                if self.server.any_activity():
+                    inactivity_start_time = time.time()
+                elif ((timenow - inactivity_start_time) > inactivity_timeout):
+                    log.debug("DirectAccessServer.timer_greenlet(): session exceeded inactivity timeout of %d seconds"
+                              %inactivity_timeout)
+                    self.stop(reason=SessionCloseReasons.inactivity_timeout)
+                    break
+        except:
+            pass
         log.debug("DirectAccessServer.timer_greenlet(): stopped ")
                 
 
     def get_connection_info(self):
-        return self.server.get_connection_info()
+        if self.server:
+            return self.server.get_connection_info()
+        else:
+            return 0, "no-token"
     
-    def stop(self, reason=SessionCloseReasons.agent_closed):
-        log.debug("DirectAccessServer.stop()")
+    def stop(self, reason=SessionCloseReasons.parent_closed):
+        if self.already_stopping == True:
+            log.debug("DirectAccessServer.stop(): already stopping")
+            return
+        log.debug("DirectAccessServer.stop(): stopping DA server - reason = %s", dir(SessionCloseReasons)[reason])
+        self.already_stopping = True
         if self.server:
             self.server.stop(reason)
             del self.server
-        if self.timer and reason == SessionCloseReasons.agent_closed:
+        if self.timer and reason == SessionCloseReasons.parent_closed:
+            # timer didn't initiate the stop, so kill it
             try:
                 self.timer.kill()
             except Exception as ex:
@@ -300,7 +289,8 @@ class DirectAccessServer(object):
         
     def send(self, data):
         log.debug("DirectAccessServer.send(): data = " + str(data))
-        self.server.send(data)
+        if self.server:
+            self.server.send(data)
         
         
         
