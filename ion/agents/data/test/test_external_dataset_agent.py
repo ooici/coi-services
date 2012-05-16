@@ -523,21 +523,29 @@ class ExternalDatasetAgentTestBase(object):
         cmd = AgentCommand(command='run')
         _ = self._ia_client.execute_agent(cmd)
 
-        ret = self._ia_client.get_param(['DH_CONFIG'])
-        config = ret['DH_CONFIG']
+        rr_cli = ResourceRegistryServiceClient()
 
-        #TG: Now can edit config's ext_dataset_res to modify the update parameter...
-        config['max_records'] = 10
+        for key, value in self.NDC.iteritems():
+            # build attachment
+            att = Attachment(name='newDataCheck',
+                content=value,
+                keywords=['NewDataCheck'],
+                attachment_type=AttachmentType.ASCII
+            )
 
-        self._ia_client.set_param({'DH_CONFIG':config})
+            # create in registry
+            try:
+                ncd_att_id = rr_cli.create_attachment(self.EDA_RESOURCE_ID, att)
+                log.warn('Created attachment: {0}'.format(ncd_att_id))
+            except NotFound as ex:
+                log.warn('Not a valid resource id - it\'s just a test!!')
 
-#        #TG: Change this to be appropriate
-#        self._finished_count = 3
+            # run acquire_data
+            log.info('Send an unconstrained request for data (\'new data\')')
+            cmd = AgentCommand(command='acquire_data')
+            self._ia_client.execute(cmd)
 
-        #TG: This one should return some new data
-        log.info('Send an unconstrained request for data (\'new data\')')
-        cmd = AgentCommand(command='acquire_data')
-        self._ia_client.execute(cmd)
+        self._finished_count = len(self.NDC)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)
@@ -1060,6 +1068,9 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
         'array_len':10,
         }
 
+    NDC = {
+    }
+
     def _setup_resources(self):
         stream_id = self.create_stream_and_logger(name='dummydata_stream')
 
@@ -1086,6 +1097,9 @@ class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegr
 
     HIST_CONSTRAINTS_2 = {
         'count':10,
+    }
+
+    NDC = {
     }
 
     def _setup_resources(self):
