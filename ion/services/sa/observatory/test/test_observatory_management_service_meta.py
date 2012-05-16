@@ -56,6 +56,7 @@ class TestObservatoryManagementServiceMeta(IonIntegrationTestCase):
 
 
 rimi = ResourceImplMetatestIntegration(TestObservatoryManagementServiceMeta, ObservatoryManagementService, log)
+rimi.test_all_in_one(True)
 
 rimi.add_resource_impl_inttests(ObservatoryImpl, {})
 rimi.add_resource_impl_inttests(SubsiteImpl, {})

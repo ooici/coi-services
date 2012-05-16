@@ -57,6 +57,7 @@ class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 
  
 rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceMeta, InstrumentManagementService, log)
+rimi.test_all_in_one(True)
 
 rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rimi.add_resource_impl_inttests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})

@@ -19,20 +19,6 @@ from pyon.util.log import log
 from ion.services.sa.test.helpers import any_old
 
 
-from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
-
-from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
-from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
-from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
-
-
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -112,18 +98,4 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         sensor_model_id #is only a target
 
-
-rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceIntegration, InstrumentManagementService, log)
-rimi.test_all_in_one(True)
-
-rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
-rimi.add_resource_impl_inttests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
-rimi.add_resource_impl_inttests(InstrumentDeviceImpl, {"serial_number": "123", "firmware_version": "x"})
-rimi.add_resource_impl_inttests(InstrumentModelImpl, {"model_label": "redundant?"})
-rimi.add_resource_impl_inttests(PlatformAgentInstanceImpl, {"exchange_name": "sausage"})
-rimi.add_resource_impl_inttests(PlatformAgentImpl, {"description": "the big donut"})
-rimi.add_resource_impl_inttests(PlatformDeviceImpl, {"serial_number": "2345"})
-rimi.add_resource_impl_inttests(PlatformModelImpl, {"description": "tammy breathed deeply"})
-rimi.add_resource_impl_inttests(SensorDeviceImpl, {"serial_number": "123"})
-rimi.add_resource_impl_inttests(SensorModelImpl, {"model_label": "redundant field?"})
 

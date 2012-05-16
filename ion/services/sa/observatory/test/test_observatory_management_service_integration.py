@@ -19,13 +19,6 @@ from pyon.util.log import log
 
 from ion.services.sa.test.helpers import any_old
 
-from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
-
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
-from ion.services.sa.observatory.subsite_impl import SubsiteImpl
-
 
 
 class FakeProcess(LocalContextMixin):
@@ -305,14 +298,3 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.delete_site(site_id)
         assocs, _ = self.RR.find_objects(observatory_id, PRED.hasSite, RT.Subsite, id_only=True )
         self.assertEqual(len(assocs), 0)
-
-
-rimi = ResourceImplMetatestIntegration(TestObservatoryManagementServiceIntegration, ObservatoryManagementService, log)
-rimi.test_all_in_one(True)
-
-rimi.add_resource_impl_inttests(ObservatoryImpl, {})
-rimi.add_resource_impl_inttests(SubsiteImpl, {})
-rimi.add_resource_impl_inttests(PlatformSiteImpl, {})
-rimi.add_resource_impl_inttests(InstrumentSiteImpl, {})
-
-
