@@ -9,7 +9,8 @@ from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 from pyon.datastore.datastore import DataStore
 from pyon.util.file_sys import FileSystem
-from interface.objects import StreamGranuleContainer, Variable, LastUpdate
+from interface.objects import StreamGranuleContainer, LastUpdate
+from interface.objects import LastUpdateVariable as Variable
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from prototype.hdf.hdf_array_iterator import acquire_data
 

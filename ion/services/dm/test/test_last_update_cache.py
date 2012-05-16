@@ -1,7 +1,7 @@
 '''
 @author Luke Campbell <lcampbell@asascience.com>
-@file ion/services/dm/ingestion/test/test_aggregate_ingestion.py
-@description Integration Test for aggregate ingestion worker
+@file ion/services/dm/test/test_last_update_cache.py
+@description Integration Test for Last Update mechanism
 '''
 from gevent.queue import Queue
 from gevent.queue import Empty
