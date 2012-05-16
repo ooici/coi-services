@@ -508,7 +508,7 @@ class IONLoader(ImmediateProcess):
         if ass_ids:
             ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
             for ass_id in ass_ids:
-                oms_client.deploy_platform_device_to_platform_site(res_id, self.resource_ids[ass_id])
+                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
 
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["platform_model_id"]
@@ -518,8 +518,9 @@ class IONLoader(ImmediateProcess):
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
         ass_id = row["primary_deployment_lp_id"]
-        if ass_id:
-            oms_client.deploy_as_primary_platform_device_to_platform_site(res_id, self.resource_ids[ass_id])
+        #TODO: we no longer have "primary deployment"
+        #if ass_id:
+        #    oms_client.deploy_as_primary_platform_device_to_platform_site(res_id, self.resource_ids[ass_id])
 
     def _load_InstrumentDevice(self, row):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
@@ -530,7 +531,7 @@ class IONLoader(ImmediateProcess):
         if ass_ids:
             ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
             for ass_id in ass_ids:
-                oms_client.deploy_instrument_device_to_instrument_site(res_id, self.resource_ids[ass_id])
+                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
 
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
@@ -544,8 +545,9 @@ class IONLoader(ImmediateProcess):
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
 
         ass_id = row["primary_deployment_li_id"]
-        if ass_id:
-            oms_client.deploy_as_primary_instrument_device_to_instrument_site(res_id, self.resource_ids[ass_id])
+        #TODO: we no longer have "primary deployment"
+        #if ass_id:
+        #    oms_client.deploy_as_primary_instrument_device_to_instrument_site(res_id, self.resource_ids[ass_id])
 
 
     def _load_InstrumentAgent(self, row):

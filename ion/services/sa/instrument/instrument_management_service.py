@@ -22,23 +22,22 @@ import gevent
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 
 
-from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 
-from ion.services.sa.resource_impl.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.resource_impl.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.resource_impl.platform_model_impl import PlatformModelImpl
-from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
+from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
-from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
-from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
+from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
+from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
-from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
-from ion.services.sa.resource_impl.data_producer_impl import DataProducerImpl
-from ion.services.sa.resource_impl.logical_instrument_impl import LogicalInstrumentImpl
+from ion.services.sa.instrument.data_product_impl import DataProductImpl
+from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.instrument_agent import InstrumentAgentState
@@ -95,7 +94,66 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #TODO: may not belong in this service
         self.data_product        = DataProductImpl(self.clients)
         self.data_producer       = DataProducerImpl(self.clients)
-        self.logical_instrument  = LogicalInstrumentImpl(self.clients)
+
+
+
+    ##########################################################################
+    #
+    # REGISTER INSTRUMENT DRIVER
+    #
+    ##########################################################################
+
+    def register_instrument_driver(self, 
+                                   driver_name='',
+                                   instrument_model_ids=None, 
+                                   agent_metadata={}, 
+                                   source_url="", 
+                                   source_tag="", 
+                                   test_result=None,
+                                   attachments=None):
+        """
+        IDK script calls IMS:register_instrument_driver with:
+            instrument agent resource metadata: 
+                agent_version, 
+                connection_method, 
+                model it supports #TODO: how to select model?
+            MI Git repository URL
+            MI git repository tag
+            test results / attachments
+            additional context: firmware specs, release notes
+
+        """
+
+        modelnames = []
+        #make sure that model ids exist
+        for m in instrument_model_ids:
+            modelnames.append(self.read_instrument_model(m).name)
+
+        #create an instrument agent resource
+        inst_agent_obj = IonObject(RT.InstrumentAgent,
+                                   name=driver_name,
+                                   description=str("Driver for instruments of models: " % ", ".join(modelnames)))
+
+        inst_agent_id = self.create_instrument_agent(inst_agent_obj)
+
+
+        #store the metadata in the resource registry as an attachment
+        #TODO
+    
+        #create an attachment resource for other context documents, adds metadata and creates association
+        #TODO
+
+        #create the correct associations for this InstAgent (Model, etc)
+        for m in instrument_model_ids:
+            self.assign_instrument_model_to_instrument_agent(m, inst_agent_id)
+
+        #builds the egg from the manifest or tag then places the egg on the web server
+        #TODO
+
+        #updates the state of this InstAgent to deployed
+        #TODO
+    
+        return inst_agent_id
 
 
     ##########################################################################
@@ -119,7 +177,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
 
-        self.assign_instrument_agent_instance_to_instrument_agent(instrument_agent_instance_id, instrument_agent_id)
+        self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
 
 
         self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
@@ -358,13 +416,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Stop the port agent.
         """
-        if self._pagent:
-            pid = self._pagent.get_pid()
-            if pid:
-                log.info('Stopping pagent pid %i.', pid)
-                self._pagent.stop()
-            else:
-                log.warning('No port agent running.')
+#        if self._pagent:
+#            pid = self._pagent.get_pid()
+#            if pid:
+#                log.info('Stopping pagent pid %i.', pid)
+#                self._pagent.stop()
+#            else:
+#                log.warning('No port agent running.')
 
         return
 
@@ -446,12 +504,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return self.instrument_agent.delete_one(instrument_agent_id)
 
-    def find_instrument_agents(self, filters=None):
-        """
-
-        """
-        return self.instrument_agent.find_some(filters)
-
 
 
     ##########################################################################
@@ -497,12 +549,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.instrument_model.delete_one(instrument_model_id)
-
-    def find_instrument_models(self, filters=None):
-        """
-
-        """
-        return self.instrument_model.find_some(filters)
 
 
 
@@ -598,12 +644,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_device.delete_one(instrument_device_id)
 
-    def find_instrument_devices(self, filters=None):
-        """
-
-        """
-        return self.instrument_device.find_some(filters)
-
 
 
     ##
@@ -691,13 +731,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
-    def find_platform_agent_instances(self, filters=None):
-        """
-
-        """
-        return self.platform_agent_instance.find_some(filters)
-
-
 
 
 
@@ -749,13 +782,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_agent.delete_one(platform_agent_id)
 
-    def find_platform_agents(self, filters=None):
-        """
-
-        """
-        return self.platform_agent.find_some(filters)
-
-
 
     ##########################################################################
     #
@@ -802,13 +828,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.platform_model.delete_one(platform_model_id)
-
-    def find_platform_models(self, filters=None):
-        """
-
-        """
-        return self.platform_model.find_some(filters)
-
 
 
 
@@ -859,13 +878,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.platform_device.delete_one(platform_device_id)
-
-    def find_platform_devices(self, filters=None):
-        """
-
-        """
-        return self.platform_device.find_some(filters)
-
 
 
 
@@ -918,12 +930,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_model.delete_one(sensor_model_id)
 
-    def find_sensor_models(self, filters=None):
-        """
-
-        """
-        return self.sensor_model.find_some(filters)
-
 
 
     ##########################################################################
@@ -974,12 +980,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_device.delete_one(sensor_device_id)
 
-    def find_sensor_devices(self, filters=None):
-        """
-
-        """
-        return self.sensor_device.find_some(filters)
-
 
 
     ##########################################################################
@@ -987,34 +987,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     # ASSOCIATIONS
     #
     ##########################################################################
-
-
-    def deploy_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.link_deployment(instrument_device_id, logical_instrument_id)
-
-    def undeploy_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.unlink_deployment(instrument_device_id, logical_instrument_id)
-
-    def deploy_platform_device_to_logical_platform(self, platform_device_id='', logical_platform_id=''):
-        self.platform_device.link_deployment(platform_device_id, logical_platform_id)
-
-    def undeploy_platform_device_from_logical_platform(self, platform_device_id='', logical_platform_id=''):
-        self.platform_device.unlink_deployment(platform_device_id, logical_platform_id)
-
-
-    def deploy_as_primary_instrument_device_to_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.assign_primary_deployment(instrument_device_id, logical_instrument_id)
-
-    def undeploy_primary_instrument_device_from_logical_instrument(self, instrument_device_id='', logical_instrument_id=''):
-        self.instrument_device.unassign_primary_deployment(instrument_device_id, logical_instrument_id)
-
-    def deploy_as_primary_platform_device_to_logical_platform(self, platform_device_id='', logical_platform_id=''):
-        self.platform_device.link_primary_deployment(platform_device_id, logical_platform_id)
-
-    def undeploy_primary_platform_device_from_logical_platform(self, platform_device_id='', logical_platform_id=''):
-        self.platform_device.unlink_primary_deployment(platform_device_id, logical_platform_id)
-
-
 
 
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
@@ -1040,11 +1012,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_instrument_model_from_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
         self.instrument_agent.unlink_model(instrument_agent_id, instrument_model_id)
 
-    def assign_stream_definition_to_instrument_model(self, stream_definition_id='', instrument_model_id=''):
-        self.instrument_model.link_stream_definition(instrument_model_id, stream_definition_id)
+    def assign_platform_model_to_platform_agent(self, platform_model_id='', platform_agent_id=''):
+        self.platform_agent.link_model(platform_agent_id, platform_model_id)
 
-    def unassign_stream_definition_from_instrument_model(self, stream_definition_id='', instrument_model_id=''):
-        self.instrument_model.unlink_stream_definition(instrument_model_id, stream_definition_id)
+    def unassign_platform_model_from_platform_agent(self, platform_model_id='', platform_agent_id=''):
+        self.platform_agent.unlink_model(platform_agent_id, platform_model_id)
 
     def assign_sensor_model_to_sensor_device(self, sensor_model_id='', sensor_device_id=''):
         self.sensor_device.link_model(sensor_device_id, sensor_model_id)
@@ -1059,132 +1031,56 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.link_instrument(platform_device_id, instrument_device_id)
+        self.platform_device.link_device(platform_device_id, instrument_device_id)
 
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.unlink_instrument(platform_device_id, instrument_device_id)
+        self.platform_device.unlink_device(platform_device_id, instrument_device_id)
 
-    def assign_platform_agent_instance_to_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
-        self.platform_agent.link_instance(platform_agent_id, platform_agent_instance_id)
+    def assign_platform_agent_to_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
+        self.platform_agent_instance.link_agent_definition(platform_agent_instance_id, platform_agent_id)
 
-    def unassign_platform_agent_instance_from_platform_agent(self, platform_agent_instance_id='', platform_agent_id=''):
-        self.platform_agent.unlink_instance(platform_agent_id, platform_agent_instance_id)
+    def unassign_platform_agent_from_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
+        self.platform_agent_instance.unlink_agent_definition(platform_agent_instance_id, platform_agent_id)
 
-    def assign_instrument_agent_instance_to_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
-        self.instrument_agent.link_instance(instrument_agent_id, instrument_agent_instance_id)
+    def assign_instrument_agent_to_instrument_agent_instance(self, instrument_agent_id='', instrument_agent_instance_id=''):
+        self.instrument_agent_instance.link_agent_definition(instrument_agent_instance_id, instrument_agent_id)
 
-    def unassign_instrument_agent_instance_from_instrument_agent(self, instrument_agent_instance_id='', instrument_agent_id=''):
-        self.instrument_agent.unlink_instance(instrument_agent_id, instrument_agent_instance_id)
+    def unassign_instrument_agent_from_instrument_agent_instance(self, instrument_agent_id='', instrument_agent_instance_id=''):
+        self.instrument_agent_instance.unlink_agent_definition(instrument_agent_instance_id, instrument_agent_id)
 
     def assign_instrument_agent_instance_to_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
-        self.instrument_agent.link_device_instance(instrument_device_id, instrument_agent_instance_id)
+        self.instrument_device.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
 
     def unassign_instrument_agent_instance_from_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
-        self.instrument_agent.unlink_device_instance(instrument_device_id, instrument_agent_instance_id)
+        self.instrument_device.unlink_agent_instance(instrument_device_id, instrument_agent_instance_id)
 
-        
-        def verify_dp_origin(supplied_dps, assigned_dps, instrument_id, instrument_label):
-            """
-            check that the supplied dps (data products) are in the set of what's actually assigned
-            @param supplied_dps list of data product ids
-            @param assigned_dps list of data product ids
-            @param instrument_id a logical or instrument device id
-            """
-            badones = []
-            for p in supplied_dps:
-                if not p in assigned_dps:
-                    badones.append(p)
-                    if 0 < len(badones):
-                        raise BadRequest("want to assign %s's data products, but the following were supplied " +
-                                         "that don't seem to come from %s '%s': [%s]" %
-                                         (instrument_label, instrument_label, instrument_id, ", ".join(badones)))
+    def assign_platform_agent_instance_to_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
+        self.platform_agent.link_device_instance(platform_device_id, platform_agent_instance_id)
+
+    def unassign_platform_agent_instance_from_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
+        self.platform_agent.unlink_device_instance(platform_device_id, platform_agent_instance_id)
 
 
-        log.info("Checking consistency of existing logical/instrument assignments")
-        existing_assignments = self.instrument_device.find_having_assignment(logical_instrument_id)
-        if 1 < len(existing_assignments):
-            raise Inconsistent("There is more than 1 instrument device associated with logical instrument '%s'" %
-                               logical_instrument_id)
 
-        log.info("Checking whether supplied logical/instrument arguments are proper")
-        if 0 < len(existing_assignments):
-            if not old_instrument_device_id:
-                raise BadRequest(("Tried to assign logical instrument '%s' for the first time, but it is already " + 
-                                  "assigned to instrument device '%s'") % (logical_instrument_id, existing_assignments[0]))
-            elif old_instrument_device_id != existing_assignments[0]:
-                raise BadRequest(("Tried to reassign logical instrument '%s' from instrument device '%s' but it is " +
-                                  "actually associated to instrument device '%s'") % 
-                                 (logical_instrument_id, old_instrument_device_id, existing_assignments[0]))
+    ##########################################################################
+    #
+    # DEPLOYMENTS
+    #
+    ##########################################################################
 
 
-        # log.info("Checking whether supplied data products are proper")
-        #  existing_logical_data_products = self.logical_instrument.find_stemming_data_product(logical_instrument_id)
-        #
-        #TODO: need a check that all the logical data products are being provided for
-        #
-        # log.info("Checking whether all logical data products are provided")
-        # if len(logical_data_product_ids) != len(existing_logical_data_products):
-        #     raise BadRequest("tried to assign logical instrument but only provided %d of %d " +
-        #                      "data products" % (len(logical_data_product_ids), len(existing_logical_data_products)))
-        #
-        # log.info("Checking that supplied logical data products are properly rooted")
-        # verify_dp_origin(logical_data_product_ids,
-        #                  existing_logical_data_products,
-        #                  logical_instrument_id,
-        #                  "logical_instrument")
 
+    def deploy_instrument_device(self, instrument_device_id='', deployment_id=''):
+        self.instrument_device.link_deployment(instrument_device_id, deployment_id)
 
-        
-        if old_instrument_device_id:
-            log.info("Checking that the data product to be dissociated are properly rooted")
-            verify_dp_origin(old_instrument_data_product_ids,
-                             self.find_data_product_by_instrument_device(old_instrument_device_id),
-                             old_instrument_device_id,
-                             "instrument_device")
+    def undeploy_instrument_device(self, instrument_device_id='', deployment_id=''):
+        self.instrument_device.unlink_deployment(instrument_device_id, deployment_id)
 
-            log.info("Checking that all data products to be dissociated have been supplied")
-            if len(logical_data_product_ids) != len(old_instrument_data_product_ids):
-                raise BadRequest("Can't unmap %d instrument data products from %d logical products" %
-                                 (len(old_instrument_data_product_ids), len(logical_data_product_ids)))
+    def deploy_platform_device(self, platform_device_id='', deployment_id=''):
+        self.platform_device.link_deployment(platform_device_id, deployment_id)
 
-
-        log.info("Checking that supplied instrument data products are properly rooted")
-        verify_dp_origin(new_instrument_data_product_ids,
-                         self.find_data_product_by_instrument_device(new_instrument_device_id),
-                         new_instrument_device_id,
-                         "instrument_device")
-
-        log.info("Checking that all data products to be associated have been supplied")
-        if len(logical_data_product_ids) != len(new_instrument_data_product_ids):
-            raise BadRequest("Can't map %d instrument data products to %d logical products" %
-                             (len(new_instrument_data_product_ids), len(logical_data_product_ids)))
-
-        log.info("Assigning the instruments themselves")
-        if "" != old_instrument_device_id:
-            self.instrument_device.unlink_assignment(old_instrument_device_id, logical_instrument_id)
-        self.instrument_device.link_assignment(new_instrument_device_id, logical_instrument_id)
-
-
-        # functions to link and unlink data products as appropriate
-
-        def link_logical_dp_to_instrument_dp(logical_dp_id, inst_dp_id):
-            # TODO: this should be a function call, probably to DPMS,
-            #       which sets up inst_dp to copy its data stream
-            #       directly into the logical_dp
-            pass
-
-        def unlink_logical_dp_from_instrument_dp(logical_dp_id, inst_dp_id):
-            #TODO: undo the above
-            pass
-
-
-        if old_instrument_device_id:
-            log.info("Unlinking existing instrument data product(s) from logical instrument's product(s)")
-            map(unlink_logical_dp_from_instrument_dp, logical_data_product_ids, old_instrument_data_product_ids)
-
-        log.info("Linking new instrument data products with logical instrument's product(s)")
-        map(link_logical_dp_to_instrument_dp, logical_data_product_ids, new_instrument_data_product_ids)
-
+    def undeploy_platform_device(self, platform_device_id='', deployment_id=''):
+        self.platform_device.unlink_deployment(platform_device_id, deployment_id)
 
 
 
@@ -1227,10 +1123,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.instrument_device.find_stemming_agent_instance(instrument_device_id)
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_instrument(platform_device_id)
+        return self.platform_device.find_stemming_device(platform_device_id)
 
     def find_platform_device_by_instrument_device(self, instrument_device_id=''):
-        return self.platform_device.find_having_instrument(instrument_device_id)
+        return self.platform_device.find_having_device(instrument_device_id)
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
         return self.instrument_device.find_having_assignment(logical_instrument_id)

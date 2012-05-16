@@ -1,5 +1,5 @@
 from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -24,7 +24,6 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@unittest.skip('Need to align.')
 @attr('INT', group='sa')
 class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
@@ -37,12 +36,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy_no_bootstrap.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         
         print 'started services'
 
-    @unittest.skip('this test just for debugging setup')
+    #@unittest.skip('this test just for debugging setup')
     def test_just_the_setup(self):
         return
 
@@ -65,8 +64,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
 
         #stuff we associate to
-        logical_platform_id, _   = self.RR.create(any_old(RT.LogicalPlatform))
-        logical_instrument_id, _ = self.RR.create(any_old(RT.LogicalInstrument))
         data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
 
         instrument_agent_instance_id #is only a target
@@ -77,7 +74,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #instrument_device
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
-        self.RR.create_association(instrument_device_id, PRED.hasAssignment, logical_instrument_id)
         self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
         #self.RR.create_association(instrument_device_id, PRED.hasSensor, sensor_device_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
@@ -92,7 +88,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #platform_device
         self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
-        self.RR.create_association(platform_device_id, PRED.hasAssignment, logical_platform_id)
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
         self.RR.create_association(platform_device_id, PRED.hasInstrument, instrument_device_id)
 

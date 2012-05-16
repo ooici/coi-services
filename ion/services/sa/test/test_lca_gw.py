@@ -1,5 +1,5 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import  CFG
 #from pyon.util.log import log
 from pyon.util.containers import DotDict

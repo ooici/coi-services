@@ -32,6 +32,24 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
 
     """
 
+    def __init__(self, resource_tester_class, service_under_test_class, log):
+        """
+        @param resource_tester_class the class that will perform the setup/ testing
+        @param service_under_test_class the class of the service that's being tested
+        @param log the log object 
+        """
+        ResourceImplMetatest.__init__(self, resource_tester_class, service_under_test_class, log)
+
+        self.all_in_one = False
+
+
+
+    def test_all_in_one(self, yes):
+        """
+        @param yes whether to run int tests all in one
+        """
+        self.all_in_one = yes
+
         
     def add_resource_impl_inttests(self,
                                    resource_impl_class, 
@@ -59,6 +77,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
         #  being able to inject text into the sample_resource_extras
         sample_resource = self.sample_resource_factory(impl_instance, resource_params)
 
+        all_in_one = self.all_in_one
 
         service_type = type(self.service_instance)
 
@@ -132,78 +151,95 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
         # TEST CASES GO BELOW HERE
 
 
+        def test_create_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+            good_sample_resource = sample_resource()
+
+            sample_resource_id = myimpl.create_one(good_sample_resource)
+            
+            log.debug("got resource id: %s" % sample_resource_id)
+
+            if all_in_one: myimpl.delete_one(sample_resource_id)
+
 
         def gen_test_create():
             """
             generate the function to test the create
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                good_sample_resource = sample_resource()
-                
-
-                sample_resource_id = myimpl.create_one(good_sample_resource)
-
-
-                log.debug("got resource id: %s" % sample_resource_id)
-
             name = make_name("resource_impl_create")
             doc  = make_doc("Creation of a new %s resource" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_create_fun)
 
+
+
+        def test_create_bad_noname_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+            bad_sample_resource = sample_resource()
+            delattr(bad_sample_resource, "name")
+
+
+            self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
 
 
         def gen_test_create_bad_noname():
             """
             generate the function to test the create in a bad case
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                delattr(bad_sample_resource, "name")
-                
-
-                self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
-
-
             name = make_name("resource_impl_create_bad_noname")
             doc  = make_doc("Creation of a (bad) new %s resource (no name)" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_create_bad_noname_fun)
+
+
+
+        def test_create_bad_dupname_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            # prep and put objects
+            good_sample_resource = sample_resource()
+
+            #insert 2
+            sample_resource_id = myimpl.create_one(good_sample_resource)
+            self.assertRaises(BadRequest, myimpl.create_one, good_sample_resource)
+
+            if all_in_one: myimpl.delete_one(sample_resource_id)
 
 
         def gen_test_create_bad_dupname():
             """
             generate the function to test the create in a bad case where the name already exists
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                # prep and put objects
-                good_sample_resource = sample_resource()
-               
-                #insert 2
-                myimpl.create_one(good_sample_resource)
-                self.assertRaises(BadRequest, myimpl.create_one, good_sample_resource)
-
 
             name = make_name("resource_impl_create_bad_dupname")
             doc  = make_doc("Creation of a (bad) new %s resource (duplicate name)" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_create_bad_dupname_fun)
+
+
+        def test_create_bad_has_id_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+            bad_sample_resource = sample_resource()
+            setattr(bad_sample_resource, "_id", "12345")
+
+            self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
 
 
 
@@ -211,281 +247,313 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             """
             generate the function to test the create in a bad case
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                setattr(bad_sample_resource, "_id", "12345")
-                
-                self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
-
 
             name = make_name("resource_impl_create_bad_has_id")
             doc  = make_doc("Creation of a (bad) new %s resource (has _id)" % impl_instance.iontype)
 
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_create_bad_has_id_fun)
 
 
+
+        def test_read_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            # put in an object
+            sample_resource_id = myimpl.create_one(sample_resource())
+
+            returned_resource = myimpl.read_one(sample_resource_id)
+
+            #won't work because of changes in _rev and lcstate
+            #self.assertDictEqual(returned_resource.__dict__,
+            #                     sample_resource().__dict__)
+
+            self.assertEqual(returned_resource._id,
+                             sample_resource_id)
+
+            if all_in_one: myimpl.delete_one(sample_resource_id)
 
         def gen_test_read():
             """
             generate the function to test the read
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                # put in an object
-                sample_resource_id = myimpl.create_one(sample_resource())
-
-                returned_resource = myimpl.read_one(sample_resource_id)
-
-                #won't work because of changes in _rev and lcstate
-                #self.assertDictEqual(returned_resource.__dict__,
-                #                     sample_resource().__dict__)
-
-                self.assertEqual(returned_resource._id,
-                                 sample_resource_id)
                 
             name = make_name("resource_impl_read")
             doc  = make_doc("Reading a %s resource" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_read_fun)
+
+
+
+        def test_read_notfound_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            self.assertRaises(NotFound, myimpl.read_one, "0000")
 
 
         def gen_test_read_notfound():
             """
             generate the function to test the read in a not-found case
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                self.assertRaises(NotFound, myimpl.read_one, "0000")
             
             name = make_name("resource_impl_read_notfound")
             doc  = make_doc("Reading a %s resource that doesn't exist" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_read_notfound_fun)
 
-        def gen_test_update():
-            gen_test_update_samename()
-            gen_test_update_differentname()
+
+
+        def test_update_samename_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            # prep and put objects
+            good_sample_resource = sample_resource()
+            res_id = myimpl.create_one(good_sample_resource)
+
+            # read and change
+            good_sample_duplicate = myimpl.read_one(res_id)
+            myimpl.update_one(good_sample_duplicate)
+
+            # verify change
+            good_sample_triplicate = myimpl.read_one(res_id)
+            self.assertEqual(good_sample_duplicate.name, good_sample_triplicate.name)
+
+            if all_in_one: myimpl.delete_one(res_id)
 
         def gen_test_update_samename():
             """
             generate the function to test the update, but use the same name
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                # prep and put objects
-                good_sample_resource = sample_resource()
-                res_id = myimpl.create_one(good_sample_resource)
-
-                # read and change
-                good_sample_duplicate = myimpl.read_one(res_id)
-                myimpl.update_one(good_sample_duplicate)
-
-                # verify change
-                good_sample_triplicate = myimpl.read_one(res_id)
-                self.assertEqual(good_sample_duplicate.name, good_sample_triplicate.name)
-
-                
             name = make_name("resource_impl_update_samename")
             doc  = make_doc("Updating a %s resource keeping name the same" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_update_samename_fun)
+
+
+
+        def test_update_differentname_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            # prep and put objects
+            good_sample_resource = sample_resource()
+            res_id = myimpl.create_one(good_sample_resource)
+
+            # read and change
+            good_sample_duplicate = myimpl.read_one(res_id)
+            newname = "updated %s" % good_sample_duplicate.name
+            good_sample_duplicate.name = newname
+            myimpl.update_one(good_sample_duplicate)
+
+            # verify change
+            good_sample_triplicate = myimpl.read_one(res_id)
+            self.assertEqual(newname, good_sample_triplicate.name)
+
+            if all_in_one: myimpl.delete_one(res_id)
 
 
         def gen_test_update_differentname():
             """
             generate the function to test the update, use a new name
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                # prep and put objects
-                good_sample_resource = sample_resource()
-                res_id = myimpl.create_one(good_sample_resource)
-
-                # read and change
-                good_sample_duplicate = myimpl.read_one(res_id)
-                newname = "updated %s" % good_sample_duplicate.name
-                good_sample_duplicate.name = newname
-                myimpl.update_one(good_sample_duplicate)
-
-                # verify change
-                good_sample_triplicate = myimpl.read_one(res_id)
-                self.assertEqual(newname, good_sample_triplicate.name)
-
-                
             name = make_name("resource_impl_update_differentname")
             doc  = make_doc("Updating a %s resource to have a different name" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_update_differentname_fun)
+
+
+        def test_update_bad_noid_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+            bad_sample_resource = sample_resource()
+
+            self.assertRaises(BadRequest, myimpl.update_one, bad_sample_resource)
 
 
         def gen_test_update_bad_noid():
             """
             generate the function to test the create
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                
-                self.assertRaises(BadRequest, myimpl.update_one, bad_sample_resource)
-
-                
             name = make_name("resource_impl_update_bad_no_id")
             doc  = make_doc("Updating a %s resource without an ID" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_update_bad_noid_fun)
+
+
+        def test_update_bad_dupname_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            # prep and put objects
+            good_sample_resource = sample_resource()
+            good_sample_duplicate = sample_resource()
+
+            oldname = good_sample_resource.name
+            good_sample_duplicate.name = "DEFINITELY NOT A DUPLICATE"
+
+            res_id = myimpl.create_one(good_sample_resource)
+            dup_id = myimpl.create_one(good_sample_duplicate)
+
+            good_sample_duplicate = myimpl.read_one(dup_id)
+            good_sample_duplicate.name = oldname
+
+            self.assertRaises(BadRequest, myimpl.update_one, good_sample_duplicate)
+            
+            if all_in_one: 
+                myimpl.delete_one(res_id)
+                myimpl.delete_one(dup_id)
+
 
 
         def gen_test_update_bad_dupname():
             """
             generate the function to test the create
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                # prep and put objects
-                good_sample_resource = sample_resource()
-                good_sample_duplicate = sample_resource()
-                
-                oldname = good_sample_resource.name
-                good_sample_duplicate.name = "DEFINITELY NOT A DUPLICATE"
-
-                myimpl.create_one(good_sample_resource)
-                dup_id = myimpl.create_one(good_sample_duplicate)
-                
-                good_sample_duplicate = myimpl.read_one(dup_id)
-                good_sample_duplicate.name = oldname
-                
-                self.assertRaises(BadRequest, myimpl.update_one, good_sample_duplicate)
-
-                
             name = make_name("resource_impl_update_bad_duplicate")
             doc  = make_doc("Updating a %s resource to a duplicate name" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_update_bad_dupname_fun)
+
+
+        def test_delete_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            # put in an object
+            sample_resource_id = myimpl.create_one(sample_resource())
+
+            log.debug("Attempting to delete newly created object with id=%s" % 
+                      sample_resource_id)
+
+            #delete
+            myimpl.delete_one(sample_resource_id)
+
+            # verify delete
+            self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)
 
 
         def gen_test_delete():
             """
             generate the function to test the delete
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-
-                # put in an object
-                sample_resource_id = myimpl.create_one(sample_resource())
-
-                log.debug("Attempting to delete newly created object with id=%s" % 
-                          sample_resource_id)
-
-                #delete
-                myimpl.delete_one(sample_resource_id)
-                
-                # verify delete
-                self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)
-
-                
             name = make_name("resource_impl_delete")
             doc  = make_doc("Deleting a %s resource" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_delete_fun)
+
+
+        def test_delete_notfound_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            self.assertRaises(NotFound, myimpl.delete_one, "111")
 
 
         def gen_test_delete_notfound():
             """
             generate the function to test the delete in a not-found case
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                self.assertRaises(NotFound, myimpl.delete_one, "111")
-            
             name = make_name("resource_impl_delete_notfound")
             doc  = make_doc("Deleting a %s resource that doesn't exist" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_delete_notfound_fun)
+
+
+        def test_find_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)                 
+
+            # put in 2 objects
+            sr = sample_resource()
+            sample_resource_id = myimpl.create_one(sr)
+
+            sr2 = sample_resource()
+            sr2.name = "NOT A DUPE"
+            sample_resource_id2 = myimpl.create_one(sr2)
+
+            resources = myimpl.find_some({})
+            self.assertIsInstance(resources, list)
+            self.assertNotEqual(0, len(resources))
+            self.assertNotEqual(1, len(resources))
+
+            resource_ids = []
+            for r in resources:
+                if not "_id" in r:
+                    raise Inconsistent("'_id' field not found in resource! got: %s" % str(r))
+                resource_ids.append(r._id)
+            self.assertIn(sample_resource_id, resource_ids)
+            self.assertIn(sample_resource_id2, resource_ids)
+
+            if all_in_one: 
+                myimpl.delete_one(sample_resource_id)
+                myimpl.delete_one(sample_resource_id2)
+
 
 
         def gen_test_find():
             """
             generate the function to test the find op
             """
+            name = make_name("resource_impl_find")
+            doc  = make_doc("Finding (all) %s resources" % impl_instance.iontype)
+            add_test_method(name, doc, test_find_fun)
+
+
+        def gen_test_allinone():
+            """
+            generate the function to test EVERYTHING at once
+            """
             def fun(self):
                 """
                 self is an instance of the tester class
                 """
-                # get objects
-                svc = self._rimi_getservice()
-                myimpl = getattr(svc, impl_attr)                 
+                test_create_fun(self)
+                test_create_bad_noname_fun(self)
+                test_create_bad_dupname_fun(self)
+                test_create_bad_has_id_fun(self)
+                test_read_fun(self)
+                test_read_notfound_fun(self)
+                test_update_samename_fun(self)
+                test_update_differentname_fun(self)
+                test_update_bad_noid_fun(self)
+                test_update_bad_dupname_fun(self)
+                test_delete_fun(self)
+                test_delete_notfound_fun(self)
+                test_find_fun(self)
 
-                # put in 2 objects
-                sr = sample_resource()
-                sample_resource_id = myimpl.create_one(sr)
-
-                sr2 = sample_resource()
-                sr2.name = "NOT A DUPE"
-                sample_resource_id2 = myimpl.create_one(sr2)
-
-                resources = myimpl.find_some({})
-                self.assertIsInstance(resources, list)
-                self.assertNotEqual(0, len(resources))
-                self.assertNotEqual(1, len(resources))
-                
-                resource_ids = []
-                for r in resources:
-                    if not "_id" in r:
-                        raise Inconsistent("'_id' field not found in resource! got: %s" % str(r))
-                    resource_ids.append(r._id)
-                self.assertIn(sample_resource_id, resource_ids)
-                self.assertIn(sample_resource_id2, resource_ids)
-
-                
-            name = make_name("resource_impl_find")
-            doc  = make_doc("Finding (all) %s resources" % impl_instance.iontype)
+            name = make_name("resource_impl_allinone")
+            doc  = make_doc("Performing all CRUD tests on %s resources" % impl_instance.iontype)
             add_test_method(name, doc, fun)
-
-
 
         # can you believe we're still within a single function?
 
@@ -494,17 +562,20 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
 
 
         # add each method to the tester class
-
-        gen_test_create()
-        gen_test_create_bad_noname()
-        gen_test_create_bad_dupname()
-        gen_test_create_bad_has_id()
-        gen_test_read()
-        gen_test_read_notfound()
-        gen_test_update()
-        gen_test_update_bad_noid()
-        gen_test_update_bad_dupname()
-        gen_test_delete()
-        gen_test_delete_notfound()
-        gen_test_find()
+        if self.all_in_one:
+            gen_test_allinone()
+        else:
+            gen_test_create()
+            gen_test_create_bad_noname()
+            gen_test_create_bad_dupname()
+            gen_test_create_bad_has_id()
+            gen_test_read()
+            gen_test_read_notfound()
+            gen_test_update_samename()
+            gen_test_update_differentname()
+            gen_test_update_bad_noid()
+            gen_test_update_bad_dupname()
+            gen_test_delete()
+            gen_test_delete_notfound()
+            gen_test_find()
 

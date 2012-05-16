@@ -1,5 +1,5 @@
 from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -18,16 +18,16 @@ from pyon.util.log import log
 
 from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
 
-from ion.services.sa.resource_impl.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.resource_impl.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.resource_impl.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.resource_impl.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.resource_impl.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.resource_impl.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.resource_impl.platform_device_impl import PlatformDeviceImpl
-from ion.services.sa.resource_impl.platform_model_impl import PlatformModelImpl
-from ion.services.sa.resource_impl.sensor_device_impl import SensorDeviceImpl
-from ion.services.sa.resource_impl.sensor_model_impl import SensorModelImpl
+from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
+from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
+from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
+from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
+from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 
 
 class FakeProcess(LocalContextMixin):
@@ -57,6 +57,7 @@ class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 
  
 rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceMeta, InstrumentManagementService, log)
+rimi.test_all_in_one(True)
 
 rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rimi.add_resource_impl_inttests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})

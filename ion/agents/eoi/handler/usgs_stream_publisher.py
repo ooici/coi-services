@@ -11,7 +11,7 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_pub
 
 '''
 from gevent.greenlet import Greenlet
-from pyon.ion.endpoint import StreamPublisherRegistrar
+from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.ion.process import StandaloneProcess
 from pyon.public import log
 from ion.agents.eoi.data_acquisition_management_service_Placeholder import *

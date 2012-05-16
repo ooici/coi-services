@@ -12,7 +12,7 @@ __licence__ = 'Apache 2.0'
 
 from mock import Mock
 from pyon.agent.agent import ResourceAgentClient
-from pyon.net.endpoint import ProcessRPCClient
+from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import log
 from pyon.core.exception import IonException
 from interface.services.eoi.iexternal_observatory_agent_service import BaseExternalObservatoryAgentService

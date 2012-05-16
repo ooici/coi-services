@@ -1,4 +1,4 @@
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import BadRequest, NotFound, Conflict

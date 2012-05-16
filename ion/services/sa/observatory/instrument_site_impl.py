@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.resource_impl.management.instrument_site_impl
+@package  ion.services.sa.observatory.management.instrument_site_impl
 @author   Ian Katz
 """
 
@@ -9,7 +9,7 @@
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED, RT
 
-from ion.services.sa.resource_impl.site_impl import SiteImpl
+from ion.services.sa.observatory.site_impl import SiteImpl
 
 class InstrumentSiteImpl(SiteImpl):
     """
@@ -22,11 +22,12 @@ class InstrumentSiteImpl(SiteImpl):
     def _primary_object_label(self):
         return "instrument_site"
 
-    def link_agent(self, instrument_site_id='', instrument_agent_id=''):
-        return self._link_resources(instrument_site_id, PRED.hasAgent, instrument_agent_id)
 
-    def unlink_agent(self, instrument_site_id='', instrument_agent_id=''):
-        return self._unlink_resources(instrument_site_id, PRED.hasAgent, instrument_agent_id)
+    def link_deployment(self, instrument_site_id='', deployment_id=''):
+        return self._link_resources(instrument_site_id, PRED.hasDeployment, deployment_id)
+
+    def unlink_deployment(self, instrument_site_id='', deployment_id=''):
+        return self._unlink_resources(instrument_site_id, PRED.hasDeployment, deployment_id)
 
     def link_device(self, instrument_site_id='', instrument_device_id=''):
         return self._link_resources(instrument_site_id, PRED.hasDevice, instrument_device_id)
@@ -40,12 +41,12 @@ class InstrumentSiteImpl(SiteImpl):
     def unlink_model(self, instrument_site_id='', instrument_model_id=''):
         return self._unlink_resources(instrument_site_id, PRED.hasModel, instrument_model_id)
 
-    def find_having_agent(self, instrument_agent_id):
-        return self._find_having(PRED.hasAgent, instrument_agent_id)
+    def find_having_deployment(self, deployment_id):
+        return self._find_having(PRED.hasDeployment, deployment_id)
 
-    def find_stemming_agent(self, instrument_site_id):
-        return self._find_stemming(instrument_site_id, PRED.hasAgent, RT.InstrumentAgent)
-    
+    def find_stemming_deployment(self, instrument_site_id):
+        return self._find_stemming(instrument_site_id, PRED.hasDeployment, RT.Deployment)
+
     def find_having_device(self, instrument_device_id):
         return self._find_having(PRED.hasDevice, instrument_device_id)
 

@@ -46,7 +46,7 @@ bin/pycc --rel res/deploy/examples/dispatcher.yml dispatcher.data_product_id=<da
 
 
 from gevent.greenlet import Greenlet
-from pyon.ion.endpoint import StreamPublisherRegistrar
+from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.ion.process import StandaloneProcess
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from pyon.public import log, StreamSubscriberRegistrar, PRED

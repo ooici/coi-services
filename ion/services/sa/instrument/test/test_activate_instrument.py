@@ -1,5 +1,5 @@
 from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -40,7 +40,7 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 
-from ion.services.sa.resource_impl.data_product_impl import DataProductImpl
+from ion.services.sa.instrument.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
 

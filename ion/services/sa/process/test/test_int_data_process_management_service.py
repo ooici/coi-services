@@ -344,6 +344,10 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         
 
+        # todo: monitor process to se eif it is active (sa-rq-182)
+        # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
+        log.debug("test_createDataProcessUsingSim: call CEI interface to monitor  ")
+
 
 
         log.debug("test_createDataProcessUsingSim: deactivate_data_process ")
