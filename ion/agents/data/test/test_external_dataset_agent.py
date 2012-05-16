@@ -66,6 +66,7 @@ import unittest
 # Used to validate param config retrieved from driver.
 PARAMS = {
     'POLLING_INTERVAL':int,
+    'PATCHABLE_CONFIG_KEYS':list
 }
 
 # To validate the list of resource commands
@@ -566,12 +567,12 @@ class ExternalDatasetAgentTestBase(object):
 
         rr_cli = ResourceRegistryServiceClient()
 
-        #TG: Move this to test_acquire_new_data
-        for key, value in self.NDC.iteritems():
-            # build attachment
-            # create in registry
-            # run acquire_data
-            pass
+#        #TG: Move this to test_acquire_new_data
+#        for key, value in self.NDC.iteritems():
+#            # build attachment
+#            # create in registry
+#            # run acquire_data
+#            pass
 
         att = Attachment(name='newDataCheck',
             content='some content for the attachment, something to allow new data to be determined',
@@ -798,18 +799,35 @@ class ExternalDatasetAgentTestBase(object):
         cmd = AgentCommand(command='run')
         _ = self._ia_client.execute_agent(cmd)
 
-        # Get a couple parameters, one that exists, one that doesn't
-        self._ia_client.set_param({'POLLING_INTERVAL':3600})
-        retval = self._ia_client.get_param(['POLLING_INTERVAL','BAD_PARAM'])
+        # Get a couple parameters
+        retval = self._ia_client.get_param(['POLLING_INTERVAL','PATCHABLE_CONFIG_KEYS'])
+        log.debug('Retrieved parameters from agent: {0}'.format(retval))
         self.assertTrue(isinstance(retval,dict))
-        self.assertEqual(retval['POLLING_INTERVAL'],3600)
-        self.assertEqual(retval['BAD_PARAM'],None)
+        self.assertEqual(type(retval['POLLING_INTERVAL']),int)
+        self.assertEqual(type(retval['PATCHABLE_CONFIG_KEYS']),list)
+
+        # Attempt to get a parameter that doesn't exist
+        with self.assertRaises(InstParameterError):
+            self._ia_client.get_param(['BAD_PARAM'])
 
         # Set the polling_interval to a new value, then get it to make sure it set properly
         self._ia_client.set_param({'POLLING_INTERVAL':10})
         retval = self._ia_client.get_param(['POLLING_INTERVAL'])
+        log.debug('Retrieved parameters from agent: {0}'.format(retval))
         self.assertTrue(isinstance(retval,dict))
         self.assertEqual(retval['POLLING_INTERVAL'],10)
+
+        # Attempt to set a parameter that doesn't exist
+        with self.assertRaises(InstParameterError):
+            self._ia_client.set_param({'BAD_PARAM':'bad_val'})
+
+        # Attempt to set one parameter that does exist, and one that doesn't
+        with self.assertRaises(InstParameterError):
+            self._ia_client.set_param({'POLLING_INTERVAL':20,'BAD_PARAM':'bad_val'})
+        retval = self._ia_client.get_param(['POLLING_INTERVAL'])
+        log.debug('Retrieved parameters from agent: {0}'.format(retval))
+        self.assertTrue(isinstance(retval,dict))
+        self.assertEqual(retval['POLLING_INTERVAL'],20)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)

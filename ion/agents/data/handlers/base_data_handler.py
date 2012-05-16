@@ -12,6 +12,7 @@
 from pyon.public import log
 from pyon.util.async import spawn
 from pyon.ion.resource import PRED, RT
+from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
@@ -39,9 +40,13 @@ class DataHandlerParameter(DriverParameter):
     Base DataHandler parameters.  Inherits from DriverParameter.  Subclassed by specific handlers
     """
     POLLING_INTERVAL = 'POLLING_INTERVAL',
+    PATCHABLE_CONFIG_KEYS = 'PATCHABLE_CONFIG_KEYS',
 
 class BaseDataHandler(object):
-    _params = {'POLLING_INTERVAL' : 3600}
+    _params = {
+        'POLLING_INTERVAL' : 3600,
+        'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
+    }
     _polling = False
     _polling_glet = None
     _dh_config = {}
@@ -176,26 +181,29 @@ class BaseDataHandler(object):
 
     def execute_acquire_data(self, *args):
         """
-        Spawns a greenlet to perform a data acquisition
-        Calls BaseDataHandler._acquire_data
+        Creates a copy of self._dh_config, creates a publisher, and spawns a greenlet to perform a data acquisition cycle
+        If the args[0] is a dict, any entries keyed with one of the 'PATCHABLE_CONFIG_KEYS' are used to patch the config
+        Greenlet binds to BaseDataHandler._acquire_data and passes the publisher and config
         Disallows multiple "new data" (unconstrained) requests using BaseDataHandler._semaphore lock
         Called from:
                       InstrumentAgent._handler_observatory_execute_resource
                        |-->  ExternalDataAgent._handler_streaming_execute_resource
 
-        @parameter args First argument should be a config dictionary
+        @parameter args First argument can be a config dictionary
         """
+        log.debug('Executing acquire_data: args = {0}'.format(args))
+
         # Make a copy of the config to ensure no cross-pollution
         config = self._dh_config.copy()
-        log.debug('Executing acquire_data: args = {0}'.format(args))
+
+        # Patch the config if mods are passed in
         try:
             config_mods = args[0]
             if not isinstance(config_mods, dict):
                 raise IndexError()
 
             log.debug('Configuration modifications provided: {0}'.format(config_mods))
-            modable_keys = ['stream_id','constraints']
-            for k in modable_keys:
+            for k in self._params['PATCHABLE_CONFIG_KEYS']:
                 if get_safe(config_mods, k):
                    config[k] = config_mods[k]
 
@@ -204,29 +212,34 @@ class BaseDataHandler(object):
             log.debug('No configuration modifications were provided')
             pass
 
-        if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
+        # Verify that there is a stream_id member in the config
+        stream_id = get_safe(config, 'stream_id')
+        if not stream_id:
+            raise ConfigurationError('Configuration does not contain required \'stream_id\' member')
+
+        isNew = get_safe(config, 'constraints') is None
+
+        if isNew and not self._semaphore.acquire(blocking=False):
             log.warn('Already acquiring new data - action not duplicated')
             return
 
-        stream_id = get_safe(config, 'stream_id')
-        if not stream_id:
-            raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
-
-        # Get any NewDataCheck attachments and add them to the config
-        ext_ds_id = get_safe(config,'external_dataset_res_id')
-        if ext_ds_id:
-            try:
-                attachment_objs, _ = self._rr_cli.find_objects(ext_ds_id, PRED.hasAttachment, RT.Attachment, False)
-                for attachment_obj in attachment_objs:
-                    kwds = set(attachment_obj.keywords)
-                    if 'NewDataCheck' in kwds:
-                        config['new_data_check'] = attachment_obj.content
-                        log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj))
-                    else:
-                        log.debug('Found attachment: {0}'.format(attachment_obj))
-            except NotFound:
-                log.debug('No attachments found for resource: {0}'.format(ext_ds_id))
-                pass
+        if isNew:
+            # Get any NewDataCheck attachments and add them to the config
+            ext_ds_id = get_safe(config,'external_dataset_res_id')
+            if ext_ds_id:
+                try:
+                    attachment_objs, _ = self._rr_cli.find_objects(ext_ds_id, PRED.hasAttachment, RT.Attachment, False)
+                    for attachment_obj in attachment_objs:
+                        kwds = set(attachment_obj.keywords)
+                        if 'NewDataCheck' in kwds:
+                            log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj))
+                            config['new_data_check'] = attachment_obj.content
+                            break
+                        else:
+                            log.debug('Found attachment: {0}'.format(attachment_obj))
+                except NotFound:
+                    log.debug('No attachments found for resource: {0}'.format(ext_ds_id))
+                    pass
 
         if not get_safe(config, 'new_data_check'):
             config['new_data_check'] = None
@@ -320,9 +333,11 @@ class BaseDataHandler(object):
             result={}
             for pn in pnames:
                 try:
-                    result[pn] = self._params.get(pn)
+                    log.debug('Get parameter with key: {0}'.format(pn))
+                    result[pn] = self._params[pn]
                 except KeyError:
-                    raise ParameterError('{0} is not a valid parameter for this DataHandler.'.format(pn))
+                    log.debug('Parameter with key \'{0}\' does not exist'.format(pn))
+                    raise ParameterError('\'{0}\' is not a valid parameter for this DataHandler.'.format(pn))
 
         return result
 
@@ -346,12 +361,22 @@ class BaseDataHandler(object):
         except IndexError:
             raise ParameterError('Set command requires a parameter dict.')
 
+        to_raise = []
+
         if not isinstance(params, dict):
             raise ParameterError('Set parameters not a dict.')
         else:
             for (key, val) in params.iteritems():
-                self._params[key] = val
-                #TODO: Add rejection of unknown parameter
+                if key in self._params:
+                    log.debug('Set parameter \'{0}\' = {1}'.format(key, val))
+                    self._params[key] = val
+                else:
+                    log.debug('Parameter \'{0}\' not in self._params and cannot be set'.format(key))
+                    to_raise.append(key)
+
+        if len(to_raise) > 0:
+            log.debug('Raise ParameterError for un-set parameters: {0}'.format(to_raise))
+            raise ParameterError('Invalid parameter(s) could not be set: {0}'.format(to_raise))
 
     def get_resource_params(self, *args, **kwargs):
         """
