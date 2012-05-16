@@ -1,30 +1,29 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.test.test_external_dataset_agent
-@file ion/agents/eoi/test/test_external_dataset_agent.py
+@package ion.agents.data.test.test_external_dataset_agent
+@file ion/agents/data/test/test_external_dataset_agent.py
 @author Tim Giguere
 @author Christopher Mueller
 @brief Test cases for R2 ExternalDatasetAgent
 
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_get_set_param
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_initialize
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_states
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_observatory
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_sample
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_autosample
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_capabilities
-# bin/nosetests -s -v --nologcapture ion.agents.eoi.test.test_external_dataset_agent:TestExternalDatasetAgent.test_errors
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_data_while_streaming
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_acquire_sample
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_streaming
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_observatory
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_get_set_param
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_initialize
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_states
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_capabilities
+# bin/nosetests -s -v --nologcapture ion.agents.data.test.test_external_dataset_agent:TestExternalDatasetAgent.test_errors
 
 """
 
 # Import pyon first for monkey patching.
-from pyon.core.exception import InstParameterError
-from pyon.public import log
-
+from pyon.public import log, CFG
+from pyon.core.exception import InstParameterError, NotFound
 # Standard imports.
-import unittest
 
 # 3rd party imports.
 from gevent import spawn
@@ -34,41 +33,31 @@ from nose.plugins.attrib import attr
 from mock import patch
 
 # ION imports.
-from interface.objects import StreamQuery
+from interface.objects import StreamQuery, Attachment, AttachmentType
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
+from pyon.util.containers import get_safe
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.public import CFG
 from pyon.event.event import EventSubscriber
 
 # MI imports
 from ion.services.mi.instrument_agent import InstrumentAgentState
 
-from ion.agents.eoi.handler.base_data_handler import DataHandlerParameter
+from ion.agents.data.handlers.base_data_handler import DataHandlerParameter
 
 # todo: rethink this
-from ion.agents.eoi.handler.base_data_handler import PACKET_CONFIG
+from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
 
-# DataHandler config
-DVR_CONFIG = {
-    'dvr_mod' : 'ion.agents.eoi.handler.base_data_handler',
-#    'dvr_cls' : 'BaseDataHandler',
-    'dvr_cls' : 'FibonacciDataHandler',
-#    'dvr_cls' : 'DummyDataHandler',
-#    'dvr_mod' : 'ion.agents.eoi.handler.netcdf_data_handler',
-#    'dvr_cls' : 'NetcdfDataHandler'
-}
+from pyon.ion.granule.taxonomy import TaxyTool
 
-# Agent parameters.
-EDA_RESOURCE_ID = '123xyz'
-EDA_NAME = 'ExampleEDA'
-EDA_MOD = 'ion.agents.eoi.external_dataset_agent'
-EDA_CLS = 'ExternalDatasetAgent'
+import unittest
+
 
 #########################
 # For Validation Purposes
@@ -77,6 +66,7 @@ EDA_CLS = 'ExternalDatasetAgent'
 # Used to validate param config retrieved from driver.
 PARAMS = {
     'POLLING_INTERVAL':int,
+    'PATCHABLE_CONFIG_KEYS':list
 }
 
 # To validate the list of resource commands
@@ -115,9 +105,16 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@attr('INT', group='eoi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
-class TestExternalDatasetAgent(IonIntegrationTestCase):
+class ExternalDatasetAgentTestBase(object):
+
+    # Agent parameters.
+    EDA_RESOURCE_ID = '123xyz'
+    EDA_NAME = 'ExampleEDA'
+    EDA_MOD = 'ion.agents.data.external_dataset_agent'
+    EDA_CLS = 'ExternalDatasetAgent'
+
+
     """
     Test cases for instrument agent class. Functions in this class provide
     instrument agent integration tests and provide a tutorial on use of
@@ -137,67 +134,106 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
 #        self._start_pagent()
 #        self.addCleanup(self._stop_pagent)
 
+#        log.warn('Starting the container')
         # Start container.
         self._start_container()
 
         # Bring up services in a deploy file (no need to message)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+#        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+#        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
+#        log.warn('Starting the rel')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        # Start data suscribers, add stop to cleanup.
-        # Define stream_config.
-        self._no_samples = None
-        self._async_data_result = AsyncResult()
-        self._data_greenlets = []
-        self._stream_config = {}
-        self._samples_received = []
-        self._data_subscribers = []
-        # This assigns self._stream_config based on the contents of PACKET_CONFIG and starts subscribers on those streams
-        self._start_data_subscribers()
-        self.addCleanup(self._stop_data_subscribers)
+        # Create a pubsub client to create streams.
+#        log.warn('Init a pubsub client')
+        self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+#        log.warn('Init a ContainerAgentClient')
+        self._container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
 
-        # Start event subscribers, add stop to cleanup.
-        self._no_events = None
-        self._async_event_result = AsyncResult()
-        self._events_received = []
-        self._event_subscribers = []
-        self._start_event_subscribers()
-        self.addCleanup(self._stop_event_subscribers)
+#        # Define stream_config.
+#        self._stream_config = {}
 
+        # Sample async and subscription
+#        self._no_samples = None
+#        self._async_data_result = AsyncResult()
+#        self._data_greenlets = []
+#        self._samples_received = []
+#        self._data_subscribers = []
+#        # This assigns self._stream_config based on the contents of PACKET_CONFIG and starts subscribers on those streams
+#        self._start_data_subscribers()
+#        self.addCleanup(self._stop_data_subscribers)
+
+        # Event async and subscription
+#        self._no_events = None
+#        self._async_event_result = AsyncResult()
+#        self._events_received = []
+#        self._event_subscribers = []
+#        self._start_event_subscribers()
+#        self.addCleanup(self._stop_event_subscribers)
+
+        # Data async and subscription  TODO: Replace with new subscriber
         self._finished_count = None
+        #TODO: Switch to gevent.queue.Queue
         self._async_finished_result = AsyncResult()
         self._finished_events_received = []
         self._finished_event_subscriber = None
         self._start_finished_event_subscriber()
         self.addCleanup(self._stop_finished_event_subscriber)
 
+        # TODO: Finish dealing with the resources and whatnot
+        # TODO: DVR_CONFIG and (potentially) stream_config could both be reconfigured in self._setup_resources()
+        self._setup_resources()
+
+        #TG: Setup/configure the granule logger to log granules as they're published
+
         # Create agent config.
         agent_config = {
-            'driver_config' : DVR_CONFIG,
-            'stream_config' : self._stream_config,
-            'agent'         : {'resource_id': EDA_RESOURCE_ID},
+            'driver_config' : self.DVR_CONFIG,
+            'stream_config' : {},
+            'agent'         : {'resource_id': self.EDA_RESOURCE_ID},
             'test_mode' : True
         }
 
         # Start instrument agent.
         self._ia_pid = None
-        log.debug("TestInstrumentAgent.setup(): starting EDA.")
-        container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
-        self._ia_pid = container_client.spawn_process(name=EDA_NAME,
-            module=EDA_MOD, cls=EDA_CLS, config=agent_config)
+        log.debug('TestInstrumentAgent.setup(): starting EDA.')
+        self._ia_pid = self._container_client.spawn_process(
+            name=self.EDA_NAME,
+            module=self.EDA_MOD,
+            cls=self.EDA_CLS,
+            config=agent_config
+        )
         log.info('Agent pid=%s.', str(self._ia_pid))
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
-        self._ia_client = ResourceAgentClient(EDA_RESOURCE_ID, process=FakeProcess())
+        self._ia_client = ResourceAgentClient(self.EDA_RESOURCE_ID, process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))
+
+    ########################################
+    # Private "setup" functions
+    ########################################
+
+    def _setup_resources(self):
+        raise NotImplementedError('_setup_resources must be implemented in the subclass')
+
+    def create_stream_and_logger(self, name, stream_id=''):
+        if not stream_id or stream_id is '':
+            stream_id = self._pubsub_client.create_stream(name=name, encoding='ION R2')
+
+        pid = self._container_client.spawn_process(
+            name=name+'_logger',
+            module='ion.processes.data.stream_granule_logger',
+            cls='StreamGranuleLogger',
+            config={'process':{'stream_id':stream_id}}
+        )
+        log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
+
+        return stream_id
 
     def _start_data_subscribers(self):
         """
         """
-        # Create a pubsub client to create streams.
-        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-
         # A callback for processing subscribed-to data.
         def consume_data(message, headers):
             log.info('Subscriber received data message: %s.', str(message))
@@ -281,8 +317,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
                 self._finished_events_received.append(args[0])
                 if self._finished_count and self._finished_count == len(self._finished_events_received):
                     log.debug('Finishing test...')
-                    self._async_finished_result.set()
-                    log.debug('Called self._async_finished_result.set()')
+                    self._async_finished_result.set(len(self._finished_events_received))
+                    log.debug('Called self._async_finished_result.set({0})'.format(len(self._finished_events_received)))
 
         self._finished_event_subscriber = EventSubscriber(event_type='DeviceEvent', callback=consume_event)
         self._finished_event_subscriber.activate()
@@ -291,6 +327,11 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         if self._finished_event_subscriber:
             self._finished_event_subscriber.deactivate()
             self._finished_event_subscriber = None
+
+
+    ########################################
+    # Custom assertion functions
+    ########################################
 
     def assertSampleDict(self, val):
         """
@@ -349,6 +390,11 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
                 # int, bool, str.
                 self.assertEqual(val, correct_val)
 
+
+    ########################################
+    # Test functions
+    ########################################
+
     def test_acquire_data(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -362,40 +408,30 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._finished_count = 3
 
         log.info('Send an unconstrained request for data (\'new data\')')
-        config={'stream_id':'first_new','TESTING':True}
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
         log.info('Send a second unconstrained request for data (\'new data\'), should be rejected')
-        config={'stream_id':'second_new','TESTING':True}
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
+        config_mods={}
 
-        #TODO: !!! Remove whacky handling for manually changed DataHandler testing !!!
-        log.info('Send a constrained request for data (\'historical data\')')
-        constraints = {'count':15}
-        if DVR_CONFIG['dvr_cls'] is 'DummyDataHandler':
-            constraints['array_len'] = 15
-        elif DVR_CONFIG['dvr_cls'] is 'NetcdfDataHandler':
-            constraints['temporal_slice'] = '(slice(4,10))'
-        config={'stream_id':'first_historical','TESTING':True, 'constraints':constraints}
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
         self._ia_client.execute(cmd)
 
-        #TODO: !!! Remove whacky handling for manually changed DataHandler testing !!!
-        log.info('Send a second constrained request for data (\'historical data\')')
-        constraints = {'count':10}
-        if DVR_CONFIG['dvr_cls'] is 'DummyDataHandler':
-            constraints['array_len'] = 10
-        elif DVR_CONFIG['dvr_cls'] is 'NetcdfDataHandler':
-            constraints['temporal_slice'] = '(slice(0,16,2))'
-        config={'stream_id':'second_historical','TESTING':True, 'constraints':constraints}
-        cmd = AgentCommand(command='acquire_data', args=[config])
+        log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_2')
+        config_mods['constraints']=self.HIST_CONSTRAINTS_2
+#        config={'stream_id':'second_historical','TESTING':True, 'constraints':self.HIST_CONSTRAINTS_2}
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
         self._ia_client.execute(cmd)
 
-        self._async_finished_result.get(timeout=10)
-        self.assertEqual(len(self._finished_events_received),self._finished_count)
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)
@@ -448,14 +484,11 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
-        #TODO: !!! Remove whacky handling for manually changed DataHandler testing !!!
-        log.info('Send a constrained request for data (\'historical data\')')
-        constraints = {'count':15}
-        if DVR_CONFIG['dvr_cls'] is 'DummyDataHandler':
-            constraints['array_len'] = 15
-        elif DVR_CONFIG['dvr_cls'] is 'NetcdfDataHandler':
-            constraints['temporal_slice'] = '(slice(4,10))'
-        config={'stream_id':'first_historical','TESTING':True, 'constraints':constraints}
+        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command='acquire_data', args=[config])
         reply = self._ia_client.execute(cmd)
         self.assertNotEqual(reply.status, 660)
@@ -474,7 +507,56 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self._async_finished_result.get(timeout=10)
         self.assertTrue(len(self._finished_events_received) >= 3)
 
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip('wip - likely to move to UNIT')
+    def test_acquire_new_data(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        rr_cli = ResourceRegistryServiceClient()
+
+        for key, value in self.NDC.iteritems():
+            # build attachment
+            att = Attachment(name='newDataCheck',
+                content=value,
+                keywords=['NewDataCheck'],
+                attachment_type=AttachmentType.ASCII
+            )
+
+            # create in registry
+            try:
+                ncd_att_id = rr_cli.create_attachment(self.EDA_RESOURCE_ID, att)
+                log.warn('Created attachment: {0}'.format(ncd_att_id))
+            except NotFound as ex:
+                log.warn('Not a valid resource id - it\'s just a test!!')
+
+            # run acquire_data
+            log.info('Send an unconstrained request for data (\'new data\')')
+            cmd = AgentCommand(command='acquire_data')
+            self._ia_client.execute(cmd)
+
+        self._finished_count = len(self.NDC)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    @unittest.skip('Not used in DataHandler')
     def test_acquire_sample(self):
         # Test observatory polling function.
 
@@ -531,7 +613,7 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    def test_autosample(self):
+    def test_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -597,6 +679,70 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    def test_observatory(self):
+        # Test instrument driver get and set interface.
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='go_active')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.IDLE)
+
+        cmd = AgentCommand(command='run')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+
+        # Retrieve all resource parameters.
+        reply = self._ia_client.get_param('DRIVER_PARAMETER_ALL')
+        self.assertParamDict(reply, True)
+        orig_config = reply
+
+        ## Retrieve a subset of resource parameters.
+        params = [
+            'POLLING_INTERVAL'
+        ]
+        reply = self._ia_client.get_param(params)
+        self.assertParamDict(reply)
+        orig_params = reply
+
+        # Set a subset of resource parameters.
+        new_params = {
+            'POLLING_INTERVAL' : (orig_params['POLLING_INTERVAL'] * 2),
+        }
+        self._ia_client.set_param(new_params)
+        check_new_params = self._ia_client.get_param(params)
+        self.assertParamVals(check_new_params, new_params)
+
+        #        # Reset the parameters back to their original values.
+        #        self._ia_client.set_param(orig_params)
+        #        reply = self._ia_client.get_param(DataHandlerParameter.POLLING_INTERVAL)
+        #        reply.pop(DataHandlerParameter.POLLING_INTERVAL)
+        #        orig_config.pop(DataHandlerParameter.POLLING_INTERVAL)
+        #        self.assertParamVals(reply, orig_config)
+
+        cmd = AgentCommand(command='reset')
+        retval = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
     def test_get_set_param(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -607,18 +753,35 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command='run')
         _ = self._ia_client.execute_agent(cmd)
 
-        # Get a couple parameters, one that exists, one that doesn't
-        self._ia_client.set_param({DataHandlerParameter.POLLING_INTERVAL:3600})
-        retval = self._ia_client.get_param([DataHandlerParameter.POLLING_INTERVAL,'BAD_PARAM'])
+        # Get a couple parameters
+        retval = self._ia_client.get_param(['POLLING_INTERVAL','PATCHABLE_CONFIG_KEYS'])
+        log.debug('Retrieved parameters from agent: {0}'.format(retval))
         self.assertTrue(isinstance(retval,dict))
-        self.assertEqual(retval[DataHandlerParameter.POLLING_INTERVAL],3600)
-        self.assertEqual(retval['BAD_PARAM'],None)
+        self.assertEqual(type(retval['POLLING_INTERVAL']),int)
+        self.assertEqual(type(retval['PATCHABLE_CONFIG_KEYS']),list)
+
+        # Attempt to get a parameter that doesn't exist
+        with self.assertRaises(InstParameterError):
+            self._ia_client.get_param(['BAD_PARAM'])
 
         # Set the polling_interval to a new value, then get it to make sure it set properly
-        self._ia_client.set_param({DataHandlerParameter.POLLING_INTERVAL:10})
-        retval = self._ia_client.get_param([DataHandlerParameter.POLLING_INTERVAL])
+        self._ia_client.set_param({'POLLING_INTERVAL':10})
+        retval = self._ia_client.get_param(['POLLING_INTERVAL'])
+        log.debug('Retrieved parameters from agent: {0}'.format(retval))
         self.assertTrue(isinstance(retval,dict))
-        self.assertEqual(retval[DataHandlerParameter.POLLING_INTERVAL],10)
+        self.assertEqual(retval['POLLING_INTERVAL'],10)
+
+        # Attempt to set a parameter that doesn't exist
+        with self.assertRaises(InstParameterError):
+            self._ia_client.set_param({'BAD_PARAM':'bad_val'})
+
+        # Attempt to set one parameter that does exist, and one that doesn't
+        with self.assertRaises(InstParameterError):
+            self._ia_client.set_param({'POLLING_INTERVAL':20,'BAD_PARAM':'bad_val'})
+        retval = self._ia_client.get_param(['POLLING_INTERVAL'])
+        log.debug('Retrieved parameters from agent: {0}'.format(retval))
+        self.assertTrue(isinstance(retval,dict))
+        self.assertEqual(retval['POLLING_INTERVAL'],20)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)
@@ -738,6 +901,8 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
+        gevent.sleep(5)
+
         cmd = AgentCommand(command='go_observatory')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
@@ -746,70 +911,6 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
         self._async_finished_result.get(timeout=5)
-
-        cmd = AgentCommand(command='reset')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
-    def test_observatory(self):
-        # Test instrument driver get and set interface.
-
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.INACTIVE)
-
-        cmd = AgentCommand(command='go_active')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.IDLE)
-
-        cmd = AgentCommand(command='run')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
-
-        # Retrieve all resource parameters.
-        reply = self._ia_client.get_param(DataHandlerParameter.ALL)
-        self.assertParamDict(reply, True)
-        orig_config = reply
-
-        ## Retrieve a subset of resource parameters.
-        params = [
-            DataHandlerParameter.POLLING_INTERVAL
-        ]
-        reply = self._ia_client.get_param(params)
-        self.assertParamDict(reply)
-        orig_params = reply
-
-        # Set a subset of resource parameters.
-        new_params = {
-            DataHandlerParameter.POLLING_INTERVAL : (orig_params[DataHandlerParameter.POLLING_INTERVAL] * 2),
-            }
-        self._ia_client.set_param(new_params)
-        check_new_params = self._ia_client.get_param(params)
-        self.assertParamVals(check_new_params, new_params)
-
-        #        # Reset the parameters back to their original values.
-        #        self._ia_client.set_param(orig_params)
-        #        reply = self._ia_client.get_param(DataHandlerParameter.POLLING_INTERVAL)
-        #        reply.pop(DataHandlerParameter.POLLING_INTERVAL)
-        #        orig_config.pop(DataHandlerParameter.POLLING_INTERVAL)
-        #        self.assertParamVals(reply, orig_config)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -856,7 +957,6 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-#    @unittest.skip("")
     def test_errors(self):
         # Test illegal behavior and replies.
 
@@ -898,10 +998,10 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
-        # OK, I can do this now.
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
+#        # OK, I can do this now.
+#        cmd = AgentCommand(command='acquire_sample')
+#        reply = self._ia_client.execute(cmd)
+#        self.assertSampleDict(reply.result)
 
         # 404 unknown agent command.
         cmd = AgentCommand(command='kiss_edward')
@@ -923,4 +1023,68 @@ class TestExternalDatasetAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+@attr('INT_EOI', group='eoi')
+class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+    # DataHandler config
+    DVR_CONFIG = {
+        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
+        'dvr_cls' : 'DummyDataHandler',
+        }
+
+    # Constraints dict
+    HIST_CONSTRAINTS_1 = {
+        'array_len':15,
+        }
+    HIST_CONSTRAINTS_2 = {
+        'array_len':10,
+        }
+
+    NDC = {
+    }
+
+    def _setup_resources(self):
+        stream_id = self.create_stream_and_logger(name='dummydata_stream')
+
+        tx = TaxyTool()
+        tx.add_taxonomy_set('data', 'external_data')
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
+            'data_producer_id':'dummy_data_producer_id',
+            'taxonomy':tx.dump(),
+            'max_records':4,
+            }
+
+@attr('INT_EOI', group='eoi')
+class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+    DVR_CONFIG = {
+        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
+        'dvr_cls' : 'FibonacciDataHandler',
+    }
+
+    HIST_CONSTRAINTS_1 = {
+        'count':15,
+    }
+
+    HIST_CONSTRAINTS_2 = {
+        'count':10,
+    }
+
+    NDC = {
+    }
+
+    def _setup_resources(self):
+        stream_id = self.create_stream_and_logger(name='fibonacci_stream')
+
+        tx = TaxyTool()
+        tx.add_taxonomy_set('data', 'external_data')
+        #TG: Build TaxonomyTool & add to dh_cfg.taxonomy
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,
+            'data_producer_id':'fibonacci_data_producer_id',
+            'taxonomy':tx.dump(),
+            'max_records':4,
+            }
 
