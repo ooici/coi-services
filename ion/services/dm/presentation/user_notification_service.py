@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-
+'''
+@author Bill Bollenbacher
+@file ion/services/dm/presentation/user_notification_service.py
+@description Implementation of the UserNotificationService
+'''
 __author__ = 'Bill Bollenbacher'
 __license__ = 'Apache 2.0'
 
@@ -23,19 +27,22 @@ ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservator
 ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 
 """
-For every user that has existing notification requests (who has called create_notification()) the UNS will contain a local 
-UserEventProcessor instance that contains the user's notification information (email address) and all of the user's 
-notifications (along with their event subscribers).  The UserEventProcessors are maintained local to the UNS in a dictionary 
-indexed by the user's resourceID.  When a notification is created the user's UserEventProcessor will be created if it 
-doesn't already exist , and it will be deleted when the user deletes their last notification.
+For every user that has existing notification requests (who has called
+create_notification()) the UNS will contain a local UserEventProcessor
+instance that contains the user's notification information (email address)
+and all of the user's notifications (along with their event subscribers).
+The UserEventProcessors are maintained local to the UNS in a dictionary
+indexed by the user's resourceID.  When a notification is created the user's
+UserEventProcessor will be created if it doesn't already exist , and it will
+be deleted when the user deletes their last notification.
 
-The user's UserEventProcessor will encapsulate a list of notification objects that the user has requested, 
-along with user information needed for send notifications (email address for LCA).  
-It will also encapsulate a subscriber callback method that is passed to all event subscribers for each notification 
-the user has created.
+The user's UserEventProcessor will encapsulate a list of notification objects
+that the user has requested, along with user information needed for send notifications
+(email address for LCA). It will also encapsulate a subscriber callback method
+that is passed to all event subscribers for each notification the user has created.
 
-Each notification object will encapsulate the notification information and a list of event subscribers (only one for LCA) 
-that listen for the events in the notification.
+Each notification object will encapsulate the notification information and a
+list of event subscribers (only one for LCA) that listen for the events in the notification.
 """
 
 class NotificationEventSubscriber(EventSubscriber):
@@ -137,9 +144,12 @@ class UserEventProcessor(object):
                             "",
                             "Time stamp: %s" %  time_stamp,
                             "",
-                            "You received this notification from ION because you asked to be notified about this event from this source. ",
-                            "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI.",
-                            "Do not reply to this email.  This email address is not monitored and the emails will not be read."),
+                            "You received this notification from ION because you asked to be " \
+                            "notified about this event from this source. ",
+                            "To modify or remove notifications about this event, " \
+                            "please access My Notifications Settings in the ION Web UI.",
+                            "Do not reply to this email.  This email address is not monitored " \
+                            "and the emails will not be read."),
                            "\r\n")
         msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
         msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
@@ -148,11 +158,12 @@ class UserEventProcessor(object):
         msg['Subject'] = msg_subject
         msg['From'] = msg_sender
         msg['To'] = msg_recipient
-        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s" %(msg_recipient, self.smtp_server))
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s" \
+                        %(msg_recipient, self.smtp_server))
         try:
             smtp_client = smtplib.SMTP(self.smtp_server)
         except Exception as ex:
-            log.warning("UserEventProcessor.subscription_callback(): failed to connect to SMTP server %s <%s>" %(ION_SMTP_SERVER, ex))
+            log.warning("UserEventProcessor.subscription_callback(): failed to connect to SMTP server %s <%s>"  %(ION_SMTP_SERVER, ex))
             return
         try:
             smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
@@ -198,7 +209,8 @@ class UserEventProcessor(object):
                              str(notification_id) + " does not exist for " + self.user_id)                
         # stop subscription
         notification_obj.kill_subscriber()
-        log.debug("UserEventProcessor.remove_notification(): removed notification " + str(notification_obj.notification) + " from user " + self.user_id)
+        log.debug("UserEventProcessor.remove_notification(): removed notification " + str(notification_obj.notification) \
+                  + " from user " + self.user_id)
         # return the number of notifications left for this user
         return len(self.notifications)
     
@@ -276,7 +288,7 @@ class UserNotificationService(BaseUserNotificationService):
                 raise NotFound("UserNotificationService.create_notification(): No email address in user_info for user " + user_id)
             # create event processor for user
             self.user_event_processors[user_id] = UserEventProcessor(user_id, user_info.contact.email, self.smtp_server)
-            log.debug("UserNotificationService.create_notification(): added event processor " + str(self.user_event_processors[user_id]))
+            log.debug("UserNotificationService.create_notification(): added event processor " +  str(self.user_event_processors[user_id]))
         
         # add notification to user's event_processor
         notification_obj = self.user_event_processors[user_id].add_notification(notification)
