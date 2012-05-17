@@ -24,7 +24,7 @@ import os
 import uuid
 
 from ion.services.mi.daemon_process import DaemonProcess
-from ion.services.mi.exceptions import ConnectionError
+from ion.services.mi.exceptions import InstrumentConnectionException
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -427,15 +427,14 @@ class EthernetDeviceLogger(BaseLoggerProcess):
         EthernetDeviceLogger and calls base class static method.
         @param device_host Internet address of the device.
         @param device_port Port of the device.
-        @param workdir The work directory.
+        @param workdir The work directory, by default '/tmp/'.
         @param delim 2-element delimiter to indicate traffic from the driver
         in the logfile. If not given or if None, ['<<', '>>'] is used.
         @param ppid Parent process ID, used to self destruct when parents
         die in test cases.      
         @retval An EthernetDeviceLogger object to control the remote process.
         """
-        delim = delim or ['<<','>>']
-
+        delim = delim or ['<<', '>>']
         start_time = datetime.datetime.now()
         dt_string = '%i_%i_%i_%i_%i_%i' % \
                 (start_time.year, start_time.month,
@@ -585,7 +584,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
                 try:
                     sent = self.device_sock.send(data)
                     data = data[sent:]                    
-
+                
                 except socket.error as e:                
                     # [Errno 35] Resource temporarily unavailable.
                     if e.errno == errno.EAGAIN:
@@ -619,6 +618,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
                         self.device_sock.close()
                         self.device_sock = None
                         break
+
                     
 class SerialDeviceLogger(BaseLoggerProcess):
     """
@@ -670,7 +670,7 @@ class LoggerClient(object):
             mi_logger.info('Logger client comms initialized.')
         
         except:
-            raise ConnectionError('Failed to connect to port agent at %s:%i.' % (self.host, self.port))
+            raise InstrumentConnectionException('Failed to connect to port agent at %s:%i.' % (self.host, self.port))
         
     def stop_comms(self):
         """

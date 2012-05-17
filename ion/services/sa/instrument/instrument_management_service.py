@@ -561,45 +561,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
-    def setup_data_production_chain(self, instrument_device_id=''):
-        """
-        create data products for all the streams defined by this instrument's model/agent
-        """
-
-        #get instrument object and instrument's data producer
-        inst_obj = self.instrument_device.read_one(instrument_device_id)
-
-        models = self.find_instrument_model_by_instrument_device(instrument_device_id)
-
-        if 1 != len(models):
-            raise Inconsistent("The instrument device had %d associated models, expected 1" % len(models))
-
-        #todo: stream association should be with agent, not model... but that's for later
-        #
-        #agents = self.find_instrument_agent_by_instrument_model(models[0])
-        #
-        #if 1 != len(agents):
-        #    raise Inconsistent("The instrument model had %d associated agents, expected 1" % len(agents))
-        #stream_definition_ids = self.find_stream_definition_by_instrument_agent(agents[0])
-
-        stream_definition_objs = self.find_stream_definition_by_instrument_model(models[0])
-
-        for streamdef_obj in stream_definition_objs:
-
-            names = (streamdef_obj.name, inst_obj.name)
-            log.debug("Creating data product named '%s for %s'" % names)
-            data_product_obj = IonObject(RT.DataProduct,
-                                       name=str("%s for %s" % names),
-                                       description=str("Product for '%s' instrument's '%s' stream" % names))
-
-            #create data product with specified stream definition
-            data_product_id = self.DPMS.create_data_product(data_product_obj, streamdef_obj._id)
-
-            #associate this data product with the instrument
-            log.debug("Associating data product's producers with instrument via DAMS")
-            self.DAMS.assign_data_product(instrument_device_id, data_product_id)
-
-
     def create_instrument_device(self, instrument_device=None):
         """
         create a new instance
@@ -990,20 +951,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
-        #todo: for when instrument agents are the owners of stream def associations
-        #agents = self.find_instrument_agent_by_instrument_model(instrument_model_id)
-        #if 0 == len(agents):
-        #    raise BadRequest("Tried to assign a model to an instrument, but the model didn't have an agent")
-
         self.instrument_device.link_model(instrument_device_id, instrument_model_id)
-        # todo: determine if data products are created from the instrument model info at this time
-        # todo: this is currently perfromed by preload - do not duplicate here
-        #self.setup_data_production_chain(instrument_device_id)
 
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
-        raise Inconsistent("Unassigning an instrument model from an instrument device (cleanly) has not been defined")
-        #todo
-        #self.retire_data_production_chain(instrument_device_id)
         self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
 
     def assign_instrument_model_to_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
@@ -1060,6 +1010,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def unassign_platform_agent_instance_from_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
         self.platform_agent.unlink_device_instance(platform_device_id, platform_agent_instance_id)
 
+    def assign_sensor_device_to_instrument_device(self, sensor_device_id='', instrument_device_id=''):
+        self.instrument_device.link_device(instrument_device_id, sensor_device_id)
+
+    def unassign_sensor_device_from_instrument_device(self, sensor_device_id='', instrument_device_id=''):
+        self.instrument_device.unlink_device(instrument_device_id, sensor_device_id)
 
 
     ##########################################################################
@@ -1109,12 +1064,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def find_instrument_agent_by_instrument_model(self, instrument_model_id=''):
         return self.instrument_agent.find_having_model(instrument_model_id)
-
-    def find_stream_definition_by_instrument_model(self, instrument_model_id=''):
-        return self.instrument_model.find_stemming_stream_definition(instrument_model_id)
-
-    def find_instrument_model_by_stream_definition(self, stream_definition_id=''):
-        return self.instrument_model.find_having_stream_definition(stream_definition_id)
 
     def find_instrument_device_by_instrument_agent_instance(self, instrument_agent_instance_id=''):
         return self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)

@@ -49,18 +49,17 @@ from ion.services.mi.instrument_fsm import InstrumentFSM
 from ion.services.mi.common import BaseEnum
 from ion.services.mi.zmq_driver_client import ZmqDriverClient
 from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
+from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes, SessionCloseReasons
 
 # MI imports.
-from ion.services.mi.exceptions import ConnectionError
+from ion.services.mi.exceptions import InstrumentConnectionException
 from ion.services.mi.exceptions import InstrumentException
-from ion.services.mi.exceptions import NotImplementedError
-from ion.services.mi.exceptions import ParameterError
-from ion.services.mi.exceptions import ProtocolError
-from ion.services.mi.exceptions import SampleError
-from ion.services.mi.exceptions import StateError
-from ion.services.mi.exceptions import TimeoutError
-from ion.services.mi.exceptions import UnknownCommandError
+from ion.services.mi.exceptions import NotImplementedException
+from ion.services.mi.exceptions import InstrumentParameterException
+from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.services.mi.exceptions import InstrumentStateException
+from ion.services.mi.exceptions import InstrumentTimeoutException
+from ion.services.mi.exceptions import InstrumentCommandException
 from ion.services.mi.instrument_driver import DriverConnectionState
 from ion.services.mi.instrument_driver import DriverProtocolState
 from ion.services.mi.instrument_driver import DriverAsyncEvent
@@ -250,6 +249,9 @@ class InstrumentAgent(ResourceAgent):
         # can instruct drivers to self destruct if it disappears.
         self._test_mode = False
         
+        # set the 'reason' to be the default
+        self.da_session_close_reason = 'due to ION request'
+        
         ###############################################################################
         # Instrument agent parameter capabilities.
         ###############################################################################
@@ -291,11 +293,17 @@ class InstrumentAgent(ResourceAgent):
         # callback passed to DA Server for receiving input from server       
         if isinstance(data, int):
             # not character data, so check for lost connection
-            if data == -1:
-                log.warning("InstAgent.telnetInputProcessor: connection lost")
-                self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
+            if data == SessionCloseReasons.client_closed:
+                self.da_session_close_reason = "due to client closing session"
+            elif data == SessionCloseReasons.session_timeout:
+                self.da_session_close_reason = "due to session exceeding maximum time"
+            elif data == SessionCloseReasons.inactivity_timeout:
+                self.da_session_close_reason = "due to inactivity"
             else:
-                log.error("InstAgent.telnetInputProcessor: got unexpected integer " + str(data))
+                log.error("InstAgent.telnet_input_processor: got unexpected integer " + str(data))
+                return
+            log.warning("InstAgent.telnet_input_processor: connection closed %s" %self.da_session_close_reason)
+            self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY)
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
@@ -382,7 +390,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.POWER_UP, *args, **kwargs)
             
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('power_up not allowed in state %s.', self._fsm.get_current_state()) 
     
     def acmd_power_down(self, *args, **kwargs):
@@ -392,7 +400,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.POWER_DOWN, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('power_down not allowed in state %s.', self._fsm.get_current_state()) 
 
     
@@ -403,7 +411,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
         
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('initialize not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_reset(self, *args, **kwargs):
@@ -413,7 +421,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.RESET, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('reset not allowed in state %s.', self._fsm.get_current_state()) 
     
     def acmd_go_active(self, *args, **kwargs):
@@ -423,7 +431,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GO_ACTIVE, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('go_active not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_go_inactive(self, *args, **kwargs):
@@ -433,7 +441,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('go_inactive not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_run(self, *args, **kwargs):
@@ -443,7 +451,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.RUN, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('run not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_clear(self, *args, **kwargs):
@@ -453,7 +461,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.CLEAR, *args, **kwargs)
             
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('clear not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_pause(self, *args, **kwargs):
@@ -463,7 +471,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.PAUSE, *args, **kwargs)
         
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('pause not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_resume(self, *args, **kwargs):
@@ -473,7 +481,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.RESUME, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('resume not allowed in state %s.', self._fsm.get_current_state()) 
 
 
@@ -484,7 +492,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GO_STREAMING, *args, **kwargs)
         
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('go_streaming not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_go_direct_access(self, *args, **kwargs):
@@ -494,7 +502,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GO_DIRECT_ACCESS, *args, **kwargs)
         
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('go_direct_access not allowed in state %s.', self._fsm.get_current_state())         
 
     def acmd_go_observatory(self, *args, **kwargs):
@@ -504,7 +512,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GO_OBSERVATORY, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('go_observatory not allowed in state %s.', self._fsm.get_current_state()) 
 
     def acmd_get_current_state(self, *args, **kwargs):
@@ -526,7 +534,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_COMMANDS)
         
-        except StateError:
+        except InstrumentStateException:
             return []
     
     def _get_resource_params(self):
@@ -537,7 +545,7 @@ class InstrumentAgent(ResourceAgent):
         try:    
             return self._fsm.on_event(InstrumentAgentEvent.GET_RESOURCE_PARAMS)
     
-        except StateError:
+        except InstrumentStateException:
             return []
     
             
@@ -561,8 +569,8 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GET_PARAMS, name)
         
-        except StateError:
-            raise InstStateError('get_params not allowed in state %s.', self._fsm.get_current_state())        
+        except InstrumentStateException:
+            raise InstStateError('get_params not allowed in state %s.', self._fsm.get_current_state())       
         
     def set_param(self, resource_id="", name='', value=''):
         """
@@ -578,7 +586,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.SET_PARAMS, name)
         
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('set_params not allowed in state %s.', self._fsm.get_current_state())        
                 
     def execute(self, resource_id="", command=None):
@@ -611,20 +619,20 @@ class InstrumentAgent(ResourceAgent):
             cmd_res.result = res
             result = cmd_res
            
-        except TimeoutError:
+        except InstrumentTimeoutException:
             ex = InstTimeoutError('Instrument timed out attempting %s.',str(command.command))
         
-        except ProtocolError:
+        except InstrumentProtocolException:
             ex = InstProtocolError('Instrument protocol error attempting %s.', str(command.command))
         
-        except UnknownCommandError:
+        except InstrumentCommandException:
             ex = InstUnknownCommandError('Command %s unknown.', str(command.command))
 
-        except ParameterError:
+        except InstrumentParameterException:
             ex = InstParameterError('Instrument parameter error attempting %s: args=%s, kwargs=%s.',
                                      str(command.command), str(command.args), str(command.kwargs))
 
-        except StateError:
+        except InstrumentStateException:
             ex = InstStateError('execute not allowed in state %s.', self._fsm.get_current_state())        
 
         except InstrumentException:
@@ -787,14 +795,14 @@ class InstrumentAgent(ResourceAgent):
         try:
             self._dvr_client.cmd_dvr('configure', dvr_comms)
         
-        except ParameterError:
+        except InstrumentParameterException:
             raise InstParameterError('The driver comms configuration is invalid.')
         
         # Connect to the device, propagating connection errors.
         try:
             self._dvr_client.cmd_dvr('connect')
         
-        except ConnectionError:
+        except InstrumentConnectionException:
             raise InstConnectionError('Driver could not connect to %s', str(dvr_comms))
         
         # If the device state is unknown, send the discover command.
@@ -818,7 +826,7 @@ class InstrumentAgent(ResourceAgent):
                         next_state = InstrumentAgentState.IDLE
                     break
                 
-                except TimeoutError, ProtocolError:
+                except InstrumentTimeoutException, InstrumentProtocolException:
                     no_tries += 1
                     if no_tries >= max_tries:
                         self._dvr_client.cmd_dvr('disconnect')
@@ -1028,16 +1036,16 @@ class InstrumentAgent(ResourceAgent):
         try:
             self._dvr_client.cmd_dvr('execute_start_autosample', *args, **kwargs)
 
-        except TimeoutError:
+        except InstrumentTimeoutException:
             raise InstTimeoutError('Instrument timed out attempting autosample.')
         
-        except ProtocolError:
+        except InstrumentProtocolException:
             raise InstProtocolError('Instrument protocol error attempting autosample.')
         
-        except NotImplementedError:
+        except NotImplementedException:
             raise InstNotImplementedError('Autosample not implemented.')
 
-        except ParameterError:
+        except InstrumentParameterException:
             raise InstParameterError('Instrument parameter error attempting autosample: args=%s, kwargs=%s.', str(args), str(kwargs))
 
         next_state = InstrumentAgentState.STREAMING
@@ -1051,7 +1059,11 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        log.info("Instrument agent requested to start direct access mode")
+        session_timeout = kwargs.get('session_timeout', 10)
+        inactivity_timeout = kwargs.get('inactivity_timeout', 5)
+
+        log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d" 
+                 %(session_timeout, inactivity_timeout))
         
         # get 'address' of host
         hostname = socket.gethostname()
@@ -1062,7 +1074,11 @@ class InstrumentAgent(ResourceAgent):
         ip_address = hostname
         # create a DA server instance (TODO: just telnet for now) and pass in callback method
         try:
-            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, self.telnet_input_processor, ip_address)
+            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, 
+                                                self.telnet_input_processor, 
+                                                ip_address,
+                                                session_timeout,
+                                                inactivity_timeout)
         except Exception as ex:
             log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
             raise ex
@@ -1088,16 +1104,16 @@ class InstrumentAgent(ResourceAgent):
         try:
             result = self._dvr_client.cmd_dvr('get', *args, **kwargs)
         
-        except TimeoutError:
+        except InstrumentTimeoutException:
             raise InstTimeoutError('Instrument timed out attempting get.')
         
-        except ProtocolError:
+        except InstrumentProtocolException:
             raise InstProtocolError('Instrument protocol error attempting get.')
         
-        except NotImplementedError:
+        except NotImplementedException:
             raise InstNotImplementedError('Get not implemented.')
 
-        except ParameterError:
+        except InstrumentParameterException:
             raise InstParameterError('Instrument parameter error attempting get: args=%s, kwargs=%s.', str(args), str(kwargs))
         
         
@@ -1114,16 +1130,16 @@ class InstrumentAgent(ResourceAgent):
         try:        
             self._dvr_client.cmd_dvr('set', *args, **kwargs)
 
-        except TimeoutError:
+        except InstrumentTimeoutException:
             raise InstTimeoutError('Instrument timed out attempting set.')
         
-        except ProtocolError:
+        except InstrumentProtocolException:
             raise InstProtocolError('Instrument protocol error attempting set.')
         
-        except NotImplementedError:
+        except NotImplementedException:
             raise InstNotImplementedError('Get not implemented.')
 
-        except ParameterError:
+        except InstrumentParameterException:
             raise InstParameterError('Instrument parameter error attempting set: args=%s, kwargs=%s.', str(args), str(kwargs))
         
         return (next_state, result)
@@ -1193,18 +1209,18 @@ class InstrumentAgent(ResourceAgent):
                 self._dvr_client.cmd_dvr('execute_stop_autosample', *args, **kwargs)
                 break
             
-            except TimeoutError:
+            except InstrumentTimeoutException:
                 no_tries += 1
                 if no_tries >= max_tries:
                     raise InstTimeoutError('Instrument timed out attempting stop autosample.')
             
-            except ProtocolError:
+            except InstrumentProtocolException:
                 raise InstProtocolError('Instrument protocol error attempting stop autosample.')
             
-            except NotImplementedError:
+            except NotImplementedException:
                 raise InstNotImplementedError('Stop autosample not implemented.')
     
-            except ParameterError:
+            except InstrumentParameterException:
                 raise InstParameterError('Instrument parameter error attempting stop autosample: args=%s, kwargs=%.', str(args), str(kwargs))
 
         next_state = InstrumentAgentState.OBSERVATORY
@@ -1220,11 +1236,13 @@ class InstrumentAgent(ResourceAgent):
         Handler upon direct access entry.
         """
         self._common_state_enter()
+        self.da_session_close_reason = "due to ION user request"
     
     def _handler_direct_access_exit(self,  *args, **kwargs):
         """
         Handler upon direct access exit.
         """
+        # TODO: add sending 'DA session closed' event
         pass
 
     def _handler_direct_access_go_observatory(self,  *args, **kwargs):
@@ -1234,15 +1252,18 @@ class InstrumentAgent(ResourceAgent):
         result = None
         next_state = None
         
-        log.info("Instrument agent requested to stop direct access mode")
+        log.info("Instrument agent requested to stop direct access mode - %s" %self.da_session_close_reason)
         
         # tell driver to stop direct access mode
         result = self._dvr_client.cmd_dvr('execute_stop_direct_access')
-        # stop and delete DA server
+        # stop DA server
         if (self.da_server):
             self.da_server.stop()
-            del self.da_server
+            
         next_state = InstrumentAgentState.OBSERVATORY
+        
+        # re-set the 'reason' to be the default
+        self.da_session_close_reason = 'due to ION request'
 
         return (next_state, result)
 
@@ -1430,6 +1451,3 @@ class InstrumentAgent(ResourceAgent):
 
     def test_ia(self):
         log.info('Hello from the instrument agent!')
-
-
-

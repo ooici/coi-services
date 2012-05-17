@@ -600,8 +600,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
-        process_definition.executable['module']='ion.agents.eoi.external_dataset_agent'
-        process_definition.executable['class'] = 'ExternalDatasetAgent'
+        process_definition.executable['module']= external_dataset_agent.handler_module
+        process_definition.executable['class'] = external_dataset_agent.handler_class
 #        process_definition.executable['module']='ion.services.mi.instrument_agent'
 #        process_definition.executable['class'] = 'InstrumentAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)

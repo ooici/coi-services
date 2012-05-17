@@ -588,7 +588,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.platform_site.link_model(platform_site_id, platform_model_id)
 
     def unassign_platform_model_from_platform_site(self, platform_model_id='', platform_site_id=''):
-        self.platform_site.link_model(platform_site_id, platform_model_id)
+        self.platform_site.unlink_model(platform_site_id, platform_model_id)
 
     
 
@@ -645,7 +645,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     # FIND OPS
     #
     ##########################################################################
-
 
 
 

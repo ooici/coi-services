@@ -38,13 +38,13 @@ from ion.services.mi.instrument_driver import DriverAsyncEvent
 from ion.services.mi.instrument_driver import DriverConnectionState
 from ion.services.mi.logger_process import EthernetDeviceLogger
 from ion.services.mi.exceptions import InstrumentException
-from ion.services.mi.exceptions import NotImplementedError
-from ion.services.mi.exceptions import TimeoutError
-from ion.services.mi.exceptions import ProtocolError
-from ion.services.mi.exceptions import ParameterError
-from ion.services.mi.exceptions import SampleError
-from ion.services.mi.exceptions import StateError
-from ion.services.mi.exceptions import UnknownCommandError
+from ion.services.mi.exceptions import NotImplementedException
+from ion.services.mi.exceptions import InstrumentTimeoutException
+from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.services.mi.exceptions import InstrumentParameterException
+from ion.services.mi.exceptions import SampleException
+from ion.services.mi.exceptions import InstrumentStateException
+from ion.services.mi.exceptions import InstrumentCommandException
 
 # MI logger
 import ion.services.mi.mi_logger
@@ -620,7 +620,7 @@ class TestSBE16Driver(PyonTestCase):
             try:
                 reply = self._dvr_client.cmd_dvr('execute_stop_autosample')
             
-            except TimeoutError:
+            except InstrumentTimeoutException:
                 count += 1
                 if count >= 5:
                     self.fail('Could not wakeup device to leave autosample mode.')
@@ -722,30 +722,30 @@ class TestSBE16Driver(PyonTestCase):
         self.assertEqual(state, DriverConnectionState.UNCONFIGURED)
 
         # Assert for an unknown driver command.
-        with self.assertRaises(UnknownCommandError):
+        with self.assertRaises(InstrumentCommandException):
             reply = self._dvr_client.cmd_dvr('bogus_command')
 
         # Assert for a known command, invalid state.
-        with self.assertRaises(StateError):
+        with self.assertRaises(InstrumentStateException):
             reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
 
         # Assert we forgot the comms parameter.
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             reply = self._dvr_client.cmd_dvr('configure')
 
         # Assert we send a bad config object (not a dict).
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             BOGUS_CONFIG = 'not a config dict'            
             reply = self._dvr_client.cmd_dvr('configure', BOGUS_CONFIG)
             
         # Assert we send a bad config object (missing addr value).
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             BOGUS_CONFIG = COMMS_CONFIG.copy()
             BOGUS_CONFIG.pop('addr')
             reply = self._dvr_client.cmd_dvr('configure', BOGUS_CONFIG)
 
         # Assert we send a bad config object (bad addr value).
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             BOGUS_CONFIG = COMMS_CONFIG.copy()
             BOGUS_CONFIG['addr'] = ''
             reply = self._dvr_client.cmd_dvr('configure', BOGUS_CONFIG)
@@ -758,7 +758,7 @@ class TestSBE16Driver(PyonTestCase):
         self.assertEqual(state, DriverConnectionState.DISCONNECTED)
 
         # Assert for a known command, invalid state.
-        with self.assertRaises(StateError):
+        with self.assertRaises(InstrumentStateException):
             reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
 
         reply = self._dvr_client.cmd_dvr('connect')
@@ -768,7 +768,7 @@ class TestSBE16Driver(PyonTestCase):
         self.assertEqual(state, SBE16ProtocolState.UNKNOWN)
 
         # Assert for a known command, invalid state.
-        with self.assertRaises(StateError):
+        with self.assertRaises(InstrumentStateException):
             reply = self._dvr_client.cmd_dvr('execute_acquire_sample')
                 
         reply = self._dvr_client.cmd_dvr('discover')
@@ -782,11 +782,11 @@ class TestSBE16Driver(PyonTestCase):
         self.assertSampleDict(reply)
 
         # Assert for a known command, invalid state.
-        with self.assertRaises(StateError):
+        with self.assertRaises(InstrumentStateException):
             reply = self._dvr_client.cmd_dvr('execute_stop_autosample')
         
         # Assert for a known command, invalid state.
-        with self.assertRaises(StateError):
+        with self.assertRaises(InstrumentStateException):
             reply = self._dvr_client.cmd_dvr('connect')
 
         # Get all device parameters. Confirm all expected keys are retrived
@@ -795,17 +795,17 @@ class TestSBE16Driver(PyonTestCase):
         self.assertParamDict(reply, True)
         
         # Assert get fails without a parameter.
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             reply = self._dvr_client.cmd_dvr('get')
             
         # Assert get fails without a bad parameter (not ALL or a list).
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             bogus_params = 'I am a bogus param list.'
             reply = self._dvr_client.cmd_dvr('get', bogus_params)
             
         # Assert get fails without a bad parameter (not ALL or a list).
         #with self.assertRaises(InvalidParameterValueError):
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             bogus_params = [
                 'a bogus parameter name',
                 SBE16Parameter.INTERVAL,
@@ -815,14 +815,14 @@ class TestSBE16Driver(PyonTestCase):
             reply = self._dvr_client.cmd_dvr('get', bogus_params)        
         
         # Assert we cannot set a bogus parameter.
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             bogus_params = {
                 'a bogus parameter name' : 'bogus value'
             }
             reply = self._dvr_client.cmd_dvr('set', bogus_params)
             
         # Assert we cannot set a real parameter to a bogus value.
-        with self.assertRaises(ParameterError):
+        with self.assertRaises(InstrumentParameterException):
             bogus_params = {
                 SBE16Parameter.INTERVAL : 'bogus value'
             }
@@ -926,7 +926,7 @@ class TestSBE16Driver(PyonTestCase):
             try:        
                 reply = self._dvr_client.cmd_dvr('discover')
 
-            except TimeoutError:
+            except InstrumentTimeoutException:
                 count += 1
                 if count >=5:
                     self.fail('Could not discover device state.')
@@ -949,7 +949,7 @@ class TestSBE16Driver(PyonTestCase):
             try:
                 reply = self._dvr_client.cmd_dvr('execute_stop_autosample')
             
-            except TimeoutError:
+            except InstrumentTimeoutException:
                 count += 1
                 if count >= 5:
                     self.fail('Could not wakeup device to leave autosample mode.')

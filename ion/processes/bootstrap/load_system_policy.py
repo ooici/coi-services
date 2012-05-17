@@ -11,7 +11,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
-
+from ion.services.coi.service_gateway_service import get_role_message_headers
 
 
 from pyon.public import CFG, log, ImmediateProcess, iex, Container
@@ -53,42 +53,18 @@ class LoadSystemPolicy(ImmediateProcess):
         system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
         log.debug('system actor:' + system_actor._id)
 
-
+        sa_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
+        sa_user_header = {'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles }
 
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
 
-        policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
-            <Description>
-                %s
-            </Description>
 
-            <Target>
-
-                <Subjects>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                            <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                </Subjects>
-
-            </Target>
-
-        </Rule>
-        '''
-
-
-        policy_obj = IonObject(RT.Policy, name='Anonymous_Deny_Everything', definition_type="global", rule=policy_text,
-            description='A global policy rule that denies anonymous access to everything in the Org as the base')
-
-        policy_id = policy_client.create_policy(policy_obj, headers={'ion-actor-id': system_actor._id})
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers={'ion-actor-id': system_actor._id})
-        log.debug('Policy created: ' + policy_obj.name)
 
 ##############
 
+        """
+        This policy MUST BE LOADED FIRST!!!!!
+        """
 
         policy_text = '''
         <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
@@ -159,11 +135,43 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_obj = IonObject(RT.Policy, name='Anonymous_Allowed_Operations', definition_type="global", rule=policy_text,
             description='A global policy rule which specifies operations that are allowed with anonymous access')
 
-        policy_id = policy_client.create_policy(policy_obj, headers={'ion-actor-id': system_actor._id})
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers={'ion-actor-id': system_actor._id})
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
 
 ##############
+
+        policy_text = '''
+        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
+                            <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+
+        </Rule>
+        '''
+
+
+        policy_obj = IonObject(RT.Policy, name='Anonymous_Deny_Everything', definition_type="global", rule=policy_text,
+            description='A global policy rule that denies anonymous access to everything in the Org as the base')
+
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
+        log.debug('Policy created: ' + policy_obj.name)
+
+###############
 
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
 
@@ -195,8 +203,8 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="global", rule=policy_text,
             description='A global policy rule that permits access to everything in the Org for a user with Org Manager role')
 
-        policy_id = policy_client.create_policy(policy_obj, headers={'ion-actor-id': system_actor._id})
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers={'ion-actor-id': system_actor._id})
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
 
         ##############
@@ -231,8 +239,8 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_obj = IonObject(RT.Policy, name='ION_Manager_Permit_Everything', definition_type="global", rule=policy_text,
             description='A global policy rule that permits access to everything across Orgs for user with ION Manager role')
 
-        policy_id = policy_client.create_policy(policy_obj, headers={'ion-actor-id': system_actor._id})
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers={'ion-actor-id': system_actor._id})
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
 
 ##############
@@ -293,9 +301,83 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_obj = IonObject(RT.Policy, name='DataStore_Anonymous_Bootstrap', definition_type="service", rule=policy_text,
             description='Permit anonymous access to these operations in the Datastore Service if called from the Bootstrap Service')
 
-        policy_id = policy_client.create_policy(policy_obj)
-        policy_client.add_service_policy('datastore', policy_id)
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_service_policy('datastore', policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
+
+
+##############
+
+        policy_text = '''
+           <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+            <Description>
+                %s
+
+            </Description>
+
+            <Target>
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
+                            <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">resource_registry</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create</AttributeValue>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_association</AttributeValue>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+            </Target>
+            <Condition>
+
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                        <SubjectAttributeDesignator
+                                AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-sender-id"
+                                DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">identity_management</AttributeValue>
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">policy_management</AttributeValue>
+                </Apply>
+
+            </Condition>
+
+        </Rule>
+        '''
+
+
+        policy_obj = IonObject(RT.Policy, name='Resource_Registry_Anonymous_Bootstrap', definition_type="service", rule=policy_text,
+            description='Permit anonymous access to these operations in the Resource Registry Service if called from the Identity Management Service')
+
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_service_policy('resource_registry', policy_id, headers=sa_user_header)
+        log.debug('Policy created: ' + policy_obj.name)
+
+
 
 
 ##############
@@ -357,79 +439,12 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_obj = IonObject(RT.Policy, name='Identity_Management_Anonymous_Bootstrap', definition_type="service", rule=policy_text,
             description='Permit anonymous access to these operations in the Identity Management Service if called from the Bootstrap Service')
 
-        policy_id = policy_client.create_policy(policy_obj)
-        policy_client.add_service_policy('identity_management', policy_id)
-        log.debug('Policy created: ' + policy_obj.name)
-
-        policy_text = '''
-           <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-            <Description>
-                %s
-
-            </Description>
-
-            <Target>
-
-                <Subjects>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                            <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                </Subjects>
-
-                <Resources>
-                    <Resource>
-                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">resource_registry</AttributeValue>
-                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ResourceMatch>
-                    </Resource>
-                </Resources>
-
-
-                <Actions>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create</AttributeValue>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_association</AttributeValue>
-                        </ActionMatch>
-                    </Action>
-                </Actions>
-
-            </Target>
-            <Condition>
-
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
-                        <SubjectAttributeDesignator
-                                AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-sender-id"
-                                DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </Apply>
-                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">identity_management</AttributeValue>
-                </Apply>
-
-            </Condition>
-
-        </Rule>
-        '''
-
-
-        policy_obj = IonObject(RT.Policy, name='Resource_Registry_Anonymous_Bootstrap', definition_type="service", rule=policy_text,
-            description='Permit anonymous access to these operations in the Resource Registry Service if called from the Identity Management Service')
-
-        policy_id = policy_client.create_policy(policy_obj)
-        policy_client.add_service_policy('resource_registry', policy_id)
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_service_policy('identity_management', policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
 
 ##############
+
 
         policy_text = '''
             <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
@@ -544,8 +559,8 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_obj = IonObject(RT.Policy, name='Org_Management_Org_Manager_Role_Permitted', definition_type="service", rule=policy_text,
             description='Deny these operations in the Org Management Service if not the role of Org Manager')
 
-        policy_id = policy_client.create_policy(policy_obj)
-        policy_client.add_service_policy('org_management', policy_id)
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_service_policy('org_management', policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
 
         ##############
@@ -610,15 +625,7 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_obj = IonObject(RT.Policy, name='Instrument_Management_Instrument_Operator_Role_Permitted', definition_type="service", rule=policy_text,
             description='Deny these operations in the Instrument Management Service if not the role of Instrument Operator')
 
-        policy_id = policy_client.create_policy(policy_obj)
-        policy_client.add_service_policy('instrument_management', policy_id)
+        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
+        policy_client.add_service_policy('instrument_management', policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
-
-
-
-        #TODO - replace with Event update framework
-        from pyon.core.bootstrap import service_registry
-        for service_name in service_registry.services:
-            policy_rules = policy_client.get_active_service_policy_rules(ion_org._id, service_name)
-            Container.instance.governance_controller.update_resource_policy(service_name, policy_rules)
 
