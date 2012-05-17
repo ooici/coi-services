@@ -10,8 +10,8 @@ from email.mime.text import MIMEText
 from gevent import Greenlet
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.event.event import EventSubscriber, EventPublisher
-from pyon.public import RT, PRED, get_sys_name, Container, CFG, IonObject
+from pyon.event.event import EventSubscriber
+from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 
