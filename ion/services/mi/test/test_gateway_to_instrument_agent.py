@@ -29,9 +29,9 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 """
-from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Channel
+from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Parameter
+from ion.services.mi.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 """
 from pyon.public import CFG
 from mock import patch
@@ -104,7 +104,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'svr_addr': 'localhost',
             'cmd_port': 5556,
             'evt_port': 5557,
-            'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_mod': 'ion.services.mi.drivers.sbe37.sbe37_driver',
             'dvr_cls': 'SBE37Driver',
             'comms_config': {
                 SBE37Channel.CTD: {
@@ -124,7 +124,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'svr_addr': 'localhost',
             'cmd_port': 5556,
             'evt_port': 5557,
-            'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_mod': 'ion.services.mi.drivers.sbe37.sbe37_driver',
             'dvr_cls': 'SBE37Driver',
             'comms_config': {
                 SBE37Channel.CTD: {

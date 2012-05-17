@@ -18,7 +18,7 @@ from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
 
 from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
-from ion.services.mi.exceptions import ParameterError, UnknownCommandError
+from ion.services.mi.exceptions import InstrumentParameterException, InstrumentCommandException
 
 ### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
@@ -140,7 +140,7 @@ class BaseDataHandler(object):
         else:
             desc='Command unknown by DataHandler: {0}'.format(cmd)
             log.info(desc)
-            raise UnknownCommandError(desc)
+            raise InstrumentCommandException(desc)
 
         return reply
 
@@ -175,7 +175,7 @@ class BaseDataHandler(object):
             self._dh_config = args[0]
 
         except IndexError:
-            raise ParameterError('\'acquire_data\' command requires a config dict as the first argument')
+            raise InstrumentParameterException('\'acquire_data\' command requires a config dict as the first argument')
 
         return
 
@@ -208,9 +208,7 @@ class BaseDataHandler(object):
                    config[k] = config_mods[k]
 
         except IndexError:
-            # If there is no argument provided, treat this as a new_data request and simply use the self._dh_config
-            log.debug('No configuration modifications were provided')
-            pass
+            raise InstrumentParameterException('\'acquire_data\' command requires a config dict.')
 
         # Verify that there is a stream_id member in the config
         stream_id = get_safe(config, 'stream_id')
@@ -274,10 +272,10 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_observatory_go_streaming
 
-        @raises TimeoutError:
-        @raises ProtocolError:
-        @raises NotImplementedError:
-        @raises ParameterError:
+        @raises InstrumentTimeoutException:
+        @raises InstrumentProtocolException:
+        @raises NotImplementedException:
+        @raises InstrumentParameterException:
         """
         log.debug('Entered execute_start_autosample with args={0} & kwargs={1}'.format(args, kwargs))
         if not self._polling and self._polling_glet is None:
@@ -293,10 +291,10 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_streaming_go_observatory
 
-        @raises TimeoutError:
-        @raises ProtocolError:
-        @raises NotImplementedError:
-        @raises ParameterError:
+        @raises InstrumentTimeoutException:
+        @raises InstrumentProtocolException:
+        @raises NotImplementedException:
+        @raises InstrumentParameterException:
         """
         log.debug('Entered execute_stop_autosample with args={0} & kwargs={1}'.format(args, kwargs))
         if self._polling and not self._polling_glet is None:
@@ -313,10 +311,10 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_get_params
 
-        @raises TimeoutError:
-        @raises ProtocolError:
-        @raises NotImplementedError:
-        @raises ParameterError:
+        @raises InstrumentTimeoutException:
+        @raises InstrumentProtocolException:
+        @raises NotImplementedException:
+        @raises InstrumentParameterException:
         """
         try:
             pnames=args[0]
@@ -329,15 +327,14 @@ class BaseDataHandler(object):
             result = self._params
         else:
             if not isinstance(pnames, (list,tuple)):
-                raise ParameterError('Get argument not a list or tuple: {0}'.format(pnames))
+                raise InstrumentParameterException('Get argument not a list or tuple: {0}'.format(pnames))
             result={}
             for pn in pnames:
                 try:
                     log.debug('Get parameter with key: {0}'.format(pn))
                     result[pn] = self._params[pn]
                 except KeyError:
-                    log.debug('Parameter with key \'{0}\' does not exist'.format(pn))
-                    raise ParameterError('\'{0}\' is not a valid parameter for this DataHandler.'.format(pn))
+                    raise InstrumentParameterException('{0} is not a valid parameter for this DataHandler.'.format(pn))
 
         return result
 
@@ -348,10 +345,10 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_observatory_set_params
 
-        @raises TimeoutError:
-        @raises ProtocolError:
-        @raises NotImplementedError:
-        @raises ParameterError:
+        @raises InstrumentTimeoutException:
+        @raises InstrumentProtocolException:
+        @raises NotImplementedException:
+        @raises InstrumentParameterException:
         """
         # Retrieve required parameter.
         # Raise if no parameter provided, or not a dict.
@@ -359,12 +356,12 @@ class BaseDataHandler(object):
             params = args[0]
 
         except IndexError:
-            raise ParameterError('Set command requires a parameter dict.')
+            raise InstrumentParameterException('Set command requires a parameter dict.')
 
         to_raise = []
 
         if not isinstance(params, dict):
-            raise ParameterError('Set parameters not a dict.')
+            raise InstrumentParameterException('Set parameters not a dict.')
         else:
             for (key, val) in params.iteritems():
                 if key in self._params:
@@ -384,9 +381,9 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_get_resource_params
         """
-        # TODO: Should raise NotImplementedError here, return temporarily for prototyping
-#        raise NotImplementedError('get_resource_params() not implemented in BaseDataHandler')
-        return ['POLLING_INTERVAL']
+        # TODO: Should raise NotImplementedException here, return temporarily for prototyping
+#        raise NotImplementedException('get_resource_params() not implemented in BaseDataHandler')
+        return [DataHandlerParameter.POLLING_INTERVAL]
 
     def get_resource_commands(self, *args, **kwargs):
         """
@@ -447,7 +444,7 @@ class BaseDataHandler(object):
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
         @retval Dict that constrains retrieval of new data from the external dataset
         """
-        raise NotImplementedError
+        raise NotImplementedException
 
     @classmethod
     def _get_data(cls, config):
@@ -457,7 +454,7 @@ class BaseDataHandler(object):
         Each iteration should return a well-formed Granule
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         """
-        raise NotImplementedError
+        raise NotImplementedException
 
     @classmethod
     def _publish_data(cls, publisher, config, data_generator):
