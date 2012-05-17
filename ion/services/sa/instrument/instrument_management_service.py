@@ -17,6 +17,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 from pyon.util.log import log
 import os
 import gevent
+from distutils.core import setup
 
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
@@ -147,7 +148,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         for m in instrument_model_ids:
             self.assign_instrument_model_to_instrument_agent(m, inst_agent_id)
 
+        #fetch files supplied in manifest
+        #TODO
+
         #builds the egg from the manifest or tag then places the egg on the web server
+        ##TODO
+        # setup(
+        #     #TODO: args from agent_metadata
+        #     script_name = 'setup.py',                  #may not be needed
+        #     script_args = ['bdist_rpm', '--spec-only'] #args needed for compile
+        #     )
+
+        #move output egg to another directory / upload it somewhere
         #TODO
 
         #updates the state of this InstAgent to deployed
