@@ -266,7 +266,7 @@ class UserNotificationService(BaseUserNotificationService):
         if user_id not in self.user_event_processors:
             # user does not have an event processor, so create one
             # Retrieve the user's user_info object to get their email address
-            objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
+            objects, _ = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
             if not objects:
                 raise NotFound("UserNotificationService.create_notification(): No user_info for user " + user_id)
             if len(objects) != 1:
@@ -282,7 +282,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification_obj = self.user_event_processors[user_id].add_notification(notification)
 
         # Persist Notification object 
-        notification_id, version = self.clients.resource_registry.create(notification)
+        notification_id, _ = self.clients.resource_registry.create(notification)
 
         # give the user's user_event_processor the id of the notification
         notification_obj.set_notification_id(notification_id)
@@ -310,7 +310,7 @@ class UserNotificationService(BaseUserNotificationService):
             raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
 
         # get the user that this notification is associated with 
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification._id)
+        subjects, _ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification._id)
         if not subjects:
             raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification._id)
         if len(subjects) != 1:
@@ -358,7 +358,7 @@ class UserNotificationService(BaseUserNotificationService):
             raise NotFound("UserNotificationService.delete_notification(): Notification %s does not exist" % notification_id)
 
         #now get the user that this notification is associated with 
-        subjects, assocs = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification_id)
+        subjects, _ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification_id)
         if not subjects:
             raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification_id)
         if len(subjects) != 1:
@@ -392,7 +392,7 @@ class UserNotificationService(BaseUserNotificationService):
         @retval notification_list    []
         @throws NotFound    object with specified id does not exist
         """
-        objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasNotification, RT.NotificationRequest)
+        objects, _ = self.clients.resource_registry.find_objects(user_id, PRED.hasNotification, RT.NotificationRequest)
         # return the list
         return objects
 
@@ -407,6 +407,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param limit          int         (integer limiting the number of results (0 means unlimited))
         @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
         @retval event_list    []
+        @throws NotFound    object with specified paramteres does not exist
         @throws NotFound    object with specified paramteres does not exist
         """
         return self.event_repo.find_events(event_type=type, 
