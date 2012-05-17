@@ -130,16 +130,18 @@ class PolicyManagementService(BasePolicyManagementService):
         policy_id = policy_event.origin
         log.debug("Policy modified: %s" % policy_id)
 
+        try:
+            policy = self.clients.resource_registry.read(policy_id)
+            if policy:
+                #Need to publish an event that a policy has changed for any associated resource
+                res_list = self._find_resources_for_policy(policy_event.origin)
+                for res in res_list:
+                    self._publish_resource_policy_event(policy, res)
 
-        policy = self.clients.resource_registry.read(policy_id)
-        if not policy:
-            raise NotFound("Policy %s does not exist" % policy_id)
-
-        #Need to publish an event that a policy has changed for any associated resource
-        res_list = self._find_resources_for_policy(policy_event.origin)
-        for res in res_list:
-            self._publish_resource_policy_event(policy, res)
-
+        except Exception, e:
+            #If this is a delete operation, then don't bother with not finding the object.
+            if policy_event.sub_type != 'DELETE':
+                log.error(e)
 
 
     def add_resource_policy(self, resource_id='', policy_id=''):
