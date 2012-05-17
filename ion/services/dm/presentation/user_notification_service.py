@@ -233,13 +233,13 @@ class UserNotificationService(BaseUserNotificationService):
             log.debug("UserNotificationService.create_notification(): added event processor " + str(self.user_event_processors[user_id]))
         
         # add notification to user's event_processor
-        Notification = self.user_event_processors[user_id].add_notification(notification)
+        notification_obj = self.user_event_processors[user_id].add_notification(notification)
 
         # Persist Notification object 
         notification_id, version = self.clients.resource_registry.create(notification)
 
         # give the user's user_event_processor the id of the notification
-        Notification.set_notification_id(notification_id)
+        notification_obj.set_notification_id(notification_id)
         
         # associate the notification to the user
         self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
@@ -278,8 +278,8 @@ class UserNotificationService(BaseUserNotificationService):
         user_event_processor.remove_notification(notification._id)
         
         # add updated notification to user's event processor
-        Notification = user_event_processor.add_notification(notification)
-        Notification.set_notification_id(notification._id)
+        notification_obj = user_event_processor.add_notification(notification)
+        notification_obj.set_notification_id(notification._id)
         
         # finally update the notification in the RR
         self.clients.resource_registry.update(notification)
