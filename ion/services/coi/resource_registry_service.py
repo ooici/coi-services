@@ -89,3 +89,6 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def find_resources(self, restype="", lcstate="", name="", id_only=False):
         return self.resource_registry.find_resources(restype=restype, lcstate=lcstate, name=name, id_only=id_only)
+
+    def read_mult(self, object_ids=[]):
+        return self.resource_registry.read_mult(object_ids)
