@@ -14,7 +14,7 @@ from pyon.util.containers import get_safe
 from pyon.core.exception import InstDriverError, NotFound
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.mi.exceptions import StateError
+from ion.services.mi.exceptions import InstrumentStateException
 
 from ion.services.mi.instrument_agent import InstrumentAgent, InstrumentAgentState, InstrumentAgentEvent
 
@@ -184,7 +184,7 @@ class ExternalDatasetAgent(InstrumentAgent):
         if command == 'execute_acquire_data':
             return self._handler_observatory_execute_resource(command, *args, **kwargs)
         else:
-            raise StateError('Command \'{0}\' not allowed in current state {1}'.format(command, self._fsm.get_current_state()))
+            raise InstrumentStateException('Command \'{0}\' not allowed in current state {1}'.format(command, self._fsm.get_current_state()))
 
     def _construct_data_publishers(self):
         pass
