@@ -30,7 +30,8 @@ from gevent import spawn
 from gevent.event import AsyncResult
 import gevent
 from nose.plugins.attrib import attr
-from mock import patch
+from mock import patch, Mock, call
+from pyon.util.unit_test import PyonTestCase
 
 # ION imports.
 from interface.objects import StreamQuery, Attachment, AttachmentType
@@ -52,7 +53,7 @@ from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.data.handlers.base_data_handler import DataHandlerParameter
 
 # todo: rethink this
-from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
+from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG, BaseDataHandler
 
 from pyon.ion.granule.taxonomy import TaxyTool
 
@@ -1023,6 +1024,79 @@ class ExternalDatasetAgentTestBase(object):
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+@attr('UNIT_EOI', group='eoi')
+class TextExternalDatasetAgentUnit(PyonTestCase):
+
+    def setUp(self):
+        pass
+
+    def test_publish_data(self):
+        publisher = Mock()
+        config = {'stream_id' : 'test_publish_data'}
+
+        granule1 = Mock()
+        granule2 = Mock()
+        granule3 = Mock()
+        data_generator = [(1, granule1), (2, granule2), (3, granule3)]
+
+        BaseDataHandler._publish_data(publisher=publisher, config=config, data_generator=data_generator)
+
+        expected = [call((1, granule1)), call((2, granule2)), call((3, granule3))]
+        self.assertEqual(publisher.publish.call_args_list, expected)
+
+    def test_acquire_data_with_constraints(self):
+        #_init_acquistion_cycle
+        #get_safe(config, 'constraints')
+        #_publish_data
+        #_get_data
+
+        config = {'constraints' : 'test_contraints'}
+        publisher = Mock()
+        unlock_new_data_callback = Mock()
+        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
+
+    def test_acquire_data_no_constraints(self):
+        #init_acquistion_cycle(config)
+        #get_safe(config, 'constraints')
+        #gevent.getcurrent().link
+        #_new_data_constraints(config)
+        config = None
+        publisher = Mock()
+        unlock_new_data_callback = Mock()
+        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
+        pass
+
+
+#    @classmethod
+#    def _acquire_data(cls, config, publisher, unlock_new_data_callback):
+#        """
+#        Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
+#             BaseDataHandler._new_data_constraints (only if config does not contain 'constraints')
+#             BaseDataHandler._publish_data passing BaseDataHandler._get_data as a parameter
+#        @param config Dict containing configuration parameters, may include constraints, formatters, etc
+#        @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
+#        """
+#        log.debug('start _acquire_data: config={0}'.format(config))
+#
+#        cls._init_acquisition_cycle(config)
+#
+#        constraints = get_safe(config,'constraints')
+#        if not constraints:
+#            gevent.getcurrent().link(unlock_new_data_callback)
+#            constraints = cls._new_data_constraints(config)
+#            config['constraints'] = constraints
+#
+#        if not constraints:
+#            raise ParameterError("Data constraints not set properly")
+#
+#        cls._publish_data(publisher, config, cls._get_data(config))
+#
+#        # Publish a 'TestFinished' event
+#        if get_safe(config,'TESTING'):
+#            log.debug('Publish TestingFinished event')
+#            pub = EventPublisher('DeviceCommonLifecycleEvent')
+#            pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
 
 @attr('INT_EOI', group='eoi')
 class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
