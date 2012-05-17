@@ -34,7 +34,7 @@ from mock import patch, Mock, call
 from pyon.util.unit_test import PyonTestCase
 
 # ION imports.
-from interface.objects import StreamQuery, Attachment, AttachmentType
+from interface.objects import StreamQuery, Attachment, AttachmentType, Granule
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -1026,23 +1026,22 @@ class ExternalDatasetAgentTestBase(object):
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
 @attr('UNIT_EOI', group='eoi')
-class TextExternalDatasetAgentUnit(PyonTestCase):
+class TestExternalDatasetAgentUnit(PyonTestCase):
 
     def setUp(self):
         pass
 
     def test_publish_data(self):
         publisher = Mock()
-        config = {'stream_id' : 'test_publish_data'}
 
-        granule1 = Mock()
-        granule2 = Mock()
-        granule3 = Mock()
-        data_generator = [(1, granule1), (2, granule2), (3, granule3)]
+        granule1 = Mock(spec=Granule)
+        granule2 = Mock(spec=Granule)
+        granule3 = Mock(spec=Granule)
+        data_generator = [granule1, granule2, granule3]
 
-        BaseDataHandler._publish_data(publisher=publisher, config=config, data_generator=data_generator)
+        BaseDataHandler._publish_data(publisher=publisher, data_generator=data_generator)
 
-        expected = [call((1, granule1)), call((2, granule2)), call((3, granule3))]
+        expected = [call(granule1), call(granule2), call(granule3)]
         self.assertEqual(publisher.publish.call_args_list, expected)
 
     def test_acquire_data_with_constraints(self):
@@ -1050,6 +1049,15 @@ class TextExternalDatasetAgentUnit(PyonTestCase):
         #get_safe(config, 'constraints')
         #_publish_data
         #_get_data
+
+        granule1 = Mock(spec=Granule)
+        granule2 = Mock(spec=Granule)
+        granule3 = Mock(spec=Granule)
+        data_generator = [granule1, granule2, granule3]
+
+        BaseDataHandler._init_acquisition_cycle = Mock()
+        BaseDataHandler._get_data = Mock(auto_spec=data_generator)
+        BaseDataHandler._publish_data = Mock()
 
         config = {'constraints' : 'test_contraints'}
         publisher = Mock()

@@ -373,8 +373,8 @@ class BaseDataHandler(object):
                     to_raise.append(key)
 
         if len(to_raise) > 0:
-            log.debug('Raise ParameterError for un-set parameters: {0}'.format(to_raise))
-            raise ParameterError('Invalid parameter(s) could not be set: {0}'.format(to_raise))
+            log.debug('Raise InstrumentParameterException for un-set parameters: {0}'.format(to_raise))
+            raise InstrumentParameterException('Invalid parameter(s) could not be set: {0}'.format(to_raise))
 
     def get_resource_params(self, *args, **kwargs):
         """
@@ -419,7 +419,7 @@ class BaseDataHandler(object):
             config['constraints'] = constraints
 
         if not constraints:
-            raise ParameterError("Data constraints not set properly")
+            raise InstrumentParameterException("Data constraints not set properly")
 
         cls._publish_data(publisher, cls._get_data(config))
 
@@ -469,7 +469,7 @@ class BaseDataHandler(object):
             if isinstance(gran, Granule):
                 publisher.publish(gran)
             else:
-                log.warn('Could not publish object returned by _get_data: {0}')
+                log.warn('Could not publish object returned by _get_data: {0}'.format(gran))
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
