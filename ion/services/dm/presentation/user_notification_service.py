@@ -39,25 +39,35 @@ that listen for the events in the notification.
 """
 
 class NotificationEventSubscriber(EventSubscriber):
-    # encapsulates the event subscriber and the event 'listen loop' greenlet
-    # implements methods to start/stop the listener
+    """
+    Encapsulates the event subscriber and the event 'listen loop' greenlet implements methods to start/stop the listener
+    """
+
     
     def __init__(self, origin=None, event_type=None, callback=None):
         self.listener_greenlet = None
         self.subscriber = EventSubscriber(origin=origin, event_type=event_type, callback=callback)
         
     def start_listening(self):
+        """
+        Spawns the listener greenlet
+        """
         self.listener_greenlet = spawn(self.subscriber.listen)
         self.subscriber._ready_event.wait(timeout=5)     # not sure this is needed
         
     def stop_listening(self):
+        """
+        Kills the listener greenlet
+        """
         if self.listener_greenlet:
             self.listener_greenlet.kill(exception=Greenlet.GreenletExit, block=False)
         
 
 class Notification(object):
-    # encapsulates a notification's info and it's event subscriber
-    
+    """
+    Encapsulates a notification's info and it's event subscriber
+    """
+
     def  __init__(self, notification=None, subscriber_callback=None):
         self.notification = notification
         # setup subscription using subscription_callback()
@@ -68,36 +78,48 @@ class Notification(object):
                                                       event_type=notification.events_list[0],
                                                       callback=subscriber_callback)
         self.notification_id = None
-        
+
     def set_notification_id(self, id=None):
+        """
+        Set the notification id of the notification object
+        @param notification id
+        """
         self.notification_id = id
-        
+
     def start_subscriber(self):
+        """
+        Start subscribing
+        """
         self.subscriber.start_listening()
 
     def kill_subscriber(self):
+        """
+        Stop subscribing
+        """
         self.subscriber.stop_listening()
         del self.subscriber
-        
+
 
 class UserEventProcessor(object):
-    # Encapsulates the user's info and a list of all the notifications they have
-    # It also contains the callback that is passed to all event subscribers for this user's notifications
-    # If the callback gets called, then this user had a notification for that event.
-    
+    """
+    Encapsulates the user's info and a list of all the notifications they have.
+    It also contains the callback that is passed to all event subscribers for this user's notifications.
+    If the callback gets called, then this user had a notification for that event.
+    """
+
     def __init__(self, user_id=None, email_addr=None, smtp_server=None):
         self.user_id = user_id
         self.user_email_addr = email_addr
         self.smtp_server = smtp_server
         self.notifications = []
         log.debug("UserEventProcessor.__init__(): email for user %s set to %s" %(self.user_id, self.user_email_addr))
-    
+
     def subscription_callback(self, *args, **kwargs):
         # this callback is given to all the event subscribers that this user wants notifications for
         # if this callback gets called the user in this processor should get an email
         log.debug("UserEventProcessor.subscription_callback(): args[0]=" + str(args[0]))
         log.debug("event type = " + str(args[0]._get_type()))
-        
+
         origin = args[0].origin
         event = str(args[0]._get_type())
         description = args[0].description
@@ -114,7 +136,7 @@ class UserEventProcessor(object):
                             "",
                             "You received this notification from ION because you asked to be notified about this event from this source. ",
                             "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI.",
-                            "Do not reply to this email.  This email address is not monitored and the emails will not be read."), 
+                            "Do not reply to this email.  This email address is not monitored and the emails will not be read."),
                            "\r\n")
         SUBJECT = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
         FROM = ION_NOTIFICATION_EMAIL_ADDRESS
@@ -132,34 +154,39 @@ class UserEventProcessor(object):
         try:
             smtp_client.sendmail(FROM, TO, msg.as_string())
         except Exception as ex:
-            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(TO, ex))           
+            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(TO, ex))
    
     def add_notification(self, notification=None):
-        for n in self.notifications:
-            if n.notification == notification:
+        """
+
+        @param notification
+        @retval notification
+        """
+        for notification_obj in self.notifications:
+            if notification_obj.notification == notification:
                 raise BadRequest("UserEventProcessor.add_notification(): notification " + 
                                  str(notification) + " already exists for " + self.user_id)                
         # create and save notification in notifications list
-        n = Notification(notification, self.subscription_callback)
-        self.notifications.append(n)
+        notification_obj = Notification(notification, self.subscription_callback)
+        self.notifications.append(notification_obj)
         # start the event subscriber listening
-        n.start_subscriber()
+        notification_obj.start_subscriber()
         log.debug("UserEventProcessor.add_notification(): added notification " + str(notification) + " to user " + self.user_id)
-        return n
+        return notification_obj
     
     def remove_notification(self, notification_id=None):
         found_notification = False
                 
-        for n in self.notifications:
-            if n.notification_id == notification_id:
-                self.notifications.remove(n)
+        for notification_obj in self.notifications:
+            if notification_obj.notification_id == notification_id:
+                self.notifications.remove(notification_obj)
                 found_notification = True  
         if not found_notification:      
             raise BadRequest("UserEventProcessor.remove_notification(): notification " +
                              str(notification_id) + " does not exist for " + self.user_id)                
         # stop subscription
-        n.kill_subscriber()
-        log.debug("UserEventProcessor.remove_notification(): removed notification " + str(n.notification) + " from user " + self.user_id)
+        notification_obj.kill_subscriber()
+        log.debug("UserEventProcessor.remove_notification(): removed notification " + str(notification_obj.notification) + " from user " + self.user_id)
         # return the number of notifications left for this user
         return len(self.notifications)
     
@@ -168,6 +195,9 @@ class UserEventProcessor(object):
    
 
 class UserNotificationService(BaseUserNotificationService):
+    """
+    A service that provides users with an API for CRUD methods for notifications.
+    """
     
     user_event_processors = {}
     
