@@ -52,11 +52,11 @@ class PlatformSiteImpl(SiteImpl):
     def find_stemming_device(self, platform_site_id):
         return self._find_stemming(platform_site_id, PRED.hasDevice, RT.PlatformDevice)
 
-    def find_having_model(self, instrument_model_id):
-        return self._find_having(PRED.hasModel, instrument_model_id)
+    def find_having_model(self, platform_model_id):
+        return self._find_having(PRED.hasModel, platform_model_id)
 
-    def find_stemming_model(self, instrument_site_id):
-        return self._find_stemming(instrument_site_id, PRED.hasModel, RT.InstrumentModel)
+    def find_stemming_model(self, platform_site_id):
+        return self._find_stemming(platform_site_id, PRED.hasModel, RT.PlatformModel)
 
 
     def find_stemming_platform_site(self, site_id):

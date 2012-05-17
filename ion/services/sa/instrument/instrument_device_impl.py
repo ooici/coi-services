@@ -60,10 +60,10 @@ class InstrumentDeviceImpl(ResourceImpl):
     def unlink_model(self, instrument_device_id='', instrument_model_id=''):
         return self._unlink_resources(instrument_device_id, PRED.hasModel, instrument_model_id)
 
-    def link_sensor(self, instrument_device_id='', sensor_device_id=''):
+    def link_device(self, instrument_device_id='', sensor_device_id=''):
         return self._link_resources(instrument_device_id, PRED.hasDevice, sensor_device_id)
 
-    def unlink_sensor(self, instrument_device_id='', sensor_device_id=''):
+    def unlink_device(self, instrument_device_id='', sensor_device_id=''):
         return self._unlink_resources(instrument_device_id, PRED.hasDevice, sensor_device_id)
 
 
@@ -93,10 +93,10 @@ class InstrumentDeviceImpl(ResourceImpl):
     def find_stemming_model(self, instrument_device_id):
         return self._find_stemming_single(instrument_device_id, PRED.hasModel, RT.InstrumentModel)
 
-    def find_having_sensor(self, sensor_device_id):
+    def find_having_device(self, sensor_device_id):
         return self._find_having(PRED.hasDevice, sensor_device_id)
 
-    def find_stemming_sensor(self, instrument_device_id):
+    def find_stemming_device(self, instrument_device_id):
         return self._find_stemming(instrument_device_id, PRED.hasDevice, RT.SensorDevice)
 
 

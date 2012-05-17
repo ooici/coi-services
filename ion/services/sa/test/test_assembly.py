@@ -18,7 +18,11 @@ from nose.plugins.attrib import attr
 import unittest
 
 from ion.services.sa.test.helpers import any_old
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
+from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
+from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
+from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
+from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 # some stuff for logging info to the console
 import sys
@@ -91,8 +95,13 @@ class TestAssembly(IonIntegrationTestCase):
 
         c2 = DotDict()
         c2.resource_registry = self.client.RR
-        inst_model_impl = InstrumentModelImpl(c2)
-        
+
+        instrument_site_impl    = InstrumentSiteImpl(c2)
+        platform_site_impl      = PlatformSiteImpl(c2)
+        platform_agent_impl     = PlatformAgentImpl(c2)
+        instrument_device_impl  = InstrumentDeviceImpl(c2)
+        sensor_device_impl      = SensorDeviceImpl(c2)
+
         #generate a function that finds direct associations, using the more complex one in the service
         def gen_find_oms_association(output_type):
             def freeze():
@@ -104,15 +113,7 @@ class TestAssembly(IonIntegrationTestCase):
             return freeze()
 
 
-        # #TODO: still relevant?
-        # def find_instrument_model_by_stream_definition(stream_definition_id):
-        #     return inst_model_impl.find_having_stream_definition(stream_definition_id)
-        
-        # def find_stream_definition_by_instrument_model(instrument_model_id):
-        #     return inst_model_impl.find_stemming_stream_definition(instrument_model_id)
-        
-        
-        resource_ids = self._low_level_init()
+        #resource_ids = self._low_level_init()
 
         log.info("Create an observatory")
         observatory_id = self.generic_fcruf_script(RT.Observatory, 
@@ -120,7 +121,7 @@ class TestAssembly(IonIntegrationTestCase):
                                           self.client.OMS, 
                                           True)
 
-        log.info("Create a site")
+        log.info("Create a subsite")
         subsite_id = self.generic_fcruf_script(RT.Subsite,
                                             "subsite",
                                             self.client.OMS,
@@ -147,6 +148,13 @@ class TestAssembly(IonIntegrationTestCase):
                                                      self.client.OMS,
                                                      True)
         
+        log.info("Associate platform model with platform site")
+        self.generic_association_script(c.OMS.assign_platform_model_to_platform_site,
+                                        platform_site_impl.find_having_model,
+                                        platform_site_impl.find_stemming_model,
+                                        platform_site_id,
+                                        platform_model_id)
+
         log.info("Create a platform device")
         platform_device_id = self.generic_fcruf_script(RT.PlatformDevice, 
                                                     "platform_device", 
@@ -169,26 +177,35 @@ class TestAssembly(IonIntegrationTestCase):
 
 
         log.info("Associate platform device with platform site")
-        c.OMS.assign_device_to_site(platform_device_id, platform_site_id)
-        #self.generic_association_script(c.OMS.assign_device_to_site,
-        #                                c.OMS.find_platform_device_by_platform
-        #
-
+        self.generic_association_script(c.OMS.assign_device_to_site,
+                                        platform_site_impl.find_having_device,
+                                        platform_site_impl.find_stemming_device,
+                                        platform_site_id,
+                                        platform_device_id)
         
+
+        log.info("Create platform agent")
+        platform_agent_id = self.generic_fcruf_script(RT.PlatformAgent, 
+                                                      "platform_agent", 
+                                                      self.client.IMS, 
+                                                      False)
+        
+        log.info("Associate platform model with platform agent")
+        self.generic_association_script(c.IMS.assign_platform_model_to_platform_agent,
+                                        platform_agent_impl.find_having_model,
+                                        platform_agent_impl.find_stemming_model,
+                                        platform_agent_id,
+                                        platform_model_id)
+
+
+
+
         log.info("Create instrument model")
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel, 
                                                         "instrument_model", 
                                                         self.client.IMS, 
                                                         True)
 
-        # #TODO: still relevant?
-        # log.info("LCA <missing step>: assign stream definitions to instrument model")
-        # for name, stream_definition_id in resource_ids[RT.StreamDefinition].iteritems():
-        #     self.generic_association_script(c.IMS.assign_stream_definition_to_instrument_model,
-        #                                     find_instrument_model_by_stream_definition,
-        #                                     find_stream_definition_by_instrument_model,
-        #                                     instrument_model_id,
-        #                                     stream_definition_id)
 
         log.info("Create instrument site")
         instrument_site_id = self.generic_fcruf_script(RT.InstrumentSite,
@@ -196,6 +213,13 @@ class TestAssembly(IonIntegrationTestCase):
                                                        self.client.OMS,
                                                        True)
         
+        log.info("Associate instrument model with instrument site")
+        self.generic_association_script(c.OMS.assign_instrument_model_to_instrument_site,
+                                        instrument_site_impl.find_having_model,
+                                        instrument_site_impl.find_stemming_model,
+                                        instrument_site_id,
+                                        instrument_model_id)
+
         log.info("Associate instrument site with platform site")
         self.generic_association_script(c.OMS.assign_site_to_site,
                                         gen_find_oms_association(RT.PlatformSite),
@@ -203,14 +227,6 @@ class TestAssembly(IonIntegrationTestCase):
                                         platform_site_id,
                                         instrument_site_id)
 
-
-        log.info("Find an instrument site by observatory")
-
-        entities = c.OMS.find_related_frames_of_reference(observatory_id, [RT.InstrumentSite])
-        self.assertIn(RT.InstrumentSite, entities)
-        inst_sites = entities[RT.InstrumentSite]
-        self.assertEqual(1, len(inst_sites))
-        self.assertEqual(instrument_site_id, inst_sites[0]._id)
 
 
         log.info("Create an instrument device")
@@ -242,7 +258,7 @@ class TestAssembly(IonIntegrationTestCase):
         #self.generic_association_script(c.OMS.assign_device_to_site,
         #                                c.OMS.find_platform_device_by_platform
         #
-
+        #TODO: validate
 
         #TODO: find data products?
 
@@ -260,8 +276,45 @@ class TestAssembly(IonIntegrationTestCase):
                                         instrument_model_id)
 
 
+        log.info("Create a sensor device")
+        sensor_device_id = self.generic_fcruf_script(RT.SensorDevice, 
+                                                         "sensor_device", 
+                                                         self.client.IMS, 
+                                                         False)
 
 
+        log.info("Create sensor model")
+        sensor_model_id = self.generic_fcruf_script(RT.SensorModel, 
+                                                        "sensor_model", 
+                                                        self.client.IMS, 
+                                                        True)
+
+        log.info("Associate sensor model with sensor device")
+        self.generic_association_script(c.IMS.assign_sensor_model_to_sensor_device,
+                                        sensor_device_impl.find_having_model,
+                                        sensor_device_impl.find_stemming_model,
+                                        sensor_device_id,
+                                        sensor_model_id)
+
+
+
+        log.info("Associate sensor device with instrument device")
+        self.generic_association_script(c.IMS.assign_sensor_device_to_instrument_device,
+                                        instrument_device_impl.find_having_device,
+                                        instrument_device_impl.find_stemming_device,
+                                        instrument_device_id,
+                                        sensor_device_id)
+
+
+        #generic find ops for whatever
+
+        log.info("Find an instrument site by observatory")
+
+        entities = c.OMS.find_related_frames_of_reference(observatory_id, [RT.InstrumentSite])
+        self.assertIn(RT.InstrumentSite, entities)
+        inst_sites = entities[RT.InstrumentSite]
+        self.assertEqual(1, len(inst_sites))
+        self.assertEqual(instrument_site_id, inst_sites[0]._id)
 
 
 

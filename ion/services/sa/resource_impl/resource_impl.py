@@ -12,18 +12,7 @@ from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.public import PRED, RT, LCE
 from pyon.util.log import log
 
-
-######
-"""
-now TODO
-
-
-Later TODO
-
- -
-
-"""
-######
+import inspect
 
 
 class ResourceImpl(object):
@@ -186,6 +175,17 @@ class ResourceImpl(object):
     #    HELPER METHODS
     #
     ###################################################
+
+    # get the non-impl code that called the impl
+    def _toplevel_call(self):
+
+        last_fn = ""
+        for frame in inspect.stack():
+            if -1 == frame[1].find("impl"):
+                return frame[3] + "->" + last_fn
+            last_fn = frame[3]
+
+        return "?????"
 
     def _check_name(self, resource_type, primary_object, verb):
         """
@@ -377,6 +377,7 @@ class ResourceImpl(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
+        #log.debug("_find_having, from %s" % self._toplevel_call())
         ret, _ = self.RR.find_subjects(self.iontype,
                                        association_predicate,
                                        some_object,
@@ -392,6 +393,7 @@ class ResourceImpl(object):
         @param association_prediate the association type
         @param some_object_type the type of associated object
         """
+        #log.debug("_find_stemming, from %s" % self._toplevel_call())
         ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,
                                       some_object_type,
@@ -472,8 +474,9 @@ class ResourceImpl(object):
                                                        association_type,
                                                        object_id)
 
-        log.debug("Create %s Association: %s"
+        log.debug("Create %s Association from '%s': %s"
                   % (self._assn_name(association_type),
+                     self._toplevel_call(),
                      str(associate_success)))
         return associate_success
 
@@ -504,7 +507,6 @@ class ResourceImpl(object):
                                  (association_type, obj_type, self.iontype, subject_id))
             else:
                 self.unlink_all_objects_by_type(self, subject_id, association_type)
-
 
         return self._link_resources(subject_id, association_type, object_id)
 
@@ -556,8 +558,9 @@ class ResourceImpl(object):
                                         object=object_id)
         dessociate_success = self.RR.delete_association(assoc)
 
-        log.debug("Delete %s Association: %s"
+        log.debug("Delete %s Association through %s: %s"
                   % (self._assn_name(association_type),
+                     self._toplevel_call(),
                      str(dessociate_success)))
         return dessociate_success
 
