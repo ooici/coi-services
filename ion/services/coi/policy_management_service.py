@@ -10,6 +10,7 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.public import PRED, RT, Container
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
+from pyon.event.event import EventPublisher, EventSubscriber
 
 MANAGER_ROLE = 'ORG_MANAGER'  # Can only act upon resource within the specific Org
 MEMBER_ROLE = 'ORG_MEMBER'    # Can only access resources within the specific Org
@@ -17,6 +18,19 @@ ION_MANAGER = 'ION_MANAGER'   # Can act upon resources across all Orgs - like a 
 
 
 class PolicyManagementService(BasePolicyManagementService):
+
+
+    def on_init(self):
+        self.event_pub = EventPublisher()
+
+        self.policy_event_subscriber = EventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self.policy_event_callback)
+        self.policy_event_subscriber.activate()
+
+    def on_stop(self):
+
+        if self.policy_event_subscriber is not None:
+            self.policy_event_subscriber.deactivate()
+
 
     """
     Provides the interface to define and manage policy and a repository to store and retrieve policy and templates for
@@ -108,6 +122,26 @@ class PolicyManagementService(BasePolicyManagementService):
         self.update_policy(policy)
 
 
+    def policy_event_callback(self, *args, **kwargs):
+        """
+        This method is a callback function for receiving Policy Events.
+        """
+        policy_event = args[0]
+        policy_id = policy_event.origin
+        log.debug("Policy modified: %s" % policy_id)
+
+
+        policy = self.clients.resource_registry.read(policy_id)
+        if not policy:
+            raise NotFound("Policy %s does not exist" % policy_id)
+
+        #Need to publish an event that a policy has changed for any associated resource
+        res_list = self._find_resources_for_policy(policy_event.origin)
+        for res in res_list:
+            self._publish_resource_policy_event(policy, res)
+
+
+
     def add_resource_policy(self, resource_id='', policy_id=''):
         """Associates a policy rule to a specific resource
 
@@ -134,6 +168,9 @@ class PolicyManagementService(BasePolicyManagementService):
         aid = self.clients.resource_registry.create_association(resource, PRED.hasPolicy, policy)
         if not aid:
             return False
+
+        #Publish an event that the resource policy has changed
+        self._publish_resource_policy_event(policy, resource)
 
         return True
 
@@ -165,7 +202,25 @@ class PolicyManagementService(BasePolicyManagementService):
             raise NotFound("The association between the specified Resource %s and Policy %s was not found" % (resource_id, policy_id))
 
         self.clients.resource_registry.delete_association(aid)
+
+        #Publish an event that the resource policy has changed
+        self._publish_resource_policy_event(policy, resource)
+
+
         return True
+
+    def _publish_resource_policy_event(self, policy, resource):
+        #Sent request opened event
+
+        event_data = dict()
+        event_data['origin_type'] = 'Policy'
+        event_data['description'] = 'Resource Policy Modified'
+        event_data['resource_id'] = resource._id
+        event_data['resource_type'] = resource.type_
+        event_data['resource_name'] = resource.name
+
+        self.event_pub.publish_event(event_type='ResourcePolicyEvent', origin=policy._id, **event_data)
+
 
     def find_resource_policies(self, resource_id=''):
         """Finds all policies associated with a specific resource
@@ -184,6 +239,17 @@ class PolicyManagementService(BasePolicyManagementService):
         policy_list,_ = self.clients.resource_registry.find_objects(resource, PRED.hasPolicy, RT.Policy)
 
         return policy_list
+
+    def _find_resources_for_policy(self, policy_id=''):
+        """Finds all resources associated with a specific policy
+
+        @param policy_id    str
+        @retval resource_list    list
+        @throws NotFound    object with specified id does not exist
+        """
+        resource_list,_ = self.clients.resource_registry.find_subjects(RT.Resource, PRED.hasPolicy, policy_id)
+
+        return resource_list
 
     def _find_service_resource_by_name(self, name):
 
@@ -330,6 +396,12 @@ class PolicyManagementService(BasePolicyManagementService):
 
         return policy_rules
 
+
+
+
+#
+#  ROLE CRUD Operations
+#
 
 
     def create_role(self, user_role=None):

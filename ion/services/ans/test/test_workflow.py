@@ -384,7 +384,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("Skipping for now to get build to pass - the workflow service is not being found for some reason")
+    @unittest.skip("Skipping for now to get build to pass - some service calls are taking longer than 10 seconds")
     def test_transform_workflow(self):
 
         assertions = self.assertTrue
