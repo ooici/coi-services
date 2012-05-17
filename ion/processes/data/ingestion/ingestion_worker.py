@@ -8,7 +8,7 @@
 to couchdb datastore and hdf datastore.
 '''
 
-from interface.objects import DataStream, StreamGranuleContainer, Encoding
+from interface.objects import DataStream, StreamGranuleContainer, Encoding, Granule, CompoundGranule
 from pyon.datastore.datastore import DataStore
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
@@ -113,6 +113,10 @@ class IngestionWorker(TransformDataProcess):
     def process(self, packet):
         """Process incoming data!!!!
         """
+
+        if isinstance(packet, (Granule, CompoundGranule)):
+            log.info('Received new granule, but ingestion doesnt work yet!')
+            return
 
         # Ignoring any packet that is not a stream granule!
         if not isinstance(packet, StreamGranuleContainer):
