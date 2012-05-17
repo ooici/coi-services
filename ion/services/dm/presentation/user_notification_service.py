@@ -71,7 +71,7 @@ class Notification(object):
     def  __init__(self, notification=None, subscriber_callback=None):
         self.notification = notification
         # setup subscription using subscription_callback()
-        # TODO: make this walk the lists and set up a subscriber for every pair of
+        # msg_recipientDO: make this walk the lists and set up a subscriber for every pair of
         # origin/event.  This will require a list to hold all the subscribers so they can
         # be started and killed
         self.subscriber = NotificationEventSubscriber(origin=notification.origin_list[0],
@@ -79,12 +79,12 @@ class Notification(object):
                                                       callback=subscriber_callback)
         self.notification_id = None
 
-    def set_notification_id(self, id=None):
+    def set_notification_id(self, id_=None):
         """
         Set the notification id of the notification object
         @param notification id
         """
-        self.notification_id = id
+        self.notification_id = id_
 
     def start_subscriber(self):
         """
@@ -115,8 +115,11 @@ class UserEventProcessor(object):
         log.debug("UserEventProcessor.__init__(): email for user %s set to %s" %(self.user_id, self.user_email_addr))
 
     def subscription_callback(self, *args, **kwargs):
-        # this callback is given to all the event subscribers that this user wants notifications for
-        # if this callback gets called the user in this processor should get an email
+        """
+        This callback is given to all the event subscribers that this user wants notifications for.
+        If this callback gets called the user in this processor should get an email
+        """
+
         log.debug("UserEventProcessor.subscription_callback(): args[0]=" + str(args[0]))
         log.debug("event type = " + str(args[0]._get_type()))
 
@@ -126,7 +129,7 @@ class UserEventProcessor(object):
         time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(args[0].ts_created)/1000))))
 
         # build the email from the event content
-        BODY = string.join(("Event: %s" %  event,
+        msg_body = string.join(("Event: %s" %  event,
                             "",
                             "Originator: %s" %  origin,
                             "",
@@ -138,29 +141,30 @@ class UserEventProcessor(object):
                             "To modify or remove notifications about this event, please access My Notifications Settings in the ION Web UI.",
                             "Do not reply to this email.  This email address is not monitored and the emails will not be read."),
                            "\r\n")
-        SUBJECT = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
-        FROM = ION_NOTIFICATION_EMAIL_ADDRESS
-        TO = self.user_email_addr
-        msg = MIMEText(BODY)
-        msg['Subject'] = SUBJECT
-        msg['From'] = FROM
-        msg['To'] = TO
-        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s" %(TO, self.smtp_server))
+        msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
+        msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
+        msg_recipient = self.user_email_addr
+        msg = MIMEText(msg_body)
+        msg['Subject'] = msg_subject
+        msg['From'] = msg_sender
+        msg['To'] = msg_recipient
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s" %(msg_recipient, self.smtp_server))
         try:
             smtp_client = smtplib.SMTP(self.smtp_server)
         except Exception as ex:
             log.warning("UserEventProcessor.subscription_callback(): failed to connect to SMTP server %s <%s>" %(ION_SMTP_SERVER, ex))
             return
         try:
-            smtp_client.sendmail(FROM, TO, msg.as_string())
+            smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
         except Exception as ex:
-            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(TO, ex))
+            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(msg_recipient, ex))
    
     def add_notification(self, notification=None):
         """
+        Adds a notification that this user then subscribes to
 
-        @param notification
-        @retval notification
+        @param notification request
+        @retval notification object
         """
         for notification_obj in self.notifications:
             if notification_obj.notification == notification:
@@ -175,6 +179,14 @@ class UserEventProcessor(object):
         return notification_obj
     
     def remove_notification(self, notification_id=None):
+        """
+        Removes a notification subscirbed to by the user
+
+        @param notification_id
+        @retval the number of notifications subscribed to by the user
+        """
+
+
         found_notification = False
                 
         for notification_obj in self.notifications:
@@ -202,12 +214,16 @@ class UserNotificationService(BaseUserNotificationService):
     user_event_processors = {}
     
     def __init__(self):
-        # get the event repository from the CC
+        """
+        Get the event repository from the CC
+        """
         self.event_repo = Container.instance.event_repository
         BaseUserNotificationService.__init__(self)
     
     def on_start(self):
-        # get the smtp server address if configured
+        """
+        Get the smtp server address if configured
+        """
         self.smtp_server = self.CFG.get('smtp_server', ION_SMTP_SERVER)        
         
         # load event originators, types, and table
@@ -217,7 +233,7 @@ class UserNotificationService(BaseUserNotificationService):
         for originator in self.event_originators:
             try:
                 self.event_table[originator] = CFG.event[originator]
-            except:
+            except NotFound:
                 log.warning("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
         log.debug("UserNotificationService.on_start(): event_originators=%s" %str(self.event_originators))        
         log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types)) 
