@@ -8,6 +8,7 @@
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data
 
 """
+from interface.objects import Granule
 
 from pyon.public import log
 from pyon.util.async import spawn
@@ -420,7 +421,7 @@ class BaseDataHandler(object):
         if not constraints:
             raise ParameterError("Data constraints not set properly")
 
-        cls._publish_data(publisher, config, cls._get_data(config))
+        cls._publish_data(publisher, cls._get_data(config))
 
         # Publish a 'TestFinished' event
         if get_safe(config,'TESTING'):
@@ -449,24 +450,26 @@ class BaseDataHandler(object):
     @classmethod
     def _get_data(cls, config):
         """
-        Generator function that acquires data from a source iteratively based on constraints provided by config
+        Iterable function that acquires data from a source iteratively based on constraints provided by config
         Passed into BaseDataHandler._publish_data and iterated to publish samples.
-        Each iteration should return a well-formed Granule
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
+        @return an iterable that returns well-formed Granule objects on each iteration
         """
         raise NotImplementedException
 
     @classmethod
-    def _publish_data(cls, publisher, config, data_generator):
+    def _publish_data(cls, publisher, data_generator):
         """
         Iterates over the data_generator and publishes granules to the stream indicated in stream_id
         """
-        stream_id=config['stream_id']
-        log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
+        if not hasattr(data_generator,'__iter__'):
+            raise InstrumentDataException('Invalid return from _get_data: returned object must have \'__iter__\' attribute')
+
         for count, gran in enumerate(data_generator):
-            #TG: Validate that gran is a Granule object => If Granule, publish, else, just print
-#            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
-            publisher.publish(gran)
+            if isinstance(gran, Granule):
+                publisher.publish(gran)
+            else:
+                log.warn('Could not publish object returned by _get_data: {0}')
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
