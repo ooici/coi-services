@@ -1,5 +1,5 @@
 from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -57,6 +57,7 @@ class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 
  
 rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceMeta, InstrumentManagementService, log)
+rimi.test_all_in_one(True)
 
 rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rimi.add_resource_impl_inttests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})

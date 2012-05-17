@@ -1,4 +1,4 @@
-#from pyon.net.endpoint import ProcessRPCClient
+#from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import  log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.product.data_product_management_service import DataProductManagementService

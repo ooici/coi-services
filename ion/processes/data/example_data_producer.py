@@ -11,7 +11,7 @@ bin/pycc --rel res/deploy/r2dm.yml
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 pmsc = PubsubManagementServiceClient(node=cc.node)
 stream_id = pmsc.create_stream(name='pfoo')
-pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_ctd_data_producer',cls='ExampleCTDDataProducer',config={'process':{'stream_id':stream_id}})
+pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_data_producer',cls='ExampleDataProducer',config={'process':{'stream_id':stream_id}})
 
 '''
 
@@ -44,7 +44,13 @@ tx.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
 tx.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
 
-class ExampleCTDDataProducer(SimpleCtdPublisher):
+class ExampleDataProducer(SimpleCtdPublisher):
+    """
+    This Example process inherits some business logic from the above example.
+
+    It is not infrastructure - it is a demonstration of the infrastructure applied to an example.
+    """
+
 
     #overriding trigger function here to use new granule
     def _trigger_func(self, stream_id):

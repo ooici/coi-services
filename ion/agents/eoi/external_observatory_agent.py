@@ -12,7 +12,7 @@ __licence__ = 'Apache 2.0'
 
 from pyon.public import log, PRED, RT
 from pyon.agent.agent import ResourceAgent
-from pyon.ion.endpoint import StreamPublisher
+from pyon.ion.stream import StreamPublisher
 from ion.agents.eoi.handler.base_external_data_handler import BaseExternalDataHandler
 from interface.objects import AgentCommandResult, AgentCommand
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient

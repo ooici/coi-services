@@ -500,20 +500,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.RR.create_association(parent_site_id, PRED.hasSite, child_site_id)
+        parent_site_obj = self.subsite.read_one(parent_site_id)
+        parent_site_type = parent_site_obj._get_type()
 
-        #parent_site_obj = self.subsite.read_one(parent_site_id)
-        #parent_site_type = parent_site_obj._get_type()
-
-        #self.subsite.link_site(parent_site_id, child_site_id)
-
-        # TODO: MM - Commented out checks - too restrictive
-        #if RT.Subsite == parent_site_type:
-        #    self.subsite.link_site(parent_site_id, child_site_id)
-        #elif RT.PlatformSite == parent_site_type:
-        #    self.platform_site.link_site(parent_site_id, child_site_id)
-        #else:
-        #    raise BadRequest("Tried to assign a child site to a %s resource" % parent_site_type)
+        if RT.Observatory == parent_site_type:
+            self.observatory.link_site(parent_site_id, child_site_id)
+        elif RT.Subsite == parent_site_type:
+           self.subsite.link_site(parent_site_id, child_site_id)
+        elif RT.PlatformSite == parent_site_type:
+           self.platform_site.link_site(parent_site_id, child_site_id)
+        else:
+           raise BadRequest("Tried to assign a child site to a %s resource" % parent_site_type)
 
 
 
@@ -527,7 +524,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         parent_site_obj = self.subsite.read_one(parent_site_id)
         parent_site_type = parent_site_obj._get_type()
 
-        if RT.Subsite == parent_site_type:
+        if RT.Observatory == parent_site_type:
+            self.observatory.unlink_site(parent_site_id, child_site_id)
+        elif RT.Subsite == parent_site_type:
             self.subsite.unlink_site(parent_site_id, child_site_id)
         elif RT.PlatformSite == parent_site_type:
             self.platform_site.unlink_site(parent_site_id, child_site_id)
@@ -535,48 +534,40 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Tried to unassign a child site from a %s resource" % parent_site_type)
 
 
-    def assign_instrument_device_to_instrument_site(self, instrument_device_id='', instrument_site_id=''):
-        """Connects a instrument device to instrument site
+    def assign_device_to_site(self, device_id='', site_id=''):
+        """Connects a device (any type) to a site (any subtype)
 
-        @param instrument_device_id    str
-        @param instrument_site_id    str
+        @param device_id    str
+        @param site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        
-        self.instrument_site.link_site(instrument_device_id, instrument_site_id)
+        site_obj = self.subsite.read_one(site_id)
+        site_type = site_obj._get_type()
+
+        if RT.PlatformSite == site_type:
+           self.platform_site.link_device(site_id, device_id)
+        elif RT.InstrumentSite == site_type:
+           self.instrument_site.link_device(site_id, device_id)
+        else:
+           raise BadRequest("Tried to assign a device to a %s resource" % site_type)
 
 
-    def unassign_instrument_device_from_instrument_site(self, instrument_device_id='', instrument_site_id=''):
-        """Connects a instrument device to instrument site
+    def unassign_device_from_site(self, device_id='', site_id=''):
+        """Disconnects a device (any type) from a site (any subtype)
 
-        @param instrument_device_id    str
-        @param instrument_site_id    str
+        @param device_id    str
+        @param site_id    str
         @throws NotFound    object with specified id does not exist
         """
+        site_obj = self.subsite.read_one(site_id)
+        site_type = site_obj._get_type()
 
-        self.instrument_site.unlink_site(instrument_device_id, instrument_site_id)
-
-
-    def assign_platform_device_to_platform_site(self, platform_device_id='', platform_site_id=''):
-        """Connects a platform device to platform site
-
-        @param platform_device_id    str
-        @param platform_site_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-        
-        self.platform_site.link_site(platform_device_id, platform_site_id)
-
-
-    def unassign_platform_device_from_platform_site(self, platform_device_id='', platform_site_id=''):
-        """Connects a platform device to platform site
-
-        @param platform_device_id    str
-        @param platform_site_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-
-        self.platform_site.unlink_site(platform_device_id, platform_site_id)
+        if RT.PlatformSite == site_type:
+           self.platform_site.unlink_device(site_id, device_id)
+        elif RT.InstrumentSite == site_type:
+           self.instrument_site.unlink_device(site_id, device_id)
+        else:
+           raise BadRequest("Tried to unassign a device from a %s resource" % site_type)
 
 
     def assign_site_to_observatory(self, site_id='', observatory_id=''):
@@ -633,30 +624,19 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    def deploy_instrument_device_to_instrument_site(self, instrument_device_id='', instrument_site_id=''):
-        self.instrument_device.link_deployment(instrument_device_id, instrument_site_id)
+    def deploy_instrument_site(self, instrument_site_id='', deployment_id=''):
+        self.instrument_site.link_deployment(instrument_site_id, deployment_id)
 
-    def undeploy_instrument_device_from_instrument_site(self, instrument_device_id='', instrument_site_id=''):
-        self.instrument_device.unlink_deployment(instrument_device_id, instrument_site_id)
+    def undeploy_instrument_site(self, instrument_site_id='', deployment_id=''):
+        self.instrument_site.unlink_deployment(instrument_site_id, deployment_id)
 
-    def deploy_platform_device_to_platform_site(self, platform_device_id='', platform_site_id=''):
-        self.platform_device.link_deployment(platform_device_id, platform_site_id)
+    def deploy_platform_site(self, platform_site_id='', deployment_id=''):
+        self.platform_site.link_deployment(platform_site_id, deployment_id)
 
-    def undeploy_platform_device_from_platform_site(self, platform_device_id='', platform_site_id=''):
-        self.platform_device.unlink_deployment(platform_device_id, platform_site_id)
+    def undeploy_platform_site(self, platform_site_id='', deployment_id=''):
+        self.platform_site.unlink_deployment(platform_site_id, deployment_id)
 
 
-    def deploy_as_primary_instrument_device_to_instrument_site(self, instrument_device_id='', instrument_site_id=''):
-        self.instrument_device.assign_primary_deployment(instrument_device_id, instrument_site_id)
-
-    def undeploy_primary_instrument_device_from_instrument_site(self, instrument_device_id='', instrument_site_id=''):
-        self.instrument_device.unassign_primary_deployment(instrument_device_id, instrument_site_id)
-
-    def deploy_as_primary_platform_device_to_platform_site(self, platform_device_id='', platform_site_id=''):
-        self.platform_device.link_primary_deployment(platform_device_id, platform_site_id)
-
-    def undeploy_primary_platform_device_from_platform_site(self, platform_device_id='', platform_site_id=''):
-        self.platform_device.unlink_primary_deployment(platform_device_id, platform_site_id)
 
 
 
@@ -668,33 +648,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    def find_observatories(self, filters=None):
-        """
-
-        """
-        return self.observatory.find_some(filters)
-
-
-    def find_subsites(self, filters=None):
-        """
-
-        """
-        return self.site.find_some(filters)
-
-
-    def find_instrument_sites(self, filters=None):
-        """
-
-        """
-        return self.instrument_site.find_some(filters)
-
-
-    def find_platform_sites(self, filters=None):
-        """
-
-        """
-        return self.platform_site.find_some(filters)
-
 
     def find_org_by_observatory(self, observatory_id=''):
         """
@@ -703,19 +656,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         orgs,_ = self.RR.find_subjects(RT.Org, PRED.hasResource, observatory_id, id_only=False)
         return orgs
 
-
-
-        
-    def find_data_product_by_platform_site(self, platform_site_id=''):
-        ret = []
-        for i in self.find_instrument_device_by_platform_site(platform_site_id):
-            for dp in self.IMS.find_data_product_by_instrument_device(i):
-                if not dp in ret:
-                    ret.append(dp)
-
-        return ret
-
-    
 
 
     def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=None):

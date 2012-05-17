@@ -1,21 +1,28 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.eoi.handler.base_data_handler
-@file ion/agents/eoi/handler/base_data_handler.py
+@package ion.agents.data.handlers.base_data_handler
+@file ion/agents/data/handlers/base_data_handler.py
 @author Tim Giguere
 @author Christopher Mueller
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data
 
 """
-from pyon.event.event import EventPublisher
 
 from pyon.public import log
-from pyon.util.async import spawn, wait
+from pyon.util.async import spawn
+from pyon.ion.resource import PRED, RT
+from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
+from pyon.event.event import EventPublisher
+from pyon.ion.granule.taxonomy import TaxyTool
 
 from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.services.mi.exceptions import InstrumentParameterException, InstrumentCommandException
+
+### For new granule and stream interface
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.ion.granule.granule import build_granule
 
 import gevent
 from gevent.coros import Semaphore
@@ -32,13 +39,23 @@ class DataHandlerParameter(DriverParameter):
     """
     Base DataHandler parameters.  Inherits from DriverParameter.  Subclassed by specific handlers
     """
-    POLLING_INTERVAL = 'POLLING_INTERVAL'
+    POLLING_INTERVAL = 'POLLING_INTERVAL',
+    PATCHABLE_CONFIG_KEYS = 'PATCHABLE_CONFIG_KEYS',
 
 class BaseDataHandler(object):
-    _params = {DataHandlerParameter.POLLING_INTERVAL : 3600}
+    _params = {
+        'POLLING_INTERVAL' : 3600,
+        'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
+    }
     _polling = False
     _polling_glet = None
-    _config = {}
+    _dh_config = {}
+    _rr_cli = None
+
+    def __init__(self, rr_cli, stream_registrar, dh_config):
+        self._dh_config=dh_config
+        self._stream_registrar = stream_registrar
+        self._rr_cli = rr_cli
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -57,9 +74,9 @@ class BaseDataHandler(object):
         The polling interval (in seconds) is retrieved from the POLLING_INTERVAL parameter
         """
         self._polling = True
-        interval = get_safe(self._params, DataHandlerParameter.POLLING_INTERVAL, 3600)
-        while True:
-            self.execute_acquire_data({'stream_id':'first_new','TESTING':True})
+        interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
+        while self._polling:
+            self.execute_acquire_data()
             time.sleep(interval)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
@@ -85,7 +102,8 @@ class BaseDataHandler(object):
         reply = None
         if cmd == 'configure':
             # Delegate to BaseDataHandler.configure()
-            reply = self.configure(*args, **kwargs)
+#            reply = self.configure(*args, **kwargs)
+            pass
         elif cmd == 'initialize':
             # Delegate to BaseDataHandler.initialize()
             reply = self.initialize(*args, **kwargs)
@@ -154,7 +172,7 @@ class BaseDataHandler(object):
         """
         log.debug('Configuring DataHandler: args = {0}'.format(args))
         try:
-            self._config = args[0]
+            self._dh_config = args[0]
 
         except IndexError:
             raise InstrumentParameterException('\'acquire_data\' command requires a config dict as the first argument')
@@ -163,31 +181,74 @@ class BaseDataHandler(object):
 
     def execute_acquire_data(self, *args):
         """
-        Spawns a greenlet to perform a data acquisition
-        Calls BaseDataHandler._acquire_data
+        Creates a copy of self._dh_config, creates a publisher, and spawns a greenlet to perform a data acquisition cycle
+        If the args[0] is a dict, any entries keyed with one of the 'PATCHABLE_CONFIG_KEYS' are used to patch the config
+        Greenlet binds to BaseDataHandler._acquire_data and passes the publisher and config
         Disallows multiple "new data" (unconstrained) requests using BaseDataHandler._semaphore lock
         Called from:
                       InstrumentAgent._handler_observatory_execute_resource
                        |-->  ExternalDataAgent._handler_streaming_execute_resource
 
-        @parameter args First argument should be a config dictionary
+        @parameter args First argument can be a config dictionary
         """
+        log.debug('Executing acquire_data: args = {0}'.format(args))
+
+        # Make a copy of the config to ensure no cross-pollution
+        config = self._dh_config.copy()
+
+        # Patch the config if mods are passed in
         try:
-            config = args[0]
+            config_mods = args[0]
+            if not isinstance(config_mods, dict):
+                raise IndexError()
+
+            log.debug('Configuration modifications provided: {0}'.format(config_mods))
+            for k in self._params['PATCHABLE_CONFIG_KEYS']:
+                if get_safe(config_mods, k):
+                   config[k] = config_mods[k]
 
         except IndexError:
             raise InstrumentParameterException('\'acquire_data\' command requires a config dict.')
 
-        if not isinstance(config, dict):
-            raise TypeError('args[0] of \'acquire_data\' is not a dict.')
-        else:
-            if get_safe(config,'constraints') is None and not self._semaphore.acquire(blocking=False):
-                log.warn('Already acquiring new data - action not duplicated')
-                return
+        # Verify that there is a stream_id member in the config
+        stream_id = get_safe(config, 'stream_id')
+        if not stream_id:
+            raise ConfigurationError('Configuration does not contain required \'stream_id\' member')
 
-            g = spawn(self._acquire_data, config, self._unlock_new_data_callback)
-            log.debug('** Spawned {0}'.format(g))
-            self._glet_queue.append(g)
+        isNew = get_safe(config, 'constraints') is None
+
+        if isNew and not self._semaphore.acquire(blocking=False):
+            log.warn('Already acquiring new data - action not duplicated')
+            return
+
+        if isNew:
+            # Get any NewDataCheck attachments and add them to the config
+            ext_ds_id = get_safe(config,'external_dataset_res_id')
+            if ext_ds_id:
+                try:
+                    attachment_objs, _ = self._rr_cli.find_objects(ext_ds_id, PRED.hasAttachment, RT.Attachment, False)
+                    for attachment_obj in attachment_objs:
+                        kwds = set(attachment_obj.keywords)
+                        if 'NewDataCheck' in kwds:
+                            log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj))
+                            config['new_data_check'] = attachment_obj.content
+                            break
+                        else:
+                            log.debug('Found attachment: {0}'.format(attachment_obj))
+                except NotFound:
+                    log.debug('No attachments found for resource: {0}'.format(ext_ds_id))
+                    pass
+
+        if not get_safe(config, 'new_data_check'):
+            config['new_data_check'] = None
+
+            # Create a publisher to pass into the greenlet
+        publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
+
+        # Spawn a greenlet to do the data acquisition and publishing
+        g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback)
+        log.debug('** Spawned {0}'.format(g))
+        self._glet_queue.append(g)
 
     def execute_acquire_sample(self, *args, **kwargs):
         #TODO: Add documentation
@@ -270,7 +331,8 @@ class BaseDataHandler(object):
             result={}
             for pn in pnames:
                 try:
-                    result[pn] = self._params.get(pn)
+                    log.debug('Get parameter with key: {0}'.format(pn))
+                    result[pn] = self._params[pn]
                 except KeyError:
                     raise InstrumentParameterException('{0} is not a valid parameter for this DataHandler.'.format(pn))
 
@@ -296,12 +358,22 @@ class BaseDataHandler(object):
         except IndexError:
             raise InstrumentParameterException('Set command requires a parameter dict.')
 
+        to_raise = []
+
         if not isinstance(params, dict):
             raise InstrumentParameterException('Set parameters not a dict.')
         else:
             for (key, val) in params.iteritems():
-                self._params[key] = val
-                #TODO: Add rejection of unknown parameter
+                if key in self._params:
+                    log.debug('Set parameter \'{0}\' = {1}'.format(key, val))
+                    self._params[key] = val
+                else:
+                    log.debug('Parameter \'{0}\' not in self._params and cannot be set'.format(key))
+                    to_raise.append(key)
+
+        if len(to_raise) > 0:
+            log.debug('Raise ParameterError for un-set parameters: {0}'.format(to_raise))
+            raise ParameterError('Invalid parameter(s) could not be set: {0}'.format(to_raise))
 
     def get_resource_params(self, *args, **kwargs):
         """
@@ -327,7 +399,7 @@ class BaseDataHandler(object):
         self._semaphore.release()
 
     @classmethod
-    def _acquire_data(cls, config, unlock_new_data_callback):
+    def _acquire_data(cls, config, publisher, unlock_new_data_callback):
         """
         Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
              BaseDataHandler._new_data_constraints (only if config does not contain 'constraints')
@@ -335,17 +407,18 @@ class BaseDataHandler(object):
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
         """
-        stream_id = get_safe(config, 'stream_id')
-        if not stream_id:
-            raise ConfigurationError('Configuration does not contain required \'stream_id\' key')
-        #TODO: Configure the publisher
-        publisher=None
+        log.debug('start _acquire_data: config={0}'.format(config))
+
+        cls._init_acquisition_cycle(config)
 
         constraints = get_safe(config,'constraints')
         if not constraints:
             gevent.getcurrent().link(unlock_new_data_callback)
             constraints = cls._new_data_constraints(config)
-            config['constraints']=constraints
+            config['constraints'] = constraints
+
+        if not constraints:
+            raise ParameterError("Data constraints not set properly")
 
         cls._publish_data(publisher, config, cls._get_data(config))
 
@@ -354,6 +427,13 @@ class BaseDataHandler(object):
             log.debug('Publish TestingFinished event')
             pub = EventPublisher('DeviceCommonLifecycleEvent')
             pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
+
+    @classmethod
+    def _init_acquisition_cycle(cls, config):
+        """
+        Initialize anything the data handler will need to use, such as a dataset
+        """
+        raise NotImplementedError("Initialize acquisition cycle not implemented in data handler")
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -371,7 +451,7 @@ class BaseDataHandler(object):
         """
         Generator function that acquires data from a source iteratively based on constraints provided by config
         Passed into BaseDataHandler._publish_data and iterated to publish samples.
-        Data should be conformant with the requirements of the publisher (granule)
+        Each iteration should return a well-formed Granule
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         """
         raise NotImplementedException
@@ -382,11 +462,29 @@ class BaseDataHandler(object):
         Iterates over the data_generator and publishes granules to the stream indicated in stream_id
         """
         stream_id=config['stream_id']
-        log.debug('Start publishing to stream_id = {0}'.format(stream_id))
-        for count, ivals in enumerate(data_generator):
-            log.info('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,ivals))
-            #TODO: Publish the data - optionally after going through a formatter (from config)??
+        log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
+        for count, gran in enumerate(data_generator):
+            #TG: Validate that gran is a Granule object => If Granule, publish, else, just print
+#            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
+            publisher.publish(gran)
 
+            #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
+
+        #TODO: When finished publishing, update (either directly, or via an event callback to the agent) the UpdateDescription
+
+    @classmethod
+    def _calc_iter_cnt(cls, total_recs, max_rec):
+        """
+        Given the total number of records and the maximum records allowed in a granule,
+        calculates the number of iterations required to traverse the entire array in chunks of size max_rec
+        @param total_recs The total number of records
+        @param max_rec The maximum number of records allowed in a granule
+        """
+        cnt = total_recs / max_rec
+        if total_recs % max_rec > 0:
+            cnt += 1
+
+        return cnt
 
 class DataHandlerError(Exception):
     """
@@ -406,12 +504,19 @@ class ConfigurationError(DataHandlerError):
 # Example DataHandlers #
 ########################
 
+import numpy as np
 import numpy.random as npr
 
 class FibonacciDataHandler(BaseDataHandler):
     """
     Sample concrete DataHandler implementation that returns sequential Fibonacci numbers
     """
+    @classmethod
+    def _init_acquisition_cycle(cls, config):
+        """
+        Initialize anything the data handler will need to use, such as a dataset
+        """
+        pass
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -429,28 +534,53 @@ class FibonacciDataHandler(BaseDataHandler):
         """
         cnt = get_safe(config,'constraints.count',1)
 
+        max_rec = get_safe(config, 'max_records', 1)
+        dprod_id = get_safe(config, 'data_producer_id')
+        tx_yml = get_safe(config, 'taxonomy')
+        ttool = TaxyTool.load(tx_yml)
+
         def fibGenerator():
             """
             A Fibonacci sequence generator
             """
+            count = 0
+            ret = []
             a, b = 1, 1
             while 1:
-                time.sleep(0.1)
-                yield a
+                count += 1
+                ret.append(a)
+                if count == max_rec:
+                    yield np.array(ret)
+                    ret=[]
+                    count = 0
+
                 a, b = b, a + b
 
         gen=fibGenerator()
         for i in xrange(cnt):
-            yield gen.next()
+            rdt = RecordDictionaryTool(taxonomy=ttool)
+            d = gen.next()
+            rdt['data'] = d
+            g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
+            yield g
 
 class DummyDataHandler(BaseDataHandler):
+    @classmethod
+    def _init_acquisition_cycle(cls, config):
+        """
+        Initialize anything the data handler will need to use, such as a dataset
+        """
+        pass
+
     @classmethod
     def _new_data_constraints(cls, config):
         """
         Returns a constraints dictionary with 'array_len' and 'count' assigned random integers
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
         """
-        return {'array_len':npr.randint(1,10,1)[0], 'count':npr.randint(5,20,1)[0]}
+        # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
+        max_rec = get_safe(config, 'max_records', 1)
+        return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
 
     @classmethod
     def _get_data(cls, config):
@@ -458,12 +588,22 @@ class DummyDataHandler(BaseDataHandler):
         Retrieves config['constraints']['count'] number of random samples of length config['constraints']['array_len']
         @param config Dict of configuration parameters - must contain ['constraints']['count'] and ['constraints']['count']
         """
-        count = get_safe(config, 'constraints.count',1)
         array_len = get_safe(config, 'constraints.array_len',1)
 
-        for i in xrange(count):
-            time.sleep(0.1)
-            yield npr.random_sample(array_len)
+        max_rec = get_safe(config, 'max_records', 1)
+        dprod_id = get_safe(config, 'data_producer_id')
+        tx_yml = get_safe(config, 'taxonomy')
+        ttool = TaxyTool.load(tx_yml)
+
+        arr = npr.random_sample(array_len)
+        log.debug('Array to send using max_rec={0}: {1}'.format(max_rec, arr))
+        cnt = cls._calc_iter_cnt(arr.size, max_rec)
+        for x in xrange(cnt):
+            rdt = RecordDictionaryTool(taxonomy=ttool)
+            d = arr[x*max_rec:(x+1)*max_rec]
+            rdt['data'] = d
+            g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
+            yield g
 
 
 

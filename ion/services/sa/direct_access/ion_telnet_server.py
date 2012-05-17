@@ -12,6 +12,7 @@ from pyon.core.exception import ServerError
 from pyon.util.log import log
 import gevent
 import uuid
+from ion.services.sa.direct_access.direct_access_server import SessionCloseReasons
 	
 class TelnetServer(object):
 
@@ -22,10 +23,11 @@ class TelnetServer(object):
 	username = None
 	token = None
 	fileobj = None
-	parent_requested_close = False
 	TELNET_PROMPT = 'ION telnet>'
 	PORT_RANGE_LOWER = 8000
 	PORT_RANGE_UPPER = 8010
+	close_reason = SessionCloseReasons.client_closed
+	activity_seen = False
 
 
 	def write(self, text):
@@ -33,6 +35,7 @@ class TelnetServer(object):
 		if self.fileobj:
 			self.fileobj.write(text)
 			self.fileobj.flush()
+			activity_seen = True;
 		else:
 			log.warning("TelnetServer.write(): no connection yet, can not write text")			
 
@@ -51,16 +54,15 @@ class TelnetServer(object):
 	
 
 	def close_connection(self):
-		if not self.parent_requested_close:
-			# indicate to parent that connection has been lost
-			self.parent_input_callback(-1)
-		else:		
-			try:
-				self.server_socket.shutdown(socket.SHUT_RDWR)
-			except Exception as ex:
-				# can happen if telnet client closes session first
-				log.debug("TelnetServer.close_connection(): exception caught for socket shutdown:" + str(ex))
-			self.server_socket.close()
+		if self.close_reason != SessionCloseReasons.agent_closed:
+			# indicate to agent that connection has been closed
+			self.parent_input_callback(self.close_reason)
+		try:
+			self.server_socket.shutdown(socket.SHUT_RDWR)
+		except Exception as ex:
+			# can happen if telnet client closes session first
+			log.debug("TelnetServer.close_connection(): exception caught for socket shutdown:" + str(ex))
+		self.server_socket.close()
 	
 
 	def exit_handler (self, reason):
@@ -84,12 +86,14 @@ class TelnetServer(object):
 		if username == '':
 			self.exit_handler("lost connection")
 			return
+		activity_seen = True;
 		self.write("token: ")
 		try:
 			token = self.fileobj.readline().rstrip('\n\r')
 		except EOFError:
 			self.exit_handler("lost connection")
 			return
+		activity_seen = True;
 		if not self.authorized(token):
 			log.debug("login failed")
 			self.writeline("login failed")
@@ -106,6 +110,7 @@ class TelnetServer(object):
 			if input_line == '':
 				self.exit_handler("lost connection")
 				break
+			activity_seen = True;
 			log.debug("rcvd: " + input_line)
 			log.debug("len=" + str(len(input_line)))
 			self.parent_input_callback(input_line.rstrip('\n\r'))
@@ -170,9 +175,18 @@ class TelnetServer(object):
 		return self.port, self.token
 
 
-	def stop(self):
+	def any_activity(self):
+		if activity_seen:
+			# re-arm the activity detector
+			activity_seen = False
+			return True
+		return False
+	
+	
+	def stop(self, reason=None):
 		log.debug("TelnetServer.stop()")
-		self.parent_requested_close = True
+		if (reason):
+			close_reason = reason
 		if self.connection_socket:
 			# telnet connection has been made
 			try:

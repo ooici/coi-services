@@ -64,6 +64,7 @@ from ion.services.mi.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
 # Device ethernet address and port
+#DEV_ADDR = 'localhost' 
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
 #DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
@@ -322,7 +323,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Create subscribers for agent and driver events.
         """
         def consume_event(*args, **kwargs):
-            log.info('Test recieved ION event: args=%s  kwargs=%s.', str(args), str(kwargs))
+            log.info('Test recieved ION event: args=%s, kwargs=%s, event=%s.', 
+                     str(args), str(kwargs), str(args[0]))
             self._events_received.append(args[0])
             if self._no_events and self._no_events == len(self._event_received):
                 self._async_event_result.set()
@@ -840,7 +842,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
-        cmd = AgentCommand(command='go_direct_access')
+        cmd = AgentCommand(command='go_direct_access', kwargs={'session_timeout':50,'inactivity_timeout':20})
         retval = self._ia_client.execute_agent(cmd)
         print("go_direct_access retval=" + str(retval))       
         cmd = AgentCommand(command='get_current_state')
@@ -849,7 +851,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.DIRECT_ACCESS)
 
         # sleep to let tester run telnet client manually
-        print "sleeping to run telnet client"
+        print "test sleeping to run telnet client"
         time.sleep(60)
 
         # Halt DA.
