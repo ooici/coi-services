@@ -561,6 +561,9 @@ class UserNotificationService(BaseUserNotificationService):
         '''
         filter_config = filter_config or {}
 
+        # Get the delivery config as set up for that user
+        delivery_config = self.user_event_processors[user_id].delivery_config
+
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
@@ -573,5 +576,14 @@ class UserNotificationService(BaseUserNotificationService):
             event_subtype = event_subtype ,
             delivery_config=delivery_config)
 
+        #-------------------------------------------------------------------------------------
+        # Setup things so that the user gets subscribed to receive this notification request
+        #-------------------------------------------------------------------------------------
 
+        self.create_notification(notification=notification_request, user_id = user_id)
+
+        #-------------------------------------------------------------------------------------
         # Create the detection filter
+        #-------------------------------------------------------------------------------------
+
+        #@todo do something with the filter_config
