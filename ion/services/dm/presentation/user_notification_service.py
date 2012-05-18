@@ -480,7 +480,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
-
+        origin_type = origin_subtype
         notification_request = NotificationRequest(name='Setting_email',
                                                     origin = origin,
                                                     origin_type = origin_type,
@@ -534,6 +534,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Create a notification object
         #-------------------------------------------------------------------------------------
 
+        origin_type = origin_subtype
         notification_request = NotificationRequest(name='Setting_email',
             origin = origin,
             origin_type = origin_type,
