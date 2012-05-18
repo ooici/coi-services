@@ -416,10 +416,9 @@ class BaseDataHandler(object):
         if not constraints:
             gevent.getcurrent().link(unlock_new_data_callback)
             constraints = cls._new_data_constraints(config)
+            if constraints is None:
+                raise InstrumentParameterException("Data constraints returned from _new_data_constraints cannot be None")
             config['constraints'] = constraints
-
-        if not constraints:
-            raise InstrumentParameterException("Data constraints not set properly")
 
         cls._publish_data(publisher, cls._get_data(config))
 
@@ -432,30 +431,33 @@ class BaseDataHandler(object):
     @classmethod
     def _init_acquisition_cycle(cls, config):
         """
-        Initialize anything the data handler will need to use, such as a dataset
+        Allows the concrete implementation to initialize/prepare objects the data handler
+        will use repeatedly (such as a dataset object) in cls._new_data_constraints and/or cls._get_data
+        Objects should be added to the config so they are available later in the workflow
         """
-        raise NotImplementedError("Initialize acquisition cycle not implemented in data handler")
+        raise NotImplementedError('{0}.{1} must implement \'_init_acquisition_cycle\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _new_data_constraints(cls, config):
         #TODO: Document what "constraints" looks like (yml)!!
         """
         Determines the appropriate constraints for acquiring any "new data" from the external dataset
+        Returned value cannot be None and is assigned to config['constraints']
         The format of the constraints are documented:
-        @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
-        @retval Dict that constrains retrieval of new data from the external dataset
+        @param config dict of configuration parameters - may be used to generate the returned 'constraints' dict
+        @retval dict that contains the constraints for retrieval of new data from the external dataset
         """
-        raise NotImplementedException
+        raise NotImplementedError('{0}.{1} must implement \'_new_data_constraints\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _get_data(cls, config):
         """
         Iterable function that acquires data from a source iteratively based on constraints provided by config
         Passed into BaseDataHandler._publish_data and iterated to publish samples.
-        @param config Dict containing configuration parameters, may include constraints, formatters, etc
+        @param config dict containing configuration parameters, may include constraints, formatters, etc
         @return an iterable that returns well-formed Granule objects on each iteration
         """
-        raise NotImplementedException
+        raise NotImplementedError('{0}.{1} must implement \'_get_data\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _publish_data(cls, publisher, data_generator):

@@ -14,6 +14,8 @@ from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 import numpy as np
+from StringIO import StringIO
+import urllib2
 
 
 PACKET_CONFIG = {
@@ -29,11 +31,19 @@ class SlocumParser(object):
     sensor_map = {}
     data_map = {}
 
-    def __init__(self, filename=None):
-        if not filename:
+    def __init__(self, url=None):
+        if not url:
             raise SystemError('Must provide a filename')
 
-        with open(filename, 'r') as f:
+        if url.startswith('http'):
+            open_op = urllib2.urlopen
+        else:
+            open_op = open
+
+        with open_op(url) as f:
+            # Get a byte-string generator for use in the data-retrieval loop (to avoid opening the file every time)
+            fstr=f.read()
+            f.seek(0)
             for x in xrange(self.header_size-3):
                 line = f.readline()
                 key,value=line.split(':',1)
@@ -58,11 +68,19 @@ class SlocumParser(object):
 
         for i in xrange(len(sensor_names)):
             self.sensor_map[sensor_names[i]]=(units[i],dtypes[i])
-            dat = np.genfromtxt(fname=filename,skip_header=self.header_size,usecols=i,dtype=dtypes[i],missing_values='NaN')#,usemask=True)
+            dat = np.genfromtxt(fname=StringIO(fstr),skip_header=self.header_size,usecols=i,dtype=dtypes[i],missing_values='NaN')#,usemask=True)
             self.data_map[sensor_names[i]]=dat
 
 
 class SlocumDataHandler(BaseDataHandler):
+    @classmethod
+    def _init_acquisition_cycle(cls, config):
+        ext_dset_res = get_safe(config, 'external_dataset_res', None)
+        if ext_dset_res:
+            ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
+            log.debug('Instantiate a SlocumParser for dataset: \'{0}\''.format(ds_url))
+            config['parser'] = SlocumParser(ds_url)
+
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -70,19 +88,15 @@ class SlocumDataHandler(BaseDataHandler):
 
     @classmethod
     def _get_data(cls, config):
+        parser = get_safe(config, 'parser', None)
         ext_dset_res = get_safe(config, 'external_dataset_res', None)
-        if ext_dset_res:
-            ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
-            parser = SlocumParser(ds_url)
-
-            log.debug('External Dataset URL: \'{0}\''.format(ds_url))
-
+        if ext_dset_res and parser:
             #CBM: Not in use yet...
 #            t_vname = ext_dset_res.dataset_description.parameters['temporal_dimension']
 #            x_vname = ext_dset_res.dataset_description.parameters['zonal_dimension']
 #            y_vname = ext_dset_res.dataset_description.parameters['meridional_dimension']
 #            z_vname = ext_dset_res.dataset_description.parameters['vertical_dimension']
-            var_lst = ext_dset_res.dataset_description.parameters['variables']
+#            var_lst = ext_dset_res.dataset_description.parameters['variables']
 
             max_rec = get_safe(config, 'max_records', 1)
             dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
@@ -99,11 +113,5 @@ class SlocumDataHandler(BaseDataHandler):
 
                 g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
                 yield g
-
-    @classmethod
-    def _init_dataset_object(cls, config):
-        """
-        Initialize a dataset object specific to the data handler
-        Result is assigned to dh_cfg.dataset_object
-        """
-        return None
+        else:
+            log.warn('No parser object found in config')
