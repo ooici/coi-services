@@ -19,6 +19,8 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 
+from interface.objects import NotificationRequest
+
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
 # the 'from' email address for notification emails
@@ -120,6 +122,15 @@ class UserEventProcessor(object):
         self.smtp_server = smtp_server
         self.notifications = []
         log.debug("UserEventProcessor.__init__(): email for user %s set to %s" %(self.user_id, self.user_email_addr))
+
+    def set_delivery_config(self, deliver_config = None):
+        self.delivery_config = deliver_config or {}
+
+    def set_email_address(self, email_addr = ''):
+        '''
+        Add an email address to the user
+        '''
+        self.user_email_addr = email_addr
 
     def subscription_callback(self, *args, **kwargs):
         """
@@ -448,7 +459,44 @@ class UserNotificationService(BaseUserNotificationService):
          resource with the user. Setup subscription and call back to send email
          @todo - is the user email automatically selected from the user id?
         '''
-        pass
+
+
+        #--------------------------------------------------------------------------------
+        # Fix up the email address for the user
+        #--------------------------------------------------------------------------------
+
+        if user_id in self.user_event_processors:
+            log.warn('The user is already in the system. Only updating the email address if it has changed.')
+            self.user_event_processors[user_id].user_email_addr = email
+        else:
+            self.user_event_processors[user_id] = UserEventProcessor(user_id, email, self.smtp_server)
+
+        #--------------------------------------------------------------------------------
+        # Fix the delivery_config to be
+        #--------------------------------------------------------------------------------
+
+        delivery_config = self.user_event_processors[user_id].delivery_config
+
+        #-------------------------------------------------------------------------------------
+        # Create a notification object
+        #-------------------------------------------------------------------------------------
+
+        notification_request = NotificationRequest(name='Setting_email',
+                                                    origin = origin,
+                                                    origin_type = origin_type,
+                                                    event_type=event_type,
+                                                    event_subtype = event_subtype ,
+                                                    delivery_config= delivery_config)
+
+        #-------------------------------------------------------------------------------------
+        # Setup things so that the user gets notified for the particular notification request
+        #-------------------------------------------------------------------------------------
+
+        notification_obj = self.user_event_processors[user_id].add_notification(notification_request)
+
+
+        #@todo Right now the notification is not being automatically stored in resource registry and has no notification_id, so this method will return a None value
+        return notification_obj.notification_id
 
     def create_sms(self, event_type='', event_subtype='', origin='', origin_subtype='', user_id='', phone='', provider=''):
         '''
@@ -456,7 +504,50 @@ class UserNotificationService(BaseUserNotificationService):
          resource with the user. Setup subscription and call back to send an sms to their phone
          @todo - is the user email automatically selected from the user id?
         '''
-        pass
+
+        #--------------------------------------------------------------------------------
+        # From the phone and provider, find the email address to send email to for sms
+        #--------------------------------------------------------------------------------
+        #@todo find the email address to send message to
+        email = ''
+
+
+
+        #--------------------------------------------------------------------------------
+        # Fix up the email address for the user
+        #--------------------------------------------------------------------------------
+
+        if user_id in self.user_event_processors:
+            log.warn('The user is already in the system. Only updating the email address if it has changed.')
+            self.user_event_processors[user_id].user_email_addr = email
+        else:
+            self.user_event_processors[user_id] = UserEventProcessor(user_id, email, self.smtp_server)
+
+        #--------------------------------------------------------------------------------
+        # Fix the delivery_config to be
+        #--------------------------------------------------------------------------------
+        delivery_config = self.user_event_processors[user_id].delivery_config
+
+        #-------------------------------------------------------------------------------------
+        # Create a notification object
+        #-------------------------------------------------------------------------------------
+
+        notification_request = NotificationRequest(name='Setting_email',
+            origin = origin,
+            origin_type = origin_type,
+            event_type=event_type,
+            event_subtype = event_subtype ,
+            delivery_config=delivery_config)
+
+        #-------------------------------------------------------------------------------------
+        # Setup things so that the user gets notified for the particular notification request
+        #-------------------------------------------------------------------------------------
+
+        notification_obj = self.user_event_processors[user_id].add_notification(notification_request)
+
+        #@todo Right now the notification is not being automatically stored in resource registry and has no notification_id, so this method will return a None value
+        return notification_obj.notification_id
+
 
     def create_detection_filter(self, event_type='', event_subtype='', origin='', origin_subtype='', user_id='', filter_config=None):
         '''
@@ -465,4 +556,5 @@ class UserNotificationService(BaseUserNotificationService):
          @todo - is the user email automatically selected from the user id?
         '''
         filter_config = filter_config or {}
-        pass
+
+        # Create the detection filter
