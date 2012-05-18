@@ -526,6 +526,8 @@ class UserNotificationService(BaseUserNotificationService):
         #--------------------------------------------------------------------------------
         # Fix the delivery_config to be
         #--------------------------------------------------------------------------------
+        #@ todo The user should be able to use the UserNotificationService to set a delivery config at any time.
+        #@todo Therefore, we may need to have that possibility in the API
         delivery_config = self.user_event_processors[user_id].delivery_config
 
         #-------------------------------------------------------------------------------------
@@ -545,7 +547,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         notification_obj = self.user_event_processors[user_id].add_notification(notification_request)
 
-        #@todo Right now the notification is not being automatically stored in resource registry and has no notification_id, so this method will return a None value
+        #@todo Right now the notification is not being automatically stored in resource registry and has no notification_id.
+        #@todo Therefore, this method will return a None value
         return notification_obj.notification_id
 
 
