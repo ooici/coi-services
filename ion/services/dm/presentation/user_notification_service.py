@@ -535,7 +535,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------
 
         origin_type = origin_subtype
-        notification_request = NotificationRequest(name='Setting_email',
+        notification_request = NotificationRequest(name='Setting_sms',
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
@@ -560,5 +560,18 @@ class UserNotificationService(BaseUserNotificationService):
          @todo - is the user email automatically selected from the user id?
         '''
         filter_config = filter_config or {}
+
+        #-------------------------------------------------------------------------------------
+        # Create a notification object
+        #-------------------------------------------------------------------------------------
+
+        origin_type = origin_subtype
+        notification_request = NotificationRequest(name='',
+            origin = origin,
+            origin_type = origin_type,
+            event_type=event_type,
+            event_subtype = event_subtype ,
+            delivery_config=delivery_config)
+
 
         # Create the detection filter
