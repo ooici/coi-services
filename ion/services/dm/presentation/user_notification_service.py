@@ -439,3 +439,30 @@ class UserNotificationService(BaseUserNotificationService):
             return self.event_table[resource_type]
         log.debug("UserNotificationService.find_event_types_for_resource(): resource type %s not an event originator" %resource_type)
         return []
+
+
+
+    def create_email(self, event_type='', event_subtype='', origin='', origin_subtype='', user_id='', email=''):
+        '''
+         Creates a NotificationRequest object for the specified User Id. Associate the Notification
+         resource with the user. Setup subscription and call back to send email
+         @todo - is the user email automatically selected from the user id?
+        '''
+        pass
+
+    def create_sms(self, event_type='', event_subtype='', origin='', origin_subtype='', user_id='', phone='', provider=''):
+        '''
+         Creates a NotificationRequest object for the specified User Id. Associate the Notification
+         resource with the user. Setup subscription and call back to send an sms to their phone
+         @todo - is the user email automatically selected from the user id?
+        '''
+        pass
+
+    def create_detection_filter(self, event_type='', event_subtype='', origin='', origin_subtype='', user_id='', filter_config=None):
+        '''
+         Creates a NotificationRequest object for the specified User Id. Associate the Notification
+         resource with the user. Setup subscription and call back do a detection filter of some type...
+         @todo - is the user email automatically selected from the user id?
+        '''
+        filter_config = filter_config or {}
+        pass
