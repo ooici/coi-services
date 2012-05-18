@@ -17,6 +17,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 from pyon.util.log import log
 import os
 import gevent
+from distutils.core import setup
 
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
@@ -147,7 +148,45 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         for m in instrument_model_ids:
             self.assign_instrument_model_to_instrument_agent(m, inst_agent_id)
 
+        #fetch files supplied in manifest
+        #TODO
+
         #builds the egg from the manifest or tag then places the egg on the web server
+        ##TODO
+        # setup(
+        #     #TODO: args from agent_metadata
+        #     script_name = 'setup.py',                   #may not be needed
+        #     script_args = ['bdist_rpm', '--spec-only'], #args needed for compile
+        #
+        #     name = "HelloWorld",
+        #     version = "0.1",
+        #     packages = find_packages(),
+        #     scripts = ['say_hello.py'],
+        #    
+        #     # Project uses reStructuredText, so ensure that the docutils get
+        #     # installed or upgraded on the target machine
+        #     install_requires = ['docutils>=0.3'],
+        #    
+        #     package_data = {
+        #         # If any package contains *.txt or *.rst files, include them:
+        #         '': ['*.txt', '*.rst'],
+        #         # And include any *.msg files found in the 'hello' package, too:
+        #             'hello': ['*.msg'],
+        #         }
+        #    
+        #     # metadata for upload to PyPI
+        #     author = "Me",
+        #     author_email = "me@example.com",
+        #     description = "This is an Example Package",
+        #     license = "PSF",
+        #     keywords = "hello world example examples",
+        #     url = "http://example.com/HelloWorld/",   # project home page, if any
+        #            
+        #     # could also include long_description, download_url, classifiers, etc.
+        #
+        #      )
+
+        #move output egg to another directory / upload it somewhere
         #TODO
 
         #updates the state of this InstAgent to deployed

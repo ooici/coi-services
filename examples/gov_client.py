@@ -6,7 +6,6 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from pyon.public import Container, RT, IonObject, CFG, log, PRED
 from pyon.util.context import LocalContextMixin
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
-from interface.services.sa.imarine_facility_management_service import MarineFacilityManagementServiceProcessClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 import simplejson, urllib
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, get_role_message_headers

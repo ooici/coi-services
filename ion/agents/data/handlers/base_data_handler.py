@@ -208,7 +208,7 @@ class BaseDataHandler(object):
                    config[k] = config_mods[k]
 
         except IndexError:
-            raise InstrumentParameterException('\'acquire_data\' command requires a config dict.')
+            log.info('No configuration modifications were provided')
 
         # Verify that there is a stream_id member in the config
         stream_id = get_safe(config, 'stream_id')
