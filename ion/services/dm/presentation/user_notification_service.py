@@ -448,7 +448,7 @@ class UserNotificationService(BaseUserNotificationService):
                                                     delivery_config= None)
 
         #-------------------------------------------------------------------------------------
-        # Setup things so that the user gets notified for the particular notification request
+        # Set up things so that the user gets notified for the particular notification request
         #-------------------------------------------------------------------------------------
 
         notification_id =  self.create_notification(notification=notification_request, user_id = user_id)
@@ -474,7 +474,7 @@ class UserNotificationService(BaseUserNotificationService):
             delivery_config=None)
 
         #-------------------------------------------------------------------------------------
-        # Setup things so that the user gets notified for the particular notification request
+        # Set up things so that the user gets notified for the particular notification request
         #-------------------------------------------------------------------------------------
 
         notification_id =  self.create_notification(notification=notification_request, user_id = user_id)
@@ -501,7 +501,7 @@ class UserNotificationService(BaseUserNotificationService):
             delivery_config=None)
 
         #-------------------------------------------------------------------------------------
-        # Setup things so that the user gets subscribed to receive this notification request
+        # Set up things so that the user gets subscribed to receive this notification request
         #-------------------------------------------------------------------------------------
 
         notification_id = self.create_notification(notification=notification_request, user_id = user_id)
@@ -509,5 +509,6 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------
         # Create the detection filter
         #-------------------------------------------------------------------------------------
+        #@todo do something with the filter_config?
 
-        #@todo do something with the filter_config
+        return notification_id
