@@ -435,6 +435,8 @@ class UserNotificationService(BaseUserNotificationService):
          @todo - is the user email automatically selected from the user id?
         '''
 
+
+        #@todo need to get the deliver_config
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
@@ -443,7 +445,7 @@ class UserNotificationService(BaseUserNotificationService):
                                                     origin_type = origin_type,
                                                     event_type=event_type,
                                                     event_subtype = event_subtype ,
-                                                    delivery_config= delivery_config)
+                                                    delivery_config= None)
 
         #-------------------------------------------------------------------------------------
         # Setup things so that the user gets notified for the particular notification request
@@ -463,13 +465,13 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
-
+        #@todo need to get the deliver_config
         notification_request = NotificationRequest(name='Setting_sms',
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
             event_subtype = event_subtype ,
-            delivery_config=delivery_config)
+            delivery_config=None)
 
         #-------------------------------------------------------------------------------------
         # Setup things so that the user gets notified for the particular notification request
@@ -490,13 +492,13 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
-
+        #@todo need to get the deliver_config
         notification_request = NotificationRequest(name='',
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
             event_subtype = event_subtype ,
-            delivery_config=delivery_config)
+            delivery_config=None)
 
         #-------------------------------------------------------------------------------------
         # Setup things so that the user gets subscribed to receive this notification request
