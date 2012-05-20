@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_basic
-@file ion/services/mi/test/test_basic.py
+@package ion.agents.instrument.test.test_basic
+@file ion/agents.instrument/test/test_basic.py
 @author Carlos Rueda
 @brief Some unit tests for R2 instrument driver base classes.
 This file defines subclasses of core classes mainly to supply required
@@ -21,17 +21,17 @@ import logging
 import unittest
 from nose.plugins.attrib import attr
 from mock import Mock
-from ion.services.mi.common import BaseEnum
-from ion.services.mi.common import InstErrorCode
-#from ion.services.mi.common import DriverAnnouncement
-from ion.services.mi.exceptions import InstrumentParameterException
-from ion.services.mi.instrument_protocol import InstrumentProtocol
-from ion.services.mi.instrument_driver import DriverState
-from ion.services.mi.instrument_driver import InstrumentDriver
-#from ion.services.mi.instrument_driver import DriverChannel
-from ion.services.mi.instrument_driver import DriverState, DriverConnectionState
+from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.common import InstErrorCode
+#from ion.agents.instrument.common import DriverAnnouncement
+from ion.agents.instrument.exceptions import InstrumentParameterException
+from ion.agents.instrument.instrument_protocol import InstrumentProtocol
+from ion.agents.instrument.instrument_driver import DriverState
+from ion.agents.instrument.instrument_driver import InstrumentDriver
+#from ion.agents.instrument.instrument_driver import DriverChannel
+from ion.agents.instrument.instrument_driver import DriverState, DriverConnectionState
 
-import ion.services.mi.mi_logger
+import ion.agents.instrument.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
 

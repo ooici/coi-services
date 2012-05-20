@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.instrument_driver Instrument driver structures
-@file ion/services/mi/instrument_driver.py
+@package ion.agents.instrument.instrument_driver Instrument driver structures
+@file ion/agents.instrument/instrument_driver.py
 @author Edward Hunter
 @brief Instrument driver classes that provide structure towards interaction
 with individual instruments in the system.
@@ -14,15 +14,15 @@ __license__ = 'Apache 2.0'
 import time
 import logging
 
-from ion.services.mi.common import BaseEnum
-from ion.services.mi.exceptions import NotImplementedException 
-from ion.services.mi.exceptions import InstrumentException
-from ion.services.mi.exceptions import InstrumentParameterException
-from ion.services.mi.logger_process import LoggerClient
-from ion.services.mi.instrument_fsm import InstrumentFSM
+from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.exceptions import NotImplementedException 
+from ion.agents.instrument.exceptions import InstrumentException
+from ion.agents.instrument.exceptions import InstrumentParameterException
+from ion.agents.port.logger_process import LoggerClient
+from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
 
-#import ion.services.mi.mi_logger
+#import ion.agents.instrument.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
 class DriverState(BaseEnum):

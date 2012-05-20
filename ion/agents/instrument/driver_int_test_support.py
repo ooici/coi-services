@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.driver_int_test_support
-@file    ion/services/mi/driver_int_test_support.py
+@package ion.agents.instrument.driver_int_test_support
+@file    ion/agents.instrument/driver_int_test_support.py
 @author Steve Foley, Carlos Rueda
 @brief Utilities to be used in driver integration test cases
 """
@@ -12,9 +12,9 @@ __license__ = 'Apache 2.0'
 import gevent
 import os
 import logging
-from ion.services.mi.logger_process import EthernetDeviceLogger
-from ion.services.mi.zmq_driver_client import ZmqDriverClient
-from ion.services.mi.zmq_driver_process import ZmqDriverProcess
+from ion.agents.port.logger_process import EthernetDeviceLogger
+from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
+from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
 
 mi_logger = logging.getLogger('mi_logger')
 

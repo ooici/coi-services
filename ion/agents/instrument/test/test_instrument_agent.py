@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_instrument_agent
-@file ion/services/mi/test_instrument_agent.py
+@package ion.agents.instrument.test.test_instrument_agent
+@file ion/agents.instrument/test_instrument_agent.py
 @author Edward Hunter
 @brief Test cases for R2 instrument agent.
 """
@@ -48,18 +48,18 @@ from pyon.core.exception import InstParameterError
 
 
 # MI imports.
-from ion.services.mi.driver_int_test_support import DriverIntegrationTestSupport
-from ion.services.mi.logger_process import EthernetDeviceLogger
-from ion.services.mi.instrument_agent import InstrumentAgentState
-from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37.sbe37_driver import PACKET_CONFIG
+from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
+from ion.agents.port.logger_process import EthernetDeviceLogger
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
+from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_states
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
@@ -71,7 +71,7 @@ DEV_PORT = CFG.device.sbe37.port
 #DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
-DRV_MOD = 'ion.services.mi.drivers.sbe37_driver'
+DRV_MOD = 'ion.agents.instrument.drivers.sbe37_driver'
 DRV_CLS = 'SBE37Driver'
 
 # Work dir and logger delimiter.
@@ -89,7 +89,7 @@ DVR_CONFIG = {
 # Agent parameters.
 IA_RESOURCE_ID = '123xyz'
 IA_NAME = 'Agent007'
-IA_MOD = 'ion.services.mi.instrument_agent'
+IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # Used to validate param config retrieved from driver.

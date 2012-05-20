@@ -40,8 +40,8 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 from ion.services.sa.instrument.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
-from ion.services.mi.logger_process import EthernetDeviceLogger
-from ion.services.mi.instrument_agent import InstrumentAgentState
+from ion.agents.port.logger_process import EthernetDeviceLogger
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -493,7 +493,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
-        process_definition.executable['module']='ion.services.mi.instrument_agent'
+        process_definition.executable['module']='ion.agents.instrument.instrument_agent'
         process_definition.executable['class'] = 'InstrumentAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         log.debug("create_instrument_agent: create_process_definition id %s"  +  str(process_definition_id))

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.instrument_connection Instrument connection structures
-@file ion/services/mi/instrument_connection.py
+@package ion.agents.instrument.instrument_connection Instrument connection structures
+@file ion/agents.instrument/instrument_connection.py
 @author Steve Foley
 @brief Instrument connection classes that provide base connect/disconnect
 structure interactions with individual instruments.

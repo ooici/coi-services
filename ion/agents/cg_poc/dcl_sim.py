@@ -3,7 +3,7 @@
 import socket
 import sys
 import logging
-from ion.services.mi.common import BaseEnum
+from ion.agents.instrument.common import BaseEnum
 
 class CgMsgTypes(BaseEnum):
     ACK               = 0

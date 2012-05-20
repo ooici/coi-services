@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_data_decorator
-@file ion/services/mi/test/test_data_decorator.py
+@package ion.agents.instrument.test.test_data_decorator
+@file ion/agents.instrument/test/test_data_decorator.py
 @author Steve Foley
 @brief Some unit tests for R2 instrument agent data decorators
 """
@@ -15,9 +15,9 @@ import unittest
 import re
 from nose.plugins.attrib import attr
 from mock import Mock
-from ion.services.mi.data_decorator import RSNTimestampDecorator
+from ion.agents.instrument.data_decorator import RSNTimestampDecorator
 
-import ion.services.mi.mi_logger
+import ion.agents.instrument.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
 #@unittest.skip('Do not run hardware test.')

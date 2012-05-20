@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_instrument_agent
-@file ion/services/mi/test_instrument_agent.py
+@package ion.agents.instrument.test.test_instrument_agent
+@file ion/agents.instrument/test_instrument_agent.py
 @author Edward Hunter
 @brief Test cases for R2 instrument agent.
 """
@@ -29,9 +29,9 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 """
-from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Channel
-from ion.services.mi.drivers.sbe37.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37.sbe37_driver import PACKET_CONFIG
+from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Channel
+from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
+from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 """
 from pyon.public import CFG
 from mock import patch
@@ -41,11 +41,11 @@ import unittest
 import simplejson, urllib
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE
 
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
-# bin/nosetests -s -v ion/services/mi/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_go_active
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
+# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 
 class FakeProcess(LocalContextMixin):
     """
@@ -104,7 +104,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'svr_addr': 'localhost',
             'cmd_port': 5556,
             'evt_port': 5557,
-            'dvr_mod': 'ion.services.mi.drivers.sbe37.sbe37_driver',
+            'dvr_mod': 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
             'dvr_cls': 'SBE37Driver',
             'comms_config': {
                 SBE37Channel.CTD: {
@@ -124,7 +124,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'svr_addr': 'localhost',
             'cmd_port': 5556,
             'evt_port': 5557,
-            'dvr_mod': 'ion.services.mi.drivers.sbe37.sbe37_driver',
+            'dvr_mod': 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
             'dvr_cls': 'SBE37Driver',
             'comms_config': {
                 SBE37Channel.CTD: {
@@ -204,7 +204,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Launch an instrument agent process.
         self._ia_name = 'agent007'
-        self._ia_mod = 'ion.services.mi.instrument_agent'
+        self._ia_mod = 'ion.agents.instrument.instrument_agent'
         self._ia_class = 'InstrumentAgent'
         self._ia_pid = self._container_client.spawn_process(name=self._ia_name,
                                        module=self._ia_mod, cls=self._ia_class,

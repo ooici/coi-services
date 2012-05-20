@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.protocol_param_dict
-@file ion/services/mi/protocol_param_dict.py
+@package ion.agents.instrument.protocol_param_dict
+@file ion/agents.instrument/protocol_param_dict.py
 @author Edward Hunter
 @brief A dictionary class that manages, matches and formats device parameters.
 """

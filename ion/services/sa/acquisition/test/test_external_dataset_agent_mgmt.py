@@ -25,7 +25,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG
 
 # MI imports
-from ion.services.mi.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from pyon.public import CFG
 from pyon.agent.agent import ResourceAgentClient

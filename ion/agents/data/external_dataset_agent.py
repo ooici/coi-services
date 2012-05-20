@@ -14,9 +14,9 @@ from pyon.util.containers import get_safe
 from pyon.core.exception import InstDriverError, NotFound
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.mi.exceptions import InstrumentStateException
+from ion.agents.instrument.exceptions import InstrumentStateException
 
-from ion.services.mi.instrument_agent import InstrumentAgent, InstrumentAgentState, InstrumentAgentEvent
+from ion.agents.instrument.instrument_agent import InstrumentAgent, InstrumentAgentState, InstrumentAgentEvent
 
 class ExternalDatasetAgent(InstrumentAgent):
 

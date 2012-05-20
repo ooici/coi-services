@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.exceptions Exception classes for MI work
-@file ion/services/mi/exceptions.py
+@package ion.agents.instrument.exceptions Exception classes for MI work
+@file ion/agents.instrument/exceptions.py
 @author Edward Hunter
 @brief Common exceptions used in the MI work. Specific ones can be subclassed
 in the driver code.
@@ -11,7 +11,7 @@ in the driver code.
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-from ion.services.mi.common import InstErrorCode
+from ion.agents.instrument.common import InstErrorCode
 import traceback
 
 class InstrumentException(Exception):

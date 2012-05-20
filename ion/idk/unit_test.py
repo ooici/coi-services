@@ -10,8 +10,8 @@ import os
 import signal
 import logging
 
-from ion.services.mi.zmq_driver_client import ZmqDriverClient
-from ion.services.mi.zmq_driver_process import ZmqDriverProcess
+from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
+from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
 from pyon.util.unit_test import PyonTestCase
 
 class InstrumentDriverTestCase(PyonTestCase):

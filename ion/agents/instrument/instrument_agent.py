@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.instrument_agent Instrument resource agent
-@file ion/services/mi/instrument_agent.py
+@package ion.agents.instrument.instrument_agent Instrument resource agent
+@file ion/agents.instrument/instrument_agent.py
 @author Edward Hunter
 @brief Resource agent derived class providing an instrument agent as a resource.
 This resource fronts instruments and instrument drivers one-to-one in ION.
@@ -45,24 +45,24 @@ import os
 import traceback
 
 # ION service imports.
-from ion.services.mi.instrument_fsm import InstrumentFSM
-from ion.services.mi.common import BaseEnum
-from ion.services.mi.zmq_driver_client import ZmqDriverClient
-from ion.services.mi.zmq_driver_process import ZmqDriverProcess
+from ion.agents.instrument.instrument_fsm import InstrumentFSM
+from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
+from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
 from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes, SessionCloseReasons
 
 # MI imports.
-from ion.services.mi.exceptions import InstrumentConnectionException
-from ion.services.mi.exceptions import InstrumentException
-from ion.services.mi.exceptions import NotImplementedException
-from ion.services.mi.exceptions import InstrumentParameterException
-from ion.services.mi.exceptions import InstrumentProtocolException
-from ion.services.mi.exceptions import InstrumentStateException
-from ion.services.mi.exceptions import InstrumentTimeoutException
-from ion.services.mi.exceptions import InstrumentCommandException
-from ion.services.mi.instrument_driver import DriverConnectionState
-from ion.services.mi.instrument_driver import DriverProtocolState
-from ion.services.mi.instrument_driver import DriverAsyncEvent
+from ion.agents.instrument.exceptions import InstrumentConnectionException
+from ion.agents.instrument.exceptions import InstrumentException
+from ion.agents.instrument.exceptions import NotImplementedException
+from ion.agents.instrument.exceptions import InstrumentParameterException
+from ion.agents.instrument.exceptions import InstrumentProtocolException
+from ion.agents.instrument.exceptions import InstrumentStateException
+from ion.agents.instrument.exceptions import InstrumentTimeoutException
+from ion.agents.instrument.exceptions import InstrumentCommandException
+from ion.agents.instrument.instrument_driver import DriverConnectionState
+from ion.agents.instrument.instrument_driver import DriverProtocolState
+from ion.agents.instrument.instrument_driver import DriverAsyncEvent
 
 class InstrumentAgentState(BaseEnum):
     """

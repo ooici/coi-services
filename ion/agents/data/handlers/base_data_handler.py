@@ -17,8 +17,8 @@ from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
 
-from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
-from ion.services.mi.exceptions import InstrumentParameterException, InstrumentCommandException
+from ion.agents.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
+from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException
 
 ### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
@@ -30,7 +30,7 @@ import time
 
 # todo: rethink this
 # Stream Packet configuration - originally from import
-#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+#from ion.agents.instrument.drivers.sbe37_driver import PACKET_CONFIG
 PACKET_CONFIG = {
     'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
 }

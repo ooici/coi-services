@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.test.test_zmq_driver_process
-@file ion/services/mi/test_zmq_driver_process.py
+@package ion.agents.instrument.test.test_zmq_driver_process
+@file ion/agents.instrument/test_zmq_driver_process.py
 @author Edward Hunter
 @brief Test cases for ZmqDriverProcess processes.
 """
@@ -20,16 +20,16 @@ from nose.plugins.attrib import attr
 
 from pyon.util.unit_test import PyonTestCase
 
-from ion.services.mi.zmq_driver_client import ZmqDriverClient
-from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-import ion.services.mi.mi_logger
+from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
+from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
+import ion.agents.instrument.mi_logger
 
 mi_logger = logging.getLogger('mi_logger')
 
 #from pyon.public import log
 
 # Make tests verbose and provide stdout
-# bin/nosetests -s -v ion/services/mi/test/test_zmq_driver_process.py
+# bin/nosetests -s -v ion/agents.instrument/test/test_zmq_driver_process.py
 
 @attr('UNIT', group='mi')
 class TestZmqDriverProcess(PyonTestCase):    
@@ -47,7 +47,7 @@ class TestZmqDriverProcess(PyonTestCase):
         self.evt_port = 5557
         
         # Driver module parameters.
-        self.dvr_mod = 'ion.services.mi.drivers.sbe37.sbe37_driver'
+        self.dvr_mod = 'ion.agents.instrument.drivers.sbe37.sbe37_driver'
         self.dvr_cls = 'SBE37Driver'
 
 
@@ -62,7 +62,7 @@ class TestZmqDriverProcess(PyonTestCase):
         
         """
         driver_process = ZmqDriverProcess.launch_process(5556, 5557,
-                        'ion.services.mi.drivers.sbe37.sbe37_driver', 'SBE37Driver')
+                        'ion.agents.instrument.drivers.sbe37.sbe37_driver', 'SBE37Driver')
         driver_client = ZmqDriverClient('localhost', 5556, 5557)
         driver_client.start_messaging()
         time.sleep(3)

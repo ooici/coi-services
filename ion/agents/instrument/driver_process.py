@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.driver_process
-@file ion/services/mi/driver_process.py
+@package ion.agents.instrument.driver_process
+@file ion/agents.instrument/driver_process.py
 @author Edward Hunter
 @brief Messaing enabled driver processes.
 """
@@ -18,8 +18,8 @@ import signal
 import os
 import sys
 import time
-from ion.services.mi.exceptions import InstrumentCommandException
-from ion.services.mi.instrument_driver import DriverAsyncEvent
+from ion.agents.instrument.exceptions import InstrumentCommandException
+from ion.agents.instrument.instrument_driver import DriverAsyncEvent
 
 mi_logger = logging.getLogger('mi_logger')
 

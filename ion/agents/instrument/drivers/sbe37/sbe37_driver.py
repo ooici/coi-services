@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.drivers.sbe37.sbe37.sbe37_driver
-@file ion/services/mi/drivers/sbe37/sbe37_driver.py
+@package ion.agents.instrument.drivers.sbe37.sbe37.sbe37_driver
+@file ion/agents.instrument/drivers/sbe37/sbe37_driver.py
 @author Edward Hunter
 @brief Driver class for sbe37 CTD instrument.
 """
@@ -17,21 +17,21 @@ import datetime
 from threading import Timer
 import string
 
-from ion.services.mi.common import BaseEnum
-from ion.services.mi.instrument_protocol import CommandResponseInstrumentProtocol
-from ion.services.mi.instrument_fsm import InstrumentFSM
-from ion.services.mi.instrument_driver import SingleConnectionInstrumentDriver
-from ion.services.mi.instrument_driver import DriverEvent
-from ion.services.mi.instrument_driver import DriverAsyncEvent
-from ion.services.mi.instrument_driver import DriverProtocolState
-from ion.services.mi.instrument_driver import DriverParameter
-from ion.services.mi.exceptions import InstrumentTimeoutException
-from ion.services.mi.exceptions import InstrumentParameterException
-from ion.services.mi.exceptions import SampleException
-from ion.services.mi.exceptions import InstrumentStateException
-from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.instrument_protocol import CommandResponseInstrumentProtocol
+from ion.agents.instrument.instrument_fsm import InstrumentFSM
+from ion.agents.instrument.instrument_driver import SingleConnectionInstrumentDriver
+from ion.agents.instrument.instrument_driver import DriverEvent
+from ion.agents.instrument.instrument_driver import DriverAsyncEvent
+from ion.agents.instrument.instrument_driver import DriverProtocolState
+from ion.agents.instrument.instrument_driver import DriverParameter
+from ion.agents.instrument.exceptions import InstrumentTimeoutException
+from ion.agents.instrument.exceptions import InstrumentParameterException
+from ion.agents.instrument.exceptions import SampleException
+from ion.agents.instrument.exceptions import InstrumentStateException
+from ion.agents.instrument.exceptions import InstrumentProtocolException
 
-#import ion.services.mi.mi_logger
+#import ion.agents.instrument.mi_logger
 mi_logger = logging.getLogger('mi_logger')
 
 class SBE37ProtocolState(BaseEnum):

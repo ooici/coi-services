@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.instrument_fsm Instrument Finite State Machine
-@file ion/services/mi/instrument_fsm.py
+@package ion.agents.instrument.instrument_fsm Instrument Finite State Machine
+@file ion/agents.instrument/instrument_fsm.py
 @author Edward Hunter
 @brief Simple state mahcine for driver and agent classes.
 """
@@ -10,7 +10,7 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-from ion.services.mi.exceptions import InstrumentStateException
+from ion.agents.instrument.exceptions import InstrumentStateException
 
 
 class InstrumentFSM():

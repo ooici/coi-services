@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 '''
-@package ion.services.mi.data_decorator Implementation of data decoration
+@package ion.agents.instrument.data_decorator Implementation of data decoration
    classes
-@file ion/services/mi/data_decorator.py
+@file ion/agents.instrument/data_decorator.py
 @author Steve Foley
 @brief Decorators that operate on the data returning from the driver
 These decorators can be chained together to provide a series of actions on
@@ -15,7 +15,7 @@ __author__ = 'Steve Foley'
 __license__ = 'Apache 2.0'
 
 import re
-from ion.services.mi.exceptions import InstrumentDataException
+from ion.agents.instrument.exceptions import InstrumentDataException
 
 class DataDecorator(object):
     '''The base decorator class that all data decorators should extend

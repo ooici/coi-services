@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.daemon_process
-@file ion/services/mi/daemon_process.py
+@package ion.agents.instrument.daemon_process
+@file ion/agents.instrument/daemon_process.py
 @author Edward Hunter
 @brief Daemon process base class for device loggers.
 """

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.instrument_protocol Base instrument protocol structure
-@file ion/services/mi/instrument_protocol.py
+@package ion.agents.instrument.instrument_protocol Base instrument protocol structure
+@file ion/agents.instrument/instrument_protocol.py
 @author Steve Foley
 @brief Instrument protocol classes that provide structure towards the
 nitty-gritty interaction with individual instruments in the system.
@@ -18,10 +18,10 @@ import os
 import signal
 import re
 
-from ion.services.mi.common import BaseEnum
-from ion.services.mi.protocol_param_dict import ProtocolParameterDict
-from ion.services.mi.exceptions import InstrumentTimeoutException
-from ion.services.mi.exceptions import InstrumentProtocolException
+from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.protocol_param_dict import ProtocolParameterDict
+from ion.agents.instrument.exceptions import InstrumentTimeoutException
+from ion.agents.instrument.exceptions import InstrumentProtocolException
 
 mi_logger = logging.getLogger('mi_logger')
 

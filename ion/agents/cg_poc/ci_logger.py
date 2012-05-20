@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.ci_logger CI_Logger
-@file ion/services/mi/ci_logger.py
+@package ion.agents.instrument.ci_logger CI_Logger
+@file ion/agents.instrument/ci_logger.py
 @author Bill Bollenbacher
 @brief Resource agent derived class providing a CI Logger agent as a resource.
 This resource fronts CG_Loggers and instrument drivers one-to-one in ION.
@@ -17,12 +17,12 @@ import SocketServer
 import logging
 from subprocess import Popen
 
-from ion.services.mi.instrument_fsm import InstrumentFSM
-from ion.services.mi.common import BaseEnum
-#from ion.services.mi.common import InstErrorCode
-from ion.services.mi.zmq_driver_client import ZmqDriverClient
-from ion.services.mi.zmq_driver_process import ZmqDriverProcess
-#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
+from ion.agents.instrument.instrument_fsm import InstrumentFSM
+from ion.agents.instrument.common import BaseEnum
+#from ion.agents.instrument.common import InstErrorCode
+from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
+from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
+#from ion.agents.instrument.drivers.sbe37_driver import SBE37Channel
 
 class CgMsgTypes(BaseEnum):
     ACK               = 0
@@ -51,7 +51,7 @@ class CiLogger(object):
         driver_config = {'svr_addr': 'localhost',
                          'cmd_port': 5556,
                          'evt_port': 5557,
-                         'dvr_mod': 'ion.services.mi.drivers.sbe37.sbe37_driver',
+                         'dvr_mod': 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
                          'dvr_cls': 'SBE37Driver'}
         result = self._start_driver(driver_config)
         if not isinstance(result, int):
@@ -251,7 +251,7 @@ if __name__ == '__main__':
     log.info('ci_logger: UDP server started on %s:%s' %(HOST, PORT))
     
     log.info("ci_logger: Starting cg_logger_sim")
-    ci_logger_sim = Popen(['bin/python', '/Users/Bill/WorkSpace/coi-services/ion/services/mi/cg_logger_sim.py'])    
+    ci_logger_sim = Popen(['bin/python', '/Users/Bill/WorkSpace/coi-services/ion/agents.instrument/cg_logger_sim.py'])    
 
     log.info('Instantiating CiLogger')
     ci_logger = CiLogger()

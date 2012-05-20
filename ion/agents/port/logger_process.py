@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.logger_process
-@file ion/services/mi/logger_process.py
+@package ion.agents.port.logger_process
+@file ion/agents.port/logger_process.py
 @author Edward Hunter
 @brief Daemon processes providing hardware specific device connections
 and logging.
@@ -23,14 +23,14 @@ import logging
 import os
 import uuid
 
-from ion.services.mi.daemon_process import DaemonProcess
-from ion.services.mi.exceptions import InstrumentConnectionException
+from ion.agents.instrument.daemon_process import DaemonProcess
+from ion.agents.instrument.exceptions import InstrumentConnectionException
 
 mi_logger = logging.getLogger('mi_logger')
 
 """
-import ion.services.mi.mi_logger
-import ion.services.mi.logger_process as lp
+import ion.agents.instrument.mi_logger
+import ion.agents.port.logger_process as lp
 l = lp.EthernetDeviceLogger('137.110.112.119', 4001, 8888)
 c = lp.LoggerClient('localhost', 8888, '\r\n')
 """

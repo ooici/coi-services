@@ -7,7 +7,7 @@ import threading
 import SocketServer
 import time
 
-from ion.services.mi.common import BaseEnum
+from ion.agents.instrument.common import BaseEnum
 
 class CgMsgTypes(BaseEnum):
     ACK               = 0

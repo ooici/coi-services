@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.mi.zmq_driver_process
-@file ion/services/mi/zmq_driver_process.py
+@package ion.agents.instrument.zmq_driver_process
+@file ion/agents.instrument/zmq_driver_process.py
 @author Edward Hunter
 @brief Driver processes using ZMQ messaging.
 """
@@ -12,8 +12,8 @@ __license__ = 'Apache 2.0'
 
 """
 To launch this object from class static constructor:
-import ion.services.mi.zmq_driver_process as zdp
-p = zdp.ZmqDriverProcess.launch_process(5556, 5557, 'ion.services.mi.drivers.sbe37.sbe37_driver', 'SBE37Driver')
+import ion.agents.instrument.zmq_driver_process as zdp
+p = zdp.ZmqDriverProcess.launch_process(5556, 5557, 'ion.agents.instrument.drivers.sbe37.sbe37_driver', 'SBE37Driver')
 
 """
 
@@ -27,9 +27,9 @@ import uuid
 
 import zmq
 
-import ion.services.mi.mi_logger
-import ion.services.mi.driver_process as driver_process
-from ion.services.mi.instrument_driver import DriverAsyncEvent
+import ion.agents.instrument.mi_logger
+import ion.agents.instrument.driver_process as driver_process
+from ion.agents.instrument.instrument_driver import DriverAsyncEvent
 
 mi_logger = logging.getLogger('mi_logger')
 
