@@ -27,7 +27,7 @@ from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance
 __author__ = 'Christopher Mueller'
 __licence__ = 'Apache 2.0'
 
-@attr('UNIT',group='eoi')
+@attr('UNIT_EOI_DEPRECATED',group='eoi')
 class TestExternalObservatoryAgentService(PyonTestCase):
     
     def setUp(self):
@@ -98,7 +98,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id='someid'
 
-@attr('INT', group='eoi')
+@attr('INT_EOI_DEPRECATED', group='eoi')
 class TestIntExternalObservatoryAgentService(IonIntegrationTestCase):
 
     def setUp(self):

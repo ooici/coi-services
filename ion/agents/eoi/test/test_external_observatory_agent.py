@@ -27,7 +27,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id='someid'
 
-@attr('INT', group='eoi')
+@attr('INT_EOI_DEPRECATED', group='eoi')
 class TestIntExternalObservatoryAgent(IonIntegrationTestCase):
 
     def setUp(self):
