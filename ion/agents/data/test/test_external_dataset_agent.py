@@ -49,6 +49,7 @@ from pyon.event.event import EventSubscriber
 
 # MI imports
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.exceptions import InstrumentParameterException
 
 # todo: rethink this
 from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
@@ -67,32 +68,32 @@ PARAMS = {
 }
 
 # To validate the list of resource commands
-CMDS = [
-    'acquire_data',
-    'acquire_sample',
-    'start_autosample',
-    'stop_autosample'
-]
+CMDS = {
+    'acquire_data':str,
+    'acquire_sample':str,
+    'start_autosample':str,
+    'stop_autosample':str
+}
 
 # To validate the list of agent commands
-AGT_CMDS = [
-    'clear',
-    'end_transaction',
-    'get_current_state',
-    'go_active',
-    'go_direct_access',
-    'go_inactive',
-    'go_observatory',
-    'go_streaming',
-    'initialize',
-    'pause',
-    'power_down',
-    'power_up',
-    'reset',
-    'resume',
-    'run',
-    'start_transaction'
-]
+AGT_CMDS = {
+    'clear':str,
+    'end_transaction':str,
+    'get_current_state':str,
+    'go_active':str,
+    'go_direct_access':str,
+    'go_inactive':str,
+    'go_observatory':str,
+    'go_streaming':str,
+    'initialize':str,
+    'pause':str,
+    'power_down':str,
+    'power_up':str,
+    'reset':str,
+    'resume':str,
+    'run':str,
+    'start_transaction':str,
+    }
 
 class FakeProcess(LocalContextMixin):
     """
@@ -329,6 +330,11 @@ class ExternalDatasetAgentTestBase(object):
     ########################################
     # Custom assertion functions
     ########################################
+
+    def assertListsEqual(self, lst1, lst2):
+        lst1.sort()
+        lst2.sort()
+        return lst1 == lst2
 
     def assertSampleDict(self, val):
         """
@@ -758,8 +764,8 @@ class ExternalDatasetAgentTestBase(object):
         self.assertEqual(type(retval['PATCHABLE_CONFIG_KEYS']),list)
 
         # Attempt to get a parameter that doesn't exist
-        with self.assertRaises(InstParameterError):
-            self._ia_client.get_param(['BAD_PARAM'])
+        log.debug('Try getting a non-existent parameter \'BAD_PARAM\'')
+        self.assertRaises(InstParameterError, self._ia_client.get_param,['BAD_PARAM'])
 
         # Set the polling_interval to a new value, then get it to make sure it set properly
         self._ia_client.set_param({'POLLING_INTERVAL':10})
@@ -769,12 +775,12 @@ class ExternalDatasetAgentTestBase(object):
         self.assertEqual(retval['POLLING_INTERVAL'],10)
 
         # Attempt to set a parameter that doesn't exist
-        with self.assertRaises(InstParameterError):
-            self._ia_client.set_param({'BAD_PARAM':'bad_val'})
+        log.debug('Try setting a non-existent parameter \'BAD_PARAM\'')
+        self.assertRaises(InstParameterError, self._ia_client.set_param, {'BAD_PARAM':'bad_val'})
 
         # Attempt to set one parameter that does exist, and one that doesn't
-        with self.assertRaises(InstParameterError):
-            self._ia_client.set_param({'POLLING_INTERVAL':20,'BAD_PARAM':'bad_val'})
+        self.assertRaises(InstParameterError, self._ia_client.set_param, {'POLLING_INTERVAL':20,'BAD_PARAM':'bad_val'})
+
         retval = self._ia_client.get_param(['POLLING_INTERVAL'])
         log.debug('Retrieved parameters from agent: {0}'.format(retval))
         self.assertTrue(isinstance(retval,dict))
@@ -921,7 +927,7 @@ class ExternalDatasetAgentTestBase(object):
         acmds = self._ia_client.get_capabilities(['AGT_CMD'])
         log.debug('Agent Commands: {0}'.format(acmds))
         acmds = [item[1] for item in acmds]
-        self.assertEqual(acmds, AGT_CMDS)
+        self.assertListsEqual(acmds, AGT_CMDS.keys())
         apars = self._ia_client.get_capabilities(['AGT_PAR'])
         log.debug('Agent Parameters: {0}'.format(apars))
 
@@ -940,12 +946,12 @@ class ExternalDatasetAgentTestBase(object):
         rcmds = self._ia_client.get_capabilities(['RES_CMD'])
         log.debug('Resource Commands: {0}'.format(rcmds))
         rcmds = [item[1] for item in rcmds]
-        self.assertEqual(rcmds, CMDS)
+        self.assertListsEqual(rcmds, CMDS.keys())
 
         rpars = self._ia_client.get_capabilities(['RES_PAR'])
         log.debug('Resource Parameters: {0}'.format(rpars))
         rpars = [item[1] for item in rpars]
-        self.assertEqual(rpars, PARAMS.keys())
+        self.assertListsEqual(rpars, PARAMS.keys())
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -1011,8 +1017,7 @@ class ExternalDatasetAgentTestBase(object):
         self.assertEqual(retval.status, 670)
 
         # 630 Parameter error.
-        with self.assertRaises(InstParameterError):
-            reply = self._ia_client.get_param('bogus bogus')
+        self.assertRaises(InstParameterError, self._ia_client.get_param, 'bogus bogus')
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -1073,7 +1078,6 @@ class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegr
 
     def _setup_resources(self):
         stream_id = self.create_stream_and_logger(name='fibonacci_stream')
-
         tx = TaxyTool()
         tx.add_taxonomy_set('data', 'external_data')
         #TG: Build TaxonomyTool & add to dh_cfg.taxonomy

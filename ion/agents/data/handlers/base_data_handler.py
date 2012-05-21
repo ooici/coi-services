@@ -19,7 +19,7 @@ from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
 
 from ion.agents.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
-from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException
+from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException
 
 ### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
@@ -335,6 +335,7 @@ class BaseDataHandler(object):
                     log.debug('Get parameter with key: {0}'.format(pn))
                     result[pn] = self._params[pn]
                 except KeyError:
+                    log.debug('\'{0}\' not found in self._params'.format(pn))
                     raise InstrumentParameterException('{0} is not a valid parameter for this DataHandler.'.format(pn))
 
         return result
@@ -382,9 +383,7 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_get_resource_params
         """
-        # TODO: Should raise NotImplementedException here, return temporarily for prototyping
-#        raise NotImplementedException('get_resource_params() not implemented in BaseDataHandler')
-        return [DataHandlerParameter.POLLING_INTERVAL]
+        return self._params.keys()
 
     def get_resource_commands(self, *args, **kwargs):
         """
