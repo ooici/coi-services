@@ -47,7 +47,7 @@ setup(  name = 'coi-services',
             'netCDF4>=0.9.8',
             'cdat_lite>=6.0rc2',
             'snakefood==1.4',
-            'gitpython==0.1.7'
+            'gitpython==0.1.7',
 
         ],
      )
