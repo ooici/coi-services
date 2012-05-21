@@ -428,7 +428,7 @@ class UserNotificationService(BaseUserNotificationService):
                                            descending=descending,
                                            limit=limit)
 
-    def create_email(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', email=''):
+    def create_email(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', email='',mode=None, message_header='', parser=''):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
          resource with the user. Setup subscription and call back to send email
@@ -455,7 +455,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         return notification_id
 
-    def create_sms(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', phone='', provider=''):
+    def create_sms(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', phone='', provider='',message_header='', parser=''):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
          resource with the user. Setup subscription and call back to send an sms to their phone
