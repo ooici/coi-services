@@ -464,9 +464,6 @@ class BaseDataHandler(object):
         """
         Iterates over the data_generator and publishes granules to the stream indicated in stream_id
         """
-        if not hasattr(data_generator,'__iter__'):
-            raise InstrumentDataException('Invalid return from _get_data: returned object must have \'__iter__\' attribute')
-
         for count, gran in enumerate(data_generator):
             if isinstance(gran, Granule):
                 publisher.publish(gran)
