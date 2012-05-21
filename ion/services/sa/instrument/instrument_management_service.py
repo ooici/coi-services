@@ -7,8 +7,8 @@
 """
 
 
-from pyon.public import Container
-from pyon.public import LCS #, LCE
+#from pyon.public import Container
+#from pyon.public import LCS #, LCE
 from pyon.public import RT, PRED
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound
@@ -17,10 +17,13 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 from pyon.util.log import log
 import os
 import gevent
+import base64
 from distutils.core import setup
 
 
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
+from interface.objects import ProcessDefinition
+from interface.objects import AttachmentType
+#from interface.objects import ProcessSchedule, ProcessTarget
 
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
@@ -104,52 +107,42 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def register_instrument_driver(self, 
-                                   driver_name='',
-                                   instrument_model_ids=None, 
-                                   agent_metadata={}, 
-                                   source_url="", 
-                                   source_tag="", 
-                                   test_result=None,
-                                   attachments=None):
+    def register_instrument_driver(self,
+                                   instrument_agent_id=None,
+                                   #setup_params=None          #dict
+                                   manifest="",               #XML file
+                                   git_tag="",                #string
+                                   cert_metadata=None,        #dict
+                                   cert_attachment=""         #contents
+                                   ):
         """
-        IDK script calls IMS:register_instrument_driver with:
-            instrument agent resource metadata: 
-                agent_version, 
-                connection_method, 
-                model it supports #TODO: how to select model?
-            MI Git repository URL
-            MI git repository tag
-            test results / attachments
-            additional context: firmware specs, release notes
-
+        register a driver:
+         - instrument_agent_id = the agent 
+         - setup params        = anything needed by the distutils.setup() function
+         - manifest            = XML file containing files to download for the egg
+         - git_tag             = string containing the revision of files to download
+         - cert_metadata       = metadata for an attachment (name, 
         """
 
-        modelnames = []
-        #make sure that model ids exist
-        for m in instrument_model_ids:
-            modelnames.append(self.read_instrument_model(m).name)
+        def check_md_field(name, fieldtype):
+            if not name in cert_metadata:
+                raise BadRequest("Certification metadata is missing required field '%s'" % name)
+            
+            if not fieldtype == type(cert_metadata[name]):
+                raise BadRequest("Certification metadata field '%s' is not of type '%s'" % (name, str(fieldtype)))
 
-        #create an instrument agent resource
-        inst_agent_obj = IonObject(RT.InstrumentAgent,
-                                   name=driver_name,
-                                   description=str("Driver for instruments of models: " % ", ".join(modelnames)))
-
-        inst_agent_id = self.create_instrument_agent(inst_agent_obj)
+        check_md_field("time_source",           type())
 
 
-        #store the metadata in the resource registry as an attachment
-        #TODO
-    
-        #create an attachment resource for other context documents, adds metadata and creates association
-        #TODO
-
-        #create the correct associations for this InstAgent (Model, etc)
-        for m in instrument_model_ids:
-            self.assign_instrument_model_to_instrument_agent(m, inst_agent_id)
+        #validate attachment
+        if cert_attachment:
+            check_md_field("name", type(""))
+            check_md_field("keywords", type([]))
+            check_md_field("attachment_type", type(AttachmentType.ASCII))
 
         #fetch files supplied in manifest
         #TODO
+
 
         #builds the egg from the manifest or tag then places the egg on the web server
         ##TODO
@@ -160,8 +153,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         #     name = "HelloWorld",
         #     version = "0.1",
-        #     packages = find_packages(),
-        #     scripts = ['say_hello.py'],
+        #
+        #     # look in my_tempdir for __init__.py files.  these will be included
+        #     packages = find_packages(my_tempdir, exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
+        #    
+        #     # include other scripts in my_tempdir
+        #     scripts = [my_tempdir . os.path_sep() . 'say_hello.py'],
         #    
         #     # Project uses reStructuredText, so ensure that the docutils get
         #     # installed or upgraded on the target machine
@@ -186,13 +183,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #
         #      )
 
+
+        #now the irreversible things
+        if cert_attachment:
+            att = IonObject(RT.Attachment, 
+                            name=cert_metadata["name"],
+                            content=base64.encodestring(cert_attachment),
+                            keywords=cert_metadata["keywords"],
+                            attachment_type=cert_metadata["attachment_type"])
+            self.RR.create_attachment(instrument_agent_id, att)
+
         #move output egg to another directory / upload it somewhere
         #TODO
 
         #updates the state of this InstAgent to deployed
         #TODO
-    
-        return inst_agent_id
 
 
     ##########################################################################
