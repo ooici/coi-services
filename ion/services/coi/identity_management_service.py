@@ -212,22 +212,3 @@ class IdentityManagementService(BaseIdentityManagementService):
             self.register_user_credentials(user_id, user_credentials)
             log.debug("Signon returning user_id, valid_until, registered: %s, %s, False" % (user_id, valid_until))
             return user_id, valid_until, False
-        
-
-    def create_resource_identity(self, resource_identity=None):
-        # Persist ResourceIdentity object and return object _id as OOI id
-        resource_identity_id, version = self.clients.resource_registry.create(resource_identity)
-        return resource_identity_id
-
-    def update_resource_identity(self, resource_identity=None):
-        # Overwrite ResourceIdentity object
-        self.clients.resource_registry.update(resource_identity)
-
-    def read_resource_identity(self, resource_identity_id=''):
-        # Read ResourceIdentity object with _id matching passed user id
-        return self.clients.resource_registry.read(resource_identity_id)
-
-    def delete_resource_identity(self, resource_identity_id=''):
-        # Read and delete specified ResourceIdentity object
-        resource_identity = self.clients.resource_registry.read(resource_identity_id)
-        self.clients.resource_registry.delete(resource_identity_id)

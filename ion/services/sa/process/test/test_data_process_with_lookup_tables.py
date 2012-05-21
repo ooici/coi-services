@@ -82,7 +82,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -113,7 +113,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
 
         driver_config = {
-            'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37_driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }

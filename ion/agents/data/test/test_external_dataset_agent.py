@@ -47,7 +47,7 @@ from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
 
 # MI imports
-from ion.services.mi.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from ion.agents.data.handlers.base_data_handler import DataHandlerParameter
 
