@@ -44,7 +44,7 @@ class Metadata():
             raise DriverParameterUndefined("driver_name undefined in metadata")
             
         return os.path.join(Config().base_dir(),
-                            "driver", "instrument",
+                            "mi", "instrument",
                             self.driver_make.lower(),
                             self.driver_model.lower(),
                             self.driver_name.lower())

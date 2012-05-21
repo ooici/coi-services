@@ -28,8 +28,7 @@ DEFAULT_CONFIG = "extern/ion-definitions/res/config/idk.yml"
 IDK_YAML_GROUP = "idk"
 YAML_CONFIG_WORKING_REPO = "working_repo"
 
-MI_REPO_NAME = "coi-services"
-#MI_REPO_NAME = "marine-integrations"
+MI_REPO_NAME = "marine-integrations"
 
 
 class ConfigManager(Singleton):
@@ -74,12 +73,15 @@ class ConfigManager(Singleton):
         if repo.bare:
             raise IDKWrongRunningDirectory(msg="Please run this process from the root your local MI git repository")
             
-        origin = repo.remotes.origin.url
-        Log.debug("Current repo origin: " + origin)
+        ### This would be nice to ultimately pull from the repo object, but the version of gitpython
+        ### installed doesn't support remotes. 
+        origin = idk_repo
+        #origin = repo.remotes.origin.url
+        #Log.debug("Current repo origin: " + origin)
         
-        Log.debug( "Does '%s' contain '%s'" % (origin, MI_REPO_NAME))
-        if origin.find(MI_REPO_NAME) < 0:
-            raise IDKWrongRunningDirectory(msg="Please run this process from the root your local MI git repository")
+        #Log.debug( "Does '%s' contain '%s'" % (origin, MI_REPO_NAME))
+        #if origin.find(MI_REPO_NAME) < 0:
+        #    raise IDKWrongRunningDirectory(msg="Please run this process from the root your local MI git repository")
         
         Log.debug("Read default config: " + DEFAULT_CONFIG)
         infile = open(DEFAULT_CONFIG)

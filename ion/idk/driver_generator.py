@@ -61,7 +61,7 @@ class DriverGenerator:
             raise DriverParameterUndefined("driver_make undefined in metadata")
         
         return os.path.join(Config().base_dir(),
-                            "driver", "instrument",
+                            "mi", "instrument",
                             self.metadata.driver_make.lower())
         
     def driver_model_dir(self):
@@ -132,7 +132,7 @@ class DriverGenerator:
         @brief module name of the new driver tests
         @retval driver test module name
         """
-        return self.driver_test_path().replace(Config().base_dir(),'').replace('/','.').replace('.py','');
+        return self.driver_test_path().replace(Config().base_dir() + "/",'').replace('/','.').replace('.py','')
 
 
     def driver_modulename(self):
@@ -140,7 +140,7 @@ class DriverGenerator:
         @brief module name of the new driver tests
         @retval driver test module name
         """
-        return self.driver_path().replace(Config().base_dir(),'').replace('/','.').replace('.py','');
+        return self.driver_path().replace(Config().base_dir() + "/",'').replace('/','.').replace('.py','')
 
     def driver_version(self):
         if(self.metadata.version and self.metadata.version > 0):
