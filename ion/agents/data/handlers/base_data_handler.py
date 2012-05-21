@@ -434,7 +434,7 @@ class BaseDataHandler(object):
         will use repeatedly (such as a dataset object) in cls._new_data_constraints and/or cls._get_data
         Objects should be added to the config so they are available later in the workflow
         """
-        raise NotImplementedError('{0}.{1} must implement \'_init_acquisition_cycle\''.format(cls.__module__,cls.__name__))
+        raise NotImplementedException('{0}.{1} must implement \'_init_acquisition_cycle\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -446,7 +446,7 @@ class BaseDataHandler(object):
         @param config dict of configuration parameters - may be used to generate the returned 'constraints' dict
         @retval dict that contains the constraints for retrieval of new data from the external dataset
         """
-        raise NotImplementedError('{0}.{1} must implement \'_new_data_constraints\''.format(cls.__module__,cls.__name__))
+        raise NotImplementedException('{0}.{1} must implement \'_new_data_constraints\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _get_data(cls, config):
@@ -456,13 +456,16 @@ class BaseDataHandler(object):
         @param config dict containing configuration parameters, may include constraints, formatters, etc
         @return an iterable that returns well-formed Granule objects on each iteration
         """
-        raise NotImplementedError('{0}.{1} must implement \'_get_data\''.format(cls.__module__,cls.__name__))
+        raise NotImplementedException('{0}.{1} must implement \'_get_data\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _publish_data(cls, publisher, data_generator):
         """
         Iterates over the data_generator and publishes granules to the stream indicated in stream_id
         """
+        if data_generator is None or not hasattr(data_generator,'__iter__'):
+            raise InstrumentDataException('Invalid object returned from _get_data: returned object cannot be None and must have \'__iter__\' attribute')
+
         for count, gran in enumerate(data_generator):
             if isinstance(gran, Granule):
                 publisher.publish(gran)

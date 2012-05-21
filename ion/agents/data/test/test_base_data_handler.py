@@ -14,12 +14,10 @@ from mock import patch, Mock, call
 from pyon.util.unit_test import PyonTestCase
 import unittest
 
-from ion.services.mi.exceptions import InstrumentParameterException, InstrumentDataException, InstrumentCommandException, NotImplementedException
+from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentDataException, InstrumentCommandException, NotImplementedException
 from interface.objects import Granule, Attachment
 
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler, ConfigurationError
-
-from pyon.core.exception import InstParameterError, NotFound
 # Standard imports.
 
 # 3rd party imports.
@@ -44,7 +42,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh._event_callback = Mock()
         self._bdh._dh_event(type='test_type', value='test_value')
 
-    def test_publish_data_with_granules(self):
+    def test__publish_data_with_granules(self):
         publisher = Mock()
 
         granule1 = Mock(spec=Granule)
@@ -57,7 +55,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         expected = [call(granule1), call(granule2), call(granule3)]
         self.assertEqual(publisher.publish.call_args_list, expected)
 
-    def test_publish_data_no_granules(self):
+    def test__publish_data_no_granules(self):
         publisher = Mock()
 
         granule1 = Mock()
@@ -69,81 +67,78 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         self.assertEqual(publisher.publish.call_count, 0)
 
-    def test_publish_data_no_generator(self):
+    def test__publish_data_no_generator(self):
         publisher = Mock()
         data_generator = Mock()
 
-        with self.assertRaises(TypeError) as cm:
-            BaseDataHandler._publish_data(publisher=publisher, data_generator=data_generator)
+        self.assertRaises(InstrumentDataException, BaseDataHandler._publish_data, publisher=publisher, data_generator=data_generator)
 
-    def test_acquire_data_with_constraints(self):
+    @patch.object(BaseDataHandler, '_init_acquisition_cycle')
+    @patch.object(BaseDataHandler, '_get_data')
+    @patch.object(BaseDataHandler, '_publish_data')
+    def test__acquire_data_with_constraints(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
         data_generator = [granule1, granule2, granule3]
 
-        BaseDataHandler._init_acquisition_cycle = Mock()
-        BaseDataHandler._get_data = Mock(auto_spec=data_generator)
-        BaseDataHandler._get_data.return_value = data_generator
-        BaseDataHandler._publish_data = Mock()
+        _get_data_mock.return_value = data_generator
 
         config = {'constraints' : 'test_constraints'}
         publisher = Mock()
         unlock_new_data_callback = Mock()
         BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
 
-        BaseDataHandler._init_acquisition_cycle.assert_called_once_with(config)
-        BaseDataHandler._get_data.assert_called_once_with(config)
-        BaseDataHandler._publish_data.assert_called_once_with(publisher, data_generator)
+        _init_acquisition_cycle_mock.assert_called_once_with(config)
+        _get_data_mock.assert_called_once_with(config)
+        _publish_data_mock.assert_called_once_with(publisher, data_generator)
 
+    @patch.object(BaseDataHandler, '_init_acquisition_cycle')
+    @patch.object(BaseDataHandler, '_get_data')
+    @patch.object(BaseDataHandler, '_publish_data')
+    @patch.object(BaseDataHandler, '_new_data_constraints')
     @patch('ion.agents.data.handlers.base_data_handler.gevent')
-    def test_acquire_data_no_constraints(self, mock_gevent):
+    def test__acquire_data_no_constraints(self, gevent_mock, _new_data_constraints_mock, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
         data_generator = [granule1, granule2, granule3]
 
-        mock_gevent.getcurrent = Mock()
+        gevent_mock.getcurrent = Mock()
 
-        BaseDataHandler._init_acquisition_cycle = Mock()
-        BaseDataHandler._new_data_constraints = Mock()
-        BaseDataHandler._new_data_constraints.return_value = {'constraints' : 'test_constraints'}
-        BaseDataHandler._get_data = Mock(auto_spec=data_generator)
-        BaseDataHandler._get_data.return_value = data_generator
-        BaseDataHandler._publish_data = Mock()
+        _new_data_constraints_mock.return_value = {'constraints' : 'test_constraints'}
+        _get_data_mock.return_value = data_generator
 
         config = {}
         publisher = Mock()
         unlock_new_data_callback = Mock()
         BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
 
-        BaseDataHandler._init_acquisition_cycle.assert_called_once_with(config)
-        BaseDataHandler._new_data_constraints.assert_called_once_with(config)
-        BaseDataHandler._get_data.assert_called_once_with(config)
-        BaseDataHandler._publish_data.assert_called_once_with(publisher, data_generator)
+        _init_acquisition_cycle_mock.assert_called_once_with(config)
+        _new_data_constraints_mock.assert_called_once_with(config)
+        _get_data_mock.assert_called_once_with(config)
+        _publish_data_mock.assert_called_once_with(publisher, data_generator)
 
+    @patch.object(BaseDataHandler, '_init_acquisition_cycle')
+    @patch.object(BaseDataHandler, '_get_data')
+    @patch.object(BaseDataHandler, '_publish_data')
+    @patch.object(BaseDataHandler, '_new_data_constraints')
     @patch('ion.agents.data.handlers.base_data_handler.gevent')
-    def test_acquire_data_raise_exception(self, mock_gevent):
-
+    def test__acquire_data_no_constraints(self, gevent_mock, _new_data_constraints_mock, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
         data_generator = [granule1, granule2, granule3]
 
-        mock_gevent.getcurrent = Mock()
+        gevent_mock.getcurrent = Mock()
 
-        BaseDataHandler._init_acquisition_cycle = Mock()
-        BaseDataHandler._new_data_constraints = Mock()
-        BaseDataHandler._new_data_constraints.return_value = None
-        BaseDataHandler._get_data = Mock(auto_spec=data_generator)
-        BaseDataHandler._get_data.return_value = data_generator
-        BaseDataHandler._publish_data = Mock()
+        _new_data_constraints_mock.return_value = None
+        _get_data_mock.return_value = data_generator
 
         config = {}
         publisher = Mock()
         unlock_new_data_callback = Mock()
-        with self.assertRaises(InstrumentParameterException) as cm:
-            BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
+        self.assertRaises(InstrumentParameterException, BaseDataHandler._acquire_data, config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
 
     def test_cmd_dvr_configure(self):
         ret = self._bdh.cmd_dvr('configure')
@@ -230,8 +225,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
     def test_cmd_dvr_command_not_found(self):
         ret = None
-        with self.assertRaises(InstrumentCommandException) as cm:
-            ret = self._bdh.cmd_dvr('not_found')
+        self.assertRaises(InstrumentCommandException, self._bdh.cmd_dvr, 'not_found')
 
         self.assertIsNone(ret)
 
@@ -246,8 +240,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
     def test_configure_no_args(self):
         ret = None
-        with self.assertRaises(InstrumentParameterException) as cm:
-            ret = self._bdh.configure()
+        self.assertRaises(InstrumentParameterException, self._bdh.configure)
 
         self.assertIsNone(ret)
 
@@ -286,7 +279,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
     def test_get_resource_params(self):
         ret = self._bdh.get_resource_params()
-        self.assertEqual(ret, [('POLLING_INTERVAL',)])
+        self.assertEqual(ret, ['PATCHABLE_CONFIG_KEYS','POLLING_INTERVAL'])
 
     def test_get_resource_commands(self):
         ret = self._bdh.get_resource_commands()
@@ -294,21 +287,19 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
     def test__init_acquisition_cycle(self):
         config = {}
-        with self.assertRaises(NotImplementedError) as cm:
+        with self.assertRaises(NotImplementedException) as cm:
             BaseDataHandler._init_acquisition_cycle(config)
-
-        ex = cm.exception
-        self.assertEqual(ex.message, "Initialize acquisition cycle not implemented in data handler")
+            ex = cm.exception
+            # TODO: This is brittle as the message could change - do we need this check, or is getting the exception enough?
+            self.assertEqual(ex.message, "ion.agents.data.handlers.base_data_handler.BaseDataHandler must implement '_init_acquisition_cycle'")
 
     def test__new_data_constraints(self):
         config = {}
-        with self.assertRaises(NotImplementedException) as cm:
-            BaseDataHandler._new_data_constraints(config)
+        self.assertRaises(NotImplementedException, BaseDataHandler._new_data_constraints, config)
 
     def test__get_data(self):
         config = {}
-        with self.assertRaises(NotImplementedException) as cm:
-            BaseDataHandler._get_data(config)
+        self.assertRaises(NotImplementedException, BaseDataHandler._get_data, config)
 
     def test__calc_iter_cnt(self):
         total_recs = 100
