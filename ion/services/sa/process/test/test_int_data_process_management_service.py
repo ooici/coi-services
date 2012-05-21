@@ -222,7 +222,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-                                          driver_module="ion.agents.instrument.drivers.sbe37_driver", driver_class="SBE37Driver",
+                                          driver_module="ion.agents.instrument.drivers.sbe37.sbe37_driver", driver_class="SBE37Driver",
                                           cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
                                           comms_server_address="localhost", comms_server_port=8888)
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)

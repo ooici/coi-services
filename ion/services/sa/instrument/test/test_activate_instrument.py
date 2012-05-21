@@ -21,9 +21,9 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RA
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
-#from ion.agents.instrument.drivers.sbe37_driver import SBE37Channel
-#from ion.agents.instrument.drivers.sbe37_driver import SBE37Parameter
-#from ion.agents.instrument.drivers.sbe37_driver import PACKET_CONFIG
+#from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Channel
+#from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
+#from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 from pyon.public import CFG
 
 
@@ -112,7 +112,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrument: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
         driver_config = {
-            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37_driver',
+            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }

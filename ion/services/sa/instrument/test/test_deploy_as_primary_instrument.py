@@ -185,7 +185,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
         #-------------------------------
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1', description="SBE37IMAgentInstance Year 1", svr_addr="localhost",
-                                          driver_module="ion.agents.instrument.drivers.sbe37_driver", driver_class="SBE37Driver",
+                                          driver_module="ion.agents.instrument.drivers.sbe37.sbe37_driver", driver_class="SBE37Driver",
                                           cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4001,
                                           comms_server_address="localhost", comms_server_port=8888)
         oldInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, oldInstDevice_id)
@@ -246,7 +246,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Create InstrumentAgentInstance for NewInstrumentDevice to hold configuration information
         #-------------------------------
         instAgentInstance_new__obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2', description="SBE37IMAgentInstance Year 2", svr_addr="localhost",
-                                          driver_module="ion.agents.instrument.drivers.sbe37_driver", driver_class="SBE37Driver",
+                                          driver_module="ion.agents.instrument.drivers.sbe37.sbe37_driver", driver_class="SBE37Driver",
                                           cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4002,
                                           comms_server_address="localhost", comms_server_port=8888)
         newInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_new__obj, instAgent_id, newInstDevice_id)

@@ -22,7 +22,7 @@ from ion.agents.instrument.common import BaseEnum
 #from ion.agents.instrument.common import InstErrorCode
 from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
 from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
-#from ion.agents.instrument.drivers.sbe37_driver import SBE37Channel
+#from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Channel
 
 class CgMsgTypes(BaseEnum):
     ACK               = 0

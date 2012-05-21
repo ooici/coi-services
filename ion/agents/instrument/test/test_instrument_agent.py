@@ -71,7 +71,7 @@ DEV_PORT = CFG.device.sbe37.port
 #DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
-DRV_MOD = 'ion.agents.instrument.drivers.sbe37_driver'
+DRV_MOD = 'ion.agents.instrument.drivers.sbe37.sbe37_driver'
 DRV_CLS = 'SBE37Driver'
 
 # Work dir and logger delimiter.

@@ -168,7 +168,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #            'svr_addr': "localhost",
 #            'cmd_port': 5556,
 #            'evt_port': 5557,
-#            'dvr_mod': "ion.agents.instrument.drivers.sbe37_driver",
+#            'dvr_mod': "ion.agents.instrument.drivers.sbe37.sbe37_driver",
 #            'dvr_cls': "SBE37Driver",
 #            'comms_config': {
 #                    'addr': 'sbe37-simulator.oceanobservatories.org',
@@ -176,7 +176,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #                }
 #            }
         driver_config = {
-            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37_driver',
+            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }
