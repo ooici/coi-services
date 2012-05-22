@@ -88,11 +88,26 @@ from ion.agents.instrument.logger_process import EthernetDeviceLogger
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
 # next line should match the above line mostly
-from ${driver_module} import ${driver_name}Parameter    
+from ${driver_module} import ${driver_name}Parameter
 
+
+
+#################################### RULES ####################################
+#                                                                             #
+# Common capabilities in the base class                                       #
+#                                                                             #
+# Instrument specific stuff in the derived class                              #
+#                                                                             #
+# Generator spits out either stubs or comments describing test this here,     #
+# test that there.                                                            #
+#                                                                             #
+# Qualification tests are driven through the instrument_agent                 #
+#                                                                             #
+###############################################################################
 
 ###############################################################################
 #                                UNIT TESTS                                   #
+#         Unit tests test the method calls and parameters using Mock.         #
 ###############################################################################
 
 @attr('UNIT', group='mi')
@@ -125,6 +140,10 @@ class Test${driver_name}_UNIT(InstrumentDriverTestCase):
     
 ###############################################################################
 #                            INTEGRATION TESTS                                #
+#     Integration test test the direct driver / instrument interaction        #
+#     but making direct calls via zeromq.                                     #
+#     - Common Integration tests test the driver through the instrument agent #
+#     and common for all drivers (minmum requirement for ION ingestion)       #
 ###############################################################################
 
 @attr('INT', group='mi')
@@ -179,10 +198,12 @@ class Test${driver_name}_INT(InstrumentDriverTestCase):
     #    Add driver specific integration tests
     ###
 
+###############################################################################
+#                            QUALIFICATION TESTS                              #
+# Device specific qualification tests are for                                 #
+# testing device specific capabilities                                        #
+###############################################################################
 
-###############################################################################
-# Auto generated code.  There should rarely be reason to edit anything below. #
-###############################################################################
 @attr('QUAL', group='mi')
 class Test${driver_name}_QUAL(DriverQualificationTestCase):
     """Qualification Test Container"""
@@ -191,6 +212,10 @@ class Test${driver_name}_QUAL(DriverQualificationTestCase):
     # here so that when running this test from 'nosetests' all tests
     # (UNIT, INT, and QUAL) are run.  
     pass
+
+###############################################################################
+# Auto generated code.  There should rarely be reason to edit anything below. #
+###############################################################################
 
 class IntFromIDK(Test${driver_name}_INT):
     """
