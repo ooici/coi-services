@@ -121,24 +121,13 @@ class ExternalDatasetAgentTestBase(object):
     def setUp(self):
         """
         Initialize test members.
-        Start port agent.
-        Start container and client.
-        Start streams and subscribers.
-        Start agent, client.
         """
-
-        # Start port agent, add stop to cleanup.
-#        self._pagent = None
-#        self._start_pagent()
-#        self.addCleanup(self._stop_pagent)
 
 #        log.warn('Starting the container')
         # Start container.
         self._start_container()
 
-        # Bring up services in a deploy file (no need to message)
-#        self.container.start_rel_from_url('res/deploy/r2dm.yml')
-#        self.container.start_rel_from_url('res/deploy/r2eoi.yml')
+        # Bring up services in a deploy file
 #        log.warn('Starting the rel')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
@@ -147,27 +136,6 @@ class ExternalDatasetAgentTestBase(object):
         self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
 #        log.warn('Init a ContainerAgentClient')
         self._container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
-
-#        # Define stream_config.
-#        self._stream_config = {}
-
-        # Sample async and subscription
-#        self._no_samples = None
-#        self._async_data_result = AsyncResult()
-#        self._data_greenlets = []
-#        self._samples_received = []
-#        self._data_subscribers = []
-#        # This assigns self._stream_config based on the contents of PACKET_CONFIG and starts subscribers on those streams
-#        self._start_data_subscribers()
-#        self.addCleanup(self._stop_data_subscribers)
-
-        # Event async and subscription
-#        self._no_events = None
-#        self._async_event_result = AsyncResult()
-#        self._events_received = []
-#        self._event_subscribers = []
-#        self._start_event_subscribers()
-#        self.addCleanup(self._stop_event_subscribers)
 
         # Data async and subscription  TODO: Replace with new subscriber
         self._finished_count = None
@@ -228,84 +196,6 @@ class ExternalDatasetAgentTestBase(object):
         log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
 
         return stream_id
-
-    def _start_data_subscribers(self):
-        """
-        """
-        # A callback for processing subscribed-to data.
-        def consume_data(message, headers):
-            log.info('Subscriber received data message: %s.', str(message))
-            self._samples_received.append(message)
-            if self._no_samples and self._no_samples == len(self._samples_received):
-                self._async_data_result.set()
-
-        # Create a stream subscriber registrar to create subscribers.
-        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
-            node=self.container.node)
-
-        # Create streams and subscriptions for each stream named in driver.
-        self._stream_config = {}
-        self._data_subscribers = []
-        for (stream_name, val) in PACKET_CONFIG.iteritems():
-            stream_def = ctd_stream_definition(stream_id=None)
-            stream_def_id = pubsub_client.create_stream_definition(
-                container=stream_def)
-            stream_id = pubsub_client.create_stream(
-                name=stream_name,
-                stream_definition_id=stream_def_id,
-                original=True,
-                encoding='ION R2')
-            self._stream_config[stream_name] = stream_id
-
-            # Create subscriptions for each stream.
-            exchange_name = '%s_queue' % stream_name
-            sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name,
-                callback=consume_data)
-            self._listen(sub)
-            self._data_subscribers.append(sub)
-            query = StreamQuery(stream_ids=[stream_id])
-            sub_id = pubsub_client.create_subscription(\
-                query=query, exchange_name=exchange_name)
-            pubsub_client.activate_subscription(sub_id)
-
-    def _listen(self, sub):
-        """
-        Pass in a subscriber here, this will make it listen in a background greenlet.
-        """
-        gl = spawn(sub.listen)
-        self._data_greenlets.append(gl)
-        sub._ready_event.wait(timeout=5)
-        return gl
-
-    def _stop_data_subscribers(self):
-        """
-        Stop the data subscribers on cleanup.
-        """
-        for sub in self._data_subscribers:
-            sub.stop()
-        for gl in self._data_greenlets:
-            gl.kill()
-
-    def _start_event_subscribers(self):
-        """
-        Create subscribers for agent and driver events.
-        """
-        def consume_event(*args, **kwargs):
-            log.info('Test received ION event: args=%s  kwargs=%s.', ''.join([str(x)+' ' for x in args]), str(kwargs))
-            self._events_received.append(args[0])
-            if self._no_events and self._no_events == len(self._event_received):
-                self._async_event_result.set()
-
-        event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
-        event_sub.activate()
-        self._event_subscribers.append(event_sub)
-
-    def _stop_event_subscribers(self):
-        """
-        Stop event subscribers on cleanup.
-        """
-        for sub in self._event_subscribers:
-            sub.deactivate()
 
     def _start_finished_event_subscriber(self):
 
@@ -517,105 +407,6 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    @unittest.skip('wip - likely to move to UNIT')
-    def test_acquire_new_data(self):
-        cmd=AgentCommand(command='initialize')
-        _ = self._ia_client.execute_agent(cmd)
-
-        cmd = AgentCommand(command='go_active')
-        _ = self._ia_client.execute_agent(cmd)
-
-        cmd = AgentCommand(command='run')
-        _ = self._ia_client.execute_agent(cmd)
-
-        rr_cli = ResourceRegistryServiceClient()
-
-        for key, value in self.NDC.iteritems():
-            # build attachment
-            att = Attachment(name='newDataCheck',
-                content=value,
-                keywords=['NewDataCheck'],
-                attachment_type=AttachmentType.ASCII
-            )
-
-            # create in registry
-            try:
-                ncd_att_id = rr_cli.create_attachment(self.EDA_RESOURCE_ID, att)
-                log.warn('Created attachment: {0}'.format(ncd_att_id))
-            except NotFound as ex:
-                log.warn('Not a valid resource id - it\'s just a test!!')
-
-            # run acquire_data
-            log.info('Send an unconstrained request for data (\'new data\')')
-            cmd = AgentCommand(command='acquire_data')
-            self._ia_client.execute(cmd)
-
-        self._finished_count = len(self.NDC)
-
-        cmd = AgentCommand(command='reset')
-        _ = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
-    @unittest.skip('Not used in DataHandler')
-    def test_acquire_sample(self):
-        # Test observatory polling function.
-
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
-        cmd = AgentCommand(command='initialize')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.INACTIVE)
-
-        cmd = AgentCommand(command='go_active')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.IDLE)
-
-        cmd = AgentCommand(command='run')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
-
-        # Lets get 3 samples.
-        self._no_samples = 3
-
-        # Poll for a few samples.
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
-
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
-
-        cmd = AgentCommand(command='acquire_sample')
-        reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
-
-        # Assert we got 3 samples.
-        self._async_data_result.get(timeout=10)
-        self.assertTrue(len(self._samples_received)==3)
-
-        cmd = AgentCommand(command='reset')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
     def test_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
@@ -731,13 +522,6 @@ class ExternalDatasetAgentTestBase(object):
         self._ia_client.set_param(new_params)
         check_new_params = self._ia_client.get_param(params)
         self.assertParamVals(check_new_params, new_params)
-
-        #        # Reset the parameters back to their original values.
-        #        self._ia_client.set_param(orig_params)
-        #        reply = self._ia_client.get_param(DataHandlerParameter.POLLING_INTERVAL)
-        #        reply.pop(DataHandlerParameter.POLLING_INTERVAL)
-        #        orig_config.pop(DataHandlerParameter.POLLING_INTERVAL)
-        #        self.assertParamVals(reply, orig_config)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -1001,11 +785,6 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
-#        # OK, I can do this now.
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        self.assertSampleDict(reply.result)
-
         # 404 unknown agent command.
         cmd = AgentCommand(command='kiss_edward')
         retval = self._ia_client.execute_agent(cmd)
@@ -1026,7 +805,7 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-@attr('INT_EOI', group='eoi')
+@attr('INT_DATA_AGENT', group='eoi')
 class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     # DataHandler config
     DVR_CONFIG = {
@@ -1058,7 +837,7 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
             'max_records':4,
             }
 
-@attr('INT_EOI', group='eoi')
+@attr('INT_DATA_AGENT', group='eoi')
 class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.data.test.test_base_data_handler
-@file ion/agents/data/test/test_base_data_handler.py
+@package ion.agents.data.handlers.test.test_base_data_handler
+@file ion/agents/data/handlers/test/test_base_data_handler.py
 @author Tim Giguere
 @author Christopher Mueller
-@brief Test cases for R2 BaseDataHandler
+@brief Test cases for BaseDataHandler
 """
 
 from pyon.public import log, CFG
