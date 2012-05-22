@@ -11,6 +11,7 @@ __license__ = 'Apache 2.0'
 
 import sys
 import os
+import errno
 
 import yaml
 
@@ -179,8 +180,12 @@ class Metadata():
         ofile.write( self.serialize() )
         ofile.close()
 
-        #if( os.path.exists(self.current_metadata_path()) ):
-        os.remove(self.current_metadata_path())
+	try:
+        	os.remove(self.current_metadata_path())
+	except OSError, e:
+		# Ignore "no such file or directory error"
+		if e.errno != errno.ENOENT:
+        		raise
 
         os.symlink(self.metadata_path(), self.current_metadata_path())
 
