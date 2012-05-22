@@ -425,6 +425,8 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.TEST, self._handler_connected_protocol_event)
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.CALIBRATE, self._handler_connected_protocol_event)
         self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.EXECUTE_DIRECT, self._handler_connected_protocol_event)
+        self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.START_DIRECT, self._handler_connected_protocol_event)
+        self._connection_fsm.add_handler(DriverConnectionState.CONNECTED, DriverEvent.STOP_DIRECT, self._handler_connected_protocol_event)
             
         # Start state machine.
         self._connection_fsm.start(DriverConnectionState.UNCONFIGURED)
@@ -575,12 +577,6 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         # Forward event and argument to the protocol FSM.
         return self._connection_fsm.on_event(DriverEvent.CALIBRATE, DriverEvent.CALIBRATE, *args, **kwargs)
-
-    def execute_direct(self, *args, **kwargs):
-        """
-        """
-        # Forward event and argument to the protocol FSM.
-        return self._connection_fsm.on_event(DriverEvent.EXECUTE_DIRECT, DriverEvent.EXECUTE_DIRECT, *args, **kwargs)
 
 
     ########################################################################
