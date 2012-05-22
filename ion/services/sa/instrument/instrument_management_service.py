@@ -549,6 +549,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.instrument_agent.delete_one(instrument_agent_id)
 
 
+    def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
+
+        # retrieve the resource
+
+        #process the qa documents
+
+        #parse the manifest file
+
+        #create attachment resources for each document in the zip
+
+        #deploy the egg
+
+        #set the agent LCS to Integrated
+
+        return
 
     ##########################################################################
     #
