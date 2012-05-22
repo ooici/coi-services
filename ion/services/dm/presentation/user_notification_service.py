@@ -440,7 +440,7 @@ class UserNotificationService(BaseUserNotificationService):
         #@todo need to get the deliver_config
 
         #-------------------------------------------------------------------------------------
-        # Build the email deliver config
+        # Build the email delivery config
         #-------------------------------------------------------------------------------------
 
         # get the process_definition_id?
@@ -480,7 +480,7 @@ class UserNotificationService(BaseUserNotificationService):
                 raise BadRequest("No provider provided for phone")
 
         #-------------------------------------------------------------------------------------
-        # Build the sms deliver config
+        # Build the sms delivery config
         #-------------------------------------------------------------------------------------
 
         # get the process_definition_id?

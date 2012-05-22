@@ -9,36 +9,106 @@ from interface.services.dm.iuser_notification_service import UserNotificationSer
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import IonObject, RT, PRED
+from pyon.public import IonObject, RT, PRED, Container
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
 from pyon.event.event import EventPublisher
 import gevent
+from mock import Mock, mocksignature
+from interface.objects import NotificationRequest
 
 @attr('UNIT',group='dm')
-@unittest.skip('not working')
 class UserNotificationTest(PyonTestCase):
     def setUp(self):
         mock_clients = self._create_service_mock('user_notification')
         self.user_notification = UserNotificationService()
+
+        self.user_notification.smtp_server = 'smtp_server'
         self.user_notification.clients = mock_clients
 
         self.mock_rr_client = self.user_notification.clients.resource_registry
-        self.notification_object = IonObject(RT.NotificationRequest, name="notification")
 
+    @unittest.skip('Not yet...')
     def test_create_one_user_notification(self):
         # mocks
+        user = Mock()
+        objects = [Mock()]
+        user_id = 'user_id'
+
         self.mock_rr_client.create.return_value = ('notification_id','rev')
-        self.mock_rr_client.read.return_value = ('user_1_info')
+        self.mock_rr_client.read.return_value = user
+        self.mock_rr_client.find_objects.return_value = objects, None
 
         # execution
-        notification_id = self.user_notification.create_notification(self.notification_object, 'user_1')
+        notification_id = self.user_notification.create_notification(self.notification_object, user_id)
 
         # assertions
-        self.assertEquals(notification_id,'notification_id')
+        self.assertEquals('notification_id', notification_id)
+        self.assertTrue(self.mock_rr_client.read.called)
         self.assertTrue(self.mock_rr_client.create.called)
+        self.assertTrue(self.mock_rr_client.find_objects.return_value)
 
+#        self.mock_rr_client.read.assert_called_once_with(user_id)
+
+
+    def test_create_email(self):
+        self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
+
+        notification_id = 'an id'
+
+        self.user_notification.create_notification.return_value = notification_id
+
+        res = self.user_notification.create_email(event_type='5')
+
+        #@todo - clean this up - don't have strings defined all over the place
+        self.assertEquals(res, notification_id)
+#        self.user_notification.create_notification.assert_called_once_with(NotificationRequest(event_type='5'))
+#        self.user_notification.create_notification.assert_called_once_with(user_id='user_id')
+
+    def test_create_sms(self):
+        self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
+
+        notification_id = 'an id'
+
+        self.user_notification.create_notification.return_value = notification_id
+
+        res = self.user_notification.create_sms(event_type='event_type',
+                                                event_subtype='event_subtype',
+                                                origin='origin',
+                                                origin_type='origin_type',
+                                                user_id='user_id',
+                                                phone='phone',
+                                                provider='provider',
+                                                message_header='message_header',
+                                                parser='parser')
+
+        #@todo - clean this up - don't have strings defined all over the place
+        self.assertEquals(res, notification_id)
+#        self.user_notification.create_notification.assert_called_once_with(NotificationRequest(event_type='5'))
+#        self.user_notification.create_notification.assert_called_once_with(user_id='user_id')
+
+    def test_create_detection_filter(self):
+        self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
+
+        notification_id = 'an id'
+
+        self.user_notification.create_notification.return_value = notification_id
+
+        res = self.user_notification.create_detection_filter(
+            event_type='event_type',
+            event_subtype='event_subtype',
+            origin='origin',
+            origin_type='origin_type',
+            user_id='user_id',
+            filter_config = 'filter_config')
+
+        #@todo - clean this up - don't have strings defined all over the place
+        self.assertEquals(res, notification_id)
+    #        self.user_notification.create_notification.assert_called_once_with(NotificationRequest(event_type='5'))
+#        self.user_notification.create_notification.assert_called_once_with(user_id='user_id')
+
+    @unittest.skip('not working')
     def test_update_user_notification(self):
         # mocks
 
@@ -46,7 +116,8 @@ class UserNotificationTest(PyonTestCase):
 
         # assertions
         pass
-    
+
+    @unittest.skip('not working')
     def test_delete_user_notification(self):
         # mocks
 
