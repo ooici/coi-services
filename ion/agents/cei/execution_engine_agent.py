@@ -39,7 +39,8 @@ class ExecutionEngineAgent(ResourceAgent):
             # TODO: Fail fast here?
             log.error("No launch_type.name specified")
 
-        self._factory = get_exe_factory(launch_type_name, self.CFG, log=log)
+        self._factory = get_exe_factory(launch_type_name, self.CFG,
+            pyon_container=self.container, log=log)
 
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)

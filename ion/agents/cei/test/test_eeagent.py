@@ -20,13 +20,16 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessStateEnum
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
+
+
 class FakeProcess(LocalContextMixin):
     """
     A fake process used because the test case is not an ion process.
     """
     name = ''
-    id=''
+    id = ''
     process_type = ''
+
 
 @attr('INT', group='cei')
 class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
@@ -68,10 +71,9 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
           }
         }
 
-
         # Start eeagent.
         self._eea_pid = None
-        log.debug("TestInstrumentAgent.setup(): starting EDA.")
+
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self._eea_pid = container_client.spawn_process(name=self._eea_name,
@@ -108,11 +110,11 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         proc = get_proc_for_upid(state, cat_u_pid)
         self.assertEqual(proc.get('state'), [500, 'RUNNING'])
 
-
         self.eea_client.terminate_process(cat_u_pid, round)
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, cat_u_pid)
         self.assertEqual(proc.get('state'), [700, 'TERMINATED'])
+
 
 @attr('INT', group='cei')
 class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
@@ -153,10 +155,9 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
           }
         }
 
-
         # Start eeagent.
         self._eea_pid = None
-        log.debug("TestInstrumentAgent.setup(): starting EDA.")
+
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self._eea_pid = container_client.spawn_process(name=self._eea_name,
@@ -205,6 +206,82 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, u_pid)
         self.assertEqual(proc.get('state'), [700, 'TERMINATED'])
+
+
+@attr('INT', group='cei')
+class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
+
+        self.resource_id = "eeagent_123456789"
+        self._eea_name = "eeagent"
+
+        self.persistence_directory = "/tmp/pyon-eeagent-pyon-test"
+        os.mkdir(self.persistence_directory)
+
+        self.agent_config = {
+            'eeagent': {
+              'heartbeat': 2,
+              'slots': 100,
+              'name': 'pyon_eeagent',
+              'launch_type': {
+                'name': 'pyon',
+                'persistence_directory': self.persistence_directory,
+              },
+            },
+            'agent': {'resource_id': self.resource_id},
+            'logging': {
+            'loggers': {
+              'eeagent': {
+                'level': 'DEBUG',
+                'handlers': ['console']
+              }
+            },
+            'root': {
+              'handlers': ['console']
+            },
+          }
+        }
+
+        # Start eeagent.
+        self._eea_pid = None
+
+        container_client = ContainerAgentClient(node=self.container.node,
+            name=self.container.name)
+        self._eea_pid = container_client.spawn_process(name=self._eea_name,
+            module="ion.agents.cei.execution_engine_agent",
+            cls="ExecutionEngineAgent", config=self.agent_config)
+        log.info('Agent pid=%s.', str(self._eea_pid))
+
+        # Start a resource agent client to talk with the instrument agent.
+        self._eea_pyon_client = ResourceAgentClient(self.resource_id, process=FakeProcess())
+        log.info('Got eea client %s.', str(self._eea_pyon_client))
+
+        self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
+
+    def tearDown(self):
+        shutil.rmtree(self.persistence_directory)
+
+    def test_basics(self):
+        u_pid = "test0"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'process_dispatcher'
+        module = 'ion.services.cei.process_dispatcher_service'
+        cls = 'ProcessDispatcherService'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
+        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+
+        self.eea_client.terminate_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
 
 
 def get_proc_for_upid(state, upid):
