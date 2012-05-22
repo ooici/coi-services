@@ -19,7 +19,7 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 
-from interface.objects import NotificationRequest
+from interface.objects import NotificationRequest, DeliveryConfig, SMSDeliveryConfig, EmailDeliveryConfig
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
@@ -83,8 +83,8 @@ class Notification(object):
         # msg_recipientDO: make this walk the lists and set up a subscriber for every pair of
         # origin/event.  This will require a list to hold all the subscribers so they can
         # be started and killed
-        self.subscriber = NotificationEventSubscriber(origin=notification.origin_list[0],
-                                                      event_type=notification.events_list[0],
+        self.subscriber = NotificationEventSubscriber(origin=notification.origin,
+                                                      event_type=notification.event_type,
                                                       callback=subscriber_callback)
         self.notification_id = None
 
@@ -233,21 +233,20 @@ class UserNotificationService(BaseUserNotificationService):
     """
     A service that provides users with an API for CRUD methods for notifications.
     """
-    
+
     user_event_processors = {}
-    
-    def __init__(self):
-        """
-        Get the event repository from the CC
-        """
-        self.event_repo = Container.instance.event_repository
-        BaseUserNotificationService.__init__(self)
-    
+
+
     def on_start(self):
         """
         Get the smtp server address if configured
         """
-        self.smtp_server = self.CFG.get('smtp_server', ION_SMTP_SERVER)        
+
+        # Get the event Repository
+        self.event_repo = self.container.instance.event_repository
+
+
+        self.smtp_server = self.CFG.get('smtp_server', ION_SMTP_SERVER)
         
         # load event originators, types, and table
         self.event_originators = CFG.event.originators        
@@ -260,7 +259,9 @@ class UserNotificationService(BaseUserNotificationService):
                 log.warning("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
         log.debug("UserNotificationService.on_start(): event_originators=%s" %str(self.event_originators))        
         log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types)) 
-        log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table)) 
+        log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table))
+
+        print ("self.smtp_server = %s" % self.smtp_server)
         
         """
         # code to dump resource types, delete this from file for release
@@ -437,6 +438,17 @@ class UserNotificationService(BaseUserNotificationService):
 
 
         #@todo need to get the deliver_config
+
+        #-------------------------------------------------------------------------------------
+        # Build the email deliver config
+        #-------------------------------------------------------------------------------------
+
+        # get the process_definition_id?
+
+        processing = {'message_header': message_header, 'parsing': parser}
+        delivery = {'email': email, 'mode' : mode, 'frequency' : ''} #@todo get the frequency
+        email_delivery_config = EmailDeliveryConfig(processing, delivery)
+
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
@@ -445,7 +457,7 @@ class UserNotificationService(BaseUserNotificationService):
                                                     origin_type = origin_type,
                                                     event_type=event_type,
                                                     event_subtype = event_subtype ,
-                                                    delivery_config= None)
+                                                    delivery_config= email_delivery_config)
 
         #-------------------------------------------------------------------------------------
         # Set up things so that the user gets notified for the particular notification request
@@ -462,6 +474,21 @@ class UserNotificationService(BaseUserNotificationService):
          @todo - is the user email automatically selected from the user id?
         '''
 
+        #@todo raise bad request error if phone is specified but provider is not....
+        if phone:
+            if not provider:
+                raise BadRequest("No provider provided for phone")
+
+        #-------------------------------------------------------------------------------------
+        # Build the sms deliver config
+        #-------------------------------------------------------------------------------------
+
+        # get the process_definition_id?
+
+        processing = {'message_header': message_header, 'parsing': parser}
+        delivery = {'phone_number': phone, 'provider': provider}
+        sms_delivery_config = SMSDeliveryConfig(processing, delivery)
+
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
@@ -471,7 +498,7 @@ class UserNotificationService(BaseUserNotificationService):
             origin_type = origin_type,
             event_type=event_type,
             event_subtype = event_subtype ,
-            delivery_config=None)
+            delivery_config=sms_delivery_config)
 
         #-------------------------------------------------------------------------------------
         # Set up things so that the user gets notified for the particular notification request
