@@ -245,12 +245,15 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
           }
         }
 
-        # Start eeagent.
-        self._eea_pid = None
+        self._start_eeagent()
 
-        container_client = ContainerAgentClient(node=self.container.node,
+    def _start_eeagent(self):
+        self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-        self._eea_pid = container_client.spawn_process(name=self._eea_name,
+        self.container = self.container_client._get_container_instance()
+
+        # Start eeagent.
+        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=self.agent_config)
         log.info('Agent pid=%s.', str(self._eea_pid))
@@ -263,6 +266,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
     def tearDown(self):
         shutil.rmtree(self.persistence_directory)
+        self.container.terminate_process(self._eea_pid)
 
     def test_basics(self):
         u_pid = "test0"
@@ -282,6 +286,44 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, u_pid)
+
+    def test_kill_and_revive(self):
+        """test_kill_and_revive
+        Ensure that when an eeagent dies, it pulls the processes it owned from
+        persistence, and marks them as failed, so the PD can figure out what to
+        do with them
+        """
+        u_pid = "test0"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'process_dispatcher_test'
+        module = 'ion.services.cei.process_dispatcher_service'
+        cls = 'ProcessDispatcherService'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
+        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+
+        # Kill and restart eeagent. Also, kill proc started by eea to simulate
+        # a killed container
+        old_eea_pid = str(self._eea_pid)
+        self.container.terminate_process(self._eea_pid)
+        proc_to_kill = self.container.proc_manager.procs_by_name.get(proc_name)
+        self.assertIsNotNone(proc_to_kill)
+        self.container.terminate_process(proc_to_kill.id)
+
+        self._start_eeagent()
+
+        self.assertNotEqual(old_eea_pid, self._eea_pid)
+
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
+        self.assertEqual(proc.get('state'), [850, 'FAILED'])
 
 
 def get_proc_for_upid(state, upid):
