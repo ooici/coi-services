@@ -2,7 +2,7 @@ __author__ = 'Bill French'
 
 import argparse
 
-from ion.idk.start_driver import IDKRebase
+from ion.idk.idk_rebase import IDKRebase
 
 def run():
     app = IDKRebase()
