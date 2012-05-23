@@ -24,14 +24,13 @@ class TestResourceRegistryAttachments(IonIntegrationTestCase):
 
         print 'started services'
 
-    @unittest.skip("demonstration of RR error")
     def test_resource_registry_blob_sanity(self):
         resource_id, _ = self.RR.create(IonObject(RT.Resource, name="foo"))
 
         MY_CONTENT = "the quick brown fox etc etc etc"
 
         #save
-        self.RR.create_attachment(resource_id,  IonObject(RT.Attachment,
+        att_id = self.RR.create_attachment(resource_id,  IonObject(RT.Attachment,
                                                           name="test.txt",
                                                           content=MY_CONTENT,
                                                           content_type="text/plain",
@@ -39,14 +38,12 @@ class TestResourceRegistryAttachments(IonIntegrationTestCase):
                                                           attachment_type=AttachmentType.BLOB))
         
         #load
-        attachments, _ = self.RR.find_objects(resource_id, PRED.hasAttachment, RT.Attachment, False)
-        self.assertEqual(1, len(attachments))
-        att = attachments[0]
-        self.assertEqual("test.txt", att.name)
-        self.assertEqual("text/plain", att.content_type)
-        self.assertIn("test1", att.keywords)
-        self.assertIn("test2", att.keywords)
+        attachment = self.RR.read_attachment(att_id)
+        self.assertEqual("test.txt", attachment.name)
+        self.assertEqual("text/plain", attachment.content_type)
+        self.assertIn("test1", attachment.keywords)
+        self.assertIn("test2", attachment.keywords)
 
         #content has changed; it's base64-encoded from what we put in
-        self.assertEqual(MY_CONTENT, att.content)
+        self.assertEqual(MY_CONTENT, attachment.content)
 
