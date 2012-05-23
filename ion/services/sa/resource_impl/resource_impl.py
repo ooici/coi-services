@@ -136,9 +136,9 @@ class ResourceImpl(object):
         
         # check that precondition function exists
         if not transition_event in self.lce_precondition:
-            raise NotImplementedError(
-                "Lifecycle precondition method '%s' not defined for transition %s!"
-                % (transition_event, self.iontype))
+            raise BadRequest(
+                "%s lifecycle precondition method for event '%s' not defined!"
+                % (self.iontype, transition_event))
 
         precondition_fn = self.lce_precondition[transition_event]
 
