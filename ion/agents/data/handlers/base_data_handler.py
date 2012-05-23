@@ -101,11 +101,7 @@ class BaseDataHandler(object):
         log.debug('cmd_dvr received command \'{0}\' with: args={1} kwargs={2}'.format(cmd, args, kwargs))
 
         reply = None
-        if cmd == 'configure':
-            # Delegate to BaseDataHandler.configure()
-#            reply = self.configure(*args, **kwargs)
-            pass
-        elif cmd == 'initialize':
+        if cmd == 'initialize':
             # Delegate to BaseDataHandler.initialize()
             reply = self.initialize(*args, **kwargs)
         elif cmd == 'get':
@@ -123,23 +119,18 @@ class BaseDataHandler(object):
         elif cmd == 'execute_acquire_data':
             # Delegate to BaseDataHandler.execute_acquire_data()
             reply = self.execute_acquire_data(*args, **kwargs)
-        elif cmd == 'execute_acquire_sample':
-            #TODO: Can we change these names?  acquire_data would be a better name for EOI...
-            # Delegate to BaseDataHandler.execute_acquire_sample()
-            reply = self.execute_acquire_sample(*args, **kwargs)
         elif cmd == 'execute_start_autosample':
-            #TODO: Can we change these names?  stop_polling would be a better name for EOI...
             # Delegate to BaseDataHandler.execute_start_autosample()
             reply = self.execute_start_autosample(*args, **kwargs)
         elif cmd == 'execute_stop_autosample':
-            #TODO: Can we change these names?  stop_polling would be a better name for EOI...
             # Delegate to BaseDataHandler.execute_stop_autosample()
             reply = self.execute_stop_autosample(*args, **kwargs)
-        elif cmd in ['connect','disconnect','get_current_state','discover']:
+        elif cmd in ['configure','connect','disconnect','get_current_state','discover','execute_acquire_sample']:
             # Disregard
+            log.info('Command \'{0}\' not used by DataHandler'.format(cmd))
             pass
         else:
-            desc='Command unknown by DataHandler: {0}'.format(cmd)
+            desc='Command \'{0}\' unknown by DataHandler'.format(cmd)
             log.info(desc)
             raise InstrumentCommandException(desc)
 
@@ -250,20 +241,6 @@ class BaseDataHandler(object):
         g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback)
         log.debug('** Spawned {0}'.format(g))
         self._glet_queue.append(g)
-
-    def execute_acquire_sample(self, *args, **kwargs):
-        #TODO: Add documentation
-        #TODO: Fix raises statements
-        """
-        Called from:
-                      InstrumentAgent._handler_observatory_execute_resource
-                       |-->  ExternalDataAgent._handler_streaming_execute_resource
-        """
-        # This returns the sample to the agent as an event
-        sample = {'stream_name':'data_stream','p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}
-        self._dh_event(DriverAsyncEvent.SAMPLE, sample)
-        # This does 'rpc' style event
-        return sample
 
     def execute_start_autosample(self, *args, **kwargs):
         #TODO: Add documentation

@@ -70,7 +70,6 @@ PARAMS = {
 # To validate the list of resource commands
 CMDS = {
     'acquire_data':str,
-    'acquire_sample':str,
     'start_autosample':str,
     'stop_autosample':str
 }

@@ -186,12 +186,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh.execute_acquire_data.assert_called_once()
         self.assertIsNone(ret)
 
-    def test_cmd_dvr_execute_acquire_sample(self):
-        self._bdh.execute_acquire_sample = Mock()
-        self._bdh.execute_acquire_sample.return_value = None
-        ret = self._bdh.cmd_dvr('execute_acquire_sample')
-        self._bdh.execute_acquire_sample.assert_called_once()
-        self.assertIsNone(ret)
+        self.assertEquals(ret, sentinel.ret_val)
 
     def test_cmd_dvr_execute_start_autosample(self):
         self._bdh.execute_start_autosample = Mock()
@@ -205,6 +200,11 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh.execute_stop_autosample.return_value = None
         ret = self._bdh.cmd_dvr('execute_stop_autosample')
         self._bdh.execute_stop_autosample.assert_called_once()
+    @patch('ion.agents.data.handlers.base_data_handler.log')
+    def test_cmd_dvr_execute_acquire_sample(self, log_mock):
+        ret = self._bdh.cmd_dvr('execute_acquire_sample')
+        self.assertIsNone(ret)
+        self.assertEqual(log_mock.info.call_args[0][0], self._unused_cmd_log_output('execute_acquire_sample'))
         self.assertIsNone(ret)
 
     def test_cmd_dvr_connect(self):
@@ -244,10 +244,6 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         self.assertIsNone(ret)
 
-    def test_execute_acquire_sample(self):
-        self._bdh._dh_event = Mock()
-        ret = self._bdh.execute_acquire_sample()
-        self.assertEqual(ret, {'stream_name':'data_stream','p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]})
 
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
     def test_execute_start_autosample(self, mock):
@@ -283,7 +279,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
     def test_get_resource_commands(self):
         ret = self._bdh.get_resource_commands()
-        self.assertEqual(ret, ['acquire_data', 'acquire_sample', 'start_autosample', 'stop_autosample'])
+        self.assertEqual(ret, ['acquire_data', 'start_autosample', 'stop_autosample'])
 
     def test__init_acquisition_cycle(self):
         config = {}
