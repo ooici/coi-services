@@ -19,7 +19,7 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 
-from interface.objects import NotificationRequest, DeliveryConfig, SMSDeliveryConfig, EmailDeliveryConfig
+from interface.objects import NotificationRequest, DeliveryConfig, SMSDeliveryConfig, EmailDeliveryConfig, NotificationType
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
@@ -52,25 +52,25 @@ class NotificationEventSubscriber(EventSubscriber):
     Encapsulates the event subscriber and the event 'listen loop' greenlet implements methods to start/stop the listener
     """
 
-    
+
     def __init__(self, origin=None, event_type=None, callback=None):
         self.listener_greenlet = None
         self.subscriber = EventSubscriber(origin=origin, event_type=event_type, callback=callback)
-        
+
     def start_listening(self):
         """
         Spawns the listener greenlet
         """
         self.listener_greenlet = spawn(self.subscriber.listen)
         self.subscriber._ready_event.wait(timeout=5)     # not sure this is needed
-        
+
     def stop_listening(self):
         """
         Kills the listener greenlet
         """
         if self.listener_greenlet:
             self.listener_greenlet.kill(exception=Greenlet.GreenletExit, block=False)
-        
+
 
 class Notification(object):
     """
@@ -109,59 +109,94 @@ class Notification(object):
         del self.subscriber
 
 
-class UserEventProcessor(object):
+class EventProcessor(object):
     """
     Encapsulates the user's info and a list of all the notifications they have.
     It also contains the callback that is passed to all event subscribers for this user's notifications.
     If the callback gets called, then this user had a notification for that event.
     """
 
-    def __init__(self, user_id=None, email_addr=None, smtp_server=None):
+    def __init__(self, notification_request, user_id):
         self.user_id = user_id
-        self.user_email_addr = email_addr
-        self.smtp_server = smtp_server
-        self.notifications = []
-        log.debug("UserEventProcessor.__init__(): email for user %s set to %s" %(self.user_id, self.user_email_addr))
+        self.notification = self._add_notification(notification_request=notification_request)
+        log.debug("UserEventProcessor.__init__():")
 
-    def set_delivery_config(self, deliver_config = None):
-        self.delivery_config = deliver_config or {}
+    def subscription_callback(self, message, headers):
+        """
+        This callback is given to all the event subscribers that this user wants notifications for.
+        If this callback gets called the user in this processor should get an email
+        """
+        raise NotImplementedError("Subscription callback is not implemented in the base class")
 
-    def set_email_address(self, email_addr = ''):
-        '''
-        Add an email address to the user
-        '''
-        self.user_email_addr = email_addr
 
-    def subscription_callback(self, *args, **kwargs):
+    def _add_notification(self, notification_request=None):
+        """
+        Adds a notification that this user then subscribes to
+
+        @param notification_request
+        @retval notification object
+        """
+
+        # create and save notification in notifications list
+        notification_obj = Notification(notification_request, self.subscription_callback)
+
+        # start the event subscriber listening
+        notification_obj.start_subscriber()
+        log.debug("UserEventProcessor.add_notification(): added notification " + str(notification_request) + " to user " + self.user_id)
+        return notification_obj
+
+    def remove_notification(self):
+        """
+        Removes a notification subscirbed to by the user
+
+        @param notification_id
+        @retval the number of notifications subscribed to by the user
+        """
+        self.notification.kill_subscriber()
+
+
+
+    def __str__(self):
+        return str(self.__dict__)
+
+class EmailEventProcessor(EventProcessor):
+
+    def __init__(self, notification_request, user_id):
+
+        super(EmailEventProcessor, self).__init__(notification_request,user_id)
+
+        self.smtp_server = CFG.get('smtp_server', ION_SMTP_SERVER)
+        log.debug("UserEventProcessor.__init__(): email for user %s " %self.user_id)
+
+
+    def subscription_callback(self, message, headers):
         """
         This callback is given to all the event subscribers that this user wants notifications for.
         If this callback gets called the user in this processor should get an email
         """
 
-        log.debug("UserEventProcessor.subscription_callback(): args[0]=" + str(args[0]))
-        log.debug("event type = " + str(args[0]._get_type()))
+        log.debug("UserEventProcessor.subscription_callback(): args[0]=" + str(message))
+        log.debug("event type = " + str(message._get_type()))
 
-        origin = args[0].origin
-        event = str(args[0]._get_type())
-        description = args[0].description
-        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(args[0].ts_created)/1000))))
+        '''
+        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
 
         # build the email from the event content
         msg_body = string.join(("Event: %s" %  event,
-                            "",
-                            "Originator: %s" %  origin,
-                            "",
-                            "Description: %s" %  description,
-                            "",
-                            "Time stamp: %s" %  time_stamp,
-                            "",
-                            "You received this notification from ION because you asked to be " \
-                            "notified about this event from this source. ",
-                            "To modify or remove notifications about this event, " \
-                            "please access My Notifications Settings in the ION Web UI.",
-                            "Do not reply to this email.  This email address is not monitored " \
-                            "and the emails will not be read."),
-                           "\r\n")
+                                "",
+                                "Originator: %s" %  origin,
+                                "",
+                                "Description: %s" %  description,
+                                "",
+                                "Time stamp: %s" %  time_stamp,
+                                "",
+                                "You received this notification from ION because you asked to be "\
+                                "notified about this event from this source. ",
+                                "To modify or remove notifications about this event, "\
+                                "please access My Notifications Settings in the ION Web UI.",
+                                "Do not reply to this email.  This email address is not monitored "\
+                                "and the emails will not be read."),
+            "\r\n")
         msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
         msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
         msg_recipient = self.user_email_addr
@@ -169,8 +204,8 @@ class UserEventProcessor(object):
         msg['Subject'] = msg_subject
         msg['From'] = msg_sender
         msg['To'] = msg_recipient
-        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s" \
-                        %(msg_recipient, self.smtp_server))
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s"\
+        %(msg_recipient, self.smtp_server))
         try:
             smtp_client = smtplib.SMTP(self.smtp_server)
         except Exception as ex:
@@ -180,76 +215,45 @@ class UserEventProcessor(object):
             smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
         except Exception as ex:
             log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(msg_recipient, ex))
-   
-    def add_notification(self, notification=None):
-        """
-        Adds a notification that this user then subscribes to
-
-        @param notification request
-        @retval notification object
-        """
-        for notification_obj in self.notifications:
-            if notification_obj.notification == notification:
-                raise BadRequest("UserEventProcessor.add_notification(): notification " + 
-                                 str(notification) + " already exists for " + self.user_id)                
-        # create and save notification in notifications list
-        notification_obj = Notification(notification, self.subscription_callback)
-        self.notifications.append(notification_obj)
-        # start the event subscriber listening
-        notification_obj.start_subscriber()
-        log.debug("UserEventProcessor.add_notification(): added notification " + str(notification) + " to user " + self.user_id)
-        return notification_obj
-    
-    def remove_notification(self, notification_id=None):
-        """
-        Removes a notification subscirbed to by the user
-
-        @param notification_id
-        @retval the number of notifications subscribed to by the user
-        """
+        '''
 
 
-        found_notification = False
-                
-        for notification_obj in self.notifications:
-            if notification_obj.notification_id == notification_id:
-                self.notifications.remove(notification_obj)
-                found_notification = True  
-        if not found_notification:      
-            raise BadRequest("UserEventProcessor.remove_notification(): notification " +
-                             str(notification_id) + " does not exist for " + self.user_id)                
-        # stop subscription
-        notification_obj.kill_subscriber()
-        log.debug("UserEventProcessor.remove_notification(): removed notification " + str(notification_obj.notification) \
-                  + " from user " + self.user_id)
-        # return the number of notifications left for this user
-        return len(self.notifications)
-    
-    def __str__(self):
-        return str(self.__dict__)
-   
+class SMSEventProcessor(EmailEventProcessor):
+
+    def __init__(self, notification_request, user_id):
+
+        super(SMSEventProcessor, self).__init__(notification_request,user_id)
+
+        #@todo Set the right email address for sending an SMS...
+
+
+def create_event_processor(notification_request, user_id):
+
+    if notification_request.type == NotificationType.EMAIL:
+        return EmailEventProcessor(notification_request,user_id)
+
+    elif notification_request.type == NotificationType.SMS:
+        return SMSEventProcessor(notification_request,user_id)
+
+    else:
+        raise BadRequest('Invalid Notification Request Type!')
+
 
 class UserNotificationService(BaseUserNotificationService):
     """
     A service that provides users with an API for CRUD methods for notifications.
     """
 
-    user_event_processors = {}
-
-
     def on_start(self):
-        """
-        Get the smtp server address if configured
-        """
+
+
+        self._event_processors = {}
 
         # Get the event Repository
         self.event_repo = self.container.instance.event_repository
 
-
-        self.smtp_server = self.CFG.get('smtp_server', ION_SMTP_SERVER)
-        
         # load event originators, types, and table
-        self.event_originators = CFG.event.originators        
+        self.event_originators = CFG.event.originators
         self.event_types = CFG.event.types
         self.event_table = {}
         for originator in self.event_originators:
@@ -257,57 +261,47 @@ class UserNotificationService(BaseUserNotificationService):
                 self.event_table[originator] = CFG.event[originator]
             except NotFound:
                 log.warning("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
-        log.debug("UserNotificationService.on_start(): event_originators=%s" %str(self.event_originators))        
-        log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types)) 
+        log.debug("UserNotificationService.on_start(): event_originators=%s" %str(self.event_originators))
+        log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types))
         log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table))
 
-        """
-        # code to dump resource types, delete this from file for release
-        rt = sorted(RT)
-        for r in rt:
-            print("RT.%s=%s" %(r, str(RT[r])))        
-        """
-        
+
     def create_notification(self, notification=None, user_id=''):
         """
-        Persists the provided NotificationRequest object for the specified Origin id. 
-        Associate the Notification resource with the user_id string. 
-        returned id is the internal id by which NotificationRequest will be identified 
+        Persists the provided NotificationRequest object for the specified Origin id.
+        Associate the Notification resource with the user_id string.
+        returned id is the internal id by which NotificationRequest will be identified
         in the data store.
 
         @param notification        NotificationRequest
         @param user_id             str
         @retval notification_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
+
+        @todo Can we remove the user_id field? Not sure it makes sense for all notification requests and should be gotten
+        from the context of the message - who sent it?
         """
 
         if not user_id:
-            raise NotFound("User not provided.")
+            raise BadRequest("User id not provided.")
 
-        if user_id not in self.user_event_processors:
-            # user does not have an event processor, so create one
-            # Retrieve the user's user_info object to get their email address
-            objects, _ = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
-            if not objects:
-                raise NotFound("UserNotificationService.create_notification(): No user_info for user " + user_id)
-            if len(objects) != 1:
-                raise BadRequest("UserNotificationService.create_notification(): there should be only ONE user_info for " + user_id)
-            user_info = objects[0]
-            if not user_info.contact.email or user_info.contact.email == '':
-                raise NotFound("UserNotificationService.create_notification(): No email address in user_info for user " + user_id)
-            # create event processor for user
-            self.user_event_processors[user_id] = UserEventProcessor(user_id, user_info.contact.email, self.smtp_server)
-            log.debug("UserNotificationService.create_notification(): added event processor " +  str(self.user_event_processors[user_id]))
-        
-        # add notification to user's event_processor
-        notification_obj = self.user_event_processors[user_id].add_notification(notification)
+        #@todo Write business logic to validate the subscription fields of the notification request object
 
-        # Persist Notification object 
+        # Persist Notification object as a resource
         notification_id, _ = self.clients.resource_registry.create(notification)
 
-        # give the user's user_event_processor the id of the notification
-        notification_obj.set_notification_id(notification_id)
-        
+        # Retrieve the user's user_info object to get their email address
+        objects, _ = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
+        if not objects:
+            raise NotFound("UserNotificationService.create_notification(): No user_info for user " + user_id)
+        if len(objects) != 1:
+            raise BadRequest("UserNotificationService.create_notification(): there should be only ONE user_info for " + user_id)
+        user_info = objects[0]
+
+        # create event processor for user
+        self._event_processors[notification_id] = create_event_processor(notification_request=notification,user_id=user_id)
+        log.debug("UserNotificationService.create_notification(): added event processor " +  str(self._event_processors[notification_id]))
+
         # associate the notification to the user
         self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
@@ -325,31 +319,35 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
+        #@todo - fix the update_notification implementation to only allow updates to the delivery config fields of a notification request and make sure the notification object is updated too.
+
+        '''
         # Read existing Notification object and see if it exists
         old_notification = self.clients.resource_registry.read(notification._id)
         if not old_notification:
             raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
 
-        # get the user that this notification is associated with 
+        # get the user that this notification is associated with
         subjects, _ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification._id)
         if not subjects:
             raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification._id)
         if len(subjects) != 1:
             raise BadRequest("UserNotificationService.delete_notification(): there should be only ONE user for " + notification._id)
         user_id = subjects[0]._id
-        
+
         #remove the old notification from the user's entry in the self.user_event_processors list
         if user_id not in self.user_event_processors:
             log.warning("UserNotificationService.delete_notification(): user %s not found in user_event_processors list" % user_id)
         user_event_processor = self.user_event_processors[user_id]
         user_event_processor.remove_notification(notification._id)
-        
+
         # add updated notification to user's event processor
         notification_obj = user_event_processor.add_notification(notification)
         notification_obj.set_notification_id(notification._id)
-        
+
         # finally update the notification in the RR
         self.clients.resource_registry.update(notification)
+        '''
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
@@ -373,12 +371,14 @@ class UserNotificationService(BaseUserNotificationService):
         @param notification_id    str
         @throws NotFound    object with specified id does not exist
         """
+        #@todo - fix delete notification implementation to kill the subscriber and delete the event object
+        '''
         # Read specified Notification object and see if it exists
         notification = self.clients.resource_registry.read(notification_id)
         if not notification:
             raise NotFound("UserNotificationService.delete_notification(): Notification %s does not exist" % notification_id)
 
-        #now get the user that this notification is associated with 
+        #now get the user that this notification is associated with
         subjects, _ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification_id)
         if not subjects:
             raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification_id)
@@ -394,16 +394,17 @@ class UserNotificationService(BaseUserNotificationService):
         if user_event_processor.remove_notification(notification_id) == 0:
             del self.user_event_processors[user_id]
             log.debug("UserNotificationService.delete_notification(): removed user %s from user_event_processor list" % user_id)
-            
+
         #now find and delete the association
         assocs = self.clients.resource_registry.find_associations(user_id, PRED.hasNotification, notification_id)
         if not assocs:
             raise NotFound("UserNotificationService.delete_notification(): notification association for user %s does not exist" % user_id)
-        association_id = assocs[0]._id       
+        association_id = assocs[0]._id
         self.clients.resource_registry.delete_association(association_id)
 
         #finally delete the notification
         self.clients.resource_registry.delete(notification_id)
+        '''
 
     def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=0, descending=False):
         """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
@@ -419,14 +420,14 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified paramteres does not exist
         @throws NotFound    object with specified paramteres does not exist
         """
-        return self.event_repo.find_events(event_type=type, 
-                                           origin=origin, 
-                                           start_ts=min_datetime, 
+        return self.event_repo.find_events(event_type=type,
+                                           origin=origin,
+                                           start_ts=min_datetime,
                                            end_ts=max_datetime,
                                            descending=descending,
                                            limit=limit)
 
-    def create_email(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', email='', mode=None, message_header='', parser='', period=86400):
+    def create_email(self, name='', description='', event_type='', event_subtype='', origin='', origin_type='', user_id='', email='', mode=None, message_header='', parser='', period=86400):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
          resource with the user. Setup subscription and call back to send email
@@ -439,16 +440,13 @@ class UserNotificationService(BaseUserNotificationService):
             raise BadRequest("No email provided.")
         if not mode:
             raise BadRequest("No delivery mode provided.")
-        if not user_id:
-            raise BadRequest("No user_id provided.")
-
-        #@todo need to get the deliver_config
 
         #-------------------------------------------------------------------------------------
         # Build the email delivery config
         #-------------------------------------------------------------------------------------
 
-        # get the process_definition_id?
+        #@todo get the process_definition_id - Find it when the service starts... bootstrap
+        #@todo Define a default for message header and parsing
 
         processing = {'message_header': message_header, 'parsing': parser}
         delivery = {'email': email, 'mode' : mode, 'period' : period}
@@ -457,12 +455,15 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
-        notification_request = NotificationRequest(name='Setting_email',
-                                                    origin = origin,
-                                                    origin_type = origin_type,
-                                                    event_type=event_type,
-                                                    event_subtype = event_subtype ,
-                                                    delivery_config= email_delivery_config)
+        notification_request = NotificationRequest(
+            name=name,
+            description=description,
+            type=NotificationType.EMAIL,
+            origin = origin,
+            origin_type = origin_type,
+            event_type=event_type,
+            event_subtype = event_subtype ,
+            delivery_config= email_delivery_config)
 
         #-------------------------------------------------------------------------------------
         # Set up things so that the user gets notified for the particular notification request
@@ -472,14 +473,13 @@ class UserNotificationService(BaseUserNotificationService):
 
         return notification_id
 
-    def create_sms(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', phone='', provider='',message_header='', parser=''):
+    def create_sms(self, name='', description='', event_type='', event_subtype='', origin='', origin_type='', user_id='', phone='', provider='', message_header='', parser=''):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
          resource with the user. Setup subscription and call back to send an sms to their phone
          @todo - is the user email automatically selected from the user id?
         '''
 
-        #@todo raise bad request error if phone is specified but provider is not....
         if not phone:
             raise BadRequest("No phone provided.")
         if not provider:
@@ -488,8 +488,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------
         # Build the sms delivery config
         #-------------------------------------------------------------------------------------
-
-        # get the process_definition_id?
+        #@todo get the process_definition_id - Find it when the service starts... bootstrap
 
         processing = {'message_header': message_header, 'parsing': parser}
         delivery = {'phone_number': phone, 'provider': provider}
@@ -500,7 +499,10 @@ class UserNotificationService(BaseUserNotificationService):
         # Create a notification object
         #-------------------------------------------------------------------------------------
         #@todo need to get the deliver_config
-        notification_request = NotificationRequest(name='Setting_sms',
+        notification_request = NotificationRequest(
+            name=name,
+            description=description,
+            type=NotificationType.SMS,
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
@@ -515,24 +517,30 @@ class UserNotificationService(BaseUserNotificationService):
 
         return notification_id
 
-    def create_detection_filter(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', filter_config=None):
+    def create_detection_filter(self, name='', description='', event_type='', event_subtype='', origin='', origin_type='', user_id='', filter_config=None):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
          resource with the user. Setup subscription and call back do a detection filter of some type...
          @todo - is the user email automatically selected from the user id?
         '''
-        filter_config = filter_config or {}
+
+        #@todo for now the delivery config is the filter config. Later there may be some smarts here to set up the config for the event processor
+        delivery_config = filter_config or {}
 
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
-        #@todo need to get the deliver_config
-        notification_request = NotificationRequest(name='',
+        #@todo get the process_definition_id - in this case, should it be added to the interface for this method?
+
+        notification_request = NotificationRequest(
+            name=name,
+            description=description,
+            type = NotificationType.FILTER,
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
             event_subtype = event_subtype ,
-            delivery_config=None)
+            delivery_config=delivery_config)
 
         #-------------------------------------------------------------------------------------
         # Set up things so that the user gets subscribed to receive this notification request
@@ -540,9 +548,5 @@ class UserNotificationService(BaseUserNotificationService):
 
         notification_id = self.create_notification(notification=notification_request, user_id = user_id)
 
-        #-------------------------------------------------------------------------------------
-        # Create the detection filter
-        #-------------------------------------------------------------------------------------
-        #@todo do something with the filter_config?
 
         return notification_id

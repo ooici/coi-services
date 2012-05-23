@@ -6,7 +6,7 @@
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from ion.services.dm.presentation.user_notification_service import UserNotificationService
+from ion.services.dm.presentation.user_notification_service import UserNotificationService, NotificationEventSubscriber
 from interface.objects import DeliveryMode, EmailDeliveryConfig, SMSDeliveryConfig, DeliveryConfig
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
@@ -23,15 +23,21 @@ from interface.objects import NotificationRequest
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
     def setUp(self):
+
+        NotificationEventSubscriber.start_listening = Mock()
+        NotificationEventSubscriber.stop_listening = Mock()
+
+
         mock_clients = self._create_service_mock('user_notification')
         self.user_notification = UserNotificationService()
+
+        self.user_notification._event_processors = {}
 
         self.user_notification.smtp_server = 'smtp_server'
         self.user_notification.clients = mock_clients
 
         self.mock_rr_client = self.user_notification.clients.resource_registry
 
-    @unittest.skip('Not yet...')
     def test_create_one_user_notification(self):
         # mocks
         user = Mock()
@@ -52,18 +58,17 @@ class UserNotificationTest(PyonTestCase):
                                                     event_subtype = 'event_subtype' ,
                                                     delivery_config= delivery_config)
 
-
         # execution
         notification_id = self.user_notification.create_notification(notification_request, user_id)
 
         # assertions
+        #@todo - change to asserting called with!
         self.assertEquals('notification_id', notification_id)
-        self.assertTrue(self.mock_rr_client.read.called)
         self.assertTrue(self.mock_rr_client.create.called)
         self.assertTrue(self.mock_rr_client.find_objects.return_value)
 
 
-    def test_create_notification(self):
+    def test_create_notification_validation(self):
 
         #------------------------------------------------------------------------------------------------------
         # Test with no user provided
@@ -79,56 +84,16 @@ class UserNotificationTest(PyonTestCase):
             event_subtype = 'event_subtype' ,
             delivery_config= delivery_config)
 
-        with self.assertRaises(NotFound):
+        with self.assertRaises(BadRequest) as br:
             notification_id =  self.user_notification.create_notification(notification=notification_request)
 
-        #------------------------------------------------------------------------------------------------------
-        # Setup mock objects
-        #------------------------------------------------------------------------------------------------------
+        self.assertEquals(
+            br.exception.message,
+            '''User id not provided.'''
+        )
 
-        cn = Mock()
+        #@todo when validation for subscription properties is added test it here...
 
-        notification_id = 'an id'
-        args_list = {}
-        kwargs_list = {}
-
-        def side_effect(*args, **kwargs):
-
-            args_list.update(args)
-            kwargs_list.update(kwargs)
-            return notification_id
-
-        cn.side_effect = side_effect
-        self.user_notification.create_notification = cn
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with complete arguments
-        #------------------------------------------------------------------------------------------------------
-
-        res = self.user_notification.create_email(event_type='event_type',
-            event_subtype='event_subtype',
-            origin='origin',
-            origin_type='origin_type',
-            user_id='user_id',
-            email='email',
-            mode = DeliveryMode.DIGEST,
-            message_header='message_header',
-            parser='parser')
-
-        #------------------------------------------------------------------------------------------------------
-        # Assert results about complete arguments which are common to both email and sms
-        #------------------------------------------------------------------------------------------------------
-
-        self.assertEquals(res, notification_id)
-
-        notification_request = kwargs_list['notification']
-        user_id = kwargs_list['user_id']
-
-        self.assertEquals(user_id, 'user_id')
-        self.assertEquals(notification_request.event_type, 'event_type')
-        self.assertEquals(notification_request.event_subtype, 'event_subtype')
-        self.assertEquals(notification_request.origin, 'origin')
-        self.assertEquals(notification_request.origin_type, 'origin_type')
 
     def test_create_email(self):
 
@@ -183,6 +148,12 @@ class UserNotificationTest(PyonTestCase):
         self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
         self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
 
+        self.assertEquals(notification_request.event_type, 'event_type')
+        self.assertEquals(notification_request.event_subtype, 'event_subtype')
+        self.assertEquals(notification_request.origin, 'origin')
+        self.assertEquals(notification_request.origin_type, 'origin_type')
+
+
 
         #------------------------------------------------------------------------------------------------------
         # Test with email missing...
@@ -199,21 +170,28 @@ class UserNotificationTest(PyonTestCase):
                                                     parser='parser')
 
         #------------------------------------------------------------------------------------------------------
-        # Test with user id missing - what should that do? - bad request?
+        # Test with user id missing - that is caught in the create_notification method
         #------------------------------------------------------------------------------------------------------
 
-        with self.assertRaises(BadRequest):
-            res = self.user_notification.create_email(event_type='event_type',
-                                                    event_subtype='event_subtype',
-                                                    origin='origin',
-                                                    origin_type='origin_type',
-                                                    email='email',
-                                                    mode = DeliveryMode.DIGEST,
-                                                    message_header='message_header',
-                                                    parser='parser')
+        res = self.user_notification.create_email(event_type='event_type',
+                                                event_subtype='event_subtype',
+                                                origin='origin',
+                                                origin_type='origin_type',
+                                                email='email',
+                                                mode = DeliveryMode.DIGEST,
+                                                message_header='message_header',
+                                                parser='parser')
+
+        notification_request = kwargs_list['notification']
+        user_id = kwargs_list['user_id']
+
+        self.assertEquals(user_id, '')
+        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
+        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
+
 
         #------------------------------------------------------------------------------------------------------
-        # Test with no subscription fields - bad request?
+        # Test with no mode - bad request?
         #------------------------------------------------------------------------------------------------------
 
         with self.assertRaises(BadRequest):
@@ -278,6 +256,11 @@ class UserNotificationTest(PyonTestCase):
         self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
         self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
 
+        self.assertEquals(notification_request.event_type, 'event_type')
+        self.assertEquals(notification_request.event_subtype, 'event_subtype')
+        self.assertEquals(notification_request.origin, 'origin')
+        self.assertEquals(notification_request.origin_type, 'origin_type')
+
         #------------------------------------------------------------------------------------------------------
         # Test with phone missing - what should that do? - bad request?
         #------------------------------------------------------------------------------------------------------
@@ -324,23 +307,13 @@ class UserNotificationTest(PyonTestCase):
 
         self.assertEquals(res, notification_id)
 
-    @unittest.skip('not working')
     def test_update_user_notification(self):
-        # mocks
-
-        # execution
-
-        # assertions
         pass
+        #@todo implement test for update
 
-    @unittest.skip('not working')
     def test_delete_user_notification(self):
-        # mocks
-
-        # execution
-
-        # assertions
         pass
+        #@todo implement test for delete
 
 
 @unittest.skip('interface has changed!')
