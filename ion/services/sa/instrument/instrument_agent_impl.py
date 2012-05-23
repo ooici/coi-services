@@ -6,7 +6,7 @@
 """
 
 #from pyon.core.exception import BadRequest, NotFound
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, LCE
 
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
@@ -16,6 +16,13 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
     @brief Resource management for InstrumentAgent resources
     """
 
+    def on_impl_init(self):
+        self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
+        
+    
+    def lce_precondition_integrate(self, instrument_agent_id):
+        return ""
+    
     def _primary_object_name(self):
         return RT.InstrumentAgent
 

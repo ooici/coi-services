@@ -9,6 +9,12 @@ def run():
     app = NoseTest(Metadata())
     opts = parseArgs()
 
+    if( opts.logger ):
+        launch_logger_window();
+    
+    if( opts.stream ):
+        launch_stream_window();
+    
     if( opts.unit ):
         app.report_header()
         app.run_unit()
@@ -21,6 +27,11 @@ def run():
     else:
         app.run()
    
+def launch_logger_window():
+    pass
+
+def launch_stream_window():
+    pass
 
 def parseArgs():
     parser = argparse.ArgumentParser(description="IDK Start Driver")
@@ -30,6 +41,10 @@ def parseArgs():
                         help="only run integration tests" )
     parser.add_argument("-q", dest='qualification', action="store_true",
                         help="only run qualification tests" )
+    parser.add_argument("-l", dest='logger', action="store_true",
+                        help="launch a window with test log output" )
+    parser.add_argument("-s", dest='stream', action="store_true",
+                        help="launch a window monitoring port agent sniffer" )
     return parser.parse_args()
 
 

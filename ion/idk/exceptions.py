@@ -28,3 +28,7 @@ class DriverParameterUndefined(IDKException):
     """A driver parameter is undefined in the metadata file"""
     pass
 
+class MissingTemplate(IDKException):
+    """An IDK template is missing for code generation"""
+    pass
+

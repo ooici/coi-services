@@ -22,6 +22,7 @@ from ion.idk.metadata import Metadata
 from ion.idk.logger import Log
 
 from ion.idk.exceptions import DriverParameterUndefined
+from ion.idk.exceptions import MissingTemplate
 
 class DriverGenerator:
     """
@@ -185,7 +186,7 @@ class DriverGenerator:
             tmpl_str = infile.read()
             return Template(tmpl_str)
         except IOError:
-            return Template("")
+            raise MissingTemplate(msg="Missing: %s" % template_file)
 
 
     def _driver_template_data(self):
@@ -278,6 +279,8 @@ class DriverGenerator:
             sys.stderr.write(msg)
             Log.warn(msg)
         else:
+            Log.info("Generate driver code from template %s to file %s" % (self.driver_template(), self.driver_path()))
+            
             template = self._get_template(self.driver_template())
             ofile = open( self.driver_path(), 'w' )
             code = template.substitute(self._driver_template_data())

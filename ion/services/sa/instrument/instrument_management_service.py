@@ -8,7 +8,7 @@
 
 
 #from pyon.public import Container
-#from pyon.public import LCS #, LCE
+from pyon.public import LCE
 from pyon.public import RT, PRED
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound
@@ -18,7 +18,10 @@ from pyon.util.log import log
 import os
 import gevent
 import base64
-from distutils.core import setup
+import zipfile
+import string
+import csv
+from StringIO import StringIO
 
 
 from interface.objects import ProcessDefinition
@@ -47,6 +50,10 @@ from ion.agents.port.logger_process import EthernetDeviceLogger
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
+
+
+INSTRUMENT_AGENT_MANIFEST_FILE = "MANIFEST.csv"
+ 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     """
@@ -100,104 +107,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.data_producer       = DataProducerImpl(self.clients)
 
 
-
-    ##########################################################################
-    #
-    # REGISTER INSTRUMENT DRIVER
-    #
-    ##########################################################################
-
-    def register_instrument_driver(self,
-                                   instrument_agent_id=None,
-                                   #setup_params=None          #dict
-                                   manifest="",               #XML file
-                                   git_tag="",                #string
-                                   cert_metadata=None,        #dict
-                                   cert_attachment=""         #contents
-                                   ):
-        """
-        register a driver:
-         - instrument_agent_id = the agent 
-         - setup params        = anything needed by the distutils.setup() function
-         - manifest            = XML file containing files to download for the egg
-         - git_tag             = string containing the revision of files to download
-         - cert_metadata       = metadata for an attachment (name, 
-        """
-
-        def check_md_field(name, fieldtype):
-            if not name in cert_metadata:
-                raise BadRequest("Certification metadata is missing required field '%s'" % name)
-            
-            if not fieldtype == type(cert_metadata[name]):
-                raise BadRequest("Certification metadata field '%s' is not of type '%s'" % (name, str(fieldtype)))
-
-        check_md_field("time_source",           type())
-
-
-        #validate attachment
-        if cert_attachment:
-            check_md_field("name", type(""))
-            check_md_field("keywords", type([]))
-            check_md_field("attachment_type", type(AttachmentType.ASCII))
-
-        #fetch files supplied in manifest
-        #TODO
-
-
-        #builds the egg from the manifest or tag then places the egg on the web server
-        ##TODO
-        # setup(
-        #     #TODO: args from agent_metadata
-        #     script_name = 'setup.py',                   #may not be needed
-        #     script_args = ['bdist_rpm', '--spec-only'], #args needed for compile
-        #
-        #     name = "HelloWorld",
-        #     version = "0.1",
-        #
-        #     # look in my_tempdir for __init__.py files.  these will be included
-        #     packages = find_packages(my_tempdir, exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
-        #    
-        #     # include other scripts in my_tempdir
-        #     scripts = [my_tempdir . os.path_sep() . 'say_hello.py'],
-        #    
-        #     # Project uses reStructuredText, so ensure that the docutils get
-        #     # installed or upgraded on the target machine
-        #     install_requires = ['docutils>=0.3'],
-        #    
-        #     package_data = {
-        #         # If any package contains *.txt or *.rst files, include them:
-        #         '': ['*.txt', '*.rst'],
-        #         # And include any *.msg files found in the 'hello' package, too:
-        #             'hello': ['*.msg'],
-        #         }
-        #    
-        #     # metadata for upload to PyPI
-        #     author = "Me",
-        #     author_email = "me@example.com",
-        #     description = "This is an Example Package",
-        #     license = "PSF",
-        #     keywords = "hello world example examples",
-        #     url = "http://example.com/HelloWorld/",   # project home page, if any
-        #            
-        #     # could also include long_description, download_url, classifiers, etc.
-        #
-        #      )
-
-
-        #now the irreversible things
-        if cert_attachment:
-            att = IonObject(RT.Attachment, 
-                            name=cert_metadata["name"],
-                            content=base64.encodestring(cert_attachment),
-                            keywords=cert_metadata["keywords"],
-                            attachment_type=cert_metadata["attachment_type"])
-            self.RR.create_attachment(instrument_agent_id, att)
-
-        #move output egg to another directory / upload it somewhere
-        #TODO
-
-        #updates the state of this InstAgent to deployed
-        #TODO
 
 
     ##########################################################################
@@ -550,20 +459,113 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
-
+        """
+        register an instrument driver by putting it in a web-accessible location
+        @instrument_agent_id the agent receiving the driver
+        @agent_egg a base64-encoded egg file
+        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file (name,keywords)
+        """
+        
         # retrieve the resource
+        log.debug("reading inst agent resource")
+        instrument_agent_obj = self.instrument_agent.read_one(instrument_agent_id)
 
-        #process the qa documents
+
+        #process the qa documents (a base64-encoded zipfile)
+        log.debug("decoding base64 zipfile")
+        try:
+            qa_zip_str  = base64.decodestring(qa_documents)
+        except:
+            raise BadRequest("could not base64 decode supplied qa_documents argument")
+
+        log.debug("opening zipfile")
+        try:
+            qa_zip_file = StringIO(qa_zip_str)
+            qa_zip_obj  = zipfile.ZipFile(qa_zip_file)
+        except:
+            raise BadRequest("could not parse zipfile contained in qa_documents argument")
+
 
         #parse the manifest file
+        if not INSTRUMENT_AGENT_MANIFEST_FILE in qa_zip_obj.namelist():
+            raise BadRequest("provided qa_documents zipfile lacks manifest CSV file called %s" % 
+                             INSTRUMENT_AGENT_MANIFEST_FILE)
+
+        log.debug("extracting manifest csv file")
+        csv_contents = qa_zip_obj.read(INSTRUMENT_AGENT_MANIFEST_FILE)
+
+        log.debug("parsing manifest csv file")
+        try:
+            dialect = csv.Sniffer().sniff(csv_contents)
+        except csv.Error:
+            dialect = csv.excel
+        except Exception as e:
+            raise BadRequest("%s - %s" % (str(type(e)), str(e.args)))
+        csv_reader = csv.DictReader(StringIO(csv_contents), dialect=dialect)
+
+        #validate fields in manifest file
+        log.debug("validing manifest csv file")
+        for f in ["name", "content_type", "keywords"]:
+            if not f in csv_reader.fieldnames:
+                raise BadRequest("Manifest file %s missing required field %s" % 
+                                 (INSTRUMENT_AGENT_MANIFEST_FILE, f))
+
 
         #create attachment resources for each document in the zip
+        log.debug("creating attachment objects")
+        attachments = []
+        for row in csv_reader:
+            att_name = row["name"]
+            att_content_type = row["content_type"]
+            att_keywords = string.split(row["keywords"], ",")
 
-        #deploy the egg
+            if not att_name in qa_zip_obj.namelist():
+                raise BadRequest("Manifest refers to a file called '%s' which is not in the zip" % att_name)
 
-        #set the agent LCS to Integrated
+            attachments.append(IonObject(RT.Attachment,
+                                         name=att_name,
+                                         content=qa_zip_obj.read(att_name), #=base64.encodestring(qa_zip_obj.read(att_name)),
+                                         content_type=att_content_type,
+                                         keywords=att_keywords,
+                                         attachment_type=AttachmentType.BLOB))
+            
+        log.debug("Sanity checking manifest vs zip file")
+        if len(qa_zip_obj.namelist()) - 1 > len(attachments):
+            log.warn("There were %d files in the zip but only %d in the manifest" % 
+                     (len(qa_zip_obj.namelist()) - 1, len(attachments)))
+            
+
+        
+        #process the driver (a base64-encoded egg)
+        log.debug("decoding base64 egg")
+        try:
+            egg_str  = base64.decodestring(agent_egg)
+        except:
+            raise BadRequest("could not base64 decode supplied agent_egg argument")
+                                             
+        #validate egg
+        log.debug("validating egg")
+        #TODO
+
+        #determine egg name
+        #TODO
+
+        #move output egg to another directory / upload it somewhere
+        #TODO
+
+        #if that works, do the rest
+        log.debug("inserting attachments")
+        for att in attachments:
+            self.RR.create_attachment(instrument_agent_id, att)
+
+        #updates the state of this InstAgent to integrated
+        log.debug("firing life cycle event: integrate")
+        self.instrument_agent.advance_lcs(instrument_agent_id, LCE.INTEGRATE)
+
 
         return
+
+
 
     ##########################################################################
     #

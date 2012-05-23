@@ -92,7 +92,7 @@ class ConfigManager(Singleton):
         self.yaml = yaml.load(infile)
         infile.close()
         
-        yaml.write()
+        self.write()
         
     def rebase(self):
         """
