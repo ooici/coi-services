@@ -53,6 +53,7 @@ class TestPlatformManagement(IonIntegrationTestCase):
 
         # retrieve relevant platform information: battery levels, telemetry status, etc
 
+        pass
 
     @unittest.skip("TBD")
     def test_get_platform_vitals_from_logs(self):
@@ -62,7 +63,7 @@ class TestPlatformManagement(IonIntegrationTestCase):
         #retrieve platform log info from engineering data via Discovery service
 
 
-
+        pass
 
     @unittest.skip("TBD")
     def test_platform_resource_policies(self):
@@ -76,4 +77,4 @@ class TestPlatformManagement(IonIntegrationTestCase):
         # request for use of the platform and instrument outside of the use policy and verify that access is denied
 
 
-  
+        pass
