@@ -261,8 +261,6 @@ class UserNotificationService(BaseUserNotificationService):
         log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types)) 
         log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table))
 
-        print ("self.smtp_server = %s" % self.smtp_server)
-        
         """
         # code to dump resource types, delete this from file for release
         rt = sorted(RT)
@@ -282,10 +280,9 @@ class UserNotificationService(BaseUserNotificationService):
         @retval notification_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-        # check that user exists
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("UserNotificationService.create_notification(): User %s does not exist" % user_id)
+
+        if not user_id:
+            raise NotFound("User not provided.")
 
         if user_id not in self.user_event_processors:
             # user does not have an event processor, so create one
@@ -429,13 +426,21 @@ class UserNotificationService(BaseUserNotificationService):
                                            descending=descending,
                                            limit=limit)
 
-    def create_email(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', email='',mode=None, message_header='', parser=''):
+    def create_email(self, event_type='', event_subtype='', origin='', origin_type='', user_id='', email='', mode=None, message_header='', parser='', period=86400):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
          resource with the user. Setup subscription and call back to send email
          @todo - is the user email automatically selected from the user id?
         '''
 
+
+        # assertions
+        if not email:
+            raise BadRequest("No email provided.")
+        if not mode:
+            raise BadRequest("No delivery mode provided.")
+        if not user_id:
+            raise BadRequest("No user_id provided.")
 
         #@todo need to get the deliver_config
 
@@ -446,8 +451,8 @@ class UserNotificationService(BaseUserNotificationService):
         # get the process_definition_id?
 
         processing = {'message_header': message_header, 'parsing': parser}
-        delivery = {'email': email, 'mode' : mode, 'frequency' : ''} #@todo get the frequency
-        email_delivery_config = EmailDeliveryConfig(processing, delivery)
+        delivery = {'email': email, 'mode' : mode, 'period' : period}
+        email_delivery_config = EmailDeliveryConfig(processing=processing, delivery=delivery)
 
         #-------------------------------------------------------------------------------------
         # Create a notification object
@@ -475,9 +480,10 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         #@todo raise bad request error if phone is specified but provider is not....
-        if phone:
-            if not provider:
-                raise BadRequest("No provider provided for phone")
+        if not phone:
+            raise BadRequest("No phone provided.")
+        if not provider:
+            raise BadRequest("No provider provided.")
 
         #-------------------------------------------------------------------------------------
         # Build the sms delivery config
@@ -487,7 +493,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         processing = {'message_header': message_header, 'parsing': parser}
         delivery = {'phone_number': phone, 'provider': provider}
-        sms_delivery_config = SMSDeliveryConfig(processing, delivery)
+
+        sms_delivery_config = SMSDeliveryConfig(processing=processing, delivery=delivery)
 
         #-------------------------------------------------------------------------------------
         # Create a notification object
