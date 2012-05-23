@@ -82,7 +82,7 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
             
             self.assertIn(parts[0], a.keywords)
 
-            self.assertEqual(base64.decodestring(a.content), parts[0] * 3)
+            self.assertEqual(base64.decodestring(a.content), (parts[0] * 3) + "\n")
 
             
 
