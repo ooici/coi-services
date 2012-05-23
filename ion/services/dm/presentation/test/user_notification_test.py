@@ -42,16 +42,25 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.read.return_value = user
         self.mock_rr_client.find_objects.return_value = objects, None
 
+        delivery_config = DeliveryConfig()
+
+        # Create a notification object
+        notification_request = NotificationRequest(name='Setting_email',
+                                                    origin = 'origin',
+                                                    origin_type = 'origin_type',
+                                                    event_type= 'event_type',
+                                                    event_subtype = 'event_subtype' ,
+                                                    delivery_config= delivery_config)
+
+
         # execution
-        notification_id = self.user_notification.create_notification(self.notification_object, user_id)
+        notification_id = self.user_notification.create_notification(notification_request, user_id)
 
         # assertions
         self.assertEquals('notification_id', notification_id)
         self.assertTrue(self.mock_rr_client.read.called)
         self.assertTrue(self.mock_rr_client.create.called)
         self.assertTrue(self.mock_rr_client.find_objects.return_value)
-
-#        self.mock_rr_client.read.assert_called_once_with(user_id)
 
 
     def test_create_notification(self):
@@ -212,6 +221,7 @@ class UserNotificationTest(PyonTestCase):
                                                         event_subtype='event_subtype',
                                                         origin='origin',
                                                         origin_type='origin_type',
+                                                        user_id='user_id',
                                                         email='email',
                                                         message_header='message_header',
                                                         parser='parser')
