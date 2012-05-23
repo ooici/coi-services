@@ -19,7 +19,7 @@ from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
 
 from ion.agents.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
-from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException
+from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
 
 ### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
@@ -71,11 +71,12 @@ class BaseDataHandler(object):
 
     def _poll(self):
         """
-        Internal polling method, run inside a greenlet, that triggers acquire_data for "new" data
+        Internal polling method, run inside a greenlet, that triggers execute_acquire_data without configuration mods
         The polling interval (in seconds) is retrieved from the POLLING_INTERVAL parameter
         """
         self._polling = True
         interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
+        log.debug('Polling interval: {0}'.format(interval))
         while self._polling:
             self.execute_acquire_data()
             time.sleep(interval)
@@ -228,8 +229,7 @@ class BaseDataHandler(object):
                         else:
                             log.debug('Found attachment: {0}'.format(attachment_obj))
                 except NotFound:
-                    log.debug('No attachments found for resource: {0}'.format(ext_ds_id))
-                    pass
+                    raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(ext_ds_id))
 
         if not get_safe(config, 'new_data_check'):
             config['new_data_check'] = None
@@ -497,7 +497,6 @@ class FibonacciDataHandler(BaseDataHandler):
         """
         Initialize anything the data handler will need to use, such as a dataset
         """
-        pass
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -538,6 +537,7 @@ class FibonacciDataHandler(BaseDataHandler):
                 a, b = b, a + b
 
         gen=fibGenerator()
+        cnt = cls._calc_iter_cnt(cnt, max_rec)
         for i in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
             d = gen.next()
@@ -551,7 +551,6 @@ class DummyDataHandler(BaseDataHandler):
         """
         Initialize anything the data handler will need to use, such as a dataset
         """
-        pass
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -585,7 +584,6 @@ class DummyDataHandler(BaseDataHandler):
             rdt['data'] = d
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             yield g
-
 
 
 
