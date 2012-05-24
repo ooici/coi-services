@@ -346,7 +346,7 @@ class UserNotificationService(BaseUserNotificationService):
     #            raise BadRequest("UserNotificationService.delete_notification(): there should be only ONE user for " + notification_id)
             _event_processor = self._event_processors[notification_id]
 
-            _event_processor.delete_notification(notification_id)
+            _event_processor.remove_notification(notification_id)
 
             # add updated notification to user's event processor
             notification_obj = _event_processor.add_notification(notification)
@@ -381,6 +381,14 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         """
         #@todo - fix delete notification implementation to kill the subscriber and delete the event object
+
+        notification_obj = self.clients.resource_registry.read(notification_id)
+
+        notification_obj.kill_subscriber()
+
+        _event_processor.remove_notification(notification_id)
+
+
         '''
         # Read specified Notification object and see if it exists
         notification = self.clients.resource_registry.read(notification_id)
