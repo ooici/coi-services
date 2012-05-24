@@ -463,7 +463,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         register an instrument driver by putting it in a web-accessible location
         @instrument_agent_id the agent receiving the driver
         @agent_egg a base64-encoded egg file
-        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file (name,keywords)
+        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file 
+
+        MANIFEST.csv fields:
+         - filename
+         - name
+         - description
+         - content_type
+         - keywords
         """
         
         # retrieve the resource
@@ -505,7 +512,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #validate fields in manifest file
         log.debug("validing manifest csv file")
-        for f in ["name", "content_type", "keywords"]:
+        for f in ["filename", "name", "description", "content_type", "keywords"]:
             if not f in csv_reader.fieldnames:
                 raise BadRequest("Manifest file %s missing required field %s" % 
                                  (INSTRUMENT_AGENT_MANIFEST_FILE, f))
@@ -515,7 +522,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("creating attachment objects")
         attachments = []
         for row in csv_reader:
-            att_name = row["name"]
+            att_name = row["filename"]
+            att_desc = row["description"]
             att_content_type = row["content_type"]
             att_keywords = string.split(row["keywords"], ",")
 
@@ -524,7 +532,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             attachments.append(IonObject(RT.Attachment,
                                          name=att_name,
-                                         content=qa_zip_obj.read(att_name), #=base64.encodestring(qa_zip_obj.read(att_name)),
+                                         description=att_desc,
+                                         content=qa_zip_obj.read(att_name), 
                                          content_type=att_content_type,
                                          keywords=att_keywords,
                                          attachment_type=AttachmentType.BLOB))

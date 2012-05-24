@@ -142,7 +142,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         The actor accessing the control capabilities must be authorized to send commands.
 
-        note from maurice 2012-05-18: see 139
+        note from maurice 2012-05-18: Talk to tim M to verify that this is policy.  If it is then talk with Stephen to get an example of a policy test and use that to create a test stub that will be completed when we have instrument policies.  
         """
         pass
 
@@ -173,7 +173,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         Subject to policy.
 
-        note from maurice 2012-05-18: Talk to tim M to verify that this is policy.  If it is then talk with Stephen to get an example of a policy test and use that to create a test stub that willb e completed when we have instrument policies.  
+        note from maurice 2012-05-18: Talk to tim M to verify that this is policy.  If it is then talk with Stephen to get an example of a policy test and use that to create a test stub that will be completed when we have instrument policies.  
         """
         pass
 
@@ -206,7 +206,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         Instrument management shall implement qualification of physical resources on ION
 
-This include testing of the instrument and its Instrument Agent for compatibility with ION. This could be carried out using the Instrument Test Kit, or online for a newly installed instrument on the marine infrastructure. The details of the qualification tests are instrument specific at the discretion of the marine operator.
+        This includes testing of the instrument and its Instrument Agent for compatibility with ION. This could be carried out using the Instrument Test Kit, or online for a newly installed instrument on the marine infrastructure. The details of the qualification tests are instrument specific at the discretion of the marine operator.
 
         note from maurice 2012-05-18: Bill may already have this or perhaps this is just an inspection test.  Talk with Tim M.
 
