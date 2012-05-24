@@ -326,7 +326,14 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
-        
+
+
+        # todo: add this validate for Req: L4-CI-SA-RQ-367  Data processing shall notify registered data product consumers about data processing workflow life cycle events
+        #-------------------------------
+        # Create listener for data process events and verify that events are received.
+        #-------------------------------
+
+
         
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
@@ -343,6 +350,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         log.debug("test_createDataProcessUsingSim: activate_data_process ")
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         
+
+        #todo: check that activate event is received L4-CI-SA-RQ-367
+
 
         # todo: monitor process to se eif it is active (sa-rq-182)
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
