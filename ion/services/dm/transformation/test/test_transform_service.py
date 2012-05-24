@@ -646,6 +646,9 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             except Empty:
                 assertions(False, "Failed to process all messages correctly.")
 
+    """
+    #@todo - how do we test this now that the restart code is in bootstrap?
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST',False),'CEI incompatible')
     def test_transform_restart(self):
@@ -687,5 +690,5 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
         pid = transform.process_id
 
         assertions(cc.proc_manager.procs.has_key(pid), 'Transform process was never restarted.')
-        
+        """
 
