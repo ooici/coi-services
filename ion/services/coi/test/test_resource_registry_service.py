@@ -8,7 +8,7 @@ from pyon.core.exception import BadRequest, Conflict, NotFound, Inconsistent
 from pyon.public import IonObject, PRED, RT, LCS, LCE, iex, log
 from pyon.util.int_test import IonIntegrationTestCase
 
-from interface.objects import Attachment, AttachmentType, Resource
+from interface.objects import Attachment, AttachmentType, Resource, DataProcess, Transform, ProcessDefinition
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 @attr('INT', group='rr1')
@@ -458,3 +458,24 @@ class TestResourceRegistry(IonIntegrationTestCase):
             self.assertTrue(o._id in res_list)
 
 
+    def test_find_associations_mult(self):
+        dp = DataProcess()
+        transform = Transform()
+        pd = ProcessDefinition()
+
+        dp_id, _ = self.resource_registry_service.create(dp)
+        transform_id, _ = self.resource_registry_service.create(transform)
+        pd_id, _ = self.resource_registry_service.create(pd)
+
+        self.resource_registry_service.create_association(subject=dp_id, object=transform_id, predicate=PRED.hasTransform)
+        self.resource_registry_service.create_association(subject=transform_id, object=pd_id, predicate=PRED.hasProcessDefinition)
+
+        results = self.resource_registry_service.find_associations_mult(subjects=[dp_id],id_only=True)
+        self.assertTrue(results == [transform_id])
+
+        results = self.resource_registry_service.find_associations_mult(subjects=[dp_id, transform_id], id_only=True)
+        results.sort()
+        correct = [transform_id, pd_id]
+        correct.sort()
+        self.assertTrue(results == correct)
+        
