@@ -32,3 +32,7 @@ class MissingTemplate(IDKException):
     """An IDK template is missing for code generation"""
     pass
 
+class UnknownDriver(IDKException):
+    """Driver couldn't be found by make, model, and name"""
+    pass
+
