@@ -153,6 +153,7 @@ class EventProcessor(object):
         @retval the number of notifications subscribed to by the user
         """
         self.notification.kill_subscriber()
+        self.notification = None
 
 
 
