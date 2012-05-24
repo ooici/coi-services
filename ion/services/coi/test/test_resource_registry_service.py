@@ -470,10 +470,10 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.resource_registry_service.create_association(subject=dp_id, object=transform_id, predicate=PRED.hasTransform)
         self.resource_registry_service.create_association(subject=transform_id, object=pd_id, predicate=PRED.hasProcessDefinition)
 
-        results = self.resource_registry_service.find_associations_mult(subjects=[dp_id],id_only=True)
+        results, _  = self.resource_registry_service.find_associations_mult(subjects=[dp_id],id_only=True)
         self.assertTrue(results == [transform_id])
 
-        results = self.resource_registry_service.find_associations_mult(subjects=[dp_id, transform_id], id_only=True)
+        results, _  = self.resource_registry_service.find_associations_mult(subjects=[dp_id, transform_id], id_only=True)
         results.sort()
         correct = [transform_id, pd_id]
         correct.sort()
