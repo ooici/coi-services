@@ -53,7 +53,7 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
         #container.start()
         #print 'started container'
 
-        self.container.start_rel_from_url('res/deploy/r2deploy_no_bootstrap.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR  = ResourceRegistryServiceClient(node=self.container.node)
         self.IMS = InstrumentManagementServiceClient(node=self.container.node)
 
