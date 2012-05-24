@@ -1,9 +1,11 @@
 import gevent
 from mock import Mock
 from nose.plugins.attrib import attr
+from nose.plugins.skip import SkipTest
 from gevent import queue
 import os
 import shutil
+import functools
 
 from pyon.net.endpoint import RPCClient
 from pyon.service.service import BaseService
@@ -29,6 +31,18 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id = ''
     process_type = ''
+
+
+def needs_eeagent(test):
+
+    @functools.wraps(test)
+    def wrapped(*args, **kwargs):
+        try:
+            import eeagent
+            return test(*args, **kwargs)
+        except ImportError:
+            raise SkipTest("Need eeagent to run this test.")
+    return wrapped
 
 
 @attr('INT', group='cei')
@@ -90,6 +104,7 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
     def tearDown(self):
         shutil.rmtree(self.supd_directory)
 
+    @needs_eeagent
     def test_basics(self):
         true_u_pid = "test0"
         round = 0
@@ -118,6 +133,7 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 
 @attr('INT', group='cei')
 class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
+    from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
     def setUp(self):
         self._start_container()
@@ -174,6 +190,7 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
     def tearDown(self):
         shutil.rmtree(self.supd_directory)
 
+    @needs_eeagent
     def test_basics(self):
         u_pid = "test0"
         round = 0
@@ -210,6 +227,7 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
 
 @attr('INT', group='cei')
 class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
+    from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
     def setUp(self):
         self._start_container()
@@ -268,6 +286,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         shutil.rmtree(self.persistence_directory)
         self.container.terminate_process(self._eea_pid)
 
+    @needs_eeagent
     def test_basics(self):
         u_pid = "test0"
         round = 0
@@ -287,6 +306,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, u_pid)
 
+    @needs_eeagent
     def test_kill_and_revive(self):
         """test_kill_and_revive
         Ensure that when an eeagent dies, it pulls the processes it owned from

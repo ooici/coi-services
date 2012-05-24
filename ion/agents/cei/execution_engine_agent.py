@@ -8,11 +8,12 @@ from pyon.util.containers import get_safe
 from interface.objects import AgentCommand
 from ion.agents.cei.util import looping_call
 
-
-from eeagent.core import EEAgentCore
-from eeagent.beatit import make_beat_msg
-from eeagent.execute import get_exe_factory
-
+try:
+    from eeagent.core import EEAgentCore
+    from eeagent.beatit import make_beat_msg
+    from eeagent.execute import get_exe_factory
+except ImportError:
+    EEAgentCore = None
 
 """
 @package ion.agents.cei.execution_engine_agent
@@ -20,6 +21,7 @@ from eeagent.execute import get_exe_factory
 @author Patrick Armstrong
 @brief Pyon port of EEAgent
  """
+
 
 class ExecutionEngineAgent(ResourceAgent):
     """Agent to manage processes on a worker
@@ -30,8 +32,11 @@ class ExecutionEngineAgent(ResourceAgent):
         log.debug("ExecutionEngineAgent init")
         ResourceAgent.__init__(self)
 
-
     def on_init(self):
+        if not EEAgentCore:
+            msg = "EEAgentCore isn't available. Use production.cfg buildout"
+            log.error(msg)
+            return
         log.debug("ExecutionEngineAgent Pyon on_init")
         launch_type_name = get_safe(self.CFG, "eeagent.launch_type.name")
 
@@ -67,6 +72,7 @@ class ExecutionEngineAgent(ResourceAgent):
     def acmd_dump_state(self):
         return make_beat_msg(self.core._process_managers_map)
 
+
 class HeartBeater(object):
     def __init__(self, CFG, factory, log=logging):
 
@@ -98,7 +104,7 @@ class HeartBeater(object):
 
     def beat(self):
         try:
-            message =  make_beat_msg(self._factory)
+            message = make_beat_msg(self._factory)
             self._log.debug("Send heartbeat: %s" % message)
         except:
             self._log.exception("beat failed")
