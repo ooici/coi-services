@@ -320,6 +320,7 @@ class UserNotificationService(BaseUserNotificationService):
         @throws Conflict    object not based on latest persisted object version
         """
         #@todo - fix the update_notification implementation to only allow updates to the delivery config fields of a notification request and make sure the notification object is updated too.
+        #@todo - done.
 
         # Read existing Notification object and see if it exists
         notification_id = notification._id
@@ -381,6 +382,7 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         """
         #@todo - fix delete notification implementation to kill the subscriber and delete the event object
+        #@todo - done.
 
         notification_obj = self.clients.resource_registry.read(notification_id)
 
@@ -464,6 +466,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         #@todo get the process_definition_id - Find it when the service starts... bootstrap
         #@todo Define a default for message header and parsing
+
+        if not message_header:
+            message_header = "Default message header" #@todo this has to be decided
 
         processing = {'message_header': message_header, 'parsing': parser}
         delivery = {'email': email, 'mode' : mode, 'period' : period}
