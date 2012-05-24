@@ -19,7 +19,7 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 
-from interface.objects import NotificationRequest, DeliveryConfig, SMSDeliveryConfig, EmailDeliveryConfig, NotificationType
+from interface.objects import NotificationRequest, SMSDeliveryConfig, EmailDeliveryConfig, NotificationType
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
@@ -321,33 +321,42 @@ class UserNotificationService(BaseUserNotificationService):
         """
         #@todo - fix the update_notification implementation to only allow updates to the delivery config fields of a notification request and make sure the notification object is updated too.
 
-        '''
         # Read existing Notification object and see if it exists
-        old_notification = self.clients.resource_registry.read(notification._id)
+        notification_id = notification._id
+        old_notification = self.clients.resource_registry.read(notification_id)
+
         if not old_notification:
-            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
+            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification_id)
 
-        # get the user that this notification is associated with
-        subjects, _ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification._id)
-        if not subjects:
-            raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification._id)
-        if len(subjects) != 1:
-            raise BadRequest("UserNotificationService.delete_notification(): there should be only ONE user for " + notification._id)
-        user_id = subjects[0]._id
+        # check to see if the new notification is different than the old notification only in the delivery config fields
+        if notification.origin != old_notification.origin or \
+            notification.origin_type != old_notification.origin_type or \
+                notification.event_type != old_notification.event_type or \
+                    notification.event_subtype != old_notification.event_subtype:
 
-        #remove the old notification from the user's entry in the self.user_event_processors list
-        if user_id not in self.user_event_processors:
-            log.warning("UserNotificationService.delete_notification(): user %s not found in user_event_processors list" % user_id)
-        user_event_processor = self.user_event_processors[user_id]
-        user_event_processor.remove_notification(notification._id)
+            log.warning('Update unsuccessful. Only the delivery config is allowed to be modified!')
 
-        # add updated notification to user's event processor
-        notification_obj = user_event_processor.add_notification(notification)
-        notification_obj.set_notification_id(notification._id)
+        else: # only the delivery_config is being modified, so we can go ahead with the update
+    #        # get the user that this notification is associated with
+    #        subjects, _ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification_id)
+    #
+    #        if not subjects:
+    #            raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification_id)
+    #        if len(subjects) != 1:
+    #            raise BadRequest("UserNotificationService.delete_notification(): there should be only ONE user for " + notification_id)
+            _event_processor = self._event_processors[notification_id]
 
-        # finally update the notification in the RR
-        self.clients.resource_registry.update(notification)
-        '''
+            _event_processor.delete_notification(notification_id)
+
+            # add updated notification to user's event processor
+            notification_obj = _event_processor.add_notification(notification)
+
+            notification_obj.set_notification_id(notification_id)
+
+            # finally update the notification in the RR
+            self.clients.resource_registry.update(notification)
+
+            log.debug('Updated notification object with id: %s' % notification_id)
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
