@@ -85,7 +85,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         ## declare our intent to subscribe to all messages on the exchange point
         query = ExchangeQuery()
 
-        subscription_id = self.clients.pubsub_management.create_subscription(query=query,\
+        subscription_id = self.clients.pubsub_management.create_subscription(query=query,
             exchange_name=exchange_name, name='Ingestion subscription', description='Subscription for ingestion workers')
 
         ##------------------------------------------------------------------------------------------
@@ -273,24 +273,30 @@ class IngestionManagementService(BaseIngestionManagementService):
         # Get the associated stream definition!
         stream_defs, _ = self.clients.resource_registry.find_objects(stream_id, PRED.hasStreamDefinition)
 
-        if len(stream_defs)!=1:
+        if len(stream_defs)==1:
+
+            stream_def_resource = stream_defs[0]
+            # Get the container object out of the stream def resource and set the stream id field in the local instance
+            stream_def_container = stream_def_resource.container
+            stream_def_container.stream_resource_id = stream_id
+
+            # Get the ingestion configuration
+            ingestion_configuration = self.clients.resource_registry.read(ingestion_configuration_id)
+            couch_storage = ingestion_configuration.couch_storage
+
+            log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
+            db = self.container.datastore_manager.get_datastore(ds_name = couch_storage.datastore_name, config = self.CFG)
+
+            # put it in couch db!
+            db.create(stream_def_container)
+            db.close()
+
+        elif len(stream_defs) ==0:
+            log.info('No stream def for this stream. Hope you know what you are doing....')
+
+        else:
             raise IngestionManagementServiceException('The stream is associated with more than one stream definition!')
 
-        stream_def_resource = stream_defs[0]
-        # Get the container object out of the stream def resource and set the stream id field in the local instance
-        stream_def_container = stream_def_resource.container
-        stream_def_container.stream_resource_id = stream_id
-
-        # Get the ingestion configuration
-        ingestion_configuration = self.clients.resource_registry.read(ingestion_configuration_id)
-        couch_storage = ingestion_configuration.couch_storage
-
-        log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
-        db = self.container.datastore_manager.get_datastore(ds_name = couch_storage.datastore_name, config = self.CFG)
-
-        # put it in couch db!
-        db.create(stream_def_container)
-        db.close()
 
 
         #@todo Add business logic to create the right kind of dataset ingestion configuration
