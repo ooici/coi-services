@@ -12,6 +12,7 @@ from interface.services.ibootstrap_service import BaseBootstrapService
 from ion.services.coi.policy_management_service import MANAGER_ROLE, ION_MANAGER
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from interface.objects import ProcessDefinition
+from interface.objects import CouchStorage, HdfStorage
 
 class BootstrapService(BaseBootstrapService):
     """
@@ -238,9 +239,24 @@ class BootstrapService(BaseBootstrapService):
 
     def post_ingestion_management(self, config):
         """
-        Work is done in post_process_dispatcher... for now
+        Defining the ingestion worker process is done in post_process_dispatcher.
+
+        Creating transform workers happens here...
         """
-        pass
+        exchange_point = config.get_safe('ingestion.exchange_point','science_data')
+        couch_opts = config.get_safe('ingestion.couch_storage',{})
+        couch_storage = CouchStorage(**couch_opts)
+        hdf_opts = config.get_safe('ingestion.hdf_storage',{})
+        hdf_storage = HdfStorage(**hdf_opts)
+        number_of_workers = config.get_safe('ingestion.number_of_workers',2)
+
+        ingestion_id = self.clients.ingestion_management.create_ingestion_configuration(
+            exchange_point_id=exchange_point,
+            couch_storage=couch_storage,
+            hdf_storage=hdf_storage,
+            number_of_workers=number_of_workers
+        )
+        self.clients.ingestion_management.activate_ingestion_configuration(ingestion_id)
 
     def post_process_dispatcher(self, config):
 
