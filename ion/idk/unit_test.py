@@ -14,7 +14,11 @@ from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
 from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
 from pyon.util.unit_test import PyonTestCase
 
-class InstrumentDriverTestCase(PyonTestCase):
+from pyon.util.int_test import IonIntegrationTestCase     # Must inherit from here to get _start_container
+
+#    class InstrumentDriverTestCase(PyonTestCase):
+class InstrumentDriverTestCase(IonIntegrationTestCase):   # Must inherit from here to get _start_container
+
     """Base class for instrument driver unit tests."""
     
     ###
