@@ -150,7 +150,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
-        self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GO_LAYER_PING, self._handler_inactive_go_layer_ping)      *************
+        self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GO_LAYER_PING, self._handler_inactive_go_layer_ping)
 
         self._fsm.add_handler(InstrumentAgentState.LAYER_PING, InstrumentAgentEvent.ENTER, self._handler_layer_ping_enter)
         self._fsm.add_handler(InstrumentAgentState.LAYER_PING, InstrumentAgentEvent.EXIT, self._handler_layer_ping_exit)
