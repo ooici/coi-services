@@ -580,7 +580,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #TODO: change cfg_ to CFG.x.
 
         cfg_host        = 'amoeba.ucsd.edu'
-        cfg_remotepath  = '/var/www/release/iktest'
+        cfg_remotepath  = '/var/www/release'
         cfg_user        = pwd.getpwuid(os.getuid())[0]
 
         log.debug("creating tempfile for egg output")
