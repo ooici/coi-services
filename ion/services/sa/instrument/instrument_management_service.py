@@ -16,6 +16,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 import os
+import pwd
 import gevent
 import base64
 import zipfile
@@ -580,7 +581,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         cfg_host        = 'amoeba.ucsd.edu'
         cfg_remotepath  = '/var/www/release/iktest'
-        cfg_user        = os.getlogin()
+        cfg_user        = pwd.getpwuid(os.getuid())[0]
 
         log.debug("creating tempfile for egg output")
         f_handle, tempfilename = tempfile.mkstemp()

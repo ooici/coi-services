@@ -21,6 +21,7 @@ import string
 import base64
 import subprocess
 import os
+import pwd
 
 from ion.services.sa.test.helpers import any_old
 
@@ -78,7 +79,7 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
 
         #test ssh-ability
         cfg_host        = 'amoeba.ucsd.edu'
-        cfg_user        = os.getlogin()
+        cfg_user        = pwd.getpwuid(os.getuid())[0]
 
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
