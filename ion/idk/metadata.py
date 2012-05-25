@@ -103,17 +103,18 @@ class Metadata():
 
         self.read_from_file()
 
-    def __init__(self, driver_make, driver_model, driver_name):
-        """
-        @brief Default Constructor
-        """
-        self.author = None
-        self.email = None
-        self.driver_make = driver_make
-        self.driver_model = driver_model
-        self.driver_name = driver_name
-        self.notes = None
-        self.version = 0
+    # THIS BREAKS STUFF. TEST BEFORE UNCOMMENTING.
+    #def __init__(self, driver_make, driver_model, driver_name):
+    #    """
+    #    @brief Default Constructor
+    #    """
+    #    self.author = None
+    #    self.email = None
+    #    self.driver_make = driver_make
+    #    self.driver_model = driver_model
+    #    self.driver_name = driver_name
+    #    self.notes = None
+    #    self.version = 0
 
         if(os.path.isfile(self.metadata_path())):
             self.read_from_file()
