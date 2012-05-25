@@ -10,6 +10,8 @@ from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
+
 mr_tree_order = 4   # A quad tree maps well to the notion of time .. secs, mins, hour, days etc
 var_to_skip = ['latitude', 'lat', 'longitude', 'lon', 'depth'] # The variables in this list are not supposed to be averaged
 
