@@ -18,7 +18,7 @@ from interface.services.coi.iorg_management_service import OrgManagementServiceP
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
-
+from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from ion.services.coi.service_gateway_service import get_role_message_headers
 from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
 from pyon.core.governance.negotiate_request import REQUEST_DENIED
@@ -52,7 +52,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 
 
 
-class FakeProcess(LocalContextMixin):
+class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
 
@@ -66,10 +66,16 @@ class TestGovernanceInt(IonIntegrationTestCase):
         # Start container
         self._start_container()
 
-        #Load a deploy file that also loads basic policy.
-        self.container.start_rel_from_url('res/deploy/r2gov.yml')
+        #Load a deploy file
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        process=FakeProcess()
+        #Instantiate a process to represent the test
+        process=GovernanceTestProcess()
+
+
+        #Load system policies after container has started all of the services
+        LoadSystemPolicy.op_load_system_policies(process)
+
 
         self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
 
@@ -92,11 +98,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.sa_user_header = {'ion-actor-id': self.system_actor._id, 'ion-actor-roles': sa_header_roles }
 
 
-
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("Skipping for now to get build to pass ")
+    @unittest.skip("Need to fix the auto_bootstrap so it loads the Service Definitions")
     def test_org_policy(self):
+
+        #Make sure that the system policies have been loaded
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
@@ -336,7 +345,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(commitments),1)
 
         #Release the resource
-        self.org_client.release_resource(org2_id,user_id ,ia_list[0]._id, headers=self.sa_user_header)
+        self.org_client.release_resource(org2_id,user_id ,ia_list[0]._id, headers=self.sa_user_header,timeout=15)  #TODO - Refactor release_resource
 
         #Check commitments
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
