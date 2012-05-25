@@ -167,7 +167,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process start")
         try:
-            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, input_dp_id, self.output_products)
+            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, [input_dp_id], self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -340,7 +340,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createDataProcessUsingSim: create data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product, self.output_products)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
