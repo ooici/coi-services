@@ -414,7 +414,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
+        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
 
 
 
