@@ -306,7 +306,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         # Create the  transform data process
         log.debug("create data_process and start it")
-        data_process_id = self.dataprocessclient.create_data_process(data_process_definition._id, data_process_input_dp_id, {'output':transform_dp_id})
+        data_process_id = self.dataprocessclient.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id})
         self.dataprocessclient.activate_data_process(data_process_id)
 
 

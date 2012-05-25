@@ -134,7 +134,7 @@ class PolicyManagementService(BasePolicyManagementService):
             policy = self.clients.resource_registry.read(policy_id)
             if policy:
                 #Need to publish an event that a policy has changed for any associated resource
-                res_list = self._find_resources_for_policy(policy_event.origin)
+                res_list = self._find_resources_for_policy(policy_id)
                 for res in res_list:
                     self._publish_resource_policy_event(policy, res)
 
@@ -249,7 +249,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval resource_list    list
         @throws NotFound    object with specified id does not exist
         """
-        resource_list,_ = self.clients.resource_registry.find_subjects(RT.Resource, PRED.hasPolicy, policy_id)
+        resource_list,_ = self.clients.resource_registry.find_subjects(None, PRED.hasPolicy, policy_id)
 
         return resource_list
 

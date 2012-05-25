@@ -78,7 +78,8 @@ class InstrumentAgentState(BaseEnum):
     TEST = 'INSTRUMENT_AGENT_STATE_TEST'
     CALIBRATE = 'INSTRUMENT_AGENT_STATE_CALIBRATE'
     DIRECT_ACCESS = 'INSTRUMENT_AGENT_STATE_DIRECT_ACCESS'
-        
+    LAYER_PING = 'INSTRUMENT_AGENT_STATE_LAYER_PING'
+
 class InstrumentAgentEvent(BaseEnum):
     """
     Instrument agent event enum.
@@ -103,6 +104,9 @@ class InstrumentAgentEvent(BaseEnum):
     GET_PARAMS = 'INSTRUMENT_AGENT_EVENT_GET_PARAMS'
     SET_PARAMS = 'INSTRUMENT_AGENT_EVENT_SET_PARAMS'
     EXECUTE_RESOURCE = 'INSTRUMENT_AGENT_EVENT_EXECUTE_RESOURCE'
+    GO_LAYER_PING = 'INSTRUMENT_AGENT_EVENT_GO_LAYER_PING'
+    HELO_DRIVER = 'INSTRUMENT_AGENT_EVENT_PING_DRIVER'
+    HELO_AGENT = 'INSTRUMENT_AGENT_EVENT_PING_AGENT'
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -146,6 +150,13 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GET_RESOURCE_COMMANDS, self._handler_get_resource_commands)
         self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GET_RESOURCE_PARAMS, self._handler_get_resource_params)
+        self._fsm.add_handler(InstrumentAgentState.INACTIVE, InstrumentAgentEvent.GO_LAYER_PING, self._handler_inactive_go_layer_ping)
+
+        self._fsm.add_handler(InstrumentAgentState.LAYER_PING, InstrumentAgentEvent.ENTER, self._handler_layer_ping_enter)
+        self._fsm.add_handler(InstrumentAgentState.LAYER_PING, InstrumentAgentEvent.EXIT, self._handler_layer_ping_exit)
+        self._fsm.add_handler(InstrumentAgentState.LAYER_PING, InstrumentAgentEvent.HELO_AGENT, self._handler_layer_ping_helo_agent)
+        self._fsm.add_handler(InstrumentAgentState.LAYER_PING, InstrumentAgentEvent.HELO_DRIVER, self._handler_layer_ping_helo_driver)
+        self._fsm.add_handler(InstrumentAgentState.LAYER_PING, InstrumentAgentEvent.GO_INACTIVE, self._handler_layer_ping_go_inactive)
 
         self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.ENTER, self._handler_idle_enter)
         self._fsm.add_handler(InstrumentAgentState.IDLE, InstrumentAgentEvent.EXIT, self._handler_idle_exit)
@@ -442,7 +453,50 @@ class InstrumentAgent(ResourceAgent):
             return self._fsm.on_event(InstrumentAgentEvent.GO_INACTIVE, *args, **kwargs)
 
         except InstrumentStateException:
-            raise InstStateError('go_inactive not allowed in state %s.', self._fsm.get_current_state()) 
+            raise InstStateError('go_inactive not allowed in state %s.', self._fsm.get_current_state())
+
+    def acmd_go_layer_ping(self, *args, **kwargs):
+        """
+        Agent go_layer_ping command. Forward with args to state machine.
+        """
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.GO_LAYER_PING, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('go_layer_ping not allowed in state %s.', self._fsm.get_current_state())
+
+    def acmd_helo_agent(self, *args, **kwargs):
+        """
+        Agent elo_agent command. Respond with PONG at this level.
+        """
+        try:
+            return "PONG-" +  kwargs.get('message', 'UNDEFINED')
+
+        except StateError:
+            raise InstStateError('helo_agent not allowed in state %s.', self._fsm.get_current_state())
+
+    def acmd_helo_driver(self, *args, **kwargs):
+        """
+        Agent go_layer_ping command. Forward with args to state machine.
+        """
+        try:
+            args=[kwargs.get('message', 'UNDEFINED')]
+            return self._dvr_client.cmd_dvr('process_echo', *args, **kwargs)
+
+
+        except StateError:
+            raise InstStateError('helo_driver not allowed in state %s.', self._fsm.get_current_state())
+
+    def acmd_initialize(self, *args, **kwargs):
+        """
+        Agent initialize command. Forward with args to state machine.
+        """
+        try:
+            return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
+
+        except StateError:
+            raise InstStateError('initialize not allowed in state %s.', self._fsm.get_current_state())
+
 
     def acmd_run(self, *args, **kwargs):
         """
@@ -690,6 +744,53 @@ class InstrumentAgent(ResourceAgent):
         return (next_state, result)
 
     ###############################################################################
+    # layer_ping state handlers.
+    #
+    ###############################################################################
+
+    def _handler_layer_ping_enter(self, *args, **kwargs):
+        """
+        Handler upon entry to powered_down state.
+        """
+        self._common_state_enter()
+
+    def _handler_layer_ping_exit(self, *args, **kwargs):
+        """
+        Handler upon exit from powered_down state.
+        """
+        pass
+
+    def _handler_layer_ping_helo_agent(self,  *args, **kwargs):
+        """
+        Handler for power_down agent command in uninitialized state.
+        """
+        result = None
+        next_state = None
+
+
+        return (next_state, result)
+
+    def _handler_layer_ping_helo_driver(self,  *args, **kwargs):
+        """
+        Handler for power_down agent command in uninitialized state.
+        """
+        #SOMETHING LIKE THIS# self._dvr_client.cmd_dvr('disconnect')
+        result = "PONG-" +  kwargs.get('message', 'UNDEFINED')
+        result = "ROGER IS COOL"
+        next_state = InstrumentAgentState.LAYER_PING
+
+        return (next_state, result)
+
+    def _handler_layer_ping_go_inactive(self,  *args, **kwargs):
+        """
+        Handler for power_down agent command in uninitialized state.
+        """
+        result = None
+        next_state = InstrumentAgentState.INACTIVE
+
+        return (next_state, result)
+
+    ###############################################################################
     # Uninitialized state handlers.
     # Default start state. The driver has not been configured or started.
     ###############################################################################
@@ -837,6 +938,14 @@ class InstrumentAgent(ResourceAgent):
         
         return (next_state, result)
 
+    def _handler_inactive_go_layer_ping(self,  *args, **kwargs):
+        """
+        Handler for entry to ROGERING state.
+        """
+        result = None
+        next_state = InstrumentAgentState.LAYER_PING
+
+        return (next_state, result)
     ###############################################################################
     # Idle state handlers.
     ###############################################################################

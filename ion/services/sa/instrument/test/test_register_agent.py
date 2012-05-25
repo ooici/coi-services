@@ -19,6 +19,9 @@ from pyon.util.log import log
 
 import string
 import base64
+import subprocess
+import os
+import pwd
 
 from ion.services.sa.test.helpers import any_old
 
@@ -39,7 +42,16 @@ U1QuY3N2VVQFAAP5Fr5PdXgLAAEE6AMAAAToAwAAUEsFBgAAAAAEAAQAMwEAAJcBAAAAAA==
 """
 
 
-BASE64_EGG = "ZWdn"
+BASE64_EGG = """
+UEsDBBQAAAAIAPtOuEASJdDPBQEAAHMBAAARABwARUdHLUlORk8vUEtHLUlORk9VVAkAA+o9vk8f
+tL5PdXgLAAEE6AMAAAToAwAAXZDBbsIwDIbveQo/AGlhHJByGlORkIBuGmM7u4nXRmriKkmH+vYL
+Zdthlk/27++3faKEBhPKdwrRslewKlaiRkcKImFjg5GxofUmukYyW82BxJ92mbXn0TkMk4LzXQ7r
+zfn0BFWwXxTEnh3JAduM61IaoirL1qZubArNrrwBbZnHrSdpfaI2YMrkKLZj6jgo2JkrZuZ+zM3w
+U5Xk0PYKyHRz+XHU0RRkRnG0mnzMXtsBdUfwUCxFxVffMxp5eT3el8g7zMaFp1QG6gkjRVFR1MEO
+aT7sN946GyEnQs++BQH/QhxounIwUcGMXOTp24sWw8R+odmKlx7TJwen4FIf6uePWnwDUEsBAh4D
+FAAAAAgA+064QBIl0M8FAQAAcwEAABEAGAAAAAAAAQAAAKSBAAAAAEVHRy1JTkZPL1BLRy1JTkZP
+VVQFAAPqPb5PdXgLAAEE6AMAAAToAwAAUEsFBgAAAAABAAEAVwAAAFABAAAAAA==
+"""
 
 @attr('INT', group='sa')
 class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
@@ -64,6 +76,20 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
         return
 
     def test_register_instrument_agent(self):
+
+        #test ssh-ability
+        cfg_host        = 'amoeba.ucsd.edu'
+        cfg_user        = pwd.getpwuid(os.getuid())[0]
+
+        remotehost = "%s@%s" % (cfg_user, cfg_host)
+
+        ssh_retval = subprocess.call(["ssh", "-q", "-o", "PasswordAuthentication=no", 
+                                      "-f", "true", remotehost])
+        
+        if 0 != ssh_retval:
+            raise unittest.SkipTest("SSH/SCP credentials to %s didn't work" % remotehost)
+
+
 
         inst_agent_id = self.IMS.create_instrument_agent(any_old(RT.InstrumentAgent))
 

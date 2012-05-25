@@ -93,7 +93,7 @@ class Metadata():
     ###
     def __init__(self, driver_make = None, driver_model = None, driver_name = None):
         """
-        @brief Default Constructor
+        @brief Constructor
         """
         self.author = None
         self.email = None

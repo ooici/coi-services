@@ -16,13 +16,15 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 import os
+import pwd
 import gevent
 import base64
 import zipfile
 import string
 import csv
 from StringIO import StringIO
-
+import tempfile
+import subprocess
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
@@ -473,24 +475,31 @@ class InstrumentManagementService(BaseInstrumentManagementService):
          - keywords
         """
         
+        def zip_of_b64(b64_data, title):
+
+            log.debug("decoding base64 zipfile for %s" % title)
+            try:
+                zip_str  = base64.decodestring(b64_data)
+            except:
+                raise BadRequest("could not base64 decode supplied %s" % title)
+
+            log.debug("opening zipfile for %s" % title)
+            try:
+                zip_file = StringIO(zip_str)
+                zip_obj  = zipfile.ZipFile(zip_file)
+            except:
+                raise BadRequest("could not parse zipfile contained in %s" % title)
+
+            return zip_obj
+
         # retrieve the resource
         log.debug("reading inst agent resource")
         instrument_agent_obj = self.instrument_agent.read_one(instrument_agent_id)
 
 
-        #process the qa documents (a base64-encoded zipfile)
-        log.debug("decoding base64 zipfile")
-        try:
-            qa_zip_str  = base64.decodestring(qa_documents)
-        except:
-            raise BadRequest("could not base64 decode supplied qa_documents argument")
-
-        log.debug("opening zipfile")
-        try:
-            qa_zip_file = StringIO(qa_zip_str)
-            qa_zip_obj  = zipfile.ZipFile(qa_zip_file)
-        except:
-            raise BadRequest("could not parse zipfile contained in qa_documents argument")
+        #process the input files (base64-encoded zips)
+        qa_zip_obj  = zip_of_b64(qa_documents, "qa_documents")
+        egg_zip_obj = zip_of_b64(agent_egg, "agent_egg")
 
 
         #parse the manifest file
@@ -517,6 +526,27 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise BadRequest("Manifest file %s missing required field %s" % 
                                  (INSTRUMENT_AGENT_MANIFEST_FILE, f))
 
+
+        #validate egg
+        log.debug("validating egg")
+        if not "EGG-INFO/PKG-INFO" in egg_zip_obj.namelist():
+            raise BadRequest("no PKG-INFO found in egg; found %s" % str(egg_zip_obj.namelist()))
+
+        log.debug("processing driver")
+        pkg_info_data = {}
+        pkg_info = egg_zip_obj.read("EGG-INFO/PKG-INFO")
+        for l in pkg_info.splitlines():
+            log.debug("Reading %s" % l)
+            tmp = l.partition(": ")
+            pkg_info_data[tmp[0]] = tmp[2]
+
+        for f in ["Name", "Version"]:
+            if not f in pkg_info_data:
+                raise BadRequest("Agent egg's PKG-INFO did not include a field called '%s'" % f)
+
+        #determine egg name
+        egg_filename = "%s-%s-py2.7.egg'" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
+        log.debug("Egg filename is '%s'" % egg_filename)
 
         #create attachment resources for each document in the zip
         log.debug("creating attachment objects")
@@ -545,22 +575,34 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             
 
         
-        #process the driver (a base64-encoded egg)
-        log.debug("decoding base64 egg")
-        try:
-            egg_str  = base64.decodestring(agent_egg)
-        except:
-            raise BadRequest("could not base64 decode supplied agent_egg argument")
-                                             
-        #validate egg
-        log.debug("validating egg")
-        #TODO
-
-        #determine egg name
-        #TODO
 
         #move output egg to another directory / upload it somewhere
-        #TODO
+        #TODO: change cfg_ to CFG.x.
+
+        cfg_host        = 'amoeba.ucsd.edu'
+        cfg_remotepath  = '/var/www/release/iktest'
+        cfg_user        = pwd.getpwuid(os.getuid())[0]
+
+        log.debug("creating tempfile for egg output")
+        f_handle, tempfilename = tempfile.mkstemp()
+        log.debug("writing egg data to disk at '%s'" % tempfilename)
+        os.write(f_handle, base64.decodestring(agent_egg))
+
+        remotefilename = "%s@%s:%s/%s" % (cfg_user, 
+                                          cfg_host, 
+                                          cfg_remotepath, 
+                                          egg_filename)
+
+        log.debug("executing scp: '%s' to %s" % (tempfilename, remotefilename))
+        scp_retval = subprocess.call(["scp", "-q", "-o", "PasswordAuthentication=no", 
+                                      tempfilename, remotefilename])
+        
+        if 0 != scp_retval:
+            raise BadRequest("Secure copy to %s:%s failed" % (cfg_host, cfg_remotepath))
+
+        log.debug("removing tempfile at '%s'" % tempfilename)
+        os.unlink(tempfilename)
+
 
         #if that works, do the rest
         log.debug("inserting attachments")
