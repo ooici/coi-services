@@ -19,6 +19,8 @@ from pyon.util.log import log
 
 import string
 import base64
+import subprocess
+import os
 
 from ion.services.sa.test.helpers import any_old
 
@@ -73,6 +75,20 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
         return
 
     def test_register_instrument_agent(self):
+
+        #test ssh-ability
+        cfg_host        = 'amoeba.ucsd.edu'
+        cfg_user        = os.getlogin()
+
+        remotehost = "%s@%s" % (cfg_user, cfg_host)
+
+        ssh_retval = subprocess.call(["ssh", "-q", "-o", "PasswordAuthentication=no", 
+                                      "-f", "true", remotehost])
+        
+        if 0 != ssh_retval:
+            raise unittest.SkipTest("SSH/SCP credentials to %s didn't work" % remotehost)
+
+
 
         inst_agent_id = self.IMS.create_instrument_agent(any_old(RT.InstrumentAgent))
 
