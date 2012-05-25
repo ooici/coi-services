@@ -10,6 +10,7 @@
 #from pyon.public import Container
 from pyon.public import LCE
 from pyon.public import RT, PRED
+from pyon.public import CFG
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
@@ -579,8 +580,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #move output egg to another directory / upload it somewhere
         #TODO: change cfg_ to CFG.x.
 
-        cfg_host        = 'amoeba.ucsd.edu'
-        cfg_remotepath  = '/var/www/release'
+        cfg_host        = CFG.service.instrument_management.driver_release_host #'amoeaba.ucsd.edu'
+        cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
         cfg_user        = pwd.getpwuid(os.getuid())[0]
 
         log.debug("creating tempfile for egg output")
