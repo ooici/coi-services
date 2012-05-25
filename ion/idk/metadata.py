@@ -15,12 +15,14 @@ import errno
 
 import yaml
 
+from pyon.util.log import log
+
 from ion.idk.config import Config
 from ion.idk import prompt
 
 from ion.idk.exceptions import DriverParameterUndefined
 from ion.idk.exceptions import UnknownDriver
-
+from ion.idk.exceptions import InvalidParameters
 
 class Metadata():
     """
@@ -89,23 +91,9 @@ class Metadata():
     ###
     #   Private Methods
     ###
-    def __init__(self):
+    def __init__(self, driver_make = None, driver_model = None, driver_name = None):
         """
-        @brief Default Constructor
-        """
-        self.author = None
-        self.email = None
-        self.driver_make = None
-        self.driver_model = None
-        self.driver_name = None
-        self.notes = None
-        self.version = 0
-
-        self.read_from_file()
-
-    def __init__(self, driver_make, driver_model, driver_name):
-        """
-        @brief Default Constructor
+        @brief Constructor
         """
         self.author = None
         self.email = None
@@ -115,10 +103,18 @@ class Metadata():
         self.notes = None
         self.version = 0
 
-        if(os.path.isfile(self.metadata_path())):
+        if(driver_make and driver_model and driver_name):
+            log.debug("Construct from parameters")
+            if(os.path.isfile(self.metadata_path())):
+                self.read_from_file()
+            
+        elif(not(driver_make or driver_model or driver_name)):
+            log.debug("Default constructor")
             self.read_from_file()
+            
         else:
-            raise UnknownDriver("Not found: %s" % self.metadata_path())
+            raise InvalidParameters(msg="driver_make, driver_model, driver_name must all be specified")
+
 
     def _init_from_yaml(self, yamlInput):
         """

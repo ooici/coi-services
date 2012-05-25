@@ -21,7 +21,7 @@ import os
 import time
 import unittest
 
-@attr('INT',group='eoi')
+@attr('INT_EOI_DEPRECATED',group='eoi')
 class USGSIntegrationTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

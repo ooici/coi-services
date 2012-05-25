@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.data.test.test_external_dataset_agent_slocum
-@file ion/agents/data/test/test_external_dataset_agent_slocum.py
+@package ion.agents.data.test.test_external_dataset_agent_ruv
+@file ion/agents/data/test/test_external_dataset_agent_ruv.py
 @author Christopher Mueller
 @brief 
 """
@@ -20,10 +20,10 @@ from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgen
 from nose.plugins.attrib import attr
 
 @attr('INT_LONG', group='eoi')
-class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.data.handlers.slocum_data_handler',
-        'dvr_cls' : 'SlocumDataHandler',
+        'dvr_mod' : 'ion.agents.data.handlers.ruv_data_handler',
+        'dvr_cls' : 'RuvDataHandler',
         }
 
     HIST_CONSTRAINTS_1 = {}
@@ -58,74 +58,20 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         dsrc.contact.email = 'tgiguere@asascience.com'
 
         # Create ExternalDataset
-        ds_name = 'slocum_test_dataset'
+        ds_name = 'ruv_test_dataset'
         dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
 
-        dset.dataset_description.parameters['dataset_path'] = 'test_data/ru05-2012-021-0-0-sbd.dat'
+        dset.dataset_description.parameters['dataset_path'] = 'test_data/RDLi_SEAB_2011_08_24_1600.ruv'
         dset.dataset_description.parameters['temporal_dimension'] = None
         dset.dataset_description.parameters['zonal_dimension'] = None
         dset.dataset_description.parameters['meridional_dimension'] = None
         dset.dataset_description.parameters['vertical_dimension'] = None
         dset.dataset_description.parameters['variables'] = [
-            'c_wpt_y_lmc',
-            'sci_water_cond',
-            'm_y_lmc',
-            'u_hd_fin_ap_inflection_holdoff',
-            'sci_m_present_time',
-            'm_leakdetect_voltage_forward',
-            'sci_bb3slo_b660_scaled',
-            'c_science_send_all',
-            'm_gps_status',
-            'm_water_vx',
-            'm_water_vy',
-            'c_heading',
-            'sci_fl3slo_chlor_units',
-            'u_hd_fin_ap_gain',
-            'm_vacuum',
-            'u_min_water_depth',
-            'm_gps_lat',
-            'm_veh_temp',
-            'f_fin_offset',
-            'u_hd_fin_ap_hardover_holdoff',
-            'c_alt_time',
-            'm_present_time',
-            'm_heading',
-            'sci_bb3slo_b532_scaled',
-            'sci_fl3slo_cdom_units',
-            'm_fin',
-            'x_cycle_overrun_in_ms',
-            'sci_water_pressure',
-            'u_hd_fin_ap_igain',
-            'sci_fl3slo_phyco_units',
-            'm_battpos',
-            'sci_bb3slo_b470_scaled',
-            'm_lat',
-            'm_gps_lon',
-            'sci_ctd41cp_timestamp',
-            'm_pressure',
-            'c_wpt_x_lmc',
-            'c_ballast_pumped',
-            'x_lmc_xy_source',
-            'm_lon',
-            'm_avg_speed',
-            'sci_water_temp',
-            'u_pitch_ap_gain',
-            'm_roll',
-            'm_tot_num_inflections',
-            'm_x_lmc',
-            'u_pitch_ap_deadband',
-            'm_final_water_vy',
-            'm_final_water_vx',
-            'm_water_depth',
-            'm_leakdetect_voltage',
-            'u_pitch_max_delta_battpos',
-            'm_coulomb_amphr',
-            'm_pitch',
         ]
 
         # Create DataSourceModel
-        dsrc_model = DataSourceModel(name='slocum_model')
-        dsrc_model.model = 'SLOCUM'
+        dsrc_model = DataSourceModel(name='ruv_model')
+        dsrc_model.model = 'RUV'
         dsrc_model.data_handler_module = 'N/A'
         dsrc_model.data_handler_class = 'N/A'
 
@@ -146,7 +92,7 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='slocum_parsed_product', description='parsed slocum product')
+        dprod = DataProduct(name='ruv_parsed_product', description='parsed ruv product')
         dproduct_id = dpms_cli.create_data_product(data_product=dprod)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
@@ -160,65 +106,12 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
 
         ttool = TaxyTool()
 
-        ttool.add_taxonomy_set('c_wpt_y_lmc'),
-        ttool.add_taxonomy_set('sci_water_cond'),
-        ttool.add_taxonomy_set('m_y_lmc'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_inflection_holdoff'),
-        ttool.add_taxonomy_set('sci_m_present_time'),
-        ttool.add_taxonomy_set('m_leakdetect_voltage_forward'),
-        ttool.add_taxonomy_set('sci_bb3slo_b660_scaled'),
-        ttool.add_taxonomy_set('c_science_send_all'),
-        ttool.add_taxonomy_set('m_gps_status'),
-        ttool.add_taxonomy_set('m_water_vx'),
-        ttool.add_taxonomy_set('m_water_vy'),
-        ttool.add_taxonomy_set('c_heading'),
-        ttool.add_taxonomy_set('sci_fl3slo_chlor_units'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_gain'),
-        ttool.add_taxonomy_set('m_vacuum'),
-        ttool.add_taxonomy_set('u_min_water_depth'),
-        ttool.add_taxonomy_set('m_gps_lat'),
-        ttool.add_taxonomy_set('m_veh_temp'),
-        ttool.add_taxonomy_set('f_fin_offset'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_hardover_holdoff'),
-        ttool.add_taxonomy_set('c_alt_time'),
-        ttool.add_taxonomy_set('m_present_time'),
-        ttool.add_taxonomy_set('m_heading'),
-        ttool.add_taxonomy_set('sci_bb3slo_b532_scaled'),
-        ttool.add_taxonomy_set('sci_fl3slo_cdom_units'),
-        ttool.add_taxonomy_set('m_fin'),
-        ttool.add_taxonomy_set('x_cycle_overrun_in_ms'),
-        ttool.add_taxonomy_set('sci_water_pressure'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_igain'),
-        ttool.add_taxonomy_set('sci_fl3slo_phyco_units'),
-        ttool.add_taxonomy_set('m_battpos'),
-        ttool.add_taxonomy_set('sci_bb3slo_b470_scaled'),
-        ttool.add_taxonomy_set('m_lat'),
-        ttool.add_taxonomy_set('m_gps_lon'),
-        ttool.add_taxonomy_set('sci_ctd41cp_timestamp'),
-        ttool.add_taxonomy_set('m_pressure'),
-        ttool.add_taxonomy_set('c_wpt_x_lmc'),
-        ttool.add_taxonomy_set('c_ballast_pumped'),
-        ttool.add_taxonomy_set('x_lmc_xy_source'),
-        ttool.add_taxonomy_set('m_lon'),
-        ttool.add_taxonomy_set('m_avg_speed'),
-        ttool.add_taxonomy_set('sci_water_temp'),
-        ttool.add_taxonomy_set('u_pitch_ap_gain'),
-        ttool.add_taxonomy_set('m_roll'),
-        ttool.add_taxonomy_set('m_tot_num_inflections'),
-        ttool.add_taxonomy_set('m_x_lmc'),
-        ttool.add_taxonomy_set('u_pitch_ap_deadband'),
-        ttool.add_taxonomy_set('m_final_water_vy'),
-        ttool.add_taxonomy_set('m_final_water_vx'),
-        ttool.add_taxonomy_set('m_water_depth'),
-        ttool.add_taxonomy_set('m_leakdetect_voltage'),
-        ttool.add_taxonomy_set('u_pitch_max_delta_battpos'),
-        ttool.add_taxonomy_set('m_coulomb_amphr'),
-        ttool.add_taxonomy_set('m_pitch'),
+        ttool.add_taxonomy_set('data','test data')
 
         #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
 
         # Create the logger for receiving publications
-        self.create_stream_and_logger(name='slocum',stream_id=stream_id)
+        self.create_stream_and_logger(name='ruv',stream_id=stream_id)
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name

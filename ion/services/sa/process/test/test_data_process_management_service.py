@@ -63,7 +63,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         # test call
         dp_id = self.data_process_mgmt_service.create_data_process \
                     (self.data_proc_def_id, \
-                     self.in_product_A, \
+                     [self.in_product_A], \
                      self.out_product_A)
 
         # verify results

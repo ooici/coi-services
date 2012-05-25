@@ -16,7 +16,7 @@ import numpy
 from numpy import array
 
 
-@attr('UNIT', group='eoi')
+@attr('UNIT_EOI_DEPRECATED', group='eoi')
 class TestDapExternalDataHandler(PyonTestCase):
 
     #_dsh_list = {}

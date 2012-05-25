@@ -11,7 +11,7 @@ import numpy
 import tempfile
 
 
-@attr('UNIT', group='eoi')
+@attr('UNIT_EOI_DEPRECATED', group='eoi')
 class TestHfrRadialDataHandler(PyonTestCase):
 
     def setUp(self):
