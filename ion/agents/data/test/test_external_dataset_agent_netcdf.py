@@ -20,7 +20,7 @@ from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgen
 
 from nose.plugins.attrib import attr
 
-@attr('INT_DATA_AGENT', group='eoi')
+@attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.netcdf_data_handler',
