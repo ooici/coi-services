@@ -657,9 +657,8 @@ class LoggerClient(object):
         Initialize client comms with the logger process and start a
         listener thread.
         """
-        mi_logger.info('Logger initializing comms.')
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # This can be thrown here.
             # error: [Errno 61] Connection refused
             self.sock.connect((self.host, self.port))
@@ -667,10 +666,11 @@ class LoggerClient(object):
             self.sock.setblocking(0)        
             self.listener_thread = Listener(self.sock, self.delim, callback)
             self.listener_thread.start()
-            mi_logger.info('Logger client comms initialized.')
-        
+            mi_logger.info('LoggerClient.init_comms(): connected to port agent at %s:%i.'
+                           % (self.host, self.port))        
         except:
-            raise InstrumentConnectionException('Failed to connect to port agent at %s:%i.' % (self.host, self.port))
+            raise InstrumentConnectionException('Failed to connect to port agent at %s:%i.' 
+                                                % (self.host, self.port))
         
     def stop_comms(self):
         """
