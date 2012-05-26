@@ -396,16 +396,16 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
+        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
 
         #Add a transformation process definition
         ctd_L2_salinity_dprocdef_id = self._create_salinity_data_process_definition()
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=False)  #Don't persist the intermediate data product
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Add a transformation process definition
         salinity_doubler_dprocdef_id = self._create_salinity_doubler_data_process_definition()
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -420,7 +420,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
 
 
 
@@ -572,11 +572,11 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
+        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
 
         #Add a transformation process definition
         google_dt_procdef_id = self._create_google_dt_data_process_definition()
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_data=False)  #Don't persist the intermediate data product
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -590,7 +590,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id)
 
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
@@ -637,11 +637,11 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Mpl_Graphs_Test_Workflow',description='Tests the workflow of converting stream data to Matplotlib graphs')
+        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='Mpl_Graphs_Test_Workflow',description='Tests the workflow of converting stream data to Matplotlib graphs')
 
         #Add a transformation process definition
         mpl_graphs_procdef_id = self._create_mpl_graphs_data_process_definition()
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=mpl_graphs_procdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=mpl_graphs_procdef_id, persist_data=False)  #Don't persist the intermediate data product
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -655,7 +655,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id)
 
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
