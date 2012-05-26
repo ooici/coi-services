@@ -4,7 +4,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import unittest, os
+import unittest, os, gevent
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
@@ -76,6 +76,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Load system policies after container has started all of the services
         LoadSystemPolicy.op_load_system_policies(process)
 
+        #Let's wait 5 seconds for couchdb and the container policies to synch
+        gevent.sleep(5)
 
         self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
 
