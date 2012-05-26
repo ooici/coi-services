@@ -114,7 +114,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #maxAgeMs = oldest entry to keep
         self.user_data_cache = LRUCache(self.user_cache_size,0,0)
 
-    def on_stop(self):
+    def on_quit(self):
         self.stop_service()
 
         if self.user_role_event_subscriber is not None:
