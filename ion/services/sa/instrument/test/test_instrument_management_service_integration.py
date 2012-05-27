@@ -1,4 +1,5 @@
 from interface.services.icontainer_agent import ContainerAgentClient
+
 #from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
@@ -14,14 +15,9 @@ from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from pyon.util.log import log
+#from pyon.util.log import log
 
 from ion.services.sa.test.helpers import any_old
-
-
-
-class FakeProcess(LocalContextMixin):
-    name = ''
 
 
 @attr('INT', group='sa')
@@ -97,5 +93,4 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
 
         sensor_model_id #is only a target
-
 

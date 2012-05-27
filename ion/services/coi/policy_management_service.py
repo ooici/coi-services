@@ -212,7 +212,7 @@ class PolicyManagementService(BasePolicyManagementService):
         return True
 
     def _publish_resource_policy_event(self, policy, resource):
-        #Sent request opened event
+        #Sent ResourcePolicyEvent event
 
         event_data = dict()
         event_data['origin_type'] = 'Policy'

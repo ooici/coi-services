@@ -583,7 +583,7 @@ class OrgManagementService(BaseOrgManagementService):
         #First remove all associations to any roles
         role_list = self.find_roles_by_user(org_id, user_id)
         for user_role in role_list:
-            self._delete_role_association(user, user_role)
+            self._delete_role_association(org, user, user_role)
 
         #Finally remove the association to the Org
         aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, user)
@@ -670,27 +670,44 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified id does not exist
         """
         param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, role_name=role_name)
+        org = param_objects['org']
         user = param_objects['user']
         user_role = param_objects['user_role']
 
-        return self._add_role_association(user, user_role)
+        return self._add_role_association(org, user, user_role)
 
-    def _add_role_association(self, user, user_role):
+    def _add_role_association(self, org, user, user_role):
 
         aid = self.clients.resource_registry.create_association(user, PRED.hasRole, user_role)
         if not aid:
             return False
 
+        self._publish_user_role_modified_event(org, user, user_role, 'GRANT')
+
         return True
 
-    def _delete_role_association(self, user, user_role):
+    def _delete_role_association(self, org, user, user_role):
         aid = self.clients.resource_registry.get_association(user, PRED.hasRole, user_role)
         if not aid:
             raise NotFound("The association between the specified User %s and User Role %s was not found" % (user._id, user_role._id))
 
         self.clients.resource_registry.delete_association(aid)
+
+        self._publish_user_role_modified_event(org, user, user_role, 'REVOKE')
+
         return True
 
+    def _publish_user_role_modified_event(self, org, user, user_role, modification):
+        #Sent UserRoleModifiedEvent event
+
+        event_data = dict()
+        event_data['origin_type'] = 'Org'
+        event_data['description'] = 'User Role Modified'
+        event_data['sub_type'] = modification
+        event_data['user_id'] = user._id
+        event_data['role_name'] = user_role.name
+
+        self.event_pub.publish_event(event_type='UserRoleModifiedEvent', origin=org._id, **event_data)
 
     def revoke_role(self, org_id='', user_id='', role_name=''):
         """Revokes a defined Role within an organization to a specific user. Will throw a not NotFound exception
@@ -704,10 +721,11 @@ class OrgManagementService(BaseOrgManagementService):
         """
 
         param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, role_name=role_name)
+        org = param_objects['org']
         user = param_objects['user']
         user_role = param_objects['user_role']
 
-        return self._delete_role_association(user, user_role)
+        return self._delete_role_association(org, user, user_role)
 
     def _find_org_roles_by_user(self, org=None, user=None):
 

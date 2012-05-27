@@ -49,7 +49,9 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
 from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
-from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes, SessionCloseReasons
+from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer, \
+                                                                     DirectAccessTypes, \
+                                                                     SessionCloseReasons
 
 # MI imports.
 from ion.agents.instrument.exceptions import InstrumentConnectionException
@@ -300,7 +302,7 @@ class InstrumentAgent(ResourceAgent):
     # Event callback and handling for direct access.
     ###############################################################################
     
-    def telnet_input_processor(self, data):
+    def da_server_input_processor(self, data):
         # callback passed to DA Server for receiving input from server       
         if isinstance(data, int):
             # not character data, so check for lost connection
@@ -318,7 +320,7 @@ class InstrumentAgent(ResourceAgent):
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
-        self._dvr_client.cmd_dvr('execute_direct_access', data + chr(13) + chr(10))
+        self._dvr_client.cmd_dvr('execute_direct_access', data)
             
 
     ###############################################################################
@@ -1170,9 +1172,14 @@ class InstrumentAgent(ResourceAgent):
         
         session_timeout = kwargs.get('session_timeout', 10)
         inactivity_timeout = kwargs.get('inactivity_timeout', 5)
+        session_type = kwargs.get('session_type', None)
 
-        log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d" 
-                 %(session_timeout, inactivity_timeout))
+        if not session_type:
+            raise InstParameterError('Instrument parameter error attempting direct access: session_type not present') 
+
+
+        log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d,  session_type=%s" 
+                 %(session_timeout, inactivity_timeout, dir(DirectAccessTypes)[session_type]))
         
         # get 'address' of host
         hostname = socket.gethostname()
@@ -1183,8 +1190,8 @@ class InstrumentAgent(ResourceAgent):
         ip_address = hostname
         # create a DA server instance (TODO: just telnet for now) and pass in callback method
         try:
-            self.da_server = DirectAccessServer(DirectAccessTypes.telnet, 
-                                                self.telnet_input_processor, 
+            self.da_server = DirectAccessServer(session_type, 
+                                                self.da_server_input_processor, 
                                                 ip_address,
                                                 session_timeout,
                                                 inactivity_timeout)
