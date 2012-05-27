@@ -57,3 +57,15 @@ class UnknownDriver(IDKException):
     """Driver couldn't be found by make, model, and name"""
     pass
 
+class NoConfigFileSpecified(IDKException):
+    """No comm config filename was specified"""
+    pass
+
+class CommConfigReadFail(IDKException):
+    """can't read comm config """
+    pass
+
+class InvalidCommType(IDKException):
+    """Invalid Communication Configuration Type"""
+    pass
+
