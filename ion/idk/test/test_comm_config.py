@@ -36,7 +36,6 @@ if exists("/private/tmp"):
     
 CONFIG_FILE="comm_config.yml"
     
-unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestCommConfig(unittest.TestCase):
     """

@@ -117,7 +117,6 @@ class IDKPackageTest(unittest.TestCase):
         return "%s/%s" % (TESTDIR, "impl.py")
         
 
-#@unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestDependencyList(IDKPackageTest):
     """
@@ -219,7 +218,6 @@ class TestDependencyList(IDKPackageTest):
         self.assertTrue("string.py" in dep_list)
 
 
-#@unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestDriverFileList(IDKPackageTest):
     """
