@@ -27,7 +27,8 @@ def text(label, default=None):
         input = default
 
     if input == '':
-        raise TypeError( label + ' is a required field' )
+        print "%s is a required field" % label
+        return text(label, default)
 
     return input
 
@@ -55,8 +56,8 @@ def multiline(label, default):
         user_input = default
 
     if user_input == '':
-        raise TypeError( label + ' is required' )
-
+        print "%s is required" % label
+        return multiline(label, default)
 
     return user_input
 
