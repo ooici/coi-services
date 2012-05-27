@@ -36,7 +36,7 @@ if exists("/private/tmp"):
     
 CONFIG_FILE="comm_config.yml"
     
-@unittest.skip('Skip until moved to MI repo')
+unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestCommConfig(unittest.TestCase):
     """
@@ -117,6 +117,14 @@ class TestCommConfig(unittest.TestCase):
             log.debug("caught error %s" % e)
             error = e
         self.assertTrue(error)
+    
+    def test_comm_config_type_list(self):
+        types = CommConfig.valid_type_list()
+        log.debug( "types: %s" % types)
+        
+        known_types = ['ethernet']
+        
+        self.assertEqual(sorted(types), sorted(known_types))
         
     def test_config_write_ethernet(self):
         log.debug("Config File: %s" % self.config_file())
