@@ -153,6 +153,13 @@ class CommConfig(object):
     #   Static Methods
     ###
     @staticmethod
+    def config_filename():
+        """
+        @brief name of the file that stores the comm configuration yaml
+        """
+        return "comm_config.yml"
+    
+    @staticmethod
     def method():
         """
         @brief Defines the "type" of object.  This must be overloaded in the sub class.
