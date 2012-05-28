@@ -8,22 +8,26 @@
 
 import os
 import signal
-import logging
 
 from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
 from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
-from pyon.util.unit_test import PyonTestCase
 
-from pyon.util.int_test import IonIntegrationTestCase     # Must inherit from here to get _start_container
+from pyon.util.int_test import IonIntegrationTestCase
 
-#    class InstrumentDriverTestCase(PyonTestCase):
-class InstrumentDriverTestCase(IonIntegrationTestCase):   # Must inherit from here to get _start_container
+from mi.core.logger import Log
 
-    """Base class for instrument driver unit tests."""
+class InstrumentDriverTestCase(IonIntegrationTestCase):
+    """
+    Base class for instrument driver tests
+    """
     
-    ###
-    #   Private data
-    ###
+class InstrumentDriverUnitTestCase(InstrumentDriverTestCase):
+    """
+    Base class for instrument driver unit tests
+    """
+    def foo(): pass
+    
+class InstrumentDriverIntegrationTestCase(IonIntegrationTestCase):   # Must inherit from here to get _start_container
     _driver_process = None
     _driver_client = None
     
@@ -178,5 +182,6 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):   # Must inherit from he
             raise Exception("TODO: Better exception.  Failed to kill driver process. PID: %d" % self._driver_process.pid)
         
         
-        
+class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase): 
+    def foo(): pass
     

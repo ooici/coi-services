@@ -110,7 +110,6 @@ class Metadata():
                 self.read_from_file()
             
         elif(not(driver_make or driver_model or driver_name)):
-            log.debug("Default constructor")
             self.read_from_file()
             
         else:
