@@ -17,6 +17,14 @@ class IDKException(Exception):
         Log.error(self)
     
 
+class TestNotInitialized(IDKException):
+    """Test configuration singleton not configured"""
+    pass
+    
+class TestNoCommConfig(IDKException):
+    """Test can't find comm config yaml"""
+    pass
+    
 class InvalidParameters(IDKException):
     """Wrong parameters sent"""
     pass
@@ -39,6 +47,10 @@ class FileNotFound(IDKException):
     
 class IDKWrongRunningDirectory(IDKException):
     """Some IDK processes need to be run from the base of the MI repo"""
+    pass
+
+class DriverNotStarted(IDKException):
+    """No driver has been started, run start_driver"""
     pass
 
 class IDKConfigMissing(IDKException):
