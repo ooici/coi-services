@@ -17,6 +17,8 @@ class DataRetrieverService(BaseDataRetrieverService):
     def __init__(self, *args, **kwargs):
         super(DataRetrieverService,self).__init__(*args,**kwargs)
 
+        self.process_definition_id = None
+
 
     def on_start(self):
         super(DataRetrieverService,self).on_start()
@@ -26,7 +28,8 @@ class DataRetrieverService(BaseDataRetrieverService):
             name='data_replay_process',
             id_only=True)
 
-        self.process_definition_id = res_list[0]
+        if len(self.process_definition_id):
+            self.process_definition_id = res_list[0]
 
 
     def on_quit(self):
@@ -48,6 +51,12 @@ class DataRetrieverService(BaseDataRetrieverService):
         """
         if not dataset_id:
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
+
+        if self.process_definition_id is None:
+            self.process_definition = ProcessDefinition(name='data_replay_process', description='Process for the replay of datasets')
+            self.process_definition.executable['module']='ion.processes.data.replay_process'
+            self.process_definition.executable['class'] = 'ReplayProcess'
+            self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
 
         dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
         datastore_name = dataset.datastore_name
