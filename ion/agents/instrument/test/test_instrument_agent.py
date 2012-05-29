@@ -43,9 +43,8 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.public import CFG
 from pyon.event.event import EventSubscriber, EventPublisher
-
+from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.exception import InstParameterError
-
 
 # MI imports.
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
@@ -239,9 +238,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._ia_pid = None
         log.debug("TestInstrumentAgent.setup(): starting IA.")
         container_client = ContainerAgentClient(node=self.container.node,
-                                                      name=self.container.name)
+                                                name=self.container.name)
         self._ia_pid = container_client.spawn_process(name=IA_NAME,
-                                module=IA_MOD, cls=IA_CLS, config=agent_config)      
+                                                      module=IA_MOD, 
+                                                      cls=IA_CLS, 
+                                                      config=agent_config)      
         log.info('Agent pid=%s.', str(self._ia_pid))
         
         # Start a resource agent client to talk with the instrument agent.
@@ -845,7 +846,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
-        cmd = AgentCommand(command='go_direct_access', kwargs={'session_timeout':50,'inactivity_timeout':20})
+        cmd = AgentCommand(command='go_direct_access', 
+                           #kwargs={'session_type':DirectAccessTypes.telnet,
+                           kwargs={'session_type':DirectAccessTypes.vsp,
+                                   'session_timeout':600,
+                                   'inactivity_timeout':600})
         retval = self._ia_client.execute_agent(cmd)
         print("go_direct_access retval=" + str(retval))       
         cmd = AgentCommand(command='get_current_state')

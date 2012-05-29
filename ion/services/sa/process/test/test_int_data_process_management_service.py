@@ -328,11 +328,11 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
 
 
-        # todo: add this validate for Req: L4-CI-SA-RQ-367  Data processing shall notify registered data product consumers about data processing workflow life cycle events
         #-------------------------------
         # Create listener for data process events and verify that events are received.
         #-------------------------------
 
+        # todo: add this validate for Req: L4-CI-SA-RQ-367  Data processing shall notify registered data product consumers about data processing workflow life cycle events
 
         
         #-------------------------------
@@ -346,6 +346,12 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         log.debug("test_createDataProcessUsingSim: data_process created: %s", str(ctd_l0_all_data_process_id))
 
+
+        #-------------------------------
+        # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
+        #-------------------------------
+
+        # todo: add this validate for Req: L4-CI-SA-RQ-366  Data processing shall manage data topic definitions
 
         log.debug("test_createDataProcessUsingSim: activate_data_process ")
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)

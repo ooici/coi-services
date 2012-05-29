@@ -4,7 +4,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import unittest, os
+import unittest, os, gevent
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
@@ -76,7 +76,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Load system policies after container has started all of the services
         LoadSystemPolicy.op_load_system_policies(process)
 
-
         self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
 
         self.id_client = IdentityManagementServiceProcessClient(node=self.container.node, process=process)
@@ -100,7 +99,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Need to fix the auto_bootstrap so it loads the Service Definitions")
+    @unittest.skip("Test is still not passing on buildbot all of the time")
     def test_org_policy(self):
 
         #Make sure that the system policies have been loaded

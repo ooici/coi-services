@@ -26,7 +26,7 @@ class PolicyManagementService(BasePolicyManagementService):
         self.policy_event_subscriber = EventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self.policy_event_callback)
         self.policy_event_subscriber.activate()
 
-    def on_stop(self):
+    def on_quit(self):
 
         if self.policy_event_subscriber is not None:
             self.policy_event_subscriber.deactivate()
@@ -212,7 +212,7 @@ class PolicyManagementService(BasePolicyManagementService):
         return True
 
     def _publish_resource_policy_event(self, policy, resource):
-        #Sent request opened event
+        #Sent ResourcePolicyEvent event
 
         event_data = dict()
         event_data['origin_type'] = 'Policy'
