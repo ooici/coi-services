@@ -25,6 +25,10 @@ class TestNoCommConfig(IDKException):
     """Test can't find comm config yaml"""
     pass
     
+class TestNoDeployFile(IDKException):
+    """Can't find container deploy file"""
+    pass
+    
 class InvalidParameters(IDKException):
     """Wrong parameters sent"""
     pass
