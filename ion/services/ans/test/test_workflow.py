@@ -17,7 +17,8 @@ from interface.services.ans.iworkflow_management_service import WorkflowManageme
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
-
+from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
+from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphs
 
 from pyon.public import log
 
@@ -29,9 +30,14 @@ from pyon.core.exception import BadRequest, Inconsistent
 
 from nose.plugins.attrib import attr
 import unittest, os
+import imghdr
 import gevent, numpy
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
+from interface.objects import Granule
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 
 
 from pyon.util.context import LocalContextMixin
@@ -384,22 +390,22 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #unittest.skip("Skipping for now to get build to pass - some service calls are taking longer than 10 seconds")
+    #@unittest.skip("Skipping for now to get build to pass - some service calls are taking longer than 10 seconds")
     def test_transform_workflow(self):
 
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
+        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
 
         #Add a transformation process definition
         ctd_L2_salinity_dprocdef_id = self._create_salinity_data_process_definition()
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=False)  #Don't persist the intermediate data product
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Add a transformation process definition
         salinity_doubler_dprocdef_id = self._create_salinity_doubler_data_process_definition()
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -414,7 +420,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_product_id = self.workflowclient.create_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
 
 
 
@@ -452,3 +458,237 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         self._validate_messages(results)
 
 
+    def _create_google_dt_data_process_definition(self):
+
+        #First look to see if it exists and if not, then create it
+        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
+        if len(dpd) > 0:
+            return dpd[0]
+
+        # Data Process Definition
+        log.debug("Create data process definition GoogleDtTransform")
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='google_dt_transform',
+            description='Convert data streams to Google DataTables',
+            module='ion.processes.data.transforms.viz.google_dt',
+            class_name='VizTransformGoogleDT',
+            process_source='VizTransformGoogleDT source code here...')
+        try:
+            procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+        except Exception as ex:
+            self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
+
+
+        # create a stream definition for the data from the
+        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def,  name='VizTransformGoogleDT')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+
+        return procdef_id
+
+
+    def _validate_google_dt_results(self, results_stream_def, results):
+
+        cc = self.container
+        assertions = self.assertTrue
+
+        for g in results:
+
+            if isinstance(g,Granule):
+
+                tx = TaxyTool.load_from_granule(g)
+                rdt = RecordDictionaryTool.load_from_granule(g)
+                #log.warn(tx.pretty_print())
+                #log.warn(rdt.pretty_print())
+
+                gdt_component = rdt['google_dt_components'][0]
+
+                assertions(gdt_component['viz_product_type'] == 'google_realtime_dt' )
+                gdt_description = gdt_component['data_table_description']
+                gdt_content = gdt_component['data_table_content']
+
+                assertions(gdt_description[0][0] == 'time')
+                assertions(len(gdt_description) > 1)
+                assertions(len(gdt_content) >= 0)
+
+        return
+
+
+    def _create_mpl_graphs_data_process_definition(self):
+
+        #First look to see if it exists and if not, then create it
+        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='mpl_graphs_transform')
+        if len(dpd) > 0:
+            return dpd[0]
+
+        #Data Process Definition
+        log.debug("Create data process definition MatplotlibGraphsTransform")
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='mpl_graphs_transform',
+            description='Convert data streams to Matplotlib graphs',
+            module='ion.processes.data.transforms.viz.matplotlib_graphs',
+            class_name='VizTransformMatplotlibGraphs',
+            process_source='VizTransformMatplotlibGraphs source code here...')
+        try:
+            procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+        except Exception as ex:
+            self.fail("failed to create new VizTransformMatplotlibGraphs data process definition: %s" %ex)
+
+
+        # create a stream definition for the data
+        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformMatplotlibGraphs.outgoing_stream_def,  name='VizTransformMatplotlibGraphs')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+
+        return procdef_id
+
+    def _validate_mpl_graphs_results(self, results_stream_def, results):
+
+        cc = self.container
+        assertions = self.assertTrue
+
+
+        for g in results:
+            if isinstance(g,Granule):
+
+                tx = TaxyTool.load_from_granule(g)
+                rdt = RecordDictionaryTool.load_from_granule(g)
+                #log.warn(tx.pretty_print())
+                #log.warn(rdt.pretty_print())
+
+                graphs = rdt['matplotlib_graphs']
+
+                for graph in graphs:
+                    assertions(graph['viz_product_type'] == 'matplotlib_graphs' )
+                    # check to see if the list (numpy array) contians actual images
+                    assertions(imghdr.what(graph['image_name'], graph['image_obj']) == 'png')
+
+
+        return
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    #@unittest.skip("Skipping for debugging ")
+    def test_google_dt_transform_workflow(self):
+
+        assertions = self.assertTrue
+
+        # Build the workflow definition
+        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
+
+        #Add a transformation process definition
+        google_dt_procdef_id = self._create_google_dt_data_process_definition()
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+
+        #The list of data product streams to monitor
+        data_product_stream_ids = list()
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self._create_ctd_input_stream_and_data_product()
+        data_product_stream_ids.append(ctd_stream_id)
+
+        #Create and start the workflow
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id)
+
+        #Walk the associations to find the appropriate output data streams to validate the messages
+        workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
+        assertions(len(workflow_ids) == 1 )
+
+        process_ids,_ = self.rrclient.find_objects(workflow_ids[0], PRED.hasProcess, RT.DataProcess, True)
+        assertions(len(process_ids) == 1 )
+
+        for p in process_ids:
+
+            out_dp_ids, _ = self.rrclient.find_objects(p, PRED.hasOutputProduct, None, True)
+            assertions(len(out_dp_ids) == 1 )
+
+            stream_ids, _ = self.rrclient.find_objects(out_dp_ids[0], PRED.hasStream, None, True)
+            assertions(len(stream_ids) == 1 )
+            data_product_stream_ids.append(stream_ids[0])
+
+
+        #Start the input stream process
+        ctd_sim_pid = self._start_input_stream_process(ctd_stream_id)
+
+        #Start the output stream listener to monitor and verify messages
+        results = self._start_output_stream_listener(data_product_stream_ids)
+
+        #Stop the workflow processes
+        for p in process_ids:
+            self.dataprocessclient.deactivate_data_process(p)
+
+        # stop the flow parse the messages...
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+        #Validate the data from each of the messages along the way
+        self._validate_google_dt_results(VizTransformGoogleDT.outgoing_stream_def, results)
+
+
+        return
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    #@unittest.skip("Skipping for debugging ")
+    def test_mpl_graphs_transform_workflow(self):
+
+        assertions = self.assertTrue
+
+        # Build the workflow definition
+        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='Mpl_Graphs_Test_Workflow',description='Tests the workflow of converting stream data to Matplotlib graphs')
+
+        #Add a transformation process definition
+        mpl_graphs_procdef_id = self._create_mpl_graphs_data_process_definition()
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=mpl_graphs_procdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+
+        #The list of data product streams to monitor
+        data_product_stream_ids = list()
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self._create_ctd_input_stream_and_data_product()
+        data_product_stream_ids.append(ctd_stream_id)
+
+        #Create and start the workflow
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id)
+
+        #Walk the associations to find the appropriate output data streams to validate the messages
+        workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
+        assertions(len(workflow_ids) == 1 )
+
+        process_ids,_ = self.rrclient.find_objects(workflow_ids[0], PRED.hasProcess, RT.DataProcess, True)
+        assertions(len(process_ids) == 1 )
+
+        for p in process_ids:
+
+            out_dp_ids, _ = self.rrclient.find_objects(p, PRED.hasOutputProduct, None, True)
+            assertions(len(out_dp_ids) == 1 )
+
+            stream_ids, _ = self.rrclient.find_objects(out_dp_ids[0], PRED.hasStream, None, True)
+            assertions(len(stream_ids) == 1 )
+            data_product_stream_ids.append(stream_ids[0])
+
+
+        #Start the input stream process
+        ctd_sim_pid = self._start_input_stream_process(ctd_stream_id)
+
+        #Start the output stream listener to monitor and verify messages
+        results = self._start_output_stream_listener(data_product_stream_ids)
+
+        #Stop the workflow processes
+        for p in process_ids:
+            self.dataprocessclient.deactivate_data_process(p)
+
+        # stop the flow parse the messages...
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+        #Validate the data from each of the messages along the way
+        self._validate_mpl_graphs_results(VizTransformGoogleDT.outgoing_stream_def, results)
+
+
+        return

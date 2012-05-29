@@ -11,7 +11,7 @@ import sys, pprint, time, types, select
 from pyon.util.log import log
 import gevent
 
-from ion.services.sa.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
+from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
 
 
 @attr('INT', group='sa')

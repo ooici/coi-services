@@ -11,6 +11,7 @@ from interface.objects import AttachmentType
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, PRED, LCS
+from pyon.public import CFG
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -78,8 +79,8 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
     def test_register_instrument_agent(self):
 
         #test ssh-ability
-        cfg_host        = 'amoeba.ucsd.edu'
-        cfg_user        = pwd.getpwuid(os.getuid())[0]
+        cfg_host = CFG.service.instrument_management.driver_release_host #'amoeaba.ucsd.edu'
+        cfg_user = pwd.getpwuid(os.getuid())[0]
 
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
@@ -112,6 +113,6 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
 
             self.assertEqual(a.content, (parts[0] * 3) + "\n")
 
-            
+        log.info("L4-CI-SA-RQ-148")
 
         return

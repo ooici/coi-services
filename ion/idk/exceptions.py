@@ -16,6 +16,27 @@ class IDKException(Exception):
         
         Log.error(self)
     
+
+class InvalidParameters(IDKException):
+    """Wrong parameters sent"""
+    pass
+    
+class NoRoot(IDKException):
+    """No python dirctory found"""
+    pass
+    
+class NotPython(IDKException):
+    """Not a python file"""
+    pass
+    
+class ImportError(IDKException):
+    """Snakefood failed an import"""
+    pass
+    
+class FileNotFound(IDKException):
+    """Missing file"""
+    pass
+    
 class IDKWrongRunningDirectory(IDKException):
     """Some IDK processes need to be run from the base of the MI repo"""
     pass

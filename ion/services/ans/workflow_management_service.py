@@ -80,12 +80,13 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         self.clients.resource_registry.delete(workflow_definition_id)
 
 
-    def create_workflow(self, workflow_definition_id='', input_data_product_id=''):
-        """Instantiates a Workflow specific by a Workflow Definition resource and an input data product id.
-        Returns the data product id for the final output product.
+    def create_data_process_workflow(self, workflow_definition_id='', input_data_product_id=''):
+        """Instantiates a Data Process Workflow specified by a Workflow Definition resource and an input data product id.
+      Returns the id of the workflow and the data product id for the final output product.
 
         @param workflow_definition_id    str
         @param input_data_product_id    str
+        @retval workflow_id str
         @retval output_data_product_id    str
         @throws BadRequest    if any of the required parameters are not set
         @throws NotFound    object with specified id does not exist
@@ -155,14 +156,13 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Track the output data product with an association
         self.clients.resource_registry.create_association(workflow_id, PRED.hasOutputProduct, output_data_product_id )
 
-        return output_data_product_id
+        return workflow_id, output_data_product_id
 
 
-    def delete_workflow(self, workflow_definition_id=''):
+    def termindate_data_process_workflow(self, workflow_id=''):
         """Terminates a Workflow specific by a Workflow Definition resource which includes all internal processes.
 
-        @param workflow_definition_id    str
-        @retval data_product_id    str
+        @param workflow_id    str
         @throws BadRequest    if any of the required parameters are not set
         @throws NotFound    object with specified id does not exist
         """
