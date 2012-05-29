@@ -28,7 +28,7 @@ class DataRetrieverService(BaseDataRetrieverService):
             name='data_replay_process',
             id_only=True)
 
-        if len(self.process_definition_id):
+        if len(res_list):
             self.process_definition_id = res_list[0]
 
 
