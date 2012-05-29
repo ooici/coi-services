@@ -195,24 +195,10 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         u_pid = "test0"
         round = 0
         run_type = "pyon_single"
-        rel = {
-            'type': 'release',
-            'name': 'test_deploy',
-            'verstion': '0.1',
-            'description': 'test',
-            'ion': '0.0.1',
-            'apps': [
-                {
-                'name': 'process_dispatcher',
-                'description': 'pd',
-                'version': '0.1',
-                'processapp': ['process_dispatcher',
-                               'ion.services.cei.process_dispatcher_service',
-                               'ProcessDispatcherService']
-                }
-            ]
-        }
-        parameters = {'rel': rel}
+        proc_name = 'process_dispatcher'
+        module = 'ion.services.cei.process_dispatcher_service'
+        cls = 'ProcessDispatcherService'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, u_pid)
