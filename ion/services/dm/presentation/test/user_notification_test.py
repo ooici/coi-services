@@ -6,8 +6,8 @@
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from ion.services.dm.presentation.user_notification_service import UserNotificationService, NotificationEventSubscriber
-from interface.objects import DeliveryMode, EmailDeliveryConfig, SMSDeliveryConfig, DeliveryConfig
+from ion.services.dm.presentation.user_notification_service import UserNotificationService
+from interface.objects import DeliveryMode, UserInfo, DeliveryConfig
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.public import IonObject, RT, PRED, Container
@@ -20,18 +20,18 @@ import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest
 
+import gevent
+from gevent.timeout import Timeout
+
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
     def setUp(self):
-
-        NotificationEventSubscriber.start_listening = Mock()
-        NotificationEventSubscriber.stop_listening = Mock()
 
 
         mock_clients = self._create_service_mock('user_notification')
         self.user_notification = UserNotificationService()
 
-        self.user_notification._event_processors = {}
+        self.user_notification.event_processors = {}
 
         self.user_notification.smtp_server = 'smtp_server'
         self.user_notification.clients = mock_clients
@@ -316,7 +316,8 @@ class UserNotificationTest(PyonTestCase):
         #@todo implement test for delete
 
 
-@unittest.skip('interface has changed!')
+ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+
 @attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
@@ -326,7 +327,74 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc = UserNotificationServiceClient(node=self.container.node)
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
-        
+
+    def test_email(self):
+
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        # Create a user and get the user_id
+        user = UserInfo(name = 'new_user')
+        user_id, _ = self.rrc.create(user)
+
+        # set up....
+        notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
+            event_subtype=None,
+            origin='Some_Resource_Agent_ID1',
+            origin_type=None,
+            user_id=user_id,
+            email='email@email.com',
+            mode = DeliveryMode.DIGEST,
+            message_header='message_header',
+            parser='parser',
+            period=1)
+
+        #------------------------------------------------------------------------------------------------------
+        # Setup so as to be able to get the message and headers going into the
+        # subscription callback method of the EmailEventProcessor
+        #------------------------------------------------------------------------------------------------------
+
+        # publish an event for each notification to generate the emails
+        rle_publisher = EventPublisher("ResourceLifecycleEvent")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
+
+
+        msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
+
+        message = msg_tuple[2]
+        list_lines = message.split("\n")
+
+        #-------------------------------------------------------
+        # parse the message body
+        #-------------------------------------------------------
+
+        message_dict = {}
+        for line in list_lines:
+            key_item = line.split(": ")
+            if key_item[0] == 'Subject':
+                message_dict['Subject'] = key_item[1] + key_item[2]
+            else:
+                try:
+                    message_dict[key_item[0]] = key_item[1]
+                except Exception as exc:
+                    # these exceptions happen only because the message sometimes
+                    # has successive /r/n (i.e. new lines) and therefore,
+                    # the indexing goes out of range. These new lines
+                    # can just be ignored. So we ignore the exceptions here.
+                    pass
+
+        #-------------------------------------------------------
+        # make assertions
+        #-------------------------------------------------------
+
+        self.assertEquals(msg_tuple[1], 'email@email.com' )
+
+        self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
+        self.assertEquals(message_dict['To'], 'email@email.com')
+        self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
+        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
+        self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
+
+    @unittest.skip('interface has changed!')
     def test_find_event_types_for_resource(self):
         # create a dataset object in the RR to pass into the UNS method
         dataset_object = IonObject(RT.DataSet, name="dataset1")
@@ -344,7 +412,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.fail("failed to detect non-existant resource")
         except:
             pass
-        
+
+    @unittest.skip('interface has changed!')
     def test_create_two_user_notifications(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.ActorIdentity, name="user1")
@@ -375,6 +444,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
            n2.events_list != notification_object2.events_list:
             self.fail("notification was not correct")
 
+    @unittest.skip('interface has changed!')
     def test_delete_user_notifications(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.ActorIdentity, name="user1")
@@ -405,8 +475,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 n2 = self.unsc.read_notification(notification2_id)
             except:
                 return
-        self.fail("failed to delete notifications")      
-        
+        self.fail("failed to delete notifications")
+
+    @unittest.skip('interface has changed!')
     def test_find_user_notifications(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.ActorIdentity, name="user1")
@@ -429,8 +500,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # try to find all notifications for user
         notifications = self.unsc.find_notifications_by_user(user_id)
         if len(notifications) != 2:
-            self.fail("failed to find all notifications")  
+            self.fail("failed to find all notifications")
 
+    @unittest.skip('interface has changed!')
     def test_update_user_notification(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.ActorIdentity, name="user1")
@@ -452,8 +524,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # read back the notification and check that it got changed
         notification = self.unsc.read_notification(notification_id)
         if notification.origin_list != ['Some_Resource_Agent_ID5']:
-            self.fail("failed to change notification")          
+            self.fail("failed to change notification")
 
+    @unittest.skip('interface has changed!')
     def test_send_notification_emails(self):
         # create user with email address in RR
         user_identty_object = IonObject(RT.ActorIdentity, name="user1")
@@ -480,6 +553,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event")
         gevent.sleep(1)
 
+    @unittest.skip('interface has changed!')
     def test_find_events(self):
         # publish some events for the event repository
         rle_publisher = EventPublisher("ResourceLifecycleEvent")
