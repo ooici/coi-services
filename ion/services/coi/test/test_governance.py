@@ -99,7 +99,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Test is still not passing on buildbot all of the time")
+    @unittest.skip("Test is still not passing on buildbot all of the time")
     def test_org_policy(self):
 
         #Make sure that the system policies have been loaded
