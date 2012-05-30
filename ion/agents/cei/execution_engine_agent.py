@@ -4,6 +4,7 @@ import logging
 from pyon.agent.agent import ResourceAgent
 from pyon.public import IonObject, log
 from pyon.util.containers import get_safe
+from pyon.net.endpoint import Publisher
 
 from interface.objects import AgentCommand
 from ion.agents.cei.util import looping_call
@@ -22,6 +23,8 @@ except ImportError:
 @brief Pyon port of EEAgent
  """
 
+DEFAULT_HEARTBEAT = 5
+
 
 class ExecutionEngineAgent(ResourceAgent):
     """Agent to manage processes on a worker
@@ -38,7 +41,7 @@ class ExecutionEngineAgent(ResourceAgent):
             log.error(msg)
             return
         log.debug("ExecutionEngineAgent Pyon on_init")
-        launch_type_name = get_safe(self.CFG, "eeagent.launch_type.name")
+        launch_type_name = self.CFG.eeagent.launch_type.name
 
         if not launch_type_name:
             # TODO: Fail fast here?
@@ -50,9 +53,9 @@ class ExecutionEngineAgent(ResourceAgent):
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)
 
-        #self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
-        #interval = 0.5 #TODO get from CFG
-        #looping_call(interval, self.heartbeater.poll)
+        self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
+        interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
+        looping_call(interval, self.heartbeater.poll)
 
     def on_quit(self):
         self._factory.terminate()
@@ -85,6 +88,8 @@ class HeartBeater(object):
         self._done = False
         self._factory = factory
         self._next_beat(datetime.datetime.now())
+        self._publisher = Publisher()
+        self._pd_name = CFG.eeagent.get('process_dispatcher', 'processdispatcher')
 
         self._factory.set_state_change_callback(self._state_change_callback, None)
 
@@ -106,6 +111,7 @@ class HeartBeater(object):
         try:
             message = make_beat_msg(self._factory)
             self._log.debug("Send heartbeat: %s" % message)
+            self._publisher.publish(message, to_name=self._pd_name)
         except:
             self._log.exception("beat failed")
 
