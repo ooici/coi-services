@@ -47,7 +47,9 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='sa')
+    
+
+@attr('HARDWARE', group='foo')
 #@unittest.skip('not working')
 class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
@@ -82,7 +84,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -113,7 +115,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
 
         driver_config = {
-            'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }
@@ -131,7 +133,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
 
-        print 'test_createTransformsThenActivateInstrument: new Stream Definition id = ', instDevice_id
+        print 'TestDataProcessWithLookupTable: new Stream Definition id = ', instDevice_id
 
         print 'Creating new CDM data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
@@ -147,12 +149,12 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
-        print 'test_createTransformsThenActivateInstrument: Data product streams1 = ', stream_ids
+        print 'TestDataProcessWithLookupTable: Data product streams1 = ', stream_ids
 
         #-------------------------------
         # Create CTD Raw as the second data product
         #-------------------------------
-        print 'test_createTransformsThenActivateInstrument: Creating new RAW data product with a stream definition'
+        print 'TestDataProcessWithLookupTable: Creating new RAW data product with a stream definition'
         raw_stream_def = SBE37_RAW_stream_definition()
         raw_stream_def_id = self.pubsubclient.create_stream_definition(container=raw_stream_def)
 
@@ -211,20 +213,20 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
 
         self.output_products={}
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 conductivity")
+        log.debug("TestDataProcessWithLookupTable: create output data product L0 conductivity")
         ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L0_Conductivity',description='transform output conductivity')
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
 
 
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 pressure")
+        log.debug("TestDataProcessWithLookupTable: create output data product L0 pressure")
         ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
 
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 temperature")
+        log.debug("TestDataProcessWithLookupTable: create output data product L0 temperature")
         ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L0_Temperature',description='transform output temperature')
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
@@ -234,18 +236,20 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
-        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process start")
+        log.debug("TestDataProcessWithLookupTable: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product, self.output_products)
+            in_prods = []
+            in_prods.append(ctd_parsed_data_product)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, in_prods, self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
+        log.debug("TestDataProcessWithLookupTable: create L0 all data_process return")
 
         contents = "this is the lookup table  contents for L0 Conductivity - Temperature - Pressure: Data Process , replace with a file..."
         att = IonObject(RT.Attachment, name='processLookupTable',content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
         processAttachment = self.rrclient.create_attachment(ctd_l0_all_data_process_id, att)
-        print 'test_createTransformsThenActivateInstrument: InstrumentDevice attachment id = ', processAttachment
+        print 'TestDataProcessWithLookupTable: InstrumentDevice attachment id = ', processAttachment
 
 
 

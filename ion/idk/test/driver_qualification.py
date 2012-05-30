@@ -16,7 +16,7 @@ from ion.idk.unit_test import InstrumentDriverTestCase
 
 class DriverQualificationTestCase(InstrumentDriverTestCase):
     def test_a(self):
-        print "Where does this run"
+        print "Where does this run from"
         pass
-        
+
 

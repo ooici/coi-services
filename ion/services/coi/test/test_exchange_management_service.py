@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from pyon.util.log import log
 
 __author__ = 'Stephen P. Henrie, Dave Foster <dfoster@asascience.com>'
 __license__ = 'Apache 2.0'
@@ -133,7 +134,11 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.org_id = orglist[0]._id
 
         # we test actual exchange interaction in pyon, so it's fine to mock the broker interaction here
-        self.container.ex_manager = Mock(exchange.ExchangeManager)
+        self.container.ex_manager.create_xs = Mock()
+        self.container.ex_manager.delete_xs = Mock()
+        self.container.ex_manager.create_xp = Mock()
+        self.container.ex_manager.delete_xp = Mock()
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     def test_xs_create_delete(self):

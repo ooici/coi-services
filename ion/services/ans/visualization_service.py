@@ -587,11 +587,15 @@ class VizTransformProcForGoogleDT(TransformDataProcess):
                 if len(self.dataTableContent) > max_google_dt_len:
                     decimation_factor = int(math.ceil(len(self.dataTableContent) / (max_google_dt_len)))
 
-                    for i in xrange(len(self.dataTableContent) - 1, 0, -1):
+                    tempDataTableContent = []
+                    for i in xrange(0, len(self.dataTableContent), decimation_factor):
+                        # check limits
+                        if i >= len(self.dataTableContent):
+                            break
 
-                        if(i % decimation_factor == 0):
-                            continue
-                        self.dataTableContent.pop(i)
+                        tempDataTableContent.append(self.dataTableContent[i])
+
+                    self.dataTableContent = tempDataTableContent
 
                 data_table = gviz_api.DataTable(self.dataDescription)
                 data_table.LoadData(self.dataTableContent)

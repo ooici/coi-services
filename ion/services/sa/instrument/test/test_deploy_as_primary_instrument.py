@@ -74,14 +74,14 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
     def cleanupprocs(self):
-       stm = os.popen('ps -e | grep ion.services.mi.logger_process')
+       stm = os.popen('ps -e | grep ion.agents.port.logger_process')
        procs = stm.read()
        if len(procs) > 0:
            procs = procs.split()
            if procs[0].isdigit():
                pid = int(procs[0])
                os.kill(pid,signal.SIGKILL)
-       stm = os.popen('ps -e | grep ion.services.mi.zmq_driver_process')
+       stm = os.popen('ps -e | grep ion.agents.instrument.zmq_driver_process')
        procs = stm.read()
        if len(procs) > 0:
            procs = procs.split()
@@ -135,7 +135,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -185,7 +185,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
         #-------------------------------
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1', description="SBE37IMAgentInstance Year 1", svr_addr="localhost",
-                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
+                                          driver_module="ion.agents.instrument.drivers.sbe37.sbe37_driver", driver_class="SBE37Driver",
                                           cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4001,
                                           comms_server_address="localhost", comms_server_port=8888)
         oldInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, oldInstDevice_id)
@@ -246,7 +246,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Create InstrumentAgentInstance for NewInstrumentDevice to hold configuration information
         #-------------------------------
         instAgentInstance_new__obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2', description="SBE37IMAgentInstance Year 2", svr_addr="localhost",
-                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
+                                          driver_module="ion.agents.instrument.drivers.sbe37.sbe37_driver", driver_class="SBE37Driver",
                                           cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4002,
                                           comms_server_address="localhost", comms_server_port=8888)
         newInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_new__obj, instAgent_id, newInstDevice_id)
@@ -375,7 +375,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product_year1, self.output_products)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product_year1], self.output_products)
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)

@@ -1,5 +1,5 @@
 """
-@file coi-services/ion/idk/driver_generator.py
+@file coi-services/ion/idk/start_driver.py
 @author Bill French
 @brief Main script class for running the start_driver process
 """
@@ -52,6 +52,7 @@ class StartDriver():
         self.fetch_metadata()
         self.fetch_comm_config()
         self.generate_code()
+
 
 if __name__ == '__main__':
     app = StartDriver()

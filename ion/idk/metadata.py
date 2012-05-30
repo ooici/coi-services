@@ -11,11 +11,18 @@ __license__ = 'Apache 2.0'
 
 import sys
 import os
+import errno
 
 import yaml
 
+from pyon.util.log import log
+
+from ion.idk.config import Config
 from ion.idk import prompt
 
+from ion.idk.exceptions import DriverParameterUndefined
+from ion.idk.exceptions import UnknownDriver
+from ion.idk.exceptions import InvalidParameters
 
 class Metadata():
     """
@@ -26,26 +33,46 @@ class Metadata():
     ###
     #   Configuration
     ###
+    def driver_dir(self):
+        """
+        @brief full path to the driver code
+        @retval driver path
+        """
+        if not self.driver_make:
+            raise DriverParameterUndefined("driver_make undefined in metadata")
+            
+        if not self.driver_model:
+            raise DriverParameterUndefined("driver_model undefined in metadata")
+            
+        if not self.driver_name:
+            raise DriverParameterUndefined("driver_name undefined in metadata")
+            
+        return os.path.join(Config().base_dir(),
+                            "mi", "instrument",
+                            self.driver_make.lower(),
+                            self.driver_model.lower(),
+                            self.driver_name.lower())
+        
     def idk_dir(self):
         """
         @brief directory to store the idk driver configuration
         @retval dir name
         """
-        return os.environ['HOME'] + "/.idk"
+        return Config().idk_config_dir()
 
     def metadata_filename(self):
         """
         @brief metadata file name
         @retval filename
         """
-        return self.name + "_metadata.yml"
+        return "metadata.yml"
 
     def metadata_path(self):
         """
         @brief path to the metadata config file
         @retval metadata path
         """
-        return self.idk_dir() + "/" + self.metadata_filename()
+        return self.driver_dir() + "/" + self.metadata_filename()
 
     def current_metadata_path(self):
         """
@@ -64,19 +91,30 @@ class Metadata():
     ###
     #   Private Methods
     ###
-    def __init__(self, name=None, author=None, email=None, instrument_class=None, notes=None):
+    def __init__(self, driver_make = None, driver_model = None, driver_name = None):
         """
         @brief Constructor
         """
-        self.author = author
-        self.email = email
-        self.name = name
-        self.instrument_class = instrument_class
-        self.notes = notes
+        self.author = None
+        self.email = None
+        self.driver_make = driver_make
+        self.driver_model = driver_model
+        self.driver_name = driver_name
+        self.notes = None
         self.version = 0
 
-        if( not(name or author or email or notes) ):
+        if(driver_make and driver_model and driver_name):
+            log.debug("Construct from parameters")
+            if(os.path.isfile(self.metadata_path())):
+                self.read_from_file()
+            
+        elif(not(driver_make or driver_model or driver_name)):
+            log.debug("Default constructor")
             self.read_from_file()
+            
+        else:
+            raise InvalidParameters(msg="driver_make, driver_model, driver_name must all be specified")
+
 
     def _init_from_yaml(self, yamlInput):
         """
@@ -85,8 +123,9 @@ class Metadata():
         """
         self.author = yamlInput['driver_metadata'].get('author')
         self.email = yamlInput['driver_metadata'].get('email')
-        self.instrument_class = yamlInput['driver_metadata'].get('instrument_class')
-        self.name = yamlInput['driver_metadata'].get('name')
+        self.driver_make = yamlInput['driver_metadata'].get('driver_make')
+        self.driver_model = yamlInput['driver_metadata'].get('driver_model')
+        self.driver_name = yamlInput['driver_metadata'].get('driver_name')
         self.notes = yamlInput['driver_metadata'].get('release_notes')
         self.version = yamlInput['driver_metadata'].get('version', 0)
 
@@ -100,8 +139,9 @@ class Metadata():
         """
         if( not self.version ): version = ''
 
-        print( "Driver Name: " + self.name )
-        print( "Instrument Class: " + self.instrument_class )
+        print( "Driver Make: " + self.driver_make )
+        print( "Driver Model: " + self.driver_model )
+        print( "Driver Name: " + self.driver_name )
         print( "Author: " + self.author )
         print( "Email: " + self.email )
         print( "Release Notes: \n" + self.notes )
@@ -126,8 +166,9 @@ class Metadata():
         return yaml.dump( {'driver_metadata': {
                                 'author': self.author,
                                 'email': self.email,
-                                'name': self.name,
-                                'instrument_class': self.instrument_class,
+                                'driver_make': self.driver_make,
+                                'driver_model': self.driver_model,
+                                'driver_name': self.driver_name,
                                 'release_notes': self.notes,
                                 'version': self.version
                           }
@@ -141,6 +182,9 @@ class Metadata():
         """
         outputFile = self.metadata_path()
 
+        if not os.path.exists(self.driver_dir()):
+            os.makedirs(self.driver_dir())
+            
         if not os.path.exists(self.idk_dir()):
             os.makedirs(self.idk_dir())
 
@@ -148,9 +192,16 @@ class Metadata():
 
         ofile.write( self.serialize() )
         ofile.close()
+        
+        self.link_current_metadata()
 
-        if( os.path.exists(self.current_metadata_path()) ):
+    
+    def link_current_metadata(self):
+        try:
             os.remove(self.current_metadata_path())
+        except OSError, e:
+            if e.errno != errno.ENOENT:
+                raise
 
         os.symlink(self.metadata_path(), self.current_metadata_path())
 
@@ -181,8 +232,9 @@ class Metadata():
         """
         @brief Read metadata from the console and initialize the object.  Continue to do this until we get valid input.
         """
-        self.instrument_class = prompt.text( 'Instrument Class', self.instrument_class )
-        self.name = prompt.text( 'Driver Name', self.name )
+        self.driver_make = prompt.text( 'Driver Make', self.driver_make )
+        self.driver_model = prompt.text( 'Driver Model', self.driver_model )
+        self.driver_name = prompt.text( 'Driver Name', self.driver_name )
         self.author = prompt.text( 'Author', self.author )
         self.email = prompt.text( 'Email', self.email )
         self.notes = prompt.multiline( 'Release Notes', self.notes )

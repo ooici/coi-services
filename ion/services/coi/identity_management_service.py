@@ -172,7 +172,7 @@ class IdentityManagementService(BaseIdentityManagementService):
                 raise BadRequest("Certificate expired or not yet valid")
 
         # Extract subject line
-        attributes = self.authentication.decode_certificate(certificate)
+        attributes = self.authentication.decode_certificate_string(certificate)
         subject = attributes["subject"]
         valid_until_str = attributes["not_valid_after"]
         log.debug("Signon request for subject %s with string valid_until %s" % (subject, valid_until_str))

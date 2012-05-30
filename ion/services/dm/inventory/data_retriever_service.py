@@ -9,8 +9,7 @@ from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
 from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import PRED
-
+from pyon.public import PRED, RT
 
 
 class DataRetrieverService(BaseDataRetrieverService):
@@ -21,10 +20,13 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def on_start(self):
         super(DataRetrieverService,self).on_start()
-        self.process_definition = ProcessDefinition(name='data_replay_process', description='Process for the replay of datasets')
-        self.process_definition.executable['module']='ion.processes.data.replay_process'
-        self.process_definition.executable['class'] = 'ReplayProcess'
-        self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+
+        res_list, _ = self.clients.resource_registry.find_resources(
+            restype=RT.ProcessDefinition,
+            name='data_replay_process',
+            id_only=True)
+
+        self.process_definition_id = res_list[0]
 
 
     def on_quit(self):

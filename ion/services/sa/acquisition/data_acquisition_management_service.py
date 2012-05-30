@@ -172,7 +172,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         @param input_resource_id    str
         @param data_product_id    str
-        @retval data_producer_id    str
+        @retval if create_stream==True, the stream_id, otherwise None
         """
         # Verify that both ids are valid
         input_resource_obj = self.clients.resource_registry.read(input_resource_id)
@@ -216,13 +216,14 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         #Create the stream if requested
         log.debug("assign_data_product: create_stream %s" % create_stream)
+        stream_id = None
         if create_stream:
             stream_id = self.clients.pubsub_management.create_stream(name=data_product_obj.name,  description=data_product_obj.description)
             log.debug("assign_data_product: create stream stream_id %s" % stream_id)
             # Associate the Stream with the main Data Product
             self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
 
-        return
+        return stream_id
 
     def unassign_data_product(self, input_resource_id='', data_product_id='', delete_stream=False):
         """
@@ -602,7 +603,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         process_definition = ProcessDefinition()
         process_definition.executable['module']= external_dataset_agent.handler_module
         process_definition.executable['class'] = external_dataset_agent.handler_class
-#        process_definition.executable['module']='ion.services.mi.instrument_agent'
+#        process_definition.executable['module']='ion.agents.instrument.instrument_agent'
 #        process_definition.executable['class'] = 'InstrumentAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         log.debug("create_external_dataset_agent: create_process_definition id %s"  +  str(process_definition_id))

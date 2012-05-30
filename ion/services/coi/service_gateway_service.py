@@ -11,8 +11,7 @@ from gevent.wsgi import WSGIServer
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict
-from pyon.core.object import IonObjectBase
-
+from pyon.event.event import EventSubscriber
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -107,6 +106,9 @@ class ServiceGatewayService(BaseServiceGatewayService):
         if self.web_server_enabled:
             self.start_service(self.server_hostname,self.server_port)
 
+        self.user_role_event_subscriber = EventSubscriber(event_type="UserRoleModifiedEvent", origin_type="Org", callback=self.user_role_event_callback)
+        self.user_role_event_subscriber.activate()
+
         #Initialize an LRU Cache to keep user roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
         #maxAgeMs = oldest entry to keep
@@ -114,6 +116,11 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
     def on_quit(self):
         self.stop_service()
+
+        if self.user_role_event_subscriber is not None:
+            self.user_role_event_subscriber.deactivate()
+
+
 
 
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
@@ -143,6 +150,23 @@ class ServiceGatewayService(BaseServiceGatewayService):
                 return True
 
         return False
+
+    def user_role_event_callback(self, *args, **kwargs):
+        """
+        This method is a callback function for receiving User Role Modified Events.
+        """
+        user_role_event = args[0]
+        org_id = user_role_event.origin
+        user_id = user_role_event.user_id
+        role_name = user_role_event.role_name
+        log.debug("User Role modified: %s %s %s" % (org_id, user_id, role_name))
+
+        #Evict the user and their roles from the cache so that it gets updated with the next call.
+        if service_gateway_instance.user_data_cache.has_key(user_id):
+            log.debug('Evicting user from the user_data_cache: %s' % user_id)
+            service_gateway_instance.user_data_cache.evict(user_id)
+
+
 
 @app.errorhandler(403)
 def custom_403(error):
@@ -232,17 +256,6 @@ def process_gateway_request(service_name, operation):
         client = target_client(node=Container.instance.node, process=service_gateway_instance)
         methodToCall = getattr(client, operation)
         result = methodToCall(**param_list)
-
-
-        #For service operations that add or remove user roles, remove the cached roles so that
-        #the next request will get the latest set of user roles
-        #TODO - this will only work while there is a single Service Gateway running - need to replace with Event
-        #framework to evict from the cache when a user roles get updated.
-        if operation == 'grant_role' or operation == 'revoke_role':
-            #Look for a user_id in the set of parameters and remove it from the user role cache
-            if param_list.has_key('user_id'):
-                service_gateway_instance.user_data_cache.evict(param_list['user_id'])
-
 
         return gateway_json_response(result)
 
@@ -409,12 +422,11 @@ def build_message_headers( ion_actor_id, expiry):
 
     try:
         #Check to see if the user's roles are cached already - keyed by user id
-        #TODO - May need to synchronize this if there are "threading" issues
-#        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
-#            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
-#            if role_header is not None:
-#                headers['ion-actor-roles'] = role_header
-#                return headers
+        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
+            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+            if role_header is not None:
+                headers['ion-actor-roles'] = role_header
+                return headers
 
 
         #The user's roles were not cached so hit the datastore to find it.

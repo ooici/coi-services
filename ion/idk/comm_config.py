@@ -35,6 +35,10 @@ import yaml
 
 from ion.idk import prompt
 from ion.idk.metadata import Metadata
+from ion.idk.config import Config
+from ion.idk.logger import Log
+
+from ion.idk.exceptions import DriverParameterUndefined
 
 
 class CommConfig(object):
@@ -45,26 +49,46 @@ class CommConfig(object):
     ###
     #   Configurations
     ###
+    def driver_dir(self):
+        """
+        @brief full path to the driver code
+        @retval driver path
+        """
+        if not self.metadata.driver_make:
+            raise DriverParameterUndefined("driver_make undefined in metadata")
+                
+        if not self.metadata.driver_model:
+            raise DriverParameterUndefined("driver_model undefined in metadata")
+                
+        if not self.metadata.driver_name:
+            raise DriverParameterUndefined("driver_name undefined in metadata")
+                
+        return os.path.join(Config().base_dir(),
+                            "mi", "instrument",
+                            self.metadata.driver_make.lower(),
+                            self.metadata.driver_model.lower(),
+                            self.metadata.driver_name.lower())
+        
     def idk_dir(self):
         """
         @brief get directory to store configuration files
         @retval directory for idk configuration files.
         """
-        return os.environ['HOME'] + "/.idk"
+        Config().idk_config_dir()
 
     def config_filename(self):
         """
         @brief get filename for comm config file
         @retval filename to comm config yaml
         """
-        return self.metadata.name + "_comm.yml"
+        return "comm_config.yml"
 
     def config_path(self):
         """
         @brief return the full path of the configuration file
         @retval path to config file
         """
-        return self.idk_dir() + "/" + self.config_filename()
+        return self.driver_dir() + "/" + self.config_filename()
 
 
     ###
@@ -76,7 +100,7 @@ class CommConfig(object):
         @param metadata IDK Metadata object
         """
         self.metadata = metadata
-        if( self.metadata.name ):
+        if( self.metadata.driver_name ):
             self.read_from_file()
 
     def __getitem__(self, *args):
@@ -128,8 +152,8 @@ class CommConfig(object):
         """
         outputFile = self.config_path()
 
-        if not os.path.exists(self.idk_dir()):
-            os.makedirs(self.idk_dir())
+        if not os.path.exists(self.driver_dir()):
+            os.makedirs(self.driver_dir())
 
         ofile = open( outputFile, 'w' )
 

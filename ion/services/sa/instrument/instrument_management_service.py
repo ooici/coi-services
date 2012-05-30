@@ -7,20 +7,29 @@
 """
 
 
-from pyon.public import Container
-from pyon.public import LCS #, LCE
+#from pyon.public import Container
+from pyon.public import LCE
 from pyon.public import RT, PRED
+from pyon.public import CFG
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 import os
+import pwd
 import gevent
-from distutils.core import setup
+import base64
+import zipfile
+import string
+import csv
+from StringIO import StringIO
+import tempfile
+import subprocess
 
-
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
+from interface.objects import ProcessDefinition
+from interface.objects import AttachmentType
+#from interface.objects import ProcessSchedule, ProcessTarget
 
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
@@ -40,10 +49,14 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 from ion.services.sa.instrument.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
-from ion.services.mi.logger_process import EthernetDeviceLogger
-from ion.services.mi.instrument_agent import InstrumentAgentState
+from ion.agents.port.logger_process import EthernetDeviceLogger
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
+
+
+INSTRUMENT_AGENT_MANIFEST_FILE = "MANIFEST.csv"
+ 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     """
@@ -97,102 +110,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.data_producer       = DataProducerImpl(self.clients)
 
 
-
-    ##########################################################################
-    #
-    # REGISTER INSTRUMENT DRIVER
-    #
-    ##########################################################################
-
-    def register_instrument_driver(self, 
-                                   driver_name='',
-                                   instrument_model_ids=None, 
-                                   agent_metadata={}, 
-                                   source_url="", 
-                                   source_tag="", 
-                                   test_result=None,
-                                   attachments=None):
-        """
-        IDK script calls IMS:register_instrument_driver with:
-            instrument agent resource metadata: 
-                agent_version, 
-                connection_method, 
-                model it supports #TODO: how to select model?
-            MI Git repository URL
-            MI git repository tag
-            test results / attachments
-            additional context: firmware specs, release notes
-
-        """
-
-        modelnames = []
-        #make sure that model ids exist
-        for m in instrument_model_ids:
-            modelnames.append(self.read_instrument_model(m).name)
-
-        #create an instrument agent resource
-        inst_agent_obj = IonObject(RT.InstrumentAgent,
-                                   name=driver_name,
-                                   description=str("Driver for instruments of models: " % ", ".join(modelnames)))
-
-        inst_agent_id = self.create_instrument_agent(inst_agent_obj)
-
-
-        #store the metadata in the resource registry as an attachment
-        #TODO
-    
-        #create an attachment resource for other context documents, adds metadata and creates association
-        #TODO
-
-        #create the correct associations for this InstAgent (Model, etc)
-        for m in instrument_model_ids:
-            self.assign_instrument_model_to_instrument_agent(m, inst_agent_id)
-
-        #fetch files supplied in manifest
-        #TODO
-
-        #builds the egg from the manifest or tag then places the egg on the web server
-        ##TODO
-        # setup(
-        #     #TODO: args from agent_metadata
-        #     script_name = 'setup.py',                   #may not be needed
-        #     script_args = ['bdist_rpm', '--spec-only'], #args needed for compile
-        #
-        #     name = "HelloWorld",
-        #     version = "0.1",
-        #     packages = find_packages(),
-        #     scripts = ['say_hello.py'],
-        #    
-        #     # Project uses reStructuredText, so ensure that the docutils get
-        #     # installed or upgraded on the target machine
-        #     install_requires = ['docutils>=0.3'],
-        #    
-        #     package_data = {
-        #         # If any package contains *.txt or *.rst files, include them:
-        #         '': ['*.txt', '*.rst'],
-        #         # And include any *.msg files found in the 'hello' package, too:
-        #             'hello': ['*.msg'],
-        #         }
-        #    
-        #     # metadata for upload to PyPI
-        #     author = "Me",
-        #     author_email = "me@example.com",
-        #     description = "This is an Example Package",
-        #     license = "PSF",
-        #     keywords = "hello world example examples",
-        #     url = "http://example.com/HelloWorld/",   # project home page, if any
-        #            
-        #     # could also include long_description, download_url, classifiers, etc.
-        #
-        #      )
-
-        #move output egg to another directory / upload it somewhere
-        #TODO
-
-        #updates the state of this InstAgent to deployed
-        #TODO
-    
-        return inst_agent_id
 
 
     ##########################################################################
@@ -493,7 +410,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
-        process_definition.executable['module']='ion.services.mi.instrument_agent'
+        process_definition.executable['module']='ion.agents.instrument.instrument_agent'
         process_definition.executable['class'] = 'InstrumentAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         log.debug("create_instrument_agent: create_process_definition id %s"  +  str(process_definition_id))
@@ -542,6 +459,163 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.clients.process_dispatcher.delete_process_definition(process_def_ids[0])
 
         return self.instrument_agent.delete_one(instrument_agent_id)
+
+
+    def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
+        """
+        register an instrument driver by putting it in a web-accessible location
+        @instrument_agent_id the agent receiving the driver
+        @agent_egg a base64-encoded egg file
+        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file 
+
+        MANIFEST.csv fields:
+         - filename
+         - name
+         - description
+         - content_type
+         - keywords
+        """
+        
+        def zip_of_b64(b64_data, title):
+
+            log.debug("decoding base64 zipfile for %s" % title)
+            try:
+                zip_str  = base64.decodestring(b64_data)
+            except:
+                raise BadRequest("could not base64 decode supplied %s" % title)
+
+            log.debug("opening zipfile for %s" % title)
+            try:
+                zip_file = StringIO(zip_str)
+                zip_obj  = zipfile.ZipFile(zip_file)
+            except:
+                raise BadRequest("could not parse zipfile contained in %s" % title)
+
+            return zip_obj
+
+        # retrieve the resource
+        log.debug("reading inst agent resource")
+        instrument_agent_obj = self.instrument_agent.read_one(instrument_agent_id)
+
+
+        #process the input files (base64-encoded zips)
+        qa_zip_obj  = zip_of_b64(qa_documents, "qa_documents")
+        egg_zip_obj = zip_of_b64(agent_egg, "agent_egg")
+
+
+        #parse the manifest file
+        if not INSTRUMENT_AGENT_MANIFEST_FILE in qa_zip_obj.namelist():
+            raise BadRequest("provided qa_documents zipfile lacks manifest CSV file called %s" % 
+                             INSTRUMENT_AGENT_MANIFEST_FILE)
+
+        log.debug("extracting manifest csv file")
+        csv_contents = qa_zip_obj.read(INSTRUMENT_AGENT_MANIFEST_FILE)
+
+        log.debug("parsing manifest csv file")
+        try:
+            dialect = csv.Sniffer().sniff(csv_contents)
+        except csv.Error:
+            dialect = csv.excel
+        except Exception as e:
+            raise BadRequest("%s - %s" % (str(type(e)), str(e.args)))
+        csv_reader = csv.DictReader(StringIO(csv_contents), dialect=dialect)
+
+        #validate fields in manifest file
+        log.debug("validing manifest csv file")
+        for f in ["filename", "name", "description", "content_type", "keywords"]:
+            if not f in csv_reader.fieldnames:
+                raise BadRequest("Manifest file %s missing required field %s" % 
+                                 (INSTRUMENT_AGENT_MANIFEST_FILE, f))
+
+
+        #validate egg
+        log.debug("validating egg")
+        if not "EGG-INFO/PKG-INFO" in egg_zip_obj.namelist():
+            raise BadRequest("no PKG-INFO found in egg; found %s" % str(egg_zip_obj.namelist()))
+
+        log.debug("processing driver")
+        pkg_info_data = {}
+        pkg_info = egg_zip_obj.read("EGG-INFO/PKG-INFO")
+        for l in pkg_info.splitlines():
+            log.debug("Reading %s" % l)
+            tmp = l.partition(": ")
+            pkg_info_data[tmp[0]] = tmp[2]
+
+        for f in ["Name", "Version"]:
+            if not f in pkg_info_data:
+                raise BadRequest("Agent egg's PKG-INFO did not include a field called '%s'" % f)
+
+        #determine egg name
+        egg_filename = "%s-%s-py2.7.egg'" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
+        log.debug("Egg filename is '%s'" % egg_filename)
+
+        #create attachment resources for each document in the zip
+        log.debug("creating attachment objects")
+        attachments = []
+        for row in csv_reader:
+            att_name = row["filename"]
+            att_desc = row["description"]
+            att_content_type = row["content_type"]
+            att_keywords = string.split(row["keywords"], ",")
+
+            if not att_name in qa_zip_obj.namelist():
+                raise BadRequest("Manifest refers to a file called '%s' which is not in the zip" % att_name)
+
+            attachments.append(IonObject(RT.Attachment,
+                                         name=att_name,
+                                         description=att_desc,
+                                         content=qa_zip_obj.read(att_name), 
+                                         content_type=att_content_type,
+                                         keywords=att_keywords,
+                                         attachment_type=AttachmentType.BLOB))
+            
+        log.debug("Sanity checking manifest vs zip file")
+        if len(qa_zip_obj.namelist()) - 1 > len(attachments):
+            log.warn("There were %d files in the zip but only %d in the manifest" % 
+                     (len(qa_zip_obj.namelist()) - 1, len(attachments)))
+            
+
+        
+
+        #move output egg to another directory / upload it somewhere
+        #TODO: change cfg_ to CFG.x.
+
+        cfg_host        = CFG.service.instrument_management.driver_release_host #'amoeaba.ucsd.edu'
+        cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
+        cfg_user        = pwd.getpwuid(os.getuid())[0]
+
+        log.debug("creating tempfile for egg output")
+        f_handle, tempfilename = tempfile.mkstemp()
+        log.debug("writing egg data to disk at '%s'" % tempfilename)
+        os.write(f_handle, base64.decodestring(agent_egg))
+
+        remotefilename = "%s@%s:%s/%s" % (cfg_user, 
+                                          cfg_host, 
+                                          cfg_remotepath, 
+                                          egg_filename)
+
+        log.debug("executing scp: '%s' to %s" % (tempfilename, remotefilename))
+        scp_retval = subprocess.call(["scp", "-q", "-o", "PasswordAuthentication=no", 
+                                      tempfilename, remotefilename])
+        
+        if 0 != scp_retval:
+            raise BadRequest("Secure copy to %s:%s failed" % (cfg_host, cfg_remotepath))
+
+        log.debug("removing tempfile at '%s'" % tempfilename)
+        os.unlink(tempfilename)
+
+
+        #if that works, do the rest
+        log.debug("inserting attachments")
+        for att in attachments:
+            self.RR.create_attachment(instrument_agent_id, att)
+
+        #updates the state of this InstAgent to integrated
+        log.debug("firing life cycle event: integrate")
+        self.instrument_agent.advance_lcs(instrument_agent_id, LCE.INTEGRATE)
+
+
+        return
 
 
 

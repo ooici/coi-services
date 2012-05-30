@@ -46,6 +46,8 @@ setup(  name = 'coi-services',
             'Pydap>=3.0.1',
             'netCDF4>=0.9.8',
             'cdat_lite>=6.0rc2',
+            'snakefood==1.4',
+            'gitpython==0.1.7',
 
         ],
      )

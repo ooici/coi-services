@@ -30,7 +30,7 @@ class NoseTest():
         @param log_file File to store test results.  If none specified log to STDOUT
         """
         self.metadata = metadata
-        if(not self.metadata.name):
+        if(not self.metadata.driver_name):
             raise Exception('No drivers initialized.  run start_driver')
 
         if( log_file ):
