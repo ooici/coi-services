@@ -60,19 +60,19 @@ class ExecutionEngineAgent(ResourceAgent):
     def on_quit(self):
         self._factory.terminate()
 
-    def acmd_launch_process(self, u_pid, round, run_type, parameters):
+    def rcmd_launch_process(self, u_pid, round, run_type, parameters):
         self.core.launch_process(u_pid, round, run_type, parameters)
 
-    def acmd_terminate_process(self, u_pid, round):
+    def rcmd_terminate_process(self, u_pid, round):
         self.core.terminate_process(u_pid, round)
 
-    def acmd_restart_process(self, u_pid, round):
+    def rcmd_restart_process(self, u_pid, round):
         self.core.restart_process(u_pid, round)
 
-    def acmd_cleanup(self, u_pid, round):
+    def rcmd_cleanup(self, u_pid, round):
         self.core.cleanup(u_pid, round)
 
-    def acmd_dump_state(self):
+    def rcmd_dump_state(self):
         return make_beat_msg(self.core._process_managers_map)
 
 
@@ -125,20 +125,20 @@ class ExecutionEngineAgentClient(object):
 
         args = [u_pid, round, run_type, parameters]
         cmd = AgentCommand(command='launch_process', args=args)
-        return self.client.execute_agent(cmd)
+        return self.client.execute(cmd)
 
     def terminate_process(self, u_pid, round):
 
         args = [u_pid, round]
         cmd = AgentCommand(command='terminate_process', args=args)
-        return self.client.execute_agent(cmd)
+        return self.client.execute(cmd)
 
     def restart_process(self, u_pid, round):
 
         args = [u_pid, round]
         cmd = AgentCommand(command='restart_process', args=args)
-        return self.client.execute_agent(cmd)
+        return self.client.execute(cmd)
 
     def dump_state(self):
         cmd = AgentCommand(command='dump_state', args=[])
-        return self.client.execute_agent(cmd)
+        return self.client.execute(cmd)
