@@ -16,7 +16,14 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
     @brief Resource management for InstrumentAgent resources
     """
 
+    def _primary_object_name(self):
+        return RT.InstrumentAgent
+
+    def _primary_object_label(self):
+        return "instrument_agent"
+
     def on_impl_init(self):
+        self.add_lce_precondition(LCE.PLAN, (lambda r: "")) # no precondition to plan
         self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
         self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
         
@@ -62,12 +69,6 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
         else:
             return "InstrumentAgent LCS requires an associated instrument model"
     
-    def _primary_object_name(self):
-        return RT.InstrumentAgent
-
-    def _primary_object_label(self):
-        return "instrument_agent"
-
     def link_model(self, instrument_agent_id='', instrument_model_id=''):
         return self._link_resources_single_subject(instrument_agent_id, PRED.hasModel, instrument_model_id)
 
