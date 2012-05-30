@@ -99,12 +99,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("Test is still not passing on buildbot all of the time")
+    #@unittest.skip("Test is still not passing on buildbot all of the time")
     def test_org_policy(self):
 
         #Make sure that the system policies have been loaded
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
+        self.assertEqual(len(policy_list),9,"All of the system policies have not been loaded into the Resource Registry")
+
 
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
