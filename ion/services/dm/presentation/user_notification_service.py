@@ -22,6 +22,8 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 
+import operator
+
 from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import NotificationRequest, SMSDeliveryConfig, EmailDeliveryConfig, NotificationType
 
@@ -268,15 +270,28 @@ class SMSEventProcessor(EmailEventProcessor):
 
 class DetectionEventProcessor(EventProcessor):
 
-    comparators = {">":__gt__,
-                  "<":__lt__,
-                  "==":__eq__}
+    comparators = {">":operator.gt,
+                  "<":operator.lt,
+                  "==":operator.eq}
 
 
     def subscription_callback(self, message, headers):
-
-        pass
         #@todo implement the call back to look for a field specified by the processing instructions and apply the condition
+
+        filter_field = None
+        try:
+            comparator = self.notification.delivery_config.processing.comparator
+            comparator_func = DetectionEventProcessor.comparators[comparator]
+        except KeyError:
+            raise BadRequest("Bad comparator specified in Detection filter: '%s'" % comparator)
+
+        condition = None
+
+        field_val = getattr(message,filter_field)
+        if field_val is not None and comparator_func(filter_field, condition):
+            log.warning('Detected an event')
+            pass
+            #@ todo publish event
 
         # If filter_field in message:
         # If comparators[comparator](message field, condition)
