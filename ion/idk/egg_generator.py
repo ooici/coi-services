@@ -10,6 +10,7 @@ a dependecy list and includes all files in the driver directory.
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
 
+import re
 import os
 import sys
 from os.path import basename, dirname
@@ -320,9 +321,43 @@ class DriverFileList:
     object to get all python files.  Then it will look in the target module directory
     for additional files.
     """
-    def __init__(self):
-        pass
-    
+    def __init__(self, metadata, basedir):
+        driver_generator = DriverGenerator(metadata)
+        
+        self.basedir = basedir
+        self.driver_file = driver_generator.driver_path()
+        self.driver_test_file = driver_generator.driver_test_path()
+        
+        self.driver_dependency = DependencyList(self.driver_file)
+        #self.test_dependency = DependencyList(self.driver_test_file)
+        
+    def files(self):
+        basep = re.compile(self.basedir)
+        rootp = re.compile('^/')
+        result = []
+        
+        log.debug( "F: %s" % self.driver_file)
+        #files = self._extra_files() + self.driver_dependency.internal_dependencies() + self.test_dependency.internal_dependencies()
+        files = self._extra_files() + self.driver_dependency.internal_dependencies()
+                
+        for fn in files:
+            if not fn in result:
+                f = basep.sub('', fn)
+                f = rootp.sub('', f)
+                result.append(f)
+                
+        return result
+        
+    def _extra_files(self):
+        result = []
+        p = re.compile('\.pyc$')
+        
+        for root, dirs, names in os.walk(dirname(self.driver_file)):
+            for filename in names:
+                if not p.search(filename):
+                    result.append("%s/%s" % (root, filename))
+                
+        return result
     
 class EggGenerator:
     """
@@ -335,8 +370,6 @@ class EggGenerator:
         @param metadata IDK Metadata object
         """
         
-    
-
 
 
 if __name__ == '__main__':

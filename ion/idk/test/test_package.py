@@ -39,7 +39,7 @@ if exists("/private/tmp"):
 TESTDIR="%s/mi/foo" % ROOTDIR
 
 
-class IDKPackageTest(unittest.TestCase):
+class IDKPackageNose(unittest.TestCase):
     """
     Base class for IDK Package Tests
     """    
@@ -50,17 +50,21 @@ class IDKPackageTest(unittest.TestCase):
         # Our test path needs to be in the python path for SnakeFood to work.
         sys.path = ["%s/../.." % TESTDIR] + sys.path
         
-        if not exists(TESTDIR):
-            makedirs(TESTDIR)
-        
         self.write_basefile()
         self.write_implfile()
+        self.write_nosefile()
+        self.write_resfile()
         
     def write_basefile(self):
         """
         Create all of the base python modules.  These files live in the same root
         and should be reported as internal dependencies
         """
+        
+        destdir = dirname(self.basefile())
+        if not exists(destdir):
+            makedirs(destdir)
+        
         ofile = open(self.basefile(), "w")
         ofile.write( "class MiFoo():\n")
         ofile.write( "    def __init__():\n")
@@ -89,6 +93,10 @@ class IDKPackageTest(unittest.TestCase):
         The impl.py file is the target of our test.  All tests will report the
         dependencies of this file.
         """
+        destdir = dirname(self.implfile())
+        if not exists(destdir):
+            makedirs(destdir)
+        
         # Write a base file
         ofile = open(self.implfile(), "w")
         
@@ -99,9 +107,49 @@ class IDKPackageTest(unittest.TestCase):
         ofile.write( "from mi import base3\n\n")
         ofile.close()
         
+        # Add a pyc file to ignore
+        initfile = self.implfile().replace("impl.py", 'impl.pyc')
+        ofile = open(initfile, "w")
+        ofile.close()
+        
         # Ensure we have an import in an __init__ py file
         initfile = self.implfile().replace("impl.py", '__init__.py')
         ofile = open(initfile, "w")
+        ofile.close()
+        
+    def write_nosefile(self):
+        """
+        The test.py file is the target of our test.  All tests will report the
+        dependencies of this file.
+        """
+        destdir = dirname(self.nosefile())
+        if not exists(destdir):
+            makedirs(destdir)
+        
+        # Write a base file
+        ofile = open(self.nosefile(), "w")
+        
+        # Test various forms of import. MiFoo is a class defined in base.py
+        # The rest are py file imports.
+        #ofile.write( "import pyon.util\n")
+        ofile.close()
+        
+    def write_resfile(self):
+        """
+        The impl.py file is the target of our test.  All tests will report the
+        dependencies of this file.
+        """
+        destdir = dirname(self.resfile())
+        log.debug(self.resfile())
+        if not exists(destdir):
+            makedirs(destdir)
+        
+        # Write a base file
+        ofile = open(self.resfile(), "w")
+        
+        # Test various forms of import. MiFoo is a class defined in base.py
+        # The rest are py file imports.
+        ofile.write( "hello world\n")
         ofile.close()
         
     def basefile(self):
@@ -116,9 +164,21 @@ class IDKPackageTest(unittest.TestCase):
         """
         return "%s/%s" % (TESTDIR, "impl.py")
         
+    def nosefile(self):
+        """
+        The main test python we will target for the tests
+        """
+        return "%s/%s" % (TESTDIR, "test/test_process.py")
+        
+    def resfile(self):
+        """
+        The main test resource we will target for the tests
+        """
+        return "%s/%s" % (TESTDIR, "res/test_file")
+        
 
 @attr('UNIT', group='mi')
-class TestDependencyList(IDKPackageTest):
+class TestDependencyList(IDKPackageNose):
     """
     Test the DependencyList object that uses the snakefood module.  
     """    
@@ -219,10 +279,57 @@ class TestDependencyList(IDKPackageTest):
 
 
 @attr('UNIT', group='mi')
-class TestDriverFileList(IDKPackageTest):
+class TestDriverFileList(IDKPackageNose):
     """
     Test the driver file list object.  The driver file list is what is
     stored in the driver egg
     """
-    def test_exceptions(self):
-        pass
+    def test_extra_list(self):
+        """
+        Find all the files in the driver directory
+        """
+        rootdir = dirname(TESTDIR)
+        filelist = DriverFileList(Metadata(), rootdir)
+        self.assertTrue(filelist)
+        
+        # Override the derived filenames with test files.
+        filelist.driver_file = self.implfile()
+        filelist.driver_test_file = self.nosefile()
+        
+        known_files = [
+            '%s/foo/__init__.py' % rootdir,
+            '%s/foo/impl.py' % rootdir,
+            '%s/foo/res/test_file' % rootdir,
+            '%s/foo/test/test_process.py' % rootdir,
+        ]
+        
+        files = filelist._extra_files()
+        
+        self.assertEqual(sorted(files), sorted(known_files))
+        
+        
+    def test_list(self):
+        """
+        Test the full file manifest
+        """
+        rootdir = dirname(TESTDIR)
+        filelist = DriverFileList(Metadata(), rootdir)
+        self.assertTrue(filelist)
+        
+        # Override the derived filenames with test files.
+        filelist.driver_file = self.implfile()
+        filelist.driver_test_file = self.nosefile()
+        
+        known_files = [
+            'foo/__init__.py',
+            'foo/impl.py',
+            'foo/res/test_file',
+            'foo/test/test_process.py',
+        ]
+        
+        files = filelist.files()
+        
+        self.assertEqual(sorted(files), sorted(known_files))
+        
+        
+        
