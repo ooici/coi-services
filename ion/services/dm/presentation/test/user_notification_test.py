@@ -436,7 +436,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Assert that no detection event is sent
 
         # Send Event that is detected
-        # Check the queue of events in the detector
         # check the async result for the received event
 
 

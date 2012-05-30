@@ -256,10 +256,15 @@ class SMSEventProcessor(EmailEventProcessor):
 
         #@todo use the provider and phone number specified in the notification request to get the to email address
 
+        provider = sms_providers[''] # self.notication.delivery_config.delivery['provider']
+        self.msg_recipient = None # self.notication.delivery_config.delivery['phone'] + provider
+
+
     def subscription_callback(self, message, headers):
         #@todo implement the callback to compose a short, 140 character sms message and send it to the email address
         pass
 
+        #The message body should only contain the event description for now and a standard header: "ION Event SMS"...
 
 class DetectionEventProcessor(EventProcessor):
 
@@ -274,7 +279,7 @@ class DetectionEventProcessor(EventProcessor):
         #@todo implement the call back to look for a field specified by the processing instructions and apply the condition
 
         # If filter_field in message:
-        # If comparator(message field, condition)
+        # If comparators[comparator](message field, condition)
         # Publish a Detection event!
 
 
