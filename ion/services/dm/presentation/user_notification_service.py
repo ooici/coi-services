@@ -182,14 +182,16 @@ class EmailEventProcessor(EventProcessor):
         log.warning('smtp_host: %s' % str(self.smtp_host))
         log.warning('smtp_port: %s' % str(self.smtp_port))
 
-        if CFG.get_safe('server.smtp.use_fake_lib',True):
+        if CFG.get_safe('system.smtp',False):
+            self.smtp_client = smtplib.SMTP(self.smtp_host)
+
+        else:
             log.warning('Using a fake SMTP library to simulate email notifications!')
 
             #@todo - what about port etc??? What is the correct interface to fake?
             self.smtp_client = fake_smtplib.SMTP(self.smtp_host)
 
-        else:
-            self.smtp_client = smtplib.SMTP(self.smtp_host)
+
 
         log.debug("UserEventProcessor.__init__(): email for user %s " %self.user_id)
 
@@ -606,7 +608,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification_request = NotificationRequest(
             name=name,
             description=description,
-            type = NotificationType.FILTER,
+            #type = NotificationType.FILTER,
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
