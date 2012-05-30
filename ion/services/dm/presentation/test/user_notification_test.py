@@ -7,7 +7,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import DeliveryMode, UserInfo, DeliveryConfig
+from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.public import IonObject, RT, PRED, Container
@@ -360,8 +360,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
 
+        #@todo assert that the queue is now empty
+
         message = msg_tuple[2]
         list_lines = message.split("\n")
+
+        #@todo assert the to and from for the message
 
         #-------------------------------------------------------
         # parse the message body
@@ -376,6 +380,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 try:
                     message_dict[key_item[0]] = key_item[1]
                 except Exception as exc:
+                    #@todo Why do you except on Exception here? That is bad practice!
                     # these exceptions happen only because the message sometimes
                     # has successive /r/n (i.e. new lines) and therefore,
                     # the indexing goes out of range. These new lines
@@ -393,6 +398,47 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
         self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
+
+    def test_sms_notification(self):
+        pass
+        #@todo Implement the test - similar to the email test
+
+
+    def test_event_detection_notification(self):
+
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        # Create a user and get the user_id
+        user = UserInfo(name = 'new_user')
+        user_id, _ = self.rrc.create(user)
+
+        dfilt = DetectionFilterConfig()
+
+        dfilt.processing.condition = 5
+        dfilt.processing.comparator = '>'
+        dfilt.processing.filter_field = 'voltage'
+
+        dfilt.delivery.message = 'I got my detection event!'
+
+        # set up....
+        notification_id = self.unsc.create_detection_filter(event_type='ResourceLifecycleEvent',
+            event_subtype=None,
+            origin='Some_Resource_Agent_ID1',
+            origin_type=None,
+            user_id=user_id,
+            filter_config=dfilt
+            )
+
+        # Create detection notification
+        # Create event subscription for resulting detection event
+
+        # Send event that is not detected
+        # Assert that no detection event is sent
+
+        # Send Event that is detected
+        # Check the queue of events in the detector
+        # check the async result for the received event
+
 
     @unittest.skip('interface has changed!')
     def test_find_event_types_for_resource(self):

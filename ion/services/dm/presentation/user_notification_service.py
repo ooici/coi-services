@@ -22,6 +22,7 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 
+from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import NotificationRequest, SMSDeliveryConfig, EmailDeliveryConfig, NotificationType
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
@@ -67,38 +68,12 @@ The class, NotificationEventSubscriber, has been replaced by a lower level way o
 
 """
 
-#class NotificationEventSubscriber(EventSubscriber):
-#    """
-#    Encapsulates the event subscriber and the event 'listen loop' greenlet implements methods to start/stop the listener
-#    """
-#    def __init__(self, *args, **kwargs):
-#        # the interface currently is the following:
-#        # NotificationEventSubscriber(origin=None, origin_type=None, event_type=None, event_subtype = None, callback=None)
-#        super(NotificationEventSubscriber, self).__init__(*args, **kwargs)
-#        self.listener_greenlet = None
-#
-##    def __init__(self, origin=None, origin_type=None, event_type=None, event_subtype = None, callback=None):
-##        self.listener_greenlet = None
-##        self.subscriber = EventSubscriber(origin=origin, origin_type=origin_type, event_type=event_type, sub_type = event_subtype, callback=callback)
-#
-#    def start_listening(self):
-#        """
-#        Spawns the listener greenlet
-#        """
-#        self.listener_greenlet = spawn(self.listen)
-#        self._ready_event.wait(timeout=5)     # not sure this is needed
-#
-#    def stop_listening(self):
-#        """
-#        Kills the listener greenlet
-#        """
-#        if self.listener_greenlet is not None:
-#            self.listener_greenlet.kill(exception=Greenlet.GreenletExit, block=False)
-
 
 class Notification(object):
     """
     Encapsulates a notification's info and it's event subscriber
+
+    @David - is this class needed? It does not seem to serve any purpose?
     """
 
     def  __init__(self, notification_request=None, subscriber_callback=None):
@@ -108,7 +83,6 @@ class Notification(object):
         # origin/event.  This will require a list to hold all the subscribers so they can
         # be started and killed
 
-        #@todo - fix the init of Notificaiton Event Subscriber to use event_subtype and origin type
         self.subscriber = EventSubscriber(origin=notification_request.origin,
                                             origin_type = notification_request.origin_type,
                                             event_type=notification_request.event_type,
@@ -140,6 +114,10 @@ class EventProcessor(object):
     Encapsulates the user's info and a list of all the notifications they have.
     It also contains the callback that is passed to all event subscribers for this user's notifications.
     If the callback gets called, then this user had a notification for that event.
+
+    @David - Make this more generic. Make user_id part of the notification request.
+    What does it mean to make a notification on someone else's behalf?
+    Is that what we want? All resources already have an owner association!
     """
 
     def __init__(self, notification_request, user_id):
@@ -275,7 +253,31 @@ class SMSEventProcessor(EmailEventProcessor):
 
         super(SMSEventProcessor, self).__init__(notification_request,user_id)
 
-        #@todo Set the right email address for sending an SMS...
+
+        #@todo use the provider and phone number specified in the notification request to get the to email address
+
+    def subscription_callback(self, message, headers):
+        #@todo implement the callback to compose a short, 140 character sms message and send it to the email address
+        pass
+
+
+class DetectionEventProcessor(EventProcessor):
+
+    comparators = {">":__gt__,
+                  "<":__lt__,
+                  "==":__eq__}
+
+
+    def subscription_callback(self, message, headers):
+
+        pass
+        #@todo implement the call back to look for a field specified by the processing instructions and apply the condition
+
+        # If filter_field in message:
+        # If comparator(message field, condition)
+        # Publish a Detection event!
+
+
 
 
 def create_event_processor(notification_request, user_id):
