@@ -337,68 +337,131 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user = UserInfo(name = 'new_user')
         user_id, _ = self.rrc.create(user)
 
-#        # set up....
-#        notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
-#            event_subtype=None,
-#            origin='Some_Resource_Agent_ID1',
-#            origin_type=None,
-#            user_id=user_id,
-#            email='email@email.com',
-#            mode = DeliveryMode.DIGEST,
-#            message_header='message_header',
-#            parser='parser',
-#            period=1)
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Setup so as to be able to get the message and headers going into the
-#        # subscription callback method of the EmailEventProcessor
-#        #------------------------------------------------------------------------------------------------------
-#
-#        # publish an event for each notification to generate the emails
-#        rle_publisher = EventPublisher("ResourceLifecycleEvent")
-#        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
-#
-#
-#        msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
-#
-#        #@todo assert that the queue is now empty
-#
-#        message = msg_tuple[2]
-#        list_lines = message.split("\n")
-#
-#        #@todo assert the to and from for the message
-#
-#        #-------------------------------------------------------
-#        # parse the message body
-#        #-------------------------------------------------------
-#
-#        message_dict = {}
-#        for line in list_lines:
-#            key_item = line.split(": ")
-#            if key_item[0] == 'Subject':
-#                message_dict['Subject'] = key_item[1] + key_item[2]
-#            else:
-#                try:
-#                    message_dict[key_item[0]] = key_item[1]
-#                except Exception as exc:
-#                    #@todo Why do you except on Exception here? That is bad practice!
-#                    # these exceptions happen only because the message sometimes
-#                    # has successive /r/n (i.e. new lines) and therefore,
-#                    # the indexing goes out of range. These new lines
-#                    # can just be ignored. So we ignore the exceptions here.
-#                    pass
-#
-#        #-------------------------------------------------------
-#        # make assertions
-#        #-------------------------------------------------------
-#
-#        self.assertEquals(msg_tuple[1], 'email@email.com' )
-#
-#        self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
-#        self.assertEquals(message_dict['To'], 'email@email.com')
-#        self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
-#        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
-#        self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
+        # set up....
+        notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
+            event_subtype=None,
+            origin='Some_Resource_Agent_ID1',
+            origin_type=None,
+            user_id=user_id,
+            email='email@email.com',
+            mode = DeliveryMode.DIGEST,
+            message_header='message_header',
+            parser='parser',
+            period=1)
+
+        #------------------------------------------------------------------------------------------------------
+        # Setup so as to be able to get the message and headers going into the
+        # subscription callback method of the EmailEventProcessor
+        #------------------------------------------------------------------------------------------------------
+
+        # publish an event for each notification to generate the emails
+        rle_publisher = EventPublisher("ResourceLifecycleEvent")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
+
+
+        msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
+
+        self.assertTrue(proc1.event_processors[notification_id].smtp_client.sentmail.empty())
+
+        message = msg_tuple[2]
+        list_lines = message.split("\n")
+
+        #-------------------------------------------------------
+        # parse the message body
+        #-------------------------------------------------------
+
+        message_dict = {}
+        for line in list_lines:
+            key_item = line.split(": ")
+            if key_item[0] == 'Subject':
+                message_dict['Subject'] = key_item[1] + key_item[2]
+            else:
+                try:
+                    message_dict[key_item[0]] = key_item[1]
+                except IndexError as exc:
+                    # these IndexError exceptions happen only because the message sometimes
+                    # has successive /r/n (i.e. new lines) and therefore,
+                    # the indexing goes out of range. These new lines
+                    # can just be ignored. So we ignore the exceptions here.
+                    pass
+
+        #-------------------------------------------------------
+        # make assertions
+        #-------------------------------------------------------
+
+        self.assertEquals(msg_tuple[1], 'email@email.com' )
+        self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
+
+        self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
+        self.assertEquals(message_dict['To'], 'email@email.com')
+        self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
+        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
+        self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
+
+    def test_sms(self):
+
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        # Create a user and get the user_id
+        user = UserInfo(name = 'new_user')
+        user_id, _ = self.rrc.create(user)
+
+        # set up....
+        notification_id = self.unsc.create_sms(event_type='ResourceLifecycleEvent',
+            event_subtype=None,
+            origin='Some_Resource_Agent_ID1',
+            origin_type=None,
+            user_id=user_id,
+            phone = '401-XXX-XXXX',
+            provider='T-Mobile',
+            message_header='message_header',
+            parser='parser',
+            )
+
+        #------------------------------------------------------------------------------------------------------
+        # Setup so as to be able to get the message and headers going into the
+        # subscription callback method of the EmailEventProcessor
+        #------------------------------------------------------------------------------------------------------
+
+        # publish an event for each notification to generate the emails
+        rle_publisher = EventPublisher("ResourceLifecycleEvent")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
+
+
+        msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
+
+        self.assertTrue(proc1.event_processors[notification_id].smtp_client.sentmail.empty())
+
+        message = msg_tuple[2]
+        list_lines = message.split("\n")
+
+        #-------------------------------------------------------
+        # parse the message body
+        #-------------------------------------------------------
+
+        message_dict = {}
+        for line in list_lines:
+            key_item = line.split(": ")
+            if key_item[0] == 'Subject':
+                message_dict['Subject'] = key_item[1] + key_item[2]
+            else:
+                try:
+                    message_dict[key_item[0]] = key_item[1]
+                except IndexError as exc:
+                    # these IndexError exceptions happen only because the message sometimes
+                    # has successive /r/n (i.e. new lines) and therefore,
+                    # the indexing goes out of range. These new lines
+                    # can just be ignored. So we ignore the exceptions here.
+                    pass
+
+        #-------------------------------------------------------
+        # make assertions
+        #-------------------------------------------------------
+
+        self.assertEquals(msg_tuple[1], '401-XXX-XXXX@tmomail.net' )
+        self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
+        self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
+
 
     def test_sms_notification(self):
         pass

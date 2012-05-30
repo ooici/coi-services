@@ -260,15 +260,70 @@ class SMSEventProcessor(EmailEventProcessor):
 
         #@todo use the provider and phone number specified in the notification request to get the to email address
 
-        provider = sms_providers[''] # self.notication.delivery_config.delivery['provider']
-        self.msg_recipient = None # self.notication.delivery_config.delivery['phone'] + provider
+        provider = notification_request.delivery_config.delivery['provider']
+
+        provider_email = sms_providers[provider] # self.notification.delivery_config.delivery['provider']
+        self.msg_recipient = notification_request.delivery_config.delivery['phone_number'] + provider_email
+
+        self.smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
+        self.smtp_port = CFG.get_safe('server.smtp.port', 25)
+
+        log.warning('smtp_host: %s' % str(self.smtp_host))
+        log.warning('smtp_port: %s' % str(self.smtp_port))
+
+        if CFG.get_safe('system.smtp',False):
+            self.smtp_client = smtplib.SMTP(self.smtp_host)
+
+        else:
+            log.warning('Using a fake SMTP library to simulate sms notifications!')
+
+            #@todo - what about port etc??? What is the correct interface to fake?
+            self.smtp_client = fake_smtplib.SMTP(self.smtp_host)
+
+        log.debug("UserEventProcessor.__init__(): sms for user %s " %self.user_id)
 
 
     def subscription_callback(self, message, headers):
         #@todo implement the callback to compose a short, 140 character sms message and send it to the email address
-        pass
+
 
         #The message body should only contain the event description for now and a standard header: "ION Event SMS"...
+
+        """
+        This callback is given to all the event subscribers that this user wants notifications for.
+        If this callback gets called the user in this processor should get an email
+        """
+
+        log.debug("UserEventProcessor.subscription_callback(): message=" + str(message))
+        log.debug("event type = " + str(message._get_type()))
+        log.debug('type of message: %s' % type(message))
+
+        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
+
+        event = message.type_
+        origin = message.origin
+        description = message.description
+        log.warning("description: %s" % str(description))
+
+
+        # build the email from the event content
+        msg_body = "Description: %s" % description + '\r\n'
+        print "msg_body: ", msg_body
+
+        msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
+        msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
+
+        msg = MIMEText(msg_body)
+        msg['Subject'] = msg_subject
+        msg['From'] = msg_sender
+        msg['To'] = self.msg_recipient
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s"\
+        %(self.msg_recipient, self.smtp_host))
+        try:
+            self.smtp_client.sendmail(msg_sender, self.msg_recipient, msg.as_string())
+        except Exception as ex:
+            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(self.msg_recipient, ex))
+
 
 class DetectionEventProcessor(EventProcessor):
 
