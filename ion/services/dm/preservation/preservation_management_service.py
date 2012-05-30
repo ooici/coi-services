@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 
 from interface.services.dm.ipreservation_management_service import BasePreservationManagementService
 from interface.objects import PersistenceSystem, PersistentArchive, PersistenceType, PersistenceInstance, DataStore, DataStoreType
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, log
 from pyon.core.exception import NotFound
 
 class PreservationManagementService(BasePreservationManagementService):
@@ -95,8 +95,10 @@ class PreservationManagementService(BasePreservationManagementService):
         @retval persistence_instance_id    str
         """
         persistence_instance = PersistenceInstance(name=name, description=description, type=PersistenceType.COUCHDB, host=host, port=port, username=username, password=password)
-        persistence_instance.config.update(config)
-        persistence_instance_id = self.clients.resource_registry.create(persistence_instance)
+        if not config is None:
+            persistence_instance.config.update(config)
+        persistence_instance_id, rev = self.clients.resource_registry.create(persistence_instance)
+        log.debug(persistence_system_id)
 
         if file_system_datastore_id != '':
             self.clients.resource_registry.create_association(persistence_instance_id, PRED.hasDatastore, file_system_datastore_id)
@@ -120,9 +122,10 @@ class PreservationManagementService(BasePreservationManagementService):
         @param config    IngestionConfiguration
         @retval persistence_instance_id    str
         """
-        persistence_instance = PersistenceInstance(name=name, description=description, type=PersistenceType.ELASTICSEARCH, host=host, port=port, username=username, password=password)
-        persistence_instance.config.update(config)
-        persistence_instance_id = self.clients.resource_registry.create(persistence_instance)
+        persistence_instance = PersistenceInstance(name=name, description=description, type=PersistenceType.ELASTICSEARCH, host=host, port=posrt, username=username, password=password)
+        if not config is None:
+            persistence_instance.config.update(config)
+        persistence_instance_id, rev = self.clients.resource_registry.create(persistence_instance)
 
         if file_system_datastore_id != '':
             self.clients.resource_registry.create_association(persistence_instance_id, PRED.hasDatastore, file_system_datastore_id)
@@ -220,11 +223,13 @@ class PreservationManagementService(BasePreservationManagementService):
         """
         datastore = DataStore(name=name, description=description, type=DataStoreType.FILESYSTEM, namespace=namespace)
         datastore.config['replicas'] = replicas
-        datastore.config['partitions'] = partitions
         data_store_id, rev = self.clients.resource_registry.create(datastore)
 
         if persistence_system_id != '':
-            self.clients.resource_registry.create_association(persistence_system_id, PRED.hasDatastore, data_store_id)
+            self.clients.resource_registry.create_association(subject=persistence_system_id, predicate=PRED.hasDatastore, object=data_store_id)
+
+        if persistent_archive_id != '':
+            self.clients.resource_registry.create_association(subject=data_store_id, predicate=PRED.hasArchive, object=persistent_archive_id)
 
         return data_store_id
 
@@ -303,7 +308,7 @@ class PreservationManagementService(BasePreservationManagementService):
         if persistent_archive is None:
             raise NotFound("PersistentArchive %s does not exist" % persistent_archive_id)
 
-        return persistent_archive_id
+        return persistent_archive
 
     def delete_persistent_archive(self, persistent_archive_id=''):
         """delete a persistent archive resource from the resource registry
