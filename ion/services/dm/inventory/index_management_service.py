@@ -6,7 +6,7 @@
 
 '''
 from pyon.ion.resource import RT
-from pyon.public import CFG 
+from pyon.public import CFG, PRED
 from gevent.event import AsyncResult
 from gevent import Timeout
 from pyon.util.async import spawn
@@ -165,8 +165,16 @@ class IndexManagementService(BaseIndexManagementService):
 
         validate_true(len(resources)>0, 'No resources provided to make collection.')
 
-        collection = Collection(name=name, resources=resources)
+
+        collection = Collection(name=name)
         collection_id, _ = self.clients.resource_registry.create(collection)
+        for resource in resources:
+            self.clients.resource_registry.create_association(
+               subject=collection_id, 
+               predicate=PRED.hasElement, 
+               object=resource
+           )
+
         return collection_id
 
     def read_collection(self, collection_id=''):
@@ -186,15 +194,10 @@ class IndexManagementService(BaseIndexManagementService):
         id_only added for convenience only
         '''
         collection = self.read_collection(collection_id)
+        results = dict()
 
-        if id_only:
-            return collection.resources
 
-        resources = dict()
-        for resource_id in collection.resources:
-            resource = self.clients.resource_registry.read(resource_id)
-            resources.update({resource.name : resource_id})
-        return resources
+        return self.clients.resource_registry.find_objects(subject=collection_id, predicate=PRED.hasElement, id_only=id_only)[0]
 
     def find_collection(self, collection_name='', resource_ids=[]):
         if not resource_ids: resource_ids = []
@@ -206,10 +209,10 @@ class IndexManagementService(BaseIndexManagementService):
             results = results.union(colls[0])
 
         if resource_ids:
-            collections, _ = self.clients.resource_registry.find_resources(restype=RT.Collection, id_only=False)
-            for collection in collections:
-                if set(resource_ids).intersection(collection.resources):
-                    results.add(collection._id)
+            for resource_id in resource_ids:
+                assocs = self.clients.resource_registry.find_associations(object=resource_id, predicate=PRED.hasElement, id_only=False)
+                collections = [assoc.s for assoc in assocs]
+                results = results.union(collections)
 
         return list(results)
 

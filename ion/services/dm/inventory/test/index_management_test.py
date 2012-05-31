@@ -349,10 +349,15 @@ class IndexManagementIntTest(IonIntegrationTestCase):
         with self.assertRaises(BadRequest):
             ims_cli.create_collection('failing_collection')
 
-        collection_id = ims_cli.create_collection('working_collection',['a','b','c'])
+        resources = [ Resource(), Resource(), Resource() ]
+        resources = [ rr_cli.create(i)[0] for i in resources ] 
+        
+
+        collection_id = ims_cli.create_collection('working_collection',resources)
 
         collection = rr_cli.read(collection_id)
-        self.assertTrue(set(collection.resources) == set(['a','b','c']))
+        collection_resources = ims_cli.list_collection_resources(collection_id, id_only=True)
+        self.assertTrue(set(collection_resources) == set(resources), '%s != %s' % (set(collection_resources) , set(resources)))
 
     def test_read_collection(self):
         ims_cli = self.ims_cli
@@ -392,20 +397,19 @@ class IndexManagementIntTest(IonIntegrationTestCase):
         #========================================
         # Resource Pool
         #========================================
-        resource_ids = list()
-        correct_list = ['beard','dirt','aperature','portal', 'lemons']
-        for name in correct_list:
-            resource_ids.append(rr_cli.create(InformationResource(name=name))[0])
+        resources = [ InformationResource(name='bean_counter'), InformationResource(name='lunar_rock'), InformationResource('aperature'), InformationResource('lemons') ] 
 
-        collection = Collection(name='park_bench', resources=resource_ids)
+        resources = [ rr_cli.create(i)[0] for i in resources ]
 
-        collection_id, _ = rr_cli.create(collection)
-        retval = ims_cli.list_collection_resources(collection_id).keys()
+        collection = Collection(name='park_bench')
+
+        collection_id = ims_cli.create_collection(name='park_bench', resources=resources)
+        retval = ims_cli.list_collection_resources(collection_id, id_only=True)
 
         retval.sort()
-        correct_list.sort()
+        resources.sort()
 
-        self.assertTrue(retval == correct_list)
+        self.assertTrue(retval == resources, '%s != %s' %(retval , resources))
 
     def test_find_collection(self):
         res_id, _  = self.rr_cli.create(Resource(name='test_res'))
