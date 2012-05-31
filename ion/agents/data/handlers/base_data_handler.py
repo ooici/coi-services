@@ -197,8 +197,9 @@ class BaseDataHandler(object):
 
             log.debug('Configuration modifications provided: {0}'.format(config_mods))
             for k in self._params['PATCHABLE_CONFIG_KEYS']:
-                if get_safe(config_mods, k):
-                   config[k] = config_mods[k]
+                p=get_safe(config_mods, k)
+                if not p is None:
+                    config[k] = p
 
         except IndexError:
             log.info('No configuration modifications were provided')
