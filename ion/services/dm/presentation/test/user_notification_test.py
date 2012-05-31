@@ -18,7 +18,7 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest
+from interface.objects import NotificationRequest, NotificationType
 
 import gevent
 from gevent.timeout import Timeout
@@ -189,7 +189,7 @@ class UserNotificationTest(PyonTestCase):
         self.assertEquals(user_id, '')
         self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
         self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
-
+        self.assertEquals(notification_request.type, NotificationType.EMAIL)
 
         #------------------------------------------------------------------------------------------------------
         # Test with no mode - bad request?
@@ -261,6 +261,7 @@ class UserNotificationTest(PyonTestCase):
         self.assertEquals(notification_request.event_subtype, 'event_subtype')
         self.assertEquals(notification_request.origin, 'origin')
         self.assertEquals(notification_request.origin_type, 'origin_type')
+        self.assertEquals(notification_request.type, NotificationType.SMS)
 
         #------------------------------------------------------------------------------------------------------
         # Test with phone missing - what should that do? - bad request?
@@ -484,8 +485,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         dfilt.delivery['message'] = 'I got my detection event!'
 
-        # set up....
-        notification_id = self.unsc.create_detection_filter(event_type='ResourceLifecycleEvent',
+        # Create detection notification
+        notification_id = self.unsc.create_detection_filter(event_type='ExampleDetectableEvent',
             event_subtype=None,
             origin='Some_Resource_Agent_ID1',
             origin_type=None,
@@ -493,15 +494,81 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             filter_config=dfilt
             )
 
-        # Create detection notification
+        #---------------------------------------------------------------------------------
         # Create event subscription for resulting detection event
+        #---------------------------------------------------------------------------------
+
+        # Create an email notification so that when the DetectionEventProcessor
+        # detects an event and fires its own output event, this will caught by an
+        # EmailEventProcessor and an email will be sent to the user
+
+        notification_id_2 = self.unsc.create_email(event_type='DetectionEvent',
+            event_subtype=None,
+            origin='DetectionEventProcessor',
+            origin_type=None,
+            user_id=user_id,
+            email='email@email.com',
+            mode = DeliveryMode.UNFILTERED,
+            message_header='Detection event',
+            parser='parser',
+            period=1)
+
 
         # Send event that is not detected
+        # publish an event for each notification to generate the emails
+        rle_publisher = EventPublisher("ExampleDetectableEvent")
+
+        # since the voltage field in this event is less than 5, it will not be detected
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+                                    description="RLE test event",
+                                    voltage = 3)
+
         # Assert that no detection event is sent
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 
         # Send Event that is detected
-        # check the async result for the received event
+        # publish an event for each notification to generate the emails
 
+        # since the voltage field in this event is greater than 5, it WILL be detected
+        rle_publisher = EventPublisher("ExampleDetectableEvent")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+                                    description="RLE test event",
+                                    voltage = 10)
+
+        #-------------------------------------------------------
+        # make assertions
+        #-------------------------------------------------------
+
+        msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+
+        self.assertEquals(msg_tuple[1], 'email@email.com' )
+        self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
+
+        # parse the message body
+        message = msg_tuple[2]
+        list_lines = message.split("\n")
+
+        message_dict = {}
+        for line in list_lines:
+            key_item = line.split(": ")
+            if key_item[0] == 'Subject':
+                message_dict['Subject'] = key_item[1] + key_item[2]
+            else:
+                try:
+                    message_dict[key_item[0]] = key_item[1]
+                except IndexError as exc:
+                    # these IndexError exceptions happen only because the message sometimes
+                    # has successive /r/n (i.e. new lines) and therefore,
+                    # the indexing goes out of range. These new lines
+                    # can just be ignored. So we ignore the exceptions here.
+                    pass
+
+        self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
+        self.assertEquals(message_dict['To'], 'email@email.com')
+        self.assertEquals(message_dict['Event'].rstrip('\r'), 'DetectionEvent')
+        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'DetectionEventProcessor')
+        self.assertEquals(message_dict['Description'].rstrip('\r'), 'Event was detected by DetectionEventProcessor')
 
     @unittest.skip('interface has changed!')
     def test_find_event_types_for_resource(self):

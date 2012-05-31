@@ -21,6 +21,7 @@ from pyon.event.event import EventSubscriber
 from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
+from pyon.event.event import EventPublisher
 
 import operator
 
@@ -265,23 +266,6 @@ class SMSEventProcessor(EmailEventProcessor):
         provider_email = sms_providers[provider] # self.notification.delivery_config.delivery['provider']
         self.msg_recipient = notification_request.delivery_config.delivery['phone_number'] + provider_email
 
-        self.smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
-        self.smtp_port = CFG.get_safe('server.smtp.port', 25)
-
-        log.warning('smtp_host: %s' % str(self.smtp_host))
-        log.warning('smtp_port: %s' % str(self.smtp_port))
-
-        if CFG.get_safe('system.smtp',False):
-            self.smtp_client = smtplib.SMTP(self.smtp_host)
-
-        else:
-            log.warning('Using a fake SMTP library to simulate sms notifications!')
-
-            #@todo - what about port etc??? What is the correct interface to fake?
-            self.smtp_client = fake_smtplib.SMTP(self.smtp_host)
-
-        log.debug("UserEventProcessor.__init__(): sms for user %s " %self.user_id)
-
 
     def subscription_callback(self, message, headers):
         #@todo implement the callback to compose a short, 140 character sms message and send it to the email address
@@ -308,7 +292,6 @@ class SMSEventProcessor(EmailEventProcessor):
 
         # build the email from the event content
         msg_body = "Description: %s" % description + '\r\n'
-        print "msg_body: ", msg_body
 
         msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
         msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
@@ -331,31 +314,35 @@ class DetectionEventProcessor(EventProcessor):
                   "<":operator.lt,
                   "==":operator.eq}
 
+#    def __init__(self, notification_request, user_id):
+#
+#        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
 
     def subscription_callback(self, message, headers):
         #@todo implement the call back to look for a field specified by the processing instructions and apply the condition
 
-        filter_field = None
+        filter_field = self.notification._res_obj.delivery_config.processing['filter_field']
+        condition = self.notification._res_obj.delivery_config.processing['condition']
         try:
-            comparator = self.notification.delivery_config.processing.comparator
+            comparator = self.notification._res_obj.delivery_config.processing['comparator']
             comparator_func = DetectionEventProcessor.comparators[comparator]
         except KeyError:
             raise BadRequest("Bad comparator specified in Detection filter: '%s'" % comparator)
 
-        condition = None
-
         field_val = getattr(message,filter_field)
-        if field_val is not None and comparator_func(filter_field, condition):
+        if field_val is not None and comparator_func(field_val, condition):
             log.warning('Detected an event')
-            pass
             #@ todo publish event
+            event_publisher = EventPublisher("DetectionEvent")
 
-        # If filter_field in message:
-        # If comparators[comparator](message field, condition)
-        # Publish a Detection event!
+            message = str(self.notification._res_obj.delivery_config)
 
-
-
+            event_publisher.publish_event(origin='DetectionEventProcessor',
+                message="Event Detected by DetectionEventProcessor",
+                description="Event was detected by DetectionEventProcessor",
+                condition = message, # Concatenate the filter and make it a message
+                original_origin = self.notification._res_obj.origin,
+                original_type = self.notification._res_obj.origin_type)
 
 def create_event_processor(notification_request, user_id):
     if notification_request.type == NotificationType.EMAIL:
@@ -363,6 +350,9 @@ def create_event_processor(notification_request, user_id):
 
     elif notification_request.type == NotificationType.SMS:
         return SMSEventProcessor(notification_request,user_id)
+
+    elif notification_request.type == NotificationType.FILTER:
+        return DetectionEventProcessor(notification_request,user_id)
 
     else:
         raise BadRequest('Invalid Notification Request Type!')
@@ -632,7 +622,7 @@ class UserNotificationService(BaseUserNotificationService):
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
-            event_subtype = event_subtype ,
+            event_subtype = event_subtype,
             delivery_config=sms_delivery_config)
 
         log.warning("Notification Request: %s" % str(notification_request))
@@ -663,7 +653,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification_request = NotificationRequest(
             name=name,
             description=description,
-            #type = NotificationType.FILTER,
+            type = NotificationType.FILTER,
             origin = origin,
             origin_type = origin_type,
             event_type=event_type,
