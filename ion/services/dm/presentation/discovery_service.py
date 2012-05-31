@@ -148,7 +148,7 @@ class DiscoveryService(BaseDiscoveryService):
 
 
     def query_couch(self, index_id='', key='', limit=0, offset=0, id_only=True):
-        pass
+        raise BadRequest('Not Implemented Yet')
 #        cc = self.container
 #
 #        datastore_name = source.datastore_name

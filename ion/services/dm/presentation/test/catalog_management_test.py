@@ -98,78 +98,7 @@ class CatalogManagementUnitTest(PyonTestCase):
 
         # Assertions
         self.rr_delete.assert_called_once_with('catalog_id')
-        
 
-    def test_add_indexes(self):
-
-        # Ending result should be
-        # available_fields: [1,2,3,4,5,6,7]
-        # catalog_fields: [3,4,5]
-
-        catalog_res = Catalog()
-        catalog_res.available_fields = [1]
-        catalog_res.catalog_fields = [2,3,4,5]
-
-        index_res_1 = Index()
-        index_res_1.options.attribute_match = [3,4]
-        index_res_1.options.geo_fields = [2,5]
-
-        index_res_2 = Index()
-        index_res_2.options.attribute_match = [3,4]
-        index_res_2.options.wildcard = [6,7]
-        index_res_2.options.geo_fields = [5]
-
-        reads = [catalog_res, index_res_1, index_res_2]
-
-        def mock_read(*args, **kwargs):
-            return reads.pop(0)
-
-        def mock_update(res):
-            available_fields = res.available_fields
-            catalog_fields   = res.catalog_fields
-            self.assertTrue(available_fields == [1,2,3,4,5,6,7], "Mismatch: %s" % available_fields)
-            self.assertTrue(catalog_fields == [3,4,5] , "Mismatch: %s" % catalog_fields)
-        self.rr_find_assoc.return_value = [index_res_1, index_res_2], [0,1]
-        self.rr_read.side_effect = mock_read
-        self.rr_update.side_effect = mock_update
-        self.catalog_management.clients.index_management.read_index = Mock()
-        self.catalog_management.clients.index_management.read_index.side_effect = mock_read
-
-        # Execution
-        self.catalog_management.add_indexes('catalog_id', [1,2])
-
-        # Assertions
-
-
-
-    def test_list_indexes(self):
-        # Mocks
-        self.rr_find_obj.return_value = ([1,2,3],[1,2,3])
-
-        # Execution
-        retval = self.catalog_management.list_indexes('catalog_id')
-
-        # Assertions
-        self.rr_find_obj.assert_called_once_with('catalog_id',PRED.hasIndex,'',True)
-        self.assertTrue(retval == [1,2,3], "Return mismatch.")
-
-    def test_search_fields(self):
-        # Mocks
-        fake_indexes = [
-            Index(name='first',options=SearchOptions(attribute_match=['one'])),
-            Index(name='second',options=SearchOptions(range_fields=['two'])),
-            Index(name='third',options=SearchOptions(geo_fields=['three']))
-        ]
-        self.catalog_management.list_indexes = Mock()
-        self.catalog_management.list_indexes.return_value = fake_indexes
-
-        correct_retval = {
-            'attribute_match' : ['one'],
-            'range_fields'    : ['two'],
-            'geo_fields'      : ['three']
-        }
-        retval = self.catalog_management.search_fields('catalog_id')
-        self.assertTrue(retval == correct_retval,"%s != %s" % (retval, correct_retval))
 
 
         
