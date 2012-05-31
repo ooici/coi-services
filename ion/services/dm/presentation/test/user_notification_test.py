@@ -1,5 +1,7 @@
 '''
 @author Bill Bollenbacher
+@author Swarbhanu Chatterjee
+@author David Stuebe
 @file ion/services/dm/presentation/test/user_notification_test.py
 @description Unit and Integration test implementations for the user notification service class.
 '''

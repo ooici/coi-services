@@ -99,13 +99,13 @@ class Notification(object):
         """
         self.notification_id = id_
 
-    def start_subscriber(self):
+    def activate(self):
         """
         Start subscribing
         """
         self.subscriber.activate()
 
-    def kill_subscriber(self):
+    def deactivate(self):
         """
         Stop subscribing
         """
@@ -146,7 +146,7 @@ class EventProcessor(object):
         notification_obj = Notification(notification_request, self.subscription_callback)
 
         # start the event subscriber listening
-        notification_obj.start_subscriber()
+        notification_obj.activate()
         log.debug("UserEventProcessor.add_notification(): added notification " + str(notification_request) + " to user " + self.user_id)
         return notification_obj
 
@@ -157,8 +157,7 @@ class EventProcessor(object):
         @param notification_id
         @retval the number of notifications subscribed to by the user
         """
-        self.notification.kill_subscriber()
-        self.notification = None
+        self.notification.deactivate()
 
     def __str__(self):
         return str(self.__dict__)
@@ -195,12 +194,6 @@ class EmailEventProcessor(EventProcessor):
 
 
         log.debug("UserEventProcessor.__init__(): email for user %s " %self.user_id)
-
-    def activate(self):
-        self.notification.start_subscriber()
-
-    def deactivate(self):
-        self.notification.kill_subscriber()
 
     def subscription_callback(self, message, headers):
         """
@@ -368,6 +361,13 @@ class UserNotificationService(BaseUserNotificationService):
         log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types))
         log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table))
 
+    def on_quit(self):
+
+        for processor in self.event_processors.itervalues():
+
+            processor.remove_notification()
+
+
     def create_notification(self, notification=None, user_id=''):
         """
         Persists the provided NotificationRequest object for the specified Origin id.
@@ -457,43 +457,11 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         """
         _event_processor = self.event_processors[notification_id]
+        del self.event_processors[notification_id]
         _event_processor.remove_notification(notification_id)
         self.clients.resource_registry.delete(notification_id)
 
-
-        '''
-        # Read specified Notification object and see if it exists
-        notification = self.clients.resource_registry.read(notification_id)
-        if not notification:
-            raise NotFound("UserNotificationService.delete_notification(): Notification %s does not exist" % notification_id)
-
-        #now get the user that this notification is associated with
-        subjects, _ = self.clients.resource_registry.find_subjects(RT.ActorIdentity, PRED.hasNotification, notification_id)
-        if not subjects:
-            raise NotFound("UserNotificationService.delete_notification(): No user for notification " + notification_id)
-        if len(subjects) != 1:
-            raise BadRequest("UserNotificationService.delete_notification(): there should be only ONE user for " + notification_id)
-        user_id = subjects[0]._id
-
-        #remove the notification from the user's entry in the self.userevent_processors list
-        #if it's the last notification for the user the delete the user from the self.userevent_processors list
-        if user_id not in self.userevent_processors:
-            log.info("UserNotificationService.delete_notification(): user %s not found in userevent_processors list" % user_id)
-        user_event_processor = self.userevent_processors[user_id]
-        if user_event_processor.remove_notification(notification_id) == 0:
-            del self.userevent_processors[user_id]
-            log.debug("UserNotificationService.delete_notification(): removed user %s from user_event_processor list" % user_id)
-
-        #now find and delete the association
-        assocs = self.clients.resource_registry.find_associations(user_id, PRED.hasNotification, notification_id)
-        if not assocs:
-            raise NotFound("UserNotificationService.delete_notification(): notification association for user %s does not exist" % user_id)
-        association_id = assocs[0]._id
-        self.clients.resource_registry.delete_association(association_id)
-
-        #finally delete the notification
-        self.clients.resource_registry.delete(notification_id)
-        '''
+        #@todo clean up the association?
 
     def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=0, descending=False):
         """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
