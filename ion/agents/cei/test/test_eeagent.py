@@ -5,6 +5,7 @@ from nose.plugins.skip import SkipTest
 from gevent import queue
 import os
 import shutil
+import tempfile
 import functools
 
 from pyon.net.endpoint import RPCClient
@@ -55,13 +56,11 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         self.resource_id = "eeagent_1234"
         self._eea_name = "eeagent"
 
-        self.supd_directory = "/tmp/pyon-eeagent-supd-test"
-        if not os.path.exists(self.supd_directory):
-            os.mkdir(self.supd_directory)
+        self.supd_directory = tempfile.mkdtemp()
 
         self.agent_config = {
             'eeagent': {
-              'heartbeat': 2,
+              'heartbeat': 0,
               'slots': 100,
               'name': 'pyon_eeagent',
               'launch_type': {
@@ -88,9 +87,9 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         # Start eeagent.
         self._eea_pid = None
 
-        container_client = ContainerAgentClient(node=self.container.node,
+        self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-        self._eea_pid = container_client.spawn_process(name=self._eea_name,
+        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=self.agent_config)
         log.info('Agent pid=%s.', str(self._eea_pid))
@@ -102,6 +101,7 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
 
     def tearDown(self):
+        self.container.terminate_process(self._eea_pid)
         shutil.rmtree(self.supd_directory)
 
     @needs_eeagent
@@ -142,12 +142,11 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         self.resource_id = "eeagent_123456"
         self._eea_name = "eeagent"
 
-        self.supd_directory = "/tmp/pyon-eeagent-pyon-supd-test"
-        os.mkdir(self.supd_directory)
+        self.supd_directory = tempfile.mkdtemp()
 
         self.agent_config = {
             'eeagent': {
-              'heartbeat': 2,
+              'heartbeat': 0,
               'slots': 100,
               'name': 'pyon_eeagent',
               'launch_type': {
@@ -174,9 +173,9 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         # Start eeagent.
         self._eea_pid = None
 
-        container_client = ContainerAgentClient(node=self.container.node,
+        self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-        self._eea_pid = container_client.spawn_process(name=self._eea_name,
+        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=self.agent_config)
         log.info('Agent pid=%s.', str(self._eea_pid))
@@ -188,6 +187,7 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
 
     def tearDown(self):
+        self.container.terminate_process(self._eea_pid)
         shutil.rmtree(self.supd_directory)
 
     @needs_eeagent
@@ -195,9 +195,9 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         u_pid = "test0"
         round = 0
         run_type = "pyon_single"
-        proc_name = 'process_dispatcher'
-        module = 'ion.services.cei.process_dispatcher_service'
-        cls = 'ProcessDispatcherService'
+        proc_name = 'test_transform'
+        module = 'ion.services.cei.test.test_process_dispatcher'
+        cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
         state = self.eea_client.dump_state().result
@@ -222,12 +222,11 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.resource_id = "eeagent_123456789"
         self._eea_name = "eeagent"
 
-        self.persistence_directory = "/tmp/pyon-eeagent-pyon-test"
-        os.mkdir(self.persistence_directory)
+        self.persistence_directory = tempfile.mkdtemp()
 
         self.agent_config = {
             'eeagent': {
-              'heartbeat': 2,
+              'heartbeat': 0,
               'slots': 100,
               'name': 'pyon_eeagent',
               'launch_type': {
@@ -269,17 +268,17 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
 
     def tearDown(self):
-        shutil.rmtree(self.persistence_directory)
         self.container.terminate_process(self._eea_pid)
+        shutil.rmtree(self.persistence_directory)
 
     @needs_eeagent
     def test_basics(self):
         u_pid = "test0"
         round = 0
         run_type = "pyon"
-        proc_name = 'process_dispatcher'
-        module = 'ion.services.cei.process_dispatcher_service'
-        cls = 'ProcessDispatcherService'
+        proc_name = 'test_x'
+        module = 'ion.services.cei.test.test_process_dispatcher'
+        cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
         state = self.eea_client.dump_state().result
@@ -302,9 +301,9 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         u_pid = "test0"
         round = 0
         run_type = "pyon"
-        proc_name = 'process_dispatcher_test'
-        module = 'ion.services.cei.process_dispatcher_service'
-        cls = 'ProcessDispatcherService'
+        proc_name = 'test_transform'
+        module = 'ion.services.cei.test.test_process_dispatcher'
+        cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
         state = self.eea_client.dump_state().result
