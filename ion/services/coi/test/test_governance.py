@@ -106,6 +106,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
+        self.assertEqual(len(policy_list),9,"All of the system policies have not been loaded into the Resource Registry")
+
+
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
