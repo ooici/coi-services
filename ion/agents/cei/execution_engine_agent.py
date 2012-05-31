@@ -53,9 +53,10 @@ class ExecutionEngineAgent(ResourceAgent):
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)
 
-        self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
         interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
-        looping_call(interval, self.heartbeater.poll)
+        if interval > 0:
+            self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
+            looping_call(interval, self.heartbeater.poll)
 
     def on_quit(self):
         self._factory.terminate()
