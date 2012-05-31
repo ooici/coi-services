@@ -20,6 +20,8 @@ import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest, NotificationType
 
+import os
+
 import gevent
 from gevent.timeout import Timeout
 
@@ -330,6 +332,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient(node=self.container.node)
         self.imc = IdentityManagementServiceClient(node=self.container.node)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_email(self):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
@@ -399,6 +403,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_sms(self):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
@@ -463,13 +469,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
-
-    def test_sms_notification(self):
-        pass
-        #@todo Implement the test - similar to the email test
-
-
-    def test_event_detection_notification(self):
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_event_detection(self):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
@@ -477,6 +479,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user = UserInfo(name = 'new_user')
         user_id, _ = self.rrc.create(user)
 
+        # Create detection notification
         dfilt = DetectionFilterConfig()
 
         dfilt.processing['condition'] = 5
@@ -485,7 +488,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         dfilt.delivery['message'] = 'I got my detection event!'
 
-        # Create detection notification
         notification_id = self.unsc.create_detection_filter(event_type='ExampleDetectableEvent',
             event_subtype=None,
             origin='Some_Resource_Agent_ID1',
@@ -523,8 +525,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                     description="RLE test event",
                                     voltage = 3)
 
-        # Assert that no detection event is sent
-        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+        # Check at the end of the test to make sure this event never triggered a Detectable!
 
         # Send Event that is detected
         # publish an event for each notification to generate the emails
@@ -540,6 +541,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------
 
         msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
+
+        # The first event never triggered an email because the voltage was less than 5, the queue is now empty
         self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 
         self.assertEquals(msg_tuple[1], 'email@email.com' )

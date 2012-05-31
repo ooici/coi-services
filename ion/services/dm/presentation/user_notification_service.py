@@ -1,12 +1,20 @@
 #!/usr/bin/env python
 '''
 @author Bill Bollenbacher
+@author Swarbhanu Chatterjee
+@author David Stuebe
 @file ion/services/dm/presentation/user_notification_service.py
 @description Implementation of the UserNotificationService
-'''
-__author__ = 'Bill Bollenbacher'
-__license__ = 'Apache 2.0'
 
+@todo Replace log.warning with log.info
+'''
+
+from pyon.core.exception import BadRequest, NotFound
+from pyon.event.event import EventSubscriber
+from pyon.public import RT, PRED, get_sys_name, Container, CFG
+from pyon.util.async import spawn
+from pyon.util.log import log
+from pyon.event.event import EventPublisher
 
 import string
 import time
@@ -15,13 +23,6 @@ from gevent.timeout import Timeout
 from datetime import datetime
 from email.mime.text import MIMEText
 from gevent import Greenlet
-
-from pyon.core.exception import BadRequest, NotFound
-from pyon.event.event import EventSubscriber
-from pyon.public import RT, PRED, get_sys_name, Container, CFG
-from pyon.util.async import spawn
-from pyon.util.log import log
-from pyon.event.event import EventPublisher
 
 import operator
 
@@ -187,6 +188,7 @@ class EmailEventProcessor(EventProcessor):
             self.smtp_client = smtplib.SMTP(self.smtp_host)
 
         else:
+            # Keep this as a warning
             log.warning('Using a fake SMTP library to simulate email notifications!')
 
             #@todo - what about port etc??? What is the correct interface to fake?
@@ -247,10 +249,7 @@ class EmailEventProcessor(EventProcessor):
         msg['To'] = msg_recipient
         log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s"\
         %(msg_recipient, self.smtp_host))
-        try:
-            self.smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
-        except Exception as ex:
-            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(msg_recipient, ex))
+        self.smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
 
 class SMSEventProcessor(EmailEventProcessor):
 
@@ -302,10 +301,7 @@ class SMSEventProcessor(EmailEventProcessor):
         msg['To'] = self.msg_recipient
         log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s"\
         %(self.msg_recipient, self.smtp_host))
-        try:
-            self.smtp_client.sendmail(msg_sender, self.msg_recipient, msg.as_string())
-        except Exception as ex:
-            log.warning("UserEventProcessor.subscription_callback(): failed to send email to %s <%s>" %(self.msg_recipient, ex))
+        self.smtp_client.sendmail(msg_sender, self.msg_recipient, msg.as_string())
 
 
 class DetectionEventProcessor(EventProcessor):
@@ -332,11 +328,11 @@ class DetectionEventProcessor(EventProcessor):
         field_val = getattr(message,filter_field)
         if field_val is not None and comparator_func(field_val, condition):
             log.warning('Detected an event')
-            #@ todo publish event
             event_publisher = EventPublisher("DetectionEvent")
 
             message = str(self.notification._res_obj.delivery_config)
 
+            #@David What should the origin and origin type be for Detection Events
             event_publisher.publish_event(origin='DetectionEventProcessor',
                 message="Event Detected by DetectionEventProcessor",
                 description="Event was detected by DetectionEventProcessor",
@@ -442,7 +438,9 @@ class UserNotificationService(BaseUserNotificationService):
                         notification.event_type != old_notification.event_type or \
                                 notification.event_subtype != old_notification.event_subtype:
 
+
             log.warning('Update unsuccessful. Only the delivery config is allowed to be modified!')
+            raise BadRequest('Can not update the subscription for an event notification')
 
         else: # only the delivery_config is being modified, so we can go ahead with the update...
             _event_processor = self.event_processors[notification_id]
