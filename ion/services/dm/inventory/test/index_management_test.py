@@ -9,7 +9,7 @@
 from mock import Mock
 
 from nose.plugins.attrib import attr
-from interface.objects import Index, Collection, SearchOptions, ElasticSearchIndex, CouchDBIndex, InformationResource, Resource
+from interface.objects import Index, Collection, SearchOptions, ElasticSearchIndex, CouchDBIndex, InformationResource, Resource, Association
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.core.exception import BadRequest, NotFound
@@ -33,6 +33,7 @@ class IndexManagementUnitTest(PyonTestCase):
         self.rr_delete = mock_clients.resource_registry.delete
         self.rr_find_resources = mock_clients.resource_registry.find_resources
         self.rr_find_assocs    = mock_clients.resource_registry.find_associations
+        self.rr_find_obj       = mock_clients.resource_registry.find_objects
 
         self.get_datastore = Mock()
         self.db_create = Mock()
@@ -162,19 +163,12 @@ class IndexManagementUnitTest(PyonTestCase):
         self.rr_delete.assert_called_once_with('collection_id')
 
     def test_list_collection_resources(self):
-        resources = [
-            DotDict({'name' : 'mock3'}),
-            DotDict({'name' : 'mock2'}),
-            DotDict({'name' : 'mock1'}),
-            Collection(resources=[0,1,2])
-        ]
-        def mock_read(*args, **kwargs):
-            return resources.pop()
-        self.rr_read.side_effect=mock_read
+        self.rr_find_obj.return_value = (['test_id'],[''])
 
-        result1 = self.index_management.list_collection_resources('collection_id')
-        self.assertTrue(result1 == {'mock1' : 0, 'mock2' : 1, 'mock3' : 2})
 
+        result1 = self.index_management.list_collection_resources('collection_id', id_only=True)
+        self.assertTrue(result1 == ['test_id'])
+    
     def test_find_collection(self):
         self.rr_find_resources.return_value = (['test'],[])
 
@@ -182,11 +176,11 @@ class IndexManagementUnitTest(PyonTestCase):
         self.assertTrue(retval == ['test'] , '%s' % retval)
 
         fake_collection = Collection(resources=['test_res_id'])
-        setattr(fake_collection,'_id','test')
-        self.rr_find_resources.return_value = ([fake_collection], [])
+        fake_assoc = Association(s='test_id')
+        self.rr_find_assocs.return_value = [fake_assoc]
 
         retval = self.index_management.find_collection(resource_ids=['test_res_id'])
-        self.assertTrue(retval == ['test'], '%s' % retval)
+        self.assertTrue(retval == ['test_id'], '%s' % retval)
 
         with self.assertRaises(BadRequest):
             self.index_management.find_collection()
