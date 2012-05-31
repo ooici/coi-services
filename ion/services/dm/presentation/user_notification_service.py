@@ -5,8 +5,6 @@
 @author David Stuebe
 @file ion/services/dm/presentation/user_notification_service.py
 @description Implementation of the UserNotificationService
-
-@todo Replace log.warning with log.info
 '''
 
 from pyon.core.exception import BadRequest, NotFound
@@ -41,11 +39,11 @@ class fake_smtplib(object):
 
     @classmethod
     def SMTP(cls,host):
-        log.warning("In fake_smptplib.SMTP method call. class: %s, host: %s" % (str(cls), str(host)))
+        log.info("In fake_smptplib.SMTP method call. class: %s, host: %s" % (str(cls), str(host)))
         return cls(host)
 
     def sendmail(self, msg_sender, msg_recipient, msg):
-        log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
+        log.info('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
         self.sentmail.put((msg_sender, msg_recipient, msg))
 
 """
@@ -181,8 +179,8 @@ class EmailEventProcessor(EventProcessor):
         self.smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
         self.smtp_port = CFG.get_safe('server.smtp.port', 25)
 
-        log.warning('smtp_host: %s' % str(self.smtp_host))
-        log.warning('smtp_port: %s' % str(self.smtp_port))
+        log.info('smtp_host: %s' % str(self.smtp_host))
+        log.info('smtp_port: %s' % str(self.smtp_port))
 
         if CFG.get_safe('system.smtp',False):
             self.smtp_client = smtplib.SMTP(self.smtp_host)
@@ -257,9 +255,6 @@ class SMSEventProcessor(EmailEventProcessor):
 
         super(SMSEventProcessor, self).__init__(notification_request,user_id)
 
-
-        #@todo use the provider and phone number specified in the notification request to get the to email address
-
         provider = notification_request.delivery_config.delivery['provider']
 
         provider_email = sms_providers[provider] # self.notification.delivery_config.delivery['provider']
@@ -267,9 +262,6 @@ class SMSEventProcessor(EmailEventProcessor):
 
 
     def subscription_callback(self, message, headers):
-        #@todo implement the callback to compose a short, 140 character sms message and send it to the email address
-
-
         #The message body should only contain the event description for now and a standard header: "ION Event SMS"...
 
         """
@@ -286,7 +278,7 @@ class SMSEventProcessor(EmailEventProcessor):
         event = message.type_
         origin = message.origin
         description = message.description
-        log.warning("description: %s" % str(description))
+        log.info("description: %s" % str(description))
 
 
         # build the email from the event content
@@ -315,8 +307,6 @@ class DetectionEventProcessor(EventProcessor):
 #        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
 
     def subscription_callback(self, message, headers):
-        #@todo implement the call back to look for a field specified by the processing instructions and apply the condition
-
         filter_field = self.notification._res_obj.delivery_config.processing['filter_field']
         condition = self.notification._res_obj.delivery_config.processing['condition']
         try:
@@ -327,7 +317,7 @@ class DetectionEventProcessor(EventProcessor):
 
         field_val = getattr(message,filter_field)
         if field_val is not None and comparator_func(field_val, condition):
-            log.warning('Detected an event')
+            log.info('Detected an event')
             event_publisher = EventPublisher("DetectionEvent")
 
             message = str(self.notification._res_obj.delivery_config)
@@ -373,7 +363,7 @@ class UserNotificationService(BaseUserNotificationService):
             try:
                 self.event_table[originator] = CFG.event[originator]
             except NotFound:
-                log.warning("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
+                log.info("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
         log.debug("UserNotificationService.on_start(): event_originators=%s" %str(self.event_originators))
         log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types))
         log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table))
@@ -422,9 +412,6 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
-        #@todo - fix the update_notification implementation to only allow updates to the delivery config fields of a notification request and make sure the notification object is updated too.
-        #@todo - done.
-
         # Read existing Notification object and see if it exists
         notification_id = notification._id
         old_notification = self.event_processors[notification_id].notification._res_obj
@@ -439,7 +426,7 @@ class UserNotificationService(BaseUserNotificationService):
                                 notification.event_subtype != old_notification.event_subtype:
 
 
-            log.warning('Update unsuccessful. Only the delivery config is allowed to be modified!')
+            log.info('Update unsuccessful. Only the delivery config is allowed to be modified!')
             raise BadRequest('Can not update the subscription for an event notification')
 
         else: # only the delivery_config is being modified, so we can go ahead with the update...
@@ -469,9 +456,6 @@ class UserNotificationService(BaseUserNotificationService):
         @param notification_id    str
         @throws NotFound    object with specified id does not exist
         """
-        #@todo - fix delete notification implementation to kill the subscriber and delete the event object
-        #@todo - done.
-
         _event_processor = self.event_processors[notification_id]
         _event_processor.remove_notification(notification_id)
         self.clients.resource_registry.delete(notification_id)
@@ -494,7 +478,7 @@ class UserNotificationService(BaseUserNotificationService):
         #remove the notification from the user's entry in the self.userevent_processors list
         #if it's the last notification for the user the delete the user from the self.userevent_processors list
         if user_id not in self.userevent_processors:
-            log.warning("UserNotificationService.delete_notification(): user %s not found in userevent_processors list" % user_id)
+            log.info("UserNotificationService.delete_notification(): user %s not found in userevent_processors list" % user_id)
         user_event_processor = self.userevent_processors[user_id]
         if user_event_processor.remove_notification(notification_id) == 0:
             del self.userevent_processors[user_id]
@@ -560,7 +544,7 @@ class UserNotificationService(BaseUserNotificationService):
         delivery = {'email': email, 'mode' : mode, 'period' : period}
         email_delivery_config = EmailDeliveryConfig(processing=processing, delivery=delivery)
 
-        log.warning("Email delivery config: %s" % str(email_delivery_config))
+        log.info("Email delivery config: %s" % str(email_delivery_config))
 
         #-------------------------------------------------------------------------------------
         # Create a notification object
@@ -575,7 +559,7 @@ class UserNotificationService(BaseUserNotificationService):
             event_subtype = event_subtype ,
             delivery_config= email_delivery_config)
 
-        log.warning("Notification Request: %s" % str(notification_request))
+        log.info("Notification Request: %s" % str(notification_request))
 
         #-------------------------------------------------------------------------------------
         # Set up things so that the user gets notified for the particular notification request
@@ -607,12 +591,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         sms_delivery_config = SMSDeliveryConfig(processing=processing, delivery=delivery)
 
-        log.warning("SMS delivery config: %s" % str(sms_delivery_config))
+        log.info("SMS delivery config: %s" % str(sms_delivery_config))
 
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
-        #@todo need to get the deliver_config
         notification_request = NotificationRequest(
             name=name,
             description=description,
@@ -623,7 +606,7 @@ class UserNotificationService(BaseUserNotificationService):
             event_subtype = event_subtype,
             delivery_config=sms_delivery_config)
 
-        log.warning("Notification Request: %s" % str(notification_request))
+        log.info("Notification Request: %s" % str(notification_request))
 
         #-------------------------------------------------------------------------------------
         # Set up things so that the user gets notified for the particular notification request
