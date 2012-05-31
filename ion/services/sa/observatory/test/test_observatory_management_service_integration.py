@@ -291,7 +291,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # verify that PlatformSite is linked to Site
-        site_lp_assoc = self.RR.get_association(site_id, PRED.hasPlatform, platform_site_id)
+        site_lp_assoc = self.RR.get_association(subsite_id, PRED.hasSite, platform_site_id)
         self.assertIsNotNone(site_lp_assoc, "PlatformSite not connected to Site.")
 
 
@@ -312,7 +312,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # verify that InstrumentSite is linked to PlatformSite
-        li_lp_assoc = self.RR.get_association(platform_site_id, PRED.hasInstrument, instrument_site_id)
+        li_lp_assoc = self.RR.get_association(platform_site_id, PRED.hasSite, instrument_site_id)
         self.assertIsNotNone(li_lp_assoc, "InstrumentSite not connected to PlatformSite.")
 
 
@@ -341,19 +341,10 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.PlatformSite, id_only=True )
         self.assertEqual(len(assocs), 0)
 
-        # remove the PlatformSite
-        self.OMS.delete_platform_site(platform_site_id)
-        assocs, _ = self.RR.find_objects(site_id, PRED.hasPlatform, RT.PlatformSite, id_only=True )
-        self.assertEqual(len(assocs), 0)
-
-
+        
         # remove the Site as a resource of this Observatory
-        self.OMS.unassign_resource_from_observatory(site_id, observatory_id)
+        self.OMS.unassign_resource_from_observatory_org(subsite_id, org_id)
         # verify that Site is linked to Org
         assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.Subsite, id_only=True )
         self.assertEqual(len(assocs), 0)
 
-        # remove the Site
-        self.OMS.delete_site(site_id)
-        assocs, _ = self.RR.find_objects(observatory_id, PRED.hasSite, RT.Subsite, id_only=True )
-        self.assertEqual(len(assocs), 0)
