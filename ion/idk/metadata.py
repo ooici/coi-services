@@ -15,11 +15,14 @@ import errno
 
 import yaml
 
+from pyon.util.log import log
+
 from ion.idk.config import Config
 from ion.idk import prompt
 
 from ion.idk.exceptions import DriverParameterUndefined
-
+from ion.idk.exceptions import UnknownDriver
+from ion.idk.exceptions import InvalidParameters
 
 class Metadata():
     """
@@ -88,20 +91,30 @@ class Metadata():
     ###
     #   Private Methods
     ###
-    def __init__(self, driver_make=None, driver_model=None, driver_name=None, author=None, email=None, notes=None):
+    def __init__(self, driver_make = None, driver_model = None, driver_name = None):
         """
         @brief Constructor
         """
-        self.author = author
-        self.email = email
+        self.author = None
+        self.email = None
         self.driver_make = driver_make
         self.driver_model = driver_model
         self.driver_name = driver_name
-        self.notes = notes
+        self.notes = None
         self.version = 0
 
-        if( not(driver_make or driver_model or driver_name or author or email or notes) ):
+        if(driver_make and driver_model and driver_name):
+            log.debug("Construct from parameters")
+            if(os.path.isfile(self.metadata_path())):
+                self.read_from_file()
+            
+        elif(not(driver_make or driver_model or driver_name)):
+            log.debug("Default constructor")
             self.read_from_file()
+            
+        else:
+            raise InvalidParameters(msg="driver_make, driver_model, driver_name must all be specified")
+
 
     def _init_from_yaml(self, yamlInput):
         """
@@ -179,13 +192,16 @@ class Metadata():
 
         ofile.write( self.serialize() )
         ofile.close()
+        
+        self.link_current_metadata()
 
-	try:
-        	os.remove(self.current_metadata_path())
-	except OSError, e:
-		# Ignore "no such file or directory error"
-		if e.errno != errno.ENOENT:
-        		raise
+    
+    def link_current_metadata(self):
+        try:
+            os.remove(self.current_metadata_path())
+        except OSError, e:
+            if e.errno != errno.ENOENT:
+                raise
 
         os.symlink(self.metadata_path(), self.current_metadata_path())
 

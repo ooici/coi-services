@@ -753,15 +753,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
             # direct access mode
             if len(data) > 0:
                 mi_logger.debug("SBE37Protocol._got_data(): <" + data + ">") 
-                # check for echoed commands from instrument (TODO: this should only be done for telnet?)
-                if len(self._sent_cmds) > 0:
-                    # there are sent commands that need to have there echoes filtered out
-                    oldest_sent_cmd = self._sent_cmds[0]
-                    if string.count(data, oldest_sent_cmd) > 0:
-                        # found a command echo, so remove it from data and delete the command form list
-                        data = string.replace(data, oldest_sent_cmd, "", 1) 
-                        self._sent_cmds.pop(0)            
-                if len(data) > 0 and self._driver_event:
+                if self._driver_event:
                     self._driver_event(DriverAsyncEvent.DIRECT_ACCESS, data)
                     # TODO: what about logging this as an event?
             return

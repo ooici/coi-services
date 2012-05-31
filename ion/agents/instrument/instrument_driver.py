@@ -88,6 +88,8 @@ class DriverEvent(BaseEnum):
     START_DIRECT = 'DRIVER_EVENT_START_DIRECT'
     STOP_DIRECT = 'DRIVER_EVENT_STOP_DIRECT'
 
+    PING_DRIVER = 'DRIVER_EVENT_PING_DRIVER'
+
 class DriverAsyncEvent(BaseEnum):
     """
     Asynchronous driver event types.

@@ -640,7 +640,7 @@ class IONLoader(ImmediateProcess):
         svc_client = self._get_service_client("data_process_management")
 
         headers = self._get_op_headers(row)
-        res_id = svc_client.create_data_process(dpd_id, in_data_product_id, out_data_products, configuration, headers=headers)
+        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
         self._register_id(row[self.COL_ID], res_id)
 
         self._resource_assign_org(row, res_id)
