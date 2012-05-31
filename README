@@ -165,7 +165,7 @@ ELASTICSEARCH (SEARCH ENGINE):
     
     If the ElasticSearch-Head plugin is installed (see above) then access to the
     plugin is located at:
-        http://localhost:9200/_site/head
+        http://localhost:9200/_plugin/head/
 
 
 
