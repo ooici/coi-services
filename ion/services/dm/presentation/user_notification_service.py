@@ -181,7 +181,8 @@ class EmailEventProcessor(EventProcessor):
         log.info('smtp_host: %s' % str(self.smtp_host))
         log.info('smtp_port: %s' % str(self.smtp_port))
 
-        if CFG.get_safe('system.smtp',False):
+        if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
+            log.warning('Using the real SMTP library to send email notifications!')
             self.smtp_client = smtplib.SMTP(self.smtp_host)
 
         else:
