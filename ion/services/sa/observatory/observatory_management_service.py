@@ -33,6 +33,7 @@ OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
 
 
+
 class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
@@ -41,6 +42,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         CFG, log, RT, PRED, LCS, LCE, NotFound, BadRequest, log  #suppress pyflakes errors about "unused import"
 
         self.override_clients(self.clients)
+
+        self.HIERARCHY_DEPTH = {RT.InstrumentSite: 3,
+                                RT.PlatformSite: 2,
+                                RT.Subsite: 1,
+                                RT.Observatory: 0,
+                                }
+        
+        self.HIERARCHY_LOOKUP = [RT.Observatory, 
+                                 RT.Subsite, 
+                                 RT.PlatformSite, 
+                                 RT.InstrumentSite]
+
 
 
     def override_clients(self, new_clients):
@@ -660,11 +673,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=None):
 
         # the relative depth of each resource type in our tree
-        depth = {RT.InstrumentSite: 4,
-                 RT.PlatformSite: 3,
-                 RT.Subsite: 2,
-                 RT.Observatory: 1,
-                 }
+        depth = self.HIERARCHY_DEPTH
 
         input_obj  = self.RR.read(input_resource_id)
         input_type = input_obj._get_type()
@@ -672,11 +681,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #input type checking
         if not input_type in depth:
             raise BadRequest("Input resource type (got %s) must be one of %s" % 
-                             (input_type, str(depth.keys())))
+                             (input_type, self.HIERARCHY_LOOKUP))
         for t in output_resource_type_list:
             if not t in depth:
                 raise BadRequest("Output resource types (got %s) must be one of %s" %
-                                 (str(output_resource_type_list), str(depth.keys())))
+                                 (str(output_resource_type_list), self.HIERARCHY_LOOKUP))
 
                              
 
@@ -713,7 +722,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # Don't include input type in response            
         #TODO: maybe just remove the input resource id 
         if input_type in acc:
-            acc.pop(input_type)            
+            stripped = []
+            for r_obj in acc[input_type]:
+                if r_obj._id == input_resource_id:
+                    log.debug("Stripped input from return value")
+                else:
+                    stripped.append(r_obj)
+
+            acc[input_type] = stripped
+                
+
         return acc
                     
 
@@ -721,9 +739,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         call_list = self._build_call_list(top_type, bottom_type, downward)
 
-        # reverse the list and start calling functions
+        # start calling functions
         if downward:
-            call_list.reverse()
             for (p, c) in call_list:
                 acc = self._find_subordinate(acc, p, c)
         else:
@@ -734,59 +751,65 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def _build_call_list(self, top_type, bottom_type, downward):
-        # the possible parent types that a resource can have
-        hierarchy_dependencies =  {
-            RT.InstrumentSite: [RT.PlatformSite],
-            RT.PlatformSite:   [RT.PlatformSite, RT.Subsite],
-            RT.Subsite:        [RT.Subsite, RT.Observatory],
-            }
 
         call_list = []
-        target_type = bottom_type
-        while True:
-            if downward and (target_type == top_type):
-                return call_list
 
-            if (not downward) and (target_type == top_type):
-                if not (target_type in hierarchy_dependencies and
-                        target_type in hierarchy_dependencies[target_type]):
-                    return call_list
+        if downward:
+            step = 1
+            top_ord = self.HIERARCHY_DEPTH[top_type]
+            bot_ord = self.HIERARCHY_DEPTH[bottom_type]
+        else:
+            step = -1
+            top_ord = self.HIERARCHY_DEPTH[bottom_type] - 1
+            bot_ord = self.HIERARCHY_DEPTH[top_type] - 1
 
-            for requisite_type in hierarchy_dependencies[target_type]:
-                #should cause errors if they stray from allowed inputs
-                call_list.append((requisite_type, target_type))
 
-                if not downward and top_type == requisite_type == target_type:
-                    return call_list
-            
-            #latest solved type is the latest result
-            target_type = requisite_type
-        
-                
-            
+        for i in range(top_ord, bot_ord, step):
+            child  = self.HIERARCHY_LOOKUP[i + 1]
+            parent = self.HIERARCHY_LOOKUP[i]
+            if downward:
+                tmp = [(parent, parent), (parent, child), (child, child)]
+            else:
+                tmp = [(child, child), (parent, child), (parent, parent)]
+
+
+            for pair in tmp:
+                if not pair in call_list:
+                    #log.debug("adding %s" % str(pair))
+                    call_list.append(pair)
+
+        return call_list
+
 
 
     def _find_subordinate(self, acc, parent_type, child_type):
         #acc is an accumulated dictionary
 
-        if not child_type in acc:
-            acc[child_type] = []
-            
-        find_fn = {
+        find_fns = {
             (RT.Observatory, RT.Subsite):         self.observatory.find_stemming_site,
             (RT.Subsite, RT.Subsite):             self.subsite.find_stemming_subsite,
             (RT.Subsite, RT.PlatformSite):        self.subsite.find_stemming_platform_site,
             (RT.PlatformSite, RT.PlatformSite):   self.platform_site.find_stemming_platform_site,
             (RT.PlatformSite, RT.InstrumentSite): self.platform_site.find_stemming_instrument_site,
-            }[(parent_type, child_type)]
+            }
+
+        if (parent_type, child_type) in find_fns:
+            find_fn = find_fns[(parent_type, child_type)]
+        else:
+            find_fn = (lambda x : [])
         
+        if not parent_type in acc: acc[parent_type] = []
+
         log.debug("Subordinates: '%s'x%d->'%s'" % (parent_type, len(acc[parent_type]), child_type))
 
         #for all parents in the acc, add all their children
         for parent_obj in acc[parent_type]:
             parent_id = parent_obj._id
             for child_obj in find_fn(parent_id):
-                acc[child_type].append(child_obj)
+                actual_child_type = child_obj._get_type()
+                if not actual_child_type in acc:
+                    acc[actual_child_type] = []
+                acc[actual_child_type].append(child_obj)
 
         return acc
 
@@ -795,55 +818,37 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def _find_superior(self, acc, parent_type, child_type):
         # acc is an accumualted dictionary
 
-        if not parent_type in acc:
-            acc[parent_type] = []
-
         #log.debug("Superiors: '%s'->'%s'" % (parent_type, child_type))
         #if True:
         #    return acc
             
-        find_fn = {
+        find_fns = {
             (RT.Observatory, RT.Subsite):         self.observatory.find_having_site,
             (RT.Subsite, RT.Subsite):             self.subsite.find_having_site,
             (RT.Subsite, RT.PlatformSite):        self.subsite.find_having_site,
             (RT.PlatformSite, RT.PlatformSite):   self.platform_site.find_having_site,
             (RT.PlatformSite, RT.InstrumentSite): self.platform_site.find_having_site,
-            }[(parent_type, child_type)]
+            }
+
+        if (parent_type, child_type) in find_fns:
+            find_fn = find_fns[(parent_type, child_type)]
+        else:
+            find_fn = (lambda x : [])
         
+        if not child_type in acc: acc[child_type] = []
+
         log.debug("Superiors: '%s'->'%s'x%d" % (parent_type, child_type, len(acc[child_type])))
 
         #for all children in the acc, add all their parents
         for child_obj in acc[child_type]:
             child_id = child_obj._id
             for parent_obj in find_fn(child_id):
-                acc[parent_obj._get_type()].append(parent_obj)
+                actual_parent_type = parent_obj._get_type()
+                if not actual_parent_type in acc:
+                    acc[actual_parent_type] = []
+                acc[actual_parent_type].append(parent_obj)
 
         return acc
 
 
 
-
-
-"""
-  
-    def find_data_product_by_site(self, site_id=''):
-        ret = []
-        for i in self.find_instrument_device_by_site(site_id):
-            for dp in self.IMS.find_data_product_by_instrument_device(i):
-                if not dp in ret:
-                    ret.append(dp)
-
-        return ret
-  
-    def find_data_product_by_marine_facility(self, marine_facility_id=''):
-        ret = []
-        for i in self.find_instrument_device_by_marine_facility(marine_facility_id):
-            for dp in self.IMS.find_data_product_by_instrument_device(i):
-                if not dp in ret:
-                    ret.append(dp)
-
-        return ret
-  
-
-
-"""
