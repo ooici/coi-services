@@ -596,4 +596,3 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
         policy_client.add_service_policy('instrument_management', policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
-
