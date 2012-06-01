@@ -150,7 +150,7 @@ class VizTransformGoogleDT(TransformFunction):
 
         rdt['google_dt_components'] = numpy.array([msg])
 
-        log.info('Google DT transform: Sending a granule of length ', len(msg))
+        log.debug('Google DT transform: Sending a granule')
         out_granule = build_granule(data_producer_id='google_dt_transform', taxonomy=tx, record_dictionary=rdt)
 
         #self.publish(out_granule)

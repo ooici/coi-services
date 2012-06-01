@@ -84,8 +84,8 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
 
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
-        ssh_retval = subprocess.call(["ssh", "-q", "-o", "PasswordAuthentication=no", 
-                                      "-f", "true", remotehost])
+        ssh_retval = subprocess.call(["ssh", "-o", "PasswordAuthentication=no", 
+                                      remotehost, "-f", "true"])
         
         if 0 != ssh_retval:
             raise unittest.SkipTest("SSH/SCP credentials to %s didn't work" % remotehost)
@@ -93,25 +93,26 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
 
 
         inst_agent_id = self.IMS.create_instrument_agent(any_old(RT.InstrumentAgent))
+        inst_model_id = self.IMS.create_instrument_model(any_old(RT.InstrumentModel))
+
+        self.IMS.assign_instrument_model_to_instrument_agent(inst_model_id, inst_agent_id)
 
         self.IMS.register_instrument_agent(inst_agent_id, BASE64_EGG, BASE64_ZIPFILE)
 
         attachments, _ = self.RR.find_objects(inst_agent_id, PRED.hasAttachment, RT.Attachment, True)
 
-        self.assertEqual(len(attachments), 3)
+        self.assertEqual(len(attachments), 4)
 
         for a_id in attachments:
 
             a = self.RR.read_attachment(a_id)
 
             parts = string.split(a.name, ".")
-
-            self.assertEqual("txt", parts[1])
-            self.assertEqual("text/plain", a.content_type)
             
-            self.assertIn(parts[0], a.keywords)
-
-            self.assertEqual(a.content, (parts[0] * 3) + "\n")
+            if "txt" == parts[1]:
+                self.assertEqual("text/plain", a.content_type)
+                self.assertIn(parts[0], a.keywords)
+                self.assertEqual(a.content, (parts[0] * 3) + "\n")
 
         log.info("L4-CI-SA-RQ-148")
 
