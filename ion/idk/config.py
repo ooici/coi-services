@@ -28,17 +28,18 @@ from git import Repo
 
 from ion.idk.exceptions import IDKConfigMissing
 from ion.idk.exceptions import IDKWrongRunningDirectory
+from ion.idk.exceptions import WorkingRepoNotSet
 
 from ion.idk.logger import Log
 from ion.idk.common import Singleton
-from pyon.util.config import Config
+import pyon.util.config
 
 ####
 #    Config defaults.  These are hard coded because they shouldn't
 #    be overrided
 ####
 PATH = os.path.join(os.path.expanduser("~"), ".idk")
-CONFIG_FILENAME = os.path.join(PATH, "idk.yml")
+CONFIG_FILENAME = "idk.yml"
 
 DEFAULT_CONFIG = "extern/ion-definitions/res/config/idk.yml"
 IDK_YAML_GROUP = "idk"
@@ -51,49 +52,53 @@ class ConfigManager(Singleton):
     Config Manager.
     Creates a config file if it doesn't already exist.
     """
-    def init(self):
-        if not os.path.isdir(PATH):
+    def init(self, config_dir = PATH):
+        self.yaml = dict()
+        self.yaml[IDK_YAML_GROUP] = dict()
+
+        Log.debug("config dir: %s" % config_dir)
+        self.config_dir = config_dir
+
+        if not os.path.isdir(config_dir):
             try:
-                os.mkdir(PATH) # create dir if it doesn't exist
+                os.mkdir(config_dir) # create dir if it doesn't exist
             except:
-                raise IOError("Couldn't create \"" + PATH + "\" folder. Check" \
+                raise IOError("Couldn't create \"" + config_dir + "\" folder. Check" \
                               " permissions")
 
         ## Initialize the config file if one doesn't exist
-        if not os.path.isfile(CONFIG_FILENAME):
-            Log.debug("User IDK config doesn't exist: " + CONFIG_FILENAME)
-            self.init_config_file()
-            self.rebase();
+        cfgpath = os.path.join(config_dir, CONFIG_FILENAME)
+        Log.debug("config file: %s" % cfgpath)
+        if not os.path.exists(cfgpath):
+            Log.debug("User IDK config doesn't exist: " + cfgpath)
+            self.rebase()
             
-        ## Read the user config file
-        try:
-            Log.debug("Reading IDK config: " + CONFIG_FILENAME)
-            infile = open(CONFIG_FILENAME)
-            self.yaml = yaml.load(infile)
+        ## Read the user config file once to get the working repo dir, then again with the default and user config
+        self.read_config([cfgpath])
+
+        if not self.get("working_repo"):
+            raise WorkingRepoNotSet()
+
+        self.read_config([ os.path.join(self.get("working_repo"), DEFAULT_CONFIG),
+                           cfgpath ])
+
+    def read_config(self, config_list):
+        result = None
+
+        for config in config_list:
+            infile = open(config)
+            input_config = yaml.load(infile)
             infile.close()
-            
-        except:
-            raise IOError("Couldn't read config file \"" + \
-                          CONFIG_FILENAME + "\". Check permissions.")
-            
+            if result:
+                pyon.util.config.dict_merge(result, input_config, inplace = True)
+            else:
+                result = input_config;
 
-    def init_config_file(self):
-        """
-        @brief If a user config file doesn't exist, read the system idk.yml file
-               then write it to the user's file.
-        """
-        Log.debug("Reading system IDK config: " + DEFAULT_CONFIG)
+        Log.debug(result)
 
-        if not os.path.isfile(DEFAULT_CONFIG):
-            raise IDKConfigMissing(msg="Could not read default configuration " + DEFAULT_CONFIG )
-        
-        Log.debug("Read default config: " + DEFAULT_CONFIG)
-        infile = open(DEFAULT_CONFIG)
-        self.yaml = yaml.load(infile)
-        infile.close()
-        
-        self.write()
-        
+        self.yaml = result
+
+
     def rebase(self):
         """
         @brief determine if we are in the MI working git repo.  If so set the
@@ -128,9 +133,14 @@ class ConfigManager(Singleton):
         """
         @brief write the current yaml config to the user 
         """
-        ofile = open(CONFIG_FILENAME, 'w')
-        ofile.write(yaml.dump(self.yaml, default_flow_style=False))
-        ofile.close()
+        cfgpath = os.path.join(self.config_dir, CONFIG_FILENAME)
+        ofile = open(cfgpath, 'w')
+        if ofile:
+            Log.debug( "Write config: %s" % cfgpath )
+            cfg = yaml.dump(self.yaml, default_flow_style=False)
+            Log.debug( "Config:\n%s" % cfg)
+            ofile.write(cfg)
+            ofile.close()
         
     def set(self, name, path):
         """
@@ -151,8 +161,11 @@ class Config(object):
     """
     Config object.
     """
-    def __init__(self):
-        self.cm = ConfigManager() # ConfigManager instance
+    def __init__(self, config_dir = PATH):
+        Log.debug("cfg: %s" % config_dir)
+        self.cm = ConfigManager(config_dir) # ConfigManager instance
+        if not config_dir == self.cm.config_dir:
+            self.cm.init(config_dir)
 
     def get(self, name):
         """
@@ -176,7 +189,7 @@ class Config(object):
         @brief base directory for the new driver
         @retval dir name
         """
-        return PATH
+        return self.cm.config_dir
 
     def template_dir(self):
         """
@@ -190,8 +203,5 @@ class Config(object):
         @brief reset the working repository directory
         """
         self.cm.rebase()
-
-
-IDK_CFG = Config()
 
 
