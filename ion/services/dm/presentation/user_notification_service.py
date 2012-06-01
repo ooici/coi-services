@@ -165,6 +165,7 @@ class EventProcessor(object):
 
 # the 'from' email address for notification emails
 ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 # the default smtp server
 ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 
@@ -175,22 +176,35 @@ class EmailEventProcessor(EventProcessor):
 
         super(EmailEventProcessor, self).__init__(notification_request,user_id)
 
-        self.smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
-        self.smtp_port = CFG.get_safe('server.smtp.port', 25)
+        smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
+        smtp_port = CFG.get_safe('server.smtp.port', 25)
+        self.smtp_sender = CFG.get_safe('server.smtp.sender')
+        smtp_password = CFG.get_safe('server.smtp.password')
 
-        log.info('smtp_host: %s' % str(self.smtp_host))
-        log.info('smtp_port: %s' % str(self.smtp_port))
+        log.info('smtp_host: %s' % str(smtp_host))
+        log.info('smtp_port: %s' % str(smtp_port))
 
         if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
             log.warning('Using the real SMTP library to send email notifications!')
-            self.smtp_client = smtplib.SMTP(self.smtp_host)
-            log.warning("Using smpt host: %s" % self.smtp_host)
+
+            #@todo - for now hard wire for gmail account
+            #msg_sender = 'ooici777@gmail.com'
+            #gmail_pwd = 'ooici777'
+
+
+
+            self.smtp_client = smtplib.SMTP(smtp_host)
+            self.smtp_client.ehlo()
+            self.smtp_client.starttls()
+            self.smtp_client.login(self.smtp_sender, smtp_password)
+
+            log.warning("Using smpt host: %s" % smtp_host)
         else:
             # Keep this as a warning
             log.warning('Using a fake SMTP library to simulate email notifications!')
 
             #@todo - what about port etc??? What is the correct interface to fake?
-            self.smtp_client = fake_smtplib.SMTP(self.smtp_host)
+            self.smtp_client = fake_smtplib.SMTP(smtp_host)
 
 
         log.debug("UserEventProcessor.__init__(): email for user %s " %self.user_id)
@@ -238,26 +252,18 @@ class EmailEventProcessor(EventProcessor):
         msg['Subject'] = msg_subject
         msg['From'] = msg_sender
         msg['To'] = msg_recipient
-        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s"\
-        %(msg_recipient, self.smtp_host))
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
+        %msg_recipient)
+
+        self.smtp_client.sendmail(self.smtp_sender, msg_recipient, msg.as_string())
+
+    def remove_notification(self):
+
+        super(EmailEventProcessor, self).remove_notification()
 
         if CFG.get_safe('system.smtp',False):
+            self.smtp_client.close()
 
-            log.warning("Sending email through gmail!")
-
-            msg_recipient = 'dstuebe@asascience.com'
-            msg_sender = 'ooici777@gmail.com'
-            gmail_pwd = 'ooici777'
-            #smtpserver = smtplib.SMTP("smtp.gmail.com",587)
-
-            self.smtp_client = smtplib.SMTP("smtp.gmail.com")
-            self.smtp_client.ehlo()
-            self.smtp_client.starttls()
-            self.smtp_client.ehlo
-            self.smtp_client.login(msg_sender, gmail_pwd)
-
-        self.smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
-#        self.smtp_client.close()
 
 class SMSEventProcessor(EmailEventProcessor):
 
@@ -301,8 +307,8 @@ class SMSEventProcessor(EmailEventProcessor):
         msg['Subject'] = msg_subject
         msg['From'] = msg_sender
         msg['To'] = self.msg_recipient
-        log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s"\
-        %(self.msg_recipient, self.smtp_host))
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
+        %self.msg_recipient)
         self.smtp_client.sendmail(msg_sender, self.msg_recipient, msg.as_string())
 
 

@@ -322,8 +322,6 @@ class UserNotificationTest(PyonTestCase):
         #@todo implement test for delete
 
 
-ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
-
 @attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
@@ -397,9 +395,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------
 
         self.assertEquals(msg_tuple[1], 'email@email.com' )
-        self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
+        #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
 
-        self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
+        #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
         self.assertEquals(message_dict['To'], 'email@email.com')
         self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
         self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
@@ -468,7 +466,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------
 
         self.assertEquals(msg_tuple[1], '401-XXX-XXXX@tmomail.net' )
-        self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
+        #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
     @attr('LOCOINT')
@@ -548,7 +546,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 
         self.assertEquals(msg_tuple[1], 'email@email.com' )
-        self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
+        #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
 
         # parse the message body
         message = msg_tuple[2]
@@ -569,7 +567,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     # can just be ignored. So we ignore the exceptions here.
                     pass
 
-        self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
+        #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
         self.assertEquals(message_dict['To'], 'email@email.com')
         self.assertEquals(message_dict['Event'].rstrip('\r'), 'DetectionEvent')
         self.assertEquals(message_dict['Originator'].rstrip('\r'), 'DetectionEventProcessor')
