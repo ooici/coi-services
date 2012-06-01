@@ -74,12 +74,19 @@ class IDKPackageNose(unittest.TestCase):
         # base2.py is a simple python module with no dependencies
         initfile = self.basefile().replace("base.py", 'base2.py')
         ofile = open(initfile, "w")
+        ofile.write( "import mi.base4\n")
         ofile.close()
-        
+
         # base3.py has an external dependency
         initfile = self.basefile().replace("base.py", 'base3.py')
         ofile = open(initfile, "w")
         ofile.write( "import string\n\n")
+        ofile.close()
+
+        # base4.py has an circular dependency
+        initfile = self.basefile().replace("base.py", 'base4.py')
+        ofile = open(initfile, "w")
+        ofile.write( "import base2\n\n")
         ofile.close()
         
         # We need out init file
@@ -126,14 +133,15 @@ class IDKPackageNose(unittest.TestCase):
         if not exists(destdir):
             makedirs(destdir)
         
-        # Write a base file
+        # Write a base test file
         ofile = open(self.nosefile(), "w")
-        
-        # Test various forms of import. MiFoo is a class defined in base.py
-        # The rest are py file imports.
-        #ofile.write( "import pyon.util\n")
         ofile.close()
-        
+
+        # Ensure we have an import in an __init__ py file
+        initfile = self.nosefile().replace("test_process.py", '__init__.py')
+        ofile = open(initfile, "w")
+        ofile.close()
+
     def write_resfile(self):
         """
         The impl.py file is the target of our test.  All tests will report the
@@ -216,7 +224,8 @@ class TestDependencyList(IDKPackageNose):
                           "mi/base.py", 
                           "mi/base2.py", 
                           "mi/base3.py",
-                          "mi/foo/impl.py", 
+                          "mi/base4.py",
+                          "mi/foo/impl.py",
                         ]
             
         self.assertEqual(internal_deps, dep_list)
@@ -237,12 +246,32 @@ class TestDependencyList(IDKPackageNose):
                           "mi/base.py", 
                           "mi/base2.py", 
                           "mi/base3.py",
+                          "mi/base4.py",
                           "mi/foo/__init__.py",
                           "mi/foo/impl.py", 
                          ]
         
         self.assertEqual(internal_deps, dep_list)
-        
+
+    def test_internal_test_dependencies_with_init(self):
+        """
+        Test internal the dependency lists for the unit test.
+        """
+        generator = DependencyList(self.nosefile(), include_internal_init = True)
+        root_list = generator.internal_roots()
+        dep_list = generator.internal_dependencies()
+
+        self.assertTrue(ROOTDIR in root_list)
+
+        internal_deps = [
+            "mi/__init__.py",
+            "mi/foo/__init__.py",
+            "mi/foo/test/__init__.py",
+            "mi/foo/test/test_process.py",
+            ]
+
+        self.assertEqual(internal_deps, dep_list)
+
     def test_external_dependencies(self):
         """
         Test external the dependency lists.  This should exclude
@@ -253,7 +282,8 @@ class TestDependencyList(IDKPackageNose):
         dep_list = generator.external_dependencies()
         
         self.assertFalse(ROOTDIR in root_list)
-        
+
+        self.assertFalse("mi/base4.py" in dep_list)
         self.assertFalse("mi/base3.py" in dep_list)
         self.assertFalse("mi/base2.py" in dep_list)
         self.assertFalse("mi/foo/impl.py" in dep_list)
@@ -271,6 +301,7 @@ class TestDependencyList(IDKPackageNose):
         
         self.assertTrue(ROOTDIR in root_list)
         
+        self.assertTrue("mi/base4.py" in dep_list)
         self.assertTrue("mi/base3.py" in dep_list)
         self.assertTrue("mi/base2.py" in dep_list)
         self.assertTrue("mi/foo/impl.py" in dep_list)
@@ -289,22 +320,18 @@ class TestDriverFileList(IDKPackageNose):
         Find all the files in the driver directory
         """
         rootdir = dirname(TESTDIR)
-        filelist = DriverFileList(Metadata(), rootdir)
+        filelist = DriverFileList(Metadata(), ROOTDIR, self.implfile(), self.nosefile())
         self.assertTrue(filelist)
         
-        # Override the derived filenames with test files.
-        filelist.driver_file = self.implfile()
-        filelist.driver_test_file = self.nosefile()
-        
         known_files = [
-            '%s/foo/__init__.py' % rootdir,
-            '%s/foo/impl.py' % rootdir,
-            '%s/foo/res/test_file' % rootdir,
-            '%s/foo/test/test_process.py' % rootdir,
+            '%s/res/test_file' % TESTDIR
         ]
         
         files = filelist._extra_files()
-        
+
+        log.debug(sorted(files))
+        log.debug(sorted(known_files))
+
         self.assertEqual(sorted(files), sorted(known_files))
         
         
@@ -312,24 +339,26 @@ class TestDriverFileList(IDKPackageNose):
         """
         Test the full file manifest
         """
-        rootdir = dirname(TESTDIR)
-        filelist = DriverFileList(Metadata(), rootdir)
+        filelist = DriverFileList(Metadata(), ROOTDIR, self.implfile(), self.nosefile())
         self.assertTrue(filelist)
-        
-        # Override the derived filenames with test files.
-        filelist.driver_file = self.implfile()
-        filelist.driver_test_file = self.nosefile()
-        
+
         known_files = [
-            'foo/__init__.py',
-            'foo/impl.py',
-            'foo/res/test_file',
-            'foo/test/test_process.py',
+                      'mi/__init__.py',
+                      'mi/base.py',
+                      'mi/base2.py',
+                      'mi/base3.py',
+                      'mi/base4.py',
+                      'mi/foo/__init__.py',
+                      'mi/foo/impl.py',
+                      'mi/foo/res/test_file',
+                      'mi/foo/test/__init__.py',
+                      'mi/foo/test/test_process.py',
         ]
         
         files = filelist.files()
-        
+        log.debug( "F: %s" % files)
+
         self.assertEqual(sorted(files), sorted(known_files))
-        
+        pass
         
         

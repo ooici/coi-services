@@ -105,7 +105,8 @@ class DependencyList:
         allerrors = []
         processed_files = set()
         ignorefiles = []
-        
+        alldependencies = []
+
         fiter = iter_pyfiles([self.filename], ignorefiles, False)
         while 1:
             newfiles = set()
@@ -150,10 +151,15 @@ class DependencyList:
                     into = to_[0] in inroots
                     log.debug( "  from: %s" % from_[1])
                     log.debug( "  to: %s" % to_[1])
-                        
-                    log.debug("Add %s to dependency list" % dfn)
-                    allfiles[from_].add(to_)
-                    newfiles.add(dfn)
+
+                    if dfn in alldependencies:
+                        log.debug("Already added %s to dependency list" % dfn)
+                    else:
+                        log.debug("Add %s to dependency list" % dfn)
+                        allfiles[from_].add(to_)
+                        newfiles.add(dfn)
+                        alldependencies.append(dfn)
+
                     
             if not newfiles:
                 log.debug("No more new files.  all done")
@@ -321,25 +327,35 @@ class DriverFileList:
     object to get all python files.  Then it will look in the target module directory
     for additional files.
     """
-    def __init__(self, metadata, basedir):
+    def __init__(self, metadata, basedir, driver_file = None, driver_test_file = None):
         driver_generator = DriverGenerator(metadata)
         
         self.basedir = basedir
-        self.driver_file = driver_generator.driver_path()
-        self.driver_test_file = driver_generator.driver_test_path()
+
+        if driver_file:
+            self.driver_file = driver_file
+        else:
+            self.driver_file = driver_generator.driver_path()
+
+        if driver_test_file:
+            self.driver_test_file = driver_test_file
+        else:
+            self.driver_test_file = driver_generator.driver_test_path()
         
-        self.driver_dependency = DependencyList(self.driver_file)
-        #self.test_dependency = DependencyList(self.driver_test_file)
-        
+        self.driver_dependency = DependencyList(self.driver_file, include_internal_init=True)
+        self.test_dependency = DependencyList(self.driver_test_file, include_internal_init=True)
+
     def files(self):
         basep = re.compile(self.basedir)
         rootp = re.compile('^/')
         result = []
         
         log.debug( "F: %s" % self.driver_file)
-        #files = self._extra_files() + self.driver_dependency.internal_dependencies() + self.test_dependency.internal_dependencies()
-        files = self._extra_files() + self.driver_dependency.internal_dependencies()
-                
+        driver_files = self.driver_dependency.internal_dependencies()
+        test_files = self.test_dependency.internal_dependencies()
+        extra_files = self._extra_files()
+        files = self._extra_files() + self.driver_dependency.internal_dependencies() + self.test_dependency.internal_dependencies()
+
         for fn in files:
             if not fn in result:
                 f = basep.sub('', fn)
@@ -350,10 +366,11 @@ class DriverFileList:
         
     def _extra_files(self):
         result = []
-        p = re.compile('\.pyc$')
+        p = re.compile('\.(py|pyc)$')
         
         for root, dirs, names in os.walk(dirname(self.driver_file)):
             for filename in names:
+                # Ignore python files
                 if not p.search(filename):
                     result.append("%s/%s" % (root, filename))
                 
