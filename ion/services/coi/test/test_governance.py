@@ -56,7 +56,7 @@ class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
 
-@attr('INT', group='coi-governance')
+@attr('INT', group='coi')
 class TestGovernanceInt(IonIntegrationTestCase):
 
 
