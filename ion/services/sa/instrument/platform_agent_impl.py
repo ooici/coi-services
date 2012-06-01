@@ -26,25 +26,24 @@ class PlatformAgentImpl(ResourceSimpleImpl):
         self.add_lce_precondition(LCE.PLAN, (lambda r: "")) # no precondition to plan
         self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
         self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
+        self.add_lce_precondition(LCE.DEPLOY, self.lce_precondition_deploy)
         
     
-    def lce_precontidion_deploy(self, platform_agent_id):
+    def lce_precondition_deploy(self, platform_agent_id):
         pre = self.lce_precondition_integrate(platform_agent_id)
         if pre: 
             return pre
         
-        #TODO: keyword for attached certification result
-        found = True
-        # found = False
-        # for a in self.find_stemming_attachment(platform_agent_id):
-        #     for k in a.keywords:
-        #         if "egg_url" == k:
-        #             found = True
-        #             break
+        found = False
+        for a in self.find_stemming_attachment(platform_agent_id):
+            for k in a.keywords:
+                if KeywordFlag.CERTIFICATION == k:
+                    found = True
+                    break
         if found:
             return ""
         else:
-            return "PlatformAgent LCS requires a registered driver egg"
+            return "PlatformAgent LCS requires certification"
 
     def lce_precondition_integrate(self, platform_agent_id):
         pre = self.lce_precondition_develop(platform_agent_id)
