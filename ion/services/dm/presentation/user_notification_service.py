@@ -184,14 +184,13 @@ class EmailEventProcessor(EventProcessor):
 
         if CFG.get_safe('system.smtp',False):
             self.smtp_client = smtplib.SMTP(self.smtp_host)
-
+            log.warning("Using smpt host: %s" % self.smtp_host)
         else:
             # Keep this as a warning
             log.warning('Using a fake SMTP library to simulate email notifications!')
 
             #@todo - what about port etc??? What is the correct interface to fake?
             self.smtp_client = fake_smtplib.SMTP(self.smtp_host)
-
 
 
         log.debug("UserEventProcessor.__init__(): email for user %s " %self.user_id)
@@ -247,7 +246,24 @@ class EmailEventProcessor(EventProcessor):
         msg['To'] = msg_recipient
         log.debug("UserEventProcessor.subscription_callback(): sending email to %s via %s"\
         %(msg_recipient, self.smtp_host))
+
+        if CFG.get_safe('system.smtp',False):
+
+            log.warning("Sending email through gmail!")
+
+            msg_recipient = 'dstuebe@asascience.com'
+            msg_sender = 'ooici777@gmail.com'
+            gmail_pwd = 'ooici777'
+            #smtpserver = smtplib.SMTP("smtp.gmail.com",587)
+
+            self.smtp_client = smtplib.SMTP("smtp.gmail.com")
+            self.smtp_client.ehlo()
+            self.smtp_client.starttls()
+            self.smtp_client.ehlo
+            self.smtp_client.login(msg_sender, gmail_pwd)
+
         self.smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
+#        self.smtp_client.close()
 
 class SMSEventProcessor(EmailEventProcessor):
 
