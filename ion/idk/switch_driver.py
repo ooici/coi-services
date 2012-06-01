@@ -7,7 +7,7 @@
 from ion.idk.metadata import Metadata
 from ion.idk.comm_config import CommConfig
 from ion.idk.config import Config
-from ion.idk.logger import Log
+from pyon.util.log import log
 
 from ion.idk import prompt
 

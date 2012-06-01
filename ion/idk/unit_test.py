@@ -34,7 +34,6 @@ from pyon.container.cc import Container
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 
-from mi.core.logger import Log
 from mi.core.exceptions import InstrumentException
 from mi.core.instrument.instrument_driver import DriverAsyncEvent
 from mi.core.instrument.instrument_driver import DriverConnectionState
@@ -145,7 +144,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
         """
         @brief Setup test cases.
         """
-        Log.debug("InstrumentDriverTestCase setUp")
+        log.debug("InstrumentDriverTestCase setUp")
         
         # Test to ensure we have initialized our test config
         if not self._test_config.initialized:
@@ -158,7 +157,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
         """
         @brief Test teardown
         """
-        Log.debug("InstrumentDriverTestCase tearDown")
+        log.debug("InstrumentDriverTestCase tearDown")
         
     def clear_events(self):
         """
@@ -183,17 +182,17 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
         driver_path = p.sub('/', driver_path)
         abs_path = "%s/%s/%s" % (repo_dir, os.path.dirname(driver_path), CommConfig.config_filename())
         
-        Log.debug(abs_path)
+        log.debug(abs_path)
         return abs_path
     
     def init_comm_config(self):
         """
         @brief Create the comm config object by reading the comm_config.yml file.
         """
-        Log.info("Initialize comm config")
+        log.info("Initialize comm config")
         config_file = self.comm_config_file()
         
-        Log.debug( " -- reading comm config from: %s" % config_file )
+        log.debug( " -- reading comm config from: %s" % config_file )
         if not os.path.exists(config_file):
             raise TestNoCommConfig(msg="Missing comm config.  Try running start_driver or switch_driver")
         
@@ -207,7 +206,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
         interface with the instrument.
         @retval return the pid to the logger process
         """
-        Log.info("Startup Port Agent")
+        log.info("Startup Port Agent")
         # Create port agent object.
         this_pid = os.getpid()
         
@@ -230,7 +229,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
             gevent.sleep(.1)
             port = self.port_agent.get_port()
 
-        Log.info('Started port agent pid %d listening at port %d' % (pid, port))
+        log.info('Started port agent pid %d listening at port %d' % (pid, port))
         return port
     
     def stop_port_agent(self):
@@ -240,17 +239,17 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
         if self.port_agent:
             pid = self.port_agent.get_pid()
             if pid:
-                Log.info('Stopping pagent pid %i' % pid)
+                log.info('Stopping pagent pid %i' % pid)
                 self.port_agent.stop()
             else:
-                Log.info('No port agent running.')
+                log.info('No port agent running.')
     
     def init_driver_process_client(self):
         """
         @brief Launch the driver process and driver client
         @retval return driver process and driver client object
         """
-        Log.info("Startup Driver Process")
+        log.info("Startup Driver Process")
         
         this_pid = os.getpid()
         (dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(self._test_config.driver_module,
@@ -258,18 +257,18 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
                                                                          self._test_config.working_dir,
                                                                          this_pid)
         self.driver_process = dvr_proc
-        Log.info('Started driver process for %d %d %s %s' % 
+        log.info('Started driver process for %d %d %s %s' %
                  (cmd_port, evt_port, self._test_config.driver_module, self._test_config.driver_class))
-        Log.info('Driver process pid %d' % self.driver_process.pid)
+        log.info('Driver process pid %d' % self.driver_process.pid)
 
         # Create driver client.
         self.driver_client = ZmqDriverClient('localhost', cmd_port, evt_port)
-        Log.info('Created driver client for %d %d %s %s' % (cmd_port,
+        log.info('Created driver client for %d %d %s %s' % (cmd_port,
             evt_port, self._test_config.driver_module, self._test_config.driver_class))
 
         # Start client messaging.
         self.driver_client.start_messaging(self.event_received)
-        Log.info('Driver messaging started.')
+        log.info('Driver messaging started.')
         gevent.sleep(.5)
     
     def stop_driver_process_client(self):
@@ -277,7 +276,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
         Stop the driver_process.
         """
         if self.driver_process:
-            Log.info('Stopping driver process pid %d' % self.driver_process.pid)
+            log.info('Stopping driver process pid %d' % self.driver_process.pid)
             if self.driver_client:
                 self.driver_client.done()
                 self.driver_process.wait()
@@ -285,7 +284,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
 
             else:
                 try:
-                    Log.info('Killing driver process.')
+                    log.info('Killing driver process.')
                     self.driver_process.kill()
                 except OSError:
                     pass
@@ -303,7 +302,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
         process = self._driver_process
         pid = process.pid
         
-        Log.debug("Killing driver process. PID: %d" % pid)
+        log.debug("Killing driver process. PID: %d" % pid)
         # For some reason process.kill and process.terminate didn't actually kill the process.
         # that's whay we had to use the os kill command.  We have to call process.wait so that
         # the returncode attribute is updated which could be blocking.  process.poll didn't
@@ -313,7 +312,7 @@ class InstrumentDriverTestCase(IonIntegrationTestCase):
             if(process.returncode != None):
                 break
             else:
-                Log.debug("Sending signal %s to driver process" % sig)
+                log.debug("Sending signal %s to driver process" % sig)
                 os.kill(pid, sig)
                 process.wait()
             
@@ -334,7 +333,7 @@ class InstrumentDriverIntegrationTestCase(InstrumentDriverTestCase):   # Must in
         """
         InstrumentDriverTestCase.setUp(self)
         
-        Log.debug("InstrumentDriverIntegrationTestCase setUp")
+        log.debug("InstrumentDriverIntegrationTestCase setUp")
         self.init_port_agent()
         self.init_driver_process_client()
     
@@ -344,7 +343,7 @@ class InstrumentDriverIntegrationTestCase(InstrumentDriverTestCase):   # Must in
         """
         InstrumentDriverTestCase.tearDown(self)
         
-        Log.debug("InstrumentDriverIntegrationTestCase tearDown")
+        log.debug("InstrumentDriverIntegrationTestCase tearDown")
         self.stop_driver_process_client()
         self.stop_port_agent()
         
@@ -358,7 +357,7 @@ class InstrumentDriverIntegrationTestCase(InstrumentDriverTestCase):   # Must in
         asynchronous driver events.
         """
 
-        Log.info("Common integration test: test_process")
+        log.info("Common integration test: test_process")
         
         # Verify processes exist.
         self.assertNotEqual(self.driver_process, None)
@@ -415,7 +414,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         """
         @brief Setup test cases.
         """
-        Log.debug("InstrumentDriverQualificationTestCase setUp")
+        log.debug("InstrumentDriverQualificationTestCase setUp")
         
         self.container = Container.instance
         InstrumentDriverTestCase.setUp(self)
@@ -426,7 +425,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         """
         @brief Test teardown
         """
-        Log.debug("InstrumentDriverQualificationTestCase tearDown")
+        log.debug("InstrumentDriverQualificationTestCase tearDown")
         #self.stop_port_agent()
         #self.stop_data_subscribers()
         #self.stop_event_subscribers()
@@ -438,7 +437,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         """
         @brief One time setup class
         """
-        Log.debug("InstrumentDriverQualificationTestCase setupClass")
+        log.debug("InstrumentDriverQualificationTestCase setupClass")
         #cls.init_instrument_agent()
         
         
@@ -448,7 +447,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         @brief One time teardown class
         """
         
-        Log.debug("InstrumentDriverQualificationTestCase tear down class")
+        log.debug("InstrumentDriverQualificationTestCase tear down class")
         #cls.stop_instrument_agent()
     
     @classmethod
@@ -456,7 +455,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         """
         @brief Launch the instrument agent
         """
-        Log.info("Startup Instrument Agent")
+        log.info("Startup Instrument Agent")
         
         if not os.path.exists(cls._test_config.container_deploy_file):
             raise TestNoDeployFile(cls._test_config.container_deploy_file)
@@ -470,7 +469,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         
         # Start container.
         testcase._start_container()
-        Log.debug( "Capability container id: %s" % testcase.container.id )
+        log.debug( "Capability container id: %s" % testcase.container.id )
         
         # Bring up services in a deploy file (no need to message)
         testcase.container.start_rel_from_url(testcase._test_config.container_deploy_file)
@@ -523,7 +522,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         """
         @brief Stop the instrument agent
         """
-        Log.info("Stop the instrument agent")
+        log.info("Stop the instrument agent")
         
         # Derive a special test case so we can instantiate a testcase object.
         # then we can run start_container which initiallized the capability container
