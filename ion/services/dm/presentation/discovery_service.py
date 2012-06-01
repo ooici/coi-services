@@ -564,7 +564,7 @@ class DiscoveryService(BaseDiscoveryService):
                 log.warning("Query results exceeded search buffer limitations")
                 self.raise_search_buffer_exceeded()
             if id_only:
-                return list([i['_id'] for i in hits])
+                return [str(i['_id']) for i in hits]
             results = map(deserializer.deserialize,hits)
             return results
         
