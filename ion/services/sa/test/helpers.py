@@ -1,5 +1,9 @@
 from pyon.public import IonObject
+from pyon.public import RT
 from pyon.util.log import log
+
+from interface.objects import AttachmentType
+
 
 _sa_test_helpers_ionobj_count = {}
 
@@ -26,5 +30,33 @@ def any_old(resource_type, extra_fields={}):
 
     return ret
 
+def keyworded_attachment(resource_registry_client, resource_id, keywords, extra_fields={}):
+    """
+    create a generic attachment to a given resource -- a generic and unique attachment
+
+    @param resource_registry_client a service client
+    @param resource_id string the resource to get the attachment
+    @param keywords list of string keywords
+    @param extra_fields dict of extra fields to set.  "keywords" can be set here with no ill effects
+    """
+    
+    ret = any_old(RT.Attachment, extra_fields)
+    if not "attachment_type" in ret:
+        ret.attachment_type = AttachmentType.ASCII
+        
+    if not "contents" in ret:
+        ret.contents = "contents of %s" % ret.description
+
+    if not keywords in ret:
+        ret.keywords = []
+
+    for k in keywords:
+        ret.keywords.append(k)
+
+    resource_registry_client.create_attachment(resource_id, ret)
+
+    return ret
+                    
+    
 
 

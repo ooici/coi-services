@@ -7,7 +7,7 @@
 from ion.idk.metadata import Metadata
 from ion.idk.comm_config import CommConfig
 from ion.idk.config import Config
-from ion.idk.logger import Log
+from pyon.util.log import log
 
 from ion.idk import prompt
 
@@ -30,7 +30,8 @@ class SwitchDriver():
         """
         @brief collect connection information for the logger from the user
         """
-        self.comm_config = CommConfig.get_config_from_console(self.metadata)
+        config_path = "%s/%s" % (self.metadata.driver_dir(), CommConfig.config_filename())
+        self.comm_config = CommConfig.get_config_from_console(config_path)
         self.comm_config.get_from_console()
 
     def run(self):

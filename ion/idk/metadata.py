@@ -27,7 +27,8 @@ from ion.idk.exceptions import InvalidParameters
 class Metadata():
     """
     Gather and store metadata for the IDK driver creation process.  When the metadata is stored it also creates a link
-    to current.yml in the config dir.  That symlink indicates which driver you are currently working on.
+    to current
+    .yml in the config dir.  That symlink indicates which driver you are currently working on.
     """
 
     ###
@@ -109,7 +110,6 @@ class Metadata():
                 self.read_from_file()
             
         elif(not(driver_make or driver_model or driver_name)):
-            log.debug("Default constructor")
             self.read_from_file()
             
         else:

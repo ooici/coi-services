@@ -189,41 +189,6 @@ class LoadSystemPolicy(ImmediateProcess):
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
-                        </Apply>
-                        <SubjectAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </Apply>
-            </Condition>
-
-        </Rule>
-        '''
-
-
-        policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="Org", rule=policy_text,
-            description='A global Org policy rule that permits access to everything in the Org for a user with Org Manager role')
-
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
-        log.debug('Policy created: ' + policy_obj.name)
-
-        ##############
-
-        policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
-
-        policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-            <Description>
-                %s
-            </Description>
-
-            <Target>
-
-            </Target>
-
-            <Condition>
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
-                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ION_MANAGER</AttributeValue>
                         </Apply>
                         <SubjectAttributeDesignator
@@ -236,12 +201,15 @@ class LoadSystemPolicy(ImmediateProcess):
         '''
 
 
-        policy_obj = IonObject(RT.Policy, name='ION_Manager_Permit_Everything', definition_type="Org", rule=policy_text,
-            description='A global Org policy rule that permits access to everything across Orgs for user with ION Manager role')
+        policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="Org", rule=policy_text,
+            description='A global Org policy rule that permits access to everything in the Org for a user with Org Manager or ION Manager role')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
         policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
         log.debug('Policy created: ' + policy_obj.name)
+
+        ##############
+
 
 ##############
 

@@ -16,6 +16,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
+from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
 import gevent
@@ -494,7 +495,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return zip_obj
 
         # retrieve the resource
-        log.debug("reading inst agent resource")
+        log.debug("reading inst agent resource (for proof of existence)")
         instrument_agent_obj = self.instrument_agent.read_one(instrument_agent_id)
 
 
@@ -546,8 +547,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise BadRequest("Agent egg's PKG-INFO did not include a field called '%s'" % f)
 
         #determine egg name
-        egg_filename = "%s-%s-py2.7.egg'" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
+        egg_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
         log.debug("Egg filename is '%s'" % egg_filename)
+
+        egg_url = "http://%s%s/%s" % (CFG.service.instrument_management.driver_release_host,
+                                      CFG.service.instrument_management.driver_release_directory,
+                                      egg_filename)
+
+        egg_urlfile = "%s v%s.url" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
+
+
+
 
         #create attachment resources for each document in the zip
         log.debug("creating attachment objects")
@@ -605,7 +615,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         os.unlink(tempfilename)
 
 
-        #if that works, do the rest
+        #now we can do the ION side of things
+
+        #make an attachment for the url
+        attachments.append(IonObject(RT.Attachment,
+                                     name=egg_urlfile,
+                                     description="url to egg",
+                                     content="[InternetShortcut]\nURL=%s" % egg_url,
+                                     content_type="text/url",
+                                     keywords=[KeywordFlag.EGG_URL],
+                                     attachment_type=AttachmentType.ASCII))
+
+        #insert all attachments
         log.debug("inserting attachments")
         for att in attachments:
             self.RR.create_attachment(instrument_agent_id, att)
