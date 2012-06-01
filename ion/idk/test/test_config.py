@@ -32,7 +32,8 @@ ROOTDIR="/tmp/test_config.idk_test"
 # /tmp is a link on OS X
 if exists("/private/tmp"):
     ROOTDIR = "/private%s" % ROOTDIR
-    
+
+@unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestConfig(unittest.TestCase):
     """

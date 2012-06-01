@@ -39,6 +39,8 @@ if exists("/private/tmp"):
 TESTDIR="%s/mi/foo" % ROOTDIR
 
 
+@unittest.skip('Skip until moved to MI repo')
+@attr('UNIT', group='mi')
 class IDKPackageNose(unittest.TestCase):
     """
     Base class for IDK Package Tests
@@ -183,8 +185,9 @@ class IDKPackageNose(unittest.TestCase):
         The main test resource we will target for the tests
         """
         return "%s/%s" % (TESTDIR, "res/test_file")
-        
 
+
+@unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestDependencyList(IDKPackageNose):
     """
@@ -309,6 +312,7 @@ class TestDependencyList(IDKPackageNose):
         self.assertTrue("string.py" in dep_list)
 
 
+@unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestDriverFileList(IDKPackageNose):
     """

@@ -3,7 +3,7 @@
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
 
-from ion.idk.logger import Log
+from pyon.util.log import log
 
 class IDKException(Exception):
     """Base class for an exception related to IDK processes
@@ -14,7 +14,7 @@ class IDKException(Exception):
         self.error_code = error_code
         self.msg = msg
         
-        Log.error(self)
+        log.error(self)
     
 
 class TestNotInitialized(IDKException):

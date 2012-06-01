@@ -11,7 +11,7 @@ a mechanism to access the CM singleton.
 
 Usage:
 
-use ion.idk.config import Config
+from pyon.util.log import log
 
 Config().rebase()
 repo = Config().working_repo()
@@ -30,7 +30,7 @@ from ion.idk.exceptions import IDKConfigMissing
 from ion.idk.exceptions import IDKWrongRunningDirectory
 from ion.idk.exceptions import WorkingRepoNotSet
 
-from ion.idk.logger import Log
+from pyon.util.log import log
 from ion.idk.common import Singleton
 import pyon.util.config
 
