@@ -106,7 +106,7 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
         self.es = ep.ElasticSearch(host=CFG.server.elasticsearch.host, port=CFG.server.elasticsearch.port)
 
     def wipe(self):
-        index_list = IndexManagementService._es_call(self.es.list_indexes)
+        index_list = IndexManagementService._es_call(self.es.index_list)
         for index in index_list:
             IndexManagementService._es_call(self.es.index_delete,index)
 
@@ -130,7 +130,7 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
             cls='IndexBootStrap',
             config=config
         )
-        index_list = IndexManagementService._es_call(self.es.list_indexes)
+        index_list = IndexManagementService._es_call(self.es.index_list)
 
 
         for index in STD_INDEXES.iterkeys():
@@ -155,7 +155,7 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
             cls='IndexBootStrap',
             config=config
         )
-        index_list = IndexManagementService._es_call(self.es.list_indexes)
+        index_list = IndexManagementService._es_call(self.es.index_list)
 
 
         for index in STD_INDEXES.iterkeys():
