@@ -464,7 +464,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return self._fsm.on_event(InstrumentAgentEvent.GO_LAYER_PING, *args, **kwargs)
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('go_layer_ping not allowed in state %s.', self._fsm.get_current_state())
 
     def acmd_helo_agent(self, *args, **kwargs):
@@ -474,7 +474,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             return "PONG-" +  kwargs.get('message', 'UNDEFINED')
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('helo_agent not allowed in state %s.', self._fsm.get_current_state())
 
     def acmd_helo_driver(self, *args, **kwargs):
@@ -486,18 +486,9 @@ class InstrumentAgent(ResourceAgent):
             return self._dvr_client.cmd_dvr('process_echo', *args, **kwargs)
 
 
-        except StateError:
+        except InstrumentStateException:
             raise InstStateError('helo_driver not allowed in state %s.', self._fsm.get_current_state())
 
-    def acmd_initialize(self, *args, **kwargs):
-        """
-        Agent initialize command. Forward with args to state machine.
-        """
-        try:
-            return self._fsm.on_event(InstrumentAgentEvent.INITIALIZE, *args, **kwargs)
-
-        except StateError:
-            raise InstStateError('initialize not allowed in state %s.', self._fsm.get_current_state())
 
 
     def acmd_run(self, *args, **kwargs):
