@@ -7,6 +7,7 @@
 '''
 from pyon.core.exception import BadRequest
 from pyon.util.containers import DotDict
+from pyon.core.bootstrap import get_sys_name
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG
@@ -144,8 +145,8 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
     @skipIf(not use_es, 'No ElasticSearch')
     def test_clean_bootstrap(self):
         cc = self.container
-        IndexManagementService._es_call(self.es.index_delete,'sites_index')
-        response = IndexManagementService._es_call(self.es.index_create,'sites_index') # Force a conflict
+        IndexManagementService._es_call(self.es.index_delete,'%s_sites_index' % get_sys_name())
+        response = IndexManagementService._es_call(self.es.index_create,'%s_sites_index' % get_sys_name()) # Force a conflict
         IndexManagementService._check_response(response)
 
         config = CFG
