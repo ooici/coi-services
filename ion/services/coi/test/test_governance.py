@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
@@ -18,6 +17,8 @@ from interface.services.coi.iorg_management_service import OrgManagementServiceP
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
+from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
+
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from ion.services.coi.service_gateway_service import get_role_message_headers
 from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
@@ -51,12 +52,46 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 -----END CERTIFICATE-----"""
 
 
+TEST_POLICY_TEXT = '''
+        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
+                            <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+
+                <Actions>
+                    <Action>
+
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_exchange_space</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+
+
+                    </Action>
+                </Actions>
+
+            </Target>
+
+        </Rule>
+        '''
 
 class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
 
-@attr('INT', group='coi-governance')
+@attr('INT', group='coi')
 class TestGovernanceInt(IonIntegrationTestCase):
 
 
@@ -80,6 +115,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.id_client = IdentityManagementServiceProcessClient(node=self.container.node, process=process)
 
+        self.pol_client = PolicyManagementServiceProcessClient(node=self.container.node, process=process)
+
         self.org_client = OrgManagementServiceProcessClient(node=self.container.node, process=process)
 
         self.ims_client = InstrumentManagementServiceProcessClient(node=self.container.node, process=process)
@@ -96,15 +133,80 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sa_header_roles = get_role_message_headers(self.org_client.find_all_roles_by_user(self.system_actor._id))
         self.sa_user_header = {'ion-actor-id': self.system_actor._id, 'ion-actor-roles': sa_header_roles }
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    def test_basic_policy(self):
+
+        #Make sure that the system policies have been loaded
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
+
+        #Attempt to access an operation in service which does not have specific policies set
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
+
+        #Add a new policy to allow the the above service call.
+        policy_obj = IonObject(RT.Policy, name='Exchange_Management_Test_Policy', definition_type="Service", rule=TEST_POLICY_TEXT,
+            description='Allow specific operations in the Exchange Management Service for anonymous user')
+
+        test_policy_id = self.pol_client.create_policy(policy_obj, headers=self.sa_user_header)
+        self.pol_client.add_service_policy('exchange_management', test_policy_id, headers=self.sa_user_header)
+        log.info('Policy created: ' + policy_obj.name)
+
+        gevent.sleep(2)  # Wait for events to be fired and policy updated
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+        #disable the test policy to try again
+        self.pol_client.disable_policy(test_policy_id, headers=self.sa_user_header)
+
+        gevent.sleep(2)  # Wait for events to be fired and policy updated
+
+        #The same request that previously was allowed should not be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
+
+        #now enable the test policy to try again
+        self.pol_client.enable_policy(test_policy_id, headers=self.sa_user_header)
+
+        gevent.sleep(2)  # Wait for events to be fired and policy updated
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+        self.pol_client.remove_service_policy('exchange_management', test_policy_id, headers=self.sa_user_header)
+        self.pol_client.delete_policy(test_policy_id, headers=self.sa_user_header)
+
+        gevent.sleep(2)  # Wait for events to be fired and policy updated
+
+        #The same request that previously was allowed should not be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
+
+
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("Test is still not passing on buildbot all of the time")
     def test_org_policy(self):
 
         #Make sure that the system policies have been loaded
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
 
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
@@ -116,13 +218,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         user_roles = get_role_message_headers(self.org_client.find_all_roles_by_user(user_id))
         user_header = {'ion-actor-id': user_id, 'ion-actor-roles': user_roles }
-
-        #Attempt to access an operation in service which does not have specific policies set
-        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
-        with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj,self.ion_org._id)
-        self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
-
 
         #Attempt to enroll a user anonymously - should not be allowed
         with self.assertRaises(Unauthorized) as cm:
@@ -216,7 +311,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         # First try to request a role without being a member
         with self.assertRaises(BadRequest) as cm:
             req_id = self.org_client.request_role(org2_id, user_id, INSTRUMENT_OPERATOR, headers=user_header )
-        self.assertIn('A precondition for this request has not been satisfied: is_enrolled(org_id,user_id) == True',cm.exception.message)
+        self.assertIn('A precondition for this request has not been satisfied: is_enrolled(org_id,user_id)',cm.exception.message)
 
         requests = self.org_client.find_requests(org2_id, headers=self.sa_user_header)
         self.assertEqual(len(requests),0)
@@ -232,7 +327,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #User tried requesting enrollment again - this should fail
         with self.assertRaises(BadRequest) as cm:
             req_id = self.org_client.request_enroll(org2_id, user_id, headers=user_header )
-        self.assertIn('A precondition for this request has not been satisfied: enroll_req_exists(org_id,user_id) == False',cm.exception.message)
+        self.assertIn('A precondition for this request has not been satisfied: enroll_req_not_exist(org_id,user_id)',cm.exception.message)
 
         #Manager denies the request
         self.org_client.deny_request(org2_id,req_id,'To test the deny process', headers=self.sa_user_header)
@@ -253,6 +348,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         users = self.org_client.find_enrolled_users(org2_id, headers=self.sa_user_header)
         self.assertEqual(len(users),1)
+
+        #User tried requesting enrollment again - this should fail
+        with self.assertRaises(BadRequest) as cm:
+            req_id = self.org_client.request_enroll(org2_id, user_id, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: is_not_enrolled(org_id,user_id)',cm.exception.message)
+
 
         req_id = self.org_client.request_role(org2_id, user_id, INSTRUMENT_OPERATOR, headers=user_header )
 
@@ -309,7 +410,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #First make a acquire resource request with an non-enrolled user.
         with self.assertRaises(BadRequest) as cm:
             req_id = self.org_client.request_acquire_resource(org2_id,self.system_actor._id,ia_list[0]._id , headers=self.sa_user_header)
-        self.assertIn('A precondition for this request has not been satisfied: is_enrolled(org_id,user_id) == True',cm.exception.message)
+        self.assertIn('A precondition for this request has not been satisfied: is_enrolled(org_id,user_id)',cm.exception.message)
 
         req_id = self.org_client.request_acquire_resource(org2_id,user_id,ia_list[0]._id , headers=user_header)
 

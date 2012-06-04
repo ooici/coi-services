@@ -19,7 +19,7 @@ import yaml
 
 from ion.idk.config import Config
 from ion.idk.metadata import Metadata
-from ion.idk.logger import Log
+from pyon.util.log import log
 
 from ion.idk.exceptions import DriverParameterUndefined
 from ion.idk.exceptions import MissingTemplate
@@ -277,9 +277,9 @@ class DriverGenerator:
         if(os.path.exists(self.driver_path()) and not self.force):
             msg = "Warning: driver exists (" + self.driver_path() + ") not overwriting"
             sys.stderr.write(msg)
-            Log.warn(msg)
+            log.warn(msg)
         else:
-            Log.info("Generate driver code from template %s to file %s" % (self.driver_template(), self.driver_path()))
+            log.info("Generate driver code from template %s to file %s" % (self.driver_template(), self.driver_path()))
             
             template = self._get_template(self.driver_template())
             ofile = open( self.driver_path(), 'w' )

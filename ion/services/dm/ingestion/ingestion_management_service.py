@@ -51,6 +51,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
         self.serializer = IonObjectSerializer()
+        self.process_definition_id = None
 
 
     def on_start(self):
@@ -61,7 +62,8 @@ class IngestionManagementService(BaseIngestionManagementService):
             restype=RT.ProcessDefinition,
             name='ingestion_worker_process',
             id_only=True)
-        self.process_definition_id = res_list[0]
+        if len(res_list):
+            self.process_definition_id = res_list[0]
 
 
     def on_quit(self):
@@ -77,6 +79,12 @@ class IngestionManagementService(BaseIngestionManagementService):
         @param number_of_workers is the number of ingestion workers to create
         """
 
+        if self.process_definition_id is None:
+            process_definition = ProcessDefinition(name='ingestion_worker_process', description='Worker transform process for ingestion of datasets')
+            process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
+            process_definition.executable['class'] = 'IngestionWorker'
+            self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+ 
 
         # Give each ingestion configuration its own queue name to receive data on
         exchange_name = 'ingestion_queue'
