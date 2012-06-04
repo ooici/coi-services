@@ -47,6 +47,27 @@ COUCHDB_INDEXES = {
     'resources_couch_index'  : '%s_resources' % get_sys_name().lower()
 }
 ELASTICSEARCH_CONTEXT_SCRIPT = 'if(ctx.doc.lcstate == "RETIRED") { ctx.deleted = true; } ctx._id = ctx.doc._id; ctx._type = ctx.doc.type_'
+
+
+def get_events():
+    import inspect
+
+    import interface.objects as objs
+    from interface.objects import Event
+
+    classes = []
+    events  = []
+    for i in objs.__dict__.keys():
+        attr = getattr(objs,i)
+        if inspect.isclass(attr):
+            classes.append(attr)
+
+    for i in classes:
+        if issubclass(i,Event):
+            events.append(i.__name__)
+
+    return events
+
 class IndexBootStrap(ImmediateProcess):
     def on_start(self):
         if self.CFG.system.force_clean and not self.CFG.system.testing:
@@ -136,7 +157,9 @@ class IndexBootStrap(ImmediateProcess):
             IndexManagementService._es_call(self.es.index_delete,k)
 
         IndexManagementService._es_call(self.es.river_couchdb_delete,'%s_resources_index' % self.sysname)
+        IndexManagementService._es_call(self.es.river_couchdb_delete,'%s_events_index' % self.sysname)
         IndexManagementService._es_call(self.es.index_delete,'%s_resources_index' % self.sysname)
+        IndexManagementService._es_call(self.es.index_delete,'%s_events_index' % self.sysname)
 
 
         self.index_bootstrap()
@@ -228,12 +251,30 @@ class IndexBootStrap(ImmediateProcess):
         )
         IndexManagementService._check_response(response)
 
+        response = IndexManagementService._es_call(self.es.index_create,'%s_events_index' % self.sysname,
+            number_of_shards=self.index_shards,
+            number_of_replicas=self.index_replicas
+        )
+        IndexManagementService._check_response(response)
+        for event in get_events():
+            mappings = self.es_mapping(event)
+            response = IndexManagementService._es_call(self.es.raw, '%s_events_index/%s/_mapping' % (self.sysname, event), 'POST', mappings)
+            IndexManagementService._check_response(response)
+
+        response = IndexManagementService._es_call(self.es.river_couchdb_create,
+            index_name = '%s_events_index' % self.sysname,
+            couchdb_db = '%s_events' % self.sysname,
+            couchdb_host = CFG.server.couchdb.host,
+            couchdb_port = CFG.server.couchdb.port,
+            couchdb_user = CFG.server.couchdb.username,
+            couchdb_password = CFG.server.couchdb.password,
+            script= ELASTICSEARCH_CONTEXT_SCRIPT
+        )
+        IndexManagementService._check_response(response)
 
 
 
 
-        
-       
         #=======================================================================================
         # Construct the index resources 
         #=======================================================================================
@@ -261,4 +302,11 @@ class IndexBootStrap(ImmediateProcess):
             description='Resources Index',
             content_type=IndexManagementService.ELASTICSEARCH_INDEX,
             options=self.attr_mapping(RT.keys())
+        )
+
+        ims_cli.create_index(
+            name='%s_events_index' % self.sysname,
+            description='Events Index',
+            content_type=IndexManagementService.ELASTICSEARCH_INDEX,
+            options=self.attr_mapping(get_events())
         )

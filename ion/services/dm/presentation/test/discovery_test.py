@@ -6,7 +6,7 @@
 @description Integration and Unit tests for Discovery Service
 '''
 from unittest.case import skipIf, skip
-from pyon.public import log, PRED, CFG
+from pyon.public import log, PRED, CFG, RT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import get_sys_name
 from pyon.util.int_test import IonIntegrationTestCase
@@ -356,10 +356,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         super(DiscoveryIntTest, self).setUp()
 
         self._start_container()
-
-
-
-
         self.addCleanup(DiscoveryIntTest.es_cleanup)
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
@@ -396,6 +392,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         )
         indexes = STD_INDEXES.keys()
         indexes.append('%s_resources_index' % get_sys_name().lower())
+        indexes.append('%s_events_index' % get_sys_name().lower())
 
         for index in indexes:
             IndexManagementService._es_call(es.river_couchdb_delete,index)
@@ -661,6 +658,19 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
 
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_events_search(self):
+        # Create a resource to force a new event
 
+        dp = DataProcess()
+        dp_id, rev = self.rr.create(dp)
 
+        search_string = "SEARCH 'origin' IS '%s' FROM 'events_index'" % dp_id
+
+        results = self.poll(9, self.discovery.parse,search_string)
+        origin_type = results[0]['_source'].origin_type
+        origin_id = results[0]['_source'].origin
+
+        self.assertTrue(origin_type == RT.DataProcess)
+        self.assertTrue(origin_id == dp_id)
 
