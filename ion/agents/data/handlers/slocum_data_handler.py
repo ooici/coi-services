@@ -16,25 +16,40 @@ from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 import numpy as np
 from StringIO import StringIO
 import urllib2
-
-
-PACKET_CONFIG = {
-    'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
-}
+import os, glob
 
 class SlocumDataHandler(BaseDataHandler):
     @classmethod
     def _init_acquisition_cycle(cls, config):
+        # TODO: Can't do this here because we won't have a file name!!  Just a directory :)
         ext_dset_res = get_safe(config, 'external_dataset_res', None)
         if ext_dset_res:
             ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
+            hdr_cnt = get_safe(ext_dset_res.dataset_description.parameters, 'header_count', 17)
             log.debug('Instantiate a SlocumParser for dataset: \'{0}\''.format(ds_url))
-            config['parser'] = SlocumParser(ds_url)
-
+            config['parser'] = SlocumParser(ds_url, hdr_cnt)
 
     @classmethod
     def _new_data_constraints(cls, config):
-        return {}
+        old_list = get_safe(config, 'new_data_check')
+
+        ret = {'then_files':old_list}
+
+        ext_dset_res = get_safe(config, 'external_dataset_res', None)
+        if ext_dset_res:
+            ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
+            dname=os.path.dirname(ds_url)
+            pattern = ext_dset_res.dataset_description.parameters['filename_pattern']
+            curr_list = glob.glob(dname + '/' + pattern)
+            ret['now_files'] = curr_list
+            if old_list is None:
+                new_list = curr_list
+            else:
+                new_list = [x for x in curr_list if x not in old_list]
+
+            ret['new_files'] = new_list
+
+        return ret
 
     @classmethod
     def _get_data(cls, config):
@@ -74,7 +89,7 @@ class SlocumParser(object):
     sensor_map = {}
     data_map = {}
 
-    def __init__(self, url=None):
+    def __init__(self, url=None, header_size=17):
         if not url:
             raise SystemError('Must provide a filename')
 
@@ -82,6 +97,8 @@ class SlocumParser(object):
             open_op = urllib2.urlopen
         else:
             open_op = open
+
+        self.header_size = int(header_size)
 
         with open_op(url) as f:
             # Get a byte-string generator for use in the data-retrieval loop (to avoid opening the file every time)

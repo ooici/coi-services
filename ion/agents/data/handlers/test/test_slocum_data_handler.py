@@ -32,6 +32,7 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
     def test__init_acquisition_cycle_ext_ds_res(self, SlocumParser_mock):
         edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
         edres.dataset_description.parameters['dataset_path'] = 'test_data/ru05-2012-021-0-0-sbd.dat'
+        edres.dataset_description.parameters['header_count'] = 17
         config = {'external_dataset_res':edres}
         SlocumDataHandler._init_acquisition_cycle(config)
 
@@ -42,6 +43,18 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
     def test__new_data_constraints(self):
         ret = SlocumDataHandler._new_data_constraints({})
         self.assertIsInstance(ret, dict)
+
+        edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
+        edres.dataset_description.parameters['dataset_path'] = 'test_data/ru05-2012-021-0-0-sbd.dat'
+        edres.dataset_description.parameters['header_count'] = 17
+        edres.dataset_description.parameters['filename_pattern'] = 'ru05-*-sbd.dat' # Shell-style pattern - NOT regex: see glob documentation
+        config = {
+            'external_dataset_res':edres,
+#            'new_data_check':None,
+            'new_data_check':['test_data/ru05-2012-021-0-0-sbd.dat', 'test_data/ru05-2012-022-0-0-sbd.dat',],
+        }
+        ret = SlocumDataHandler._new_data_constraints(config)
+        log.warn(ret)
 
     def test__get_data(self):
         pass

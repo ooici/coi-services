@@ -23,11 +23,6 @@ import time
 
 from netCDF4 import Dataset
 
-
-PACKET_CONFIG = {
-    'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
-}
-
 class NetcdfDataHandler(BaseDataHandler):
 
     @classmethod

@@ -29,13 +29,6 @@ import gevent
 from gevent.coros import Semaphore
 import time
 
-# todo: rethink this
-# Stream Packet configuration - originally from import
-#from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
-PACKET_CONFIG = {
-    'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
-}
-
 class DataHandlerParameter(DriverParameter):
     """
     Base DataHandler parameters.  Inherits from DriverParameter.  Subclassed by specific handlers
