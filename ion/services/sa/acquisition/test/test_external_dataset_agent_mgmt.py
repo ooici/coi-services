@@ -59,7 +59,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='mmmm')
+@attr('INT', group='sa')
 #@unittest.skip('not working yet...')
 class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
 
