@@ -169,6 +169,20 @@ class ResourceImpl(object):
         self.lce_precondition[transition] = precondition_predicate_fn
 
 
+    def use_policy(self, policy_predicate_fn):
+        """
+        turn a policy-style function (taking resource_id, returning boolean) and have it return strings instead
+        """
+        def freeze():
+            def wrapper(resource_id):
+                if policy_predicate_fn(resource_id):
+                    return ""
+                else:
+                    return "%s returned false" % str(policy_predicate_fn)
+
+            return wrapper
+
+        return freeze()
 
     ##################################################
     #
