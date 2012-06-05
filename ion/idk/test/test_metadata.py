@@ -24,6 +24,7 @@ from ion.idk.metadata import Metadata
 
 from ion.idk.exceptions import InvalidParameters
 
+@unittest.skip('Skip until moved to MI repo')
 @attr('UNIT', group='mi')
 class TestMetadata(unittest.TestCase):
     """

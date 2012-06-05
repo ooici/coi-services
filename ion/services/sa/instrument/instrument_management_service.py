@@ -495,7 +495,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return zip_obj
 
         # retrieve the resource
-        log.debug("reading inst agent resource")
+        log.debug("reading inst agent resource (for proof of existence)")
         instrument_agent_obj = self.instrument_agent.read_one(instrument_agent_id)
 
 

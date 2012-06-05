@@ -1,7 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, IonObject
-#from pyon.util.log import log
+from pyon.util.log import log
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -17,22 +17,25 @@ from pyon.public import RT, LCS, LCE
 from nose.plugins.attrib import attr
 import unittest
 
-from ion.services.sa.test.helpers import any_old
+from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
-# some stuff for logging info to the console
-import sys
-log = DotDict()
-printout = sys.stderr.write
-printout = lambda x: None
+from ion.services.sa.instrument.flag import KeywordFlag
 
-log.debug = lambda x: printout("DEBUG: %s\n" % x)
-log.info = lambda x: printout("INFO: %s\n" % x)
-log.warn = lambda x: printout("WARNING: %s\n" % x)
+
+# some stuff for logging info to the console
+# import sys
+# log = DotDict()
+# printout = sys.stderr.write
+# printout = lambda x: None
+#
+# log.debug = lambda x: printout("DEBUG: %s\n" % x)
+# log.info = lambda x: printout("INFO: %s\n" % x)
+# log.warn = lambda x: printout("WARNING: %s\n" % x)
 
 
 
@@ -322,30 +325,38 @@ class TestAssembly(IonIntegrationTestCase):
         
         self.generic_lcs_pass(self.client.IMS, "platform_agent", platform_agent_id, LCE.PLAN, LCS.PLANNED)
         self.generic_lcs_fail(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEVELOP)
-
         log.info("Associate platform model with platform agent")
         self.generic_association_script(c.IMS.assign_platform_model_to_platform_agent,
                                         platform_agent_impl.find_having_model,
                                         platform_agent_impl.find_stemming_model,
                                         platform_agent_id,
                                         platform_model_id)
-
         self.generic_lcs_pass(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEVELOP, LCS.DEVELOPED)
-        
+        self.generic_lcs_fail(self.client.IMS, "platform_agent", platform_agent_id, LCE.INTEGRATE)
+        add_keyworded_attachment(self.client.RR, platform_agent_id, [KeywordFlag.EGG_URL])
+        self.generic_lcs_pass(self.client.IMS, "platform_agent", platform_agent_id, LCE.INTEGRATE, LCS.INTEGRATED)
+        self.generic_lcs_fail(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEPLOY)
+        add_keyworded_attachment(self.client.RR, platform_agent_id, [KeywordFlag.CERTIFICATION, "platform attachment"])
+        self.generic_lcs_pass(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEPLOY, LCS.DEPLOYED)
 
 
         self.generic_lcs_pass(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.PLAN, LCS.PLANNED)
         self.generic_lcs_fail(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.DEVELOP)
-
         log.info("Associate instrument model with instrument agent")
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_agent,
                                         c.IMS.find_instrument_agent_by_instrument_model,
                                         c.IMS.find_instrument_model_by_instrument_agent,
                                         instrument_agent_id,
                                         instrument_model_id)
-
         self.generic_lcs_pass(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.DEVELOP, LCS.DEVELOPED)
+        self.generic_lcs_fail(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.INTEGRATE)
+        add_keyworded_attachment(self.client.RR, instrument_agent_id, [KeywordFlag.EGG_URL])
+        self.generic_lcs_pass(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.INTEGRATE, LCS.INTEGRATED)
+        self.generic_lcs_fail(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.DEPLOY)
+        add_keyworded_attachment(self.client.RR, instrument_agent_id, [KeywordFlag.CERTIFICATION])
+        self.generic_lcs_pass(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.DEPLOY, LCS.DEPLOYED)
 
+        #platform instrument DELETEME just for find/replace
 
         #----------------------------------------------
         #
@@ -623,6 +634,7 @@ class TestAssembly(IonIntegrationTestCase):
         log.info("Creating a %s" % resource_label)
         generic_obj = any_old(resource_iontype)
         generic_id = some_service.create_widget(generic_obj)
+        self.assertIsNotNone(generic_id, "%s failed its creation" % resource_iontype)
 
         log.info("Reading %s #%s" % (resource_label, generic_id))
         generic_ret = some_service.read_widget(generic_id)

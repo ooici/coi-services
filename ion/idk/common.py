@@ -25,3 +25,9 @@ class Singleton(object):
     def init(self, *args, **kwds):
         pass
 
+    def destroy(cls):
+        """Destroy the singleton object"""
+        it = cls.__dict__.get("__it__")
+        if it is not None:
+            cls.__dict__["__it__"] = None
+

@@ -211,11 +211,12 @@ class DatastoreAdmin(ImmediateProcess):
         ds_list = ['resources', 'objects', 'state', 'events', 'directory', 'scidata']
         blame_objs = {}
         for ds_name in ds_list:
+            ret_objs = []
             try:
                 ds = DatastoreManager.get_datastore_instance(ds_name)
+                ret_objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
             except BadRequest:
                 continue
-            ret_objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
             objs = []
             for obj_id, obj_key, obj in ret_objs:
                 if "blame_" in obj:

@@ -136,7 +136,7 @@ class LoadSystemPolicy(ImmediateProcess):
             description='A global Org policy rule which specifies operations that are allowed with anonymous access')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
 
 ##############
@@ -168,7 +168,7 @@ class LoadSystemPolicy(ImmediateProcess):
             description='A global Org policy rule that denies anonymous access to everything in the Org as the base')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
 
 ###############
@@ -189,41 +189,6 @@ class LoadSystemPolicy(ImmediateProcess):
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
-                        </Apply>
-                        <SubjectAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </Apply>
-            </Condition>
-
-        </Rule>
-        '''
-
-
-        policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="Org", rule=policy_text,
-            description='A global Org policy rule that permits access to everything in the Org for a user with Org Manager role')
-
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
-        log.debug('Policy created: ' + policy_obj.name)
-
-        ##############
-
-        policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
-
-        policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-            <Description>
-                %s
-            </Description>
-
-            <Target>
-
-            </Target>
-
-            <Condition>
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
-                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ION_MANAGER</AttributeValue>
                         </Apply>
                         <SubjectAttributeDesignator
@@ -236,12 +201,15 @@ class LoadSystemPolicy(ImmediateProcess):
         '''
 
 
-        policy_obj = IonObject(RT.Policy, name='ION_Manager_Permit_Everything', definition_type="Org", rule=policy_text,
-            description='A global Org policy rule that permits access to everything across Orgs for user with ION Manager role')
+        policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="Org", rule=policy_text,
+            description='A global Org policy rule that permits access to everything in the Org for a user with Org Manager or ION Manager role')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header)
+        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
+
+        ##############
+
 
 ##############
 
@@ -302,7 +270,7 @@ class LoadSystemPolicy(ImmediateProcess):
             description='Permit anonymous access to these operations in the Datastore Service if called from the Bootstrap Service')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('datastore', policy_id, headers=sa_user_header)
+        policy_client.add_service_policy('datastore', policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
 
 
@@ -374,7 +342,7 @@ class LoadSystemPolicy(ImmediateProcess):
             description='Permit anonymous access to these operations in the Resource Registry Service if called from the Identity Management Service')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('resource_registry', policy_id, headers=sa_user_header)
+        policy_client.add_service_policy('resource_registry', policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
 
 
@@ -440,7 +408,7 @@ class LoadSystemPolicy(ImmediateProcess):
             description='Permit anonymous access to these operations in the Identity Management Service if called from the Bootstrap Service')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('identity_management', policy_id, headers=sa_user_header)
+        policy_client.add_service_policy('identity_management', policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
 
 ##############
@@ -560,7 +528,7 @@ class LoadSystemPolicy(ImmediateProcess):
             description='Deny these operations in the Org Management Service if not the role of Org Manager')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('org_management', policy_id, headers=sa_user_header)
+        policy_client.add_service_policy('org_management', policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
 
         ##############
@@ -626,6 +594,5 @@ class LoadSystemPolicy(ImmediateProcess):
             description='Deny these operations in the Instrument Management Service if not the role of Instrument Operator')
 
         policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('instrument_management', policy_id, headers=sa_user_header)
+        policy_client.add_service_policy('instrument_management', policy_id, headers=sa_user_header, timeout=20)
         log.debug('Policy created: ' + policy_obj.name)
-

@@ -84,8 +84,8 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
 
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
-        ssh_retval = subprocess.call(["ssh", "-q", "-o", "PasswordAuthentication=no", 
-                                      "-f", "true", remotehost])
+        ssh_retval = subprocess.call(["ssh", "-o", "PasswordAuthentication=no", 
+                                      remotehost, "-f", "true"])
         
         if 0 != ssh_retval:
             raise unittest.SkipTest("SSH/SCP credentials to %s didn't work" % remotehost)
