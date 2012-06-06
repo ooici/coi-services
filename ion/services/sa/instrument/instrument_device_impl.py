@@ -13,6 +13,7 @@ from pyon.core.exception import NotFound, BadRequest
 
 
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.services.sa.instrument.policy import DevicePolicy
 
 class InstrumentDeviceImpl(ResourceImpl):
     """
@@ -24,9 +25,12 @@ class InstrumentDeviceImpl(ResourceImpl):
         if hasattr(self.clients, "data_acquisition_management"):
             self.DAMS = self.clients.data_acquisition_management
 
-        self.add_lce_precondition(LCE.PLAN, self.lce_precondition_plan)
-        self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
-        self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
+        self.policy = DevicePolicy(self.clients)
+
+        self.add_lce_precondition(LCE.PLAN, self.use_policy(self.policy.lce_precondition_plan))
+        self.add_lce_precondition(LCE.DEVELOP, self.use_policy(self.policy.lce_precondition_develop))
+        self.add_lce_precondition(LCE.INTEGRATE, self.use_policy(self.policy.lce_precondition_integrate))
+        self.add_lce_precondition(LCE.DEPLOY, self.use_policy(self.policy.lce_precondition_deploy))
 
     def _primary_object_name(self):
         return RT.InstrumentDevice
