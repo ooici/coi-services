@@ -326,6 +326,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    #@unittest.skip("Skipping for debugging ")
     def test_SA_transform_components(self):
 
         assertions = self.assertTrue
@@ -390,7 +391,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for now to get build to pass - some service calls are taking longer than 10 seconds")
+    #@unittest.skip("Skipping for debugging ")
     def test_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -411,6 +412,8 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Create it in the resource registry
         workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
 
+        aids = self.rrclient.find_associations(workflow_def_id, PRED.hasDataProcessDefinition, None)
+        assertions(len(aids) == 2 )
 
         #The list of data product streams to monitor
         data_product_stream_ids = list()
@@ -422,21 +425,15 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Create and start the workflow
         workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
 
-
-
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_ids) == 1 )
 
-        process_ids,_ = self.rrclient.find_objects(workflow_ids[0], PRED.hasProcess, RT.DataProcess, True)
-        assertions(len(process_ids) == 2 )
+        workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
+        assertions(len(workflow_dp_ids) == 2 )
 
-        for p in process_ids:
-
-            out_dp_ids, _ = self.rrclient.find_objects(p, PRED.hasOutputProduct, None, True)
-            assertions(len(out_dp_ids) == 1 )
-
-            stream_ids, _ = self.rrclient.find_objects(out_dp_ids[0], PRED.hasStream, None, True)
+        for dp_id in workflow_dp_ids:
+            stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, None, True)
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
@@ -448,8 +445,12 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         results = self._start_output_stream_listener(data_product_stream_ids)
 
         #Stop the workflow processes
-        for p in process_ids:
-            self.dataprocessclient.deactivate_data_process(p)
+        self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=15)  # Should test true at some point
+
+        #Make sure the Workflow object was removed
+        objs, _ = self.rrclient.find_resources(restype=RT.Workflow)
+        assertions(len(objs) == 0)
+
 
         # stop the flow parse the messages...
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
@@ -576,7 +577,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         #Add a transformation process definition
         google_dt_procdef_id = self._create_google_dt_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -596,18 +597,13 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_ids) == 1 )
 
-        process_ids,_ = self.rrclient.find_objects(workflow_ids[0], PRED.hasProcess, RT.DataProcess, True)
-        assertions(len(process_ids) == 1 )
+        workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
+        assertions(len(workflow_dp_ids) == 1 )
 
-        for p in process_ids:
-
-            out_dp_ids, _ = self.rrclient.find_objects(p, PRED.hasOutputProduct, None, True)
-            assertions(len(out_dp_ids) == 1 )
-
-            stream_ids, _ = self.rrclient.find_objects(out_dp_ids[0], PRED.hasStream, None, True)
+        for dp_id in workflow_dp_ids:
+            stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, None, True)
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
-
 
         #Start the input stream process
         ctd_sim_pid = self._start_input_stream_process(ctd_stream_id)
@@ -615,9 +611,9 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Start the output stream listener to monitor and verify messages
         results = self._start_output_stream_listener(data_product_stream_ids)
 
+
         #Stop the workflow processes
-        for p in process_ids:
-            self.dataprocessclient.deactivate_data_process(p)
+        self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
 
         # stop the flow parse the messages...
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
@@ -641,7 +637,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         #Add a transformation process definition
         mpl_graphs_procdef_id = self._create_mpl_graphs_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=mpl_graphs_procdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=mpl_graphs_procdef_id)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -661,18 +657,13 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         workflow_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_ids) == 1 )
 
-        process_ids,_ = self.rrclient.find_objects(workflow_ids[0], PRED.hasProcess, RT.DataProcess, True)
-        assertions(len(process_ids) == 1 )
+        workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
+        assertions(len(workflow_dp_ids) == 1 )
 
-        for p in process_ids:
-
-            out_dp_ids, _ = self.rrclient.find_objects(p, PRED.hasOutputProduct, None, True)
-            assertions(len(out_dp_ids) == 1 )
-
-            stream_ids, _ = self.rrclient.find_objects(out_dp_ids[0], PRED.hasStream, None, True)
+        for dp_id in workflow_dp_ids:
+            stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, None, True)
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
-
 
         #Start the input stream process
         ctd_sim_pid = self._start_input_stream_process(ctd_stream_id)
@@ -681,8 +672,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         results = self._start_output_stream_listener(data_product_stream_ids)
 
         #Stop the workflow processes
-        for p in process_ids:
-            self.dataprocessclient.deactivate_data_process(p)
+        self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
 
         # stop the flow parse the messages...
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data

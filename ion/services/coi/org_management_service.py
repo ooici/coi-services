@@ -887,11 +887,13 @@ class OrgManagementService(BaseOrgManagementService):
         for com in commitment_list:
             if com.org_id == org_id and com.user_id == user_id:
                 aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, com)
-                self.clients.resource_registry.delete_association(aid[0])
+                if aid:
+                    self.clients.resource_registry.delete_association(aid[0])
 
                 aid = self.clients.resource_registry.find_associations(user_id, PRED.hasCommitment, com)
-                self.clients.resource_registry.delete_association(aid[0])
-                self.clients.resource_registry.delete(com._id)
+                if aid:
+                    self.clients.resource_registry.delete_association(aid[0])
+                    self.clients.resource_registry.delete(com._id)
 
         return True
 
