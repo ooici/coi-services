@@ -422,7 +422,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification_id, _ = self.clients.resource_registry.create(notification)
 
         # Retrieve the user's user_info object to get their email address
-        user_info = self.clients.resource_registry.read(user_id)
+#        user_info = self.clients.resource_registry.read(user_id)
 
         # create event processor for user
         self.event_processors[notification_id] = create_event_processor(notification_request=notification,user_id=user_id)
