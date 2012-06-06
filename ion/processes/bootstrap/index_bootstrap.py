@@ -46,6 +46,11 @@ STD_INDEXES  = {
 COUCHDB_INDEXES = {
     'resources_couch_index'  : '%s_resources' % get_sys_name().lower()
 }
+
+EDGE_INDEXES = {
+    '%s_resources_index' % get_sys_name().lower() : 'Index containing all resources',
+    '%s_events_index'    % get_sys_name().lower() : 'Index containing Pyon Events'
+}
 ELASTICSEARCH_CONTEXT_SCRIPT = 'if(ctx.doc.lcstate == "RETIRED") { ctx.deleted = true; } ctx._id = ctx.doc._id; ctx._type = ctx.doc.type_'
 
 
@@ -156,10 +161,9 @@ class IndexBootStrap(ImmediateProcess):
             IndexManagementService._es_call(self.es.river_couchdb_delete,k)
             IndexManagementService._es_call(self.es.index_delete,k)
 
-        IndexManagementService._es_call(self.es.river_couchdb_delete,'%s_resources_index' % self.sysname)
-        IndexManagementService._es_call(self.es.river_couchdb_delete,'%s_events_index' % self.sysname)
-        IndexManagementService._es_call(self.es.index_delete,'%s_resources_index' % self.sysname)
-        IndexManagementService._es_call(self.es.index_delete,'%s_events_index' % self.sysname)
+        for k,v in EDGE_INDEXES.iteritems():
+            IndexManagementService._es_call(self.es.river_couchdb_delete,k)
+            IndexManagementService._es_call(self.es.index_delete,k)
 
 
         self.index_bootstrap()
@@ -169,10 +173,15 @@ class IndexBootStrap(ImmediateProcess):
         Creates the initial set of desired indexes based on a standard definition
         '''
 
-        #---------------------------------------------------------------------------------------
+        #=======================================================================================
         # Create the _river index based on the cluster configurations
-        #---------------------------------------------------------------------------------------
-        IndexManagementService._es_call(self.es.index_create,'_river',number_of_shards = self.river_shards, number_of_replicas = self.river_replicas)
+        #=======================================================================================
+        IndexManagementService._es_call(
+            self.es.index_create,
+            '_river',
+            number_of_shards = self.river_shards, 
+            number_of_replicas = self.river_replicas
+        )
 
         filters = {
             '_id' : '_design/filters',
@@ -185,7 +194,8 @@ class IndexBootStrap(ImmediateProcess):
         #=======================================================================================
 
         for k,v in STD_INDEXES.iteritems():
-            response = IndexManagementService._es_call(self.es.index_create,
+            response = IndexManagementService._es_call(
+                self.es.index_create,
                 k,
                 number_of_shards=self.index_shards,
                 number_of_replicas=self.index_replicas
@@ -214,6 +224,10 @@ class IndexBootStrap(ImmediateProcess):
 
         db.create(filters)
 
+        #--------------------------------------------------------------------------------
+        # Create the river connection between CouchDB and ElasticSearch
+        #--------------------------------------------------------------------------------
+
         for k,v in STD_INDEXES.iteritems():
             response = IndexManagementService._es_call(self.es.river_couchdb_create,
                 index_name = k,
@@ -228,8 +242,13 @@ class IndexBootStrap(ImmediateProcess):
             IndexManagementService._check_response(response)
 
         #=======================================================================================
-        # For each of the resource types add a mapping to the resources_index
+        # Create and map the edge indexes
         #=======================================================================================
+
+        #--------------------------------------------------------------------------------
+        # Resources Index
+        #--------------------------------------------------------------------------------
+
         response = IndexManagementService._es_call(self.es.index_create,'%s_resources_index' % self.sysname,
             number_of_shards=self.index_shards,
             number_of_replicas=self.index_replicas
@@ -250,6 +269,10 @@ class IndexBootStrap(ImmediateProcess):
             script= ELASTICSEARCH_CONTEXT_SCRIPT
         )
         IndexManagementService._check_response(response)
+
+        #--------------------------------------------------------------------------------
+        # Events Index
+        #--------------------------------------------------------------------------------
 
         response = IndexManagementService._es_call(self.es.index_create,'%s_events_index' % self.sysname,
             number_of_shards=self.index_shards,
@@ -276,10 +299,14 @@ class IndexBootStrap(ImmediateProcess):
 
 
         #=======================================================================================
-        # Construct the index resources 
+        # Construct the resources
         #=======================================================================================
 
         ims_cli = IndexManagementServiceClient()
+
+        #--------------------------------------------------------------------------------
+        # Standard Indexes
+        #--------------------------------------------------------------------------------
 
         for index,resources in STD_INDEXES.iteritems():
             ims_cli.create_index(
@@ -289,6 +316,10 @@ class IndexBootStrap(ImmediateProcess):
                 options=self.attr_mapping(resources)
             )
 
+        #--------------------------------------------------------------------------------
+        # CouchDB Indexes
+        #--------------------------------------------------------------------------------
+        
         for index,datastore in COUCHDB_INDEXES.iteritems():
             ims_cli.create_index(
                 name=index,
@@ -296,6 +327,10 @@ class IndexBootStrap(ImmediateProcess):
                 content_type=IndexManagementService.COUCHDB_INDEX,
                 datastore_name=datastore
             )
+
+        #--------------------------------------------------------------------------------
+        # Edge Indexes
+        #--------------------------------------------------------------------------------
 
         ims_cli.create_index(
             name='%s_resources_index' % self.sysname,
