@@ -150,7 +150,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
         #Iterate through the workflow steps to setup the data processes and connect them together.
         for wf_step in workflow_definition.workflow_steps:
-            log.info("proc_def_id: " + wf_step.data_process_definition_id)
+            log.debug("wf_step.data_process_definition_id: " + wf_step.data_process_definition_id)
 
             data_process_definition = self.clients.resource_registry.read(wf_step.data_process_definition_id)
 
@@ -160,11 +160,16 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 raise Inconsistent("The data process definition %s is missing an association to an output stream definition" % data_process_definition._id )
             process_output_stream_def_id = stream_ids[0]
 
-            #Concatenate the name of the workflow and data process definition for the name of the data product output
-            data_process_name = workflow_definition.name + '_' + data_process_definition.name
+            #If an output name has been specified than use it for the final output product name
+            if workflow_definition.output_data_product_name is not '' and workflow_definition.workflow_steps[-1] == wf_step:
+                data_product_name = workflow_definition.output_data_product_name
+            else:
+                #Concatenate the name of the workflow and data process definition for the name of the data product output + plus
+                #a unique identifier for multiple instances of a workflow definition.
+                data_product_name = workflow_definition.name + '_' + data_process_definition.name + '_' + workflow_id
 
             # Create the output data product of the transform
-            transform_dp_obj = IonObject(RT.DataProduct, name=data_process_name,description=data_process_definition.description)
+            transform_dp_obj = IonObject(RT.DataProduct, name=data_product_name,description=data_process_definition.description)
             transform_dp_id = self.clients.data_product_management.create_data_product(transform_dp_obj, process_output_stream_def_id)
             if wf_step.persist_data:
                 self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=wf_step.persist_data, persist_metadata=wf_step.persist_metadata)
