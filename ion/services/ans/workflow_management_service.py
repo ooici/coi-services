@@ -227,7 +227,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
         for dp_id in workflow_dp_ids:
 
-            if delete_data_products: #TODO - may have to revist this once the SA level stabilizes
+            if delete_data_products: #TODO - may have to revisit this once the SA level stabilizes
                 self.clients.data_product_management.suspend_data_product_persistence(dp_id)
                 self.clients.data_product_management.delete_data_product(dp_id)
 
@@ -237,15 +237,15 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
 
         #Remove other associations
-        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasOutputProduct, RT.DataProduct)
+        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasOutputProduct)
         if aid:
             self.clients.resource_registry.delete_association(aid[0])
 
-        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasInputProduct, RT.DataProduct)
+        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasInputProduct)
         if aid:
             self.clients.resource_registry.delete_association(aid[0])
 
-        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDefinition, RT.DataProcessWorkflowDefinition)
+        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDefinition)
         if aid:
             self.clients.resource_registry.delete_association(aid[0])
 

@@ -61,8 +61,6 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        print 'started services'
-
         # Now create client to DataProductManagementService
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
@@ -90,14 +88,14 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=self.ctd_stream_def, name='Simulated CTD data')
 
 
-        print 'Creating new CDM data product with a stream definition'
+        log.debug('Creating new CDM data product with a stream definition')
         dp_obj = IonObject(RT.DataProduct,name=data_product_name,description='ctd stream test')
         try:
             ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
         except Exception as ex:
             self.fail("failed to create new data product: %s" %ex)
 
-        print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product_id
+        log.debug('new ctd_parsed_data_product_id = ', ctd_parsed_data_product_id)
 
         #Only ever need one device for testing purposes.
         instDevice_obj,_ = self.rrclient.find_resources(restype=RT.InstrumentDevice, name='SBE37IMDevice')
@@ -209,27 +207,27 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
             try:
                 psd = PointSupplementStreamParser(stream_definition=self.ctd_stream_def, stream_granule=message)
                 temp = psd.get_values('temperature')
-                print psd.list_field_names()
+                log.info(psd.list_field_names())
             except KeyError as ke:
                 temp = None
 
             if temp is not None:
                 assertions(isinstance(temp, numpy.ndarray))
 
-                print 'temperature=' + str(numpy.nanmin(temp))
+                log.info( 'temperature=' + str(numpy.nanmin(temp)))
 
                 first_salinity_values = None
 
             else:
                 psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
-                print psd.list_field_names()
+                log.info( psd.list_field_names())
 
                 # Test the handy info method for the names of fields in the stream def
                 assertions('salinity' in psd.list_field_names())
 
                 # you have to know the name of the coverage in stream def
                 salinity = psd.get_values('salinity')
-                print 'salinity=' + str(numpy.nanmin(salinity))
+                log.info( 'salinity=' + str(numpy.nanmin(salinity)))
 
                 assertions(isinstance(salinity, numpy.ndarray))
 
@@ -425,7 +423,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Create it in the resource registry
         workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
 
-        aids = self.rrclient.find_associations(workflow_def_id, PRED.hasDataProcessDefinition, None)
+        aids = self.rrclient.find_associations(workflow_def_id, PRED.hasDataProcessDefinition)
         assertions(len(aids) == 2 )
 
         #The list of data product streams to monitor
