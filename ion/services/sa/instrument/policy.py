@@ -78,8 +78,8 @@ class AgentPolicy(Policy):
     def lce_precondition_deploy(self, agent_id):
         if not self.lce_precondition_integrate(agent_id): return False
 
-        #no checking platform agents yet
-        if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
+        #if no checking platform agents yet, uncomment this
+        #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
 
         found = False
         for a in self._find_stemming(agent_id, PRED.hasAttachment, RT.Attachment):
@@ -93,8 +93,8 @@ class AgentPolicy(Policy):
     def lce_precondition_integrate(self, agent_id):
         if not self.lce_precondition_develop(agent_id): return False
 
-        #no checking platform agents yet
-        if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
+        #if not checking platform agents yet, uncomment this
+        #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
 
         found = False
         for a in self._find_stemming(agent_id, PRED.hasAttachment, RT.Attachment):
@@ -111,7 +111,10 @@ class AgentPolicy(Policy):
 
         if RT.InstrumentAgent == agent_type:
             return 0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.InstrumentModel))
+        elif RT.PlatformAgent == agent_type:
+            return 0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.PlatformModel))
         else:
             return False
 
     
+
