@@ -71,9 +71,20 @@ class Policy(object):
                                       False)
         return ret
 
+    def _has_keyworded_attachment(self, resource_id, desired_keyword):
+        for a in self._find_stemming(resource_id, PRED.hasAttachment, RT.Attachment):
+            for k in a.keywords:
+                if desired_keyword == k:
+                    return True
+        return False
+
 
 
 class AgentPolicy(Policy):
+
+    def lce_precondition_plan(self, agent_id):
+        # always OK
+        return True
 
     def lce_precondition_deploy(self, agent_id):
         if not self.lce_precondition_integrate(agent_id): return False
@@ -81,14 +92,7 @@ class AgentPolicy(Policy):
         #if no checking platform agents yet, uncomment this
         #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
 
-        found = False
-        for a in self._find_stemming(agent_id, PRED.hasAttachment, RT.Attachment):
-            for k in a.keywords:
-                if KeywordFlag.CERTIFICATION == k:
-                    found = True
-                    break
-
-        return found
+        return self._has_keyworded_attachment(agent_id, KeywordFlag.CERTIFICATION)
 
     def lce_precondition_integrate(self, agent_id):
         if not self.lce_precondition_develop(agent_id): return False
@@ -96,14 +100,7 @@ class AgentPolicy(Policy):
         #if not checking platform agents yet, uncomment this
         #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
 
-        found = False
-        for a in self._find_stemming(agent_id, PRED.hasAttachment, RT.Attachment):
-            for k in a.keywords:
-                if KeywordFlag.EGG_URL == k:
-                    found = True
-                    break
-
-        return found
+        return self._has_keyworded_attachment(agent_id, KeywordFlag.EGG_URL)
 
     def lce_precondition_develop(self, agent_id):
 
@@ -111,10 +108,50 @@ class AgentPolicy(Policy):
 
         if RT.InstrumentAgent == agent_type:
             return 0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.InstrumentModel))
-        elif RT.PlatformAgent == agent_type:
+
+        if RT.PlatformAgent == agent_type:
             return 0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.PlatformModel))
-        else:
-            return False
+
+        return False
 
     
+
+class DevicePolicy(Policy):
+
+    def lce_precondition_plan(self, device_id):
+        # always OK
+        return True
+
+    def lce_precondition_plan(self, device_id):
+
+        device_type = self._get_resource_type_by_id(agent_id)
+
+        if RT.InstrumentDevice == device_type:
+            return 0 < len(self._find_stemming(device_id, PRED.hasModel, RT.InstrumentModel))
+        
+        if RT.PlatformDevice == device_type:
+            return 0 < len(self._find_stemming(device_id, PRED.hasModel, RT.PlatformModel))
+
+        return False
+
+
+    def lce_precondition_develop(self, device_id):
+        if not self.lce_precondition_plan(device_id): return False
+        
+        device_type = self._get_resource_type_by_id(agent_id)
+
+        if RT.InstrumentDevice == device_type:
+            return 0 < len(self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance))
+        
+        if RT.PlatformDevice == device_type:
+            return 0 < len(self._find_stemming(device_id, PRED.hasAgentInstance, RT.PlatformAgentInstance))
+
+        return False
+
+
+    def lce_precondition_integrate(self, device_id):
+        if not self.lce_precondition_develop(device_id): return False
+            
+        return self._has_keyworded_attachment(agent_id, KeywordFlag.CERTIFICATION)
+
 
