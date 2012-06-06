@@ -323,28 +323,34 @@ class DetectionEventProcessor(EventProcessor):
 #        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
 
     def subscription_callback(self, message, headers):
-        filter_field = self.notification._res_obj.delivery_config.processing['filter_field']
-        condition = self.notification._res_obj.delivery_config.processing['condition']
-        try:
-            comparator = self.notification._res_obj.delivery_config.processing['comparator']
-            comparator_func = DetectionEventProcessor.comparators[comparator]
-        except KeyError:
-            raise BadRequest("Bad comparator specified in Detection filter: '%s'" % comparator)
 
-        field_val = getattr(message,filter_field)
-        if field_val is not None and comparator_func(field_val, condition):
-            log.info('Detected an event')
-            event_publisher = EventPublisher("DetectionEvent")
+        for processing in self.notification._res_obj.delivery_config.processing:
 
-            message = str(self.notification._res_obj.delivery_config)
+            filter_field = processing['filter_field']
+            condition = processing['condition']
+            try:
+                comparator = processing['comparator']
+                comparator_func = DetectionEventProcessor.comparators[comparator]
+            except KeyError:
+                raise BadRequest("Bad comparator specified in Detection filter: '%s'" % comparator)
 
-            #@David What should the origin and origin type be for Detection Events
-            event_publisher.publish_event(origin='DetectionEventProcessor',
-                message="Event Detected by DetectionEventProcessor",
-                description="Event was detected by DetectionEventProcessor",
-                condition = message, # Concatenate the filter and make it a message
-                original_origin = self.notification._res_obj.origin,
-                original_type = self.notification._res_obj.origin_type)
+            log.warning("the 3434 message: %s" % str(message))
+            log.warning("the type of message: %s" % type(message))
+
+            field_val = getattr(message,filter_field)
+            if field_val is not None and comparator_func(field_val, condition):
+                log.info('Detected an event')
+                event_publisher = EventPublisher("DetectionEvent")
+
+                message = str(processing)
+
+                #@David What should the origin and origin type be for Detection Events
+                event_publisher.publish_event(origin='DetectionEventProcessor',
+                    message="Event Detected by DetectionEventProcessor",
+                    description="Event was detected by DetectionEventProcessor",
+                    condition = message, # Concatenate the filter and make it a message
+                    original_origin = self.notification._res_obj.origin,
+                    original_type = self.notification._res_obj.origin_type)
 
 def create_event_processor(notification_request, user_id):
     if notification_request.type == NotificationType.EMAIL:

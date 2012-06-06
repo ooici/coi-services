@@ -482,9 +482,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create detection notification
         dfilt = DetectionFilterConfig()
 
-        dfilt.processing['condition'] = 5
-        dfilt.processing['comparator'] = '>'
-        dfilt.processing['filter_field'] = 'voltage'
+        config_1 = {}
+        config_2 = {}
+
+        config_1['condition'] = 10
+        config_1['comparator'] = '>'
+        config_1['filter_field'] = 'voltage'
+
+        config_2['condition'] = 5
+        config_2['comparator'] = '<'
+        config_2['filter_field'] = 'voltage'
+
+        dfilt.processing = [config_1, config_2]
 
         dfilt.delivery['message'] = 'I got my detection event!'
 
@@ -520,21 +529,31 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # publish an event for each notification to generate the emails
         rle_publisher = EventPublisher("ExampleDetectableEvent")
 
-        # since the voltage field in this event is less than 5, it will not be detected
+        # since the voltage field in this event is greater than 5 and less than 10, it will not be detected
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
-                                    voltage = 3)
+                                    voltage = 8)
 
         # Check at the end of the test to make sure this event never triggered a Detectable!
 
         # Send Event that is detected
         # publish an event for each notification to generate the emails
 
-        # since the voltage field in this event is greater than 5, it WILL be detected
+        # since the voltage field in this event is greater than 10, it WILL be detected
         rle_publisher = EventPublisher("ExampleDetectableEvent")
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
-                                    voltage = 10)
+                                    voltage = 20)
+
+#        # Send Event that is detected
+#        # publish an event for each notification to generate the emails
+#
+#        # since the voltage field in this event is less than 5, it WILL be detected
+#
+#        rle_publisher = EventPublisher("ExampleDetectableEvent")
+#        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+#            description="RLE test event",
+#            voltage = 4)
 
         #-------------------------------------------------------
         # make assertions
