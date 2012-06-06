@@ -334,9 +334,6 @@ class DetectionEventProcessor(EventProcessor):
             except KeyError:
                 raise BadRequest("Bad comparator specified in Detection filter: '%s'" % comparator)
 
-            log.warning("the 3434 message: %s" % str(message))
-            log.warning("the type of message: %s" % type(message))
-
             field_val = getattr(message,filter_field)
             if field_val is not None and comparator_func(field_val, condition):
                 log.info('Detected an event')
