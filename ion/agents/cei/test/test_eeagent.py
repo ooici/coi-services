@@ -46,6 +46,15 @@ def needs_eeagent(test):
     return wrapped
 
 
+class TestProcess(BaseService):
+    """Test process to deploy via EEA
+    """
+    name = __name__ + "test"
+
+    def on_init(self):
+        pass
+
+
 @attr('INT', group='cei')
 class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 
@@ -196,7 +205,7 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         round = 0
         run_type = "pyon_single"
         proc_name = 'test_transform'
-        module = 'ion.services.cei.test.test_process_dispatcher'
+        module = 'ion.agents.cei.test.test_eeagent'
         cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
@@ -277,7 +286,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         round = 0
         run_type = "pyon"
         proc_name = 'test_x'
-        module = 'ion.services.cei.test.test_process_dispatcher'
+        module = 'ion.agents.cei.test.test_eeagent'
         cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
@@ -302,7 +311,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         round = 0
         run_type = "pyon"
         proc_name = 'test_transform'
-        module = 'ion.services.cei.test.test_process_dispatcher'
+        module = 'ion.agents.cei.test.test_eeagent'
         cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
