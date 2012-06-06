@@ -88,8 +88,8 @@ class IndexBootStrapUnitTest(PyonTestCase):
         ibs.container = container
         ibs.on_start()
 
-        index_count = len(STD_INDEXES) + len(EDGE_INDEXES)
-        self.assertTrue(mock_es().index_create.call_count == index_count, 'Improper number of indices created')
+        index_count = len(STD_INDEXES) + len(EDGE_INDEXES) + 1 # for _river
+        self.assertTrue(mock_es().index_create.call_count == index_count, '(%s != %s) Improper number of indices created' %(mock_es().index_create.call_count , index_count))
 
         river_count = len(STD_INDEXES) + len(EDGE_INDEXES)
         self.assertTrue(mock_es().river_couchdb_create.call_count == river_count, 'Improper number of rivers created')
