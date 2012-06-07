@@ -119,6 +119,10 @@ class AgentPolicy(Policy):
 
         return False
 
+    def lce_precondition_retire(self, agent_id):
+        return 0 == self._find_having(PRED.hasAgentDefinition)
+    
+
 class ModelPolicy(Policy):
     def lce_precondition_plan(self, model_id):
         # always OK
@@ -136,6 +140,11 @@ class ModelPolicy(Policy):
         # todo
         return True
 
+    def lce_precondition_retire(self, model_id):
+        # todo: more than checking agents, devices, and sites?
+
+        return 0 == self._find_having(PRED.hasModel, model_id)
+        
 class DevicePolicy(Policy):
 
     def lce_precondition_plan(self, device_id):
@@ -186,15 +195,15 @@ class DevicePolicy(Policy):
         if not self.lce_precondition_develop(device_id): return False
 
         #Have an instrument site/deployed, site has agent, site agent == device agent
+        sites = self._find_having(PRED.hasDevice, device_id)
+        if 0 == len(sites):
+            return False
+        if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]):
+            return False
             
         device_type = self._get_resource_type_by_id(device_id)
 
         if RT.InstrumentDevice == device_type:
-            sites = self._find_having(PRED.hasDevice, RT.InstrumentDevice)
-            if 0 == len(sites):
-                return False
-            if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]):
-                return False
 
             siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.InstrumentAgent)
             if 0 == len(siteagents):
@@ -208,11 +217,6 @@ class DevicePolicy(Policy):
             return True
             
         if RT.PlatformDevice == device_type:
-            sites = self._find_having(PRED.hasDevice, RT.PlatformDevice)
-            if 0 == len(sites):
-                return False
-            if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]):
-                return False
 
             siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.PlatformAgent)
             if 0 == len(siteagents):
@@ -272,5 +276,21 @@ class DevicePolicy(Policy):
             if siteagents[0]._id != agents[0]._id:
                 return False
             return True
+
+        return False
+
+    def lce_precondition_retire(self, device_id):
+        if 0 < self._find_having(PRED.hasDevice, device_id): return False
+
+        device_type = self._get_resource_type_by_id(device_id)
+
+        if RT.SensorDevice == device_type:
+            return True
+
+        if RT.InstrumentDevice == device_type:
+            return 0 == self._find_having(device_id, PRED.hasDevice, RT.SensorDevice)
+
+        if RT.PlatformDevice == device_type:
+            return 0 == self._find_having(device_id, PRED.hasDevice, RT.InstrumentDevice)
 
         return False
