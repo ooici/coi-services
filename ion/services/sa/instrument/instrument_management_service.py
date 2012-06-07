@@ -370,9 +370,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.RR.update(instrument_agent_instance_obj)
 
-        """
-        Stop the port agent.
-        """
+
+        #Stop the port agent.
+
 #        if self._pagent:
 #            pid = self._pagent.get_pid()
 #            if pid:
@@ -496,7 +496,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # retrieve the resource
         log.debug("reading inst agent resource (for proof of existence)")
-        instrument_agent_obj = self.instrument_agent.read_one(instrument_agent_id)
+        self.instrument_agent.read_one(instrument_agent_id)
 
 
         #process the input files (base64-encoded zips)
@@ -588,9 +588,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         
 
         #move output egg to another directory / upload it somewhere
-        #TODO: change cfg_ to CFG.x.
 
-        cfg_host        = CFG.service.instrument_management.driver_release_host #'amoeaba.ucsd.edu'
+        cfg_host        = CFG.service.instrument_management.driver_release_host      #'amoeaba.ucsd.edu'
         cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
         cfg_user        = pwd.getpwuid(os.getuid())[0]
 
