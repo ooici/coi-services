@@ -51,9 +51,6 @@ from pyon.event.event import EventSubscriber
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.instrument.exceptions import InstrumentParameterException
 
-# todo: rethink this
-from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
-
 from pyon.ion.granule.taxonomy import TaxyTool
 
 

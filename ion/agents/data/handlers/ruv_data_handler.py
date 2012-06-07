@@ -6,40 +6,73 @@
 @author Christopher Mueller
 @brief 
 """
-
 from pyon.public import log
 from pyon.util.containers import get_safe
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
+from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer
 import numpy as np
 import re
 from StringIO import StringIO
 
+DH_CONFIG_DETAILS = {
+    'ds_desc_params': [
+        ('base_url',str,'base path/url for this dataset'),
+        ('pattern',str,'The filter pattern for this dataset.  If file-based, use shell-style notation; if remote (http, ftp), use regex'),
+    ],
+}
+
 class RuvDataHandler(BaseDataHandler):
     @classmethod
     def _init_acquisition_cycle(cls, config):
+        # TODO: Can't build a parser here because we won't have a file name!!  Just a directory :)
+        # May not be much to do in this method...
+        # maybe just ensure access to the dataset_dir and move some of the 'buried' params up to the config dict?
         ext_dset_res = get_safe(config, 'external_dataset_res', None)
-        if ext_dset_res:
-            ds_url = ext_dset_res.dataset_description.parameters['dataset_path']
-            log.debug('Instantiate a SlocumParser for dataset: \'{0}\''.format(ds_url))
-            config['parser'] = RuvParser(ds_url)
+        if not ext_dset_res:
+            raise SystemError('external_dataset_res not present in configuration, cannot continue')
+
+        config['ds_params'] = ext_dset_res.dataset_description.parameters
+
+#        base_url = ext_dset_res.dataset_description.parameters['base_url']
+#        pattern = get_safe(ext_dset_res.dataset_description.parameters, 'pattern')
+#        config['base_url'] = base_url
+#        config['pattern'] = pattern
 
     @classmethod
     def _new_data_constraints(cls, config):
-        return {}
+        old_list = get_safe(config, 'new_data_check') or []
+
+        ret = {}
+        base_url = get_safe(config,'ds_params.base_url')
+        pattern = get_safe(config,'ds_params.pattern')
+
+        curr_list = list_file_info(base_url, pattern)
+
+        new_list = [x for x in curr_list if x not in old_list]
+
+        ret['new_files'] = new_list
+
+        return ret
 
     @classmethod
     def _get_data(cls, config):
-        parser=get_safe(config, 'parser')
-        if parser:
-            log.warn('Header Info:\n{0}'.format(parser.header_map))
-            log.warn('Tables Available: {0}'.format(parser.table_map.keys()))
+        new_flst = get_safe(config, 'constraints.new_files', [])
+        log.debug('new_flist: {0}'.format(new_flst))
+        for f in new_flst:
+            try:
+                parser = RuvParser(f[0])
 
-        return []
+                log.warn('Header Info:\n{0}'.format(parser.header_map))
+                log.warn('Tables Available: {0}'.format(parser.table_map.keys()))
 
+                yield []
 
+            except RuvParseException as rpe:
+                # TODO: Decide what to do here, raise an exception or carry on
+                log.error('Error parsing data file: \'{0}\''.format(f))
 
 class RuvParser(object):
     _col_type_map = {
@@ -184,17 +217,13 @@ class RuvParser(object):
     def __init__(self, url):
 
         fstr = None
-        open_op = None
-        if url.startswith('http'):
-            open_op = urllib2.urlopen
-        else:
-            open_op = open
-
-        if open_op:
-            with open_op(url) as f:
-                fstr=f.read()
-        else:
-            raise RuvParseException('Unknown argument type: {0}'.format(url))
+        sb = None
+        try:
+            sb = get_sbuffer(url)
+            fstr = sb.read()
+        finally:
+            if not sb is None:
+                sb.close()
 
         if not fstr:
             raise RuvParseException('Error reading file: {0}'.format(url))

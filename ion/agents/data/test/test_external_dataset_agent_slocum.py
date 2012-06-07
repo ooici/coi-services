@@ -61,7 +61,8 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         ds_name = 'slocum_test_dataset'
         dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
 
-        dset.dataset_description.parameters['dataset_path'] = 'test_data/ru05-2012-021-0-0-sbd.dat'
+        dset.dataset_description.parameters['base_url'] = 'test_data/slocum/'
+        dset.dataset_description.parameters['pattern'] = 'ru05-2012-021-0-0-sbd.dat'
         dset.dataset_description.parameters['temporal_dimension'] = None
         dset.dataset_description.parameters['zonal_dimension'] = None
         dset.dataset_description.parameters['meridional_dimension'] = None
