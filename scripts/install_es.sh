@@ -2,22 +2,25 @@
 
 # Author: Luke Campbell <LCampbell@ASAScience.com>
 
-VERSION="0.18.7"
+VERSION="0.19.4"
 ES="elasticsearch-$VERSION"
 ES_GZ="$ES.tar.gz"
 URL="https://github.com/downloads/elasticsearch/elasticsearch/$ES_GZ"
 if [[ ! ( -n $INSTALL_DIR && -d $INSTALL_DIR ) ]]; then INSTALL_DIR="/usr/local"; fi
 ES_ROOT=$INSTALL_DIR/$ES
 
-JS_LANG_PLUGIN="elasticsearch/elasticsearch-lang-javascript/1.0.0"
-COUCHDB_RIVER_PLUGIN="elasticsearch/elasticsearch-river-couchdb/1.0.0"
+JS_LANG_PLUGIN="elasticsearch/elasticsearch-lang-javascript/1.1.0"
+COUCHDB_RIVER_PLUGIN="elasticsearch/elasticsearch-river-couchdb/1.1.0"
 HEAD_PLUGIN="mobz/elasticsearch-head"
+BIGDESK_PLUGIN="lukas-vlcek/bigdesk"
 
-USAGE=" bash install_es.sh [-h] \
-    -h Installs Head plugin which provides a visual representation of the ElasticSearch engine"
+USAGE=" bash install_es.sh [-h] [-b] [-u] \
+    -h Installs Head plugin which provides a visual representation of the ElasticSearch engine\
+    -b Installs BigDesk plugin which provides real-time monitoring of the cluster\
+    -u Uninstalls ElasticSearch"
     
 
-args=`getopt hu $*`
+args=`getopt hbu $*`
 if [[ $? -ne 0 ]]; then
     echo $USAGE
 fi
@@ -28,6 +31,9 @@ do
     in
         -h)
             INSTALL_HEAD=1
+            ;;
+        -b)
+            INSTALL_BIGDESK=1
             ;;
         -u)
             UNINSTALL=1
@@ -88,4 +94,6 @@ if [[ -n $INSTALL_HEAD ]]; then
     $ES_ROOT/bin/plugin -install $HEAD_PLUGIN
 fi
 
-
+if [[ -n $INSTALL_BIGDESK ]]; then
+    $ES_ROOT/bin/plugin -install $BIGDESK_PLUGIN
+fi
