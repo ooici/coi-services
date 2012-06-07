@@ -1139,10 +1139,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_device.unlink_agent_instance(instrument_device_id, instrument_agent_instance_id)
 
     def assign_platform_agent_instance_to_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
-        self.platform_agent.link_device_instance(platform_device_id, platform_agent_instance_id)
+        self.platform_device.link_agent_instance(platform_device_id, platform_agent_instance_id)
 
     def unassign_platform_agent_instance_from_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
-        self.platform_agent.unlink_device_instance(platform_device_id, platform_agent_instance_id)
+        self.platform_device.unlink_agent_instance(platform_device_id, platform_agent_instance_id)
 
     def assign_sensor_device_to_instrument_device(self, sensor_device_id='', instrument_device_id=''):
         self.instrument_device.link_device(instrument_device_id, sensor_device_id)
@@ -1212,23 +1212,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.platform_device.find_having_device(instrument_device_id)
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
-        return self.instrument_device.find_having_assignment(logical_instrument_id)
+        raise NotImplementedError("TODO: this function will be removed")
 
     def find_logical_instrument_by_instrument_device(self, instrument_device_id=''):
-        return self.instrument_device.find_stemming_assignment(instrument_device_id)
+        raise NotImplementedError("TODO: this function will be removed")
 
     def find_platform_device_by_logical_platform(self, logical_platform_id=''):
-        return self.platform_device.find_having_assignment(logical_platform_id)
+        raise NotImplementedError("TODO: this function will be removed")
 
     def find_logical_platform_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_assignment(platform_device_id)
-
+        raise NotImplementedError("TODO: this function will be removed")
 
     def find_data_product_by_instrument_device(self, instrument_device_id=''):
-        return self.instrument_device.find_stemming_output_product(instrument_device_id)
+        raise NotImplementedError("TODO: this function will be removed")
 
     def find_instrument_device_by_data_product(self, data_product_id=''):
-        return self.instrument_device.find_having_output_product(data_product_id)
+        raise NotImplementedError("TODO: this function will be removed")
 
 
     ############################
@@ -1338,25 +1337,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
    
 
-    def assign_primary_deployment(self, instrument_device_id='', logical_instrument_id=''):
+    def assign_primary_deployment(self, instrument_device_id='', instrument_site_id=''):
         """
         associate a logical instrument with a physical one.
         """
-
-        #verify that resources ids are valid, if not found RR will raise the error
-        instrument_device_obj = self.clients.resource_registry.read(instrument_device_id)
-        logical_instrument_obj = self.clients.resource_registry.read(logical_instrument_id)
 
         log.debug("assign_primary_deployment: instrument_device_obj  %s", str(instrument_device_obj))
 
         log.debug("assign_primary_deployment: instrument_device_obj  lcstate %s", str(instrument_device_obj.lcstate))
 
-        # Check that the InstrumentDevice is in DEPLOYED_* lifecycle state
+        # TODO: Check that the InstrumentDevice is in DEPLOYED_* lifecycle state
         #todo: check if there are other valid states
-        if instrument_device_obj.lcstate != LCS.DEPLOYED_AVAILABLE \
-            and instrument_device_obj.lcstate != LCS.DEPLOYED_PRIVATE \
-            and instrument_device_obj.lcstate != LCS.DEPLOYED_DISCOVERABLE:
-            raise BadRequest("This Instrument Device is in an invalid life cycle state  %s " %instrument_device_obj.name)
 
         # Check that the InstrumentDevice has association hasDeployment to this LogicalInstrument
         # Note: the device may also be deployed to other logical instruments, this is valid
