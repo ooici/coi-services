@@ -169,6 +169,20 @@ class ResourceImpl(object):
         self.lce_precondition[transition] = precondition_predicate_fn
 
 
+    def use_policy(self, policy_predicate_fn):
+        """
+        turn a policy-style function (taking resource_id, returning boolean) and have it return strings instead
+        """
+        def freeze():
+            def wrapper(resource_id):
+                if policy_predicate_fn(resource_id):
+                    return ""
+                else:
+                    return "%s returned false" % str(policy_predicate_fn)
+
+            return wrapper
+
+        return freeze()
 
     ##################################################
     #
@@ -458,17 +472,27 @@ class ResourceImpl(object):
         """
         return str(association_type)
 
-
-    def _link_resources(self, subject_id='', association_type='', object_id=''):
+    def _resource_link_exists(self, subject_id='', association_type='', object_id=''):
+        return 0 < len(self.RR.find_associations(subject_id,  association_type,  object_id, id_only=True))
+   
+    def _link_resources_lowlevel(self, subject_id='', association_type='', object_id='', check_duplicates=True):
         """
         create an association
         @param subject_id the resource ID of the predefined type
         @param association_type the predicate
         @param object_id the resource ID of the type to be joined
+        @param check_duplicates whether to check for an existing association of this exact subj-pred-obj
         @todo check for errors: does RR check for bogus ids?
         """
 
         assert(type("") == type(subject_id) == type(object_id))
+
+        if check_duplicates:
+            if self._resource_link_exists(subject_id, association_type, object_id):
+                log.debug("Create %s Association from '%s': ALREADY EXISTS"
+                          % (self._assn_name(association_type),
+                             self._toplevel_call()))
+                return None
 
         associate_success = self.RR.create_association(subject_id,
                                                        association_type,
@@ -477,9 +501,15 @@ class ResourceImpl(object):
         log.debug("Create %s Association from '%s': %s"
                   % (self._assn_name(association_type),
                      self._toplevel_call(),
-                     str(associate_success)))
+                      str(associate_success)))
         return associate_success
-
+        
+        
+        
+        
+    def _link_resources(self, subject_id='', association_type='', object_id=''):
+        # just link, and check duplicates
+        self._link_resources_lowlevel(subject_id, association_type, object_id, True)
 
     def _link_resources_single_object(self, subject_id='', association_type='', object_id='', raise_exn=True):
         """
@@ -501,14 +531,21 @@ class ResourceImpl(object):
         if len(existing_links) > 1:
             raise Inconsistent("Multiple %s-%s objects found on the same %s subject with id='%s'" %
                                (association_type, obj_type, self.iontype, subject_id))
-        elif len(existing_links) > 0:
+
+        if len(existing_links) > 0:
+            if self._resource_link_exists(subject_id, association_type, object_id):
+                log.debug("Create %s Association (single object) from '%s': ALREADY EXISTS"
+                          % (self._assn_name(association_type),
+                             self._toplevel_call()))
+                return None
+
             if raise_exn:
                 raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'" %
                                  (association_type, obj_type, self.iontype, subject_id))
-            else:
-                self.unlink_all_objects_by_type(self, subject_id, association_type)
+            
+            self.unlink_all_objects_by_type(self, subject_id, association_type)
 
-        return self._link_resources(subject_id, association_type, object_id)
+        return self._link_resources_lowlevel(subject_id, association_type, object_id, False)
 
  
     def _link_resources_single_subject(self, subject_id='', association_type='', object_id='', raise_exn=True):
@@ -531,15 +568,22 @@ class ResourceImpl(object):
         if len(existing_links) > 1:
             raise Inconsistent("Multiple %s-%s subjects found on the same %s object with id='%s'" %
                                (self.iontype, association_type, obj_type, object_id))
-        elif len(existing_links) > 0:
+
+        if len(existing_links) > 0:
+            if self._resource_link_exists(subject_id, association_type, object_id):
+                log.debug("Create %s Association (single subject) from '%s': ALREADY EXISTS"
+                          % (self._assn_name(association_type),
+                             self._toplevel_call()))
+                return None
+
             if raise_exn:
                 raise BadRequest("Attempted to add a duplicate %s-%s association on a %s object with id='%s'" %
                                  (self.iontype, association_type, obj_type, subject_id))
-            else:
-                self._unlink_resources(self, subject_id, association_type, existing_links[0])
+
+            self._unlink_resources(self, subject_id, association_type, existing_links[0])
 
 
-        return self._link_resources(subject_id, association_type, object_id)
+        return self._link_resources_lowlevel(subject_id, association_type, object_id, False)
 
 
     def _unlink_resources(self, subject_id='', association_type='', object_id=''):
