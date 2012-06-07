@@ -11,7 +11,8 @@ from pyon.ion.exchange import ION_ROOT_XS
 from interface.services.ibootstrap_service import BaseBootstrapService
 from ion.services.coi.policy_management_service import MANAGER_ROLE, ION_MANAGER
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-
+from interface.objects import ProcessDefinition
+from interface.objects import CouchStorage, HdfStorage
 
 class BootstrapService(BaseBootstrapService):
     """
@@ -34,6 +35,8 @@ class BootstrapService(BaseBootstrapService):
     def trigger_level(self, level, config):
         #print "Bootstrap level: %s config: %s" % (str(level),str(config))
 
+
+        ### COI Bootstrap levels
         if level == "datastore":
             self.post_datastore(config)
         elif level == "directory":
@@ -53,12 +56,28 @@ class BootstrapService(BaseBootstrapService):
         elif level == "load_system_policy":
             self.load_system_policy(config)
 
-
             self.post_startup()
 
-        # Create ROOT user identity
-        # Create default roles
-        # Create default policy
+            # Create ROOT user identity
+            # Create default roles
+            # Create default policy
+
+        ### CEI bootstrap levels:
+
+        elif level == "process_dispatcher":
+            self.post_process_dispatcher(config)
+
+        ### DM bootstrap levels:
+
+        elif level == "ingestion_management":
+            self.post_ingestion_management(config)
+
+        elif level == "transform_management":
+            self.post_transform_management(config)
+
+        elif level == "data_retriever":
+            self.post_data_retriever(config)
+
 
 
     def post_datastore(self, config):
@@ -124,7 +143,7 @@ class BootstrapService(BaseBootstrapService):
 
         neg_def = IonObject(RT.NegotiationDefinition, name=RT.EnrollmentRequest,
             description='Definition of Enrollment Request Negotiation',
-            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == False'],
+            pre_condition = ['is_registered(user_id)', 'is_not_enrolled(org_id,user_id)', 'enroll_req_not_exist(org_id,user_id)'],
             accept_action = 'enroll_member(org_id,user_id)'
         )
 
@@ -132,7 +151,7 @@ class BootstrapService(BaseBootstrapService):
 
         neg_def = IonObject(RT.NegotiationDefinition, name=RT.RoleRequest,
             description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            pre_condition = ['is_enrolled(org_id,user_id)'],
             accept_action = 'grant_role(org_id,user_id,role_name)'
         )
 
@@ -140,7 +159,7 @@ class BootstrapService(BaseBootstrapService):
 
         neg_def = IonObject(RT.NegotiationDefinition, name=RT.ResourceRequest,
             description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            pre_condition = ['is_enrolled(org_id,user_id)'],
             accept_action = 'acquire_resource(org_id,user_id,resource_id)'
         )
 
@@ -208,4 +227,80 @@ class BootstrapService(BaseBootstrapService):
 
     def on_quit(self):
         log.info("Bootstrap service QUIT: System quit")
+
+
+    def post_data_retriever(self, config):
+        """
+        Work is done in post_process_dispatcher... for now
+        """
+        pass
+
+
+
+    def post_ingestion_management(self, config):
+        """
+        Defining the ingestion worker process is done in post_process_dispatcher.
+
+        Creating transform workers happens here...
+        """
+        exchange_point = config.get_safe('ingestion.exchange_point','science_data')
+        couch_opts = config.get_safe('ingestion.couch_storage',{})
+        couch_storage = CouchStorage(**couch_opts)
+        hdf_opts = config.get_safe('ingestion.hdf_storage',{})
+        hdf_storage = HdfStorage(**hdf_opts)
+        number_of_workers = config.get_safe('ingestion.number_of_workers',2)
+
+        ingestion_id = self.clients.ingestion_management.create_ingestion_configuration(
+            exchange_point_id=exchange_point,
+            couch_storage=couch_storage,
+            hdf_storage=hdf_storage,
+            number_of_workers=number_of_workers
+        )
+        self.clients.ingestion_management.activate_ingestion_configuration(ingestion_id)
+
+    def post_process_dispatcher(self, config):
+
+        process_definition = ProcessDefinition(
+            name='ingestion_worker_process',
+            description='Worker transform process for ingestion of datasets')
+        process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
+        process_definition.executable['class'] = 'IngestionWorker'
+        self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+
+        self.process_definition = ProcessDefinition(
+            name='data_replay_process',
+            description='Process for the replay of datasets')
+        self.process_definition.executable['module']='ion.processes.data.replay_process'
+        self.process_definition.executable['class'] = 'ReplayProcess'
+        self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+
+
+    def post_transform_management(self,config):
+
+        def restart_transform(transform_id):
+            transform = self.clients.resource_registry.read(transform_id)
+            configuration = transform.configuration
+            proc_def_ids,other = self.clients.resource_registry.find_objects(subject=transform_id,predicate=PRED.hasProcessDefinition,id_only=True)
+
+            if len(proc_def_ids) < 1:
+                log.warning('Transform did not have a correct process definition.')
+                return
+
+            pid = self.clients.process_dispatcher.schedule_process(
+                process_definition_id=proc_def_ids[0],
+                configuration=configuration
+            )
+
+            transform.process_id = pid
+            self.clients.resource_registry.update(transform)
+
+
+        restart_flag = config.get_safe('service.transform_management.restart', False)
+        if restart_flag:
+            transform_ids, meta = self.clients.resource_registry.find_resources(restype=RT.Transform, id_only=True)
+            for transform_id in transform_ids:
+                restart_transform(transform_id)
+
+
 

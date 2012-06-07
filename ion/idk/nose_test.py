@@ -7,13 +7,18 @@
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
 
+import os
 import sys
-
 import nose
 
 from ion.idk.metadata import Metadata
+from ion.idk.config import Config
 from ion.idk.comm_config import CommConfig
 from ion.idk.driver_generator import DriverGenerator
+
+from ion.idk.exceptions import IDKConfigMissing
+from ion.idk.exceptions import DriverNotStarted
+from ion.idk.exceptions import CommConfigReadFail
 
 class NoseTest():
     """
@@ -29,18 +34,27 @@ class NoseTest():
         @param metadata IDK Metadata object
         @param log_file File to store test results.  If none specified log to STDOUT
         """
+        repo_dir = Config().get("working_repo")
+        if(not repo_dir):
+            raise IDKConfigMissing()
+        
+        # Ion scripts need to be run from the base os the repo dir so it has access
+        # to resources using relative pathing.  So we just do 
+        os.chdir(repo_dir)
+        
         self.metadata = metadata
-        if(not self.metadata.name):
-            raise Exception('No drivers initialized.  run start_driver')
+        if(not self.metadata.driver_name):
+            raise DriverNotStarted()
 
         if( log_file ):
             self.log_fh = open(log_file, "w")
         else:
             self.log_fh = sys.stdout
-
-        self.comm_config = CommConfig.get_config_from_type(metadata, 'ethernet')
+            
+        config_path = "%s/%s" % (self.metadata.driver_dir(), CommConfig.config_filename())
+        self.comm_config = CommConfig.get_config_from_file(config_path)
         if(not self.comm_config):
-            raise Exception('No comm config file found!')
+            raise CommConfigReadFail(msg=config_path)
 
         self.test_runner = nose.core.TextTestRunner(stream=self.log_fh)
 

@@ -8,6 +8,7 @@
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data
 
 """
+from interface.objects import Granule
 
 from pyon.public import log
 from pyon.util.async import spawn
@@ -17,8 +18,8 @@ from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
 
-from ion.services.mi.instrument_driver import DriverAsyncEvent, DriverParameter
-from ion.services.mi.exceptions import InstrumentParameterException, InstrumentCommandException
+from ion.agents.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
+from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
 
 ### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
@@ -30,7 +31,7 @@ import time
 
 # todo: rethink this
 # Stream Packet configuration - originally from import
-#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+#from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 PACKET_CONFIG = {
     'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
 }
@@ -70,11 +71,12 @@ class BaseDataHandler(object):
 
     def _poll(self):
         """
-        Internal polling method, run inside a greenlet, that triggers acquire_data for "new" data
+        Internal polling method, run inside a greenlet, that triggers execute_acquire_data without configuration mods
         The polling interval (in seconds) is retrieved from the POLLING_INTERVAL parameter
         """
         self._polling = True
         interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
+        log.debug('Polling interval: {0}'.format(interval))
         while self._polling:
             self.execute_acquire_data()
             time.sleep(interval)
@@ -100,11 +102,7 @@ class BaseDataHandler(object):
         log.debug('cmd_dvr received command \'{0}\' with: args={1} kwargs={2}'.format(cmd, args, kwargs))
 
         reply = None
-        if cmd == 'configure':
-            # Delegate to BaseDataHandler.configure()
-#            reply = self.configure(*args, **kwargs)
-            pass
-        elif cmd == 'initialize':
+        if cmd == 'initialize':
             # Delegate to BaseDataHandler.initialize()
             reply = self.initialize(*args, **kwargs)
         elif cmd == 'get':
@@ -122,23 +120,18 @@ class BaseDataHandler(object):
         elif cmd == 'execute_acquire_data':
             # Delegate to BaseDataHandler.execute_acquire_data()
             reply = self.execute_acquire_data(*args, **kwargs)
-        elif cmd == 'execute_acquire_sample':
-            #TODO: Can we change these names?  acquire_data would be a better name for EOI...
-            # Delegate to BaseDataHandler.execute_acquire_sample()
-            reply = self.execute_acquire_sample(*args, **kwargs)
         elif cmd == 'execute_start_autosample':
-            #TODO: Can we change these names?  stop_polling would be a better name for EOI...
             # Delegate to BaseDataHandler.execute_start_autosample()
             reply = self.execute_start_autosample(*args, **kwargs)
         elif cmd == 'execute_stop_autosample':
-            #TODO: Can we change these names?  stop_polling would be a better name for EOI...
             # Delegate to BaseDataHandler.execute_stop_autosample()
             reply = self.execute_stop_autosample(*args, **kwargs)
-        elif cmd in ['connect','disconnect','get_current_state','discover']:
+        elif cmd in ['configure','connect','disconnect','get_current_state','discover','execute_acquire_sample']:
             # Disregard
+            log.info('Command \'{0}\' not used by DataHandler'.format(cmd))
             pass
         else:
-            desc='Command unknown by DataHandler: {0}'.format(cmd)
+            desc='Command \'{0}\' unknown by DataHandler'.format(cmd)
             log.info(desc)
             raise InstrumentCommandException(desc)
 
@@ -236,8 +229,7 @@ class BaseDataHandler(object):
                         else:
                             log.debug('Found attachment: {0}'.format(attachment_obj))
                 except NotFound:
-                    log.debug('No attachments found for resource: {0}'.format(ext_ds_id))
-                    pass
+                    raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(ext_ds_id))
 
         if not get_safe(config, 'new_data_check'):
             config['new_data_check'] = None
@@ -249,20 +241,6 @@ class BaseDataHandler(object):
         g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback)
         log.debug('** Spawned {0}'.format(g))
         self._glet_queue.append(g)
-
-    def execute_acquire_sample(self, *args, **kwargs):
-        #TODO: Add documentation
-        #TODO: Fix raises statements
-        """
-        Called from:
-                      InstrumentAgent._handler_observatory_execute_resource
-                       |-->  ExternalDataAgent._handler_streaming_execute_resource
-        """
-        # This returns the sample to the agent as an event
-        sample = {'stream_name':'data_stream','p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}
-        self._dh_event(DriverAsyncEvent.SAMPLE, sample)
-        # This does 'rpc' style event
-        return sample
 
     def execute_start_autosample(self, *args, **kwargs):
         #TODO: Add documentation
@@ -334,6 +312,7 @@ class BaseDataHandler(object):
                     log.debug('Get parameter with key: {0}'.format(pn))
                     result[pn] = self._params[pn]
                 except KeyError:
+                    log.debug('\'{0}\' not found in self._params'.format(pn))
                     raise InstrumentParameterException('{0} is not a valid parameter for this DataHandler.'.format(pn))
 
         return result
@@ -372,8 +351,8 @@ class BaseDataHandler(object):
                     to_raise.append(key)
 
         if len(to_raise) > 0:
-            log.debug('Raise ParameterError for un-set parameters: {0}'.format(to_raise))
-            raise ParameterError('Invalid parameter(s) could not be set: {0}'.format(to_raise))
+            log.debug('Raise InstrumentParameterException for un-set parameters: {0}'.format(to_raise))
+            raise InstrumentParameterException('Invalid parameter(s) could not be set: {0}'.format(to_raise))
 
     def get_resource_params(self, *args, **kwargs):
         """
@@ -381,9 +360,7 @@ class BaseDataHandler(object):
         Called from:
                       InstrumentAgent._handler_get_resource_params
         """
-        # TODO: Should raise NotImplementedException here, return temporarily for prototyping
-#        raise NotImplementedException('get_resource_params() not implemented in BaseDataHandler')
-        return [DataHandlerParameter.POLLING_INTERVAL]
+        return self._params.keys()
 
     def get_resource_commands(self, *args, **kwargs):
         """
@@ -415,12 +392,11 @@ class BaseDataHandler(object):
         if not constraints:
             gevent.getcurrent().link(unlock_new_data_callback)
             constraints = cls._new_data_constraints(config)
+            if constraints is None:
+                raise InstrumentParameterException("Data constraints returned from _new_data_constraints cannot be None")
             config['constraints'] = constraints
 
-        if not constraints:
-            raise ParameterError("Data constraints not set properly")
-
-        cls._publish_data(publisher, config, cls._get_data(config))
+        cls._publish_data(publisher, cls._get_data(config))
 
         # Publish a 'TestFinished' event
         if get_safe(config,'TESTING'):
@@ -431,42 +407,47 @@ class BaseDataHandler(object):
     @classmethod
     def _init_acquisition_cycle(cls, config):
         """
-        Initialize anything the data handler will need to use, such as a dataset
+        Allows the concrete implementation to initialize/prepare objects the data handler
+        will use repeatedly (such as a dataset object) in cls._new_data_constraints and/or cls._get_data
+        Objects should be added to the config so they are available later in the workflow
         """
-        raise NotImplementedError("Initialize acquisition cycle not implemented in data handler")
+        raise NotImplementedException('{0}.{1} must implement \'_init_acquisition_cycle\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _new_data_constraints(cls, config):
         #TODO: Document what "constraints" looks like (yml)!!
         """
         Determines the appropriate constraints for acquiring any "new data" from the external dataset
+        Returned value cannot be None and is assigned to config['constraints']
         The format of the constraints are documented:
-        @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
-        @retval Dict that constrains retrieval of new data from the external dataset
+        @param config dict of configuration parameters - may be used to generate the returned 'constraints' dict
+        @retval dict that contains the constraints for retrieval of new data from the external dataset
         """
-        raise NotImplementedException
+        raise NotImplementedException('{0}.{1} must implement \'_new_data_constraints\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _get_data(cls, config):
         """
-        Generator function that acquires data from a source iteratively based on constraints provided by config
+        Iterable function that acquires data from a source iteratively based on constraints provided by config
         Passed into BaseDataHandler._publish_data and iterated to publish samples.
-        Each iteration should return a well-formed Granule
-        @param config Dict containing configuration parameters, may include constraints, formatters, etc
+        @param config dict containing configuration parameters, may include constraints, formatters, etc
+        @return an iterable that returns well-formed Granule objects on each iteration
         """
-        raise NotImplementedException
+        raise NotImplementedException('{0}.{1} must implement \'_get_data\''.format(cls.__module__,cls.__name__))
 
     @classmethod
-    def _publish_data(cls, publisher, config, data_generator):
+    def _publish_data(cls, publisher, data_generator):
         """
         Iterates over the data_generator and publishes granules to the stream indicated in stream_id
         """
-        stream_id=config['stream_id']
-        log.debug('Start publishing to stream_id = {0}, with publisher = {1}'.format(stream_id, publisher))
+        if data_generator is None or not hasattr(data_generator,'__iter__'):
+            raise InstrumentDataException('Invalid object returned from _get_data: returned object cannot be None and must have \'__iter__\' attribute')
+
         for count, gran in enumerate(data_generator):
-            #TG: Validate that gran is a Granule object => If Granule, publish, else, just print
-#            log.warn('Publish data to stream \'{0}\' [{1}]: {2}'.format(stream_id,count,gran))
-            publisher.publish(gran)
+            if isinstance(gran, Granule):
+                publisher.publish(gran)
+            else:
+                log.warn('Could not publish object returned by _get_data: {0}'.format(gran))
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
@@ -516,7 +497,6 @@ class FibonacciDataHandler(BaseDataHandler):
         """
         Initialize anything the data handler will need to use, such as a dataset
         """
-        pass
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -557,6 +537,7 @@ class FibonacciDataHandler(BaseDataHandler):
                 a, b = b, a + b
 
         gen=fibGenerator()
+        cnt = cls._calc_iter_cnt(cnt, max_rec)
         for i in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
             d = gen.next()
@@ -570,7 +551,6 @@ class DummyDataHandler(BaseDataHandler):
         """
         Initialize anything the data handler will need to use, such as a dataset
         """
-        pass
 
     @classmethod
     def _new_data_constraints(cls, config):
@@ -604,7 +584,6 @@ class DummyDataHandler(BaseDataHandler):
             rdt['data'] = d
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             yield g
-
 
 
 

@@ -167,7 +167,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process start")
         try:
-            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, input_dp_id, self.output_products)
+            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, [input_dp_id], self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -197,7 +197,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -222,7 +222,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-                                          driver_module="ion.services.mi.drivers.sbe37_driver", driver_class="SBE37Driver",
+                                          driver_module="ion.agents.instrument.drivers.sbe37.sbe37_driver", driver_class="SBE37Driver",
                                           cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
                                           comms_server_address="localhost", comms_server_port=8888)
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
@@ -326,23 +326,39 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
-        
+
+
+        #-------------------------------
+        # Create listener for data process events and verify that events are received.
+        #-------------------------------
+
+        # todo: add this validate for Req: L4-CI-SA-RQ-367  Data processing shall notify registered data product consumers about data processing workflow life cycle events
+
         
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
         log.debug("test_createDataProcessUsingSim: create data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, ctd_parsed_data_product, self.output_products)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
         log.debug("test_createDataProcessUsingSim: data_process created: %s", str(ctd_l0_all_data_process_id))
 
 
+        #-------------------------------
+        # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
+        #-------------------------------
+
+        # todo: add this validate for Req: L4-CI-SA-RQ-366  Data processing shall manage data topic definitions
+
         log.debug("test_createDataProcessUsingSim: activate_data_process ")
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         
+
+        #todo: check that activate event is received L4-CI-SA-RQ-367
+
 
         # todo: monitor process to se eif it is active (sa-rq-182)
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call

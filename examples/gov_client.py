@@ -235,12 +235,11 @@ def test_policy(container, process=FakeProcess()):
     ims_client.create_instrument_agent(ia_obj, headers={'ion-actor-id': user._id, 'ion-actor-roles': header_roles })
 
     log.info( 'Instrument Agents')
-    ia_list = ims_client.find_instrument_agents()
+    rr_client = ResourceRegistryServiceProcessClient(node=container.node, process=process)
+
+    ia_list,_ = rr_client.find_resources(restype=RT.InstrumentAgent)
     for ia_obj in ia_list:
         log.info( str(ia_obj))
-
-    results = find_instrument_agents()
-    log.info(results)
 
 def test_requests(container, process=FakeProcess()):
 
@@ -410,7 +409,7 @@ def test_requests(container, process=FakeProcess()):
     ims_client = InstrumentManagementServiceProcessClient(node=container.node, process=process)
 
     log.info( 'Request Instrument Agents')
-    ia_list = ims_client.find_instrument_agents()
+    ia_list,_ = rr_client.find_resources(restype=RT.InstrumentAgent)
 
 
     #First make a acquire resource request with an non-enrolled user.
@@ -599,35 +598,7 @@ def find_data_products(requester=None):
 
     return response_data
 
-def find_instrument_agents( requester=None):
 
-
-    instrument_agent_find_request = {  "serviceRequest": {
-        "serviceName": "instrument_management",
-        "serviceOp": "find_instrument_agents",
-        "expiry": 0,
-        "params": {
-        }
-    }
-    }
-
-    if requester is not None:
-        instrument_agent_find_request["serviceRequest"]["requester"] = requester
-
-    response = gateway_request('instrument_management/find_instrument_agents',  simplejson.dumps(instrument_agent_find_request) )
-
-
-    if response['data'].has_key(GATEWAY_ERROR):
-        log.error(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
-        return response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE]
-
-    response_data = response['data'][GATEWAY_RESPONSE]
-
-    log.info('Number of Instrument Agent objects: %s' % (str(len(response_data))))
-    for res in response_data:
-        log.debug(res)
-
-    return response_data
 
 def find_org_roles(requester=''):
 

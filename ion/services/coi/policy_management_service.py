@@ -26,7 +26,7 @@ class PolicyManagementService(BasePolicyManagementService):
         self.policy_event_subscriber = EventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self.policy_event_callback)
         self.policy_event_subscriber.activate()
 
-    def on_stop(self):
+    def on_quit(self):
 
         if self.policy_event_subscriber is not None:
             self.policy_event_subscriber.deactivate()
@@ -134,7 +134,7 @@ class PolicyManagementService(BasePolicyManagementService):
             policy = self.clients.resource_registry.read(policy_id)
             if policy:
                 #Need to publish an event that a policy has changed for any associated resource
-                res_list = self._find_resources_for_policy(policy_event.origin)
+                res_list = self._find_resources_for_policy(policy_id)
                 for res in res_list:
                     self._publish_resource_policy_event(policy, res)
 
@@ -212,7 +212,7 @@ class PolicyManagementService(BasePolicyManagementService):
         return True
 
     def _publish_resource_policy_event(self, policy, resource):
-        #Sent request opened event
+        #Sent ResourcePolicyEvent event
 
         event_data = dict()
         event_data['origin_type'] = 'Policy'
@@ -249,7 +249,7 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval resource_list    list
         @throws NotFound    object with specified id does not exist
         """
-        resource_list,_ = self.clients.resource_registry.find_subjects(RT.Resource, PRED.hasPolicy, policy_id)
+        resource_list,_ = self.clients.resource_registry.find_subjects(None, PRED.hasPolicy, policy_id)
 
         return resource_list
 

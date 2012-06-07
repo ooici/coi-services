@@ -25,7 +25,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG
 
 # MI imports
-from ion.services.mi.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from pyon.public import CFG
 from pyon.agent.agent import ResourceAgentClient
@@ -167,6 +167,9 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance obj: = %s", str(extDatasetAgentInstance_obj) )
         log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance id: = %s", str(extDatasetAgentInstance_id) )
 
+        #Check that the instance is currently not active
+        id, active = self.damsclient.retrieve_external_dataset_agent_instance(extDataset_id)
+        log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance id: = %s    active 1 = %s ", str(id), str(active) )
 
         self.damsclient.start_external_dataset_agent_instance(extDatasetAgentInstance_id)
 
@@ -174,10 +177,14 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         dataset_agent_instance_obj= self.damsclient.read_external_dataset_agent_instance(extDatasetAgentInstance_id)
         log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance obj: = %s", str(dataset_agent_instance_obj) )
 
+        # now the instance process should be active
+        id, active = self.damsclient.retrieve_external_dataset_agent_instance(extDataset_id)
+        log.debug("TestExternalDatasetAgentMgmt: Dataset agent instance id: = %s    active 2 = %s ", str(id), str(active) )
+
         # Start a resource agent client to talk with the instrument agent.
         self._dsa_client = ResourceAgentClient(extDataset_id,  process=FakeProcess())
-        print 'activate_instrument: got ia client %s', self._dsa_client
-        log.debug("test_activateInstrument: got dataset client %s", str(self._dsa_client))
+        print 'TestExternalDatasetAgentMgmt: got ia client %s', self._dsa_client
+        log.debug("TestExternalDatasetAgentMgmt: got dataset client %s", str(self._dsa_client))
 
 #        cmd=AgentCommand(command='initialize')
 #        _ = self._dsa_client.execute_agent(cmd)

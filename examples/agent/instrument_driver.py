@@ -19,9 +19,9 @@ from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
+#from ion.agents.instruments.drivers.sbe37.sbe37_driver import SBE37Channel
+from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
+from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
 from pyon.public import CFG
 from mock import patch
 
@@ -53,7 +53,7 @@ def instrument_test_driver(container):
         'svr_addr': 'localhost',
         'cmd_port': 5556,
         'evt_port': 5557,
-        'dvr_mod': 'ion.services.mi.drivers.sbe37_driver',
+        'dvr_mod': 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
         'dvr_cls': 'SBE37Driver',
         'comms_config': {
             SBE37Channel.CTD: {
@@ -120,7 +120,7 @@ def instrument_test_driver(container):
 
     # Launch an instrument agent process.
     _ia_name = 'agent007'
-    _ia_mod = 'ion.services.mi.instrument_agent'
+    _ia_mod = 'ion.agents.instrument.instrument_agent'
     _ia_class = 'InstrumentAgent'
     _ia_pid = _container_client.spawn_process(name=_ia_name,
         module=_ia_mod, cls=_ia_class,

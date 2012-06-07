@@ -86,31 +86,7 @@ class TestDataAcquisitionManagement(PyonTestCase):
 
         self.data_acquisition_mgmt_service.delete_data_source('111')
 
-        self.mock_read.assert_called_once_with('111', '')
-        #self.mock_delete.assert_called_once_with(self.data_source)
-
-    def test_read_data_source_not_found(self):
-        self.mock_read.return_value = None
-
-        # TEST: Execute the service operation call
-        with self.assertRaises(NotFound) as cm:
-            self.data_acquisition_mgmt_service.read_data_source('bad')
-
-        ex = cm.exception
-        self.assertEqual(ex.message, 'DataSource bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')
-
-    def test_delete_data_source_not_found(self):
-        self.mock_read.return_value = None
-
-        # TEST: Execute the service operation call
-        with self.assertRaises(NotFound) as cm:
-            self.data_acquisition_mgmt_service.delete_data_source('bad')
-
-        ex = cm.exception
-        self.assertEqual(ex.message, 'DataSource bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')
-
+        self.mock_delete.assert_called_once_with('111')
 
 
     def test_register_process(self):

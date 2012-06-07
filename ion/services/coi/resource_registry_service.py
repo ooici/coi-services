@@ -82,6 +82,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
         return self.resource_registry.find_associations(subject=subject, predicate=predicate,
                                                         object=object, assoc_type=assoc_type, id_only=id_only)
+    def find_associations_mult(self, subjects=[], id_only=False):
+        return self.resource_registry.find_associations_mult(subjects=subjects, id_only=id_only)
 
     def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
         return self.resource_registry.get_association(subject=subject, predicate=predicate,
@@ -89,3 +91,6 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def find_resources(self, restype="", lcstate="", name="", id_only=False):
         return self.resource_registry.find_resources(restype=restype, lcstate=lcstate, name=name, id_only=id_only)
+
+    def read_mult(self, object_ids=[]):
+        return self.resource_registry.read_mult(object_ids)

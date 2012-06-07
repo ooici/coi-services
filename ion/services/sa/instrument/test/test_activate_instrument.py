@@ -10,7 +10,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.objects import HdfStorage, CouchStorage
+from interface.objects import StreamQuery
 
 from pyon.public import log
 from nose.plugins.attrib import attr
@@ -21,12 +21,8 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RA
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
-#from ion.services.mi.drivers.sbe37_driver import SBE37Channel
-#from ion.services.mi.drivers.sbe37_driver import SBE37Parameter
-#from ion.services.mi.drivers.sbe37_driver import PACKET_CONFIG
 from pyon.public import CFG
-
-
+from gevent.event import AsyncResult
 
 from pyon.public import CFG
 from pyon.agent.agent import ResourceAgentClient
@@ -80,7 +76,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
 
-    def test_activateInstrument(self):
+        #setup listerner vars
+        self._data_greenlets = []
+        self._no_samples = None
+        self._samples_received = []
+
+    @unittest.skip("TBD")
+    def test_activateInstrumentSample(self):
 
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model_label="SBE37IMModel" )
@@ -91,7 +93,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print 'new InstrumentModel id = ', instModel_id
 
         # Create InstrumentAgent
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.services.mi.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -101,7 +103,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
-        log.debug('test_activateInstrument: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
+        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
         try:
             instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
@@ -109,10 +111,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
             
-        log.debug("test_activateInstrument: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
+        log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
         driver_config = {
-            'dvr_mod' : 'ion.services.mi.drivers.sbe37_driver',
+            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }
@@ -175,7 +177,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #self._ia_client = ResourceAgentClient('123xyz', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
         self._ia_client = ResourceAgentClient(instDevice_id,  process=FakeProcess())
         print 'activate_instrument: got ia client %s', self._ia_client
-        log.debug("test_activateInstrument: got ia client %s", str(self._ia_client))
+        log.debug("test_activateInstrumentSample: got ia client %s", str(self._ia_client))
 
 
 
@@ -183,11 +185,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command='initialize')
         retval = self._ia_client.execute_agent(cmd)
         print retval
-        log.debug("test_activateInstrument: initialize %s", str(retval))
+        log.debug("test_activateInstrumentSample: initialize %s", str(retval))
 
         time.sleep(2)
 
-        log.debug("test_activateInstrument: Sending go_active command (L4-CI-SA-RQ-334)")
+        log.debug("test_activateInstrumentSample: Sending go_active command (L4-CI-SA-RQ-334)")
         cmd = AgentCommand(command='go_active')
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrument: return value from go_active %s", str(reply))
@@ -195,35 +197,35 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
-        log.debug("test_activateInstrument: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
+        log.debug("test_activateInstrumentSample: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
 
         cmd = AgentCommand(command='run')
         reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: run %s", str(reply))
+        log.debug("test_activateInstrumentSample: run %s", str(reply))
         time.sleep(2)
 
-        log.debug("test_activateInstrument: calling acquire_sample ")
+        log.debug("test_activateInstrumentSample: calling acquire_sample ")
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
+        log.debug("test_activateInstrumentSample: return from acquire_sample %s", str(reply))
         time.sleep(2)
 
-        log.debug("test_activateInstrument: calling acquire_sample 2")
+        log.debug("test_activateInstrumentSample: calling acquire_sample 2")
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
+        log.debug("test_activateInstrumentSample: return from acquire_sample 2   %s", str(reply))
         time.sleep(2)
 
-        log.debug("test_activateInstrument: calling acquire_sample 3")
+        log.debug("test_activateInstrumentSample: calling acquire_sample 3")
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
+        log.debug("test_activateInstrumentSample: return from acquire_sample 3   %s", str(reply))
         time.sleep(2)
 
-        log.debug("test_activateInstrument: calling reset ")
+        log.debug("test_activateInstrumentSample: calling reset ")
         cmd = AgentCommand(command='reset')
         reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: return from reset %s", str(reply))
+        log.debug("test_activateInstrumentSample: return from reset %s", str(reply))
         time.sleep(2)
 
         #-------------------------------
@@ -232,12 +234,176 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
 
-#        #get the dataset id of the ctd_parsed product from the dataproduct  data_product_id1
-#        ctd_parsed_data_product_obj = self.dpclient.read_data_product(data_product_id1)
-#        log.debug("test_activateInstrument: ctd_parsed_data_product dataset id %s", str(ctd_parsed_data_product_obj.dataset_id))
-#
-#        # ask for the dataset bounds from the datasetmgmtsvc
-#        bounds = self.datasetclient.get_dataset_bounds(ctd_parsed_data_product_obj.dataset_id)
-#        log.debug("test_activateInstrument: ctd_parsed_data_product dataset bounds %s", str(bounds))
-#        print 'activate_instrument: got dataset bounds %s', str(bounds)
+
+    def test_activateInstrumentStream(self):
+
+        # Create InstrumentModel
+        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model_label="SBE37IMModel" )
+        try:
+            instModel_id = self.imsclient.create_instrument_model(instModel_obj)
+        except BadRequest as ex:
+            self.fail("failed to create new InstrumentModel: %s" %ex)
+        print 'new InstrumentModel id = ', instModel_id
+
+        # Create InstrumentAgent
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
+        try:
+            instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
+        except BadRequest as ex:
+            self.fail("failed to create new InstrumentAgent: %s" %ex)
+        print 'new InstrumentAgent id = ', instAgent_id
+
+        self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
+
+        # Create InstrumentDevice
+        log.debug('test_activateInstrumentStream: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
+        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
+        try:
+            instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+            self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
+        except BadRequest as ex:
+            self.fail("failed to create new InstrumentDevice: %s" %ex)
+
+        log.debug("test_activateInstrumentStream: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
+
+        driver_config = {
+            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
+            'dvr_cls' : 'SBE37Driver',
+            'workdir' : '/tmp/',
+        }
+
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
+                                          comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
+        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+
+
+        # create a stream definition for the data from the ctd simulator
+        ctd_stream_def = SBE37_CDM_stream_definition()
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
+
+        log.debug( 'test_activateInstrumentStream new Stream Definition id = %s', instDevice_id )
+
+        log.debug( 'test_activateInstrumentStream Creating new CDM data product with a stream definition' )
+        dp_obj = IonObject(RT.DataProduct,name='the parsed data',description='ctd stream test')
+        try:
+            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data product: %s" %ex)
+        log.debug( 'test_activateInstrumentStream new dp_id = %s', str(data_product_id1) )
+
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
+
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
+        log.debug( 'test_activateInstrumentStream Data product streams1 = %s', str(stream_ids) )
+
+
+
+        simdata_subscription_id = self.pubsubcli.create_subscription(
+            query=StreamQuery([stream_ids[0]]),
+            exchange_name='Sim_data_queue',
+            name='SimDataSubscription',
+            description='SimData SubscriptionDescription'
+        )
+
+
+        def simdata_message_received(message, headers):
+            input = str(message)
+            log.debug("test_activateInstrumentStream: granule received: %s", input)
+
+
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+        simdata_subscriber = subscriber_registrar.create_subscriber(exchange_name='Sim_data_queue', callback=simdata_message_received)
+
+        # Start subscribers
+        simdata_subscriber.start()
+
+        # Activate subscriptions
+        self.pubsubcli.activate_subscription(simdata_subscription_id)
+
+
+        log.debug( 'test_activateInstrumentStream Creating new RAW data product with a stream definition' )
+        raw_stream_def = SBE37_RAW_stream_definition()
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
+
+        dp_obj = IonObject(RT.DataProduct,name='the raw data',description='raw stream test')
+        try:
+            data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id)
+        except BadRequest as ex:
+            self.fail("failed to create new data product: %s" %ex)
+        log.debug( 'test_activateInstrumentStream new dp_id = %s', str(data_product_id2) )
+
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
+
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
+
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
+        log.debug( 'test_activateInstrumentStream Data product streams2 = %s', str(stream_ids) )
+
+
+        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+
+
+        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        log.debug( 'test_activateInstrumentStream Instrument agent instance obj: = %s', str(inst_agent_instance_obj) )
+
+        # Start a resource agent client to talk with the instrument agent.
+        #self._ia_client = ResourceAgentClient('123xyz', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
+        self._ia_client = ResourceAgentClient(instDevice_id,  process=FakeProcess())
+        log.debug( 'test_activateInstrumentStream: got ia client %s', str(self._ia_client ))
+        log.debug("test_activateInstrumentStream: got ia client %s", str(self._ia_client))
+
+
+
+
+        cmd = AgentCommand(command='initialize')
+        retval = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrumentStream: initialize %s", str(retval))
+
+        time.sleep(2)
+
+        log.debug("test_activateInstrumentStream: Sending go_active command (L4-CI-SA-RQ-334)")
+        cmd = AgentCommand(command='go_active')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrumentStream: return value from go_active %s", str(reply))
+        time.sleep(2)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        log.debug("test_activateInstrumentStream: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
+
+        cmd = AgentCommand(command='run')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: run %s", str(reply))
+        time.sleep(2)
+
+        log.debug("test_activateInstrumentStream: calling go_streaming ")
+        cmd = AgentCommand(command='go_streaming')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrumentStream: return from go_streaming %s", str(reply))
+
+
+        time.sleep(15)
+
+        log.debug("test_activateInstrumentStream: calling go_observatory")
+        cmd = AgentCommand(command='go_observatory')
+        reply = self._ia_client.execute(cmd)
+        log.debug("test_activateInstrumentStream: return from go_observatory   %s", str(reply))
+        time.sleep(2)
+
+
+        log.debug("test_activateInstrumentStream: calling reset ")
+        cmd = AgentCommand(command='reset')
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrumentStream: return from reset %s", str(reply))
+        time.sleep(2)
+
+        #-------------------------------
+        # Deactivate InstrumentAgentInstance
+        #-------------------------------
+        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+
 

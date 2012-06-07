@@ -42,10 +42,10 @@ class TestWorkflowManagementService(PyonTestCase):
     def test_create_workflow_definition(self):
         self.mock_create.return_value = ['111', 1]
 
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id='123')
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id='123')
         self.workflow_definition.workflow_steps.append(workflow_step_obj)
 
-        workflow_step_obj = IonObject('WorkflowStep', data_process_definition_id='456')
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id='456')
         self.workflow_definition.workflow_steps.append(workflow_step_obj)
 
         workflow_definition_id = self.workflow_management_service.create_workflow_definition(self.workflow_definition)

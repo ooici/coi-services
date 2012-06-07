@@ -22,6 +22,7 @@ import os.path
 from pyon.public import CFG, log, ImmediateProcess, iex
 from pyon.datastore.datastore import DatastoreManager
 from pyon.core.bootstrap import get_sys_name
+from pyon.core.exception import BadRequest
 
 class DatastoreAdmin(ImmediateProcess):
     """
@@ -210,13 +211,24 @@ class DatastoreAdmin(ImmediateProcess):
         ds_list = ['resources', 'objects', 'state', 'events', 'directory', 'scidata']
         blame_objs = {}
         for ds_name in ds_list:
-            ds = DatastoreManager.get_datastore_instance(ds_name)
-            ret_objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
+            ret_objs = []
+            try:
+                ds = DatastoreManager.get_datastore_instance(ds_name)
+                ret_objs = ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
+            except BadRequest:
+                continue
             objs = []
             for obj_id, obj_key, obj in ret_objs:
                 if "blame_" in obj:
                     objs.append(obj)
             blame_objs[ds_name] = objs
         return blame_objs
+
+    @classmethod
+    def bulk_delete(cls, objs):
+        for ds_name in objs:
+            ds = DatastoreManager.get_datastore_instance(ds_name)
+            for obj in objs[ds_name]:
+                ds.delete(obj["_id"])
         
 DatastoreLoader = DatastoreAdmin

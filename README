@@ -47,6 +47,7 @@ For Mac, use homebrew
     (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update'
     and try the install again)
 
+
 installation
 - Install
 
@@ -118,6 +119,54 @@ Run RabbitMQ in second terminal before starting the container or running tests:
 Note: optional. RabbitMQ on amoeba us used by default for new developers.
     > cd rabbitmq_server-2.x.x
     > sudo sbin/rabbitmq-server
+
+ELASTICSEARCH (SEARCH ENGINE):
+
+    ------------
+    Installation
+    ------------
+    
+    Installation is performed with a script which downloads the file from 
+    github, extracts the contents to the INSTALL_DIR and installs the correct 
+    version of the plugins.
+        > bash scripts/install_es.sh 
+    Note: Works on both Mac and (Untested) Linux. This installs ElasticSearch 
+    to /usr/local/elasticsearch-$(VERSION)/ by default and can be overridden 
+    with the INSTALL_DIR environment variable
+    e.g. > INSTALL_DIR=/opt/elasticsearch bash scripts/install_es.sh
+
+    ---------------------
+    Running ElasticSearch
+    ---------------------
+    
+    After ElasticSearch has been installed it can be started in foreground mode 
+    or daemon mode.  Assuming that the install directory was /usr/local
+    Foreground mode:
+        > /usr/local/elasticsearch-0.18.7/bin/elasticsearch -f
+
+    Daemon mode:
+        > /usr/local/elasticsearch-0.18.7/bin/elasticsearch
+
+    ElasticSearch is an instance of the JVM with the ElasticSearch cluster node,
+    each node is equivalent to one JVM instance running ElasticSearch.  
+    Additional nodes means more instances of the JVM running ElasticSearch.  The
+    JVM minimum heap and maximum heap size and performance flags can be changed 
+    in the script /usr/local/elasticsearch-0.18.7/bin/elasticsearch which is 
+    strongly recommended for production. 
+
+    To install the ElasticSearch-Head plugin which provides a graphical 
+    interface for browsing and viewing the contents 
+    of the engine run:
+        > bash scripts/install_es.sh -h
+    
+    ---------------------------------
+    Viewing ElasticSearch Graphically
+    ---------------------------------
+    
+    If the ElasticSearch-Head plugin is installed (see above) then access to the
+    plugin is located at:
+        http://localhost:9200/_plugin/head/
+
 
 
 SOURCE PATH:
@@ -268,3 +317,4 @@ If you have the following structure.
   ~/OOI/coi-services 
   ~/OOI/pyon 
   ~/OOI/marine-integrations 
+

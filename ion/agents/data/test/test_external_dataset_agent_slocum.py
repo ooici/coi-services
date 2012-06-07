@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.data.test.test_external_dataset_agent_netcdf
-@file ion/agents/data/test/test_external_dataset_agent_netcdf
+@package ion.agents.data.test.test_external_dataset_agent_slocum
+@file ion/agents/data/test/test_external_dataset_agent_slocum.py
 @author Christopher Mueller
 @brief 
 """
@@ -19,7 +19,7 @@ from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance
 from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
-@attr('INT_EOI', group='eoi')
+@attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.slocum_data_handler',
@@ -218,7 +218,7 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
 
         # Create the logger for receiving publications
-        self.create_stream_and_logger(name='usgs',stream_id=stream_id)
+        self.create_stream_and_logger(name='slocum',stream_id=stream_id)
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
