@@ -485,11 +485,11 @@ class PreservationManagementServiceTest(PyonTestCase):
         self.pres_man_service.delete_datastore(datastore_id=self.couch_datastore_id)
 
         self.mock_read.assert_called_once_with(self.couch_datastore_id, '')
-        self.assertEqual(self.mock_find_associations.call_count, 1)
-        expected = [call(self.couch_datastore_id, '', '', PRED.hasDatastore, False)]
+        self.assertEqual(self.mock_find_associations.call_count, 2)
+        expected = [call('', '', self.couch_datastore_id, PRED.hasDatastore, False), call(self.couch_datastore_id, '', '', PRED.hasArchive, False)]
         self.assertEqual(expected, self.mock_find_associations.call_args_list)
-        self.assertEqual(self.mock_delete_association.call_count, 2)
-        expected = [call(self.system_has_datastore_id), call(self.datastore_has_archive_id)]
+        self.assertEqual(self.mock_delete_association.call_count, 4)
+        expected = [call(self.system_has_datastore_id), call(self.datastore_has_archive_id), call(self.system_has_datastore_id), call(self.datastore_has_archive_id)]
         self.assertEqual(expected, self.mock_delete_association.call_args_list)
         self.mock_delete.assert_called_once_with(self.couch_datastore_id)
 
