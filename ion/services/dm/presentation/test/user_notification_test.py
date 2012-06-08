@@ -482,18 +482,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create detection notification
         dfilt = DetectionFilterConfig()
 
-        config_1 = {}
-        config_2 = {}
+        field = 'voltage'
+        lower_bound = 5
+        upper_bound = 10
+        instrument = 'instrument_1'
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'" \
+                                % (field, lower_bound, upper_bound, instrument)
 
-        config_1['condition'] = 10
-        config_1['comparator'] = '>'
-        config_1['filter_field'] = 'voltage'
+        field = 'voltage'
+        value = 15
+        instrument = 'instrument_2'
+        search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
 
-        config_2['condition'] = 5
-        config_2['comparator'] = '<'
-        config_2['filter_field'] = 'voltage'
-
-        dfilt.processing = [config_1, config_2]
+        dfilt.processing['search_string'] = search_string1 + search_string2
 
         dfilt.delivery['message'] = 'I got my detection event!'
 
@@ -529,21 +530,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # publish an event for each notification to generate the emails
         rle_publisher = EventPublisher("ExampleDetectableEvent")
 
-        # since the voltage field in this event is greater than 5 and less than 10, it will not be detected
+        # this event will not be detected
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
-                                    voltage = 8)
+                                    voltage = 3)
 
         # Check at the end of the test to make sure this event never triggered a Detectable!
 
         # Send Event that is detected
         # publish an event for each notification to generate the emails
 
-        # since the voltage field in this event is greater than 10, it WILL be detected
+        # this event WILL be detected
         rle_publisher = EventPublisher("ExampleDetectableEvent")
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
-                                    voltage = 20)
+                                    voltage = 8)
 
 #        # Send Event that is detected
 #        # publish an event for each notification to generate the emails
@@ -585,6 +586,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     # the indexing goes out of range. These new lines
                     # can just be ignored. So we ignore the exceptions here.
                     pass
+
 
         #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
         self.assertEquals(message_dict['To'], 'email@email.com')
