@@ -178,7 +178,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
             # Create the  transform data process
             log.debug("create data_process and start it")
-            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id})
+            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id}, configuration=wf_step.configuration)
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
