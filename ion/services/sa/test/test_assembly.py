@@ -472,7 +472,7 @@ class TestAssembly(IonIntegrationTestCase):
         @param owner_service instance of service client that will handle the request
         @param resource_label string like "instrument_device"
         @param resource_id string
-        @param lcs_event string like LCE.INTEGRATE
+        @param lc_event string like LCE.INTEGRATE
         """
 
         lcsmethod = getattr(owner_service, "execute_%s_lifecycle" % resource_label)
@@ -492,8 +492,8 @@ class TestAssembly(IonIntegrationTestCase):
         @param owner_service instance of service client that will handle the request
         @param resource_label string like "instrument_device"
         @param resource_id string
-        @param lcs_event string like LCE.INTEGRATE
-        @param lcs_state string like LCS.INTEGRATED (where the state should end up
+        @param lc_event string like LCE.INTEGRATE
+        @param lc_state string like LCS.INTEGRATED (where the state should end up
         """
 
         lcsmethod  = getattr(owner_service, "execute_%s_lifecycle" % resource_label)
@@ -503,7 +503,7 @@ class TestAssembly(IonIntegrationTestCase):
         resource_obj = readmethod(resource_id)
         
         parts = get_maturity_visibility(resource_obj.lcstate)
-        
+
         self.assertEqual(lc_state, parts[0])
                       
 
@@ -602,7 +602,6 @@ class TestAssembly(IonIntegrationTestCase):
             make a "shortcut service" for testing crud ops.  
             @param svc a dotdict 
             @param method the method name to add
-            @param plural whether to make the resource label plural
             """
 
             realmethod = "%s_widget" % method
