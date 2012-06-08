@@ -295,3 +295,24 @@ class DevicePolicy(Policy):
             if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)): return False
 
         return False
+
+class SitePolicy(Policy):
+    def lce_precondition_plan(self, model_id):
+        # always OK
+        return True
+
+    def lce_precondition_develop(self, model_id):
+        # todo
+        return True
+
+    def lce_precondition_integrate(self, model_id):
+        # todo
+        return True
+
+    def lce_precondition_deploy(self, model_id):
+        # todo
+        return True
+
+    def lce_precondition_retire(self, model_id):
+        # todo:
+        return True
