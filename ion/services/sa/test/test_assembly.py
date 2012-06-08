@@ -14,6 +14,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent #, Conflict
 from pyon.public import RT, LCS, LCE
+from pyon.ion.resource import get_maturity_visibility
 from nose.plugins.attrib import attr
 import unittest
 
@@ -501,8 +502,8 @@ class TestAssembly(IonIntegrationTestCase):
         lcsmethod(resource_id, lc_event)
         resource_obj = readmethod(resource_id)
         
-        parts = resource_obj.lcstate.split("_")
-
+        parts = get_maturity_visibility(resource_obj.lcstate)
+        
         self.assertEqual(lc_state, parts[0])
                       
 
