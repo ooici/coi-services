@@ -257,9 +257,13 @@ class PreservationManagementService(BasePreservationManagementService):
         if datastore is None:
             raise NotFound("Datastore %s does not exist" % datastore_id)
 
-        assocs = self.clients.resource_registry.find_associations(subject=datastore_id, assoc_type=PRED.hasDatastore)
+        assocs = self.clients.resource_registry.find_associations(object=datastore_id, assoc_type=PRED.hasDatastore)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with PersistenceSystem
+
+        assocs = self.clients.resource_registry.find_associations(subject=datastore_id, assoc_type=PRED.hasArchive)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with PersistentArchvies
 
         self.clients.resource_registry.delete(datastore_id)
 
