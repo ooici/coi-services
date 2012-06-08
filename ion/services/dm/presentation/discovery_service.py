@@ -492,7 +492,7 @@ class DiscoveryService(BaseDiscoveryService):
         return resources
 
     def query_geo_distance(self, source_id='', field='', origin=None, distance='', units='mi',order=None, limit=0, offset=0, id_only=False):
-        validate_true(isinstance(origin,list) or isinstance(origin,tuple), 'Origin is not a list or tuple.')
+        validate_true(isinstance(origin,(tuple,list)) , 'Origin is not a list or tuple.')
         validate_true(len(origin)==2, 'Origin is not of the right size: (2)')
 
         if not self.use_es:
@@ -542,9 +542,9 @@ class DiscoveryService(BaseDiscoveryService):
 
 
     def query_geo_bbox(self, source_id='', field='', top_left=None, bottom_right=None, order=None, limit=0, offset=0, id_only=False):
-        validate_true(isinstance(top_left, list) or isinstance(top_left,tuple), 'Top Left is not a list or a tuple')
+        validate_true(isinstance(top_left, (list,tuple)), 'Top Left is not a list or a tuple')
         validate_true(len(top_left)==2, 'Top Left is not of the right size: (2)')
-        validate_true(isinstance(bottom_right, list) or isinstance(bottom_right,tuple), 'Bottom Right is not a list or a tuple')
+        validate_true(isinstance(bottom_right, (list,tuple)), 'Bottom Right is not a list or a tuple')
         validate_true(len(bottom_right)==2, 'Bottom Right is not of the right size: (2)')
 
         if not self.use_es:
