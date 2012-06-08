@@ -128,9 +128,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        instrument_agent_obj = self.read_instrument_agent(instrument_agent_id)
-
-        instrument_device_obj = self.read_instrument_device(instrument_device_id)
+        #validate inputs
+        self.read_instrument_agent(instrument_agent_id)
+        self.read_instrument_device(instrument_device_id)
 
         instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
 
