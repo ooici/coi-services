@@ -113,6 +113,27 @@ def process_index():
 
 # ----------------------------------------------------------------------------------------
 
+@app.route('/map', methods=['GET'])
+def process_map():
+    '''
+    Map!
+    '''
+    try:
+        content = [
+            "        <script type='text/javascript' src='http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js'> </script>",
+            "        <script type='text/javascript' src='https://maps.googleapis.com/maps/api/js?sensor=false'></script>",
+            "<div id='map_canvas'></div>",
+            "<script type='text/javascript' src='/static/gmap.js'></script>",
+            "<script type='text/javascript'> $(document).ready(onLoad); </script>",
+        ]
+        content = "\n".join(content)
+        return build_page(content)
+    except Exception as e:
+        return build_error_page(traceback.format_exc())
+    
+
+# ----------------------------------------------------------------------------------------
+
 @app.route('/tree/<resid>', methods=['GET'])
 def process_tree(resid):
     '''
@@ -653,6 +674,24 @@ def process_new_resource(restype):
         restype = str(restype)
         res = IonObject(restype)
         res._id = "NEW"
+        for k,v in request.args.iteritems():
+            if '.' in k:
+                key = None
+                obj = res
+                attrs = k.split('.')
+                while len(attrs):
+                    key = attrs.pop(0)
+                    if not len(attrs):
+                        if hasattr(obj,key):
+                            setattr(obj,key,v)
+                            break
+                    if hasattr(obj,key):
+                        obj = getattr(obj,key)
+                    else:
+                        break
+
+            elif hasattr(res,k):
+                setattr(res,k,v)
 
         fragments = [
             build_standard_menu(),
