@@ -317,10 +317,10 @@ class SMSEventProcessor(EmailEventProcessor):
 
 class DetectionEventProcessor(EventProcessor):
 
-    comparators = {">":operator.gt,
-                  "<":operator.lt,
-                  "==":operator.eq}
-
+#    comparators = {">":operator.gt,
+#                  "<":operator.lt,
+#                  "==":operator.eq}
+#
 
 #    def __init__(self, notification_request, user_id):
 #
@@ -331,8 +331,8 @@ class DetectionEventProcessor(EventProcessor):
         field_val = getattr(event,query['field'])
 
         if query.has_key('value'):
-            if field_val == query['value']:
-                log.info("match for %s! " % field_val)
+            if str(field_val) == query['value']:
+                log.warning("match for %s! " % field_val)
                 return True
 
         elif query.has_key('range'):
@@ -341,39 +341,47 @@ class DetectionEventProcessor(EventProcessor):
             # or only the upper bound
 
             if query['range'].has_key('from'):
-                if field_val < query['range']['from']:
+                if field_val <  query['range']['from']:
+                    log.warning("%s < %s" % (field_val, query['range']['from']))
                     return False
             if query['range'].has_key('to'):
                 if field_val > query['range']['to']:
+                    log.warning("%s > %s" % (field_val, query['range']['to']))
                     return False
 
             # if the range condition has not failed yet, then the range condition must have been satisfied.
-            log.info("match for %s! " % field_val)
+            log.info("1111: match for %s! " % field_val)
+            log.warning("query: %s" % query)
             return True
         else:
             raise BadRequest("Missing parameters value and range for query: %s" % query)
 
     def evaluate_condition(self, event, query={}, and_queries=[], or_queries=[]):
 
-        # check whether the main query gives a match
-        if not self.match(event, query):
-            return False
-
         # if any of the queries in the list of 'or queries' gives a match, publish an event
+
+
         if or_queries:
             for or_query in or_queries:
                 if self.match(event, or_query):
-                    return True
+                    log.warning("generating here!")
+                    self.generate_event()
+
+        if not self.match(event, query):
+            log.warning("not generating here!")
+            return
 
         # if an 'and query' or a list of 'and queries' is provided, return False if the match returns false for
         # any one of them
-        if and_queries:
+        elif and_queries:
             for and_query in and_queries:
                 if not self.match(event, and_query):
-                    return False
+                    log.warning("no match for %s" % and_query)
+                    log.warning("2. not generating here!")
+                    return
 
-        # if we have come to this point in the method, that means that the matching condition must have evaluated to True
-        return True
+        log.warning("generating here: 3")
+        self.generate_event()
 
     def generate_event(self):
         '''
@@ -383,8 +391,7 @@ class DetectionEventProcessor(EventProcessor):
         log.info('Detected an event')
         event_publisher = EventPublisher("DetectionEvent")
 
-        #@todo make a message
-        message = 'message'
+        message = str(self.notification._res_obj.delivery_config.processing['search_string'])
 
         #@David What should the origin and origin type be for Detection Events
         event_publisher.publish_event(origin='DetectionEventProcessor',
@@ -406,14 +413,7 @@ class DetectionEventProcessor(EventProcessor):
         or_queries= result_dict['or']
         and_queries = result_dict['and']
 
-#        filter_fields = [result_dict['query']['field']]
-
-        log.info("query: %s" % query)
-        log.info("or_queries: %s" % or_queries)
-        log.info("and_queries: %s" % and_queries)
-
-        if self.evaluate_condition(message, query, and_queries, or_queries):
-            self.generate_event()
+        self.evaluate_condition(message, query, and_queries, or_queries)
 
 def create_event_processor(notification_request, user_id):
     if notification_request.type == NotificationType.EMAIL:

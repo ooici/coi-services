@@ -494,7 +494,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         instrument = 'instrument_2'
         search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
 
-        dfilt.processing['search_string'] = search_string1 + search_string2
+        field = 'voltage'
+        lower_bound = 8
+        upper_bound = 14
+        instrument = 'instrument_3'
+        search_string3 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'" \
+                                % (field, lower_bound, upper_bound, instrument)
+
+
+        dfilt.processing['search_string'] = search_string1 + search_string2 + search_string3
 
         dfilt.delivery['message'] = 'I got my detection event!'
 
@@ -532,8 +540,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # this event will not be detected
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+            description="RLE test event",
+            voltage = 5)
+
+        # The first event never triggered an email because the 'and query' fails the match condition,
+        # So the smtp_client's sentmail queue should now empty
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+
+        # This event will generate an event
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
-                                    voltage = 3)
+                                    voltage = 15)
 
         # Check at the end of the test to make sure this event never triggered a Detectable!
 
@@ -541,29 +558,28 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # publish an event for each notification to generate the emails
 
         # this event WILL be detected
-        rle_publisher = EventPublisher("ExampleDetectableEvent")
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
                                     voltage = 8)
 
-#        # Send Event that is detected
-#        # publish an event for each notification to generate the emails
-#
-#        # since the voltage field in this event is less than 5, it WILL be detected
-#
-#        rle_publisher = EventPublisher("ExampleDetectableEvent")
-#        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-#            description="RLE test event",
-#            voltage = 4)
+        # Send Event that is detected
+        # publish an event for each notification to generate the emails
 
-        #-------------------------------------------------------
-        # make assertions
-        #-------------------------------------------------------
+        # since the voltage field in this event is less than 5, it WILL be detected
+
+        rle_publisher = EventPublisher("ExampleDetectableEvent")
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+            description="RLE test event",
+            voltage = 4)
+
+        #----------------------------------------------------------------------
+        # Make assertions
+        #----------------------------------------------------------------------
 
         msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
 
-        # The first event never triggered an email because the voltage was less than 5, the queue is now empty
-        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+#        # The first event never triggered an email because the voltage was less than 5, the queue is now empty
+#        self.assertFalse(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 
         self.assertEquals(msg_tuple[1], 'email@email.com' )
         #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
