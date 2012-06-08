@@ -534,52 +534,57 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             period=1)
 
 
-        # Send event that is not detected
-        # publish an event for each notification to generate the emails
         rle_publisher = EventPublisher("ExampleDetectableEvent")
 
-        # this event will not be detected
+        #------------------------------------------------------------------------------------------------
+        # this event will not be detected because the 'and query' will fail the match condition,
+        #------------------------------------------------------------------------------------------------
+
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
             description="RLE test event",
             voltage = 5)
-
-        # The first event never triggered an email because the 'and query' fails the match condition,
-        # So the smtp_client's sentmail queue should now empty
+        # The smtp_client's sentmail queue should now empty
         self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 
-        # This event will generate an event
+        #----------------------------------------------------------------------
+        # This event will generate an event because it will pass the OR query
+        #----------------------------------------------------------------------
+
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
                                     voltage = 15)
 
-        # Check at the end of the test to make sure this event never triggered a Detectable!
+        msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
+        # check that a non empty message was generated for email
+        self.assertEquals(msg_tuple[1], 'email@email.com' )
+        # check that the sentmail queue is empty again after having extracted the message
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 
-        # Send Event that is detected
-        # publish an event for each notification to generate the emails
-
-        # this event WILL be detected
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-                                    description="RLE test event",
-                                    voltage = 8)
-
-        # Send Event that is detected
-        # publish an event for each notification to generate the emails
-
-        # since the voltage field in this event is less than 5, it WILL be detected
+        #----------------------------------------------------------------------
+        # This event WILL not be detected because it will fail all the queries
+        #----------------------------------------------------------------------
 
         rle_publisher = EventPublisher("ExampleDetectableEvent")
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
             description="RLE test event",
             voltage = 4)
 
-        #----------------------------------------------------------------------
-        # Make assertions
-        #----------------------------------------------------------------------
+        # The smtp_client's sentmail queue should now empty
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+
+        #------------------------------------------------------------------------------
+        # this event WILL be detected. It will pass the main query and the AND query
+        #------------------------------------------------------------------------------
+
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+                                    description="RLE test event",
+                                    voltage = 8)
 
         msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
 
-#        # The first event never triggered an email because the voltage was less than 5, the queue is now empty
-#        self.assertFalse(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+        #----------------------------------------------------------------------
+        # Make assertions regarding the message generated for email
+        #----------------------------------------------------------------------
 
         self.assertEquals(msg_tuple[1], 'email@email.com' )
         #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)

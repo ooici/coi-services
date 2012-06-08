@@ -332,7 +332,6 @@ class DetectionEventProcessor(EventProcessor):
 
         if query.has_key('value'):
             if str(field_val) == query['value']:
-                log.warning("match for %s! " % field_val)
                 return True
 
         elif query.has_key('range'):
@@ -342,16 +341,12 @@ class DetectionEventProcessor(EventProcessor):
 
             if query['range'].has_key('from'):
                 if field_val <  query['range']['from']:
-                    log.warning("%s < %s" % (field_val, query['range']['from']))
                     return False
             if query['range'].has_key('to'):
                 if field_val > query['range']['to']:
-                    log.warning("%s > %s" % (field_val, query['range']['to']))
                     return False
 
             # if the range condition has not failed yet, then the range condition must have been satisfied.
-            log.info("1111: match for %s! " % field_val)
-            log.warning("query: %s" % query)
             return True
         else:
             raise BadRequest("Missing parameters value and range for query: %s" % query)
@@ -364,11 +359,9 @@ class DetectionEventProcessor(EventProcessor):
         if or_queries:
             for or_query in or_queries:
                 if self.match(event, or_query):
-                    log.warning("generating here!")
                     self.generate_event()
 
         if not self.match(event, query):
-            log.warning("not generating here!")
             return
 
         # if an 'and query' or a list of 'and queries' is provided, return False if the match returns false for
@@ -376,11 +369,8 @@ class DetectionEventProcessor(EventProcessor):
         elif and_queries:
             for and_query in and_queries:
                 if not self.match(event, and_query):
-                    log.warning("no match for %s" % and_query)
-                    log.warning("2. not generating here!")
                     return
 
-        log.warning("generating here: 3")
         self.generate_event()
 
     def generate_event(self):
