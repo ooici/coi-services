@@ -799,8 +799,8 @@ class QueryLanguage(object):
         # <double>  ::= 0-9 ('.' 0-9)
         # <number>  ::= <integer> | <double>
         #--------------------------------------------------------------------------------------
-        integer = Regex(r'[0-9]+') # Word matches space for some reason
-        double = Regex(r'[0-9]+.?[0-9]*')
+        integer = Regex(r'-?[0-9]+') # Word matches space for some reason
+        double = Regex(r'-?[0-9]+.?[0-9]*')
         number = double | integer
         
         #--------------------------------------------------------------------------------------
