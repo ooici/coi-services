@@ -341,6 +341,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             #May not have activated the subscription so just skip - had to add this to get AS integration tests to pass - probably should be fixed
             pass
 
+        self.clients.data_acquisition_management.unregister_process(data_process_id)
+
         # Delete the output stream, but not the output product
         out_products, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasOutputProduct, RT.DataProduct, True)
         if len(out_products) < 1:
