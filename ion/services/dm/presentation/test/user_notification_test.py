@@ -20,12 +20,13 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest, NotificationType
-
+from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent
+from ion.services.dm.presentation.discovery_service import QueryLanguage
+from ion.services.dm.presentation.user_notification_service import match
 import os
-
 import gevent
 from gevent.timeout import Timeout
+
 
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
@@ -209,6 +210,63 @@ class UserNotificationTest(PyonTestCase):
                                                         message_header='message_header',
                                                         parser='parser')
 
+    def test_evaluate_condition(self):
+        pass
+
+    def test_match(self):
+
+        parser = QueryLanguage()
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is outside range (less than lower bound), match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        field = 'voltage'
+        lower_bound = 5
+        upper_bound = 10
+        instrument = 'instrument_1'
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+        query = parser.parse(search_string1)
+
+        print ("query: ", query['query'])
+
+        event = ExampleDetectableEvent('TestEvent', voltage=4)
+        self.assertFalse(match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is inside range (is higher than upper bound), match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=11)
+        self.assertFalse(match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is inside range, match() returns true
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=6)
+        self.assertTrue(match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is exactly of the value mentioned in a query, match() returns true
+        #------------------------------------------------------------------------------------------------------
+
+        field = 'voltage'
+        value = 15
+        instrument = 'instrument_2'
+        search_string2 = "search '%s' is '%s' from '%s'" % (field, value, instrument)
+        query = parser.parse(search_string2)
+
+        event = ExampleDetectableEvent('TestEvent', voltage=15)
+        self.assertTrue(match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when value is not exactly what is mentioned in a query, match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=14)
+        self.assertFalse(match(event, query['query']))
 
     def test_create_sms(self):
 
