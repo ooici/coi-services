@@ -71,16 +71,14 @@ def evaluate_condition(event,query_dict = {} ):
             if match(event, or_query):
                 return True
 
-    if match(event, query):
-        # if an 'and query' or a list of 'and queries' is provided, return if the match returns false for
-        # any one of them
-        if and_queries:
-            for and_query in and_queries:
-                if not match(event, and_query):
-                    return False
-        return True
-    else:
-        return False
+    # if an 'and query' or a list of 'and queries' is provided, return if the match returns false for
+    # any one of them
+    if and_queries:
+        for and_query in and_queries:
+            if not match(event, and_query):
+                return False
+    return match(event, query)
+
 
 class fake_smtplib(object):
 

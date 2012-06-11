@@ -322,8 +322,8 @@ class UserNotificationTest(PyonTestCase):
         event = ExampleDetectableEvent('TestEvent', voltage=6)
         self.assertTrue(evaluate_condition(event, query))
 
-        # check true conditions. If any one of the 'or' conditions passing the evaluate_condition()
-        # method will return True
+        # check true conditions. If any one of the 'or' conditions passes, evaluate_condition()
+        # will return True
         event = ExampleDetectableEvent('TestEvent', voltage=15)
         self.assertTrue(evaluate_condition(event, query))
 
