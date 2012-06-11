@@ -22,7 +22,7 @@ import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent
 from ion.services.dm.presentation.discovery_service import QueryLanguage
-from ion.services.dm.presentation.user_notification_service import match
+from ion.services.dm.presentation.user_notification_service import match, evaluate_condition
 import os
 import gevent
 from gevent.timeout import Timeout
@@ -210,9 +210,6 @@ class UserNotificationTest(PyonTestCase):
                                                         message_header='message_header',
                                                         parser='parser')
 
-    def test_evaluate_condition(self):
-        pass
-
     def test_match(self):
 
         parser = QueryLanguage()
@@ -229,13 +226,11 @@ class UserNotificationTest(PyonTestCase):
         % (field, lower_bound, upper_bound, instrument)
         query = parser.parse(search_string1)
 
-        print ("query: ", query['query'])
-
         event = ExampleDetectableEvent('TestEvent', voltage=4)
         self.assertFalse(match(event, query['query']))
 
         #------------------------------------------------------------------------------------------------------
-        # Check that when field is inside range (is higher than upper bound), match() returns false
+        # Check that when field is outside range (is higher than upper bound), match() returns false
         #------------------------------------------------------------------------------------------------------
 
         event = ExampleDetectableEvent('TestEvent', voltage=11)
@@ -252,9 +247,7 @@ class UserNotificationTest(PyonTestCase):
         # Check that when field is exactly of the value mentioned in a query, match() returns true
         #------------------------------------------------------------------------------------------------------
 
-        field = 'voltage'
         value = 15
-        instrument = 'instrument_2'
         search_string2 = "search '%s' is '%s' from '%s'" % (field, value, instrument)
         query = parser.parse(search_string2)
 
@@ -267,6 +260,89 @@ class UserNotificationTest(PyonTestCase):
 
         event = ExampleDetectableEvent('TestEvent', voltage=14)
         self.assertFalse(match(event, query['query']))
+
+    def test_evaluate_condition(self):
+
+        parser = QueryLanguage()
+
+        #------------------------------------------------------------------------------------------------------
+        # Set up the search strings for different queries:
+        # These include main query, a list of or queries and a list of and queries
+        #------------------------------------------------------------------------------------------------------
+
+        field = 'voltage'
+        instrument = 'instrument'
+
+        #------------------------------------------------------------------------------------------------------
+        # main query
+        #------------------------------------------------------------------------------------------------------
+
+        lower_bound = 5
+        upper_bound = 10
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # or queries
+        #------------------------------------------------------------------------------------------------------
+
+        value = 15
+        search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
+
+        value = 17
+        search_string3 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
+
+        lower_bound = 20
+        upper_bound = 30
+        search_string4 = "or SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # and queries
+        #------------------------------------------------------------------------------------------------------
+
+        lower_bound = 5
+        upper_bound = 6
+        search_string5 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        lower_bound = 6
+        upper_bound = 7
+        search_string6 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # Construct queries by parsing different search strings and test the evaluate_condition()
+        # for each such complex query
+        #------------------------------------------------------------------------------------------------------
+        search_string = search_string1+search_string2+search_string3+search_string4+search_string5+search_string6
+        query = parser.parse(search_string)
+
+        # the main query as well as the 'and' queries pass for this case
+        event = ExampleDetectableEvent('TestEvent', voltage=6)
+        self.assertTrue(evaluate_condition(event, query))
+
+        # check true conditions. If any one of the 'or' conditions passing the evaluate_condition()
+        # method will return True
+        event = ExampleDetectableEvent('TestEvent', voltage=15)
+        self.assertTrue(evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=17)
+        self.assertTrue(evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=25)
+        self.assertTrue(evaluate_condition(event, query))
+
+        # check fail conditions arising from the 'and' condition (happens if any one of the 'and' conditions fail)
+        # note: the 'and' queries are attached to the main query
+        event = ExampleDetectableEvent('TestEvent', voltage=5)
+        self.assertFalse(evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=7)
+        self.assertFalse(evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=9)
+        self.assertFalse(evaluate_condition(event, query))
 
     def test_create_sms(self):
 
