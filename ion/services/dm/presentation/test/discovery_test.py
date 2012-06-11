@@ -362,6 +362,19 @@ class DiscoveryUnitTest(PyonTestCase):
 
         self.assertTrue(retval == ['hi'])
 
+    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
+    def test_query_geo_bbox(self, mock_es):
+        self.rr_read.return_value = ElasticSearchIndex(name='test')
+        self.discovery.elasticsearch_host = ''
+        self.discovery.elasticsearch_port = ''
+        self.discovery._multi = Mock()
+        self.discovery._multi.return_value = None
+        response = {'ok':True, 'status':200, 'hits':{'hits':['hi']}}
+        mock_es().search_index_advanced.return_value = response
+
+        retval = self.discovery.query_geo_bbox('abc123', 'blah', [0,10], [10,0])
+
+        self.assertTrue(retval == ['hi'])
 
 
         
@@ -703,3 +716,22 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertTrue(results[0]['_id'] == pd_id)
         self.assertTrue(results[0]['_source'].name == 'test_dev')
+   
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_geo_bbox_search(self):
+
+        pd = PlatformDevice(name='test_dev')
+        pd.nominal_location.lat = 5
+        pd.nominal_location.lon = 5
+
+        pd_id, _ = self.rr.create(pd)
+
+        search_string = "search 'nominal_location' geo box top-left lat 10 lon 0 bottom-right lat 0 lon 10 from 'devices_index'"
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertTrue(results[0]['_id'] == pd_id)
+        self.assertTrue(results[0]['_source'].name == 'test_dev')
+        

@@ -187,7 +187,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             # check that the product is not already associated with a producer
             producer_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
             if producer_ids:
-                raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDtaProducer %s", str(data_process_id), str(producer_ids[0]))
+                raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDataProducer %s", str(data_process_id), str(producer_ids[0]))
 
             #Assign each output Data Product to this producer resource
             out_data_product_obj = self.clients.resource_registry.read(out_data_product_id)
@@ -270,8 +270,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_obj.input_subscription_id = self.input_subscription_id
         self.clients.resource_registry.update(data_process_obj)
 
-        procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id,
-                    PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
+        procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
         if not procdef_ids:
             raise BadRequest("Cannot find associated ProcessDefinition for DataProcessDefinition id=%s" % data_process_definition_id)
         process_definition_id = procdef_ids[0]
@@ -335,45 +334,94 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Deactivates and deletes the input subscription
         # todo: create did not activate the subscription, should Transform deactivate?
         try:
-
             self.clients.pubsub_management.deactivate_subscription(data_process_obj.input_subscription_id)
+            log.debug("DataProcessManagementService:delete_data_process  delete subscription")
             self.clients.pubsub_management.delete_subscription(data_process_obj.input_subscription_id)
         except BadRequest, e:
             #May not have activated the subscription so just skip - had to add this to get AS integration tests to pass - probably should be fixed
             pass
 
+        self.clients.data_acquisition_management.unregister_process(data_process_id)
+
         # Delete the output stream, but not the output product
         out_products, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasOutputProduct, RT.DataProduct, True)
         if len(out_products) < 1:
             raise NotFound('The the Data Process %s output product cannot be located.' % str(data_process_id))
+
+#        outprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasOutputProduct)
+#        for outprod_association in outprod_associations:
+#            log.debug("DataProcessManagementService:delete_data_process  delete outprod assoc")
+#            self.clients.resource_registry.delete_association(outprod_association)
+
         for out_product in out_products:
             out_streams, _ = self.clients.resource_registry.find_objects(out_product, PRED.hasStream, RT.Stream, True)
             for out_stream in out_streams:
+
+                outprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasOutputProduct, out_product)
+                log.debug("DataProcessManagementService:delete_data_process  delete outprod assoc")
+                self.clients.resource_registry.delete_association(outprod_associations[0])
+
+                # delete the stream def assoc to the stream
+                streamdef_list = self.clients.resource_registry.find_objects(subject=out_stream, predicate=PRED.hasStreamDefinition, id_only=True)
+
+                # delete the associations link first
+                streamdef_assocs = self.clients.resource_registry.find_associations(out_stream, PRED.hasStreamDefinition)
+                for streamdef_assoc in streamdef_assocs:
+                    log.debug("DataProcessManagementService:delete_data_process  delete streamdef assocs")
+                    self.clients.resource_registry.delete_association(streamdef_assoc)
+
+#                for streamdef in streamdef_list:
+#                    self.clients.resource_registry.delete_association(streamdef)
+
+                # delete the connector first
+                stream_associations = self.clients.resource_registry.find_associations(out_product, PRED.hasStream)
+                for stream_association in stream_associations:
+                    log.debug("DataProcessManagementService:delete_data_process  delete stream assocs")
+                    self.clients.resource_registry.delete_association(stream_association)
+
+                log.debug("DataProcessManagementService:delete_data_process  delete outstreams")
                 self.clients.pubsub_management.delete_stream(out_stream)
-            # delete the connector as well
-            associations = self.clients.resource_registry.find_associations(out_product, PRED.hasStream)
-            for association in associations:
-                self.clients.resource_registry.delete_association(association)
+
+        # Delete the input products link
+        inprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasInputProduct)
+        if len(inprod_associations) < 1:
+            raise NotFound('The the Data Process %s input product link cannot be located.' % str(data_process_id))
+        for inprod_association in inprod_associations:
+            log.debug("DataProcessManagementService:delete_data_process  delete inprod assocs")
+            self.clients.resource_registry.delete_association(inprod_association)
+
 
         # Delete the transform
         transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
         if len(transforms) < 1:
             raise NotFound('There is no Transform linked to this Data Process %s' % str(data_process_id))
+
+        # delete the transform associations link first
+        transform_assocs = self.clients.resource_registry.find_associations(data_process_id, PRED.hasTransform)
+        for transform_assoc in transform_assocs:
+            log.debug("DataProcessManagementService:delete_data_process  delete transform assocs")
+            self.clients.resource_registry.delete_association(transform_assoc)
+
         for transform in transforms:
+            log.debug("DataProcessManagementService:delete_data_process  delete transform")
             self.clients.transform_management.delete_transform(transform)
-        # delete the transform associations link as well
-        transforms = self.clients.resource_registry.find_associations(data_process_id, PRED.hasTransform)
-        for transform in transforms:
-            self.clients.resource_registry.delete_association(transform)
+
 
         # Delete the assoc with Data Process Definition
         data_process_defs = self.clients.resource_registry.find_associations(data_process_id, PRED.hasProcessDefinition, None)
         if len(data_process_defs) < 1:
             raise NotFound('The the Data Process %s is not linked to a Data Process Definition.' % str(data_process_id))
         for data_process_def in data_process_defs:
+            log.debug("DataProcessManagementService:delete_data_process  data_process_def transform")
             self.clients.resource_registry.delete_association(data_process_def)
 
+#        other_assocs = self.clients.resource_registry.find_associations(subject=data_process_id)
+#        for other_assoc in other_assocs:
+#            log.debug("DataProcessManagementService:delete_data_process  delete other assoc")
+#            self.clients.resource_registry.delete_association(other_assoc)
+
         # Delete the data process
+        log.debug("DataProcessManagementService:delete_data_process the data_process")
         self.clients.resource_registry.delete(data_process_id)
         return
 
@@ -409,7 +457,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_obj = self.read_data_process(data_process_id)
 
         #find the Transform
-        log.debug("DataProcessManagementService:activate_data_process - get the transform associated with this data process")
+        log.debug("DataProcessManagementService:deactivate_data_process - get the transform associated with this data process")
         transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
         if not transforms:
             raise NotFound("No Transform created for this Data Process " + str(transforms))

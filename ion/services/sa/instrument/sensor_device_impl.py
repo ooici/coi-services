@@ -6,9 +6,10 @@
 """
 
 #from pyon.core.exception import BadRequest, NotFound
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, LCE
 
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.services.sa.instrument.policy import DevicePolicy
 
 class SensorDeviceImpl(ResourceImpl):
     """
@@ -20,6 +21,15 @@ class SensorDeviceImpl(ResourceImpl):
 
     def _primary_object_label(self):
         return "sensor_device"
+
+    def on_simpl_init(self):
+        self.policy = DevicePolicy(self.clients)
+
+        self.add_lce_precondition(LCE.PLAN, self.use_policy(self.policy.lce_precondition_plan))
+        self.add_lce_precondition(LCE.DEVELOP, self.use_policy(self.policy.lce_precondition_develop))
+        self.add_lce_precondition(LCE.INTEGRATE, self.use_policy(self.policy.lce_precondition_integrate))
+        self.add_lce_precondition(LCE.DEPLOY, self.use_policy(self.policy.lce_precondition_deploy))
+        self.add_lce_precondition(LCE.RETIRE, self.use_policy(self.policy.lce_precondition_retire))
 
     def link_model(self, sensor_device_id='', sensor_model_id=''):
         return self._link_resources(sensor_device_id, PRED.hasModel, sensor_model_id)

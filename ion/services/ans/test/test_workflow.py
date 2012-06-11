@@ -303,7 +303,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         # Find the link between the output Stream Definition resource and the Data Process Definition resource
         stream_ids,_ = self.rrclient.find_objects(data_process_definition._id, PRED.hasStreamDefinition, RT.StreamDefinition,  id_only=True)
-        if len(stream_ids) == 0:
+        if not stream_ids:
             raise Inconsistent("The data process definition %s is missing an association to an output stream definition" % data_process_definition._id )
         process_output_stream_def_id = stream_ids[0]
 
@@ -326,7 +326,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         #Find the id of the output data stream
         stream_ids, _ = self.rrclient.find_objects(transform_dp_id, PRED.hasStream, None, True)
-        if len(stream_ids) == 0:
+        if not stream_ids:
             raise Inconsistent("The data process %s is missing an association to an output stream" % data_process_id )
 
         return data_process_id, output_data_product_id
@@ -405,20 +405,19 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
+
+        workflow_data_product_name = 'TEST-Workflow_Output_Product' #Set a specific output product name
 
         #Add a transformation process definition
         ctd_L2_salinity_dprocdef_id = self._create_salinity_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_process_output_data=False)  #Don't persist the intermediate data product
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Add a transformation process definition
         salinity_doubler_dprocdef_id = self._create_salinity_doubler_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, output_data_product_name=workflow_data_product_name)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
-
-        #Set a specific output product name
-        workflow_def_obj.output_data_product_name = 'TEST-Workflow_Output_Product'
 
         #Create it in the resource registry
         workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
@@ -441,7 +440,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         #Verify the output data product name matches what was specified in the workflow definition
         workflow_product = self.rrclient.read(workflow_product_id)
-        assertions(workflow_product.name == workflow_def_obj.output_data_product_name)
+        assertions(workflow_product.name == workflow_data_product_name)
 
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
@@ -465,12 +464,17 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         objs, _ = self.rrclient.find_resources(restype=RT.Workflow)
         assertions(len(objs) == 0)
 
-
         # stop the flow parse the messages...
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         #Validate the data from each of the messages along the way
         self._validate_messages(results)
+
+        #Cleanup to make sure delete is correct.
+        self.workflowclient.delete_workflow_definition(workflow_def_id)
+
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition)
+        assertions(len(workflow_def_ids) == 0 )
 
 
     def _create_google_dt_data_process_definition(self):
@@ -581,13 +585,13 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    #unittest.skip("Skipping for debugging ")
     def test_google_dt_transform_workflow(self):
 
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
 
         #Add a transformation process definition
         google_dt_procdef_id = self._create_google_dt_data_process_definition()
@@ -635,6 +639,12 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Validate the data from each of the messages along the way
         self._validate_google_dt_results(VizTransformGoogleDT.outgoing_stream_def, results)
 
+        #Cleanup to make sure delete is correct.
+        self.workflowclient.delete_workflow_definition(workflow_def_id)
+
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition)
+        assertions(len(workflow_def_ids) == 0 )
+
 
 
     @attr('LOCOINT')
@@ -645,7 +655,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='Mpl_Graphs_Test_Workflow',description='Tests the workflow of converting stream data to Matplotlib graphs')
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Mpl_Graphs_Test_Workflow',description='Tests the workflow of converting stream data to Matplotlib graphs')
 
         #Add a transformation process definition
         mpl_graphs_procdef_id = self._create_mpl_graphs_data_process_definition()
@@ -692,6 +702,13 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Validate the data from each of the messages along the way
         self._validate_mpl_graphs_results(VizTransformGoogleDT.outgoing_stream_def, results)
 
+        #Cleanup to make sure delete is correct.
+        self.workflowclient.delete_workflow_definition(workflow_def_id)
+
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition)
+        assertions(len(workflow_def_ids) == 0 )
+
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     #@unittest.skip("Skipping for debugging ")
@@ -700,7 +717,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.DataProcessWorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Multiple_Test_Workflow',description='Tests the workflow of converting stream data')
 
         #Add a transformation process definition
         google_dt_procdef_id = self._create_google_dt_data_process_definition()
@@ -741,13 +758,24 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Start the output stream listener to monitor a set number of messages being sent through the workflows
         results = self._start_output_stream_listener(data_product_stream_ids, message_count_per_stream=5)
 
+        # stop the flow of messages...
+        self.process_dispatcher.cancel_process(ctd_sim_pid1) # kill the ctd simulator process - that is enough data
+        self.process_dispatcher.cancel_process(ctd_sim_pid2)
+
         #Stop the first workflow processes
         self.workflowclient.terminate_data_process_workflow(workflow_id1, False)  # Should test true at some point
 
         #Stop the second workflow processes
         self.workflowclient.terminate_data_process_workflow(workflow_id2, False)  # Should test true at some point
 
-        # stop the flow of messages...
-        self.process_dispatcher.cancel_process(ctd_sim_pid1) # kill the ctd simulator process - that is enough data
-        self.process_dispatcher.cancel_process(ctd_sim_pid2)
+        workflow_ids,_ = self.rrclient.find_resources(restype=RT.Workflow)
+        assertions(len(workflow_ids) == 0 )
 
+        #Cleanup to make sure delete is correct.
+        self.workflowclient.delete_workflow_definition(workflow_def_id)
+
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition)
+        assertions(len(workflow_def_ids) == 0 )
+
+        aid_list = self.rrclient.find_associations(workflow_def_id, PRED.hasDataProcessDefinition)
+        assertions(len(aid_list) == 0 )

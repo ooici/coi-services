@@ -9,8 +9,8 @@ import hashlib
 
 # from mock import Mock, sentinel, patch
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import BadRequest, NotFound
-from pyon.public import LCS
+from pyon.core.exception import BadRequest #, NotFound
+#from pyon.public import LCS
 from unittest import SkipTest
 
 class ResourceImplMetatest(object):
@@ -66,7 +66,7 @@ class ResourceImplMetatest(object):
             for k, v in resource_params.iteritems():
                 extras.append("%s='%s'" % (k, v))
             sample_resource_extras = "(with %s)" % ", ".join(extras)
-            sample_resource_md5 = "_%s" % hashlib.sha224(sample_resource_extras).hexdigest()[:7]
+            sample_resource_md5 = "_%s" % str(hashlib.sha224(sample_resource_extras).hexdigest()[:7])
     
         self.sample_resource_extras  = sample_resource_extras
         self.sample_resource_md5     = sample_resource_md5
@@ -100,7 +100,7 @@ class ResourceImplMetatest(object):
         """
         determine which class variable in the instance is of the target type
         @param instance the class to be searched
-        @param target type the type of the variable we want to find
+        @param target_type the type of the variable we want to find
         @retval string the name of the class variable
 
         we use this to get the reference to a variable in another class but
@@ -119,7 +119,7 @@ class ResourceImplMetatest(object):
         """
         impl_attr = self.find_class_variable_name(self.service_instance, type(impl))
 
-        assert(impl_attr)
+        assert impl_attr
 
         # write a message to myself that will appear in the description of a failed test
         #self.sample_resource_extras += " found at self.%s" % impl_attr
@@ -129,7 +129,7 @@ class ResourceImplMetatest(object):
         
     def add_resource_impl_unittests(self,
                                       resource_impl_class, 
-                                      resource_params={}):
+                                      resource_params=None):
         """
         Add tests for the resorce_impl_class to the (self.)resource_tester_class
 
@@ -142,6 +142,10 @@ class ResourceImplMetatest(object):
          into the test class itself.
         
         """
+
+        #init default args
+        if None == resource_params: resource_params = {}
+
         # create a impl class, no clients
         impl_instance = resource_impl_class([])
 
@@ -207,7 +211,7 @@ class ResourceImplMetatest(object):
                 if not hasattr(self, "_rim_service_obj"):
                     service_itself = getattr(self, find_cv_func(self, service_type))
                     self._rim_service_obj = service_itself
-                    assert(self._rim_service_obj)
+                    assert self._rim_service_obj
 
                 return self._rim_service_obj
 
@@ -710,7 +714,6 @@ class ResourceImplMetatest(object):
                     add_test_method(name, doc, fun)
 
                 freeze(lcetrans)
-
 
 
 
