@@ -326,6 +326,11 @@ class DetectionEventProcessor(EventProcessor):
 #
 #        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
 
+
+    #====
+    #@todo these functions: match and evaluate condition should not be members of this class. They don't use self.<anything>
+    # move them outside and test them separately using unit tests - not integration tests. You can create an event object
+    # and test it against the evaluate_condition function manually.
     def match(self, event, query):
 
         field_val = getattr(event,query['field'])
@@ -355,11 +360,15 @@ class DetectionEventProcessor(EventProcessor):
 
         # if any of the queries in the list of 'or queries' gives a match, publish an event
 
+        #@todo this method should return true or false, not actually send the event
 
         if or_queries:
             for or_query in or_queries:
                 if self.match(event, or_query):
+                    #@todo this could return more than one event if there is more than one or query. That is not correct
                     self.generate_event()
+
+
 
         if not self.match(event, query):
             return
@@ -372,6 +381,7 @@ class DetectionEventProcessor(EventProcessor):
                     return
 
         self.generate_event()
+    #====
 
     def generate_event(self):
         '''
@@ -398,12 +408,19 @@ class DetectionEventProcessor(EventProcessor):
 
         search_string = self.notification._res_obj.delivery_config.processing['search_string']
         result_dict = parser.parse(search_string)
+        #@todo parsing is expensive and need only be done once. Create an __init__ method that extends the base class and do it there
+
 
         query = result_dict['query']
         or_queries= result_dict['or']
         and_queries = result_dict['and']
 
         self.evaluate_condition(message, query, and_queries, or_queries)
+
+        #@ todo once your done, subscription callback should have two lines:
+        # if(evaluate_condition(message, self.query_dict)):
+        #    generate_event(message) # pass in the event message so we can put some of the content in the new event.
+
 
 def create_event_processor(notification_request, user_id):
     if notification_request.type == NotificationType.EMAIL:
