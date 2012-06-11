@@ -34,6 +34,55 @@ from interface.services.dm.iuser_notification_service import BaseUserNotificatio
 
 import smtplib
 
+def match(event, query):
+
+    field_val = getattr(event,query['field'])
+
+    if query.has_key('value'):
+        if str(field_val) == query['value']:
+            return True
+
+    elif query.has_key('range'):
+        # we check for the case when the event should not be generated:
+        # the code below allows us to pass in queries where only the lower bound is provided
+        # or only the upper bound
+
+        if query['range'].has_key('from'):
+            if field_val <  query['range']['from']:
+                return False
+        if query['range'].has_key('to'):
+            if field_val > query['range']['to']:
+                return False
+
+        # if the range condition has not failed yet, then the range condition must have been satisfied.
+        return True
+    else:
+        raise BadRequest("Missing parameters value and range for query: %s" % query)
+
+def evaluate_condition(event,query_dict = {} ):
+
+    query = query_dict['query']
+    or_queries= query_dict['or']
+    and_queries = query_dict['and']
+
+    # if any of the queries in the list of 'or queries' gives a match, publish an event
+    if or_queries:
+        for or_query in or_queries:
+            if match(event, or_query):
+                return True
+
+    if not match(event, query):
+        return False
+
+    # if an 'and query' or a list of 'and queries' is provided, return if the match returns false for
+    # any one of them
+    elif and_queries:
+        for and_query in and_queries:
+            if not match(event, and_query):
+                return False
+
+    return True
+
 class fake_smtplib(object):
 
     def __init__(self,host):
@@ -320,70 +369,22 @@ class DetectionEventProcessor(EventProcessor):
 #    comparators = {">":operator.gt,
 #                  "<":operator.lt,
 #                  "==":operator.eq}
-#
 
-#    def __init__(self, notification_request, user_id):
-#
-#        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
+    def __init__(self, notification_request, user_id):
 
+        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
+
+        parser = QueryLanguage()
+
+        search_string = self.notification._res_obj.delivery_config.processing['search_string']
+        self.query_dict = parser.parse(search_string)
 
     #====
     #@todo these functions: match and evaluate condition should not be members of this class. They don't use self.<anything>
     # move them outside and test them separately using unit tests - not integration tests. You can create an event object
     # and test it against the evaluate_condition function manually.
-    def match(self, event, query):
 
-        field_val = getattr(event,query['field'])
-
-        if query.has_key('value'):
-            if str(field_val) == query['value']:
-                return True
-
-        elif query.has_key('range'):
-            # we check for the case when the event should not be generated:
-            # the code below allows us to pass in queries where only the lower bound is provided
-            # or only the upper bound
-
-            if query['range'].has_key('from'):
-                if field_val <  query['range']['from']:
-                    return False
-            if query['range'].has_key('to'):
-                if field_val > query['range']['to']:
-                    return False
-
-            # if the range condition has not failed yet, then the range condition must have been satisfied.
-            return True
-        else:
-            raise BadRequest("Missing parameters value and range for query: %s" % query)
-
-    def evaluate_condition(self, event, query={}, and_queries=[], or_queries=[]):
-
-        # if any of the queries in the list of 'or queries' gives a match, publish an event
-
-        #@todo this method should return true or false, not actually send the event
-
-        if or_queries:
-            for or_query in or_queries:
-                if self.match(event, or_query):
-                    #@todo this could return more than one event if there is more than one or query. That is not correct
-                    self.generate_event()
-
-
-
-        if not self.match(event, query):
-            return
-
-        # if an 'and query' or a list of 'and queries' is provided, return False if the match returns false for
-        # any one of them
-        elif and_queries:
-            for and_query in and_queries:
-                if not self.match(event, and_query):
-                    return
-
-        self.generate_event()
-    #====
-
-    def generate_event(self):
+    def generate_event(self, msg):
         '''
         Publish an event
         '''
@@ -395,7 +396,7 @@ class DetectionEventProcessor(EventProcessor):
 
         #@David What should the origin and origin type be for Detection Events
         event_publisher.publish_event(origin='DetectionEventProcessor',
-            message="Event Detected by DetectionEventProcessor",
+            message=msg,
             description="Event was detected by DetectionEventProcessor",
             condition = message, # Concatenate the filter and make it a message
             original_origin = self.notification._res_obj.origin,
@@ -404,23 +405,8 @@ class DetectionEventProcessor(EventProcessor):
 
     def subscription_callback(self, message, headers):
 
-        parser = QueryLanguage()
-
-        search_string = self.notification._res_obj.delivery_config.processing['search_string']
-        result_dict = parser.parse(search_string)
-        #@todo parsing is expensive and need only be done once. Create an __init__ method that extends the base class and do it there
-
-
-        query = result_dict['query']
-        or_queries= result_dict['or']
-        and_queries = result_dict['and']
-
-        self.evaluate_condition(message, query, and_queries, or_queries)
-
-        #@ todo once your done, subscription callback should have two lines:
-        # if(evaluate_condition(message, self.query_dict)):
-        #    generate_event(message) # pass in the event message so we can put some of the content in the new event.
-
+        if evaluate_condition(message, self.query_dict):
+            self.generate_event(message) # pass in the event message so we can put some of the content in the new event.
 
 def create_event_processor(notification_request, user_id):
     if notification_request.type == NotificationType.EMAIL:
