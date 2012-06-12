@@ -32,21 +32,42 @@ class TestWorkflowManagementService(PyonTestCase):
         self.mock_find_objects = mock_clients.resource_registry.find_objects
         self.mock_find_resources = mock_clients.resource_registry.find_resources
         self.mock_find_subjects = mock_clients.resource_registry.find_subjects
+        self.mock_find_associations = mock_clients.resource_registry.find_associations
 
         # workflow definition
         self.workflow_definition = Mock()
         self.workflow_definition.name = "Foo"
         self.workflow_definition.description ="This is a test workflow definition"
-
-
-    def test_create_workflow_definition(self):
-        self.mock_create.return_value = ['111', 1]
+        self.workflow_definition.workflow_steps = []
 
         workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id='123')
         self.workflow_definition.workflow_steps.append(workflow_step_obj)
 
         workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id='456')
         self.workflow_definition.workflow_steps.append(workflow_step_obj)
+
+        # WorkflowDefinition to DataProcessDefinition associations
+        self.workflow_definition_to_dataprocess_definition_association = Mock()
+        self.workflow_definition_to_dataprocess_definition_association._id = 'abc'
+        self.workflow_definition_to_dataprocess_definition_association.s = "111"
+        self.workflow_definition_to_dataprocess_definition_association.st = RT.WorkflowDefinition
+        self.workflow_definition_to_dataprocess_definition_association.p = PRED.hasDataProcessDefinition
+        self.workflow_definition_to_dataprocess_definition_association.o = "123"
+        self.workflow_definition_to_dataprocess_definition_association.ot = RT.DataProcessDefinition
+
+        self.workflow_definition_to_dataprocess_definition_association2 = Mock()
+        self.workflow_definition_to_dataprocess_definition_association2._id = 'def'
+        self.workflow_definition_to_dataprocess_definition_association2.s = "111"
+        self.workflow_definition_to_dataprocess_definition_association2.st = RT.WorkflowDefinition
+        self.workflow_definition_to_dataprocess_definition_association2.p = PRED.hasDataProcessDefinition
+        self.workflow_definition_to_dataprocess_definition_association2.o = "456"
+        self.workflow_definition_to_dataprocess_definition_association2.ot = RT.DataProcessDefinition
+
+
+    def test_create_workflow_definition(self):
+        self.mock_create.return_value = ['111', 1]
+        self.mock_read.return_value = self.workflow_definition
+        self.mock_find_associations.return_value = [self.workflow_definition_to_dataprocess_definition_association, self.workflow_definition_to_dataprocess_definition_association2]
 
         workflow_definition_id = self.workflow_management_service.create_workflow_definition(self.workflow_definition)
 
@@ -56,6 +77,7 @@ class TestWorkflowManagementService(PyonTestCase):
 
     def test_read_and_update_workflow_definition(self):
         self.mock_read.return_value = self.workflow_definition
+        self.mock_find_associations.return_value = [self.workflow_definition_to_dataprocess_definition_association, self.workflow_definition_to_dataprocess_definition_association2]
 
         workflow_definition = self.workflow_management_service.read_workflow_definition('111')
 
@@ -80,6 +102,7 @@ class TestWorkflowManagementService(PyonTestCase):
 
     def test_delete_workflow_definition(self):
         self.mock_read.return_value = self.workflow_definition
+        self.mock_find_associations.return_value = [self.workflow_definition_to_dataprocess_definition_association, self.workflow_definition_to_dataprocess_definition_association2]
 
         self.workflow_management_service.delete_workflow_definition('111')
 
