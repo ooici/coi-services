@@ -188,7 +188,8 @@ class TestRuvDataHandlerUnit(PyonTestCase):
             'ds_params':{
                 # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
     #            'base_url':'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/',
-    #            'pattern':'<a href="([^"]*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{3,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
+                #CBM: What's the difference between RDLi and RDLm???
+    #            'pattern':'<a href="(RDLm.*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{1,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
                 'base_url':'test_data/ruv',
                 'pattern':'RDLm_SEAB_*.ruv',
             }

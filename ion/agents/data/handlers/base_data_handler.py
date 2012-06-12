@@ -8,8 +8,6 @@
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data
 
 """
-from interface.objects import Granule
-
 from pyon.public import log
 from pyon.util.async import spawn
 from pyon.ion.resource import PRED, RT
@@ -17,6 +15,9 @@ from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
+
+
+from interface.objects import Granule, Attachment, AttachmentType
 
 from ion.agents.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
@@ -208,31 +209,20 @@ class BaseDataHandler(object):
             log.warn('Already acquiring new data - action not duplicated')
             return
 
+        ndc = None
         if isNew:
-            # Get any NewDataCheck attachments and add them to the config
+            # Get the NewDataCheck attachment and add it's content to the config
             ext_ds_id = get_safe(config,'external_dataset_res_id')
             if ext_ds_id:
-                try:
-                    attachment_objs, _ = self._rr_cli.find_objects(ext_ds_id, PRED.hasAttachment, RT.Attachment, False)
-                    for attachment_obj in attachment_objs:
-                        kwds = set(attachment_obj.keywords)
-                        if 'NewDataCheck' in kwds:
-                            log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj))
-                            config['new_data_check'] = attachment_obj.content
-                            break
-                        else:
-                            log.debug('Found attachment: {0}'.format(attachment_obj))
-                except NotFound:
-                    raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(ext_ds_id))
+                ndc = self._find_new_data_check_attachment(ext_ds_id)
 
-        if not get_safe(config, 'new_data_check'):
-            config['new_data_check'] = None
+        config['new_data_check'] = ndc
 
             # Create a publisher to pass into the greenlet
         publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
 
         # Spawn a greenlet to do the data acquisition and publishing
-        g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback)
+        g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback, self._update_new_data_check_attachment)
         log.debug('** Spawned {0}'.format(g))
         self._glet_queue.append(g)
 
@@ -369,8 +359,40 @@ class BaseDataHandler(object):
         log.debug('** Release {0}'.format(caller))
         self._semaphore.release()
 
+    def _find_new_data_check_attachment(self, res_id):
+        try:
+            attachment_objs = self._rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
+            for attachment_obj in attachment_objs:
+                kwds = set(attachment_obj.keywords)
+                if 'NewDataCheck' in kwds:
+                    log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj._id))
+                    return attachment_obj.content
+                else:
+                    log.debug('Found attachment: {0}'.format(attachment_obj))
+        except NotFound:
+            raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(res_id))
+
+    def _update_new_data_check_attachment(self, res_id, new_content):
+        try:
+            # Delete any attachments with the "NewDataCheck" keyword
+            attachment_objs = self._rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
+            for attachment_obj in attachment_objs:
+                kwds = set(attachment_obj.keywords)
+                if 'NewDataCheck' in kwds:
+                    log.debug('Delete NewDataCheck attachment: {0}'.format(attachment_obj._id))
+                    self._rr_cli.delete_attachment(attachment_obj._id)
+                else:
+                    log.debug('Found attachment: {0}'.format(attachment_obj))
+
+            # Create the new attachment
+            att = Attachment(name='new_data_check', attachment_type=AttachmentType.OBJECT, keywords=['NewDataCheck',], content_type='text/plain', content=new_content)
+            att_id = self._rr_cli.create_attachment(resource_id=res_id, attachment=att)
+
+        except NotFound:
+            raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(res_id))
+
     @classmethod
-    def _acquire_data(cls, config, publisher, unlock_new_data_callback):
+    def _acquire_data(cls, config, publisher, unlock_new_data_callback, update_new_data_check_attachment):
         """
         Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
              BaseDataHandler._new_data_constraints (only if config does not contain 'constraints')
@@ -385,12 +407,20 @@ class BaseDataHandler(object):
         constraints = get_safe(config,'constraints')
         if not constraints:
             gevent.getcurrent().link(unlock_new_data_callback)
-            constraints = cls._new_data_constraints(config)
+            try:
+                constraints = cls._new_data_constraints(config)
+            except NoNewDataWarning as nndw:
+                log.info(nndw.message)
+                return
+
             if constraints is None:
                 raise InstrumentParameterException("Data constraints returned from _new_data_constraints cannot be None")
             config['constraints'] = constraints
 
         cls._publish_data(publisher, cls._get_data(config))
+
+        if 'set_new_data_check' in config:
+            update_new_data_check_attachment(config['external_dataset_res_id'], config['set_new_data_check'])
 
         # Publish a 'TestFinished' event
         if get_safe(config,'TESTING'):
@@ -441,7 +471,7 @@ class BaseDataHandler(object):
             if isinstance(gran, Granule):
                 publisher.publish(gran)
             else:
-                log.warn('Could not publish object returned by _get_data: {0}'.format(gran))
+                log.warn('Could not publish object of {0} returned by _get_data: {1}'.format(type(gran), gran))
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
@@ -466,6 +496,12 @@ class DataHandlerError(Exception):
     Base DataHandler error
     """
     pass
+
+class NoNewDataWarning(DataHandlerError):
+    """
+    Raised when there is no new data for a given acquisition cycle
+    """
+    message = 'There is no new data for the dataset, aborting acquisition cycle'
 
 class ConfigurationError(DataHandlerError):
     """

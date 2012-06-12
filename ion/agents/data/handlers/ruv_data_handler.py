@@ -11,7 +11,7 @@ from pyon.util.containers import get_safe
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from ion.agents.data.handlers.base_data_handler import BaseDataHandler
+from ion.agents.data.handlers.base_data_handler import BaseDataHandler, NoNewDataWarning
 from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer
 import numpy as np
 import re
@@ -51,8 +51,16 @@ class RuvDataHandler(BaseDataHandler):
 
         curr_list = list_file_info(base_url, pattern)
 
-        new_list = [x for x in curr_list if x not in old_list]
+        # Determine which files are new
+        new_list = [tuple(x) for x in curr_list if list(x) not in old_list]
 
+        if len(new_list) is 0:
+            raise NoNewDataWarning()
+
+        # The curr_list is the new new_data_check - used for the next "new data" evaluation
+        config['set_new_data_check'] = curr_list
+
+        # The new_list is the set of new files - these will be processed
         ret['new_files'] = new_list
 
         return ret
@@ -60,13 +68,14 @@ class RuvDataHandler(BaseDataHandler):
     @classmethod
     def _get_data(cls, config):
         new_flst = get_safe(config, 'constraints.new_files', [])
-        log.debug('new_flist: {0}'.format(new_flst))
+#        log.debug('new_flist: {0}'.format(new_flst))
         for f in new_flst:
+            log.error('Processing File: {0}'.format(f))
             try:
                 parser = RuvParser(f[0])
 
-                log.warn('Header Info:\n{0}'.format(parser.header_map))
-                log.warn('Tables Available: {0}'.format(parser.table_map.keys()))
+#                log.info('Header Info:\n{0}'.format(parser.header_map))
+#                log.info('Tables Available:\n{0}'.format(parser.table_map.keys()))
 
                 yield []
 
