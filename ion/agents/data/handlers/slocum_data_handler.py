@@ -65,7 +65,7 @@ class SlocumDataHandler(BaseDataHandler):
         ret['bounding_box'] = {}
         ret['vars'] = []
 
-        config['constraints'] = ret
+        return ret
 
     @classmethod
     def _constraints_for_historical_request(cls, config):

@@ -13,6 +13,7 @@ from nose.plugins.attrib import attr
 from mock import patch, Mock, call, sentinel
 import unittest
 
+from ion.agents.data.handlers.handler_utils import list_file_info
 from ion.agents.data.handlers.slocum_data_handler import SlocumDataHandler, SlocumParser
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
@@ -45,7 +46,7 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
         self.assertIn('pattern',ds_params)
         self.assertEquals(ds_params['pattern'], 'test_filter')
 
-    def test__new_data_constraints(self):
+    def test__constraints_for_new_request(self):
 #        ret = SlocumDataHandler._constraints_for_new_request({})
 #        self.assertIsInstance(ret, dict)
 
@@ -69,7 +70,8 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
             }
         }
         ret = SlocumDataHandler._constraints_for_new_request(config)
-        log.warn(ret)
+        log.warn('test__constraints_for_new_request: {0}'.format(ret['new_files']))
+        self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
     def test__get_data(self):
         config = {
@@ -99,6 +101,7 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
                 'end_time': 1327294800
             }
         }
-        SlocumDataHandler._constraints_for_historical_request(config)
+        ret = SlocumDataHandler._constraints_for_historical_request(config)
         log.warn('test_get_archive_constraints: {0}'.format(config))
+        self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 

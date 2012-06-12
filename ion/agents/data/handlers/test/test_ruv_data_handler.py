@@ -14,6 +14,7 @@ from nose.plugins.attrib import attr
 from mock import patch, Mock, call
 import unittest
 
+from ion.agents.data.handlers.handler_utils import list_file_info
 from ion.agents.data.handlers.ruv_data_handler import RuvDataHandler, RuvParser
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
@@ -43,7 +44,7 @@ class TestRuvDataHandlerUnit(PyonTestCase):
         self.assertIn('list_pattern',ds_params)
         self.assertEquals(ds_params['list_pattern'], 'test_filter')
 
-    def test__new_data_constraints(self):
+    def test__constraints_for_new_request(self):
         edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
 
 #        old_list = [
@@ -197,13 +198,9 @@ class TestRuvDataHandlerUnit(PyonTestCase):
                 'date_extraction_pattern': 'RDLm_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
             }
         }
-        RuvDataHandler._constraints_for_new_request(config)
+        ret = RuvDataHandler._constraints_for_new_request(config)
         log.warn('test__new_data_constraints: {0}'.format(config))
-        self.assertEqual(get_safe(config, 'constraints.new_files'), [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1339167982.0, 119066),
-                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1339167982.0, 109316),
-                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1400.ruv', 1339167982.0, 113411),
-                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1500.ruv', 1339167982.0, 113996),
-                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1600.ruv', 1339167982.0, 122576)])
+        self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
     def test__get_data(self):
         config = {
@@ -251,13 +248,9 @@ class TestRuvDataHandlerUnit(PyonTestCase):
                 'end_time': 1339012800
             }
         }
-        RuvDataHandler._constraints_for_historical_request(config)
-        log.warn('test__get_archive_constraints: {0}'.format(config))
-        self.assertEqual(get_safe(config, 'constraints.new_files'), [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1339167982.0, 119066),
-                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1339167982.0, 109316),
-                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1400.ruv', 1339167982.0, 113411),
-                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1500.ruv', 1339167982.0, 113996),
-                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1600.ruv', 1339167982.0, 122576)])
+        ret = RuvDataHandler._constraints_for_historical_request(config)
+        log.warn('test__get_archive_constraints: {0}'.format(ret['new_files']))
+        self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
 
 
