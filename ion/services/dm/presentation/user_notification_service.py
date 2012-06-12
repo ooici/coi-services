@@ -14,7 +14,7 @@ from pyon.util.async import spawn
 from pyon.util.log import log
 from pyon.util.containers import DotDict
 from pyon.event.event import EventPublisher
-from ion.services.dm.presentation.discovery_service import QueryLanguage
+from ion.services.dm.utility.query_language import QueryLanguage
 
 import string
 import time
@@ -39,7 +39,7 @@ def match(event, query):
 
     field_val = getattr(event,query['field'])
 
-    if query_is_term_search:
+    if QueryLanguage.query_is_term_search(query):
         # This is a term search - always a string
 
         #@todo implement using regex to mimic lucene...
@@ -47,7 +47,7 @@ def match(event, query):
         if str(field_val) == query['value']:
             return True
 
-    elif query_is_range_search:
+    elif QueryLanguage.query_is_range_search(query):
         #@todo turn these all into real function calls... from the dm utility directory
 
         # we check for the case when the event should not be generated:
@@ -66,11 +66,11 @@ def match(event, query):
         # if the range condition has not failed yet, then the range condition must have been satisfied.
         return True
 
-    elif query_is_geo_distance_search:
+    elif QueryLanguage.query_is_geo_distance_search(query):
         #@todo - wait on this one...
         pass
 
-    elif query_is_geo_bbox_search:
+    elif QueryLanguage.query_is_geo_bbox_search(query):
         #@todo implement this now.
 
         pass
