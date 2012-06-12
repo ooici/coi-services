@@ -804,7 +804,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handler for power_down agent command in uninitialized state.
         """
-        result = none
+        result = None
         next_state = InstrumentAgentState.POWERED_DOWN
 
         return (next_state, result)
