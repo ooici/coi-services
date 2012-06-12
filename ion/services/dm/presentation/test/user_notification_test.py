@@ -22,11 +22,10 @@ import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent
 from ion.services.dm.presentation.discovery_service import QueryLanguage
-from ion.services.dm.presentation.user_notification_service import match, evaluate_condition
+from ion.services.dm.utility.query_language import QueryLanguage
 import os
 import gevent
 from gevent.timeout import Timeout
-
 
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
@@ -227,21 +226,21 @@ class UserNotificationTest(PyonTestCase):
         query = parser.parse(search_string1)
 
         event = ExampleDetectableEvent('TestEvent', voltage=4)
-        self.assertFalse(match(event, query['query']))
+        self.assertFalse(QueryLanguage.match(event, query['query']))
 
         #------------------------------------------------------------------------------------------------------
         # Check that when field is outside range (is higher than upper bound), match() returns false
         #------------------------------------------------------------------------------------------------------
 
         event = ExampleDetectableEvent('TestEvent', voltage=11)
-        self.assertFalse(match(event, query['query']))
+        self.assertFalse(QueryLanguage.match(event, query['query']))
 
         #------------------------------------------------------------------------------------------------------
         # Check that when field is inside range, match() returns true
         #------------------------------------------------------------------------------------------------------
 
         event = ExampleDetectableEvent('TestEvent', voltage=6)
-        self.assertTrue(match(event, query['query']))
+        self.assertTrue(QueryLanguage.match(event, query['query']))
 
         #------------------------------------------------------------------------------------------------------
         # Check that when field is exactly of the value mentioned in a query, match() returns true
@@ -252,14 +251,14 @@ class UserNotificationTest(PyonTestCase):
         query = parser.parse(search_string2)
 
         event = ExampleDetectableEvent('TestEvent', voltage=15)
-        self.assertTrue(match(event, query['query']))
+        self.assertTrue(QueryLanguage.match(event, query['query']))
 
         #------------------------------------------------------------------------------------------------------
         # Check that when value is not exactly what is mentioned in a query, match() returns false
         #------------------------------------------------------------------------------------------------------
 
         event = ExampleDetectableEvent('TestEvent', voltage=14)
-        self.assertFalse(match(event, query['query']))
+        self.assertFalse(QueryLanguage.match(event, query['query']))
 
     def test_evaluate_condition(self):
 
@@ -320,29 +319,29 @@ class UserNotificationTest(PyonTestCase):
 
         # the main query as well as the 'and' queries pass for this case
         event = ExampleDetectableEvent('TestEvent', voltage=6)
-        self.assertTrue(evaluate_condition(event, query))
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
 
         # check true conditions. If any one of the 'or' conditions passes, evaluate_condition()
         # will return True
         event = ExampleDetectableEvent('TestEvent', voltage=15)
-        self.assertTrue(evaluate_condition(event, query))
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
 
         event = ExampleDetectableEvent('TestEvent', voltage=17)
-        self.assertTrue(evaluate_condition(event, query))
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
 
         event = ExampleDetectableEvent('TestEvent', voltage=25)
-        self.assertTrue(evaluate_condition(event, query))
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
 
         # check fail conditions arising from the 'and' condition (happens if any one of the 'and' conditions fail)
         # note: the 'and' queries are attached to the main query
         event = ExampleDetectableEvent('TestEvent', voltage=5)
-        self.assertFalse(evaluate_condition(event, query))
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
 
         event = ExampleDetectableEvent('TestEvent', voltage=7)
-        self.assertFalse(evaluate_condition(event, query))
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
 
         event = ExampleDetectableEvent('TestEvent', voltage=9)
-        self.assertFalse(evaluate_condition(event, query))
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
 
     def test_create_sms(self):
 

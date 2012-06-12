@@ -263,3 +263,61 @@ class QueryLanguage(object):
         if query.has_key('collection'):
             return True
         return False
+
+    @classmethod
+    def match(cls, event = None, query = None):
+
+        field_val = getattr(event,query['field'])
+
+        if cls.query_is_term_search(query):
+            # This is a term search - always a string
+
+            #@todo implement using regex to mimic lucene...
+
+            if str(field_val) == query['value']:
+                return True
+
+        elif cls.query_is_range_search(query):
+            # always a numeric value - float or int
+            if (field_val >=  query['range']['from']) and (field_val <= query['range']['to']):
+                return True
+            else:
+                return False
+
+        elif cls.query_is_geo_distance_search(query):
+            #@todo - wait on this one...
+            pass
+
+        elif cls.query_is_geo_bbox_search(query):
+            #@todo implement this now.
+
+#            self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'location', 'top_left':[0.0, 40.0],
+#                                                                       'bottom_right': [40.0, 0.0], 'index':'index'}})
+
+#            if field_val
+
+            pass
+        else:
+            raise BadRequest("Missing parameters value and range for query: %s" % query)
+
+    @classmethod
+    def evaluate_condition(cls, event = None, query_dict = {} ):
+
+        query = query_dict['query']
+        or_queries= query_dict['or']
+        and_queries = query_dict['and']
+
+        # if any of the queries in the list of 'or queries' gives a match, publish an event
+        if or_queries:
+            for or_query in or_queries:
+                if cls.match(event, or_query):
+                    return True
+
+        # if an 'and query' or a list of 'and queries' is provided, return if the match returns false for
+        # any one of them
+        if and_queries:
+            for and_query in and_queries:
+                if not cls.match(event, and_query):
+                    return False
+        return cls.match(event, query)
+
