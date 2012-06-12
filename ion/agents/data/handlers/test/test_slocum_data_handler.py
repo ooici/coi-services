@@ -16,7 +16,7 @@ import unittest
 from ion.agents.data.handlers.slocum_data_handler import SlocumDataHandler, SlocumParser
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
-@attr('UNIT', group='eoi')
+@attr('UNIT', group='eoi_slocum')
 class TestSlocumDataHandlerUnit(PyonTestCase):
 
     def setUp(self):
@@ -63,7 +63,9 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
             'ds_params':{
                 # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
                 'base_url':'test_data/slocum/',
-                'pattern':'ru05-*-sbd.dat',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
+                'list_pattern':'ru05-*-sbd.dat',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
+                'date_pattern':'%Y %j',
+                'date_extraction_pattern':'ru05-([\d]{4})-([\d]{3})-\d-\d-sbd.dat'
             }
         }
         ret = SlocumDataHandler._new_data_constraints(config)
@@ -80,4 +82,23 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
 
         for x in SlocumDataHandler._get_data(config):
             log.debug(x)
+
+    def test__get_archive_constraints(self):
+        config = {
+            'ds_params':{
+                # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
+                #            'base_url':'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/',
+                #            'pattern':'<a href="([^"]*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{3,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
+                'base_url':'test_data/slocum',
+                'list_pattern':'ru05-*-sbd.dat',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
+                'date_pattern':'%Y %j',
+                'date_extraction_pattern':'ru05-([\d]{4})-([\d]{3})-\d-\d-sbd.dat'
+                },
+            'constraints' : {
+                'start_time': 1327122000,
+                'end_time': 1327294800
+            }
+        }
+        SlocumDataHandler._get_archive_constraints(config)
+        log.warn('test_get_archive_constraints: {0}'.format(config))
 

@@ -8,9 +8,9 @@
 """
 from pyon.public import log
 from pyon.util.containers import get_safe
-import glob, os, re
+import glob, os, re, time, datetime
 import requests
-from ftplib import FTP
+from ftplib import FTP, fnmatch
 from StringIO import StringIO
 
 def _get_type(base):
@@ -65,7 +65,13 @@ def list_file_info_http(base, pattern, name_index=0):
     return olst
 
 def list_file_info_ftp(base, pattern):
-    raise NotImplementedError
+    def matches(fname):
+        return fnmatch.fnmatch(fname, pattern)
+
+    ftp = FTP(base)
+    ftp.login()
+    fnames = ftp.nlst()
+    return filter(matches, fnames)
 
 def list_file_info_fs(base, pattern):
     if not os.path.exists(base):
@@ -78,6 +84,24 @@ def list_file_info_fs(base, pattern):
         olst.append((f,os.path.getmtime(f),os.path.getsize(f)))
 
     return olst
+
+def get_time_from_filename(file_name, date_extraction_pattern, date_pattern):
+    file_str = os.path.basename(file_name)
+    matches = ' '.join(re.match(date_extraction_pattern, file_str).groups())
+    return time.mktime(datetime.datetime.strptime(matches, date_pattern).timetuple())
+
+def calculate_iteration_count(total_recs, max_rec):
+    """
+    Given the total number of records and the maximum records allowed in a granule,
+    calculates the number of iterations required to traverse the entire array in chunks of size max_rec
+    @param total_recs The total number of records
+    @param max_rec The maximum number of records allowed in a granule
+    """
+    cnt = total_recs / max_rec
+    if total_recs % max_rec > 0:
+        cnt += 1
+
+    return cnt
 
 #TODO:  IMPROVE - Function similar to above that reads a file to a StringIO from http, ftp, or fs
 #VERY BASIC

@@ -9,6 +9,7 @@
 
 from pyon.public import log
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.containers import get_safe
 from nose.plugins.attrib import attr
 from mock import patch, Mock, call
 import unittest
@@ -16,7 +17,7 @@ import unittest
 from ion.agents.data.handlers.ruv_data_handler import RuvDataHandler, RuvParser
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
-@attr('UNIT', group='eoi')
+@attr('UNIT', group='eoi_ruv')
 class TestRuvDataHandlerUnit(PyonTestCase):
 
     def setUp(self):
@@ -30,7 +31,7 @@ class TestRuvDataHandlerUnit(PyonTestCase):
     def test__init_acquisition_cycle_ext_ds_res(self):
         edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
         edres.dataset_description.parameters['base_url'] = 'test_data/dir'
-        edres.dataset_description.parameters['pattern'] = 'test_filter'
+        edres.dataset_description.parameters['list_pattern'] = 'test_filter'
         config = {'external_dataset_res':edres}
         RuvDataHandler._init_acquisition_cycle(config)
 
@@ -39,8 +40,8 @@ class TestRuvDataHandlerUnit(PyonTestCase):
 
         self.assertIn('base_url',ds_params)
         self.assertEquals(ds_params['base_url'],'test_data/dir')
-        self.assertIn('pattern',ds_params)
-        self.assertEquals(ds_params['pattern'], 'test_filter')
+        self.assertIn('list_pattern',ds_params)
+        self.assertEquals(ds_params['list_pattern'], 'test_filter')
 
     def test__new_data_constraints(self):
         edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
@@ -191,11 +192,18 @@ class TestRuvDataHandlerUnit(PyonTestCase):
                 #CBM: What's the difference between RDLi and RDLm???
     #            'pattern':'<a href="(RDLm.*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{1,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
                 'base_url':'test_data/ruv',
-                'pattern':'RDLm_SEAB_*.ruv',
+                'list_pattern':'RDLm_SEAB_*.ruv',
+                'date_pattern':'%Y %m %d %H %M',
+                'date_extraction_pattern': 'RDLm_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
             }
         }
-        ret = RuvDataHandler._new_data_constraints(config)
-        log.warn(ret)
+        RuvDataHandler._new_data_constraints(config)
+        log.warn('test__new_data_constraints: {0}'.format(config))
+        self.assertEqual(get_safe(config, 'constraints.new_files'), [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1339167982.0, 119066),
+                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1339167982.0, 109316),
+                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1400.ruv', 1339167982.0, 113411),
+                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1500.ruv', 1339167982.0, 113996),
+                                                                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1600.ruv', 1339167982.0, 122576)])
 
     def test__get_data(self):
         config = {
@@ -210,7 +218,47 @@ class TestRuvDataHandlerUnit(PyonTestCase):
         }
 
         for x in RuvDataHandler._get_data(config):
-            log.debug(x)
+            log.debug('test__get_data: {0}'.format(x))
+
+#    def test__get_data_with_exception(self):
+#        config = {
+#            'constraints':{
+#                'new_files':[
+#                    #                    'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/RDLi_BELM_2012_06_06_1300.ruv',
+#                    #                    'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/RDLi_BELM_2012_06_06_1400.ruv',
+#                    ('test_data/ruv/RDLm_SEAB_2012_06_06_1500.ruv', 1339006491.0, 113996),
+#                    ('test_data/ruv/RDLm_SEAB_2012_06_06_1600.ruv', 1339006513.0, 122576),
+#                    ]
+#            }
+#        }
+#
+#        for x in RuvDataHandler._get_data(config):
+#            log.debug(x)
+
+    def test__get_archive_constraints(self):
+        config = {
+            'ds_params':{
+                # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
+                #            'base_url':'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/',
+                #            'pattern':'<a href="([^"]*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{3,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
+                'base_url':'test_data/ruv',
+                'list_pattern':'RDLm_SEAB_*.ruv',
+                'date_pattern':'%Y %m %d %H %M',
+                'date_extraction_pattern': 'RDLm_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
+                },
+            'constraints' : {
+                'start_time': 1338998400,
+                'end_time': 1339012800
+            }
+        }
+        RuvDataHandler._get_archive_constraints(config)
+        log.warn('test__get_archive_constraints: {0}'.format(config))
+        self.assertEqual(get_safe(config, 'constraints.new_files'), [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1339167982.0, 119066),
+                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1339167982.0, 109316),
+                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1400.ruv', 1339167982.0, 113411),
+                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1500.ruv', 1339167982.0, 113996),
+                                                                   ('test_data/ruv/RDLm_SEAB_2012_06_06_1600.ruv', 1339167982.0, 122576)])
+
 
 
 

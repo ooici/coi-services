@@ -12,7 +12,7 @@ from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler, NoNewDataWarning
-from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer
+from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer, get_time_from_filename
 import numpy as np
 import re
 from StringIO import StringIO
@@ -47,9 +47,11 @@ class RuvDataHandler(BaseDataHandler):
 
         ret = {}
         base_url = get_safe(config,'ds_params.base_url')
-        pattern = get_safe(config,'ds_params.pattern')
+        list_pattern = get_safe(config,'ds_params.list_pattern')
+        date_pattern = get_safe(config, 'ds_params.date_pattern')
+        date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
 
-        curr_list = list_file_info(base_url, pattern)
+        curr_list = list_file_info(base_url, list_pattern)
 
         # Determine which files are new
         new_list = [tuple(x) for x in curr_list if list(x) not in old_list]
@@ -62,8 +64,32 @@ class RuvDataHandler(BaseDataHandler):
 
         # The new_list is the set of new files - these will be processed
         ret['new_files'] = new_list
+        ret['start_time'] = get_time_from_filename(new_list[0][0], date_extraction_pattern, date_pattern)
+        ret['end_time'] = get_time_from_filename(new_list[len(new_list) - 1][0], date_extraction_pattern, date_pattern)
+        ret['bounding_box'] = {}
+        ret['vars'] = []
 
         return ret
+
+    @classmethod
+    def _get_archive_constraints(cls, config):
+        base_url = get_safe(config,'ds_params.base_url')
+        list_pattern = get_safe(config,'ds_params.list_pattern')
+        date_pattern = get_safe(config, 'ds_params.date_pattern')
+        date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
+
+        start_time = get_safe(config, 'constraints.start_time')
+        end_time = get_safe(config, 'constraints.end_time')
+
+        new_list = []
+        curr_list = list_file_info(base_url, list_pattern)
+
+        for x in curr_list:
+            curr_time = get_time_from_filename(x[0], date_extraction_pattern, date_pattern)
+            if start_time <= curr_time <= end_time:
+                new_list.append(x)
+
+        config['constraints']['new_files'] = new_list
 
     @classmethod
     def _get_data(cls, config):
@@ -77,6 +103,8 @@ class RuvDataHandler(BaseDataHandler):
 #                log.info('Header Info:\n{0}'.format(parser.header_map))
 #                log.info('Tables Available:\n{0}'.format(parser.table_map.keys()))
 
+                #For now, yield nothing. We need to figure out what to do with the secondary tables
+                #before we can start building granules to send back.
                 yield []
 
             except RuvParseException as rpe:
