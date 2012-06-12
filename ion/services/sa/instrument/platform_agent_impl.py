@@ -8,6 +8,7 @@
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED, RT, LCE
 from ion.services.sa.instrument.flag import KeywordFlag
+from ion.services.sa.instrument.policy import AgentPolicy
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 
@@ -23,10 +24,18 @@ class PlatformAgentImpl(ResourceSimpleImpl):
         return "platform_agent"
 
     def on_impl_init(self):
-        self.add_lce_precondition(LCE.PLAN, (lambda r: "")) # no precondition to plan
-        self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
-        self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
-        self.add_lce_precondition(LCE.DEPLOY, self.lce_precondition_deploy)
+        self.policy = AgentPolicy(self.clients)
+        
+        self.add_lce_precondition(LCE.PLAN, self.use_policy(self.policy.lce_precondition_plan))
+        self.add_lce_precondition(LCE.INTEGRATE, self.use_policy(self.policy.lce_precondition_integrate))
+        self.add_lce_precondition(LCE.DEVELOP, self.use_policy(self.policy.lce_precondition_develop))
+        self.add_lce_precondition(LCE.DEPLOY, self.use_policy(self.policy.lce_precondition_deploy))
+        self.add_lce_precondition(LCE.RETIRE, self.use_policy(self.policy.lce_precondition_retire))
+        
+        # self.add_lce_precondition(LCE.PLAN, (lambda r: "")) # no precondition to plan
+        # self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
+        # self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
+        # self.add_lce_precondition(LCE.DEPLOY, self.lce_precondition_deploy)  
         
     
     def lce_precondition_deploy(self, platform_agent_id):

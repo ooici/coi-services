@@ -6,7 +6,7 @@
 '''
 
 
-from interface.objects import View, SearchQuery, Index, Catalog, ElasticSearchIndex, CouchDBIndex
+from interface.objects import View, Catalog, ElasticSearchIndex
 from interface.services.dm.idiscovery_service import BaseDiscoveryService
 from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_true, validate_is_instance
@@ -238,6 +238,10 @@ class DiscoveryService(BaseDiscoveryService):
 
     def query_request(self, query=None, limit=0, id_only=False):
         validate_is_instance(query,dict, 'invalid query')
+
+        #---------------------------------------------
+        # Term Search
+        #---------------------------------------------
         if self.query_is_term_search(query):
             source_id = self._match_query_sources(query['index']) or query['index']
             kwargs = dict(
@@ -256,6 +260,10 @@ class DiscoveryService(BaseDiscoveryService):
                 kwargs['offset'] = query['offset']
 
             return self.query_term(**kwargs)
+        
+        #---------------------------------------------
+        # Association Search
+        #---------------------------------------------
         elif self.query_is_association_search(query):
             kwargs = dict(
                 resource_id = query['association'],
@@ -264,6 +272,10 @@ class DiscoveryService(BaseDiscoveryService):
             if query.get('depth'):
                 kwargs['depth'] = query['depth']
             return self.query_association(**kwargs)
+        
+        #---------------------------------------------
+        # Range Search
+        #---------------------------------------------
         elif self.query_is_range_search(query):
             source_id = self._match_query_sources(query['index']) or query['index']
             kwargs = dict(
@@ -283,11 +295,57 @@ class DiscoveryService(BaseDiscoveryService):
                 kwargs['offset'] = query['offset']
             
             return self.query_range(**kwargs)
+        
+        #---------------------------------------------
+        # Collection Search
+        #---------------------------------------------
         elif self.query_is_collection_search(query):
             return self.query_collection(
                 collection_id = query['collection'],
                 id_only       = id_only
             )
+        
+        #---------------------------------------------
+        # Geo Distance Search
+        #---------------------------------------------
+        elif self.query_is_geo_distance_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id = source_id,
+                field     = query['field'],
+                origin    = [query['lon'], query['lat']],
+                distance  = query['dist'],
+                units     = query['units'],
+                id_only   = id_only
+            )
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+            return self.query_geo_distance(**kwargs)
+        
+        #---------------------------------------------
+        # Geo Bounding Box Search
+        #---------------------------------------------
+        elif self.query_is_geo_bbox_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id    = source_id,
+                field        = query['field'],
+                top_left     = query['top_left'],
+                bottom_right = query['bottom_right'],
+                id_only      = id_only,
+            )
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+            return self.query_geo_bbox(**kwargs)
+
 
         #@todo: query for couch
         raise BadRequest('improper query: %s' % query)
@@ -342,7 +400,7 @@ class DiscoveryService(BaseDiscoveryService):
 
 
         index = source
-        validate_is_instance(index, Index, '%s does not refer to a valid index.' % index)
+        validate_is_instance(index, ElasticSearchIndex, '%s does not refer to a valid index.' % index)
         if order: 
             validate_is_instance(order,dict, 'Order is incorrect.')
             es.sort(**order)
@@ -387,7 +445,7 @@ class DiscoveryService(BaseDiscoveryService):
             return iterate
 
         index = source
-        validate_is_instance(index,Index,'%s does not refer to a valid index.' % source_id)
+        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
         if order:
             validate_is_instance(order,dict,'Order is incorrect.')
             es.sort(**order)
@@ -396,7 +454,7 @@ class DiscoveryService(BaseDiscoveryService):
             es.size(limit)
 
         if field == '*':
-            value = '_all'
+            field = '_all'
 
         query = ep.ElasticQuery().range(
             field      = field,
@@ -424,7 +482,7 @@ class DiscoveryService(BaseDiscoveryService):
 
         return resources
 
-    def query_collection(self, collection_id='', id_only=False):
+    def query_collection(self,source_id='', collection_id='', id_only=False):
         validate_true(collection_id, 'Unspecified collection id')
         resource_ids = self.clients.index_management.list_collection_resources(collection_id, id_only=True)
         if id_only:
@@ -432,6 +490,105 @@ class DiscoveryService(BaseDiscoveryService):
         
         resources = map(self.clients.resource_registry.read,resource_ids)
         return resources
+
+    def query_geo_distance(self, source_id='', field='', origin=None, distance='', units='mi',order=None, limit=0, offset=0, id_only=False):
+        validate_true(isinstance(origin,(tuple,list)) , 'Origin is not a list or tuple.')
+        validate_true(len(origin)==2, 'Origin is not of the right size: (2)')
+
+        if not self.use_es:
+            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
+
+        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
+        source = self.clients.resource_registry.read(source_id)
+
+        iterate = self._multi(self.query_range, source=source, field=field, origin=origin, distance=distance) 
+        if iterate is not None:
+            return iterate
+
+        index = source
+        validate_is_instance(index,ElasticSearchIndex, '%s does not refer to a valid index.' % index)
+
+        sorts = ep.ElasticSort()
+        if order is not None and isinstance(order,dict):
+            field = order.keys()[0]
+            value = order[field]
+            sorts.sort(field,value)
+
+        if limit:
+            es.size(limit)
+
+        if offset:
+            es.from_offset(offset)
+
+        if field == '*':
+            field = '_all'
+
+
+        sorts.geo_distance(field, origin, units)
+
+        es.sorted(sorts)
+
+        filter = ep.ElasticFilter()
+        filter.geo_distance(field,origin, '%s%s' %(distance,units))
+
+        es.filtered(filter)
+
+        query = ep.ElasticQuery().match_all()
+
+        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
+        IndexManagementService._check_response(response)
+
+        return self._results_from_response(response,id_only)
+
+
+    def query_geo_bbox(self, source_id='', field='', top_left=None, bottom_right=None, order=None, limit=0, offset=0, id_only=False):
+        validate_true(isinstance(top_left, (list,tuple)), 'Top Left is not a list or a tuple')
+        validate_true(len(top_left)==2, 'Top Left is not of the right size: (2)')
+        validate_true(isinstance(bottom_right, (list,tuple)), 'Bottom Right is not a list or a tuple')
+        validate_true(len(bottom_right)==2, 'Bottom Right is not of the right size: (2)')
+
+        if not self.use_es:
+            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
+
+        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
+        source = self.clients.resource_registry.read(source_id)
+
+        iterate = self._multi(self.query_range, source=source, field=field, top_left=top_left, bottom_right=bottom_right, order=order, limit=limit, offset=offset, id_only=id_only)
+        if iterate is not None:
+            return iterate
+
+        index = source
+        validate_is_instance(index,ElasticSearchIndex, '%s does not refer to a valid index.' % index)
+
+        sorts = ep.ElasticSort()
+        if order is not None and isinstance(order,dict):
+            field = order.keys()[0]
+            value = order[field]
+            sorts.sort(field,value)
+
+        if limit:
+            es.size(limit)
+
+        if offset:
+            es.from_offset(offset)
+
+        if field == '*':
+            field = '_all'
+
+
+        filter = ep.ElasticFilter()
+        filter.geo_bounding_box(field, top_left, bottom_right)
+
+        es.filtered(filter)
+
+        query = ep.ElasticQuery().match_all()
+
+        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
+        IndexManagementService._check_response(response)
+
+        return self._results_from_response(response,id_only)
+
+        
 
     def es_complex_query(self,query,and_queries=None,or_queries=None):
         pass
@@ -443,9 +600,9 @@ class DiscoveryService(BaseDiscoveryService):
         '''
         if not self.use_es:
             raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
-        if query_is_term_search(query):
+        if self.query_is_term_search(query):
             return ep.ElasticQuery().wildcard(field=query['field'],value=query['value'])
-        if query_is_range_search(query):
+        if self.query_is_range_search(query):
             return ep.ElasticQuery().range(
                 field      = query['field'],
                 from_value = query['range']['from'],
@@ -531,6 +688,21 @@ class DiscoveryService(BaseDiscoveryService):
         if query.has_key('range') and isinstance(query['range'], dict) and query['range'].has_key('from') and query['range'].has_key('to') and query.has_key('index') and query.has_key('field'):
             return True
         return False
+    
+    def query_is_geo_distance_search(self,query=None):
+        if not (query and isinstance(query,dict)):
+            return False
+        if query.has_key('dist') and query.has_key('lat') and query.has_key('lon') and query.has_key('units') and query.has_key('index') and query.has_key('field'):
+            return True
+        return False
+
+    def query_is_geo_bbox_search(self,query=None):
+        if not (query and isinstance(query,dict)):
+            return False
+        if query.has_key('top_left') and query.has_key('bottom_right') and isinstance(query['top_left'],list) and len(query['top_left'])==2 and isinstance(query['bottom_right'],list) and len(query['bottom_right'])==2 and query.has_key('field'):
+            return True
+        return False
+
     def query_is_association_search(self,query=None): 
         if not query:
             return False
@@ -589,7 +761,7 @@ class QueryLanguage(object):
                 <query> ::= <search-query> | <association-query> | <collection-query>
     <association-query> ::= "BELONGS TO" <resource-id> [<limit-parameter>]
      <collection-query> ::= "IN" <collection-id>
-         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query>) "FROM" <index-name> [<query-parameter>]*
+         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
       <query-parameter> ::= <order-parameter> | <limit-parameter> | <offset-parameter>
      <offset-parameter> ::= "SKIP" <integer>
       <order-parameter> ::= "ORDER BY" <limited-string>
@@ -598,10 +770,16 @@ class QueryLanguage(object):
            <term-query> ::= "IS" <field-query>
           <field-query> ::= <wildcard-string>
           <range-query> ::= "VALUES FROM" <number> "TO" <number>
+            <geo-query> ::= "GEO" ( <geo-distance> | <geo-bbox> )
+         <geo-distance> ::= "DISTANCE" <distance> "FROM" <coords>
+             <geo-bbox> ::= "BOX" "TOP-LEFT" <coords> "BOTTOM-RIGHT" <coords>
            <index-name> ::= <python-string>
         <collection-id> ::= <resource_id>
           <resource-id> ::= REGEX( "[a-zA-Z0-9]+" )
          <query-filter> ::= "FILTER" <python-string>
+             <distance> ::= <number> <units>
+                <units> ::= ('km' | 'mi' | 'nm')
+               <coords> ::= "LAT" <number> "LON" <number>
                 <field> ::= <limited-string> | "*"
        <limited-string> ::= REGEX( "[a-zA-Z0-9_\.]+" )
       <wildcard-string> ::= <python-string>
@@ -610,6 +788,7 @@ class QueryLanguage(object):
               <double>  ::= 0-9 ('.' 0-9)
               <integer> ::= 0-9
     '''
+
     def __init__(self):
 
 
@@ -620,8 +799,8 @@ class QueryLanguage(object):
         # <double>  ::= 0-9 ('.' 0-9)
         # <number>  ::= <integer> | <double>
         #--------------------------------------------------------------------------------------
-        integer = Regex(r'[0-9]+') # Word matches space for some reason
-        double = Regex(r'[0-9]+.?[0-9]*')
+        integer = Regex(r'-?[0-9]+') # Word matches space for some reason
+        double = Regex(r'-?[0-9]+.?[0-9]*')
         number = double | integer
         
         #--------------------------------------------------------------------------------------
@@ -629,11 +808,18 @@ class QueryLanguage(object):
         # <wildcard-string> ::= <python-string>
         # <limited-string>  ::= '"' a..z A..Z 9..9 _ . '"' (alpha nums and ._ surrounded by double quotes)
         # <field>           ::= <limited-string> | "*"
+        # <coords>          ::= "LAT" <number> "LON" <number>
+        # <units>           ::= ('km' | 'mi' | 'nm')
+        # <distance>        ::= REGEX(([0-9]*\.?[0-9]*)(km|mi|nm)?)
         #--------------------------------------------------------------------------------------
         python_string = quotedString.setParseAction(removeQuotes)
         wildcard_string = python_string
         limited_string = Regex(r'("(?:[a-zA-Z0-9_\.])*"|\'(?:[a-zA-Z0-9_\.]*)\')').setParseAction(removeQuotes)
         field = limited_string ^ CaselessLiteral('"*"').setParseAction(removeQuotes)
+        coords = CaselessLiteral("LAT") + number + CaselessLiteral("LON") + number
+        units = CaselessLiteral('km') | CaselessLiteral('nm') | CaselessLiteral('mi')
+        distance = number + units
+        distance.setParseAction( lambda x : self.frame.update({'dist' : float(x[0]), 'units' : x[1]}))
         
         #--------------------------------------------------------------------------------------
         # <query-filter> ::= "FILTER" <python-string>
@@ -658,13 +844,24 @@ class QueryLanguage(object):
         range_query.setParseAction(lambda x : self.frame.update({'range':{'from' : float(x[2]), 'to' : float(x[4])}}))
 
         #--------------------------------------------------------------------------------------
+        # <geo-distance> ::= "DISTANCE" <distance> "FROM" <coords>
+        # <geo-bbox>     ::= "BOX" "TOP-LEFT" <coords> "BOTTOM-RIGHT" <coords>
+        #--------------------------------------------------------------------------------------
+        geo_distance = CaselessLiteral("DISTANCE") + distance + CaselessLiteral("FROM") + coords
+        geo_distance.setParseAction(lambda x : self.frame.update({'lat': float(x[5]), 'lon':float(x[7])}))
+        geo_bbox = CaselessLiteral("BOX") + CaselessLiteral("TOP-LEFT") + coords + CaselessLiteral("BOTTOM-RIGHT") + coords
+        geo_bbox.setParseAction(lambda x : self.frame.update({'top_left':[float(x[5]),float(x[3])], 'bottom_right':[float(x[10]),float(x[8])]}))
+
+        #--------------------------------------------------------------------------------------
         # <field-query>  ::= <wildcard-string>
         # <term-query>   ::= "IS" <field-query>
+        # <geo-query>    ::= "GEO" ( <geo-distance> | <geo-bbox> )
         #--------------------------------------------------------------------------------------
         field_query = wildcard_string
         term_query = CaselessLiteral("IS") + field_query
         # Add the term to the frame object
         term_query.setParseAction(lambda x : self.frame.update({'value':x[1]}))
+        geo_query = CaselessLiteral("GEO") + ( geo_distance | geo_bbox ) 
 
         #--------------------------------------------------------------------------------------
         # <limit-parameter>  ::= "LIMIT" <integer>
@@ -684,12 +881,12 @@ class QueryLanguage(object):
         query_parameter = limit_parameter | order_parameter | offset_parameter
         
         #--------------------------------------------------------------------------------------
-        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query>) "FROM" <index-name> [<query-parameter>]*
+        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
         # <collection-query>  ::= "IN <collection-id>"
         # <association-query> ::= "BELONGS TO" <resource-id> [ <depth-parameter> ]
         # <query>             ::= <search-query> | <association-query> | <collection-query>
         #--------------------------------------------------------------------------------------
-        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
+        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
         # Add the field to the frame object
         search_query.setParseAction(lambda x : self.frame.update({'field' : x[1]}))
         collection_query = CaselessLiteral("IN") + collection_id

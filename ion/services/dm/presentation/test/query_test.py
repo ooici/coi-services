@@ -127,6 +127,16 @@ class QueryLanguageUnitTest(PyonTestCase):
         retval = self.parser.parse(test_string)
         self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'field', 'index':'index', 'value':'value', 'offset':3}})
 
+    def test_geo_distance(self):
+        test_string = "search 'location' geo distance 20 km from lat 20 lon 30.0 from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertTrue(retval == {'and':[], 'or':[], 'query':{'lat':20.0, 'lon':30.0, 'units':'km', 'field':'location', 'index':'index', 'dist':20.0}}, '%s' % retval)
+
+    def test_geo_bbox(self):
+        test_string = "search 'location' geo box top-left lat 40 lon 0 bottom-right lat 0 lon 40 from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'location', 'top_left':[0.0, 40.0], 'bottom_right': [40.0, 0.0], 'index':'index'}})
+
 
     def test_extensive(self):
 

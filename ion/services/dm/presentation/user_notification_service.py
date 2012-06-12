@@ -35,17 +35,26 @@ from interface.services.dm.iuser_notification_service import BaseUserNotificatio
 import smtplib
 
 def match(event, query):
+    #@todo move this to the dm utitlity directory and make it a class method in the QueryLanguage class
 
     field_val = getattr(event,query['field'])
 
-    if query.has_key('value'):
+    if query_is_term_search:
+        # This is a term search - always a string
+
+        #@todo implement using regex to mimic lucene...
+
         if str(field_val) == query['value']:
             return True
 
-    elif query.has_key('range'):
+    elif query_is_range_search:
+        #@todo turn these all into real function calls... from the dm utility directory
+
         # we check for the case when the event should not be generated:
         # the code below allows us to pass in queries where only the lower bound is provided
         # or only the upper bound
+
+        # always a numeric value - float or int
 
         if query['range'].has_key('from'):
             if field_val <  query['range']['from']:
@@ -56,10 +65,22 @@ def match(event, query):
 
         # if the range condition has not failed yet, then the range condition must have been satisfied.
         return True
+
+    elif query_is_geo_distance_search:
+        #@todo - wait on this one...
+        pass
+
+    elif query_is_geo_bbox_search:
+        #@todo implement this now.
+
+        pass
+
+
     else:
         raise BadRequest("Missing parameters value and range for query: %s" % query)
 
 def evaluate_condition(event,query_dict = {} ):
+    #@todo move this to the dm utitlity directory and make it a class method in the QueryLanguage class
 
     query = query_dict['query']
     or_queries= query_dict['or']

@@ -6,13 +6,13 @@
 @description Integration and Unit tests for Discovery Service
 '''
 from unittest.case import skipIf, skip
-from pyon.public import log, PRED, CFG, RT
+from pyon.public import PRED, CFG, RT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import get_sys_name
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess
+from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess 
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
@@ -348,6 +348,34 @@ class DiscoveryUnitTest(PyonTestCase):
         retval = self.discovery.query_term('blah', 'field', 'value')
         self.assertTrue(retval == 'test')
 
+    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
+    def test_query_geo_distance(self, mock_es):
+        self.rr_read.return_value = ElasticSearchIndex(name='test')
+        self.discovery.elasticsearch_host = ''
+        self.discovery.elasticsearch_port = ''
+        self.discovery._multi = Mock()
+        self.discovery._multi.return_value = None
+        response = {'ok':True, 'status':200, 'hits':{'hits':['hi']}}
+        mock_es().search_index_advanced.return_value = response
+
+        retval = self.discovery.query_geo_distance('abc13', 'blah', [0,0], 20)
+
+        self.assertTrue(retval == ['hi'])
+
+    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
+    def test_query_geo_bbox(self, mock_es):
+        self.rr_read.return_value = ElasticSearchIndex(name='test')
+        self.discovery.elasticsearch_host = ''
+        self.discovery.elasticsearch_port = ''
+        self.discovery._multi = Mock()
+        self.discovery._multi.return_value = None
+        response = {'ok':True, 'status':200, 'hits':{'hits':['hi']}}
+        mock_es().search_index_advanced.return_value = response
+
+        retval = self.discovery.query_geo_bbox('abc123', 'blah', [0,10], [10,0])
+
+        self.assertTrue(retval == ['hi'])
+
 
         
 @attr('INT', group='dm')
@@ -566,7 +594,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     def test_ranged_value_searching(self):
         discovery = self.discovery
         rr        = self.rr
-        assertion = self.assertTrue
         
         view_id = discovery.create_view('bank_view', fields=['cash_balance'])
         bank_id, _ = rr.create(BankAccount(name='broke', cash_balance=10))
@@ -598,7 +625,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         inst_dev = InstrumentDevice(name='test_dev',serial_number='ABC123')
 
         dev_id, _ = self.rr.create(inst_dev)
-        view_id   = self.discovery.create_view('devs',fields=['name','serial_number'])
+        self.discovery.create_view('devs',fields=['name','serial_number'])
 
         search_string = "search 'serial_number' is 'abc*' from 'devs'"
         results = self.poll(9, self.discovery.parse,search_string)
@@ -674,3 +701,37 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(origin_type == RT.DataProcess)
         self.assertTrue(origin_id == dp_id)
 
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_geo_distance_search(self):
+
+        pd = PlatformDevice(name='test_dev')
+
+        pd_id, _ = self.rr.create(pd)
+
+        search_string = "search 'nominal_location' geo distance 20 km from lat 0 lon 0 from 'devices_index'"
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertTrue(results[0]['_id'] == pd_id)
+        self.assertTrue(results[0]['_source'].name == 'test_dev')
+   
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_geo_bbox_search(self):
+
+        pd = PlatformDevice(name='test_dev')
+        pd.nominal_location.lat = 5
+        pd.nominal_location.lon = 5
+
+        pd_id, _ = self.rr.create(pd)
+
+        search_string = "search 'nominal_location' geo box top-left lat 10 lon 0 bottom-right lat 0 lon 10 from 'devices_index'"
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertTrue(results[0]['_id'] == pd_id)
+        self.assertTrue(results[0]['_source'].name == 'test_dev')
+        
