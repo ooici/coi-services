@@ -16,7 +16,7 @@ import unittest
 from ion.agents.data.handlers.slocum_data_handler import SlocumDataHandler, SlocumParser
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
-@attr('UNIT', group='eoi_slocum')
+@attr('UNIT', group='eoi')
 class TestSlocumDataHandlerUnit(PyonTestCase):
 
     def setUp(self):

@@ -17,7 +17,7 @@ import unittest
 from ion.agents.data.handlers.ruv_data_handler import RuvDataHandler, RuvParser
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
-@attr('UNIT', group='eoi_ruv')
+@attr('UNIT', group='eoi')
 class TestRuvDataHandlerUnit(PyonTestCase):
 
     def setUp(self):
