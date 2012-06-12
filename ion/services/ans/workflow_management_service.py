@@ -7,7 +7,7 @@ __license__ = 'Apache 2.0'
 from interface.services.ans.iworkflow_management_service import BaseWorkflowManagementService
 from pyon.util.containers import is_basic_identifier
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
-from pyon.public import Container, log, IonObject, RT,PRED
+from pyon.public import Container, log, IonObject, RT,PRED, OT
 
 class WorkflowManagementService(BaseWorkflowManagementService):
 
@@ -30,9 +30,9 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
         workflow_definition_id, version = self.clients.resource_registry.create(workflow_definition)
 
-        if workflow_definition.type_ == RT.DataProcessWorkflowDefinition:
-            workflow_definition = self.read_workflow_definition(workflow_definition_id)
-            self._update_data_process_workflow_def_associations(workflow_definition)
+
+        workflow_definition = self.read_workflow_definition(workflow_definition_id)
+        self._update_workflow_associations(workflow_definition)
 
 
         return workflow_definition_id
@@ -51,24 +51,24 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
         self.clients.resource_registry.update(workflow_definition)
 
-        if workflow_definition.type_ == RT.DataProcessWorkflowDefinition:
-            self._update_data_process_workflow_def_associations(workflow_definition)
+        self._update_workflow_associations(workflow_definition)
 
-    def _delete_data_process_workflow_def_associations(self, workflow_definition_id):
+    def _delete_workflow_associations(self, workflow_definition_id):
 
         #Remove and existing associations
-        aid_list = self.clients.resource_registry.find_associations(workflow_definition_id, PRED.hasDataProcessDefinition, RT.DataProcessDefinition)
+        aid_list = self.clients.resource_registry.find_associations(workflow_definition_id, PRED.hasDataProcessDefinition)
         for aid in aid_list:
             self.clients.resource_registry.delete_association(aid)
 
-    def _update_data_process_workflow_def_associations(self, workflow_definition):
+    def _update_workflow_associations(self, workflow_definition):
 
         #Remove and existing associations
-        self._delete_data_process_workflow_def_associations(workflow_definition._id)
+        self._delete_workflow_associations(workflow_definition._id)
 
-        #For Data Process workflows, create the appropriate associations
+        #For each Data Process workflow step, create the appropriate associations
         for wf_step in workflow_definition.workflow_steps:
-            self.clients.resource_registry.create_association(workflow_definition._id, PRED.hasDataProcessDefinition, wf_step.data_process_definition_id)
+            if wf_step.type_ == OT.DataProcessWorkflowStep:
+                self.clients.resource_registry.create_association(workflow_definition._id, PRED.hasDataProcessDefinition, wf_step.data_process_definition_id)
 
 
     def read_workflow_definition(self, workflow_definition_id=''):
@@ -104,8 +104,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             raise NotFound("workflow_definition_id %s does not exist" % workflow_definition_id)
 
 
-        if workflow_definition.type_ == RT.DataProcessWorkflowDefinition:
-            self._delete_data_process_workflow_def_associations(workflow_definition_id)
+        self._delete_workflow_associations(workflow_definition_id)
 
         self.clients.resource_registry.delete(workflow_definition_id)
 
@@ -161,8 +160,8 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             process_output_stream_def_id = stream_ids[0]
 
             #If an output name has been specified than use it for the final output product name
-            if workflow_definition.output_data_product_name is not '' and workflow_definition.workflow_steps[-1] == wf_step:
-                data_product_name = workflow_definition.output_data_product_name
+            if wf_step.output_data_product_name is not '':
+                data_product_name = wf_step.output_data_product_name
             else:
                 #Concatenate the name of the workflow and data process definition for the name of the data product output + plus
                 #a unique identifier for multiple instances of a workflow definition.
@@ -171,15 +170,15 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             # Create the output data product of the transform
             transform_dp_obj = IonObject(RT.DataProduct, name=data_product_name,description=data_process_definition.description)
             transform_dp_id = self.clients.data_product_management.create_data_product(transform_dp_obj, process_output_stream_def_id)
-            if wf_step.persist_data:
-                self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=wf_step.persist_data, persist_metadata=wf_step.persist_metadata)
+            if wf_step.persist_process_output_data:
+                self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=wf_step.persist_process_output_data, persist_metadata=wf_step.persist_process_output_data)
 
             #Associate the intermediate data products with the workflow
             self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, transform_dp_id )
 
             # Create the  transform data process
             log.debug("create data_process and start it")
-            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id})
+            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id}, configuration=wf_step.configuration)
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
