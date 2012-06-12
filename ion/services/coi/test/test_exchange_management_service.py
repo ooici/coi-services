@@ -209,6 +209,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
 
         # should no longer exist on broker (both xp and xs)
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     def test_xp_create_then_delete_xs(self):
 
         # xp needs an xs first
@@ -263,6 +264,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
     def test_xn_undeclare_without_declare(self):
         self.assertRaises(NotFound, self.ems.undeclare_exchange_name, 'some_non_id')
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     def test_xn_declare_then_delete_xs(self):
 
         # xn needs an xs first
@@ -278,6 +280,12 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         # no longer should have assoc from XS to XN
         xnlist, _ = self.rr.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, enid, id_only=True)
         self.assertEquals(len(xnlist), 0)
+
+        # cleanup: delete the XN (assoc already removed, so we reach into the implementation here)
+        self.rr.delete(enid)
+        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xn = exchange.ExchangeName(self.container.ex_manager, exchange_name.name, xs)
+        self.container.ex_manager.delete_xn(xn, use_ems=False)
 
 
 @attr('INT', group='coi')
@@ -310,6 +318,7 @@ class TestContainerExchangeToEms(IonIntegrationTestCase):
         self.assertIn('house', self.container.ex_manager._transport.declare_exchange_impl.call_args[0][1])
 
     @patch.dict(CFG, {'container':{'exchange':{'auto_register': False}}})
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     def test_create_xs_with_no_flag_only_uses_ex_manager(self):
 
         self.container.ex_manager.create_xs('house')
