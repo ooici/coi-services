@@ -95,7 +95,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         except Exception as ex:
             self.fail("failed to create new data product: %s" %ex)
 
-        log.debug('new ctd_parsed_data_product_id = ', ctd_parsed_data_product_id)
+        log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product_id)
 
         #Only ever need one device for testing purposes.
         instDevice_obj,_ = self.rrclient.find_resources(restype=RT.InstrumentDevice, name='SBE37IMDevice')
