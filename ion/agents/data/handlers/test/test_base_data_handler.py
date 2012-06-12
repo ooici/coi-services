@@ -98,10 +98,11 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         self.assertRaises(InstrumentDataException, BaseDataHandler._publish_data, publisher=publisher, data_generator=data_generator)
 
+    @patch.object(BaseDataHandler, '_get_archive_constraints')
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
     @patch.object(BaseDataHandler, '_publish_data')
-    def test__acquire_data_with_constraints(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock):
+    def test__acquire_data_with_constraints(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock, _get_archive_constraints_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
@@ -115,6 +116,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
 
         _init_acquisition_cycle_mock.assert_called_once_with(config)
+        _get_archive_constraints_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
         _publish_data_mock.assert_called_once_with(publisher, data_generator)
 
@@ -164,11 +166,12 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         unlock_new_data_callback = Mock()
         self.assertRaises(InstrumentParameterException, BaseDataHandler._acquire_data, config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
 
+    @patch.object(BaseDataHandler, '_get_archive_constraints')
     @patch('ion.agents.data.handlers.base_data_handler.EventPublisher')
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
     @patch.object(BaseDataHandler, '_publish_data')
-    def test__acquire_data_with_constraints_testing_flag(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock, EventPublisher_mock):
+    def test__acquire_data_with_constraints_testing_flag(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock, EventPublisher_mock, _get_archive_constraints_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
@@ -185,6 +188,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         _init_acquisition_cycle_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
         _publish_data_mock.assert_called_once_with(publisher, data_generator)
+        _get_archive_constraints_mock.assert_called_once_with(config)
         EventPublisher_mock.publish_event.assert_called_once()
 
     def test_cmd_dvr_initialize(self):
@@ -347,21 +351,13 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         config = {}
         self.assertRaises(NotImplementedException, BaseDataHandler._new_data_constraints, config)
 
+    def test__get_archive_constraints(self):
+        config = {}
+        self.assertRaises(NotImplementedException, BaseDataHandler._get_archive_constraints, config)
+
     def test__get_data(self):
         config = {}
         self.assertRaises(NotImplementedException, BaseDataHandler._get_data, config)
-
-    def test__calc_iter_cnt_even(self):
-        total_recs = 100
-        max_rec = 10
-        ret = BaseDataHandler._calc_iter_cnt(total_recs=total_recs, max_rec=max_rec)
-        self.assertEqual(ret, 10)
-
-    def test__calc_iter_cnt_remainder(self):
-        total_recs = 101
-        max_rec = 10
-        ret = BaseDataHandler._calc_iter_cnt(total_recs=total_recs, max_rec=max_rec)
-        self.assertEqual(ret, 11)
 
     def test__unlock_new_data_callback(self):
         self._bdh._semaphore = Mock()

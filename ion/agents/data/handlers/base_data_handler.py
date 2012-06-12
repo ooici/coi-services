@@ -25,6 +25,8 @@ from ion.agents.instrument.exceptions import InstrumentParameterException, Instr
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.granule import build_granule
 
+from ion.agents.data.handlers.handler_utils import calculate_iteration_count
+
 import gevent
 from gevent.coros import Semaphore
 import time
@@ -389,6 +391,8 @@ class BaseDataHandler(object):
             if constraints is None:
                 raise InstrumentParameterException("Data constraints returned from _new_data_constraints cannot be None")
             config['constraints'] = constraints
+        else:
+            cls._get_archive_constraints(config)
 
         cls._publish_data(publisher, cls._get_data(config))
 
@@ -397,6 +401,14 @@ class BaseDataHandler(object):
             log.debug('Publish TestingFinished event')
             pub = EventPublisher('DeviceCommonLifecycleEvent')
             pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
+
+    @classmethod
+    def _get_archive_constraints(cls, constraints):
+        """
+        Determines any constraints that must be added to the constraints configuration.
+        This should present a uniform constraints configuration to be sent to _get_data
+        """
+        raise NotImplementedException('{0}.{1} must implement \'_get_archive_constraints\''.format(cls.__module__, cls.__name__))
 
     @classmethod
     def _init_acquisition_cycle(cls, config):
@@ -446,20 +458,6 @@ class BaseDataHandler(object):
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
         #TODO: When finished publishing, update (either directly, or via an event callback to the agent) the UpdateDescription
-
-    @classmethod
-    def _calc_iter_cnt(cls, total_recs, max_rec):
-        """
-        Given the total number of records and the maximum records allowed in a granule,
-        calculates the number of iterations required to traverse the entire array in chunks of size max_rec
-        @param total_recs The total number of records
-        @param max_rec The maximum number of records allowed in a granule
-        """
-        cnt = total_recs / max_rec
-        if total_recs % max_rec > 0:
-            cnt += 1
-
-        return cnt
 
 class DataHandlerError(Exception):
     """
@@ -531,7 +529,7 @@ class FibonacciDataHandler(BaseDataHandler):
                 a, b = b, a + b
 
         gen=fibGenerator()
-        cnt = cls._calc_iter_cnt(cnt, max_rec)
+        cnt = calculate_iteration_count(cnt, max_rec)
         for i in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
             d = gen.next()
@@ -571,7 +569,7 @@ class DummyDataHandler(BaseDataHandler):
 
         arr = npr.random_sample(array_len)
         log.debug('Array to send using max_rec={0}: {1}'.format(max_rec, arr))
-        cnt = cls._calc_iter_cnt(arr.size, max_rec)
+        cnt = calculate_iteration_count(arr.size, max_rec)
         for x in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
             d = arr[x*max_rec:(x+1)*max_rec]
