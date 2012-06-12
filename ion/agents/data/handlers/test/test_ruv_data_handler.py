@@ -197,7 +197,7 @@ class TestRuvDataHandlerUnit(PyonTestCase):
                 'date_extraction_pattern': 'RDLm_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
             }
         }
-        RuvDataHandler._new_data_constraints(config)
+        RuvDataHandler._constraints_for_new_request(config)
         log.warn('test__new_data_constraints: {0}'.format(config))
         self.assertEqual(get_safe(config, 'constraints.new_files'), [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1339167982.0, 119066),
                                                                      ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1339167982.0, 109316),
@@ -251,7 +251,7 @@ class TestRuvDataHandlerUnit(PyonTestCase):
                 'end_time': 1339012800
             }
         }
-        RuvDataHandler._get_archive_constraints(config)
+        RuvDataHandler._constraints_for_historical_request(config)
         log.warn('test__get_archive_constraints: {0}'.format(config))
         self.assertEqual(get_safe(config, 'constraints.new_files'), [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1339167982.0, 119066),
                                                                    ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1339167982.0, 109316),

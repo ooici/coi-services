@@ -9,8 +9,8 @@
 from pyon.public import log
 from pyon.util.containers import get_safe
 import glob, os, re, time, datetime
-import requests
-from ftplib import FTP, fnmatch
+import requests, fnmatch
+from ftplib import FTP
 from StringIO import StringIO
 
 def _get_type(base):

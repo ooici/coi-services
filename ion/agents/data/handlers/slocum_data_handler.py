@@ -45,7 +45,7 @@ class SlocumDataHandler(BaseDataHandler):
 #        config['pattern'] = pattern
 
     @classmethod
-    def _new_data_constraints(cls, config):
+    def _constraints_for_new_request(cls, config):
         old_list = get_safe(config, 'new_data_check') or []
 
         ret = {}
@@ -68,7 +68,7 @@ class SlocumDataHandler(BaseDataHandler):
         config['constraints'] = ret
 
     @classmethod
-    def _get_archive_constraints(cls, config):
+    def _constraints_for_historical_request(cls, config):
         base_url = get_safe(config,'ds_params.base_url')
         list_pattern = get_safe(config,'ds_params.list_pattern')
         date_pattern = get_safe(config, 'ds_params.date_pattern')
@@ -85,7 +85,8 @@ class SlocumDataHandler(BaseDataHandler):
             if start_time <= curr_time <= end_time:
                 new_list.append(x)
 
-        config['constraints']['new_files'] = new_list
+#        config['constraints']['new_files'] = new_list
+        return {'new_files':new_list}
 
     @classmethod
     def _get_data(cls, config):

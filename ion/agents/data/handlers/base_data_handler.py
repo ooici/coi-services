@@ -397,7 +397,7 @@ class BaseDataHandler(object):
     def _acquire_data(cls, config, publisher, unlock_new_data_callback, update_new_data_check_attachment):
         """
         Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
-             BaseDataHandler._new_data_constraints (only if config does not contain 'constraints')
+             BaseDataHandler._constraints_for_new_request (only if config does not contain 'constraints')
              BaseDataHandler._publish_data passing BaseDataHandler._get_data as a parameter
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
@@ -410,16 +410,19 @@ class BaseDataHandler(object):
         if not constraints:
             gevent.getcurrent().link(unlock_new_data_callback)
             try:
-                constraints = cls._new_data_constraints(config)
+                constraints = cls._constraints_for_new_request(config)
             except NoNewDataWarning as nndw:
                 log.info(nndw.message)
                 return
 
             if constraints is None:
-                raise InstrumentParameterException("Data constraints returned from _new_data_constraints cannot be None")
+                raise InstrumentParameterException("Data constraints returned from _constraints_for_new_request cannot be None")
             config['constraints'] = constraints
+        elif isinstance(constraints, dict):
+            addnl_constr = cls._constraints_for_historical_request(config)
+            constraints.update(addnl_constr)
         else:
-            cls._get_archive_constraints(config)
+            raise InstrumentParameterException('Data constraints must be of type \'dict\':  {0}'.format(constraints))
 
         cls._publish_data(publisher, cls._get_data(config))
 
@@ -433,24 +436,24 @@ class BaseDataHandler(object):
             pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
 
     @classmethod
-    def _get_archive_constraints(cls, constraints):
+    def _constraints_for_historical_request(cls, config):
         """
         Determines any constraints that must be added to the constraints configuration.
         This should present a uniform constraints configuration to be sent to _get_data
         """
-        raise NotImplementedException('{0}.{1} must implement \'_get_archive_constraints\''.format(cls.__module__, cls.__name__))
+        raise NotImplementedException('{0}.{1} must implement \'_constraints_for_historical_request\''.format(cls.__module__, cls.__name__))
 
     @classmethod
     def _init_acquisition_cycle(cls, config):
         """
         Allows the concrete implementation to initialize/prepare objects the data handler
-        will use repeatedly (such as a dataset object) in cls._new_data_constraints and/or cls._get_data
+        will use repeatedly (such as a dataset object) in cls._constraints_for_new_request and/or cls._get_data
         Objects should be added to the config so they are available later in the workflow
         """
         raise NotImplementedException('{0}.{1} must implement \'_init_acquisition_cycle\''.format(cls.__module__,cls.__name__))
 
     @classmethod
-    def _new_data_constraints(cls, config):
+    def _constraints_for_new_request(cls, config):
         #TODO: Document what "constraints" looks like (yml)!!
         """
         Determines the appropriate constraints for acquiring any "new data" from the external dataset
@@ -459,7 +462,7 @@ class BaseDataHandler(object):
         @param config dict of configuration parameters - may be used to generate the returned 'constraints' dict
         @retval dict that contains the constraints for retrieval of new data from the external dataset
         """
-        raise NotImplementedException('{0}.{1} must implement \'_new_data_constraints\''.format(cls.__module__,cls.__name__))
+        raise NotImplementedException('{0}.{1} must implement \'_constraints_for_new_request\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _get_data(cls, config):
@@ -527,12 +530,16 @@ class FibonacciDataHandler(BaseDataHandler):
         """
 
     @classmethod
-    def _new_data_constraints(cls, config):
+    def _constraints_for_new_request(cls, config):
         """
         Returns a constraints dictionary with 'count' assigned a random integer
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
         """
         return {'count':npr.randint(5,20,1)[0]}
+
+    @classmethod
+    def _constraints_for_historical_request(cls, config):
+        pass
 
     @classmethod
     def _get_data(cls, config):
@@ -581,7 +588,7 @@ class DummyDataHandler(BaseDataHandler):
         """
 
     @classmethod
-    def _new_data_constraints(cls, config):
+    def _constraints_for_new_request(cls, config):
         """
         Returns a constraints dictionary with 'array_len' and 'count' assigned random integers
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
@@ -589,6 +596,10 @@ class DummyDataHandler(BaseDataHandler):
         # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
         max_rec = get_safe(config, 'max_records', 1)
         return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
+
+    @classmethod
+    def _constraints_for_historical_request(cls, config):
+        pass
 
     @classmethod
     def _get_data(cls, config):
