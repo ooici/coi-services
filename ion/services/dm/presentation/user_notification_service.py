@@ -34,73 +34,6 @@ from interface.services.dm.iuser_notification_service import BaseUserNotificatio
 
 import smtplib
 
-def match(event, query):
-    #@todo move this to the dm utitlity directory and make it a class method in the QueryLanguage class
-
-    field_val = getattr(event,query['field'])
-
-    if QueryLanguage.query_is_term_search(query):
-        # This is a term search - always a string
-
-        #@todo implement using regex to mimic lucene...
-
-        if str(field_val) == query['value']:
-            return True
-
-    elif QueryLanguage.query_is_range_search(query):
-        #@todo turn these all into real function calls... from the dm utility directory
-
-        # we check for the case when the event should not be generated:
-        # the code below allows us to pass in queries where only the lower bound is provided
-        # or only the upper bound
-
-        # always a numeric value - float or int
-
-        if query['range'].has_key('from'):
-            if field_val <  query['range']['from']:
-                return False
-        if query['range'].has_key('to'):
-            if field_val > query['range']['to']:
-                return False
-
-        # if the range condition has not failed yet, then the range condition must have been satisfied.
-        return True
-
-    elif QueryLanguage.query_is_geo_distance_search(query):
-        #@todo - wait on this one...
-        pass
-
-    elif QueryLanguage.query_is_geo_bbox_search(query):
-        #@todo implement this now.
-
-        pass
-
-
-    else:
-        raise BadRequest("Missing parameters value and range for query: %s" % query)
-
-def evaluate_condition(event,query_dict = {} ):
-    #@todo move this to the dm utitlity directory and make it a class method in the QueryLanguage class
-
-    query = query_dict['query']
-    or_queries= query_dict['or']
-    and_queries = query_dict['and']
-
-    # if any of the queries in the list of 'or queries' gives a match, publish an event
-    if or_queries:
-        for or_query in or_queries:
-            if match(event, or_query):
-                return True
-
-    # if an 'and query' or a list of 'and queries' is provided, return if the match returns false for
-    # any one of them
-    if and_queries:
-        for and_query in and_queries:
-            if not match(event, and_query):
-                return False
-    return match(event, query)
-
-
 class fake_smtplib(object):
 
     def __init__(self,host):
@@ -397,11 +330,6 @@ class DetectionEventProcessor(EventProcessor):
         search_string = self.notification._res_obj.delivery_config.processing['search_string']
         self.query_dict = parser.parse(search_string)
 
-    #====
-    #@todo these functions: match and evaluate condition should not be members of this class. They don't use self.<anything>
-    # move them outside and test them separately using unit tests - not integration tests. You can create an event object
-    # and test it against the evaluate_condition function manually.
-
     def generate_event(self, msg):
         '''
         Publish an event
@@ -423,7 +351,7 @@ class DetectionEventProcessor(EventProcessor):
 
     def subscription_callback(self, message, headers):
 
-        if evaluate_condition(message, self.query_dict):
+        if QueryLanguage.evaluate_condition(message, self.query_dict):
             self.generate_event(message) # pass in the event message so we can put some of the content in the new event.
 
 def create_event_processor(notification_request, user_id):
