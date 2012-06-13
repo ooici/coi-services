@@ -223,6 +223,9 @@ class DevicePolicy(Policy):
             return True
             
         if RT.PlatformDevice == device_type:
+            sites = self._find_having(RT.PlatformSite, PRED.hasDevice, device_id)
+            if 0 == len(sites): return False
+            if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]): return False
 
             siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.PlatformAgent)
             if 0 == len(siteagents): return False
@@ -238,13 +241,12 @@ class DevicePolicy(Policy):
     def lce_precondition_deploy(self, device_id):
         if not self.lce_precondition_integrate(device_id): return False
 
-        if True: return True
-
-        #TODO: there is a chicken-and-egg problem with regard to instrument devices and platform devices.  who gets deployed first?
-            
         # Have associated agent instance, has a parent subsite which is deployed, platform device has platform site, all deployed.  
 
         device_type = self._get_resource_type_by_id(device_id)
+
+        if RT.SensorDevice == device_type:
+            return True
 
         if RT.InstrumentDevice == device_type:
             sites = self._find_having(RT.InstrumentSite, PRED.hasDevice, device_id)
@@ -257,7 +259,11 @@ class DevicePolicy(Policy):
             agents = self._find_stemming(device_id, PRED.hasModel, RT.InstrumentAgent)
             # we check the develop precondition here, which checks that there's an agent. so assume it.
             if siteagents[0]._id != agents[0]._id: return False
-            
+
+            # all sensor devices must be deployed
+            for dev in self._find_stemming(device_id, PRED.hasDevice, RT.SensorDevice):
+                if not self._resource_lcstate_in(dev, [LCS.DEPLOYED]): return False
+
             return True
             
         if RT.PlatformDevice == device_type:
@@ -275,6 +281,11 @@ class DevicePolicy(Policy):
             # we check the develop precondition here, which checks that there's an agent. so assume it.
             if siteagents[0]._id != agents[0]._id:
                 return False
+
+            # all instrument devices must be deployed
+            for dev in self._find_stemming(device_id, PRED.hasDevice, RT.InstrumentDevice):
+                if not self._resource_lcstate_in(dev, [LCS.DEPLOYED]): return False
+
             return True
 
         return False
