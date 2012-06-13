@@ -6,7 +6,7 @@ from pyon.datastore.datastore_standalone import DirectorySa
 import optparse
 from pyon.core.path import list_files_recursive
 from collections import OrderedDict
-
+import argparse
 
 class OptionParser (optparse.OptionParser):
     def check_required(self, opt):
@@ -107,20 +107,29 @@ class LoadConfiguration:
             content = get_file_content_method(file_path)
             for key in content.keys():
                 print key.ljust(40), file_path.ljust(60)
-                self.load_to_datastore(path, key, content[key])
+                self.load_to_datastore(path, key, content[key], file_path)
 
-    def load_to_datastore(self, path, key, content):
+    def load_to_datastore(self, path, key, content, filename):
         '''
          Load data to datastore
         '''
         if not self.dir.lookup('/' + path):
             self.dir.register('/', path)
 
-        self.dir.register('/' + path, key, definition=content)
-        new_entry = self.dir.lookup('/' + path + '/' + key)
+        new_entry = self.dir.register('/' + path, key, file_path=filename, definition=content)
+        if new_entry is not None and self.forceclean:
+            print '\033[91m' "\nLoad Configuration Error!!! Multiple definitions found:\n"
+            print '\033[92m' "Filename:", filename
+            print '\033[91m', content
+            print '\033[92m' "\nPrevious definition:"
+            print '\033[91m', new_entry['attributes']['definition']
+            print '\033[0m'
+            exit()
 
+        new_entry = self.dir.lookup('/' + path + '/' + key)
         if content != new_entry['definition']:
             print '\n\nError adding: ' + key + ' to the directory'
+            exit()
 
     def get_service_file_content(self, file_path):
         file_content_str = ""
@@ -146,7 +155,7 @@ class LoadConfiguration:
         with open(file_path, 'r') as f:
             file_content_str = f.read()
         objs = {}
-        objs[os.path.basename(file_path).split(".")[0]] = file_content_str
+        objs[os.path.basename(file_path)] = file_content_str
 
         return objs
 
@@ -169,7 +178,7 @@ class LoadConfiguration:
             #    continue
             #if line == "---":
             #    continue
-            if len(line) > 0 and line[0].isalpha():
+            if len(line) > 0 and (line[0].isalpha()):
                 if not first_time:
                     objs[classname] = class_content
                     class_content = ""
@@ -181,25 +190,19 @@ class LoadConfiguration:
                 class_content += line + "\n"
         objs[classname] = class_content
 
-        '''
-        items =  objs.items()
-        items.reverse()
-        objs = OrderedDict(items)
-        '''
         return objs
 
 def main():
     parser = OptionParser()
-    parser.add_option("-n", "--name", dest="sysname", help="System name")
-    parser.add_option("-o", "--object", dest="fobject",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--name", dest="sysname", help="System name")
+    parser.add_argument("-o", "--object", dest="fobject",
         help="Load object definition from a file")
-    parser.add_option("-s", "--service", dest="fservice",
+    parser.add_argument("-s", "--service", dest="fservice",
         help="Load service definition from a file")
-    parser.add_option("-c", "--forceclean", dest="forceclean",
-        help="Force clean the database")
-    (options, args) = parser.parse_args()
-    options.forceclean = True if options.forceclean == 'True' or\
-                                 options.forceclean == 'true' else False
+    parser.add_argument('-c', '--forceclean', action='store_true',
+        help='Read configuration from datastore.')
+    options = parser.parse_args()
 
     if not options.sysname:
         options.sysname = 'ion_%s' % os.uname()[1].replace('.', '_').lower()
