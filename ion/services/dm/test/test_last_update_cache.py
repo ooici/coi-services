@@ -15,11 +15,12 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from pyon.core import bootstrap
 from pyon.datastore.datastore import DataStore
 from pyon.net.endpoint import Publisher
-from pyon.util.config import CFG
+from pyon.public import CFG
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 import unittest
+
 @attr('INT',group='dm')
 class LastUpdateCacheTest(IonIntegrationTestCase):
     def setUp(self):

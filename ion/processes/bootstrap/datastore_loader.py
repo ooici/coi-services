@@ -60,10 +60,6 @@ class DatastoreAdmin(ImmediateProcess):
 
     @classmethod
     def load_datastore(cls, path=None, ds_name=None, ignore_errors=True):
-        if CFG.system.mockdb:
-            log.warn("Cannot load into MockDB")
-            return
-
         path = path or "res/preload/default"
         if not os.path.exists(path):
             log.warn("Load path not found: %s" % path)
@@ -126,9 +122,6 @@ class DatastoreAdmin(ImmediateProcess):
                     "res/preload/local/dump_[timestamp]")
         @param clear_dir if True, delete contents of datastore dump dirs
         """
-        if CFG.system.mockdb:
-            log.warn("Cannot dump from MockDB")
-            return
         if not path:
             dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
             path = "res/preload/local/dump_%s" % dtstr
@@ -176,10 +169,6 @@ class DatastoreAdmin(ImmediateProcess):
 
     @classmethod
     def clear_datastore(cls, ds_name=None, prefix=None):
-        if CFG.system.mockdb:
-            log.warn("Cannot clear MockDB")
-            return
-
         generic_ds = DatastoreManager.get_datastore_instance("")
 
         if ds_name:

@@ -6,8 +6,7 @@
 @description Last Update Cache Process Launcher
 """
 
-from pyon.public import get_sys_name, StandaloneProcess
-from pyon.util.config import CFG
+from pyon.public import get_sys_name, StandaloneProcess, CFG
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 
 from interface.objects import ProcessDefinition, ExchangeQuery
