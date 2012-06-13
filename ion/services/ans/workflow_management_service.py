@@ -5,7 +5,7 @@ __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.ans.iworkflow_management_service import BaseWorkflowManagementService
-from pyon.util.containers import is_basic_identifier
+from pyon.util.containers import is_basic_identifier, create_unique_identifier
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.public import Container, log, IonObject, RT,PRED, OT
 
@@ -165,7 +165,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             else:
                 #Concatenate the name of the workflow and data process definition for the name of the data product output + plus
                 #a unique identifier for multiple instances of a workflow definition.
-                data_product_name = workflow_definition.name + '_' + data_process_definition.name + '_' + workflow_id
+                data_product_name = create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
 
             # Create the output data product of the transform
             transform_dp_obj = IonObject(RT.DataProduct, name=data_product_name,description=data_process_definition.description)
