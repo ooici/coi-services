@@ -85,7 +85,7 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
         for x in SlocumDataHandler._get_data(config):
             log.debug(x)
 
-    def test__get_archive_constraints(self):
+    def test__constraints_for_historical_request(self):
         config = {
             'ds_params':{
                 # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
@@ -102,6 +102,6 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
             }
         }
         ret = SlocumDataHandler._constraints_for_historical_request(config)
-        log.warn('test_get_archive_constraints: {0}'.format(config))
+        log.warn('test_constraints_for_historical_request: {0}'.format(config))
         self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
