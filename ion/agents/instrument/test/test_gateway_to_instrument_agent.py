@@ -10,7 +10,7 @@
 __author__ = 'Stephen Henrie'
 __license__ = 'Apache 2.0'
 
-import simplejson, urllib
+import simplejson, urllib, os, unittest
 from mock import patch
 
 from pyon.public import log, CFG
@@ -29,6 +29,7 @@ from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_E
 
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
 class TestInstrumentAgentViaGateway(TestInstrumentAgent):
     """
     Test cases for accessing the instrument agent class through the service gateway. This class is an extension of the
