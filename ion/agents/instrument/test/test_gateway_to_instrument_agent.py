@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.instrument.test.test_instrument_agent
-@file ion/agents.instrument/test_instrument_agent.py
-@author Edward Hunter
-@brief Test cases for R2 instrument agent.
+@package ion.agents.instrument.test.test_gateway_to_instrument_agent
+@file ion/agents.instrument/test_gateway_to_instrument_agent.py
+@author Stephen Henrie
+@brief Test cases for R2 instrument agent through the Service Gateway
 """
 
-__author__ = 'Edward Hunter'
+__author__ = 'Stephen Henrie'
 __license__ = 'Apache 2.0'
 
-import simplejson, urllib, unittest, time
+import simplejson, urllib
 from mock import patch
 
 from pyon.public import log, CFG
@@ -19,10 +19,8 @@ from nose.plugins.attrib import attr
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest
 from pyon.core.object import IonObjectSerializer
-from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 from ion.agents.instrument.test.test_instrument_agent import TestInstrumentAgent, IA_RESOURCE_ID
-from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE
 
