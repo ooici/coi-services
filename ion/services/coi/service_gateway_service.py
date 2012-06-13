@@ -205,9 +205,9 @@ def process_gateway_request(service_name, operation):
             raise BadRequest("Target service name not found in the URL")
 
         #Retrieve service definition
-        from pyon.core.bootstrap import service_registry
+        from pyon.core.bootstrap import get_service_registry
         # MM: Note: service_registry can do more now
-        target_service = service_registry.get_service_by_name(service_name)
+        target_service = get_service_registry().get_service_by_name(service_name)
 
         if not target_service:
             raise BadRequest("The requested service (%s) is not available" % service_name)

@@ -13,7 +13,7 @@ from pyon.util.arg_check import validate_true, validate_is_instance
 from pyon.public import PRED, CFG, RT, log
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
-from pyon.core.bootstrap import obj_registry
+from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 from collections import deque
@@ -675,7 +675,7 @@ class DiscoveryService(BaseDiscoveryService):
         self.ep.publish_event(origin='Discovery Service', description='Search buffer was exceeded, results may not contain all the possible results.')
 
     def _results_from_response(self, response, id_only):
-        deserializer = IonObjectDeserializer(obj_registry=obj_registry)
+        deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
         if not (response.has_key('hits') and response['hits'].has_key('hits')):
             return []
 
