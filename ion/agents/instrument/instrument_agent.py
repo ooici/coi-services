@@ -47,8 +47,7 @@ import traceback
 # ION service imports.
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 from ion.agents.instrument.common import BaseEnum
-from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
-from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
+from ion.agents.instrument.driver_process import DriverProcess
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer, \
                                                                      DirectAccessTypes, \
                                                                      SessionCloseReasons
@@ -62,9 +61,9 @@ from ion.agents.instrument.exceptions import InstrumentProtocolException
 from ion.agents.instrument.exceptions import InstrumentStateException
 from ion.agents.instrument.exceptions import InstrumentTimeoutException
 from ion.agents.instrument.exceptions import InstrumentCommandException
-from ion.agents.instrument.instrument_driver import DriverConnectionState
-from ion.agents.instrument.instrument_driver import DriverProtocolState
-from ion.agents.instrument.instrument_driver import DriverAsyncEvent
+
+from mi.core.instrument.instrument_driver import DriverProtocolState
+from mi.core.instrument.instrument_driver import DriverAsyncEvent
 
 class InstrumentAgentState(BaseEnum):
     """
@@ -1410,38 +1409,26 @@ class InstrumentAgent(ResourceAgent):
         @raises InstDriverError If the driver or client failed to start properly.
         """
 
-        # Get driver configuration and pid for test case.        
-        dvr_mod = self._dvr_config['dvr_mod']
-        dvr_cls = self._dvr_config['dvr_cls']
-        workdir = self._dvr_config.get('workdir','/tmp/')
-        this_pid = os.getpid() if self._test_mode else None
 
-        (self._dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(dvr_mod, dvr_cls, workdir, this_pid)
-            
+        self._dvr_proc = DriverProcess.get_process(dvr_config, True)
+        self._dvr_proc.launch()
+
         # Verify the driver has started.
-        if not self._dvr_proc or self._dvr_proc.poll():
-            log.error('Instrument agent %s rror starting driver process.', self._proc_name)
+        if not self._dvr_proc.getpid():
+            log.error('Instrument agent %s error starting driver process.', self._proc_name)
             raise InstDriverError('Error starting driver process.')
-            
-        log.info('Started driver process for %d %d %s %s', cmd_port,
-            evt_port, dvr_mod, dvr_cls)
-        log.info('Instrument agent %s driver process pid %d', self._proc_name, self._dvr_proc.pid)
 
-        # Start client messaging and verify messaging.
         try:
-            self._dvr_client = ZmqDriverClient('localhost', cmd_port, evt_port)
+            self._dvr_client = self._dvr_proc.get_client()
             self._dvr_client.start_messaging(self.evt_recv)
             retval = self._dvr_client.cmd_dvr('process_echo', 'Test.')
-        
-        except Exception:
-            self._dvr_proc.kill()
-            self._dvr_proc.wait()
-            self._dvr_proc = None
-            self._dvr_client = None
-            log.error('Instrument agent %s rror starting driver client.', self._proc_name)
-            raise InstDriverError('Error starting driver client.')            
 
-        self._construct_packet_factories(dvr_mod)
+        except Exception, e:
+            self._dvr_proc.stop()
+            log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
+            raise InstDriverError('Error starting driver client.')
+
+        self._construct_packet_factories()
 
         log.info('Instrument agent %s started its driver.', self._proc_name)
         
@@ -1449,24 +1436,9 @@ class InstrumentAgent(ResourceAgent):
         """
         Stop the driver process and driver client.
         """
-        if self._dvr_proc:
-            if self._dvr_client:
-                self._dvr_client.done()
-                self._dvr_proc.wait()
-                self._dvr_proc = None
-                self._dvr_client = None
-                self._clear_packet_factories()
-                log.info('Instrument agent %s stopped its driver.', self._proc_name)
-                
-            else:
-                try:
-                    self._dvr_proc.kill()
-                    self._dvr_proc.wait()
-                    self._dvr_proc = None
-                    log.info('Instrument agent %s killed its driver.', self._proc_name)
-                                
-                except OSError:
-                    pass
+        log.info('Instrument agent %s stopped its driver.', self._proc_name)
+        self._dvr_proc.stop()
+
             
     def _validate_driver_config(self):
         """
@@ -1500,39 +1472,15 @@ class InstrumentAgent(ResourceAgent):
             log.info('Instrumen agent %s created publisher for stream %s',
                      self._proc_name, name)        
         
-    def _construct_packet_factories(self, dvr_mod):
+    def _construct_packet_factories(self):
         """
         Construct packet factories from packet_config member of the
         driver_config.
         @retval None
         """
+        self._packet_factories = self._dvr_proc.get_packet_factories()
 
-        import_str = 'from %s import PACKET_CONFIG' % dvr_mod
-        try:
-            exec import_str
-            log.info('Instrument agent %s imported packet config.', self._proc_name)
-            for (name, val) in PACKET_CONFIG.iteritems():
-                if val:
-                    try:
-                        mod = val[0]
-                        cls = val[1]
-                        import_str = 'from %s import %s' % (mod, cls)
-                        ctor_str = 'ctor = %s' % cls
-                        exec import_str
-                        exec ctor_str
-                        self._packet_factories[name] = ctor
-                    
-                    except Exception:
-                        log.error('Instrument agent %s had error creating packet factory for stream %s',
-                                 self._proc_name, name)
-                    
-                    else:
-                        log.info('Instrument agent %s created packet factory for stream %s',
-                                 self._proc_name, name)
 
-        except Exception:
-            log.error('Instrument agent %s had error creating packet factories.',
-                      self._proc_name)
                                 
     def _clear_packet_factories(self):
         """
