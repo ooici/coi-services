@@ -510,9 +510,10 @@ class DiscoveryService(BaseDiscoveryService):
 
         sorts = ep.ElasticSort()
         if order is not None and isinstance(order,dict):
-            field = order.keys()[0]
-            value = order[field]
-            sorts.sort(field,value)
+            sort_field = order.keys()[0]
+            value = order[sort_field]
+            sorts.sort(sort_field,value)
+            es.sorted(sorts)
 
         if limit:
             es.size(limit)
@@ -562,9 +563,10 @@ class DiscoveryService(BaseDiscoveryService):
 
         sorts = ep.ElasticSort()
         if order is not None and isinstance(order,dict):
-            field = order.keys()[0]
-            value = order[field]
-            sorts.sort(field,value)
+            sort_field = order.keys()[0]
+            value = order[sort_field]
+            sorts.sort(sort_field,value)
+            es.sorted(sorts)
 
         if limit:
             es.size(limit)
