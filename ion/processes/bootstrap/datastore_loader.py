@@ -21,6 +21,7 @@ import os.path
 
 from pyon.public import CFG, log, ImmediateProcess, iex
 from pyon.datastore.datastore import DatastoreManager
+from pyon.core import bootstrap
 from pyon.core.bootstrap import get_sys_name
 from pyon.core.exception import BadRequest
 
@@ -172,26 +173,12 @@ class DatastoreAdmin(ImmediateProcess):
         generic_ds = DatastoreManager.get_datastore_instance("")
 
         if ds_name:
-            # First interpret ds_name as unqualified name
-            if DatastoreManager.exists(ds_name, scoped=False):
-                generic_ds.delete_datastore(ds_name)
-                return
-            # New interpret as logical name
-            if DatastoreManager.exists(ds_name, scoped=True):
-                generic_ds.delete_datastore(ds_name)
-            else:
-                log.warn("Datastore does not exist: %s" % ds_name)
+            from pyon.datastore import clear_couch_util
+            clear_couch_util.clear_couch(CFG, prefix=ds_name)
+            clear_couch_util.clear_couch(CFG, prefix=bootstrap.get_sys_name() + "_" + ds_name)
         elif prefix:
-            db_list = generic_ds.list_datastores()
-            cleared, ignored = 0, 0
-            for db_name in db_list:
-                if db_name.startswith(prefix):
-                    generic_ds.delete_datastore(db_name)
-                    log.debug("Cleared couch datastore '%s'" % db_name)
-                    cleared += 1
-                else:
-                    ignored += 1
-            log.info("Cleared %d couch datastores, ignored %d" % (cleared, ignored))
+            from pyon.datastore import clear_couch_util
+            clear_couch_util.clear_couch(CFG, prefix=prefix)
         else:
             log.warn("Cannot clear datastore without prefix or datastore name")
 
