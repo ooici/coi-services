@@ -53,10 +53,10 @@ class DataRetrieverService(BaseDataRetrieverService):
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
 
         if self.process_definition_id is None:
-            self.process_definition = ProcessDefinition(name='data_replay_process', description='Process for the replay of datasets')
-            self.process_definition.executable['module']='ion.processes.data.replay_process'
-            self.process_definition.executable['class'] = 'ReplayProcess'
-            self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+            res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name='data_replay_process',id_only=True)
+            if not len(res):
+                raise BadRequest('No replay process defined.')
+            self.process_definition_id = res[0]
 
         dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
         datastore_name = dataset.datastore_name
