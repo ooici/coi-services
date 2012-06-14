@@ -33,7 +33,9 @@ class IndexManagementUnitTest(PyonTestCase):
         self.rr_delete = mock_clients.resource_registry.delete
         self.rr_find_resources = mock_clients.resource_registry.find_resources
         self.rr_find_assocs    = mock_clients.resource_registry.find_associations
+        self.rr_find_subj      = mock_clients.resource_registry.find_subjects
         self.rr_find_obj       = mock_clients.resource_registry.find_objects
+        self.rr_delete_assoc   = mock_clients.resource_registry.delete_association
 
         self.get_datastore = Mock()
         self.db_create = Mock()
@@ -101,6 +103,7 @@ class IndexManagementUnitTest(PyonTestCase):
 
 
     def test_delete_index(self):
+
         self.index_management.delete_index('index_id')
         self.rr_delete.assert_called_with('index_id')
 
