@@ -1419,9 +1419,10 @@ class InstrumentAgent(ResourceAgent):
             raise InstDriverError('Error starting driver process.')
 
         try:
-            self._dvr_client = self._dvr_proc.get_client()
-            self._dvr_client.start_messaging(self.evt_recv)
-            retval = self._dvr_client.cmd_dvr('process_echo', 'Test.')
+            driver_client = self._dvr_proc.get_client()
+            driver_client.start_messaging(self.evt_recv)
+            retval = driver_client.cmd_dvr('process_echo', 'Test.')
+            self._dvr_client = driver_client
 
         except Exception, e:
             self._dvr_proc.stop()
