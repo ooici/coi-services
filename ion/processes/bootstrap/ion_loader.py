@@ -62,6 +62,8 @@ class IONLoader(ImmediateProcess):
                 self.extract_ooi_assets(path)
             elif op == "loadui":
                 self.load_ui(path)
+            elif op == "deleteui":
+                self.delete_ui()
             else:
                 raise iex.BadRequest("Operation unknown")
         else:
@@ -824,10 +826,45 @@ class IONLoader(ImmediateProcess):
 
     # ---------------------------------------------------------------------------
 
+    def delete_ui(self):
+        resource_types = [
+            'UIInternalResourceType',
+            'UIInformationLevel',
+            'UIScreenLabel',
+            'UIAttribute',
+            'UIBlock',
+            'UIGroup',
+            'UIRepresentation',
+            'UIResourceType',
+            'UIView',
+            'UIBlockAttribute',
+            'UIBlockRepresentation',
+            'UIGroupBlock',
+            'UIViewGroup']
+
+        res_ids = []
+
+        for restype in resource_types:
+            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
+            res_ids.extend(res_is_list)
+            log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
+
+        ds = DatastoreManager.get_datastore_instance("resources")
+        docs = ds.read_doc_mult(res_ids)
+
+        for doc in docs:
+            doc['_deleted'] = True
+
+        ds.create_doc_mult(docs, allow_ids=True)
+
+
     def load_ui(self, path):
         """@brief Entry point to the import/generation capabilities from the FileMakerPro database
         CVS files to ION resource objects.
         """
+        # Delete old UI objects first
+        self.delete_ui()
+
         if not path:
             raise iex.BadRequest("Must provide path")
 
