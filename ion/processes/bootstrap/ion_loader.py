@@ -11,7 +11,7 @@ import json
 
 from interface import objects
 
-from pyon.core.bootstrap import service_registry
+from pyon.core.bootstrap import get_service_registry
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
@@ -219,7 +219,7 @@ class IONLoader(ImmediateProcess):
             return ast.literal_eval(value)
 
     def _get_service_client(self, service):
-        return service_registry.services[service].client(process=self)
+        return get_service_registry().services[service].client(process=self)
 
     def _register_id(self, alias, resid):
         if alias in self.resource_ids:

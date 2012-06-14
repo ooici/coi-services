@@ -104,7 +104,7 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
         self.es = ep.ElasticSearch(host=CFG.server.elasticsearch.host, port=CFG.server.elasticsearch.port)
-        self.assertTrue(CFG.system.force_clean)
+        #self.assertTrue(CFG.system.force_clean)
         self.wipe()
 
     def tearDown(self):
