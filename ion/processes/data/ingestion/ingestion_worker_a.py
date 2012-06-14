@@ -23,6 +23,7 @@ from interface.objects import DatasetIngestionTypeEnum, Coverage, CountElement
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.event.event import EventSubscriber, EventPublisher
+from pyon.util.containers import get_ion_ts
 
 from pyon.util.file_sys import FS, FileSystem
 import hashlib
@@ -80,37 +81,38 @@ class IngestionWorker(TransformDataProcess):
 
         self.dataset_configs = {}
         # update the policy
-        def receive_dataset_config_event(event_msg, headers):
-            log.info('Updating dataset config in ingestion worker: %s', event_msg)
-
-            if event_msg.type != DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM:
-                raise IngestionWorkerException('Received invalid type in dataset config event.')
-
-            stream_id = event_msg.configuration.stream_id
-
-            if event_msg.deleted:
-                try:
-                    del self.dataset_configs[stream_id]
-                except KeyError:
-                    log.info('Tried to remove dataset config that does not exist!')
-            else:
-                self.dataset_configs[stream_id] = event_msg
-
-            # Hook to override just before processing is complete
-            self.dataset_configs_event_test_hook(event_msg, headers)
 
 
         #Start the event subscriber - really - what a mess!
         self.event_subscriber = EventSubscriber(
             event_type="DatasetIngestionConfigurationEvent",
             origin=self.ingest_config_id,
-            callback=receive_dataset_config_event
+            callback=self.receive_dataset_config_event
         )
 
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
 
         log.info(str(self.db))
+
+    def receive_dataset_config_event(self, event_msg, headers):
+        log.info('Updating dataset config in ingestion worker: %s', event_msg)
+
+        if event_msg.type != DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM:
+            raise IngestionWorkerException('Received invalid type in dataset config event.')
+
+        stream_id = event_msg.configuration.stream_id
+
+        if event_msg.deleted:
+            try:
+                del self.dataset_configs[stream_id]
+            except KeyError:
+                log.info('Tried to remove dataset config that does not exist!')
+        else:
+            self.dataset_configs[stream_id] = event_msg
+
+        # Hook to override just before processing is complete
+        self.dataset_configs_event_test_hook(event_msg, headers)
 
     def process(self, packet):
         """Process incoming data!!!!
@@ -172,13 +174,21 @@ class IngestionWorker(TransformDataProcess):
         byte_string = msgpack.packb(simple_dict, default=encode_ion)
 
         encoding_type = 'ion_msgpack'
+
+        # Persisted sha1 is crafted from the byte string msgpack creates
         calculated_sha1 = hashlib.sha1(byte_string).hexdigest().upper()
 
+        dataset_granule = {
+            'stream_id'      : dset_config.stream_id,
+            'dataset_id'     : dset_config.dataset_id,
+            'persisted_sha1' : calculated_sha1,
+            'encoding_type'  : encoding_type,
+            'ts_create'      : get_ion_ts()
+        }
 
-        self.persist_immutable({'stream_id':dset_config.stream_id,
-                                'dataset_id':dset_config.dataset_id,
-                                'persisted_sha1':calculated_sha1,
-                                'encoding_type':encoding_type})
+
+        self.persist_immutable(dataset_granule)
+
 
 
 
