@@ -232,7 +232,7 @@ class TestRuvDataHandlerUnit(PyonTestCase):
 #        for x in RuvDataHandler._get_data(config):
 #            log.debug(x)
 
-    def test__get_archive_constraints(self):
+    def test__constraints_for_historical_request(self):
         config = {
             'ds_params':{
                 # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
