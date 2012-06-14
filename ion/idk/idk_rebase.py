@@ -6,7 +6,7 @@
 """
 
 from ion.idk.config import Config
-from ion.idk.logger import Log
+from pyon.util.log import log
 
 class IDKRebase():
     """
@@ -17,7 +17,7 @@ class IDKRebase():
         """
         @brief Run it.
         """
-        Log.info( "*** IDK Rebase Process***" )
+        log.info( "*** IDK Rebase Process***" )
         Config().rebase()
 
 if __name__ == '__main__':

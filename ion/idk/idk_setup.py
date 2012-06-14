@@ -12,37 +12,14 @@ import urllib2
 import logging
 import subprocess
 
+from pyon.util.log import log
+
 PYTHON = '/Library/Frameworks/Python.framework/Versions/2.7/bin/python'
-
-###
-#   Setup Logger
-###
-LOGLEVEL = logging.INFO
-#LOGLEVEL = logging.DEBUG
-
-# create logger
-log = logging.getLogger(__name__)
-log.setLevel(LOGLEVEL)
-
-# create console handler and set level to debug
-ch = logging.StreamHandler()
-ch.setLevel(LOGLEVEL)
-
-# create formatter
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-# add formatter to ch
-ch.setFormatter(formatter)
-
-# add ch to logger
-log.addHandler(ch)
-
 
 ###
 #   IDK Dependancies
 ###
 class IDKDependancy():
-    logfile = open('/tmp/run.log', "w");
         
     def version(self):
         return None

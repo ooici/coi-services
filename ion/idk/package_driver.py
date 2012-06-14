@@ -17,7 +17,7 @@ from ion.idk.nose_test import NoseTest
 from ion.idk.driver_generator import DriverGenerator
 
 
-class PackageManifest():
+class PackageManifest(object):
     """
     Object to create and store a package file manifest
     """
@@ -77,7 +77,7 @@ class PackageManifest():
         ofile.close()
 
 
-class PackageDriver():
+class PackageDriver(object):
     """
     Main class for running the package driver process.
     """

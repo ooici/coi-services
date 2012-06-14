@@ -1,5 +1,5 @@
 """
-@file coi-services/ion/idk/driver_generator.py
+@file coi-services/ion/idk/start_driver.py
 @author Bill French
 @brief Main script class for running the start_driver process
 """
@@ -25,7 +25,8 @@ class StartDriver():
         """
         @brief collect connection information for the logger from the user
         """
-        self.comm_config = CommConfig.get_config_from_console(self.metadata)
+        config_path = "%s/%s" % (self.metadata.driver_dir(), CommConfig.config_filename())
+        self.comm_config = CommConfig.get_config_from_console(config_path)
         self.comm_config.get_from_console()
 
     def generate_code(self, force = False):
@@ -52,6 +53,7 @@ class StartDriver():
         self.fetch_metadata()
         self.fetch_comm_config()
         self.generate_code()
+
 
 if __name__ == '__main__':
     app = StartDriver()

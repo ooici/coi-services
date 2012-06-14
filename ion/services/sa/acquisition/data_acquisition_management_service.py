@@ -56,7 +56,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
         res_ids, _ = self.clients.resource_registry.find_objects(external_dataset_id, PRED.hasDataProducer, None, True)
         if res_ids is None:
-            raise NotFound("Data Producer for External Data Set %d does not exist" % external_dataset_id)
+            raise NotFound("DataAcquisitionManagementService: Data Producer for External Data Set %d does not exist" % external_dataset_id)
 
         #todo: check that there are not attached data products?
 
@@ -93,15 +93,23 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         """
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        res_ids, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasDataProducer, None, True)
-        if res_ids is None:
+        producers, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasDataProducer, None, True)
+        if producers is None:
             raise NotFound("Data Producer for Data Process %d does not exist" % data_process_id)
 
-        # TODO: remove associations
+        # find the assocs between the process and the data producer
+        associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasDataProducer)
+        log.debug("DataAcquisitionManagementService:unregister_process  delete producer assoc")
 
-        #todo: check that there are not attached data products?
+        for association in associations:
+            log.debug("DataAcquisitionManagementService:unregister_process  delete association %s", str(association))
+            self.clients.resource_registry.delete_association(association)
 
-        #todo: delete the data producer object and assoc to ext_data_set
+        for producer in producers:
+            log.debug("DataAcquisitionManagementService:unregister_process  delete producer %s", str(producer))
+            self.clients.resource_registry.delete(producer)
+
+        #todo: check that there are not attached data products or assoc to ext_data_set?
 
         return
 
@@ -172,7 +180,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         @param input_resource_id    str
         @param data_product_id    str
-        @retval data_producer_id    str
+        @retval if create_stream==True, the stream_id, otherwise None
         """
         # Verify that both ids are valid
         input_resource_obj = self.clients.resource_registry.read(input_resource_id)
@@ -216,13 +224,14 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         #Create the stream if requested
         log.debug("assign_data_product: create_stream %s" % create_stream)
+        stream_id = None
         if create_stream:
             stream_id = self.clients.pubsub_management.create_stream(name=data_product_obj.name,  description=data_product_obj.description)
             log.debug("assign_data_product: create stream stream_id %s" % stream_id)
             # Associate the Stream with the main Data Product
             self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
 
-        return
+        return stream_id
 
     def unassign_data_product(self, input_resource_id='', data_product_id='', delete_stream=False):
         """
@@ -368,20 +377,16 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def update_external_data_provider(self, external_data_provider=None):
         # Overwrite ExternalDataProvider object
         self.clients.resource_registry.update(external_data_provider)
+        return
 
     def read_external_data_provider(self, external_data_provider_id=''):
         # Read ExternalDataProvider object with _id matching passed user id
         external_data_provider = self.clients.resource_registry.read(external_data_provider_id)
-        if not external_data_provider:
-            raise NotFound("ExternalDataProvider %s does not exist" % external_data_provider_id)
         return external_data_provider
 
     def delete_external_data_provider(self, external_data_provider_id=''):
-        # Read and delete specified ExternalDataProvider object
-        external_data_provider = self.clients.resource_registry.read(external_data_provider_id)
-        if not external_data_provider:
-            raise NotFound("ExternalDataProvider %s does not exist" % external_data_provider_id)
         self.clients.resource_registry.delete(external_data_provider_id)
+        return
 
     ##########################################################################
     #
@@ -402,18 +407,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Read DataSource object with _id matching passed user id
         log.debug("Reading DataSource object id: %s" % data_source_id)
         data_source_obj = self.clients.resource_registry.read(data_source_id)
-        if not data_source_obj:
-            raise NotFound("DataSource %s does not exist" % data_source_id)
         return data_source_obj
 
     def delete_data_source(self, data_source_id=''):
         # Read and delete specified DataSource object
         log.debug("Deleting DataSource id: %s" % data_source_id)
-        data_source_obj = self.read_data_source(data_source_id)
-        if data_source_obj is None:
-            raise NotFound("DataSource %s does not exist" % data_source_id)
-
-        return self.clients.resource_registry.delete(data_source_id)
+        self.clients.resource_registry.delete(data_source_id)
+        return
 
     def create_data_source_model(self, data_source_model=None):
         # Persist DataSourceModel object and return object _id as OOI id
@@ -427,16 +427,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def read_data_source_model(self, data_source_model_id=''):
         # Read DataSourceModel object with _id matching passed user id
         data_source_model = self.clients.resource_registry.read(data_source_model_id)
-        if not data_source_model:
-            raise NotFound("DataSourceModel %s does not exist" % data_source_model_id)
         return data_source_model
 
     def delete_data_source_model(self, data_source_model_id=''):
         # Read and delete specified ExternalDatasetModel object
-        data_source_model = self.clients.resource_registry.read(data_source_model_id)
-        if not data_source_model:
-            raise NotFound("DataSourceModel %s does not exist" % data_source_model_id)
         self.clients.resource_registry.delete(data_source_model_id)
+        return
 
 
     def create_data_source_agent(self, data_source_agent=None, data_source_model_id='' ):
@@ -454,8 +450,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def read_data_source_agent(self, data_source_agent_id=''):
         # Read DataSourceAgent object with _id matching passed user id
         data_source_agent = self.clients.resource_registry.read(data_source_agent_id)
-        if not data_source_agent:
-            raise NotFound("DataSourceAgent %s does not exist" % data_source_agent_id)
         return data_source_agent
 
     def delete_data_source_agent(self, data_source_agent_id=''):
@@ -492,8 +486,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def read_data_source_agent_instance(self, data_source_agent_instance_id=''):
         # Read DataSourceAgentInstance object with _id matching passed user id
         data_source_agent_instance = self.clients.resource_registry.read(data_source_agent_instance_id)
-        if not data_source_agent_instance:
-            raise NotFound("DataSourceAgentInstance %s does not exist" % data_source_agent_instance_id)
         return data_source_agent_instance
 
     def delete_data_source_agent_instance(self, data_source_agent_instance_id=''):
@@ -689,6 +681,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @retval process_id    str
         @throws NotFound    object with specified id does not exist
         """
+        #todo: may want to call retrieve_external_dataset_agent_instance here
+        #todo:  if instance running, then return or throw
+        #todo: if instance exists and dataset_agent_instance_obj.dataset_agent_config is completd then just schedule_process
+
+
         dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
 
         #retrieve the associated external dataset device
@@ -780,12 +777,47 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         return pid
 
     def stop_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
-        """Deactivate the  agent instance process
-
-        @param external_dataset_agent_instance_id    str
-        @throws NotFound    object with specified id does not exist
         """
-        pass
+        Deactivate the agent instance process
+        """
+        external_dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
+
+        # Cancels the execution of the given process id.
+        self.clients.process_dispatcher.cancel_process(external_dataset_agent_instance_obj.agent_process_id)
+
+        external_dataset_agent_instance_obj.agent_process_id = ''
+
+        self.clients.resource_registry.update(external_dataset_agent_instance_obj)
+
+
+
+    def retrieve_external_dataset_agent_instance(self, external_dataset_id=''):
+        """
+        Retrieve the agent instance for an external dataset and check if it is running
+        """
+        #Connect the data source with an external data provider
+        data_set = self.clients.resource_registry.read(external_dataset_id)
+        if not data_set:
+            raise NotFound("ExternalDataset resource %s does not exist" % external_dataset_id)
+
+        # check if the association already exists
+        ai_ids, _  = self.clients.resource_registry.find_objects(external_dataset_id,  PRED.hasAgentInstance, id_only=True)
+        if len(ai_ids) > 1:
+            raise NotFound("ExternalDataset resource %s is associated with multiple agent instances" % external_dataset_id)
+
+        if ai_ids is None:
+            return None, None
+        else:
+            dataset_agent_instance_obj = self.clients.resource_registry.read(ai_ids[0])
+            if not dataset_agent_instance_obj:
+                raise NotFound("ExternalDatasetAgentInstance resource %s does not exist" % ai_ids[0])
+            
+            if not dataset_agent_instance_obj.agent_process_id:
+                active = False
+            else:
+                active = True
+            return ai_ids[0], active
+            
 
     ##########################################################################
     #
@@ -803,7 +835,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if not agent_instance:
             raise NotFound("External Data Provider resource %s does not exist" % external_data_provider_id)
 
-        self.clients.resource_registry.create_association(data_source_id,  PRED.hasProvider,  external_data_provider_id)
+        # check if the association already exists
+        associations = self.clients.resource_registry.find_associations(data_source_id,  PRED.hasProvider,  external_data_provider_id, id_only=True)
+        if associations is None:
+            self.clients.resource_registry.create_association(data_source_id,  PRED.hasProvider,  external_data_provider_id)
 
     def unassign_data_source_from_external_data_provider(self, data_source_id='', external_data_provider_id=''):
         #Disconnect the data source from the external data provider
@@ -831,8 +866,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(data_source_model_id)
         if not agent_instance:
             raise NotFound("External Data Source Model resource %s does not exist" % data_source_model_id)
-
-        self.clients.resource_registry.create_association(data_source_id,  PRED.hasModel,  data_source_model_id)
+        # check if the association already exists
+        associations = self.clients.resource_registry.find_associations(data_source_id,  PRED.hasModel,  data_source_model_id, id_only=True)
+        if associations is None:
+            self.clients.resource_registry.create_association(data_source_id,  PRED.hasModel,  data_source_model_id)
 
     def unassign_data_source_from_data_model(self, data_source_id='', data_source_model_id=''):
         #Disonnect the data source from the external data model
@@ -860,8 +897,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(agent_instance_id)
         if not agent_instance:
             raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
-
-        self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id)
+        # check if the association already exists
+        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, id_only=True)
+        if associations is None:
+            self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id)
 
     def unassign_external_dataset_from_agent_instance(self, external_dataset_id='', agent_instance_id=''):
         data_source = self.clients.resource_registry.read(external_dataset_id)
@@ -889,8 +928,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(agent_instance_id)
         if not agent_instance:
             raise NotFound("External Data Agent Instance resource %s does not exist" % agent_instance_id)
-
-        self.clients.resource_registry.create_association(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id)
+        # check if the association already exists
+        associations = self.clients.resource_registry.find_associations(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id, id_only=True)
+        if associations is None:
+            self.clients.resource_registry.create_association(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id)
 
     def unassign_external_data_agent_from_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
         data_source = self.clients.resource_registry.read(external_data_agent_id)
@@ -917,8 +958,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
         if not external_dataset_model:
             raise NotFound("External Data Source Model resource %s does not exist" % external_dataset_model_id)
-
-        self.clients.resource_registry.create_association(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id)
+        # check if the association already exists
+        associations = self.clients.resource_registry.find_associations(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id, id_only=True)
+        if associations is None:
+            self.clients.resource_registry.create_association(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id)
 
     def unassign_dataset_agent_from_external_dataset_model(self, dataset_agent_id='', external_dataset_model_id=''):
         #Disonnect the external data agent from the external data model
@@ -945,8 +988,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(data_source_id)
         if not agent_instance:
             raise NotFound("External Data Source Instance resource %s does not exist" % data_source_id)
-
-        self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasSource,  data_source_id)
+        # check if the association already exists
+        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, id_only=True)
+        if associations is None:
+            self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasSource,  data_source_id)
 
 
     def unassign_external_dataset_from_data_source(self, external_dataset_id='', data_source_id=''):

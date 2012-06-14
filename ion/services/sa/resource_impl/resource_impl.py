@@ -1,5 +1,4 @@
-7#!/usr/bin/env python
-
+#!/usr/bin/env python
 """
 @package  ion.services.sa.resource_impl.resource_impl
 @file     ion/services/sa/resource_impl/resource_impl.py
@@ -162,13 +161,27 @@ class ResourceImpl(object):
     def add_lce_precondition(self, transition, precondition_predicate_fn):
         """
         register a precondition predicate function for a lifecycle transition
-        @param destination_state the state, defined in pyon/ion/resource.pyx
+        @param transition the event, defined in pyon/ion/resource.pyx
         @param precondition_predicate_fn takes (self, resource_id) and returns string
                 -- empty string means ok, otherwise error indicated by string
         """
         self.lce_precondition[transition] = precondition_predicate_fn
 
 
+    def use_policy(self, policy_predicate_fn):
+        """
+        turn a policy-style function (taking resource_id, returning boolean) and have it return strings instead
+        """
+        def freeze():
+            def wrapper(resource_id):
+                if policy_predicate_fn(resource_id):
+                    return ""
+                else:
+                    return "%s returned false" % str(policy_predicate_fn)
+
+            return wrapper
+
+        return freeze()
 
     ##################################################
     #
@@ -250,7 +263,6 @@ class ResourceImpl(object):
     def _return_create(self, resource_id):
         """
         return a valid response to a create operation
-        @param resource_label what goes in the return value name
         @param resource_id what goes in the return value's value
         """
         #resource_label = "%s_id" % self.ionlabel
@@ -259,23 +271,19 @@ class ResourceImpl(object):
     def _return_read(self, resource_id):
         """
         return a valid response from a read operation
-        @param resource_type the IonObject type
-        @param resource_label what goes in the return value name
         @param resource_id the ID of the resource to be returned
         """
         #resource_label = "%s_id" % self.ionlabel
         resource = self.RR.read(resource_id)
         return resource
 
-    def _return_find(self, resource_ids):
+    def _return_find(self, resource_list):
         """
         return a valid response from a read operation
-        @param resource_type the IonObject type
-        @param resource_label what goes in the return value name
-        @param resource_id the ID of the resource to be returned
+        @param resource_list  the resource objects to be returned
         """
         #retval["%s_list" % self.resource_label] = resource_ids
-        return resource_ids
+        return resource_list
 
     # return a valid message from an activate
     def _return_activate(self, success_bool):
@@ -289,13 +297,13 @@ class ResourceImpl(object):
     #
     ##########################################################################
 
-    def create_one(self, primary_object={}):
+    def create_one(self, primary_object=None):
         """
         create a single object of the predefined type
         @param primary_object an IonObject resource of the proper type
         @retval the resource ID
         """
-
+        if None == primary_object: primary_object = {}
         # Validate the input filter and augment context as required
         self._check_name(self.iontype, primary_object, "to be created")
 
@@ -311,11 +319,12 @@ class ResourceImpl(object):
         return self._return_create(primary_object_id)
 
 
-    def update_one(self, primary_object={}):
+    def update_one(self, primary_object=None):
         """
         update a single object of the predefined type
         @param primary_object the updated resource
         """
+        if None == primary_object: primary_object = {}
         if not hasattr(primary_object, "_id") or "" == primary_object._id:
             raise BadRequest("The _id field was not set in the "
                              + "%s resource to be updated" % self.iontype)
@@ -360,7 +369,7 @@ class ResourceImpl(object):
         return
 
 
-    def find_some(self, filters={}):
+    def find_some(self, filters=None):
         """
         find method
         @todo receive definition of the filters object
@@ -390,7 +399,7 @@ class ResourceImpl(object):
           find resource IDs of the given object type that
           are associated with the primary object
         @param primary_object_id the id of the primary object
-        @param association_prediate the association type
+        @param association_predicate the association type
         @param some_object_type the type of associated object
         """
         #log.debug("_find_stemming, from %s" % self._toplevel_call())
@@ -421,7 +430,7 @@ class ResourceImpl(object):
         ret = self._find_stemming(primary_object_id, association_predicate, some_object_type)
 
         if 1 < len(ret):
-            raise Inconsistent("%s '%s' has more than one %s:" % (self.iontype,
+            raise Inconsistent("%s '%s' %s of more than one %s:" % (self.iontype,
                                                                   primary_object_id,
                                                                   association_predicate,
                                                                   some_object_type))
@@ -458,17 +467,27 @@ class ResourceImpl(object):
         """
         return str(association_type)
 
-
-    def _link_resources(self, subject_id='', association_type='', object_id=''):
+    def _resource_link_exists(self, subject_id='', association_type='', object_id=''):
+        return 0 < len(self.RR.find_associations(subject_id,  association_type,  object_id, id_only=True))
+   
+    def _link_resources_lowlevel(self, subject_id='', association_type='', object_id='', check_duplicates=True):
         """
         create an association
         @param subject_id the resource ID of the predefined type
         @param association_type the predicate
         @param object_id the resource ID of the type to be joined
+        @param check_duplicates whether to check for an existing association of this exact subj-pred-obj
         @todo check for errors: does RR check for bogus ids?
         """
 
         assert(type("") == type(subject_id) == type(object_id))
+
+        if check_duplicates:
+            if self._resource_link_exists(subject_id, association_type, object_id):
+                log.debug("Create %s Association from '%s': ALREADY EXISTS"
+                          % (self._assn_name(association_type),
+                             self._toplevel_call()))
+                return None
 
         associate_success = self.RR.create_association(subject_id,
                                                        association_type,
@@ -477,9 +496,15 @@ class ResourceImpl(object):
         log.debug("Create %s Association from '%s': %s"
                   % (self._assn_name(association_type),
                      self._toplevel_call(),
-                     str(associate_success)))
+                      str(associate_success)))
         return associate_success
-
+        
+        
+        
+        
+    def _link_resources(self, subject_id='', association_type='', object_id=''):
+        # just link, and check duplicates
+        self._link_resources_lowlevel(subject_id, association_type, object_id, True)
 
     def _link_resources_single_object(self, subject_id='', association_type='', object_id='', raise_exn=True):
         """
@@ -501,14 +526,21 @@ class ResourceImpl(object):
         if len(existing_links) > 1:
             raise Inconsistent("Multiple %s-%s objects found on the same %s subject with id='%s'" %
                                (association_type, obj_type, self.iontype, subject_id))
-        elif len(existing_links) > 0:
+
+        if len(existing_links) > 0:
+            if self._resource_link_exists(subject_id, association_type, object_id):
+                log.debug("Create %s Association (single object) from '%s': ALREADY EXISTS"
+                          % (self._assn_name(association_type),
+                             self._toplevel_call()))
+                return None
+
             if raise_exn:
                 raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'" %
                                  (association_type, obj_type, self.iontype, subject_id))
-            else:
-                self.unlink_all_objects_by_type(self, subject_id, association_type)
+            
+            self._unlink_all_objects_by_association_type(subject_id, association_type)
 
-        return self._link_resources(subject_id, association_type, object_id)
+        return self._link_resources_lowlevel(subject_id, association_type, object_id, False)
 
  
     def _link_resources_single_subject(self, subject_id='', association_type='', object_id='', raise_exn=True):
@@ -531,15 +563,22 @@ class ResourceImpl(object):
         if len(existing_links) > 1:
             raise Inconsistent("Multiple %s-%s subjects found on the same %s object with id='%s'" %
                                (self.iontype, association_type, obj_type, object_id))
-        elif len(existing_links) > 0:
+
+        if len(existing_links) > 0:
+            if self._resource_link_exists(subject_id, association_type, object_id):
+                log.debug("Create %s Association (single subject) from '%s': ALREADY EXISTS"
+                          % (self._assn_name(association_type),
+                             self._toplevel_call()))
+                return None
+
             if raise_exn:
                 raise BadRequest("Attempted to add a duplicate %s-%s association on a %s object with id='%s'" %
                                  (self.iontype, association_type, obj_type, subject_id))
-            else:
-                self._unlink_resources(self, subject_id, association_type, existing_links[0])
+
+            self._unlink_resources(subject_id, association_type, existing_links[0]._id)
 
 
-        return self._link_resources(subject_id, association_type, object_id)
+        return self._link_resources_lowlevel(subject_id, association_type, object_id, False)
 
 
     def _unlink_resources(self, subject_id='', association_type='', object_id=''):
@@ -576,7 +615,7 @@ class ResourceImpl(object):
             self.RR.delete_association(a)
 
         
-    def _unlink_all_subjects_by_assocation_type(self, association_type='', object_id=''):
+    def _unlink_all_subjects_by_association_type(self, association_type='', object_id=''):
         """
         delete all assocations of a given type
         """

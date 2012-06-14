@@ -6,7 +6,9 @@
 """
 
 #from pyon.core.exception import BadRequest, NotFound
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, LCE
+from ion.services.sa.instrument.flag import KeywordFlag
+from ion.services.sa.instrument.policy import AgentPolicy
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 
@@ -20,6 +22,60 @@ class PlatformAgentImpl(ResourceSimpleImpl):
 
     def _primary_object_label(self):
         return "platform_agent"
+
+    def on_impl_init(self):
+        self.policy = AgentPolicy(self.clients)
+        
+        self.add_lce_precondition(LCE.PLAN, self.use_policy(self.policy.lce_precondition_plan))
+        self.add_lce_precondition(LCE.INTEGRATE, self.use_policy(self.policy.lce_precondition_integrate))
+        self.add_lce_precondition(LCE.DEVELOP, self.use_policy(self.policy.lce_precondition_develop))
+        self.add_lce_precondition(LCE.DEPLOY, self.use_policy(self.policy.lce_precondition_deploy))
+        self.add_lce_precondition(LCE.RETIRE, self.use_policy(self.policy.lce_precondition_retire))
+        
+        # self.add_lce_precondition(LCE.PLAN, (lambda r: "")) # no precondition to plan
+        # self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
+        # self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
+        # self.add_lce_precondition(LCE.DEPLOY, self.lce_precondition_deploy)  
+        
+    
+    def lce_precondition_deploy(self, platform_agent_id):
+        pre = self.lce_precondition_integrate(platform_agent_id)
+        if pre: 
+            return pre
+        
+        found = False
+        for a in self.find_stemming_attachment(platform_agent_id):
+            for k in a.keywords:
+                if KeywordFlag.CERTIFICATION == k:
+                    found = True
+                    break
+        if found:
+            return ""
+        else:
+            return "PlatformAgent LCS requires certification"
+
+    def lce_precondition_integrate(self, platform_agent_id):
+        pre = self.lce_precondition_develop(platform_agent_id)
+        if pre: 
+            return pre
+        
+        found = False
+        for a in self.find_stemming_attachment(platform_agent_id):
+            for k in a.keywords:
+                if KeywordFlag.EGG_URL == k:
+                    found = True
+                    break
+
+        if found:
+            return ""
+        else:
+            return "PlatformAgent LCS requires a registered driver egg"
+
+    def lce_precondition_develop(self, platform_agent_id):
+        if 0 < len(self.find_stemming_model(platform_agent_id)):
+            return ""
+        else:
+            return "PlatformAgent LCS requires an associated platform model"
 
     def link_model(self, platform_agent_id='', platform_model_id=''):
         return self._link_resources(platform_agent_id, PRED.hasModel, platform_model_id)

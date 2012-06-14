@@ -143,7 +143,7 @@ class BootstrapService(BaseBootstrapService):
 
         neg_def = IonObject(RT.NegotiationDefinition, name=RT.EnrollmentRequest,
             description='Definition of Enrollment Request Negotiation',
-            pre_condition = ['is_registered(user_id) == True', 'is_enrolled(org_id,user_id) == False', 'enroll_req_exists(org_id,user_id) == False'],
+            pre_condition = ['is_registered(user_id)', 'is_not_enrolled(org_id,user_id)', 'enroll_req_not_exist(org_id,user_id)'],
             accept_action = 'enroll_member(org_id,user_id)'
         )
 
@@ -151,7 +151,7 @@ class BootstrapService(BaseBootstrapService):
 
         neg_def = IonObject(RT.NegotiationDefinition, name=RT.RoleRequest,
             description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            pre_condition = ['is_enrolled(org_id,user_id)'],
             accept_action = 'grant_role(org_id,user_id,role_name)'
         )
 
@@ -159,7 +159,7 @@ class BootstrapService(BaseBootstrapService):
 
         neg_def = IonObject(RT.NegotiationDefinition, name=RT.ResourceRequest,
             description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id) == True'],
+            pre_condition = ['is_enrolled(org_id,user_id)'],
             accept_action = 'acquire_resource(org_id,user_id,resource_id)'
         )
 

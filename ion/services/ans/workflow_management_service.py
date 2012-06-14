@@ -5,9 +5,9 @@ __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.ans.iworkflow_management_service import BaseWorkflowManagementService
-from pyon.util.containers import is_basic_identifier
+from pyon.util.containers import is_basic_identifier, create_unique_identifier
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
-from pyon.public import Container, log, IonObject, RT,PRED
+from pyon.public import Container, log, IonObject, RT,PRED, OT
 
 class WorkflowManagementService(BaseWorkflowManagementService):
 
@@ -29,6 +29,12 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             raise BadRequest("The workflow definition name '%s' can only contain alphanumeric and underscore characters" % workflow_definition.name)
 
         workflow_definition_id, version = self.clients.resource_registry.create(workflow_definition)
+
+
+        workflow_definition = self.read_workflow_definition(workflow_definition_id)
+        self._update_workflow_associations(workflow_definition)
+
+
         return workflow_definition_id
 
 
@@ -44,6 +50,26 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             raise BadRequest("The workflow definition name '%s' can only contain alphanumeric and underscore characters" % workflow_definition.name)
 
         self.clients.resource_registry.update(workflow_definition)
+
+        self._update_workflow_associations(workflow_definition)
+
+    def _delete_workflow_associations(self, workflow_definition_id):
+
+        #Remove and existing associations
+        aid_list = self.clients.resource_registry.find_associations(workflow_definition_id, PRED.hasDataProcessDefinition)
+        for aid in aid_list:
+            self.clients.resource_registry.delete_association(aid)
+
+    def _update_workflow_associations(self, workflow_definition):
+
+        #Remove and existing associations
+        self._delete_workflow_associations(workflow_definition._id)
+
+        #For each Data Process workflow step, create the appropriate associations
+        for wf_step in workflow_definition.workflow_steps:
+            if wf_step.type_ == OT.DataProcessWorkflowStep:
+                self.clients.resource_registry.create_association(workflow_definition._id, PRED.hasDataProcessDefinition, wf_step.data_process_definition_id)
+
 
     def read_workflow_definition(self, workflow_definition_id=''):
         """Returns an existing Workflow Definition resource.
@@ -77,15 +103,19 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         if not workflow_definition:
             raise NotFound("workflow_definition_id %s does not exist" % workflow_definition_id)
 
+
+        self._delete_workflow_associations(workflow_definition_id)
+
         self.clients.resource_registry.delete(workflow_definition_id)
 
 
-    def create_workflow(self, workflow_definition_id='', input_data_product_id=''):
-        """Instantiates a Workflow specific by a Workflow Definition resource and an input data product id.
-        Returns the data product id for the final output product.
+    def create_data_process_workflow(self, workflow_definition_id='', input_data_product_id=''):
+        """Instantiates a Data Process Workflow specified by a Workflow Definition resource and an input data product id.
+      Returns the id of the workflow and the data product id for the final output product.
 
         @param workflow_definition_id    str
         @param input_data_product_id    str
+        @retval workflow_id str
         @retval output_data_product_id    str
         @throws BadRequest    if any of the required parameters are not set
         @throws NotFound    object with specified id does not exist
@@ -109,7 +139,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Create Workflow object and associations to track the instantiation of a work flow definition.
         workflow = IonObject(RT.Workflow, name=workflow_definition.name)
         workflow_id, _ = self.clients.resource_registry.create(workflow)
-        self.clients.resource_registry.create_association(workflow_id, PRED.hasProcessDefinition,workflow_definition_id )
+        self.clients.resource_registry.create_association(workflow_id, PRED.hasDefinition,workflow_definition_id )
         self.clients.resource_registry.create_association(workflow_id, PRED.hasInputProduct,input_data_product_id )
 
         #Setup the input data product id as the initial input product stream
@@ -119,31 +149,40 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
         #Iterate through the workflow steps to setup the data processes and connect them together.
         for wf_step in workflow_definition.workflow_steps:
-            log.info("proc_def_id: " + wf_step.data_process_definition_id)
+            log.debug("wf_step.data_process_definition_id: " + wf_step.data_process_definition_id)
 
             data_process_definition = self.clients.resource_registry.read(wf_step.data_process_definition_id)
 
             # Find the link between the output Stream Definition resource and the Data Process Definition resource
             stream_ids,_ = self.clients.resource_registry.find_objects(data_process_definition._id, PRED.hasStreamDefinition, RT.StreamDefinition,  id_only=True)
-            if len(stream_ids) == 0:
+            if not stream_ids:
                 raise Inconsistent("The data process definition %s is missing an association to an output stream definition" % data_process_definition._id )
             process_output_stream_def_id = stream_ids[0]
 
-            #Concatenate the name of the workflow and data process definition for the name of the data product output
-            data_process_name = workflow_definition.name + '_' + data_process_definition.name
+            #If an output name has been specified than use it for the final output product name
+            if wf_step.output_data_product_name is not '':
+                data_product_name = wf_step.output_data_product_name
+            else:
+                #Concatenate the name of the workflow and data process definition for the name of the data product output + plus
+                #a unique identifier for multiple instances of a workflow definition.
+                data_product_name = create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
 
             # Create the output data product of the transform
-            transform_dp_obj = IonObject(RT.DataProduct, name=data_process_name,description=data_process_definition.description)
+            transform_dp_obj = IonObject(RT.DataProduct, name=data_product_name,description=data_process_definition.description)
             transform_dp_id = self.clients.data_product_management.create_data_product(transform_dp_obj, process_output_stream_def_id)
-            self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=wf_step.persist_data, persist_metadata=wf_step.persist_metadata)
+            if wf_step.persist_process_output_data:
+                self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=wf_step.persist_process_output_data, persist_metadata=wf_step.persist_process_output_data)
+
+            #Associate the intermediate data products with the workflow
+            self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, transform_dp_id )
 
             # Create the  transform data process
             log.debug("create data_process and start it")
-            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, data_process_input_dp_id, {'output':transform_dp_id})
+            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id}, configuration=wf_step.configuration)
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
-            self.clients.resource_registry.create_association(workflow_id, PRED.hasProcess, data_process_id )
+            self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProcess, data_process_id )
 
             #last one out of the for loop is the output product id
             output_data_product_id = transform_dp_id
@@ -155,15 +194,59 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Track the output data product with an association
         self.clients.resource_registry.create_association(workflow_id, PRED.hasOutputProduct, output_data_product_id )
 
-        return output_data_product_id
+        return workflow_id, output_data_product_id
 
 
-    def delete_workflow(self, workflow_definition_id=''):
+    def terminate_data_process_workflow(self, workflow_id='', delete_data_products=True):
         """Terminates a Workflow specific by a Workflow Definition resource which includes all internal processes.
 
-        @param workflow_definition_id    str
-        @retval data_product_id    str
+        @param workflow_id    str
         @throws BadRequest    if any of the required parameters are not set
         @throws NotFound    object with specified id does not exist
         """
-        pass
+
+        if not workflow_id:
+            raise BadRequest("The workflow_id parameter is missing")
+
+        workflow = self.clients.resource_registry.read(workflow_id)
+        if not workflow:
+            raise NotFound("Workflow %s does not exist" % workflow_id)
+
+        #Iterate through all of the data process associates and deactivate and delete them
+        process_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProcess, RT.DataProcess, True)
+        for pid in process_ids:
+            self.clients.data_process_management.deactivate_data_process(pid)
+            self.clients.data_process_management.delete_data_process(pid)
+            aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDataProcess, pid)
+            if aid:
+                self.clients.resource_registry.delete_association(aid[0])
+
+
+        #Iterate through all of the data product associations and suspend and delete them
+        workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
+        for dp_id in workflow_dp_ids:
+
+            if delete_data_products: #TODO - may have to revisit this once the SA level stabilizes
+                self.clients.data_product_management.suspend_data_product_persistence(dp_id)
+                self.clients.data_product_management.delete_data_product(dp_id)
+
+            aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDataProduct, dp_id)
+            if aid:
+                self.clients.resource_registry.delete_association(aid[0])
+
+
+        #Remove other associations
+        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasOutputProduct)
+        if aid:
+            self.clients.resource_registry.delete_association(aid[0])
+
+        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasInputProduct)
+        if aid:
+            self.clients.resource_registry.delete_association(aid[0])
+
+        aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDefinition)
+        if aid:
+            self.clients.resource_registry.delete_association(aid[0])
+
+        #Finally remove the workflow object itself
+        self.clients.resource_registry.delete(workflow_id)

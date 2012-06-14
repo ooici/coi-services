@@ -13,6 +13,7 @@ from pyon.core.exception import NotFound, BadRequest
 
 
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.services.sa.instrument.policy import DevicePolicy
 
 class InstrumentDeviceImpl(ResourceImpl):
     """
@@ -24,9 +25,13 @@ class InstrumentDeviceImpl(ResourceImpl):
         if hasattr(self.clients, "data_acquisition_management"):
             self.DAMS = self.clients.data_acquisition_management
 
-        self.add_lce_precondition(LCE.PLAN, self.lce_precondition_plan)
-        self.add_lce_precondition(LCE.DEVELOP, self.lce_precondition_develop)
-        self.add_lce_precondition(LCE.INTEGRATE, self.lce_precondition_integrate)
+        self.policy = DevicePolicy(self.clients)
+
+        self.add_lce_precondition(LCE.PLAN, self.use_policy(self.policy.lce_precondition_plan))
+        self.add_lce_precondition(LCE.DEVELOP, self.use_policy(self.policy.lce_precondition_develop))
+        self.add_lce_precondition(LCE.INTEGRATE, self.use_policy(self.policy.lce_precondition_integrate))
+        self.add_lce_precondition(LCE.DEPLOY, self.use_policy(self.policy.lce_precondition_deploy))
+        self.add_lce_precondition(LCE.RETIRE, self.use_policy(self.policy.lce_precondition_retire))
 
     def _primary_object_name(self):
         return RT.InstrumentDevice
@@ -106,20 +111,20 @@ class InstrumentDeviceImpl(ResourceImpl):
     def lce_precondition_plan(self, instrument_device_id):
         if 0 < len(self.find_stemming_model(instrument_device_id)):
             return ""
-        return "Can't have a planned instrument_device without associated instrument_model"
+        return "InstrumentDevice LCS requires an associated InstrumentModel"
 
 
     def lce_precondition_develop(self, instrument_device_id):
         if 0 < len(self.find_stemming_agent_instance(instrument_device_id)):
             return ""
-        return "Can't have a developed instrument_device without associated instrument_agent_instance"
+        return "InstrumentDevice LCS requires associated InstrumentAgentInstance"
 
 
     def lce_precondition_integrate(self, instrument_device_id):
         has_passing_certification = True #todo.... get this programmatically somehow
         if has_passing_certification:
             return ""
-        return "Can't have an integrated instrument_device without certification"
+        return "InstrumentDevice LCS requireds a certification attachment"
 
 
 
