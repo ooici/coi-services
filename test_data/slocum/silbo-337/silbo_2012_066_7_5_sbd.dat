@@ -1,0 +1,22 @@
+dbd_label: DBD_ASC(dinkum_binary_data_ascii)file
+encoding_ver: 2
+num_ascii_tags: 14
+all_sensors: 0
+filename: silbo-2012-066-7-5
+the8x3_filename: 02090005
+filename_extension: sbd
+filename_label: silbo-2012-066-7-5-sbd(02090005)
+mission_name: LEIF.MI
+fileopen_time: Wed_Mar__7_17:35:03_2012
+sensors_per_cycle: 13
+num_label_lines: 3
+num_segments: 1
+segment_filename_0: silbo-2012-066-7-5
+m_battery m_depth m_de_oil_vol m_pitch m_present_secs_into_mission m_present_time m_roll m_vacuum sci_m_present_secs_into_mission sci_m_present_time sci_water_cond sci_water_pressure sci_water_temp 
+volts m cc rad sec timestamp rad inHg sec timestamp s/m bar degc 
+4 4 4 4 4 8 4 4 4 8 4 4 4 
+NaN NaN NaN NaN 23839.9 1331141643.89206 NaN NaN 23839.9 1331141643.89206 0 0 0 
+15.448 0.0958639 258.973 0.47473 23857.4 1331141662.27222 -0.0401426 8.95013 NaN NaN NaN NaN NaN 
+15.4324 0.069235 258.938 NaN 23857.4 1331141662.27222 NaN 9.43283 NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN 23860.5 1331141664.48871 NaN NaN 23860.5 1331141664.48871 0 0 0 
+NaN 0.05 NaN NaN 23922 1331141726.86038 NaN NaN NaN NaN NaN NaN NaN 
