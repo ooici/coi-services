@@ -14,7 +14,8 @@ import os
 import sys
 import uuid
 import time
-from subprocess import Popen
+import signal
+import subprocess
 
 from pyon.util.log import log
 from ion.agents.instrument.common import BaseEnum
@@ -87,7 +88,7 @@ class DriverProcess(object):
         cmd = self._process_command()
         self._driver_process = self._spawn(cmd)
 
-        if not self._driver_process or self._driver_process.poll():
+        if not self._driver_process and not self.poll():
             log.error("Failed to launch driver: %s" % cmd)
             raise DriverLaunchException('Error starting driver process')
 
@@ -97,6 +98,29 @@ class DriverProcess(object):
         self._event_port = self._get_port_from_file(self._driver_event_port_file())
 
         log.debug("-- command port: %s, event port: %s" % (self._command_port, self._event_port))
+
+    def poll(self):
+        """
+        Check to see if the driver process is alive.
+        @return true if driver process is running, false otherwise
+        """
+
+        # The Popen.poll() doesn't seem to be returning reliable results.  Sending a signal 0 to the process might be
+        # more reliable.
+
+        if not self._driver_process:
+            return False
+
+        try:
+            os.kill(self._driver_process.pid, 0)
+        except OSError, e:
+            log.warn("Could not send a signal to the driver, pid: %s" % self._driver_process.pid)
+            return False
+
+        return True
+
+
+
 
     def stop(self):
         """
@@ -126,10 +150,45 @@ class DriverProcess(object):
         @returns the pid of the driver process if it is running, otherwise None
         """
         if self._driver_process:
-            if self._driver_process.poll():
+            if self.poll():
                 return self._driver_process.pid
+            else:
+                log.warn("Driver process found, but poll failed for pid %s" % self._driver_process.pid)
         else:
             return None
+
+    def memory_usage(self):
+        """
+        Get the current memory usage for the current driver process.
+        @returns memory usage in KB of the current driver process
+        """
+        driver_pid = self.getpid()
+        if not driver_pid:
+            log.warn("no process running")
+            return 0
+
+        #ps_process = subprocess.Popen(["ps", "-p", self.getpid(), "-o", "rss,pid"])
+        ps_process = subprocess.Popen(["ps", "-o rss,pid", "-p %s" % self.getpid()], stdout=subprocess.PIPE)
+        retcode = ps_process.poll()
+
+        usage = 0
+        for line in ps_process.stdout:
+            if not line.strip().startswith('RSS'):
+                try:
+                    fields = line.split()
+                    pid = int(fields[1])
+                    if pid == driver_pid:
+                        usage = int(fields[0])
+                except:
+                    log.warn("Failed to parse output for memory usage: %s" % line)
+                    usage = 0
+
+        if usage:
+            log.info("process memory usage: %dk" % usage)
+        else:
+            log.warn("process not running")
+
+        return usage
 
     def _spawn(self, spawnargs):
         """
@@ -139,7 +198,7 @@ class DriverProcess(object):
         @returns subprocess.Popen object
         """
         log.debug("run cmd: %s" % " ".join(spawnargs))
-        return Popen(spawnargs, close_fds=True)
+        return subprocess.Popen(spawnargs, close_fds=True)
 
 
     def _process_command(self):
