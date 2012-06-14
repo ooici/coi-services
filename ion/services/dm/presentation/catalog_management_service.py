@@ -91,10 +91,6 @@ class CatalogManagementService(BaseCatalogManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)
 
-        subj, assocs = self.clients.resource_registry.find_subjects(object=catalog_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)
-
         self.clients.resource_registry.delete(catalog_id)
 
         return True

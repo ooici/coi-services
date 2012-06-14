@@ -121,9 +121,6 @@ class IndexManagementService(BaseIndexManagementService):
         @param index_id    str
         @retval success    bool
         """
-        subjects, assocs = self.clients.resource_registry.find_subjects(object=index_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)
         self.clients.resource_registry.delete(index_id)
         return True
 

@@ -103,12 +103,8 @@ class IndexManagementUnitTest(PyonTestCase):
 
 
     def test_delete_index(self):
-        assoc = DotDict(_id=0)
-        assoc1 = DotDict(_id=1)
-        self.rr_find_subj.return_value = ([],[assoc,assoc1])
 
         self.index_management.delete_index('index_id')
-        self.assertTrue(self.rr_delete_assoc.call_count == 2)
         self.rr_delete.assert_called_with('index_id')
 
 

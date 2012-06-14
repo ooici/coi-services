@@ -94,12 +94,10 @@ class CatalogManagementUnitTest(PyonTestCase):
         self.assertTrue(retval['check'])
 
     def test_delete_catalog(self):
-        view_assoc = DotDict(_id=0)
         index_assoc = DotDict(_id=1)
 
         # Mocks
         self.rr_find_assocs_mult.return_value = ([],[index_assoc])
-        self.rr_find_subj.return_value = ([],[view_assoc])
 
 
         # Execution
@@ -107,7 +105,7 @@ class CatalogManagementUnitTest(PyonTestCase):
 
         # Assertions
         self.rr_delete.assert_called_once_with('catalog_id')
-        self.assertTrue(self.rr_delete_assoc.call_count == 2)
+        self.assertTrue(self.rr_delete_assoc.call_count == 1)
 
 
 
