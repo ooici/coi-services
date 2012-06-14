@@ -32,8 +32,11 @@ class CatalogManagementUnitTest(PyonTestCase):
         self.rr_update = mock_clients.resource_registry.update
         self.rr_delete = mock_clients.resource_registry.delete
         self.rr_find_assoc = mock_clients.resource_registry.find_associations
+        self.rr_find_assocs_mult = mock_clients.resource_registry.find_associations_mult
         self.rr_find_res = mock_clients.resource_registry.find_resources
         self.rr_find_obj = mock_clients.resource_registry.find_objects
+        self.rr_find_subj = mock_clients.resource_registry.find_subjects
+        self.rr_delete_assoc = mock_clients.resource_registry.delete_association
         self.rr_create_assoc = mock_clients.resource_registry.create_association
 
         self.ims_list_indexes = mock_clients.index_management.list_indexes
@@ -91,13 +94,20 @@ class CatalogManagementUnitTest(PyonTestCase):
         self.assertTrue(retval['check'])
 
     def test_delete_catalog(self):
+        view_assoc = DotDict(_id=0)
+        index_assoc = DotDict(_id=1)
+
         # Mocks
+        self.rr_find_assocs_mult.return_value = ([],[index_assoc])
+        self.rr_find_subj.return_value = ([],[view_assoc])
+
 
         # Execution
         self.catalog_management.delete_catalog('catalog_id')
 
         # Assertions
         self.rr_delete.assert_called_once_with('catalog_id')
+        self.assertTrue(self.rr_delete_assoc.call_count == 2)
 
 
 

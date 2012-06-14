@@ -113,6 +113,9 @@ class DiscoveryService(BaseDiscoveryService):
         return True
 
     def delete_view(self, view_id=''):
+        _, assocs = self.clients.resource_registry.find_associations_mult(subjects=[view_id])
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
         self.clients.resource_registry.delete(view_id)
         return True
 
