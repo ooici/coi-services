@@ -14,8 +14,7 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from nose.plugins.attrib import attr
 from mock import patch
-from pyon.public import log
-from pyon.util.config import CFG
+from pyon.public import log, CFG
 from pyon.util.containers import DictModifier, DotDict
 from pyon.core.bootstrap import get_sys_name
 from pyon.datastore.datastore import DataStore
@@ -29,7 +28,8 @@ class RawStreamIntegration(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
 
-        config = DictModifier(CFG)
+        config = DotDict()
+        config.bootstrap.processes.ingestion.module = 'ion.processes.data.ingestion.ingestion_worker_a'
 
         self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
