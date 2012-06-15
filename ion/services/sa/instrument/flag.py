@@ -18,7 +18,8 @@ class KeywordFlag(BaseEnum):
 
     EGG_URL                         = fp + "egg_url"
     CERTIFICATION                   = fp + "certification"
-    TEST_RESULTS                    = fp + "test_results"
+    OOI_TEST_RESULTS                = fp + "ooi_test_results"
+    VENDOR_TEST_RESULTS             = fp + "vendor_test_results"
     # INSTRUMENT_AGENT_CERTIFICATION  = fp + "instrument_agent_certification"
     # INSTRUMENT_DEVICE_CERTIFICATION = fp + "instrument_device_certification"
     # PLATFORM_AGENT_CERTIFICATION    = fp + "instrument_agent_certification"

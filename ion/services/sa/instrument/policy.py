@@ -22,6 +22,20 @@ class Policy(object):
     def on_policy_init(self):
         pass
 
+    def _make_result(self, result, message):
+        if result:
+            return True, ""
+        else:
+            return False, message
+
+    def _make_pass(self):
+        return self._make_result(True, "")
+
+    def _make_fail(self, message):
+        return self._make_result(False, message)
+
+    def _make_warn(self, message):
+        return self._make_result(True, message)
 
     def _get_resource_type(self, resource):
         """
@@ -76,70 +90,79 @@ class Policy(object):
         for a in self._find_stemming(resource_id, PRED.hasAttachment, RT.Attachment):
             for k in a.keywords:
                 if desired_keyword == k:
-                    return True
-        return False
+                    return self._make_pass()
+        return self._make_fail("No attachment found with keyword='%s'" % desired_keyword)
 
     def _resource_lcstate_in(self, resource_obj, permissible_states=[]):
                 
         parts = get_maturity_visibility(resource_obj.lcstate)
 
-        return parts[0] in permissible_states
+        return self._make_result(parts[0] in permissible_states,
+                                 "'%s' resource is in state '%s', wanted [%s]" %
+                                 (self._get_resource_type(resource_obj), parts[0], str(permissible_states)))
                       
 
 class AgentPolicy(Policy):
 
     def lce_precondition_plan(self, agent_id):
         # always OK
-        return True
+        return self._make_pass()
 
-    def lce_precondition_deploy(self, agent_id):
-        if not self.lce_precondition_integrate(agent_id): return False
+    def lce_precondition_develop(self, agent_id):
+        former = self.lce_precondition_plan(agent_id)
+        if not former[0]: return former
 
-        #if no checking platform agents yet, uncomment this
-        #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
+        agent_type = self._get_resource_type_by_id(agent_id)
 
-        return self._has_keyworded_attachment(agent_id, KeywordFlag.CERTIFICATION)
+        if RT.InstrumentAgent == agent_type:
+            return self._make_result(0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.InstrumentModel)),
+                                     "No model associated with agent")
+
+        if RT.PlatformAgent == agent_type:
+            return self._make_result(0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.PlatformModel)),
+                                     "No model associated with agent")
+
+        return self._make_fail("Wrong resource type (got '%s')" % agent_type)
 
     def lce_precondition_integrate(self, agent_id):
-        if not self.lce_precondition_develop(agent_id): return False
+        former = self.lce_precondition_develop(agent_id)
+        if not former[0]: return former
+
 
         #if not checking platform agents yet, uncomment this
         #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
 
         return self._has_keyworded_attachment(agent_id, KeywordFlag.EGG_URL)
 
-    def lce_precondition_develop(self, agent_id):
+    def lce_precondition_deploy(self, agent_id):
+        former = self.lce_precondition_integrate(agent_id)
+        if not former[0]: return former
 
-        agent_type = self._get_resource_type_by_id(agent_id)
+        #if no checking platform agents yet, uncomment this
+        #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
 
-        if RT.InstrumentAgent == agent_type:
-            return 0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.InstrumentModel))
-
-        if RT.PlatformAgent == agent_type:
-            return 0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.PlatformModel))
-
-        return False
+        return self._has_keyworded_attachment(agent_id, KeywordFlag.CERTIFICATION)
 
     def lce_precondition_retire(self, agent_id):
-        return 0 == self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id)
-    
+        ret = (0 == self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id))
+        return self._make_result(ret, "InstrumentAgentInstance(s) are still using this InstrumentAgent")
 
 class ModelPolicy(Policy):
     def lce_precondition_plan(self, model_id):
         # always OK
-        return True
+        return self._make_pass()
 
     def lce_precondition_develop(self, model_id):
         # todo
-        return True
+        return self._make_pass()
 
     def lce_precondition_integrate(self, model_id):
         # todo
-        return True
+        return self._make_pass()
 
     def lce_precondition_deploy(self, model_id):
         # todo
-        return True
+        return self._make_pass()
 
     def lce_precondition_retire(self, model_id):
         # todo: more than checking agents, devices, and sites?
@@ -150,113 +173,146 @@ class ModelPolicy(Policy):
             return 0 == len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id))
 
         if RT.InstrumentModel == model_type:
-            if 0 < len(self._find_having(RT.InstrumentDevice, PRED.hasModel, model_id)): return False
-            if 0 < len(self._find_having(RT.InstrumentAgent, PRED.hasModel, model_id)): return False
-            if 0 < len(self._find_having(RT.InstrumentSite, PRED.hasModel, model_id)): return False
-            return True
+            if 0 < len(self._find_having(RT.InstrumentDevice, PRED.hasModel, model_id)):
+                return self._make_fail("InstrumentDevice(s) are using this model")
+            if 0 < len(self._find_having(RT.InstrumentAgent, PRED.hasModel, model_id)):
+                return self._make_fail("InstrumentAgent(s) are using this model")
+            if 0 < len(self._find_having(RT.InstrumentSite, PRED.hasModel, model_id)):
+                return self._make_fail("InstrumentSite(s) are using this model")
+            return self._make_pass()
 
         if RT.PlatformModel == model_type:
-            if 0 < len(self._find_having(RT.PlatformDevice, PRED.hasModel, model_id)): return False
-            if 0 < len(self._find_having(RT.PlatformAgent, PRED.hasModel, model_id)): return False
-            if 0 < len(self._find_having(RT.PlatformSite, PRED.hasModel, model_id)): return False
-            return True
+            if 0 < len(self._find_having(RT.PlatformDevice, PRED.hasModel, model_id)):
+                return self._make_fail("PlatformDevice(s) are using this model")
+            if 0 < len(self._find_having(RT.PlatformAgent, PRED.hasModel, model_id)):
+                return self._make_fail("PlatformAgent(s) are using this model")
+            if 0 < len(self._find_having(RT.PlatformSite, PRED.hasModel, model_id)):
+                return self._make_fail("PlatformSite(s) are using this model")
+            return self._make_pass()
 
-        return False
-        
+        return self._make_fail("Wrong resource type (got '%s')" % agent_type)
+
+
 class DevicePolicy(Policy):
 
     def lce_precondition_plan(self, device_id):
-        # always OK
-        return True
+        obj = self.RR.read(device_id)
+
+        return self._make_result("" != obj.name, "Name was not defined")
 
     def lce_precondition_develop(self, device_id):
-        if not self.lce_precondition_plan(device_id): return False
+        former = self.lce_precondition_plan(device_id)
+        if not former[0]: return former
 
         #have an agent/deployed, model/deployed
 
-        device_type = self._get_resource_type_by_id(device_id)
+        obj = self.RR.read(device_id)
+        device_type = self._get_resource_type(device_id)
+
+        if "" == obj.serial_number:
+            return self._make_fail("Device has no serial number")
 
         if RT.InstrumentDevice == device_type:
             models = self._find_stemming(device_id, PRED.hasModel, RT.InstrumentModel)
-            if 0 == len(models): return False
-            if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]): return False
-        
-            agents = self._find_stemming(device_id, PRED.hasModel, RT.InstrumentAgent)
-            if 0 == len(agents): return False
-            if not self._resource_lcstate_in(agents[0], [LCS.DEPLOYED]): return False
+            if 0 == len(models):
+                return self._make_fail("Device has no associated model")
+            if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]):
+                return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
 
-            return True
-            
+            return self._has_keyworded_attachment(agent_id, KeywordFlag.VENDOR_TEST_RESULTS)
+
         if RT.PlatformDevice == device_type:
             models = self._find_stemming(device_id, PRED.hasModel, RT.PlatformModel)
-            if 0 == len(models): return False
-            if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]): return False
-        
-            agents = self._find_stemming(device_id, PRED.hasModel, RT.PlatformAgent)
-            if 0 == len(agents): return False
-            if not self._resource_lcstate_in(agents[0], [LCS.DEPLOYED]): return False
+            if 0 == len(models):
+                return self._make_fail("Device has no associated model")
+            if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]):
+                return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
 
-            return True
+            return self._has_keyworded_attachment(agent_id, KeywordFlag.VENDOR_TEST_RESULTS)
 
-        return False
+        return self._make_fail("Wrong resource type (got '%s')" % agent_type)
 
 
     def lce_precondition_integrate(self, device_id):
-        if not self.lce_precondition_develop(device_id): return False
+        former = self.lce_precondition_develop(device_id)
+        if not former[0]: return former
 
         #Have an instrument site/deployed, site has agent, site agent == device agent
 
         device_type = self._get_resource_type_by_id(device_id)
 
-        if RT.InstrumentDevice == device_type:
-            sites = self._find_having(RT.InstrumentSite, PRED.hasDevice, device_id)
-            if 0 == len(sites): return False
-            if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]): return False
-
-            siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.InstrumentAgent)
-            if 0 == len(siteagents): return False
-        
-            agents = self._find_stemming(device_id, PRED.hasModel, RT.InstrumentAgent)
-            # we check the develop precondition here, which checks that there's an agent. so assume it.
-            if siteagents[0]._id != agents[0]._id: return False
-            
-            return True
-            
         if RT.PlatformDevice == device_type:
-            sites = self._find_having(RT.PlatformSite, PRED.hasDevice, device_id)
-            if 0 == len(sites): return False
-            if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]): return False
+            agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
+            if 0 == len(agents):
+                return self._make_fail("Device has no associated agent instance")
+            tmp = self._resource_lcstate_in(agents[0], [LCS.DEPLOYED])
+            if not tmp[0]: return tmp
 
-            siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.PlatformAgent)
-            if 0 == len(siteagents): return False
-        
-            agents = self._find_stemming(device_id, PRED.hasModel, RT.PlatformAgent)
-            # we check the develop precondition here, which checks that there's an agent. so assume it.
-            if siteagents[0]._id != agents[0]._id: return False
-            return True
+            return self._make_pass()
 
-        return False
+        if RT.InstrumentDevice == device_type:
+            agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
+            if 0 == len(agents):
+                return self._make_fail("Device has no associated agent instance")
+            tmp = self._resource_lcstate_in(agents[0], [LCS.DEPLOYED])
+            if not tmp[0]: return tmp
+
+            parents = self._find_having(RT.PlatformDevice, PRED.hasDevice, device_id)
+            if 0 == len(parents):
+                return self._make_fail("Device is not attached to a parent")
+            tmp = self._resource_lcstate_in(parents[0], [LCS.INTEGRATED, LCS.DEPLOYED])
+            if not tmp[0]: return tmp
+
+            return self._make_pass()
+
+        if RT.SensorDevice == device_type:
+            parents = self._find_having(RT.InstrumentDevice, PRED.hasDevice, device_id)
+            if 0 == len(parents):
+                return self._make_fail("Device is not attached to a parent")
+            tmp = self._resource_lcstate_in(parents[0], [LCS.INTEGRATED, LCS.DEPLOYED])
+            if not tmp[0]: return tmp
+            return self._make_pass()
+
+        #todo: verify comms with device??
+
+        return self._make_fail("Wrong resource type (got '%s')" % device_type)
 
 
     def lce_precondition_deploy(self, device_id):
-        if not self.lce_precondition_integrate(device_id): return False
+        former = self.lce_precondition_integrate(device_id)
+        if not former[0]: return former
 
         # Have associated agent instance, has a parent subsite which is deployed, platform device has platform site, all deployed.  
 
         device_type = self._get_resource_type_by_id(device_id)
 
         if RT.SensorDevice == device_type:
-            return True
+            parents = self._find_having(RT.InstrumentDevice, PRED.hasDevice, device_id)
+            if 0 == len(parents):
+                return self._make_fail("Device is not attached to a parent")
+            tmp = self._resource_lcstate_in(parents[0], [LCS.DEPLOYED])
+            if not tmp[0]: return tmp
+            return self._make_pass()
 
         if RT.InstrumentDevice == device_type:
+            parents = self._find_having(RT.PlatformDevice, PRED.hasDevice, device_id)
+            if 0 == len(parents):
+                return self._make_fail("Device is not attached to a parent")
+            tmp = self._resource_lcstate_in(parents[0], [LCS.DEPLOYED])
+            if not tmp[0]: return tmp
+
             sites = self._find_having(RT.InstrumentSite, PRED.hasDevice, device_id)
-            if 0 == len(sites): return False
-            if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]): return False
+            if 0 == len(sites):
+                return self._make_fail("Device does not have an assigned site")
+            tmp = self._resource_lcstate_in(sites[0], [LCS.DEPLOYED])
+            if not tmp[0]: return tmp
 
             siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.InstrumentAgent)
-            if 0 == len(siteagents): return False
+            if 0 == len(siteagents): return self._make_fail("No site agent found")
         
-            agents = self._find_stemming(device_id, PRED.hasModel, RT.InstrumentAgent)
+            agentinsts = self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
+            if 0 == len(agentinsts): return self._make_fail("No agent instance found")
+            agents = self._find_stemming(agentinsts[0], PRED.hasAgentDefinition, RT.InstrumentAgent)
             # we check the develop precondition here, which checks that there's an agent. so assume it.
             if siteagents[0]._id != agents[0]._id: return False
 
@@ -264,29 +320,27 @@ class DevicePolicy(Policy):
             for dev in self._find_stemming(device_id, PRED.hasDevice, RT.SensorDevice):
                 if not self._resource_lcstate_in(dev, [LCS.DEPLOYED]): return False
 
-            return True
+            return self._make_pass()
             
         if RT.PlatformDevice == device_type:
             sites = self._find_having(RT.PlatformSite, PRED.hasDevice, device_id)
             if 0 == len(sites):
-                return False
-            if not self._resource_lcstate_in(sites[0], [LCS.DEPLOYED]):
-                return False
+                return self._make_fail("Device does not have an assigned site")
+            tmp = self._resource_lcstate_in(sites[0], [LCS.DEPLOYED])
+            if not tmp[0]: return tmp
 
             siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.PlatformAgent)
-            if 0 == len(siteagents):
-                return False
-        
-            agents = self._find_stemming(device_id, PRED.hasModel, RT.PlatformAgent)
+            if 0 == len(siteagents): return self._make_fail("No site agent found")
+
+            agentinsts = self._find_stemming(device_id, PRED.hasAgentInstance, RT.PlatformAgentInstance)
+            if 0 == len(agentinsts): return self._make_fail("No agent instance found")
+            agents = self._find_stemming(agentinsts[0], PRED.hasAgentDefinition, RT.PlatformAgent)
             # we check the develop precondition here, which checks that there's an agent. so assume it.
-            if siteagents[0]._id != agents[0]._id:
-                return False
+            if siteagents[0]._id != agents[0]._id: return False
 
-            # all instrument devices must be deployed
-            for dev in self._find_stemming(device_id, PRED.hasDevice, RT.InstrumentDevice):
-                if not self._resource_lcstate_in(dev, [LCS.DEPLOYED]): return False
 
-            return True
+
+            return self._make_pass()
 
         return False
 
@@ -295,35 +349,39 @@ class DevicePolicy(Policy):
         device_type = self._get_resource_type_by_id(device_id)
 
         if RT.SensorDevice == device_type:
-            return True
+            return self._make_pass()
 
         if RT.InstrumentDevice == device_type:
-            if 0 < len(self._find_having(RT.InstrumentSite, PRED.hasDevice, device_id)): return False
-            if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)): return False
+            if 0 < len(self._find_having(RT.InstrumentSite, PRED.hasDevice, device_id)):
+                return self._make_fail("Device is still assigned to a site")
+            if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)):
+                return self._make_fail("Device is still assigned to a deployment")
 
         if RT.PlatformDevice == device_type:
-            if 0 < len(self._find_having(RT.PlatformSite, PRED.hasDevice, device_id)): return False
-            if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)): return False
+            if 0 < len(self._find_having(RT.PlatformSite, PRED.hasDevice, device_id)):
+                return self._make_fail("Device is still assigned to a site")
+            if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)):
+                return self._make_fail("Device is still assigned to a deployment")
 
         return False
 
 class SitePolicy(Policy):
     def lce_precondition_plan(self, model_id):
         # always OK
-        return True
+        return self._make_pass()
 
     def lce_precondition_develop(self, model_id):
         # todo
-        return True
+        return self._make_pass()
 
     def lce_precondition_integrate(self, model_id):
         # todo
-        return True
+        return self._make_pass()
 
     def lce_precondition_deploy(self, model_id):
         # todo
-        return True
+        return self._make_pass()
 
     def lce_precondition_retire(self, model_id):
         # todo:
-        return True
+        return self._make_pass()
