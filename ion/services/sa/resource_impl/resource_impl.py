@@ -471,7 +471,7 @@ class ResourceImpl(object):
 
     def _resource_link_exists(self, subject_id='', association_type='', object_id=''):
         result = self.RR.find_associations(subject_id,  association_type,  object_id, id_only=True)
-        if result[0]:
+        if 0 < len(result) and result[0]:
             return result
         return None
 
