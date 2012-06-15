@@ -265,8 +265,6 @@ class BootstrapService(BaseBootstrapService):
         replay_module    = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
         replay_class     = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')
 
-        log.critical('%s', config.get_safe('bootstrap.processes'))
-        log.critical('%s', config.get_safe('bootstrap.processes'))
         process_definition = ProcessDefinition(
             name='ingestion_worker_process',
             description='Worker transform process for ingestion of datasets')
