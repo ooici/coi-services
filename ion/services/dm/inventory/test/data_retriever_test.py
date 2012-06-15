@@ -16,7 +16,8 @@ from pyon.net.endpoint import Subscriber
 from pyon.public import CFG
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from ion.processes.data.replay_process import ReplayProcess
+from ion.processes.data.replay.replay_process import ReplayProcess
+from ion.processes.data.replay.replay_process_a import ReplayProcess as ReplayProcessAlpha
 from prototype.hdf.hdf_codec import HDFEncoder
 from prototype.sci_data.constructor_apis import DefinitionTree, PointSupplementConstructor
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition

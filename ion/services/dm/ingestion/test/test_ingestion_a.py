@@ -5,26 +5,45 @@
 @description Provides a full fledged integration from ingestion to replay using scidata
 """
 
-import gevent
 
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import StreamSubscriberRegistrar
 from interface.objects import CouchStorage, ProcessDefinition
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from nose.plugins.attrib import attr
+from mock import patch
 from pyon.public import log
+from pyon.util.config import CFG
+from pyon.util.containers import DictModifier, DotDict
+from pyon.core.bootstrap import get_sys_name
+from pyon.datastore.datastore import DataStore
+from ion.processes.data.ingestion.ingestion_worker_a import IngestionWorker
 
 
 
 @attr('INT',group='dm')
+
 class RawStreamIntegration(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
+        config = DictModifier(CFG)
+
+        self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
+
+
+        xs_dot_xp = CFG.core_xps.science_data
+
+        try:
+            self.XS, xp_base = xs_dot_xp.split('.')
+            self.XP = '.'.join([get_sys_name(), xp_base])
+        except ValueError:
+            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
+        #    def _spawn_service_process(self, process_id, name, module, cls, config):
+        #    def spawn_process(self, name=None, module=None, cls=None, config=None, process_id=None):
 
     def test_raw_stream_integration(self):
         cc = self.container
@@ -45,6 +64,7 @@ class RawStreamIntegration(IonIntegrationTestCase):
         # declare some handy variables
 
         datastore_name = 'test_dm_integration'
+        datastore = cc.datastore_manager.get_datastore(datastore_name,profile=DataStore.DS_PROFILE.SCIDATA)
 
 
         ###
@@ -111,6 +131,21 @@ class RawStreamIntegration(IonIntegrationTestCase):
                 }
         }
         producer_pid = process_dispatcher.schedule_process(process_definition_id= producer_procdef_id, configuration=configuration)
+
+        found = False
+        processes = cc.proc_manager.procs.values()
+        for proc in processes:
+            if isinstance(proc, IngestionWorker):
+                found = True
+                break
+        self.assertTrue(found, '%s' % cc.proc_manager.procs)
+
+
+        done = False
+        while not done:
+            results = datastore.query_view('manifest/by_dataset')
+            if len(results) >= 5:
+                done = True
 
 
         #pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.stream_granule_logger',cls='StreamGranuleLogger',config={'process':{'stream_id':stream_id}})
