@@ -49,6 +49,7 @@ class TestInstrumentManagement(PyonTestCase):
         self.instrument_mgmt_service.on_init()
 
 rim = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
+rim.test_all_in_one(True)
 
 rim.add_resource_impl_unittests(InstrumentAgentInstanceImpl, {"exchange_name": "rhubarb"})
 rim.add_resource_impl_unittests(InstrumentAgentImpl, {"agent_version": "3", "time_source": "the universe"})
