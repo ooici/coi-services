@@ -49,6 +49,5 @@ setup(  name = 'coi-services',
             'elasticpy==0.9a',
             'pyparsing==1.5.6', 
             'snakefood==1.4',
-            'gitpython==0.1.7',
         ],
      )
