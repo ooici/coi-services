@@ -29,7 +29,7 @@ class OrgManagementService(BaseOrgManagementService):
         self.event_pub = EventPublisher()
 
     def _get_root_org_name(self):
-        return CFG.system.root_org
+        return CFG.get_safe('system.root_org' , "ION")
 
     def _validate_parameters(self, **kwargs):
 

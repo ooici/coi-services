@@ -41,7 +41,7 @@ class DataStoreService(BaseDatastoreService):
         return self.obj_store.info_datastore(datastore_name)
 
     def datastore_exists(self, datastore_name=''):
-        return self.obj_store.exists_datastore(datastore_name)
+        return self.obj_store.datastore_exists(datastore_name)
 
     def list_objects(self, datastore_name=''):
         return self.obj_store.list_objects(datastore_name)
