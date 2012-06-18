@@ -19,8 +19,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceClient
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT
-from pyon.util.config import CFG
+from pyon.public import PRED, RT, CFG
 from ion.services.coi.exchange_management_service import ExchangeManagementService
 import os
 

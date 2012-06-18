@@ -48,6 +48,15 @@ class ResourceImplMetatest(object):
         self.log      = log
 
 
+        self.all_in_one = False
+
+
+    def test_all_in_one(self, yes):
+        """
+        @param yes whether to run int tests all in one
+        """
+        self.all_in_one = yes
+
     def build_test_descriptors(self, resource_params):
         """
         build a sample resource from the supplied impl class
@@ -140,7 +149,7 @@ class ResourceImplMetatest(object):
          for tests of various resource_impl class functionality.  the functions are given
          proper references to member variables in the service and test class, then injected
          into the test class itself.
-        
+
         """
 
         #init default args
@@ -153,10 +162,11 @@ class ResourceImplMetatest(object):
 
         impl_attr = self.find_impl_attribute(impl_instance)
 
-        #this is convoluted but it helps me debug by 
+        #this is convoluted but it helps me debug by
         #  being able to inject text into the sample_resource_extras
         sample_resource = self.sample_resource_factory(impl_instance, resource_params)
 
+        all_in_one = self.all_in_one
 
         find_cv_func = self.find_class_variable_name
 
@@ -188,7 +198,7 @@ class ResourceImplMetatest(object):
             @param name the base string for the name
             """
             return "%s_%s%s" % (impl_instance.iontype, name, self.sample_resource_md5)
-        
+
         def make_doc(doc):
             """
             make a good doc string for a test from by including the extra params
@@ -196,7 +206,7 @@ class ResourceImplMetatest(object):
             """
             return "%s %s" % (doc, self.sample_resource_extras)
 
-            
+
         def gen_svc_lookup():
             """
             put a new method in the tester class to
@@ -215,7 +225,7 @@ class ResourceImplMetatest(object):
 
                 return self._rim_service_obj
 
-            if not hasattr(self.tester_class, "_rim_getservice"): 
+            if not hasattr(self.tester_class, "_rim_getservice"):
                 add_new_method("_rim_getservice", "Finds resource registry", fun)
 
         # def gen_ionobj_lookup():
@@ -250,7 +260,7 @@ class ResourceImplMetatest(object):
         #         sample_resource = Mock()
         #         sample_resource.name = "sample %s" % impl_instance.iontype
         #         sample_resource.description = "description of sample %s" % impl_instance.iontype
-                
+
         #         # build out strings if there are more params
         #         if resource_params:
         #             extras = []
@@ -260,123 +270,299 @@ class ResourceImplMetatest(object):
         #                 self.sample_resource         = sample_resource
         #                 self.sample_resource_extras  = sample_resource_extras
         #                 self.sample_resource_md5     = sample_resource_md5
-                        
+
         #         return sample_resource
 
+        def test_create_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            good_sample_resource = sample_resource()
+            saved_resource = sample_resource()
+            #saved_resource.lcstate = LCS.REGISTERED
+
+            #configure Mock
+            svc.clients.resource_registry.create.return_value = ('111', 'bla')
+            svc.clients.resource_registry.find_resources.return_value = ([], [])
+            svc.clients.resource_registry.read.return_value = saved_resource
+
+            sample_resource_id = myimpl.create_one(good_sample_resource)
+
+            svc.clients.resource_registry.create.assert_called_once_with(good_sample_resource)
+            self.assertEqual(sample_resource_id, '111')
+
+            if all_in_one: svc.clients.resource_registry.reset_mock()
+
+
+        def test_create_bad_noname_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            bad_sample_resource = sample_resource()
+            delattr(bad_sample_resource, "name")
+
+            #configure Mock
+            svc.clients.resource_registry.create.return_value = ('111', 'bla')
+            svc.clients.resource_registry.find_resources.return_value = ([], [])
+
+            self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
+
+            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
+
+        def test_create_bad_dupname_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            bad_sample_resource = sample_resource()
+            #really, the resource doesn't matter; it's the retval from find that matters
+
+            #configure Mock
+            svc.clients.resource_registry.create.return_value = ('111', 'bla')
+            svc.clients.resource_registry.find_resources.return_value = ([0], [0])
+
+            self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
+
+            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
+
+        def test_read_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            myret = sample_resource()
+
+            #configure Mock
+            svc.clients.resource_registry.read.return_value = myret
+
+            response = myimpl.read_one("111")
+            svc.clients.resource_registry.read.assert_called_once_with("111", "")
+            self.assertEqual(response, myret)
+            #self.assertDictEqual(response.__dict__,
+            #                     sample_resource().__dict__)
+
+            if all_in_one: svc.clients.resource_registry.reset_mock()
+
+        def test_update_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            good_sample_resource = sample_resource()
+            setattr(good_sample_resource, "_id", "111")
+
+            #configure Mock
+            svc.clients.resource_registry.update.return_value = ('111', 'bla')
+            svc.clients.resource_registry.find_resources.return_value = ([], [])
+
+            myimpl.update_one(good_sample_resource)
+
+            svc.clients.resource_registry.update.assert_called_once_with(good_sample_resource)
+
+            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
+
+        def test_update_bad_dupname_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            bad_sample_resource = sample_resource()
+            setattr(bad_sample_resource, "_id", "111")
+
+            svc.clients.resource_registry.find_resources.return_value = ([0], [0])
+            self.assertRaises(BadRequest, myimpl.update_one, bad_sample_resource)
+
+            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
+
+        def test_delete_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            myret = sample_resource()
+
+            #configure Mock
+            svc.clients.resource_registry.read.return_value = myret
+            svc.clients.resource_registry.delete.return_value = None
+
+            try:
+                myimpl.delete_one("111")
+            except TypeError as te:
+                # for logic tests that run into mock trouble
+                if "'Mock' object is not iterable" != te.message:
+                    raise te
+                elif all_in_one:
+                    svc.clients.resource_registry.reset_mock()
+                    return
+                else:
+                    raise SkipTest("Must test this with INT test")
+            except Exception as e:
+                raise e
+
+
+            svc.clients.resource_registry.read.assert_called_with("111", "")
+            svc.clients.resource_registry.delete.assert_called_once_with("111")
+
+            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+
+        def test_find_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+
+            #configure Mock
+            svc.clients.resource_registry.find_resources.return_value = ([0], [0])
+
+            response = myimpl.find_some({})
+            self.assertIsInstance(response, list)
+            self.assertNotEqual(0, len(response))
+            svc.clients.resource_registry.find_resources.assert_called_once_with(impl_instance.iontype,
+                                                                                 None,
+                                                                                 None,
+                                                                                 False)
+            if all_in_one: svc.clients.find_resources.resource_registry.reset_mock()
+
+
+        def test_find_having_freeze(find_name):
+            """
+            must freeze this so the loop doesn't overwrite the parts varible
+            """
+
+            def fun(self):
+                svc = self._rim_getservice()
+                myimpl = getattr(svc, impl_attr)
+                myfind = getattr(myimpl, find_name)
+
+                #set up Mock
+                reply = (['333'], ['444'])
+                svc.clients.resource_registry.find_subjects.return_value = reply
+
+                #call the impl
+                response = myfind("111")
+                self.assertEqual(response, ['333'])
+
+                if all_in_one: svc.clients.resource_registry.find_subjects.reset_mock()
+
+            return fun
+
+        def test_find_stemming_freeze(find_name):
+
+            def fun(self):
+                svc = self._rim_getservice()
+                myimpl = getattr(svc, impl_attr)
+                myfind = getattr(myimpl, find_name)
+
+                #set up Mock
+                reply = (['333'], ['444'])
+                fo = svc.clients.resource_registry.find_objects
+                fo.return_value = reply
+
+                #call the impl
+                response = myfind("111")
+                self.assertEqual(response, fo.call_count * ['333'])
+
+                if all_in_one: svc.clients.resource_registry.find_objects.reset_mock()
+
+            return fun
+
+        def test_links_freeze(link_name):
+
+            def fun(self):
+
+                svc = self._rim_getservice()
+                myimpl = getattr(svc, impl_attr)
+                mylink = getattr(myimpl, link_name)
+
+                #set up Mock
+                find_reply = ([], []) #for exclusive associations
+                svc.clients.resource_registry.find_subjects.return_value = find_reply
+                svc.clients.resource_registry.find_objects.return_value = find_reply
+                svc.clients.resource_registry.find_associations.return_value = find_reply
+
+                reply = ('333', "trying %s %s" % (impl_attr, link_name))
+                svc.clients.resource_registry.create_association.return_value = reply
+
+                #call the impl
+                response = mylink("111", "222")
+                self.assertEqual(reply, response)
+
+                if all_in_one: svc.clients.resource_registry.reset_mock()
+
+            return fun
+
+        def test_unlinks_freeze(link_name):
+
+            def fun(self):
+
+                svc = self._rim_getservice()
+                myimpl = getattr(svc, impl_attr)
+                myunlink = getattr(myimpl, link_name)
+
+                svc.clients.resource_registry.find_associations.return_value = ([], [])
+
+                #call the impl
+                myunlink("111", "222")
+
+                #there is no response, self.assertEqual("f", str(response))
+                
+                if all_in_one: svc.clients.resource_registry.reset_mock()
+
+            return fun
 
 
         def gen_test_create():
             """
             generate the function to test the create
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                good_sample_resource = sample_resource()
-                saved_resource = sample_resource()
-                #saved_resource.lcstate = LCS.REGISTERED
-                
-                #configure Mock
-                svc.clients.resource_registry.create.return_value = ('111', 'bla')
-                svc.clients.resource_registry.find_resources.return_value = ([], [])
-                svc.clients.resource_registry.read.return_value = saved_resource
-                
-                sample_resource_id = myimpl.create_one(good_sample_resource)
-
-                svc.clients.resource_registry.create.assert_called_once_with(good_sample_resource)
-                self.assertEqual(sample_resource_id, '111')
-                
             name = make_name("resource_impl_create")
             doc  = make_doc("Creation of a new %s resource" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
-
+            add_test_method(name, doc, test_create_fun)
 
 
         def gen_test_create_bad_noname():
             """
             generate the function to test the create in a bad case
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                delattr(bad_sample_resource, "name")
-                
-                #configure Mock
-                svc.clients.resource_registry.create.return_value = ('111', 'bla')
-                svc.clients.resource_registry.find_resources.return_value = ([], [])
-
-                self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
-
-
             name = make_name("resource_impl_create_bad_noname")
             doc  = make_doc("Creation of a (bad) new %s resource (no name)" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_create_bad_noname_fun)
 
 
         def gen_test_create_bad_dupname():
             """
             generate the function to test the create in a bad case where the name already exists
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                #really, the resource doesn't matter; it's the retval from find that matters
-                
-                #configure Mock
-                svc.clients.resource_registry.create.return_value = ('111', 'bla')
-                svc.clients.resource_registry.find_resources.return_value = ([0], [0])
-
-                self.assertRaises(BadRequest, myimpl.create_one, bad_sample_resource)
-
-
             name = make_name("resource_impl_create_bad_dupname")
             doc  = make_doc("Creation of a (bad) new %s resource (duplicate name)" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
-
-
+            add_test_method(name, doc, test_create_bad_dupname_fun)
 
 
         def gen_test_read():
             """
             generate the function to test the read
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                myret = sample_resource()
-                                
-                #configure Mock
-                svc.clients.resource_registry.read.return_value = myret
-
-                response = myimpl.read_one("111")
-                svc.clients.resource_registry.read.assert_called_once_with("111", "")
-                self.assertEqual(response, myret)
-                #self.assertDictEqual(response.__dict__,
-                #                     sample_resource().__dict__)
-
-                
             name = make_name("resource_impl_read")
             doc  = make_doc("Reading a %s resource" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
-
+            add_test_method(name, doc, test_read_fun)
 
 
 
@@ -384,92 +570,28 @@ class ResourceImplMetatest(object):
             """
             generate the function to test the create
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                good_sample_resource = sample_resource()
-                setattr(good_sample_resource, "_id", "111")
-
-                #configure Mock
-                svc.clients.resource_registry.update.return_value = ('111', 'bla')                
-                svc.clients.resource_registry.find_resources.return_value = ([], [])
-
-                myimpl.update_one(good_sample_resource)
-
-                svc.clients.resource_registry.update.assert_called_once_with(good_sample_resource)
-
-                
             name = make_name("resource_impl_update")
             doc  = make_doc("Updating a %s resource" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
-
-
+            add_test_method(name, doc, test_update_fun)
 
 
         def gen_test_update_bad_dupname():
             """
             generate the function to test the create
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                bad_sample_resource = sample_resource()
-                setattr(bad_sample_resource, "_id", "111")
-                
-                svc.clients.resource_registry.find_resources.return_value = ([0], [0])
-                self.assertRaises(BadRequest, myimpl.update_one, bad_sample_resource)
-
-                
             name = make_name("resource_impl_update_bad_duplicate")
             doc  = make_doc("Updating a %s resource to a duplicate name" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_update_bad_dupname_fun)
 
 
         def gen_test_delete():
             """
             generate the function to test the delete
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                myret = sample_resource()
-                                
-                #configure Mock
-                svc.clients.resource_registry.read.return_value = myret
-                svc.clients.resource_registry.delete.return_value = None
 
-                try:
-                    myimpl.delete_one("111")
-                except TypeError as te:
-                    # for logic tests that run into mock trouble
-                    if "'Mock' object is not iterable" == te.message:
-                        raise SkipTest("Must test this with INT test")
-                    else:
-                        raise te
-                except Exception as e:
-                    raise e
-
-
-                svc.clients.resource_registry.read.assert_called_once_with("111", "")
-                svc.clients.resource_registry.delete.assert_called_once_with("111")
-
-                
             name = make_name("resource_impl_delete")
             doc  = make_doc("Deleting a %s resource" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
-
+            add_test_method(name, doc, test_delete_fun)
 
 
 
@@ -477,29 +599,9 @@ class ResourceImplMetatest(object):
             """
             generate the function to test the find op
             """
-            def fun(self):
-                """
-                self is an instance of the tester class
-                """
-                # get objects
-                svc = self._rim_getservice()
-                myimpl = getattr(svc, impl_attr)                 
-                                
-                #configure Mock
-                svc.clients.resource_registry.find_resources.return_value = ([0], [0])
-
-                response = myimpl.find_some({})
-                self.assertIsInstance(response, list)
-                self.assertNotEqual(0, len(response))
-                svc.clients.resource_registry.find_resources.assert_called_once_with(impl_instance.iontype,
-                                                                                     None,
-                                                                                     None,
-                                                                                     False)
-
-                
             name = make_name("resource_impl_find")
             doc  = make_doc("Finding (all) %s resources" % impl_instance.iontype)
-            add_test_method(name, doc, fun)
+            add_test_method(name, doc, test_find_fun)
 
 
         def gen_tests_associated_finds():
@@ -514,30 +616,11 @@ class ResourceImplMetatest(object):
             for k in dir(impl_instance):
                 parts = k.split("_", 2)
                 if "find" == parts[0] and "having" == parts[1]:
-
-                    def freeze(parts):
-                        """
-                        must freeze this so the loop doesn't overwrite the parts varible
-                        """
-                        assn_type = parts[2]
-                        find_name = "_".join(parts)
-
-                        def fun(self):
-                            svc = self._rim_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            myfind = getattr(myimpl, find_name)
-
-                            #set up Mock
-                            reply = (['333'], ['444'])
-                            svc.clients.resource_registry.find_subjects.return_value = reply
-
-                            #call the impl
-                            response = myfind("111")
-                            self.assertEqual(response, ['333'])
-                        
+                    def freeze(parts_):
+                        assn_type = parts_[2]
                         name = make_name("resource_impl_find_having_%s_link" % assn_type)
                         doc  = make_doc("Checking find %s having %s" % (impl_instance.iontype, assn_type))
-                        add_test_method(name, doc, fun)
+                        add_test_method(name, doc, test_find_having_freeze(k))
 
                     freeze(parts)
 
@@ -549,36 +632,19 @@ class ResourceImplMetatest(object):
             for k in dir(impl_instance):
                 parts = k.split("_", 2)
                 if "find" == parts[0] and "stemming" == parts[1]:
-
-                    def freeze(parts):
+                    def freeze(parts_):
                         """
                         must freeze this so the loop doesn't overwrite the parts varible
                         """
-                        assn_type = parts[2]
-                        find_name = "_".join(parts)
-
-                        def fun(self):
-                            svc = self._rim_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            myfind = getattr(myimpl, find_name)
-
-                            #set up Mock
-                            reply = (['333'], ['444'])
-                            fo = svc.clients.resource_registry.find_objects
-                            fo.return_value = reply
-
-                            #call the impl
-                            response = myfind("111")
-                            self.assertEqual(response, fo.call_count * ['333'])
-                        
+                        assn_type = parts_[2]
                         name = make_name("resource_impl_find_stemming_%s_links" % assn_type)
                         doc  = make_doc("Checking find %s stemming from %s" % (assn_type, impl_instance.iontype))
-                        add_test_method(name, doc, fun)
+                        add_test_method(name, doc, test_find_stemming_freeze(k))
 
                     freeze(parts)
 
-        
-            
+
+
         def gen_tests_associations():
             gen_tests_links()
             gen_tests_unlinks()
@@ -590,36 +656,14 @@ class ResourceImplMetatest(object):
             for k in dir(impl_instance):
                 parts = k.split("_", 1)
                 if "link" == parts[0]:
-
-                    def freeze(parts):
+                    def freeze(parts_):
                         """
                         must freeze this so the loop doesn't overwrite the parts varible
                         """
-                        assn_type = parts[1]
-                        link_name = "_".join(parts)
-
-                        def fun(self):
-                            raise SkipTest("must re-mock this")
-                        
-                            svc = self._rim_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            mylink = getattr(myimpl, link_name)
-
-                            #set up Mock
-                            find_reply = ([], []) #for exclusive associations
-                            svc.clients.resource_registry.find_subjects.return_value = find_reply
-                            svc.clients.resource_registry.find_objects.return_value = find_reply
-
-                            reply = ('333', 'bla')
-                            svc.clients.resource_registry.create_association.return_value = reply
-
-                            #call the impl
-                            response = mylink("111", "222")
-                            self.assertEqual(reply, response)
-
+                        assn_type = parts_[1]
                         name = make_name("resource_impl_association_%s_link" % assn_type)
                         doc  = make_doc("Checking create_association of a %s resource with its %s" % (impl_instance.iontype, assn_type))
-                        add_test_method(name, doc, fun)
+                        add_test_method(name, doc, test_links_freeze(k))
 
                     freeze(parts)
 
@@ -632,102 +676,69 @@ class ResourceImplMetatest(object):
                 parts = k.split("_", 1)
                 if "unlink" == parts[0]:
 
-                    def freeze(parts):
+                    def freeze(parts_):
                         """
                         must freeze this so the loop doesn't overwrite the parts varible
                         """
-                        assn_type = parts[1]
-                        link_name = "_".join(parts)
-
-                        def fun(self):
-                            raise SkipTest("must re-mock this")
-
-                            svc = self._rim_getservice()
-                            myimpl = getattr(svc, impl_attr)
-                            myunlink = getattr(myimpl, link_name)
-                            
-                            svc.clients.resource_registry.create_association.return_value = None
-
-                            #call the impl
-                            myunlink("111", "222")
-                            
-                            #there is no response, self.assertEqual("f", str(response))
-
+                        assn_type = parts_[1]
                         name = make_name("resource_impl_association_%s_unlink" % assn_type)
                         doc  = make_doc("Checking delete_association of a %s resource from its %s" % (impl_instance.iontype, assn_type))
-                        add_test_method(name, doc, fun)
+                        add_test_method(name, doc, test_unlinks_freeze(k))
 
                     freeze(parts)
 
 
-
-        def gen_tests_advance_lcs():
+        def gen_test_allinone():
             """
-            create a test for each of the lcs preconditions in the impl
+            generate the function to test EVERYTHING at once
             """
+            def fun(self):
+                """
+                self is an instance of the tester class
+                """
+                test_create_fun(self)
+                test_create_bad_noname_fun(self)
+                test_create_bad_dupname_fun(self)
+                test_read_fun(self)
+                test_update_fun(self)
+                test_update_bad_dupname_fun(self)
+                test_delete_fun(self)
+                test_find_fun(self)
 
-            # pull up the set of preconditions
-            lce_precondition = None
-            for k in dir(impl_instance):
-                if "lce_precondition" == k:
-                    lce_precondition = getattr(impl_instance, k)
+                for k in dir(impl_instance):
+                    parts = k.split("_", 2)
+                    if "find" == parts[0] and "having" == parts[1]:
+                        test_find_having_freeze(k)(self)
 
-            # if we fail, nothing to do here
-            if not lce_precondition: return
+                    if "find" == parts[0] and "stemming" == parts[1]:
+                        test_find_stemming_freeze(k)(self)
 
-            # add a test for going to each transition
-            for lcetrans in lce_precondition.iterkeys():
+                    if "link" == parts[0]:
+                        test_links_freeze(k)(self)
 
-                def freeze(lcetrans):
-                    """
-                    must freeze this so the loop doesn't overwrite the lcstate varible
-                    """
+                    if "unlink" == parts[0]:
+                        test_unlinks_freeze(k)(self)
 
-                    def fun(self):
-                        svc = self._rim_getservice()
-                        myimpl = getattr(svc, impl_attr)
-                        good_sample_resource = sample_resource()
-
-
-                        #set up Mock
-                        reply = lcetrans
-                        svc.clients.resource_registry.execute_lifecycle_transition.return_value = reply
-                        svc.clients.resource_registry.read.return_value = good_sample_resource
-
-                        #call the impl
-
-                        try:
-                            response = myimpl.advance_lcs("333", lcetrans)
-                        except TypeError as te:
-                            # for logic tests that run into mock trouble
-                            if "'Mock' object is not iterable" == te.message:
-                                raise SkipTest("Must test this with INT test")
-                            else:
-                                raise te
-                        except Exception as e:
-                            raise e
-
-                        self.assertEqual(reply, response)
-
-                    name = make_name("resource_impl_advance_lcs_with_%s" % lcetrans)
-                    doc  = make_doc("Checking advance_lcs of a %s resource with %s" % (impl_instance.iontype, lcetrans))
-                    add_test_method(name, doc, fun)
-
-                freeze(lcetrans)
+            name = make_name("resource_impl_allinone")
+            doc  = make_doc("Performing all CRUD tests on %s resources" % impl_instance.iontype)
+            add_test_method(name, doc, fun)
 
 
 
         # can you believe we're still within a single function?
         # it's time to add each method to the tester class
+        # add each method to the tester class
         gen_svc_lookup()
-        gen_test_create()
-        gen_test_create_bad_noname()
-        gen_test_create_bad_dupname()
-        gen_test_read()
-        gen_test_update()
-        gen_test_update_bad_dupname()
-        gen_test_delete()
-        gen_test_find()
-        gen_tests_associations()
-        gen_tests_associated_finds()
-        gen_tests_advance_lcs()
+        if self.all_in_one:
+            gen_test_allinone()
+        else:
+            gen_test_create()
+            gen_test_create_bad_noname()
+            gen_test_create_bad_dupname()
+            gen_test_read()
+            gen_test_update()
+            gen_test_update_bad_dupname()
+            gen_test_delete()
+            gen_test_find()
+            gen_tests_associations()
+            gen_tests_associated_finds()

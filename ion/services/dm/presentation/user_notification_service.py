@@ -12,7 +12,9 @@ from pyon.event.event import EventSubscriber
 from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
+from pyon.util.containers import DotDict
 from pyon.event.event import EventPublisher
+from ion.services.dm.utility.query_language import QueryLanguage
 
 import string
 import time
@@ -23,6 +25,7 @@ from email.mime.text import MIMEText
 from gevent import Greenlet
 
 import operator
+from sets import Set
 
 from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import NotificationRequest, SMSDeliveryConfig, EmailDeliveryConfig, NotificationType
@@ -314,37 +317,42 @@ class SMSEventProcessor(EmailEventProcessor):
 
 class DetectionEventProcessor(EventProcessor):
 
-    comparators = {">":operator.gt,
-                  "<":operator.lt,
-                  "==":operator.eq}
+#    comparators = {">":operator.gt,
+#                  "<":operator.lt,
+#                  "==":operator.eq}
 
-#    def __init__(self, notification_request, user_id):
-#
-#        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
+    def __init__(self, notification_request, user_id):
+
+        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
+
+        parser = QueryLanguage()
+
+        search_string = self.notification._res_obj.delivery_config.processing['search_string']
+        self.query_dict = parser.parse(search_string)
+
+    def generate_event(self, msg):
+        '''
+        Publish an event
+        '''
+
+        log.info('Detected an event')
+        event_publisher = EventPublisher("DetectionEvent")
+
+        message = str(self.notification._res_obj.delivery_config.processing['search_string'])
+
+        #@David What should the origin and origin type be for Detection Events
+        event_publisher.publish_event(origin='DetectionEventProcessor',
+            message=msg,
+            description="Event was detected by DetectionEventProcessor",
+            condition = message, # Concatenate the filter and make it a message
+            original_origin = self.notification._res_obj.origin,
+            original_type = self.notification._res_obj.origin_type)
+
 
     def subscription_callback(self, message, headers):
-        filter_field = self.notification._res_obj.delivery_config.processing['filter_field']
-        condition = self.notification._res_obj.delivery_config.processing['condition']
-        try:
-            comparator = self.notification._res_obj.delivery_config.processing['comparator']
-            comparator_func = DetectionEventProcessor.comparators[comparator]
-        except KeyError:
-            raise BadRequest("Bad comparator specified in Detection filter: '%s'" % comparator)
 
-        field_val = getattr(message,filter_field)
-        if field_val is not None and comparator_func(field_val, condition):
-            log.info('Detected an event')
-            event_publisher = EventPublisher("DetectionEvent")
-
-            message = str(self.notification._res_obj.delivery_config)
-
-            #@David What should the origin and origin type be for Detection Events
-            event_publisher.publish_event(origin='DetectionEventProcessor',
-                message="Event Detected by DetectionEventProcessor",
-                description="Event was detected by DetectionEventProcessor",
-                condition = message, # Concatenate the filter and make it a message
-                original_origin = self.notification._res_obj.origin,
-                original_type = self.notification._res_obj.origin_type)
+        if QueryLanguage.evaluate_condition(message, self.query_dict):
+            self.generate_event(message) # pass in the event message so we can put some of the content in the new event.
 
 def create_event_processor(notification_request, user_id):
     if notification_request.type == NotificationType.EMAIL:
@@ -416,7 +424,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification_id, _ = self.clients.resource_registry.create(notification)
 
         # Retrieve the user's user_info object to get their email address
-        user_info = self.clients.resource_registry.read(user_id)
+#        user_info = self.clients.resource_registry.read(user_id)
 
         # create event processor for user
         self.event_processors[notification_id] = create_event_processor(notification_request=notification,user_id=user_id)

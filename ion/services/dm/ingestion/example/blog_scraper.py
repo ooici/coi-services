@@ -12,7 +12,7 @@ from interface.objects import BlogPost, BlogAuthor, BlogComment
 from pyon.ion.stream import StreamPublisher
 from pyon.ion.streamproc import StreamProcess
 from gevent.greenlet import Greenlet
-from pyon.util.config import CFG
+from pyon.public import CFG
 from pyon.core import bootstrap
 
 from pyon.public import log

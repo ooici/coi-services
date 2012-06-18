@@ -95,7 +95,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         except Exception as ex:
             self.fail("failed to create new data product: %s" %ex)
 
-        log.debug('new ctd_parsed_data_product_id = ', ctd_parsed_data_product_id)
+        log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product_id)
 
         #Only ever need one device for testing purposes.
         instDevice_obj,_ = self.rrclient.find_resources(restype=RT.InstrumentDevice, name='SBE37IMDevice')
@@ -609,7 +609,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
@@ -673,7 +673,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
@@ -735,14 +735,14 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(ctd_stream_id1)
 
         #Create and start the first workflow
-        workflow_id1, workflow_product_id1 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id1)
+        workflow_id1, workflow_product_id1 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id1, timeout=20)
 
         #Create the second input data product
         ctd_stream_id2, ctd_parsed_data_product_id2 = self._create_ctd_input_stream_and_data_product('ctd_parsed2')
         data_product_stream_ids.append(ctd_stream_id2)
 
         #Create and start the first workflow
-        workflow_id2, workflow_product_id2 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id2)
+        workflow_id2, workflow_product_id2 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id2, timeout=20)
 
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_ids,_ = self.rrclient.find_resources(restype=RT.Workflow)

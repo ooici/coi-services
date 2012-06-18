@@ -9,7 +9,7 @@ __license__ = 'Apache 2.0'
 '''
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from pyon.core import bootstrap
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import RT, PRED, log, IonObject
 from pyon.public import CFG
 from pyon.core.exception import IonException
@@ -80,10 +80,10 @@ class IngestionManagementService(BaseIngestionManagementService):
         """
 
         if self.process_definition_id is None:
-            process_definition = ProcessDefinition(name='ingestion_worker_process', description='Worker transform process for ingestion of datasets')
-            process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
-            process_definition.executable['class'] = 'IngestionWorker'
-            self.process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+            res, _ = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name='ingestion_worker_process', id_only=True)
+            if not len(res):
+                raise BadRequest('No ingestion work process definition found')
+            self.process_definition_id = res[0]
  
 
         # Give each ingestion configuration its own queue name to receive data on
