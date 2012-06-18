@@ -50,6 +50,7 @@ class TestObservatoryManagement(PyonTestCase):
 
 
 rim = ResourceImplMetatest(TestObservatoryManagement, ObservatoryManagementService, log)
+rim.test_all_in_one(True)
 
 rim.add_resource_impl_unittests(InstrumentSiteImpl, {})
 rim.add_resource_impl_unittests(PlatformSiteImpl, {})

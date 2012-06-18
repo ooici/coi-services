@@ -47,7 +47,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@unittest.skip('not working')
+#@unittest.skip('not working')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):

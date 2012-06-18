@@ -56,7 +56,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
         res_ids, _ = self.clients.resource_registry.find_objects(external_dataset_id, PRED.hasDataProducer, None, True)
         if res_ids is None:
-            raise NotFound("Data Producer for External Data Set %d does not exist" % external_dataset_id)
+            raise NotFound("DataAcquisitionManagementService: Data Producer for External Data Set %d does not exist" % external_dataset_id)
 
         #todo: check that there are not attached data products?
 
@@ -93,15 +93,23 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         """
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        res_ids, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasDataProducer, None, True)
-        if res_ids is None:
+        producers, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasDataProducer, None, True)
+        if producers is None:
             raise NotFound("Data Producer for Data Process %d does not exist" % data_process_id)
 
-        # TODO: remove associations
+        # find the assocs between the process and the data producer
+        associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasDataProducer)
+        log.debug("DataAcquisitionManagementService:unregister_process  delete producer assoc")
 
-        #todo: check that there are not attached data products?
+        for association in associations:
+            log.debug("DataAcquisitionManagementService:unregister_process  delete association %s", str(association))
+            self.clients.resource_registry.delete_association(association)
 
-        #todo: delete the data producer object and assoc to ext_data_set
+        for producer in producers:
+            log.debug("DataAcquisitionManagementService:unregister_process  delete producer %s", str(producer))
+            self.clients.resource_registry.delete(producer)
+
+        #todo: check that there are not attached data products or assoc to ext_data_set?
 
         return
 

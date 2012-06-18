@@ -20,10 +20,10 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest, NotificationType
-
+from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent
+from ion.services.dm.presentation.discovery_service import QueryLanguage
+from ion.services.dm.utility.query_language import QueryLanguage
 import os
-
 import gevent
 from gevent.timeout import Timeout
 
@@ -209,6 +209,139 @@ class UserNotificationTest(PyonTestCase):
                                                         message_header='message_header',
                                                         parser='parser')
 
+    def test_match(self):
+
+        parser = QueryLanguage()
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is outside range (less than lower bound), match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        field = 'voltage'
+        lower_bound = 5
+        upper_bound = 10
+        instrument = 'instrument_1'
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+        query = parser.parse(search_string1)
+
+        event = ExampleDetectableEvent('TestEvent', voltage=4)
+        self.assertFalse(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is outside range (is higher than upper bound), match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=11)
+        self.assertFalse(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is inside range, match() returns true
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=6)
+        self.assertTrue(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is exactly of the value mentioned in a query, match() returns true
+        #------------------------------------------------------------------------------------------------------
+
+        value = 15
+        search_string2 = "search '%s' is '%s' from '%s'" % (field, value, instrument)
+        query = parser.parse(search_string2)
+
+        event = ExampleDetectableEvent('TestEvent', voltage=15)
+        self.assertTrue(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when value is not exactly what is mentioned in a query, match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=14)
+        self.assertFalse(QueryLanguage.match(event, query['query']))
+
+    def test_evaluate_condition(self):
+
+        parser = QueryLanguage()
+
+        #------------------------------------------------------------------------------------------------------
+        # Set up the search strings for different queries:
+        # These include main query, a list of or queries and a list of and queries
+        #------------------------------------------------------------------------------------------------------
+
+        field = 'voltage'
+        instrument = 'instrument'
+
+        #------------------------------------------------------------------------------------------------------
+        # main query
+        #------------------------------------------------------------------------------------------------------
+
+        lower_bound = 5
+        upper_bound = 10
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # or queries
+        #------------------------------------------------------------------------------------------------------
+
+        value = 15
+        search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
+
+        value = 17
+        search_string3 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
+
+        lower_bound = 20
+        upper_bound = 30
+        search_string4 = "or SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # and queries
+        #------------------------------------------------------------------------------------------------------
+
+        lower_bound = 5
+        upper_bound = 6
+        search_string5 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        lower_bound = 6
+        upper_bound = 7
+        search_string6 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # Construct queries by parsing different search strings and test the evaluate_condition()
+        # for each such complex query
+        #------------------------------------------------------------------------------------------------------
+        search_string = search_string1+search_string2+search_string3+search_string4+search_string5+search_string6
+        query = parser.parse(search_string)
+
+        # the main query as well as the 'and' queries pass for this case
+        event = ExampleDetectableEvent('TestEvent', voltage=6)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        # check true conditions. If any one of the 'or' conditions passes, evaluate_condition()
+        # will return True
+        event = ExampleDetectableEvent('TestEvent', voltage=15)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=17)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=25)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        # check fail conditions arising from the 'and' condition (happens if any one of the 'and' conditions fail)
+        # note: the 'and' queries are attached to the main query
+        event = ExampleDetectableEvent('TestEvent', voltage=5)
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=7)
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=9)
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
 
     def test_create_sms(self):
 
@@ -482,9 +615,27 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create detection notification
         dfilt = DetectionFilterConfig()
 
-        dfilt.processing['condition'] = 5
-        dfilt.processing['comparator'] = '>'
-        dfilt.processing['filter_field'] = 'voltage'
+        field = 'voltage'
+        lower_bound = 5
+        upper_bound = 10
+        instrument = 'instrument_1'
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'" \
+                                % (field, lower_bound, upper_bound, instrument)
+
+        field = 'voltage'
+        value = 15
+        instrument = 'instrument_2'
+        search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
+
+        field = 'voltage'
+        lower_bound = 8
+        upper_bound = 14
+        instrument = 'instrument_3'
+        search_string3 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'" \
+                                % (field, lower_bound, upper_bound, instrument)
+
+
+        dfilt.processing['search_string'] = search_string1 + search_string2 + search_string3
 
         dfilt.delivery['message'] = 'I got my detection event!'
 
@@ -516,34 +667,57 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             period=1)
 
 
-        # Send event that is not detected
-        # publish an event for each notification to generate the emails
         rle_publisher = EventPublisher("ExampleDetectableEvent")
 
-        # since the voltage field in this event is less than 5, it will not be detected
+        #------------------------------------------------------------------------------------------------
+        # this event will not be detected because the 'and query' will fail the match condition,
+        #------------------------------------------------------------------------------------------------
+
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+            description="RLE test event",
+            voltage = 5)
+        # The smtp_client's sentmail queue should now empty
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+
+        #----------------------------------------------------------------------
+        # This event will generate an event because it will pass the OR query
+        #----------------------------------------------------------------------
+
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
                                     description="RLE test event",
-                                    voltage = 3)
+                                    voltage = 15)
 
-        # Check at the end of the test to make sure this event never triggered a Detectable!
+        msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
+        # check that a non empty message was generated for email
+        self.assertEquals(msg_tuple[1], 'email@email.com' )
+        # check that the sentmail queue is empty again after having extracted the message
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 
-        # Send Event that is detected
-        # publish an event for each notification to generate the emails
+        #----------------------------------------------------------------------
+        # This event WILL not be detected because it will fail all the queries
+        #----------------------------------------------------------------------
 
-        # since the voltage field in this event is greater than 5, it WILL be detected
         rle_publisher = EventPublisher("ExampleDetectableEvent")
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-                                    description="RLE test event",
-                                    voltage = 10)
+            description="RLE test event",
+            voltage = 4)
 
-        #-------------------------------------------------------
-        # make assertions
-        #-------------------------------------------------------
+        # The smtp_client's sentmail queue should now empty
+        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+
+        #------------------------------------------------------------------------------
+        # this event WILL be detected. It will pass the main query and the AND query
+        #------------------------------------------------------------------------------
+
+        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
+                                    description="RLE test event",
+                                    voltage = 8)
 
         msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
 
-        # The first event never triggered an email because the voltage was less than 5, the queue is now empty
-        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
+        #----------------------------------------------------------------------
+        # Make assertions regarding the message generated for email
+        #----------------------------------------------------------------------
 
         self.assertEquals(msg_tuple[1], 'email@email.com' )
         #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
@@ -566,6 +740,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     # the indexing goes out of range. These new lines
                     # can just be ignored. So we ignore the exceptions here.
                     pass
+
 
         #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
         self.assertEquals(message_dict['To'], 'email@email.com')

@@ -82,10 +82,10 @@ def process_index():
             "<p><ul>",
             "<li><a href='/restypes'><b>Browse Resource Registry and Resource Objects</b></a>",
             "<ul>",
-            "<li>Observatory: <a href='/list/MarineFacility'>Marine Facility</a>, <a href='/list/Site'>Site</a>, <a href='/list/Org'>Org</a>, <a href='/list/UserRole'>Role</a></li>",
-            "<li>Users: <a href='/list/ActorIdentity'>Identity</a>, <a href='/list/UserInfo'>Info</a>, <a href='/list/UserCredentials'>Credential Set</a></li>",
-            "<li>Platforms: <a href='/list/PlatformDevice'>Device</a>, <a href='/list/LogicalPlatform'>Logical</a>, <a href='/list/PlatformModel'>Models</a>, <a href='/list/PlatformAgent'>Agent</a>, <a href='/list/PlatformAgentInstance'>Agent Instance</a></li>",
-            "<li>Instruments: <a href='/list/InstrumentDevice'>Device</a>, <a href='/list/LogicalInstrument'>Logical</a>, <a href='/list/InstrumentModel'>Models</a>, <a href='/list/InstrumentAgent'>Agent</a>, <a href='/list/InstrumentAgentInstance'>Agent Instance</a></li>",
+            "<li>Observatory: <a href='/list/Observatory'>Observatory</a>, <a href='/list/Subsite'>Subsite</a>, <a href='/list/Org'>Org</a>, <a href='/list/UserRole'>Role</a></li>",
+            "<li>Users: <a href='/list/UserInfo'>User</a>, <a href='/list/ActorIdentity'>Identity</a>, <a href='/list/UserCredentials'>Credential Set</a></li>",
+            "<li>Platforms: <a href='/list/PlatformDevice'>Device</a>, <a href='/list/PlatformSite'>Site</a>, <a href='/list/PlatformModel'>Models</a>, <a href='/list/PlatformAgent'>Agent</a>, <a href='/list/PlatformAgentInstance'>Agent Instance</a></li>",
+            "<li>Instruments: <a href='/list/InstrumentDevice'>Device</a>, <a href='/list/InstrumentSite'>Site</a>, <a href='/list/InstrumentModel'>Models</a>, <a href='/list/InstrumentAgent'>Agent</a>, <a href='/list/InstrumentAgentInstance'>Agent Instance</a></li>",
             "<li>Data: <a href='/list/DataProduct'>Data Product</a>, <a href='/list/DataSet'>DataSet</a>, <a href='/list/Stream'>Stream</a></li>",
             "<li>Process: <a href='/list/DataProcessDefinition'>Data Process Definition</a>, <a href='/list/DataProcess'>DataProcess</a>, <a href='/list/ProcessDefinition'>Process Definition</a></li>",
             "</ul></li>",
@@ -401,21 +401,21 @@ def build_commands(resource_id, restype):
             args = [('select','model_unlink',options)]
             fragments.append(build_command("Unlink Model", "/cmd/unlink_model?rid=%s" % resource_id, args))
 
-        res_list,_ = Container.instance.resource_registry.find_resources(RT.LogicalInstrument, id_only=False)
-        if res_list:
-            options = [(res.name, res._id) for res in res_list]
-            args = [('select','deploy',options)]
-            fragments.append(build_command("Set Deployment", "/cmd/deploy?rid=%s" % resource_id, args))
-
-        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasDeployment, RT.LogicalInstrument, id_only=False)
-        if res_list:
-            options = [(res.name, res._id) for res in res_list]
-            args = [('select','deploy_prim',options)]
-            fragments.append(build_command("Deploy Primary", "/cmd/deploy_prim?rid=%s" % resource_id, args))
-
-        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasPrimaryDeployment, RT.LogicalInstrument, id_only=True)
-        if res_list:
-            fragments.append(build_command("Undeploy Primary", "/cmd/undeploy_prim?rid=%s&undeploy_prim=%s" % (resource_id, res_list[0])))
+#        res_list,_ = Container.instance.resource_registry.find_resources(RT.InstrumentSite, id_only=False)
+#        if res_list:
+#            options = [(res.name, res._id) for res in res_list]
+#            args = [('select','deploy',options)]
+#            fragments.append(build_command("Set Deployment", "/cmd/deploy?rid=%s" % resource_id, args))
+#
+#        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasDeployment, RT.InstrumentSite, id_only=False)
+#        if res_list:
+#            options = [(res.name, res._id) for res in res_list]
+#            args = [('select','deploy_prim',options)]
+#            fragments.append(build_command("Deploy Primary", "/cmd/deploy_prim?rid=%s" % resource_id, args))
+#
+#        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasPrimaryDeployment, RT.InstrumentSite, id_only=True)
+#        if res_list:
+#            fragments.append(build_command("Undeploy Primary", "/cmd/undeploy_prim?rid=%s&undeploy_prim=%s" % (resource_id, res_list[0])))
 
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
@@ -781,7 +781,7 @@ def process_nested(rid):
 
 def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=None):
     if not child_resource_type_list:
-        child_resource_type_list = set(["LogicalInstrument", "LogicalPlatform", "Site"])
+        child_resource_type_list = set(["InstrumentSite", "PlatformSite", "Subsite"])
     matchlist = []
     parents = _get_all_parents()
     for rid in parents:
@@ -800,16 +800,7 @@ def _get_all_parents():
     parents = {}
     assocs1 = Container.instance.resource_registry.find_associations(predicate=PRED.hasSite, id_only=False)
     for assoc in assocs1:
-        if assoc.st == "MarineFacility" or assoc.st == "Site":
-            parents[assoc.o] = ("Site", assoc.s)
-    assocs2 = Container.instance.resource_registry.find_associations(predicate=PRED.hasPlatform, id_only=False)
-    for assoc in assocs2:
-        if assoc.st == "Site":
-            parents[assoc.o] = ("LogicalPlatform", assoc.s)
-    assocs3 = Container.instance.resource_registry.find_associations(predicate=PRED.hasInstrument, id_only=False)
-    for assoc in assocs3:
-        if assoc.st == "LogicalPlatform":
-            parents[assoc.o] = ("LogicalInstrument", assoc.s)
+        parents[assoc.o] = (assoc.st, assoc.s)
     return parents
 
 # ----------------------------------------------------------------------------------------

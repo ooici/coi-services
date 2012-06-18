@@ -6,11 +6,11 @@
 """
 
 from pyon.util.log import log
-import time
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from pyon.public import   log, RT, PRED
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
+from pyon.util.containers import create_unique_identifier
 from interface.objects import ProcessDefinition, StreamQuery
 
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
@@ -166,8 +166,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry")
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
 
-        data_process_name = "process_" + data_process_def_obj.name \
-                             + time.ctime()
+        data_process_name = create_unique_identifier("process_" + data_process_def_obj.name)
+
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
@@ -340,6 +340,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         except BadRequest, e:
             #May not have activated the subscription so just skip - had to add this to get AS integration tests to pass - probably should be fixed
             pass
+
+        self.clients.data_acquisition_management.unregister_process(data_process_id)
 
         # Delete the output stream, but not the output product
         out_products, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasOutputProduct, RT.DataProduct, True)

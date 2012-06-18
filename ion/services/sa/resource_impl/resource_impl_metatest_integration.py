@@ -40,17 +40,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
         """
         ResourceImplMetatest.__init__(self, resource_tester_class, service_under_test_class, log)
 
-        self.all_in_one = False
 
-
-
-    def test_all_in_one(self, yes):
-        """
-        @param yes whether to run int tests all in one
-        """
-        self.all_in_one = yes
-
-        
     def add_resource_impl_inttests(self,
                                    resource_impl_class, 
                                    resource_params={}):

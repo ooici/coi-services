@@ -769,7 +769,6 @@ class InstrumentAgent(ResourceAgent):
         """
         #SOMETHING LIKE THIS# self._dvr_client.cmd_dvr('disconnect')
         result = "PONG-" +  kwargs.get('message', 'UNDEFINED')
-        result = "ROGER IS COOL"
         next_state = InstrumentAgentState.LAYER_PING
 
         return (next_state, result)
@@ -933,7 +932,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_inactive_go_layer_ping(self,  *args, **kwargs):
         """
-        Handler for entry to ROGERING state.
+        Handler for entry to ping state.
         """
         result = None
         next_state = InstrumentAgentState.LAYER_PING

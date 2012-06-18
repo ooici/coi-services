@@ -14,6 +14,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent #, Conflict
 from pyon.public import RT, LCS, LCE
+from pyon.ion.resource import get_maturity_visibility
 from nose.plugins.attrib import attr
 import unittest
 
@@ -363,28 +364,31 @@ class TestAssembly(IonIntegrationTestCase):
         # devices
         #
         #----------------------------------------------
-        
+
+        self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.PLAN, LCS.PLANNED)
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE)
         log.info("Associate platform model with platform device")
         self.generic_association_script(c.IMS.assign_platform_model_to_platform_device,
                                         c.IMS.find_platform_device_by_platform_model,
                                         c.IMS.find_platform_model_by_platform_device,
                                         platform_device_id,
                                         platform_model_id)
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE)
 
 
-        log.info("Associate platform device with platform site")
-        self.generic_association_script(c.OMS.assign_device_to_site,
-                                        platform_site_impl.find_having_device,
-                                        platform_site_impl.find_stemming_device,
-                                        platform_site_id,
-                                        platform_device_id)
-        
         log.info("Associate instrument model with instrument device")
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
                                         c.IMS.find_instrument_device_by_instrument_model,
                                         c.IMS.find_instrument_model_by_instrument_device,
                                         instrument_device_id,
                                         instrument_model_id)
+
+        log.info("Associate platform device with platform site")
+        self.generic_association_script(c.OMS.assign_device_to_site,
+            platform_site_impl.find_having_device,
+            platform_site_impl.find_stemming_device,
+            platform_site_id,
+            platform_device_id)
 
         log.info("Associate instrument device with instrument site")
         self.generic_association_script(c.OMS.assign_device_to_site,
@@ -471,7 +475,7 @@ class TestAssembly(IonIntegrationTestCase):
         @param owner_service instance of service client that will handle the request
         @param resource_label string like "instrument_device"
         @param resource_id string
-        @param lcs_event string like LCE.INTEGRATE
+        @param lc_event string like LCE.INTEGRATE
         """
 
         lcsmethod = getattr(owner_service, "execute_%s_lifecycle" % resource_label)
@@ -491,8 +495,8 @@ class TestAssembly(IonIntegrationTestCase):
         @param owner_service instance of service client that will handle the request
         @param resource_label string like "instrument_device"
         @param resource_id string
-        @param lcs_event string like LCE.INTEGRATE
-        @param lcs_state string like LCS.INTEGRATED (where the state should end up
+        @param lc_event string like LCE.INTEGRATE
+        @param lc_state string like LCS.INTEGRATED (where the state should end up
         """
 
         lcsmethod  = getattr(owner_service, "execute_%s_lifecycle" % resource_label)
@@ -501,7 +505,7 @@ class TestAssembly(IonIntegrationTestCase):
         lcsmethod(resource_id, lc_event)
         resource_obj = readmethod(resource_id)
         
-        parts = resource_obj.lcstate.split("_")
+        parts = get_maturity_visibility(resource_obj.lcstate)
 
         self.assertEqual(lc_state, parts[0])
                       
@@ -601,7 +605,6 @@ class TestAssembly(IonIntegrationTestCase):
             make a "shortcut service" for testing crud ops.  
             @param svc a dotdict 
             @param method the method name to add
-            @param plural whether to make the resource label plural
             """
 
             realmethod = "%s_widget" % method
