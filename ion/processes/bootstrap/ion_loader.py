@@ -23,7 +23,6 @@ class IONLoader(ImmediateProcess):
     """
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO system.force_clean=False
 
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadooi=True
@@ -43,10 +42,6 @@ class IONLoader(ImmediateProcess):
     def on_start(self):
 
         global DEBUG
-        if self.CFG.system.force_clean and not self.CFG.system.testing and not DEBUG:
-            text = "system.force_clean=True. ION Preload does not support this"
-            log.error(text)
-            raise iex.BadRequest(text)
         op = self.CFG.get("op", None)
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)

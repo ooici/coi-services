@@ -18,7 +18,7 @@ from pyon.public import CFG, log, ImmediateProcess, iex, Container
 
 class LoadSystemPolicy(ImmediateProcess):
     """
-    bin/pycc -x ion.processes.bootstrap.load_system_policy.LoadSystemPolicy op=load system.force_clean=False
+    bin/pycc -x ion.processes.bootstrap.load_system_policy.LoadSystemPolicy op=load
     """
     def on_init(self):
         pass

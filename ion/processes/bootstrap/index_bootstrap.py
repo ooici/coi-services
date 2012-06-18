@@ -75,11 +75,6 @@ def get_events():
 
 class IndexBootStrap(ImmediateProcess):
     def on_start(self):
-        if self.CFG.system.force_clean and not self.CFG.system.testing:
-            text = "system.force_clean=True. ION Preload does not support this"
-            log.error(text)
-            raise BadRequest(text)
-
         if not self.CFG.get_safe('system.elasticsearch', False):
             text = 'Can not initialize indexes without ElasticSearch enabled.  Please enable system.elasticsearch.'
             log.error(text)
