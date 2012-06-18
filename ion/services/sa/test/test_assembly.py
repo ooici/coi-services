@@ -364,28 +364,31 @@ class TestAssembly(IonIntegrationTestCase):
         # devices
         #
         #----------------------------------------------
-        
+
+        self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.PLAN, LCS.PLANNED)
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE)
         log.info("Associate platform model with platform device")
         self.generic_association_script(c.IMS.assign_platform_model_to_platform_device,
                                         c.IMS.find_platform_device_by_platform_model,
                                         c.IMS.find_platform_model_by_platform_device,
                                         platform_device_id,
                                         platform_model_id)
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE)
 
 
-        log.info("Associate platform device with platform site")
-        self.generic_association_script(c.OMS.assign_device_to_site,
-                                        platform_site_impl.find_having_device,
-                                        platform_site_impl.find_stemming_device,
-                                        platform_site_id,
-                                        platform_device_id)
-        
         log.info("Associate instrument model with instrument device")
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
                                         c.IMS.find_instrument_device_by_instrument_model,
                                         c.IMS.find_instrument_model_by_instrument_device,
                                         instrument_device_id,
                                         instrument_model_id)
+
+        log.info("Associate platform device with platform site")
+        self.generic_association_script(c.OMS.assign_device_to_site,
+            platform_site_impl.find_having_device,
+            platform_site_impl.find_stemming_device,
+            platform_site_id,
+            platform_device_id)
 
         log.info("Associate instrument device with instrument site")
         self.generic_association_script(c.OMS.assign_device_to_site,

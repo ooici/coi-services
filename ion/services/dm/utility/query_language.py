@@ -40,7 +40,7 @@ class QueryLanguage(object):
           <resource-id> ::= REGEX( "[a-zA-Z0-9]+" )
          <query-filter> ::= "FILTER" <python-string>
              <distance> ::= <number> <units>
-                <units> ::= ('km' | 'mi' | 'nm')
+                <units> ::= ('km' | 'mi' )
                <coords> ::= "LAT" <number> "LON" <number>
                 <field> ::= <limited-string> | "*"
        <limited-string> ::= REGEX( "[a-zA-Z0-9_\.]+" )
@@ -79,7 +79,7 @@ class QueryLanguage(object):
         limited_string = Regex(r'("(?:[a-zA-Z0-9_\.])*"|\'(?:[a-zA-Z0-9_\.]*)\')').setParseAction(removeQuotes)
         field = limited_string ^ CaselessLiteral('"*"').setParseAction(removeQuotes)
         coords = CaselessLiteral("LAT") + number + CaselessLiteral("LON") + number
-        units = CaselessLiteral('km') | CaselessLiteral('nm') | CaselessLiteral('mi')
+        units = CaselessLiteral('km') | CaselessLiteral('mi')
         distance = number + units
         distance.setParseAction( lambda x : self.frame.update({'dist' : float(x[0]), 'units' : x[1]}))
 

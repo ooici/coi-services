@@ -47,7 +47,9 @@ class DiscoveryUnitTest(PyonTestCase):
         self.rr_find_assoc = mock_clients.resource_registry.find_associations
         self.rr_find_res = mock_clients.resource_registry.find_resources
         self.rr_find_obj = mock_clients.resource_registry.find_objects
+        self.rr_find_assocs_mult = mock_clients.resource_registry.find_associations_mult
         self.rr_create_assoc = mock_clients.resource_registry.create_association
+        self.rr_delete_assoc = mock_clients.resource_registry.delete_association
 
         self.cms_create = mock_clients.catalog_management.create_catalog
         self.cms_list_indexes = mock_clients.catalog_management.list_indexes
@@ -96,9 +98,13 @@ class DiscoveryUnitTest(PyonTestCase):
         self.rr_update.assert_called_once_with({})
 
     def test_delete_view(self):
+        catalog_assoc = DotDict(_id=0)
+        self.rr_find_assocs_mult.return_value = ([],[catalog_assoc])
         retval = self.discovery.delete_view('view_id')
         self.assertTrue(retval)
         self.rr_delete.assert_called_once_with('view_id')
+        self.assertTrue(self.rr_delete_assoc.call_count == 1)
+
 
     def test_list_catalogs(self):
         self.rr_find_obj.return_value = (['test'],[])

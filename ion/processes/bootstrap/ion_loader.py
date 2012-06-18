@@ -11,7 +11,7 @@ import json
 
 from interface import objects
 
-from pyon.core.bootstrap import service_registry
+from pyon.core.bootstrap import get_service_registry
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
@@ -23,7 +23,6 @@ class IONLoader(ImmediateProcess):
     """
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO system.force_clean=False
 
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadooi=True
@@ -43,10 +42,6 @@ class IONLoader(ImmediateProcess):
     def on_start(self):
 
         global DEBUG
-        if self.CFG.system.force_clean and not self.CFG.system.testing and not DEBUG:
-            text = "system.force_clean=True. ION Preload does not support this"
-            log.error(text)
-            raise iex.BadRequest(text)
         op = self.CFG.get("op", None)
         path = self.CFG.get("path", None)
         scenario = self.CFG.get("scenario", None)
@@ -62,6 +57,8 @@ class IONLoader(ImmediateProcess):
                 self.extract_ooi_assets(path)
             elif op == "loadui":
                 self.load_ui(path)
+            elif op == "deleteui":
+                self.delete_ui()
             else:
                 raise iex.BadRequest("Operation unknown")
         else:
@@ -217,7 +214,7 @@ class IONLoader(ImmediateProcess):
             return ast.literal_eval(value)
 
     def _get_service_client(self, service):
-        return service_registry.services[service].client(process=self)
+        return get_service_registry().services[service].client(process=self)
 
     def _register_id(self, alias, resid):
         if alias in self.resource_ids:
@@ -824,10 +821,45 @@ class IONLoader(ImmediateProcess):
 
     # ---------------------------------------------------------------------------
 
+    def delete_ui(self):
+        resource_types = [
+            'UIInternalResourceType',
+            'UIInformationLevel',
+            'UIScreenLabel',
+            'UIAttribute',
+            'UIBlock',
+            'UIGroup',
+            'UIRepresentation',
+            'UIResourceType',
+            'UIView',
+            'UIBlockAttribute',
+            'UIBlockRepresentation',
+            'UIGroupBlock',
+            'UIViewGroup']
+
+        res_ids = []
+
+        for restype in resource_types:
+            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
+            res_ids.extend(res_is_list)
+            log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
+
+        ds = DatastoreManager.get_datastore_instance("resources")
+        docs = ds.read_doc_mult(res_ids)
+
+        for doc in docs:
+            doc['_deleted'] = True
+
+        ds.create_doc_mult(docs, allow_ids=True)
+
+
     def load_ui(self, path):
         """@brief Entry point to the import/generation capabilities from the FileMakerPro database
         CVS files to ION resource objects.
         """
+        # Delete old UI objects first
+        self.delete_ui()
+
         if not path:
             raise iex.BadRequest("Must provide path")
 

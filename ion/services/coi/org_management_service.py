@@ -13,7 +13,6 @@ from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 from pyon.core.governance.negotiate_request import NegotiateRequest, NegotiateRequestFactory
 
-ROOT_ION_ORG_NAME = CFG.system.root_org
 
 class OrgManagementService(BaseOrgManagementService):
 
@@ -23,10 +22,14 @@ class OrgManagementService(BaseOrgManagementService):
     and commitment repository
     """
 
+
+
     def on_init(self):
         self.request_handler = NegotiateRequest(self)
         self.event_pub = EventPublisher()
 
+    def _get_root_org_name(self):
+        return CFG.get_safe('system.root_org' , "ION")
 
     def _validate_parameters(self, **kwargs):
 
@@ -133,10 +136,10 @@ class OrgManagementService(BaseOrgManagementService):
             raise BadRequest("The org parameter is missing")
 
         #Only allow one root ION Org in the system
-        if org.name == ROOT_ION_ORG_NAME:
-            res_list,_  = self.clients.resource_registry.find_resources(restype=RT.Org, name=ROOT_ION_ORG_NAME)
+        if org.name == self._get_root_org_name():
+            res_list,_  = self.clients.resource_registry.find_resources(restype=RT.Org, name=self._get_root_org_name())
             if len(res_list) > 0:
-                raise BadRequest('There can only be one Org named %s' % ROOT_ION_ORG_NAME)
+                raise BadRequest('There can only be one Org named %s' % self._get_root_org_name())
 
         if not is_basic_identifier(org.name):
             raise BadRequest("The Org name '%s' can only contain alphanumeric and underscore characters" % org.name)
@@ -212,7 +215,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         #Default to the root ION Org if not specified
         if not name:
-            name = ROOT_ION_ORG_NAME
+            name = self._get_root_org_name()
 
         res_list,_  = self.clients.resource_registry.find_resources(restype=RT.Org, name=name)
         if not res_list:
@@ -333,7 +336,7 @@ class OrgManagementService(BaseOrgManagementService):
         param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
         org = param_objects['org']
 
-        if org.name == ROOT_ION_ORG_NAME:
+        if org.name == self._get_root_org_name():
             raise BadRequest("A request to enroll in the root ION Org is not allowed")
 
         #Initiate request
@@ -554,7 +557,7 @@ class OrgManagementService(BaseOrgManagementService):
         org = param_objects['org']
         user = param_objects['user']
 
-        if org.name == ROOT_ION_ORG_NAME:
+        if org.name == self._get_root_org_name():
             raise BadRequest("A request to enroll in the root ION Org is not allowed")
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasMembership, user)
@@ -577,7 +580,7 @@ class OrgManagementService(BaseOrgManagementService):
         org = param_objects['org']
         user = param_objects['user']
 
-        if org.name == ROOT_ION_ORG_NAME:
+        if org.name == self._get_root_org_name():
             raise BadRequest("A request to cancel enrollment in the root ION Org is not allowed")
 
         #First remove all associations to any roles
@@ -607,7 +610,7 @@ class OrgManagementService(BaseOrgManagementService):
         user = param_objects['user']
 
         #Membership into the Root ION Org is implied as part of registration
-        if org.name == ROOT_ION_ORG_NAME:
+        if org.name == self._get_root_org_name():
             return True
 
         try:
@@ -630,7 +633,7 @@ class OrgManagementService(BaseOrgManagementService):
         org = param_objects['org']
 
         #Membership into the Root ION Org is implied as part of registration
-        if org.name == ROOT_ION_ORG_NAME:
+        if org.name == self._get_root_org_name():
             user_list,_ = self.clients.resource_registry.find_resources(RT.ActorIdentity)
         else:
             user_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasMembership, RT.ActorIdentity)

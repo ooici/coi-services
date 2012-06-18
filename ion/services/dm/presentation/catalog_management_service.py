@@ -87,7 +87,12 @@ class CatalogManagementService(BaseCatalogManagementService):
         @param catalog_id    str
         @retval success    bool
         """
+        objs, assocs = self.clients.resource_registry.find_associations_mult(subjects=[catalog_id], id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc._id)
+
         self.clients.resource_registry.delete(catalog_id)
+
         return True
 
     def add_indexes(self, catalog_id='', index_ids=None):
