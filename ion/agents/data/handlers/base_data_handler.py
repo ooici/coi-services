@@ -26,7 +26,7 @@ from ion.agents.instrument.exceptions import InstrumentParameterException, Instr
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.granule import build_granule
 
-from ion.agents.data.handlers.handler_utils import calculate_iteration_count
+from ion.agents.data.handlers.handler_utils import calculate_iteration_count, list_file_info, get_time_from_filename
 
 import gevent
 from gevent.coros import Semaphore
@@ -180,7 +180,7 @@ class BaseDataHandler(object):
 
         @parameter args First argument can be a config dictionary
         """
-        log.debug('Executing acquire_data: args = {0}'.format(args))
+        log.warn('Executing acquire_data: args = {0}'.format(args))
 
         # Make a copy of the config to ensure no cross-pollution
         config = self._dh_config.copy()
@@ -372,7 +372,7 @@ class BaseDataHandler(object):
                 else:
                     log.debug('Found attachment: {0}'.format(attachment_obj))
         except NotFound:
-            raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(res_id))
+            raise InstrumentException('ExternalDsysatasetResource \'{0}\' not found'.format(res_id))
 
     def _update_new_data_check_attachment(self, res_id, new_content):
         try:
@@ -583,23 +583,78 @@ class FibonacciDataHandler(BaseDataHandler):
 class DummyDataHandler(BaseDataHandler):
     @classmethod
     def _init_acquisition_cycle(cls, config):
-        """
-        Initialize anything the data handler will need to use, such as a dataset
-        """
+        # TODO: Can't build a parser here because we won't have a file name!!  Just a directory :)
+        # May not be much to do in this method...
+        # maybe just ensure access to the dataset_dir and move some of the 'buried' params up to the config dict?
+        ext_dset_res = get_safe(config, 'external_dataset_res', None)
+        if not ext_dset_res:
+            raise SystemError('external_dataset_res not present in configuration, cannot continue')
+
+        config['ds_params'] = ext_dset_res.dataset_description.parameters
+
+    #        base_url = ext_dset_res.dataset_description.parameters['base_url']
+    #        pattern = get_safe(ext_dset_res.dataset_description.parameters, 'pattern')
+    #        config['base_url'] = base_url
+    #        config['pattern'] = pattern
 
     @classmethod
     def _constraints_for_new_request(cls, config):
-        """
-        Returns a constraints dictionary with 'array_len' and 'count' assigned random integers
-        @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
-        """
-        # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
-        max_rec = get_safe(config, 'max_records', 1)
-        return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
+#        """
+#        Returns a constraints dictionary with 'array_len' and 'count' assigned random integers
+#        @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
+#        """
+#        # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
+#        max_rec = get_safe(config, 'max_records', 1)
+#        return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
+        old_list = get_safe(config, 'new_data_check') or []
+
+        ret = {}
+        base_url = get_safe(config,'ds_params.base_url')
+        list_pattern = get_safe(config,'ds_params.list_pattern')
+        date_pattern = get_safe(config, 'ds_params.date_pattern')
+        date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
+
+        curr_list = list_file_info(base_url, list_pattern)
+
+        # Determine which files are new
+        new_list = [tuple(x) for x in curr_list if list(x) not in old_list]
+
+        if len(new_list) is 0:
+            raise NoNewDataWarning()
+
+        # The curr_list is the new new_data_check - used for the next "new data" evaluation
+        config['set_new_data_check'] = curr_list
+
+        # The new_list is the set of new files - these will be processed
+        ret['new_files'] = new_list
+        ret['start_time'] = get_time_from_filename(new_list[0][0], date_extraction_pattern, date_pattern)
+        ret['end_time'] = get_time_from_filename(new_list[len(new_list) - 1][0], date_extraction_pattern, date_pattern)
+        ret['bounding_box'] = {}
+        ret['vars'] = []
+
+        log.warn('constraints_for_new_request: {0}'.format(ret))
+
+        return ret
 
     @classmethod
     def _constraints_for_historical_request(cls, config):
-        pass
+        base_url = get_safe(config,'ds_params.base_url')
+        list_pattern = get_safe(config,'ds_params.list_pattern')
+        date_pattern = get_safe(config, 'ds_params.date_pattern')
+        date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
+
+        start_time = get_safe(config, 'constraints.start_time')
+        end_time = get_safe(config, 'constraints.end_time')
+
+        new_list = []
+        curr_list = list_file_info(base_url, list_pattern)
+
+        for x in curr_list:
+            curr_time = get_time_from_filename(x[0], date_extraction_pattern, date_pattern)
+            if start_time <= curr_time <= end_time:
+                new_list.append(x)
+
+        return {'new_files':new_list}
 
     @classmethod
     def _get_data(cls, config):
@@ -620,7 +675,7 @@ class DummyDataHandler(BaseDataHandler):
         for x in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
             d = arr[x*max_rec:(x+1)*max_rec]
-            rdt['data'] = d
+            rdt['dummy'] = d
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             yield g
 
