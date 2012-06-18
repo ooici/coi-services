@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from ion.services.sa.instrument.data_product_impl import DataProductImpl
+from ion.services.sa.product.data_product_impl import DataProductImpl
 
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, PRED
