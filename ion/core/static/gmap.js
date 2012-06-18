@@ -1,10 +1,5 @@
-/**
- * Created with PyCharm.
- * User: luke
- * Date: 06/07/12
- * Time: 15:44
- * To change this template use File | Settings | File Templates.
- */
+var map;
+var points = {};
 function getUrlVars() {
     var vars = {};
     var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
@@ -12,62 +7,84 @@ function getUrlVars() {
     });
     return vars;
 }
-
-function initialize(results) {
-
-    var map;
+function initMap() {
+    var buffer = null;
+    var rbuffer = null;
     var myOptions = {
         zoom: 5,
         center: new google.maps.LatLng(41,-71),
         mapTypeId: google.maps.MapTypeId.SATELLITE
     };
     map = new google.maps.Map(document.getElementById('map_canvas'), myOptions);
-    
+    google.maps.event.addListener(map, 'click', function(x) {
+        update();
+        if (buffer != x) {
+            var lat = x.latLng.lat();
+            var lon = x.latLng.lng();
+            console.debug([lat,lon]);
+            buffer = x;
+            var e = event;
+            if (e.ctrlKey)
+                console.debug("Ctrl-click");
+            if (e.shiftKey)
+                copyToClipboard("[" + lat + "," + lon + "]");
+        }
+
+    });
+    google.maps.event.addListener(map,'rightclick', function(x) {
+        if(rbuffer!= x) {
+            var lat = x.latLng.lat();
+            var lon = x.latLng.lng();
+            window.open("http://localhost:8080/new/PlatformDevice?nominal_location.lat=" + lat + "&nominal_location.lon=" + lon, "_blank");
+            rbuffer = x;
+        }
+    });
+}
+
+
+function initialize(results) {
     results.forEach(function(x) {
-        var markerLoc = new google.maps.LatLng(x.nominal_location.lat, x.nominal_location.lon);
-        var marker = new google.maps.Marker({
-            position: markerLoc,
-            map: map,
-            title: "Name: " + x.name + "\nModel:" + x.model + "\nLat: " + x.nominal_location.lat + "\nLon: " + x.nominal_location.lon,
-            //icon: "http://a1.twimg.com/profile_images/662211540/Oil_Rig_normal.PNG",
-        });
-        google.maps.event.addListener(marker, 'click', function(){
-            window.location.replace("http://localhost:8080/view/" + x._id);
-        });
+        var name = x.name;
+        console.debug(x.name);
+        if(! points[name]) {
+            var markerLoc = new google.maps.LatLng(x.nominal_location.lat, x.nominal_location.lon);
+            var marker = new google.maps.Marker({
+                position: markerLoc,
+                map: map,
+                title: "Name: " + x.name + "\nDescrtiption: " + x.description + "\nModel:" + x.model + "\nLat: " + x.nominal_location.lat + "\nLon: " + x.nominal_location.lon,
+                //icon: "http://a1.twimg.com/profile_images/662211540/Oil_Rig_normal.PNG",
+            });
+            google.maps.event.addListener(marker, 'click', function(){
+                console.debug(x);
+                window.open("http://localhost:8080/view/" + x._id, "_blank");
+            });
+            points[name]=true;
+        }
     });
 
 };
-function onLoad() {
-//$(document).ready(function() {
+function copyToClipboard (text) {
+    window.prompt ("Copy to clipboard: Ctrl+C, Enter", text);
+}
+function update() {
     var results = [];
     var data;
-    var request = {
-        "query" : {
-            "match_all":{}
-        },
-        "filter" : {
-            "exists" : {
-                "field" : "nominal_location"
-            }
-        }
-    };
-    var geo_request = {"query":{"match_all":{}}, "filter":{"geo_distance":{"nominal_location":[-71,41], "distance":"2000km"}}};
-    var wide_request = {"query": {"match_all": {}}, "size": 100};
-    var narrow_request = {"size" : 100, "filter": {"geo_distance": {"distance_type": "arc", "nominal_location": [-71,41], "distance": "2000km"}}, "query": {"match_all": {}}};
-    data = request;
+    var general_request = {"query":{"match_all":{}}, "filter":{"exists":{"field":"nominal_location"}, "limit":1000}};
+    data = general_request;
     var urlVars = getUrlVars();
     if("distance" in urlVars) {
         narrow_request['filter']['geo_distance']['distance'] = urlVars['distance'] + 'km' ;
         data = narrow_request;
     }
     $.ajax({
-        url: "http://localhost:9200/_search",
+        url: "http://localhost:8080/esquery",
         type: "POST",
+        contentType: "application/json;charset=utf-8",
         data: JSON.stringify(data),
         dataType: "json",
         beforeSend: function(x) {
             if ( x && x.overrideMimeType) {
-                x.overrideMimeType("application/j-son;charset=UTF-8");
+                x.overrideMimeType("application/json;charset=utf-8");
 
             }
         },
@@ -78,5 +95,6 @@ function onLoad() {
 
     });
 
-//});
 }
+
+$(document).ready(function() { initMap(); update(); });

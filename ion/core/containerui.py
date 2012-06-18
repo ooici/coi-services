@@ -11,7 +11,7 @@ from gevent.wsgi import WSGIServer
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
 from pyon.core.object import IonObjectBase
 from pyon.core.registry import getextends, model_classes
-from pyon.public import Container, StandaloneProcess, log, PRED, RT, IonObject
+from pyon.public import Container, StandaloneProcess, log, PRED, RT, IonObject, CFG
 from pyon.util.containers import named_any
 
 from interface import objects
@@ -124,7 +124,6 @@ def process_map():
             "        <script type='text/javascript' src='https://maps.googleapis.com/maps/api/js?sensor=false'></script>",
             "<div id='map_canvas'></div>",
             "<script type='text/javascript' src='/static/gmap.js'></script>",
-            "<script type='text/javascript'> $(document).ready(onLoad); </script>",
         ]
         content = "\n".join(content)
         return build_page(content)
@@ -150,6 +149,25 @@ def process_tree(resid):
         resp.headers['Content-Type'] = 'application/json'
         resp.headers['Content-Length'] = len(data)
         return resp
+    except Exception as e:
+        return build_error_page(traceback.format_exc())
+
+# ----------------------------------------------------------------------------------------
+
+@app.route('/esquery', methods=['POST'])
+def process_query():
+    ''' 
+    Processes a query from the user
+    '''
+    elasticsearch_host = CFG.get_safe('server.elasticsearch.host','localhost')
+    elasticsearch_port = CFG.get_safe('server.elasticsearch.port','9200')
+    try:
+        import requests
+        data = request.stream.read()
+        # pass thru
+        r = requests.post('http://%s:%s/_search' % (elasticsearch_host, elasticsearch_port), data=data, headers={'content-type':'application/json'})
+        return r.content
+    
     except Exception as e:
         return build_error_page(traceback.format_exc())
 
