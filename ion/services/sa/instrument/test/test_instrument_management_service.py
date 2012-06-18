@@ -48,6 +48,13 @@ class TestInstrumentManagement(PyonTestCase):
         # must call this manually
         self.instrument_mgmt_service.on_init()
 
+        self.addCleanup(delattr, self, "instrument_mgmt_service")
+        self.addCleanup(delattr, self, "mock_ionobj")
+        #self.resource_impl_cleanup()
+
+    #def resource_impl_cleanup(self):
+        #pass
+
 rim = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
 rim.test_all_in_one(True)
 
@@ -61,5 +68,4 @@ rim.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
 rim.add_resource_impl_unittests(PlatformModelImpl, {"description": "tammy breathed deeply"})
 rim.add_resource_impl_unittests(SensorDeviceImpl, {"serial_number": "123"})
 rim.add_resource_impl_unittests(SensorModelImpl, {"model_label": "redundant field?"})
-
 
