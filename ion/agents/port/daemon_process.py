@@ -124,6 +124,7 @@ class DaemonProcess(object):
 
         while True:
             try:
+                #TODO: add a timeout here to prevent and infinite loop
                 os.kill(pid, signal.SIGTERM)
                 time.sleep(.1)
                 
