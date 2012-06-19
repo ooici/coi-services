@@ -568,14 +568,41 @@ class TestDummyDataHandlerUnit(PyonTestCase):
         DummyDataHandler._init_acquisition_cycle(config)
         _init_acquisition_cycle_mock.assert_called_once_with(config)
 
-    def test__constraints_for_new_request(self):
+    @unittest.skip('Needs refactoring due to changes to DummyDataHandler')
+    @patch('ion.agents.data.handlers.handler_utils.get_time_from_filename')
+    @patch('ion.agents.data.handlers.handler_utils.list_file_info')
+    def test__constraints_for_new_request(self, list_file_info_mock, get_time_from_filename_mock):
         max_rec = 10
-        config = {'max_records':max_rec}
+        config = {
+            'max_records':max_rec,
+            'ds_params':{
+                'base_url':'test_data',
+                'list_pattern':'list_pattern',
+                'date_pattern':'date_pattern',
+                'date_extraction_pattern':'date_extraction_pattern',
+            },
+        }
+        f_list = [('a',1,),('b',2,),('c',3,),]
+        list_file_info_mock.return_value = f_list
+        get_time_from_filename_mock.return_value = 'a_time'
+
         ret = DummyDataHandler._constraints_for_new_request(config)
-        self.assertTrue('array_len' in ret)
-        i=ret['array_len']
-        self.assertIsInstance(i, int)
-        self.assertTrue(max_rec+1 <= i <= max_rec+10)
+        self.assertIn('set_new_data_check',config)
+        self.assertEqual(config['set_new_data_check'], f_list)
+
+        self.assertIn('new_files',ret)
+
+        self.assertEqual(get_time_from_filename_mock.call_count, 2)
+        self.assertEqual(ret['new_files'], f_list)
+        self.assertIn('start_time',ret)
+        self.assertEqual(ret['start_time'], 'a_time')
+        self.assertIn('end_time',ret)
+        self.assertEqual(ret['end_time'], 'a_time')
+        self.assertIn('bounding_box',ret)
+        self.assertIsInstance(ret['bounding_box'], dict)
+        self.assertIn('vars',ret)
+        self.assertIsInstance(ret['vars'], list)
+
 
     @patch('ion.agents.data.handlers.base_data_handler.RecordDictionaryTool')
     @patch('ion.agents.data.handlers.base_data_handler.TaxyTool')
@@ -590,8 +617,8 @@ class TestDummyDataHandlerUnit(PyonTestCase):
             RecordDictionaryTool_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val)
             build_granule_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val, data_producer_id=sentinel.dprod_id, record_dictionary=ANY)
             cargs=build_granule_mock.call_args
-            self.assertIn('data', cargs[1]['record_dictionary'])
-            self.assertIsInstance(cargs[1]['record_dictionary']['data'], numpy.ndarray)
+            self.assertIn('dummy', cargs[1]['record_dictionary'])
+            self.assertIsInstance(cargs[1]['record_dictionary']['dummy'], numpy.ndarray)
 
         self.assertEquals(build_granule_mock.call_count, 2)
         self.assertEquals(RecordDictionaryTool_mock.call_count, 2)

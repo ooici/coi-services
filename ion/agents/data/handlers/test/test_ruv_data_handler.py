@@ -250,7 +250,9 @@ class TestRuvDataHandlerUnit(PyonTestCase):
         }
         ret = RuvDataHandler._constraints_for_historical_request(config)
         log.warn('test__get_archive_constraints: {0}'.format(ret['new_files']))
-        self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
+        files = list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern'])
+        files = files[:2]
+        self.assertEqual(ret['new_files'],files)
 
 
 

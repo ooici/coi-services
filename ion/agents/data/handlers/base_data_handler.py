@@ -628,7 +628,7 @@ class DummyDataHandler(BaseDataHandler):
         # The new_list is the set of new files - these will be processed
         ret['new_files'] = new_list
         ret['start_time'] = get_time_from_filename(new_list[0][0], date_extraction_pattern, date_pattern)
-        ret['end_time'] = get_time_from_filename(new_list[len(new_list) - 1][0], date_extraction_pattern, date_pattern)
+        ret['end_time'] = get_time_from_filename(new_list[-1][0], date_extraction_pattern, date_pattern)
         ret['bounding_box'] = {}
         ret['vars'] = []
 
