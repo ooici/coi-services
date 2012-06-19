@@ -49,9 +49,11 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
     #@unittest.skip('not working')
     def test_createDataProduct_and_DataProducer_success(self):
         # setup
-        self.resource_registry.find_resources.return_value = ([], 'do not care')
-        self.resource_registry.create.return_value = ('SOME_RR_ID1', 'Version_1')
-        self.data_acquisition_management.assign_data_product.return_value = None
+        self.clients.resource_registry.find_resources.return_value = ([], 'do not care')
+        self.clients.resource_registry.find_associations.return_value = []
+        self.clients.resource_registry.create.return_value = ('SOME_RR_ID1', 'Version_1')
+        self.clients.data_acquisition_management.assign_data_product.return_value = None
+        self.clients.pubsub_management.create_stream.return_value = "stream_id"
 
         # Data Product
         dpt_obj = IonObject(RT.DataProduct,
@@ -63,17 +65,17 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
 
         # check results
         self.assertEqual(dp_id, 'SOME_RR_ID1')
-        self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
-        self.pubsub_management.create_stream.assert_called_once_with('', True, 'stream_def_id', 'DPT_Y', 'some new data product', '')
-        self.resource_registry.create.assert_called_once_with(dpt_obj)
+        self.clients.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
+        self.clients.pubsub_management.create_stream.assert_called_once_with('', True, 'stream_def_id', 'DPT_Y', 'some new data product', '')
+        self.clients.resource_registry.create.assert_called_once_with(dpt_obj)
 
 
     @unittest.skip('not working')
     def test_createDataProduct_and_DataProducer_with_id_NotFound(self):
         # setup
-        self.resource_registry.find_resources.return_value = ([], 'do not care')
-        self.resource_registry.create.return_value = ('SOME_RR_ID1', 'Version_1')
-        self.pubsub_management.create_stream.return_value = 'stream1'
+        self.clients.resource_registry.find_resources.return_value = ([], 'do not care')
+        self.clients.resource_registry.create.return_value = ('SOME_RR_ID1', 'Version_1')
+        self.clients.pubsub_management.create_stream.return_value = 'stream1'
 
         # Data Product
         dpt_obj = IonObject(RT.DataProduct, name='DPT_X', description='some new data product')
@@ -83,8 +85,8 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
             dp_id = self.data_product_management_service.create_data_product(dpt_obj, 'stream_def_id')
 
         # check results
-        self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
-        self.resource_registry.create.assert_called_once_with(dpt_obj)
+        self.clients.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
+        self.clients.resource_registry.create.assert_called_once_with(dpt_obj)
         #todo: what are errors to check in create stream?
 
 
@@ -94,14 +96,14 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         dp_obj = IonObject(RT.DataProduct,
                            name='DP_X',
                            description='some existing dp')
-        self.resource_registry.find_resources.return_value = ([dp_obj], [])
+        self.clients.resource_registry.find_resources.return_value = ([dp_obj], [])
 
         # test call
         result = self.data_product_management_service.find_data_products()
 
         # check results
         self.assertEqual(result, [dp_obj])
-        self.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
+        self.clients.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
 
 
  
