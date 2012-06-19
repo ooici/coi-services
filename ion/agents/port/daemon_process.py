@@ -95,6 +95,9 @@ class DaemonProcess(object):
         except IOError:
             pid = None
 
+        except ValueError:
+            pid = None
+
         return pid            
 
     def get_pidfname(self):
