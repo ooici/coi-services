@@ -122,15 +122,32 @@ class DaemonProcess(object):
             sys.stderr.write(msg % self.pidfname)
             return
 
+        retry = 0
         while True:
             try:
-                #TODO: add a timeout here to prevent and infinite loop
-                os.kill(pid, signal.SIGTERM)
-                time.sleep(.1)
-                
+                retry += 1
+
+                # Try to kill the process nicely at first
+                if retry < 10:
+                    os.kill(pid, signal.SIGTERM)
+
+                # Try a little harder if SIGTERM isn't working
+                elif retry < 20:
+                    os.kill(pid, signal.SIGINT)
+
+                elif retry > 20:
+                    raise Exception("failed to kill daemon process")
+
+                time.sleep(.2)
+
             except Exception as e:
                 if str(e).find('No such process') > 0:
                     break
+
+                # Ignore errors if we can't kill the process
+                elif str(e).find('process') > 0:
+                    break
+
                 else:
                     raise e
 
