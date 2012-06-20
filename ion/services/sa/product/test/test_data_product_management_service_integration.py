@@ -19,10 +19,6 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 
-from ion.services.sa.product.data_product_impl import DataProductImpl
-from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
-
-
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -230,8 +226,3 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
             # Shut down container
             #container.stop()
-
-rimi = ResourceImplMetatestIntegration(TestDataProductManagementServiceIntegration, DataProductManagementService, log)
-rimi.test_all_in_one(True)
-
-rimi.add_resource_impl_inttests(DataProductImpl, {})
