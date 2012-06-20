@@ -26,7 +26,19 @@ import pwd
 
 from ion.services.sa.test.helpers import any_old
 
-BASE64_ZIPFILE = """
+
+"""
+@qa_documents a base64-encoded zip file containing a MANIFEST.csv file
+
+MANIFEST.csv fields:
+- filename
+- name
+- description
+- content_type
+
+the files are simply a.txt, b.txt, c.txt containing a few characters of their respective letters
+"""
+- keywordsBASE64_ZIPFILE = """
 UEsDBAoAAgAAAFiItkCVXfh3BAAAAAQAAAAFABwAYS50eHRVVAkAA/f+u09Q/7tPdXgLAAEE6AMA
 AAToAwAAYWFhClBLAwQKAAIAAABaiLZA4R8mTAQAAAAEAAAABQAcAGIudHh0VVQJAAP7/rtPUP+7
 T3V4CwABBOgDAAAE6AMAAGJiYgpQSwMECgACAAAAW4i2QPIjQ+wEAAAABAAAAAUAHABjLnR4dFVU
@@ -42,7 +54,11 @@ BOgDAABQSwECHgMUAAIACAA3ObhAJSokwIgAAAACAQAADAAYAAAAAAABAAAApIHJAAAATUFOSUZF
 U1QuY3N2VVQFAAP5Fr5PdXgLAAEE6AMAAAToAwAAUEsFBgAAAAAEAAQAMwEAAJcBAAAAAA==
 """
 
+"""
+@agent_egg a base64-encoded egg file
 
+this contains only EGG-INFO/PKG-INFO, and in that file only the name and version fields matter
+"""
 BASE64_EGG = """
 UEsDBBQAAAAIAPtOuEASJdDPBQEAAHMBAAARABwARUdHLUlORk8vUEtHLUlORk9VVAkAA+o9vk8f
 tL5PdXgLAAEE6AMAAAToAwAAXZDBbsIwDIbveQo/AGlhHJByGlORkIBuGmM7u4nXRmriKkmH+vYL
