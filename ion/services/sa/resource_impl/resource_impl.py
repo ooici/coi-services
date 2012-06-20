@@ -172,12 +172,14 @@ class ResourceImpl(object):
         """
         turn a policy-style function (taking resource_id, returning boolean) and have it return strings instead
         """
+        #todo this may get phased out -- the tuple being returned would become the standard way to do it
         def freeze():
             def wrapper(resource_id):
-                if policy_predicate_fn(resource_id):
+                isok, message = policy_predicate_fn(resource_id)
+                if isok:
                     return ""
                 else:
-                    return "%s returned false" % str(policy_predicate_fn)
+                    return message
 
             return wrapper
 
@@ -468,8 +470,11 @@ class ResourceImpl(object):
         return str(association_type)
 
     def _resource_link_exists(self, subject_id='', association_type='', object_id=''):
-        return 0 < len(self.RR.find_associations(subject_id,  association_type,  object_id, id_only=True))
-   
+        result = self.RR.find_associations(subject_id,  association_type,  object_id, id_only=True)
+        if 0 < len(result) and result[0]:
+            return result
+        return None
+
     def _link_resources_lowlevel(self, subject_id='', association_type='', object_id='', check_duplicates=True):
         """
         create an association
@@ -483,11 +488,12 @@ class ResourceImpl(object):
         assert(type("") == type(subject_id) == type(object_id))
 
         if check_duplicates:
-            if self._resource_link_exists(subject_id, association_type, object_id):
+            dups = self._resource_link_exists(subject_id, association_type, object_id)
+            if dups:
                 log.debug("Create %s Association from '%s': ALREADY EXISTS"
                           % (self._assn_name(association_type),
                              self._toplevel_call()))
-                return None
+                return dups
 
         associate_success = self.RR.create_association(subject_id,
                                                        association_type,
@@ -497,6 +503,7 @@ class ResourceImpl(object):
                   % (self._assn_name(association_type),
                      self._toplevel_call(),
                       str(associate_success)))
+
         return associate_success
         
         
@@ -504,7 +511,8 @@ class ResourceImpl(object):
         
     def _link_resources(self, subject_id='', association_type='', object_id=''):
         # just link, and check duplicates
-        self._link_resources_lowlevel(subject_id, association_type, object_id, True)
+        return self._link_resources_lowlevel(subject_id, association_type, object_id, True)
+
 
     def _link_resources_single_object(self, subject_id='', association_type='', object_id='', raise_exn=True):
         """
@@ -528,11 +536,12 @@ class ResourceImpl(object):
                                (association_type, obj_type, self.iontype, subject_id))
 
         if len(existing_links) > 0:
-            if self._resource_link_exists(subject_id, association_type, object_id):
+            dups = self._resource_link_exists(subject_id, association_type, object_id)
+            if dups:
                 log.debug("Create %s Association (single object) from '%s': ALREADY EXISTS"
                           % (self._assn_name(association_type),
                              self._toplevel_call()))
-                return None
+                return dups
 
             if raise_exn:
                 raise BadRequest("Attempted to add a duplicate %s-%s association to a %s with id='%s'" %
@@ -565,11 +574,12 @@ class ResourceImpl(object):
                                (self.iontype, association_type, obj_type, object_id))
 
         if len(existing_links) > 0:
-            if self._resource_link_exists(subject_id, association_type, object_id):
+            dups = self._resource_link_exists(subject_id, association_type, object_id)
+            if dups:
                 log.debug("Create %s Association (single subject) from '%s': ALREADY EXISTS"
                           % (self._assn_name(association_type),
                              self._toplevel_call()))
-                return None
+                return dups
 
             if raise_exn:
                 raise BadRequest("Attempted to add a duplicate %s-%s association on a %s object with id='%s'" %
@@ -635,8 +645,8 @@ class ResourceImpl(object):
         @param resource_id a resource id
         @param attachment_id a resource id
         """
-        return self._link_resources(resource_id, PRED.hasAttachment, attachment_id)
 
+        return self._link_resources(resource_id, PRED.hasAttachment, attachment_id)
 
     def unlink_attachment(self, resource_id='', attachment_id=''):
         """

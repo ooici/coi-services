@@ -1335,7 +1335,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
    #####################################################
 
    
-
+    # Maurice - activate deployment is for hardware
+    #           this function is "transfer site subscription"
     def assign_primary_deployment(self, instrument_device_id='', instrument_site_id=''):
         """
         associate a logical instrument with a physical one.
@@ -1370,7 +1371,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         primary_dev__ids, assocs = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasPrimaryDeployment, logical_instrument_id, True)
         if primary_dev__ids:
             if len(primary_dev__ids) > 1:
-                raise BadRequest("The Logical Instrument has multiple primary devices assigned  %s" %logical_instrument_obj.name)
+                raise Inconsistent("The Logical Instrument has multiple primary devices assigned  %s" %logical_instrument_obj.name)
             #check that the new device is not already linked as the primary device to this logical instrument
             if primary_dev__ids[0] == instrument_device_id :
                 raise BadRequest("The Instrument Device is already the primary deployment to this Logical Instrument  %s" %instrument_device_obj.name)

@@ -22,19 +22,16 @@ class BootstrapService(BaseBootstrapService):
 
     process_type = "immediate"      # bootstrap inits/starts only, not a running process/service
 
-    def on_init(self):
-        log.info("Bootstrap service INIT: System init")
-        self.system_actor_id = None
-
     def on_start(self):
+        self.system_actor_id = None
         level = self.CFG.level
         log.info("Bootstrap service START: service start, level: %s", level)
 
         self.trigger_level(level, self.CFG)
 
+
     def trigger_level(self, level, config):
         #print "Bootstrap level: %s config: %s" % (str(level),str(config))
-
 
         ### COI Bootstrap levels
         if level == "datastore":
@@ -71,10 +68,8 @@ class BootstrapService(BaseBootstrapService):
 
         elif level == "ingestion_management":
             self.post_ingestion_management(config)
-
         elif level == "transform_management":
             self.post_transform_management(config)
-
         elif level == "data_retriever":
             self.post_data_retriever(config)
 
@@ -87,7 +82,7 @@ class BootstrapService(BaseBootstrapService):
         cookie_name = get_sys_name() + ".ION_INIT"
         try:
             res = self.clients.datastore.read_doc(cookie_name)
-            log.error("System %s already initialized: %s" % (get_sys_name(), res))
+            log.debug("System %s already initialized: %s" % (get_sys_name(), res))
             return
         except iex.NotFound:
             pass
@@ -224,9 +219,6 @@ class BootstrapService(BaseBootstrapService):
 #
 #        res_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, self.xs_id, True)
 #        self.assert_condition(len(res_ids) == 1 and res_ids[0] == self.org_id, "Org not associated")
-
-    def on_quit(self):
-        log.info("Bootstrap service QUIT: System quit")
 
 
     def post_data_retriever(self, config):

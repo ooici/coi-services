@@ -28,7 +28,6 @@ class IndexBootStrapUnitTest(PyonTestCase):
     @patch('ion.processes.bootstrap.index_bootstrap.ep.ElasticSearch')
     def test_clean_bootstrap(self, mock_es):
         config = CFG
-        config.system.force_clean=False
         config.system.elasticsearch=True
         config.server.elasticsearch.host = ''
         config.server.elasticsearch.port = ''
@@ -44,7 +43,6 @@ class IndexBootStrapUnitTest(PyonTestCase):
     @patch('ion.processes.bootstrap.index_bootstrap.ep.ElasticSearch')
     def test_bad_op(self, mock_es):
         config = CFG
-        config.system.force_clean=False
         config.system.elasticsearch=True
         config.server.elasticsearch.host = ''
         config.server.elasticsearch.port = ''
@@ -74,7 +72,6 @@ class IndexBootStrapUnitTest(PyonTestCase):
         container.datastore_manager.get_datastore.return_value = db
         
         config = CFG
-        config.system.force_clean=False
         config.system.elasticsearch=True
         config.server.elasticsearch.host = ''
         config.server.elasticsearch.port = ''
@@ -104,7 +101,6 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
         self.es = ep.ElasticSearch(host=CFG.server.elasticsearch.host, port=CFG.server.elasticsearch.port)
-        #self.assertTrue(CFG.system.force_clean)
         self.wipe()
 
     def tearDown(self):
@@ -127,9 +123,7 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
         #=======================================
         config = CFG
         config.op='index_bootstrap'
-        
-        # Thankfully, the default system.force_clean for integration tests is False :)
-        
+
         cc.spawn_process(
             name='index_bootstrap',
             module='ion.processes.bootstrap.index_bootstrap',
@@ -151,9 +145,7 @@ class IndexBootStrapIntTest(IonIntegrationTestCase):
 
         config = CFG
         config.op='clean_bootstrap'
-        
-        # Thankfully, the default system.force_clean for integration tests is False :)
-        
+
         cc.spawn_process(
             name='index_bootstrap',
             module='ion.processes.bootstrap.index_bootstrap',
