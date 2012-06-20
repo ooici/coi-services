@@ -3,14 +3,15 @@
 __author__ = 'Thomas R. Lennan'
 __license__ = 'Apache 2.0'
 
-from pyon.core.exception import Conflict, Inconsistent, NotFound
+from pyon.core.exception import Conflict, Inconsistent, NotFound,BadRequest
 from pyon.core.security.authentication import Authentication
-from pyon.public import PRED, RT, IonObject
+from pyon.ion.resource import ExtendedResourceContainer
+from pyon.public import PRED, RT, IonObject, OT
 from pyon.util.log import log
-
 import time
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
+from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 
 class IdentityManagementService(BaseIdentityManagementService):
 
@@ -20,6 +21,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def on_init(self):
         self.authentication = Authentication()
+        self.extended_resource_handler = ExtendedResourceContainer(self)
     
     def create_actor_identity(self, actor_identity=None):
         # Persist ActorIdentity object and return object _id as OOI id
@@ -212,3 +214,46 @@ class IdentityManagementService(BaseIdentityManagementService):
             self.register_user_credentials(user_id, user_credentials)
             log.debug("Signon returning user_id, valid_until, registered: %s, %s, False" % (user_id, valid_until))
             return user_id, valid_until, False
+
+    def get_actor_identity_extension(self, user_id='', org_id='', ext_associations=None, ext_exclude=None):
+        """Returns an ActorIdentityExtension object containing additional related information
+
+        @param user_id    str
+        @param org_id    str
+        @param ext_associations    dict
+        @param ext_exclude    list
+        @retval actor_identity    ActorIdentityExtension
+        @throws BadRequest    A parameter is missing
+        @throws NotFound    An object with the specified user_id does not exist
+        """
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is empty")
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise NotFound("User %s does not exist" % user_id)
+
+        extended_user = self.extended_resource_handler.create_extended_resource_container(OT.ActorIdentityExtension, user)
+
+        #Fill in related data - refactor when object decorators are available
+        self.extended_resource_handler.get_associated_resources(extended_user, 'credentials', PRED.hasCredentials)
+        self.extended_resource_handler.get_associated_resources(extended_user, 'user_info', PRED.hasInfo)
+        self.extended_resource_handler.get_associated_resources(extended_user, 'policies', PRED.hasPolicy)
+        self.extended_resource_handler.get_associated_resources(extended_user, 'owned_resources', PRED.hasOwner)
+        self.extended_resource_handler.get_associated_resources(extended_user, 'user_requests', PRED.hasRequest)
+        self.extended_resource_handler.get_extended_associations(extended_user, ext_associations)
+
+        #If the org_id is not provided then skip looking for Org related roles.
+        if org_id:
+            #Did not setup a dependency to org_management service to avoid a potential circular bootstrap issue
+            # since this method should never be called until the system is fully running
+            try:
+                org_client = OrgManagementServiceProcessClient(process=self)
+                roles = org_client.find_org_roles_by_user(org_id, user_id)
+                extended_user.roles = roles
+            except Exception,e:
+                #If this information is not available yet, them just move on and caller can retry later
+                pass
+
+        return extended_user

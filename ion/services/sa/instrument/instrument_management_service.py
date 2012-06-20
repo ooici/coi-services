@@ -9,12 +9,13 @@
 
 #from pyon.public import Container
 from pyon.public import LCE
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, OT
 from pyon.public import CFG
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
+from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.log import log
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
@@ -70,6 +71,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.override_clients(self.clients)
         self._pagent = None
+        self.extended_resource_handler = ExtendedResourceContainer(self)
 
     def override_clients(self, new_clients):
         """
@@ -1532,3 +1534,58 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("mfms:reassign_instrument_device_to_logical_instrument:   stream_def_map: %s ", str(stream_def_map))
         return stream_def_map
+
+    def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
+        """Returns an InstrumentDeviceExtension object containing additional related information
+
+        @param instrument_device_id    str
+        @param ext_associations    dict
+        @param ext_exclude    list
+        @retval instrument_device    InstrumentDeviceExtension
+        @throws BadRequest    A parameter is missing
+        @throws NotFound    An object with the specified instrument_device_id does not exist
+        """
+
+        if not instrument_device_id:
+            raise BadRequest("The instrument_device_id parameter is empty")
+
+        instrument_device = self.clients.resource_registry.read(instrument_device_id)
+        if not instrument_device:
+            raise NotFound("Instrument Device %s does not exist" % instrument_device_id)
+
+        extended_instrument = self.extended_resource_handler.create_extended_resource_container(OT.InstrumentDeviceExtension, instrument_device)
+
+        #Get computed attributes - refactor into ExtendedResourceContainer when object decorators are available
+        extended_instrument.computed = IonObject(OT.InstrumentDeviceComputedAttributes)
+        extended_instrument.computed.software_version = self.get_software_version(instrument_device_id)
+        extended_instrument.computed.attached_sensors = self.get_attached_sensors(instrument_device_id)
+        extended_instrument.computed.location = self.get_location(instrument_device_id)
+        extended_instrument.computed.sensor_count = self.extended_resource_handler.get_association_count(extended_instrument, PRED.hasSensor)
+        extended_instrument.computed.data_produced = self.get_data_produced(instrument_device_id)
+
+        #Fill in related data - refactor into ExtendedResourceContainer when object decorators are available
+        self.extended_resource_handler.get_associated_resources(extended_instrument, 'data_products', PRED.hasOutputProduct)
+        self.extended_resource_handler.get_associated_resources(extended_instrument, 'instrument_model', PRED.hasModel)
+        self.extended_resource_handler.get_associated_resources(extended_instrument, 'instrument_agent', PRED.hasAgentInstance)
+        self.extended_resource_handler.get_associated_resources(extended_instrument, 'policies', PRED.hasPolicy)
+        self.extended_resource_handler.get_owners(extended_instrument, 'owners')
+        self.extended_resource_handler.get_extended_associations(extended_instrument, ext_associations)
+
+
+        return extended_instrument
+
+
+        #Bogus functions for computed attributes
+    def get_software_version(self, instrument_device_id):
+        return "1.1"
+
+    def get_location(self, instrument_device_id):
+        return IonObject(OT.GeospatialBounds)
+
+    def get_attached_sensors(self, instrument_device_id):
+        return ['abc','123']
+
+    def get_data_produced(self, instrument_device_id):
+        return "1.1"
+
+
