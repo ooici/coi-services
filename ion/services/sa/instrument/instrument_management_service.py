@@ -47,7 +47,7 @@ from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
-from ion.services.sa.instrument.data_product_impl import DataProductImpl
+from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.logger_process import EthernetDeviceLogger
