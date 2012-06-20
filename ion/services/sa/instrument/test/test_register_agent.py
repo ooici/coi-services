@@ -30,13 +30,28 @@ from ion.services.sa.test.helpers import any_old
 """
 @qa_documents a base64-encoded zip file containing a MANIFEST.csv file
 
+
+zip contents:
+ a.txt
+ b.txt
+ c.txt
+ MANIFEST.csv
+
 MANIFEST.csv fields:
 - filename
 - name
 - description
 - content_type
 
-the files are simply a.txt, b.txt, c.txt containing a few characters of their respective letters
+text file contents: aaa, bbb, and ccc
+
+MANIFEST.csv contents:
+
+filename,name,description,content_type,keywords
+a.txt,currently unused,3 of the letter a,text/plain,"a,A,alpha,alfa"
+b.txt,currently unused,3 of the letter b,text/plain,"b,B,beta,bravo"
+c.txt,currently unused,3 of the letter c,text/plain,"c,C,gamma,charlie"
+
 """
 - keywordsBASE64_ZIPFILE = """
 UEsDBAoAAgAAAFiItkCVXfh3BAAAAAQAAAAFABwAYS50eHRVVAkAA/f+u09Q/7tPdXgLAAEE6AMA
@@ -125,7 +140,8 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
             a = self.RR.read_attachment(a_id)
 
             parts = string.split(a.name, ".")
-            
+
+            # we expect a.txt to contain "aaa" and have a keyword listed called "a"
             if "txt" == parts[1]:
                 self.assertEqual("text/plain", a.content_type)
                 self.assertIn(parts[0], a.keywords)
