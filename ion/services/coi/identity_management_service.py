@@ -257,3 +257,5 @@ class IdentityManagementService(BaseIdentityManagementService):
                 pass
 
         return extended_user
+
+

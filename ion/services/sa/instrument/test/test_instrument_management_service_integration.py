@@ -42,7 +42,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
     def test_just_the_setup(self):
         return
 
-    @unittest.skip('this test just for debugging setup')
     def test_resources_associations(self):
         """
         create one of each resource and association used by IMS

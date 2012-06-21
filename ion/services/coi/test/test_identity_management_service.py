@@ -444,7 +444,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
 
-    @unittest.skip('skip test')
+    #@unittest.skip('skip test')
     def test_actor_identity(self):
         actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})        
         user_id = self.identity_management_service.create_actor_identity(actor_identity_obj)
@@ -464,7 +464,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
             self.identity_management_service.delete_actor_identity(user_id)
         self.assertTrue("does not exist" in cm.exception.message)
 
-    @unittest.skip('skip test')
+    #@unittest.skip('skip test')
     def test_user_credentials(self):
         actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})        
         user_id = self.identity_management_service.create_actor_identity(actor_identity_obj)
@@ -488,7 +488,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         self.identity_management_service.delete_actor_identity(user_id)
 
-    @unittest.skip('skip test')
+    #@unittest.skip('skip test')
     def test_user_info(self):
         actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})        
         user_id = self.identity_management_service.create_actor_identity(actor_identity_obj)
@@ -537,7 +537,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         self.identity_management_service.delete_actor_identity(user_id)
 
-    @unittest.skip('skip test')
+    #@unittest.skip('skip test')
     def test_signon(self):
         certificate =  """-----BEGIN CERTIFICATE-----
 MIIEMzCCAxugAwIBAgICBQAwDQYJKoZIhvcNAQEFBQAwajETMBEGCgmSJomT8ixkARkWA29yZzEX
