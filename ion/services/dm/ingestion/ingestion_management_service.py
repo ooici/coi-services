@@ -87,6 +87,10 @@ class IngestionManagementService(BaseIngestionManagementService):
  
 
         # Give each ingestion configuration its own queue name to receive data on
+        #----------------------------- TODO ---------------------------------------------
+        # Add support right here for user specified queue based on this set of ingestion 
+        # workers
+        #----------------------------- TODO ---------------------------------------------
         exchange_name = 'ingestion_queue'
 
         ##------------------------------------------------------------------------------------

@@ -15,7 +15,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from nose.plugins.attrib import attr
 from mock import patch
 from pyon.public import log, CFG
-from pyon.util.containers import DictModifier, DotDict
+from pyon.util.containers import DotDict
 from pyon.core.bootstrap import get_sys_name
 from pyon.datastore.datastore import DataStore
 from ion.processes.data.ingestion.ingestion_worker_a import IngestionWorker
