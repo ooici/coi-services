@@ -366,22 +366,173 @@ class DevicePolicy(Policy):
         return False
 
 class SitePolicy(Policy):
-    def lce_precondition_plan(self, model_id):
+    def lce_precondition_plan(self, site_id):
         # always OK
         return self._make_pass()
 
-    def lce_precondition_develop(self, model_id):
+    def lce_precondition_develop(self, site_id):
+        former = self.lce_precondition_plan(site_id)
+        if not former[0]: return former
+
         # todo
+
         return self._make_pass()
 
-    def lce_precondition_integrate(self, model_id):
+    def lce_precondition_integrate(self, site_id):
+        former = self.lce_precondition_develop(site_id)
+        if not former[0]: return former
+
         # todo
+
         return self._make_pass()
 
-    def lce_precondition_deploy(self, model_id):
+    def lce_precondition_deploy(self, site_id):
+        former = self.lce_precondition_integrate(site_id)
+        if not former[0]: return former
+
         # todo
+
         return self._make_pass()
 
-    def lce_precondition_retire(self, model_id):
+    def lce_precondition_retire(self, site_id):
         # todo:
         return self._make_pass()
+
+
+class DataProductPolicy(Policy):
+    def lce_precondition_plan(self, data_product_id):
+        # always OK
+        return self._make_pass()
+
+    def lce_precondition_develop(self, data_product_id):
+        former = self.lce_precondition_plan(data_product_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_integrate(self, data_product_id):
+        former = self.lce_precondition_develop(data_product_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_deploy(self, data_product_id):
+        former = self.lce_precondition_integrate(data_product_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_retire(self, data_product_id):
+        # todo:
+        return self._make_pass()
+
+
+class DataProcessPolicy(Policy):
+    def lce_precondition_plan(self, data_process_id):
+        # always OK
+        return self._make_pass()
+
+    def lce_precondition_develop(self, data_process_id):
+        former = self.lce_precondition_plan(data_process_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_integrate(self, data_process_id):
+        former = self.lce_precondition_develop(data_process_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_deploy(self, data_process_id):
+        former = self.lce_precondition_integrate(data_process_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_retire(self, data_process_id):
+        # todo:
+        return self._make_pass()
+
+
+class DataProcessDefinitionPolicy(Policy):
+    def lce_precondition_plan(self, data_process_definition_id):
+        # always OK
+        return self._make_pass()
+
+    def lce_precondition_develop(self, data_process_definition_id):
+        former = self.lce_precondition_plan(data_process_definition_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_integrate(self, data_process_definition_id):
+        former = self.lce_precondition_develop(data_process_definition_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_deploy(self, data_process_definition_id):
+        former = self.lce_precondition_integrate(data_process_definition_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_retire(self, data_process_definition_id):
+        # todo:
+        return self._make_pass()
+
+"""
+# in case i need another one
+class XxPolicy(Policy):
+    def lce_precondition_plan(self, x_id):
+        # always OK
+        return self._make_pass()
+
+    def lce_precondition_develop(self, x_id):
+        former = self.lce_precondition_plan(x_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_integrate(self, x_id):
+        former = self.lce_precondition_develop(x_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_deploy(self, x_id):
+        former = self.lce_precondition_integrate(x_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_retire(self, x_id):
+        # todo:
+        return self._make_pass()
+
+"""
