@@ -21,7 +21,6 @@ from pyon.event.event import EventPublisher
 from pyon.util.containers import get_safe
 
 # Pyon exceptions
-from pyon.core.exception import exception_map
 from pyon.core.exception import IonException
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict

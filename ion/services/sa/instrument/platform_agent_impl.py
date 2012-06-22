@@ -8,7 +8,7 @@
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import PRED, RT, LCE
 from ion.services.sa.instrument.flag import KeywordFlag
-from ion.services.sa.instrument.policy import AgentPolicy
+from ion.services.sa.instrument.resource_lcs_policy import AgentPolicy
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 

@@ -366,22 +366,158 @@ class DevicePolicy(Policy):
         return False
 
 class SitePolicy(Policy):
-    def lce_precondition_plan(self, model_id):
+    def lce_precondition_plan(self, site_id):
         # always OK
         return self._make_pass()
 
-    def lce_precondition_develop(self, model_id):
+    def lce_precondition_develop(self, site_id):
+        former = self.lce_precondition_plan(site_id)
+        if not former[0]: return former
+
         # todo
+
         return self._make_pass()
 
-    def lce_precondition_integrate(self, model_id):
+    def lce_precondition_integrate(self, site_id):
+        former = self.lce_precondition_develop(site_id)
+        if not former[0]: return former
+
         # todo
+
         return self._make_pass()
 
-    def lce_precondition_deploy(self, model_id):
+    def lce_precondition_deploy(self, site_id):
+        former = self.lce_precondition_integrate(site_id)
+        if not former[0]: return former
+
         # todo
+
         return self._make_pass()
 
-    def lce_precondition_retire(self, model_id):
+    def lce_precondition_retire(self, site_id):
         # todo:
         return self._make_pass()
+
+
+class DataProductPolicy(Policy):
+    def lce_precondition_plan(self, data_product_id):
+        # always OK
+        return self._make_pass()
+
+    def lce_precondition_develop(self, data_product_id):
+        former = self.lce_precondition_plan(data_product_id)
+        if not former[0]: return former
+
+        # todo: mandatory fields?
+        return self._has_keyworded_attachment(data_process_id, KeywordFlag.CERTIFICATION)
+
+    def lce_precondition_integrate(self, data_product_id):
+        former = self.lce_precondition_develop(data_product_id)
+        if not former[0]: return former
+
+        if 0 == len(self._find_stemming(data_product_id, PRED.hasStream, RT.Stream)):
+            return self._make_fail("Product has no associated stream")
+
+        pducers = self._find_stemming(data_product_id, PRED.hasDataProducer, RT.DataProducer)
+        if 0 == len(pducers):
+            return self._make_fail("Product has no associated producer")
+
+        if 0 < len(self._find_stemming(pducers[0], PRED.hasInputDataProducer, RT.DataProducer)):
+            return self._make_pass()
+        elif 0 < len(self._find_stemming(pducers[0], PRED.hasOutputDataProducer, RT.DataProducer)):
+            return self._make_pass()
+        else:
+            return self._make_fail("Product's producer has neither input nor output data producer")
+
+    def lce_precondition_deploy(self, data_product_id):
+        former = self.lce_precondition_integrate(data_product_id)
+        if not former[0]: return former
+
+        datasets = self._find_stemming(data_product_id, PRED.hasDataset, RT.Dataset)
+        if 0 == len(datasets):
+            return self._make_warn("Dataset not available")
+        else:
+            return self._resource_lcstate_in(datasets[0])
+
+
+    def lce_precondition_retire(self, data_product_id):
+        # todo:
+        return self._make_pass()
+
+
+class DataProcessPolicy(Policy):
+    def lce_precondition_plan(self, data_process_id):
+        # always OK
+        return self._make_pass()
+
+    def lce_precondition_develop(self, data_process_id):
+        former = self.lce_precondition_plan(data_process_id)
+        if not former[0]: return former
+
+        # todo: required fields
+
+        return self._make_pass()
+
+    def lce_precondition_integrate(self, data_process_id):
+        former = self.lce_precondition_develop(data_process_id)
+        if not former[0]: return former
+
+        # todo: currently, nothing.  "MAY be assoc with QA test results"
+
+        return self._make_pass()
+
+    def lce_precondition_deploy(self, data_process_id):
+        former = self.lce_precondition_integrate(data_process_id)
+        if not former[0]: return former
+
+        #todo: something about python egg, not sure yet
+
+        return self._has_keyworded_attachment(data_process_id, KeywordFlag.CERTIFICATION)
+
+
+
+    def lce_precondition_retire(self, data_process_id):
+        # todo:
+        return self._make_pass()
+
+
+# currently same as DataProcess
+class DataProcessDefinitionPolicy(DataProcessPolicy):
+    pass
+
+"""
+# in case i need another one
+class XxPolicy(Policy):
+    def lce_precondition_plan(self, x_id):
+        # always OK
+        return self._make_pass()
+
+    def lce_precondition_develop(self, x_id):
+        former = self.lce_precondition_plan(x_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_integrate(self, x_id):
+        former = self.lce_precondition_develop(x_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_deploy(self, x_id):
+        former = self.lce_precondition_integrate(x_id)
+        if not former[0]: return former
+
+        # todo
+
+        return self._make_pass()
+
+    def lce_precondition_retire(self, x_id):
+        # todo:
+        return self._make_pass()
+
+"""

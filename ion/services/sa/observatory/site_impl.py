@@ -10,7 +10,7 @@
 from pyon.public import PRED, RT, LCE
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
-from ion.services.sa.instrument.policy import SitePolicy
+from ion.services.sa.instrument.resource_lcs_policy import SitePolicy
 
 class SiteImpl(ResourceSimpleImpl):
     """
