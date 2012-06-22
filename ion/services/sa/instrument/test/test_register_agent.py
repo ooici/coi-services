@@ -53,7 +53,7 @@ b.txt,currently unused,3 of the letter b,text/plain,"b,B,beta,bravo"
 c.txt,currently unused,3 of the letter c,text/plain,"c,C,gamma,charlie"
 
 """
-keywordsBASE64_ZIPFILE = """
+BASE64_ZIPFILE = """
 UEsDBAoAAgAAAFiItkCVXfh3BAAAAAQAAAAFABwAYS50eHRVVAkAA/f+u09Q/7tPdXgLAAEE6AMA
 AAToAwAAYWFhClBLAwQKAAIAAABaiLZA4R8mTAQAAAAEAAAABQAcAGIudHh0VVQJAAP7/rtPUP+7
 T3V4CwABBOgDAAAE6AMAAGJiYgpQSwMECgACAAAAW4i2QPIjQ+wEAAAABAAAAAUAHABjLnR4dFVU
@@ -145,7 +145,7 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
             if "txt" == parts[1]:
                 self.assertEqual("text/plain", a.content_type)
                 self.assertIn(parts[0], a.keywords)
-                self.assertEqual(a.content, (parts[0] * 3) + "\n")
+                self.assertEqual(a.content, str(parts[0] * 3) + "\n")
 
         log.info("L4-CI-SA-RQ-148")
 
