@@ -206,7 +206,7 @@ class TelnetServer(TcpServer):
         while True:
             if self.TELNET_PROMPT:
                 self._write(self.TELNET_PROMPT)
-            input_line = self.fileobj.readline()
+            input_line = self.connection_socket.recv(1024)
             if input_line == '':
                 self._exit_handler("lost connection")
                 break
