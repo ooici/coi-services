@@ -147,7 +147,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         return ctd_sim_pid
 
-    def _start_output_stream_listener(self, data_product_stream_ids, message_count_per_stream=10):
+    def _start_output_stream_and_listen(self, ctd_stream_id, data_product_stream_ids, message_count_per_stream=10):
 
         cc = self.container
         assertions = self.assertTrue
@@ -171,11 +171,12 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         result = gevent.event.AsyncResult()
         results = []
+        message_count = len(data_product_stream_ids) * message_count_per_stream
+
         def message_received(message, headers):
             # Heads
-            log.warn(' data received!')
             results.append(message)
-            if len(results) >= len(data_product_stream_ids) * message_count_per_stream:   #Only wait for so many messages - per stream
+            if len(results) >= message_count:   #Only wait for so many messages - per stream
                 result.set(True)
 
         subscriber = subscriber_registrar.create_subscriber(exchange_name='workflow_test', callback=message_received)
@@ -185,8 +186,16 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id)
 
 
+        #Start the input stream process
+        if ctd_stream_id is not None:
+            ctd_sim_pid = self._start_simple_input_stream_process(ctd_stream_id)
+
         # Assert that we have received data
         assertions(result.get(timeout=30))
+
+        # stop the flow parse the messages...
+        if ctd_stream_id is not None:
+            self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         self.pubsubclient.deactivate_subscription(subscription_id=salinity_subscription_id)
 
@@ -378,21 +387,12 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         data_product_stream_ids.append(sal_dbl_stream_id)
 
 
-
-        #Start the input stream process
-        ctd_sim_pid = self._start_simple_input_stream_process(ctd_stream_id)
-
-
-        #Start te output stream listener to monitor and verify messages
-        results = self._start_output_stream_listener(data_product_stream_ids)
-
+        #Start the output stream listener to monitor and collect messages
+        results = self._start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
         #Stop the transform processes
         self.dataprocessclient.deactivate_data_process(salinity_double_data_process_id)
         self.dataprocessclient.deactivate_data_process(l2_salinity_all_data_process_id)
-
-        # stop the flow parse the messages...
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         #Validate the data from each of the messages along the way
         self._validate_messages(results)
@@ -451,11 +451,8 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
-        #Start the input stream process
-        ctd_sim_pid = self._start_simple_input_stream_process(ctd_stream_id)
-
-        #Start the output stream listener to monitor and verify messages
-        results = self._start_output_stream_listener(data_product_stream_ids)
+        #Start the output stream listener to monitor and collect messages
+        results = self._start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
         #Stop the workflow processes
         self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=15)  # Should test true at some point
@@ -463,9 +460,6 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         #Make sure the Workflow object was removed
         objs, _ = self.rrclient.find_resources(restype=RT.Workflow)
         assertions(len(objs) == 0)
-
-        # stop the flow parse the messages...
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         #Validate the data from each of the messages along the way
         self._validate_messages(results)
@@ -623,18 +617,11 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
-        #Start the input stream process
-        ctd_sim_pid = self._start_simple_input_stream_process(ctd_stream_id)
-
-        #Start the output stream listener to monitor and verify messages
-        results = self._start_output_stream_listener(data_product_stream_ids)
-
+        #Start the output stream listener to monitor and collect messages
+        results = self._start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
         #Stop the workflow processes
         self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
-
-        # stop the flow parse the messages...
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         #Validate the data from each of the messages along the way
         self._validate_google_dt_results(VizTransformGoogleDT.outgoing_stream_def, results)
@@ -687,17 +674,11 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
-        #Start the input stream process
-        ctd_sim_pid = self._start_sinusoidal_input_stream_process(ctd_stream_id)
-
-        #Start the output stream listener to monitor and verify messages
-        results = self._start_output_stream_listener(data_product_stream_ids)
+        #Start the output stream listener to monitor and collect messages
+        results = self._start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
         #Stop the workflow processes
         self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
-
-        # stop the flow parse the messages...
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         #Validate the data from each of the messages along the way
         self._validate_mpl_graphs_results(VizTransformGoogleDT.outgoing_stream_def, results)
@@ -756,7 +737,7 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         ctd_sim_pid2 = self._start_simple_input_stream_process(ctd_stream_id2)
 
         #Start the output stream listener to monitor a set number of messages being sent through the workflows
-        results = self._start_output_stream_listener(data_product_stream_ids, message_count_per_stream=5)
+        results = self._start_output_stream_and_listen(None, data_product_stream_ids, message_count_per_stream=5)
 
         # stop the flow of messages...
         self.process_dispatcher.cancel_process(ctd_sim_pid1) # kill the ctd simulator process - that is enough data
