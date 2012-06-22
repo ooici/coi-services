@@ -84,7 +84,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
         self.user_role_event_subscriber = EventSubscriber(event_type="UserRoleModifiedEvent", origin_type="Org",
             callback=self.user_role_event_callback)
-        self.user_role_event_subscriber.activate()
+        self.user_role_event_subscriber.start()
 
         #Initialize an LRU Cache to keep user roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
@@ -95,7 +95,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.stop_service()
 
         if self.user_role_event_subscriber is not None:
-            self.user_role_event_subscriber.deactivate()
+            self.user_role_event_subscriber.stop()
 
 
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
