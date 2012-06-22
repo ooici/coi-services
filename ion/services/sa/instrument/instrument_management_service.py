@@ -1336,6 +1336,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
    #
    #####################################################
 
+    def transfer_subscription(self, instrument_device_id_old, instrument_device_id_new):
+        pass
    
     # Maurice - activate deployment is for hardware
     #           this function is "transfer site subscription"
