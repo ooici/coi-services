@@ -96,9 +96,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         sensor_model_id #is only a target
 
 
-
     def test_get_extended_instrument_device(self):
-
 
         #stuff we control
         instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
@@ -153,4 +151,3 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         extended_instrument = self.IMS.get_instrument_device_extension(instrument_device_id)
         self.assertEqual(instrument_device_id,extended_instrument._id)
         self.assertEqual(extended_instrument.computed.sensor_count,1)
-

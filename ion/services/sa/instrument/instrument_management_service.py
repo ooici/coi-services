@@ -1549,28 +1549,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not instrument_device_id:
             raise BadRequest("The instrument_device_id parameter is empty")
 
-        instrument_device = self.clients.resource_registry.read(instrument_device_id)
-        if not instrument_device:
-            raise NotFound("Instrument Device %s does not exist" % instrument_device_id)
+        extended_resource_handler = ExtendedResourceContainer(self)
 
-        extended_instrument = self.extended_resource_handler.create_extended_resource_container(OT.InstrumentDeviceExtension, instrument_device)
-
-        #Get computed attributes - refactor into ExtendedResourceContainer when object decorators are available
-        extended_instrument.computed = IonObject(OT.InstrumentDeviceComputedAttributes)
-        extended_instrument.computed.software_version = self.get_software_version(instrument_device_id)
-        extended_instrument.computed.attached_sensors = self.get_attached_sensors(instrument_device_id)
-        extended_instrument.computed.location = self.get_location(instrument_device_id)
-        extended_instrument.computed.sensor_count = self.extended_resource_handler.get_association_count(extended_instrument, PRED.hasSensor)
-        extended_instrument.computed.data_produced = self.get_data_produced(instrument_device_id)
-
-        #Fill in related data - refactor into ExtendedResourceContainer when object decorators are available
-        self.extended_resource_handler.get_associated_resources(extended_instrument, 'data_products', PRED.hasOutputProduct)
-        self.extended_resource_handler.get_associated_resources(extended_instrument, 'instrument_model', PRED.hasModel)
-        self.extended_resource_handler.get_associated_resources(extended_instrument, 'instrument_agent', PRED.hasAgentInstance)
-        self.extended_resource_handler.get_associated_resources(extended_instrument, 'policies', PRED.hasPolicy)
-        self.extended_resource_handler.get_owners(extended_instrument, 'owners')
-        self.extended_resource_handler.get_extended_associations(extended_instrument, ext_associations)
-
+        extended_instrument = extended_resource_handler.create_extended_resource_container(OT.InstrumentDeviceExtension,
+            instrument_device_id, OT.InstrumentDeviceComputedAttributes, ext_associations, ext_exclude)
 
         return extended_instrument
 
@@ -1587,5 +1569,3 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def get_data_produced(self, instrument_device_id):
         return "1.1"
-
-

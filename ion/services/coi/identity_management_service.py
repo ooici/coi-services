@@ -21,8 +21,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def on_init(self):
         self.authentication = Authentication()
-        self.extended_resource_handler = ExtendedResourceContainer(self)
-    
+
     def create_actor_identity(self, actor_identity=None):
         # Persist ActorIdentity object and return object _id as OOI id
         user_id, version = self.clients.resource_registry.create(actor_identity)
@@ -230,19 +229,10 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not user_id:
             raise BadRequest("The user_id parameter is empty")
 
-        user = self.clients.resource_registry.read(user_id)
-        if not user:
-            raise NotFound("User %s does not exist" % user_id)
+        extended_resource_handler = ExtendedResourceContainer(self)
 
-        extended_user = self.extended_resource_handler.create_extended_resource_container(OT.ActorIdentityExtension, user)
-
-        #Fill in related data - refactor when object decorators are available
-        self.extended_resource_handler.get_associated_resources(extended_user, 'credentials', PRED.hasCredentials)
-        self.extended_resource_handler.get_associated_resources(extended_user, 'user_info', PRED.hasInfo)
-        self.extended_resource_handler.get_associated_resources(extended_user, 'policies', PRED.hasPolicy)
-        self.extended_resource_handler.get_associated_resources(extended_user, 'owned_resources', PRED.hasOwner)
-        self.extended_resource_handler.get_associated_resources(extended_user, 'user_requests', PRED.hasRequest)
-        self.extended_resource_handler.get_extended_associations(extended_user, ext_associations)
+        extended_user = extended_resource_handler.create_extended_resource_container(OT.ActorIdentityExtension, user_id,
+            None, ext_associations, ext_exclude)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if org_id:
