@@ -408,25 +408,37 @@ class DataProductPolicy(Policy):
         former = self.lce_precondition_plan(data_product_id)
         if not former[0]: return former
 
-        # todo
-
-        return self._make_pass()
+        # todo: mandatory fields?
+        return self._has_keyworded_attachment(data_process_id, KeywordFlag.CERTIFICATION)
 
     def lce_precondition_integrate(self, data_product_id):
         former = self.lce_precondition_develop(data_product_id)
         if not former[0]: return former
 
-        # todo
+        if 0 == len(self._find_stemming(data_product_id, PRED.hasStream, RT.Stream)):
+            return self._make_fail("Product has no associated stream")
 
-        return self._make_pass()
+        pducers = self._find_stemming(data_product_id, PRED.hasDataProducer, RT.DataProducer)
+        if 0 == len(pducers):
+            return self._make_fail("Product has no associated producer")
+
+        if 0 < len(self._find_stemming(pducers[0], PRED.hasInputDataProducer, RT.DataProducer)):
+            return self._make_pass()
+        elif 0 < len(self._find_stemming(pducers[0], PRED.hasOutputDataProducer, RT.DataProducer)):
+            return self._make_pass()
+        else:
+            return self._make_fail("Product's producer has neither input nor output data producer")
 
     def lce_precondition_deploy(self, data_product_id):
         former = self.lce_precondition_integrate(data_product_id)
         if not former[0]: return former
 
-        # todo
+        datasets = self._find_stemming(data_product_id, PRED.hasDataset, RT.Dataset)
+        if 0 == len(datasets):
+            return self._make_warn("Dataset not available")
+        else:
+            return self._resource_lcstate_in(datasets[0])
 
-        return self._make_pass()
 
     def lce_precondition_retire(self, data_product_id):
         # todo:
@@ -442,7 +454,7 @@ class DataProcessPolicy(Policy):
         former = self.lce_precondition_plan(data_process_id)
         if not former[0]: return former
 
-        # todo
+        # todo: required fields
 
         return self._make_pass()
 
@@ -450,7 +462,7 @@ class DataProcessPolicy(Policy):
         former = self.lce_precondition_develop(data_process_id)
         if not former[0]: return former
 
-        # todo
+        # todo: currently, nothing.  "MAY be assoc with QA test results"
 
         return self._make_pass()
 
@@ -458,47 +470,20 @@ class DataProcessPolicy(Policy):
         former = self.lce_precondition_integrate(data_process_id)
         if not former[0]: return former
 
-        # todo
+        #todo: something about python egg, not sure yet
 
-        return self._make_pass()
+        return self._has_keyworded_attachment(data_process_id, KeywordFlag.CERTIFICATION)
+
+
 
     def lce_precondition_retire(self, data_process_id):
         # todo:
         return self._make_pass()
 
 
-class DataProcessDefinitionPolicy(Policy):
-    def lce_precondition_plan(self, data_process_definition_id):
-        # always OK
-        return self._make_pass()
-
-    def lce_precondition_develop(self, data_process_definition_id):
-        former = self.lce_precondition_plan(data_process_definition_id)
-        if not former[0]: return former
-
-        # todo
-
-        return self._make_pass()
-
-    def lce_precondition_integrate(self, data_process_definition_id):
-        former = self.lce_precondition_develop(data_process_definition_id)
-        if not former[0]: return former
-
-        # todo
-
-        return self._make_pass()
-
-    def lce_precondition_deploy(self, data_process_definition_id):
-        former = self.lce_precondition_integrate(data_process_definition_id)
-        if not former[0]: return former
-
-        # todo
-
-        return self._make_pass()
-
-    def lce_precondition_retire(self, data_process_definition_id):
-        # todo:
-        return self._make_pass()
+# currently same as DataProcess
+class DataProcessDefinitionPolicy(DataProcessPolicy):
+    pass
 
 """
 # in case i need another one

@@ -5,7 +5,7 @@
 @author   Ian Katz
 """
 
-#from pyon.core.exception import BadRequest, NotFound
+from pyon.core.exception import BadRequest, Inconsistent
 from pyon.public import PRED, RT, LCE
 
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
@@ -38,7 +38,23 @@ class PlatformDeviceImpl(ResourceImpl):
         return self._unlink_resources(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
 
     def link_deployment(self, platform_device_id='', deployment_id=''):
-        return self._link_resources(platform_device_id, PRED.hasDeployment, deployment_id)
+        # make sure that only 1 site-device-deployment triangle exists at one time
+        sites, _ = self.RR.find_subjects(RT.PlatformSite, PRED.hasDevice, platform_device_id, False)
+        if 1 < len(sites):
+            raise Inconsistent("Device is assigned to more than one site")
+        if 1 == len(sites):
+            site_deployments = self._find_stemming(sites[0]._id, PRED.hasDeployment, RT.Deployment)
+            if 1 < len(site_deployments):
+                raise Inconsistent("Site has more than one deployment")
+            if 1 == len(site_deployments):
+                if site_deployments[0]._id != deployment_id:
+                    raise BadRequest("Site to which this device is assigned has a different deployment")
+
+            for dev in self._find_stemming(sites[0]._id, PRED.hasDevice, RT.PlatformDevice):
+                if 0 < len(self._find_stemming(dev, PRED.hasDeployment, RT.Deployment)):
+                    raise BadRequest("Site already has a device with a deployment")
+
+        return self._link_resources_single_object(platform_device_id, PRED.hasDeployment, deployment_id)
 
     def unlink_deployment(self, platform_device_id='', deployment_id=''):
         return self._unlink_resources(platform_device_id, PRED.hasDeployment, deployment_id)
@@ -76,8 +92,8 @@ class PlatformDeviceImpl(ResourceImpl):
     def find_stemming_model(self, platform_device_id):
         return self._find_stemming(platform_device_id, PRED.hasModel, RT.PlatformModel)
 
-    def find_having_device(self, instrument_device_id):
-        return self._find_having(PRED.hasDevice, instrument_device_id)
+    def find_having_device(self, platform_device_id):
+        return self._find_having(PRED.hasDevice, platform_device_id)
 
     def find_stemming_device(self, platform_device_id):
         return self._find_stemming(platform_device_id, PRED.hasDevice, RT.InstrumentDevice)
