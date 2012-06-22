@@ -53,7 +53,7 @@ b.txt,currently unused,3 of the letter b,text/plain,"b,B,beta,bravo"
 c.txt,currently unused,3 of the letter c,text/plain,"c,C,gamma,charlie"
 
 """
-- keywordsBASE64_ZIPFILE = """
+keywordsBASE64_ZIPFILE = """
 UEsDBAoAAgAAAFiItkCVXfh3BAAAAAQAAAAFABwAYS50eHRVVAkAA/f+u09Q/7tPdXgLAAEE6AMA
 AAToAwAAYWFhClBLAwQKAAIAAABaiLZA4R8mTAQAAAAEAAAABQAcAGIudHh0VVQJAAP7/rtPUP+7
 T3V4CwABBOgDAAAE6AMAAGJiYgpQSwMECgACAAAAW4i2QPIjQ+wEAAAABAAAAAUAHABjLnR4dFVU
