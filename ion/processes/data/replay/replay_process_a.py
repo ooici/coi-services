@@ -75,8 +75,8 @@ class ReplayProcess(BaseReplayProcess):
                 obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
                 self.output.publish(obj)
 
-
-
+        # Need to terminate the stream, null granule = {}
+        self.output.publish({}) 
         return True
 
 
