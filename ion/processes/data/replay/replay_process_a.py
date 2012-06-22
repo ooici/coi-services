@@ -75,6 +75,8 @@ class ReplayProcess(BaseReplayProcess):
                 obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
                 self.output.publish(obj)
 
+
+
         return True
 
 
