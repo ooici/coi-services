@@ -757,7 +757,7 @@ class OrgManagementService(BaseOrgManagementService):
         return ret_list
 
 
-    def find_roles_by_user(self, org_id='', user_id=''):
+    def find_org_roles_by_user(self, org_id='', user_id=''):
         """Returns a list of User Roles for a specific user in an Org.
         Will throw a not NotFound exception if either of the IDs do not exist.
 

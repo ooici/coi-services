@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from ion.services.sa.instrument.data_product_impl import DataProductImpl
+from ion.services.sa.product.data_product_impl import DataProductImpl
 
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, PRED
@@ -54,7 +54,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,  description=data_product.description, stream_definition_id=stream_definition_id)
             log.debug("create_data_product: create stream stream_id %s" % stream_id)
             # Associate the Stream with the main Data Product
-            self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
+            self.data_product.link_stream(data_product_id, stream_id)
 
         # Return a resource ref to the new data product
         return data_product_id
@@ -84,7 +84,7 @@ class DataProductManagementService(BaseDataProductManagementService):
  
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
                
-        self.clients.resource_registry.update(data_product)
+        self.data_product.update_one(data_product)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
@@ -94,9 +94,11 @@ class DataProductManagementService(BaseDataProductManagementService):
     def delete_data_product(self, data_product_id=''):
 
         #Check if this data product is associated to a producer
-        producer_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
+        #todo: convert to impl call
+        producer_ids = self.data_product.find_stemming_data_producer(data_product_id)
+
         if producer_ids:
-            log.debug("DataProductManagementService:delete_data_product: %s" % str(producer_ids))
+            log.debug("unassigning data producers: %s")
             self.clients.data_acquisition_management.unassign_data_product(data_product_id)
         
         # Delete the data product
@@ -116,12 +118,8 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Organize and return the list of matches with summary metadata (title, summary, keywords)
 
-        #find the items in the store
-        if filters is None:
-            objects, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
-        else:  # TODO: code for all the filter types
-            objects = []
-        return objects
+        return self.data_product.find_some(filters)
+
 
 
     def activate_data_product_persistence(self, data_product_id='', persist_data=True, persist_metadata=True):
@@ -131,15 +129,16 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # retrieve the data_process object
-        data_product_obj = self.clients.resource_registry.read(data_product_id)
+        data_product_obj = self.data_product.read_one(data_product_id)
 
         # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
-        streams, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
+        streams = self.data_product.find_stemming_stream(data_product_id)
         if not streams:
             raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
 
+        #todo: what if there are multiple streams?
         stream = streams[0]
-        log.debug("activate_data_product_persistence: stream = %s"  % str(stream))
+        log.debug("activate_data_product_persistence: stream = %s"  % str(stream._id))
 
         # Find THE ingestion configuration in the RR to create a ingestion configuration
         # todo: how are multiple ingest configs for a site managed?
