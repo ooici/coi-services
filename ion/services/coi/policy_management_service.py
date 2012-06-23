@@ -24,12 +24,12 @@ class PolicyManagementService(BasePolicyManagementService):
         self.event_pub = EventPublisher()
 
         self.policy_event_subscriber = EventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self.policy_event_callback)
-        self.policy_event_subscriber.start()
+        self.policy_event_subscriber.activate()
 
     def on_quit(self):
 
         if self.policy_event_subscriber is not None:
-            self.policy_event_subscriber.stop()
+            self.policy_event_subscriber.deactivate()
 
 
     """

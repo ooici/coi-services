@@ -123,12 +123,12 @@ class VisualizationService(BaseVisualizationService):
             callback=self.receive_new_dataproduct_event
         )
 
-        self.event_subscriber.start()
+        self.event_subscriber.activate()
 
         return
 
     def on_stop(self):
-        self.event_subscriber.stop()
+        self.event_subscriber.deactivate()
 
         super(VisualizationService, self).on_stop()
         return
