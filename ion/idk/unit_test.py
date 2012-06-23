@@ -596,7 +596,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
                 self._publishers.async_event_result.set()
                 
         event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
-        event_sub.activate()
+        event_sub.start()
         self._publishers.event_subscribers.append(event_sub)
         
     def stop_event_subscribers(self):
@@ -604,7 +604,7 @@ class InstrumentDriverQualificationTestCase(InstrumentDriverTestCase):
         Stop event subscribers on cleanup.
         """
         for sub in self._publishers.event_subscribers:
-            sub.deactivate()
+            sub.stop()
             
     def _listen(self, sub):
         """

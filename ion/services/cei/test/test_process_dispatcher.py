@@ -238,7 +238,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
     def tearDown(self):
         if self.event_sub:
-            self.event_sub.deactivate()
+            self.event_sub.stop()
 
     def _event_callback(self, event, *args, **kwargs):
         self.event_queue.put(event)
@@ -246,7 +246,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
     def subscribe_events(self, origin):
         self.event_sub =  EventSubscriber(event_type="ProcessLifecycleEvent",
             callback=self._event_callback, origin=origin, origin_type="DispatchedProcess")
-        self.event_sub.activate()
+        self.event_sub.start()
 
     def await_state_event(self, pid, state):
         event = self.event_queue.get(timeout=5)
