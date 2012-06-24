@@ -103,7 +103,7 @@ class SimpleCtdPublisher(StandaloneProcess):
             log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
 
-            time.sleep(2.0)
+            time.sleep(1.0)
 
     def _get_ctd_packet(self, stream_id, length):
 
@@ -162,5 +162,5 @@ class PointCtdPublisher(StandaloneProcess):
             log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
 
-            time.sleep(2.0)
+            time.sleep(1.0)
 
