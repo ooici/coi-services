@@ -809,40 +809,40 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+#@attr('INT', group='eoi')
+#class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+#    # DataHandler config
+#    DVR_CONFIG = {
+#        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
+#        'dvr_cls' : 'DummyDataHandler',
+#        }
+#
+#    # Constraints dict
+#    HIST_CONSTRAINTS_1 = {
+#        'array_len':15,
+#        }
+#    HIST_CONSTRAINTS_2 = {
+#        'array_len':10,
+#        }
+#
+#    NDC = {
+#    }
+#
+#    def _setup_resources(self):
+#        stream_id = self.create_stream_and_logger(name='dummydata_stream')
+#
+#        tx = TaxyTool()
+#        tx.add_taxonomy_set('dummy', 'external_data')
+#        self.DVR_CONFIG['dh_cfg'] = {
+#            'TESTING':True,
+#            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
+#            'data_producer_id':'dummy_data_producer_id',
+#            'taxonomy':tx.dump(),
+#            'max_records':4,
+#            }
+
 @attr('INT', group='eoi')
 class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
-    # DataHandler config
-    DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
-        'dvr_cls' : 'DummyDataHandler',
-        }
-
-    # Constraints dict
-    HIST_CONSTRAINTS_1 = {
-        'array_len':15,
-        }
-    HIST_CONSTRAINTS_2 = {
-        'array_len':10,
-        }
-
-    NDC = {
-    }
-
-    def _setup_resources(self):
-        stream_id = self.create_stream_and_logger(name='dummydata_stream')
-
-        tx = TaxyTool()
-        tx.add_taxonomy_set('data', 'external_data')
-        self.DVR_CONFIG['dh_cfg'] = {
-            'TESTING':True,
-            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
-            'data_producer_id':'dummy_data_producer_id',
-            'taxonomy':tx.dump(),
-            'max_records':4,
-            }
-
-@attr('INT_LONG', group='eoi')
-class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
         'dvr_cls' : 'FibonacciDataHandler',

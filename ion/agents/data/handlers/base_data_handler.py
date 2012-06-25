@@ -420,7 +420,8 @@ class BaseDataHandler(object):
             config['constraints'] = constraints
         elif isinstance(constraints, dict):
             addnl_constr = cls._constraints_for_historical_request(config)
-            constraints.update(addnl_constr)
+            if not addnl_constr is None and isinstance(addnl_constr, dict):
+                constraints.update(addnl_constr)
         else:
             raise InstrumentParameterException('Data constraints must be of type \'dict\':  {0}'.format(constraints))
 

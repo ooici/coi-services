@@ -199,7 +199,7 @@ class TestRuvDataHandlerUnit(PyonTestCase):
             }
         }
         ret = RuvDataHandler._constraints_for_new_request(config)
-        log.warn('test__new_data_constraints: {0}'.format(config))
+        log.debug('test__new_data_constraints: {0}'.format(config))
         self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
     def test__get_data(self):
@@ -249,9 +249,9 @@ class TestRuvDataHandlerUnit(PyonTestCase):
             }
         }
         ret = RuvDataHandler._constraints_for_historical_request(config)
-        log.warn('test__get_archive_constraints: {0}'.format(ret['new_files']))
+        log.debug('test__constraints_for_historical_request: NEW_FILES == {0}'.format(ret['new_files']))
         files = list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern'])
-        files = files[:2]
+#        files = files[:2]
         self.assertEqual(ret['new_files'],files)
 
 
