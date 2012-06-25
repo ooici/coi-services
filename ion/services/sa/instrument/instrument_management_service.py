@@ -9,12 +9,13 @@
 
 #from pyon.public import Container
 from pyon.public import LCE
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, OT
 from pyon.public import CFG
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
+from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.log import log
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
@@ -47,7 +48,7 @@ from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
-from ion.services.sa.instrument.data_product_impl import DataProductImpl
+from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.logger_process import EthernetDeviceLogger
@@ -70,6 +71,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.override_clients(self.clients)
         self._pagent = None
+        self.extended_resource_handler = ExtendedResourceContainer(self)
 
     def override_clients(self, new_clients):
         """
@@ -1334,6 +1336,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
    #
    #####################################################
 
+    def transfer_subscription(self, instrument_device_id_old, instrument_device_id_new):
+        pass
    
     # Maurice - activate deployment is for hardware
     #           this function is "transfer site subscription"
@@ -1532,3 +1536,38 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("mfms:reassign_instrument_device_to_logical_instrument:   stream_def_map: %s ", str(stream_def_map))
         return stream_def_map
+
+    def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
+        """Returns an InstrumentDeviceExtension object containing additional related information
+
+        @param instrument_device_id    str
+        @param ext_associations    dict
+        @param ext_exclude    list
+        @retval instrument_device    InstrumentDeviceExtension
+        @throws BadRequest    A parameter is missing
+        @throws NotFound    An object with the specified instrument_device_id does not exist
+        """
+
+        if not instrument_device_id:
+            raise BadRequest("The instrument_device_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_instrument = extended_resource_handler.create_extended_resource_container(OT.InstrumentDeviceExtension,
+            instrument_device_id, OT.InstrumentDeviceComputedAttributes, ext_associations, ext_exclude)
+
+        return extended_instrument
+
+
+        #Bogus functions for computed attributes
+    def get_software_version(self, instrument_device_id):
+        return "1.1"
+
+    def get_location(self, instrument_device_id):
+        return IonObject(OT.GeospatialBounds)
+
+    def get_attached_sensors(self, instrument_device_id):
+        return ['abc','123']
+
+    def get_data_produced(self, instrument_device_id):
+        return "1.1"

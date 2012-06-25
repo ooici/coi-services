@@ -26,6 +26,33 @@ import pwd
 
 from ion.services.sa.test.helpers import any_old
 
+
+"""
+@qa_documents a base64-encoded zip file containing a MANIFEST.csv file
+
+
+zip contents:
+ a.txt
+ b.txt
+ c.txt
+ MANIFEST.csv
+
+MANIFEST.csv fields:
+- filename
+- name
+- description
+- content_type
+
+text file contents: aaa, bbb, and ccc
+
+MANIFEST.csv contents:
+
+filename,name,description,content_type,keywords
+a.txt,currently unused,3 of the letter a,text/plain,"a,A,alpha,alfa"
+b.txt,currently unused,3 of the letter b,text/plain,"b,B,beta,bravo"
+c.txt,currently unused,3 of the letter c,text/plain,"c,C,gamma,charlie"
+
+"""
 BASE64_ZIPFILE = """
 UEsDBAoAAgAAAFiItkCVXfh3BAAAAAQAAAAFABwAYS50eHRVVAkAA/f+u09Q/7tPdXgLAAEE6AMA
 AAToAwAAYWFhClBLAwQKAAIAAABaiLZA4R8mTAQAAAAEAAAABQAcAGIudHh0VVQJAAP7/rtPUP+7
@@ -42,7 +69,11 @@ BOgDAABQSwECHgMUAAIACAA3ObhAJSokwIgAAAACAQAADAAYAAAAAAABAAAApIHJAAAATUFOSUZF
 U1QuY3N2VVQFAAP5Fr5PdXgLAAEE6AMAAAToAwAAUEsFBgAAAAAEAAQAMwEAAJcBAAAAAA==
 """
 
+"""
+@agent_egg a base64-encoded egg file
 
+this contains only EGG-INFO/PKG-INFO, and in that file only the name and version fields matter
+"""
 BASE64_EGG = """
 UEsDBBQAAAAIAPtOuEASJdDPBQEAAHMBAAARABwARUdHLUlORk8vUEtHLUlORk9VVAkAA+o9vk8f
 tL5PdXgLAAEE6AMAAAToAwAAXZDBbsIwDIbveQo/AGlhHJByGlORkIBuGmM7u4nXRmriKkmH+vYL
@@ -109,11 +140,12 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
             a = self.RR.read_attachment(a_id)
 
             parts = string.split(a.name, ".")
-            
+
+            # we expect a.txt to contain "aaa" and have a keyword listed called "a"
             if "txt" == parts[1]:
                 self.assertEqual("text/plain", a.content_type)
                 self.assertIn(parts[0], a.keywords)
-                self.assertEqual(a.content, (parts[0] * 3) + "\n")
+                self.assertEqual(a.content, str(parts[0] * 3) + "\n")
 
         log.info("L4-CI-SA-RQ-148")
 

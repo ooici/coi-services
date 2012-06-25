@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.data_product_impl
+@package  ion.services.sa.product.data_product_impl
 @author   Ian Katz
 """
 
@@ -62,7 +62,7 @@ class DataProductImpl(ResourceImpl):
         return self._find_having(PRED.hasStream, stream_id)
 
     def find_stemming_stream(self, data_product_id):
-        return self._find_stemming(data_product_id, PRED.hasStream, RT.DataSet)
+        return self._find_stemming(data_product_id, PRED.hasStream, RT.Stream)
 
     def find_having_parent(self, parent_data_product_id):
         return self._find_having(PRED.hasParent, parent_data_product_id)

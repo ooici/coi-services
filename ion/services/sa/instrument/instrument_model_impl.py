@@ -13,7 +13,7 @@ from pyon.public import RT, LCS, PRED, LCE
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.policy import ModelPolicy
+from ion.services.sa.instrument.resource_lcs_policy import ModelPolicy
 
 class InstrumentModelImpl(ResourceSimpleImpl):
     """

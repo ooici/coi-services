@@ -69,7 +69,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             log.info('SinusoidalCtdPublisher sending 1 record!')
             self.publisher.publish(ctd_packet)
 
-            time.sleep(2.0)
+            time.sleep(1.0)
 
             #count += 1
 
