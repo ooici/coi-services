@@ -26,17 +26,12 @@ setup(  name = 'coi-services',
         packages = find_packages(),
         dependency_links = [
             'http://ooici.net/releases',
+            'https://github.com/ooici/marine-integrations/tarball/master#egg=marine-integrations'
             'https://github.com/ooici/pyon/tarball/master#egg=pyon'
         ],
         test_suite = 'pyon',
-        entry_points = {
-            'console_scripts' : [
-                'package_driver=ion.idk.scripts.package_driver:run',
-                'start_driver=ion.idk.scripts.start_driver:run',
-                'test_driver=ion.idk.scripts.test_driver:run',
-            ],
-        },
         install_requires = [
+            'marine-integrations',
             'pyon',
             'Flask==0.8',
             'WebTest',
