@@ -52,7 +52,6 @@ from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.logger_process import EthernetDeviceLogger
-from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
