@@ -13,7 +13,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from pyon.public import log
 from nose.plugins.attrib import attr
@@ -168,7 +168,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #            'svr_addr': "localhost",
 #            'cmd_port': 5556,
 #            'evt_port': 5557,
-#            'dvr_mod': "ion.agents.instrument.drivers.sbe37.sbe37_driver",
+#            'dvr_mod': "mi.instrument.seabird.sbe37smb.ooicore.driver",
 #            'dvr_cls': "SBE37Driver",
 #            'comms_config': {
 #                    'addr': 'sbe37-simulator.oceanobservatories.org',
@@ -176,7 +176,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #                }
 #            }
         driver_config = {
-            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
+            'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }

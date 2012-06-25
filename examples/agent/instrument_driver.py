@@ -20,8 +20,8 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 #from ion.agents.instruments.drivers.sbe37.sbe37_driver import SBE37Channel
-from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
-from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 from pyon.public import CFG
 from mock import patch
 
@@ -53,7 +53,7 @@ def instrument_test_driver(container):
         'svr_addr': 'localhost',
         'cmd_port': 5556,
         'evt_port': 5557,
-        'dvr_mod': 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
+        'dvr_mod': 'mi.instrument.seabird.sbe37smb.ooicore.driver',
         'dvr_cls': 'SBE37Driver',
         'comms_config': {
             SBE37Channel.CTD: {

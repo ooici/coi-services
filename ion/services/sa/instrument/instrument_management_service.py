@@ -174,7 +174,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance, instrument_agent_instance_id)
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance, instrument_agent_instance_id)
 
-        self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+        self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCE.RETIRE)
+        #self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
 
         return
 
@@ -461,7 +462,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.clients.process_dispatcher.delete_process_definition(process_def_ids[0])
 
-        return self.instrument_agent.delete_one(instrument_agent_id)
+        self.instrument_agent.advance_lcs(instrument_agent_id, LCE.RETIRE)
+        #return self.instrument_agent.delete_one(instrument_agent_id)
 
 
     def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
@@ -683,7 +685,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.instrument_model.delete_one(instrument_model_id)
+        self.instrument_model.advance_lcs(instrument_model_id, LCE.RETIRE)
+        #return self.instrument_model.delete_one(instrument_model_id)
 
 
 
@@ -738,7 +741,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.instrument_device.delete_one(instrument_device_id)
+        self.instrument_device.advance_lcs(instrument_device_id, LCE.RETIRE)
+        #return self.instrument_device.delete_one(instrument_device_id)
 
 
 
@@ -825,7 +829,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.platform_agent_instance.delete_one(platform_agent_instance_id)
+        self.platform_agent.advance_lcs(platform_agent_instance_id, LCE.RETIRE)
+        #return self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
 
 
@@ -876,7 +881,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.platform_agent.delete_one(platform_agent_id)
+        self.platform_agent.advance_lcs(platform_agent_id, LCE.RETIRE)
+        #return self.platform_agent.delete_one(platform_agent_id)
 
 
     ##########################################################################
@@ -923,7 +929,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.platform_model.delete_one(platform_model_id)
+        self.platform_model.advance_lcs(platform_model_id, LCE.RETIRE)
+        #return self.platform_model.delete_one(platform_model_id)
 
 
 
@@ -973,7 +980,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.platform_device.delete_one(platform_device_id)
+        self.platform_device.advance_lcs(platform_device_id, LCE.RETIRE)
+        #return self.platform_device.delete_one(platform_device_id)
 
 
 
@@ -1024,7 +1032,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.sensor_model.delete_one(sensor_model_id)
+        self.sensor_model.advance_lcs(sensor_model_id, LCE.RETIRE)
+        #return self.sensor_model.delete_one(sensor_model_id)
 
 
 
@@ -1074,7 +1083,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        return self.sensor_device.delete_one(sensor_device_id)
+        self.sensor_device.advance_lcs(sensor_device_id, LCE.RETIRE)
+        #return self.sensor_device.delete_one(sensor_device_id)
 
 
 
@@ -1336,7 +1346,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
    #
    #####################################################
 
-    def transfer_subscription(self, instrument_device_id_old, instrument_device_id_new):
+    def transfer_site_subscription(self, instrument_device_id_old, instrument_device_id_new):
         pass
    
     # Maurice - activate deployment is for hardware

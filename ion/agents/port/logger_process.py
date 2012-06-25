@@ -23,7 +23,7 @@ import logging
 import os
 import uuid
 
-from ion.agents.instrument.daemon_process import DaemonProcess
+from ion.agents.port.daemon_process import DaemonProcess
 from ion.agents.instrument.exceptions import InstrumentConnectionException
 
 mi_logger = logging.getLogger('mi_logger')
