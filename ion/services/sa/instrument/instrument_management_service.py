@@ -1569,5 +1569,5 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_attached_sensors(self, instrument_device_id):
         return ['abc','123']
 
-    def get_data_produced(self, instrument_device_id):
-        return "1.1"
+    def get_data_url(self, instrument_device_id):
+        return "http://iontest/data/" + instrument_device_id
