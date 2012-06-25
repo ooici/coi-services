@@ -65,6 +65,12 @@ class InstrumentParameterException(InstrumentException):
             
         InstrumentException.__init__(self, error_code, msg)
 
+class DriverLaunchException(InstrumentException):
+    """
+    A driver process failed to launch
+    """
+    pass
+
 class NotImplementedException(InstrumentException):
     """
     A driver function is not implemented.

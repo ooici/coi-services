@@ -198,7 +198,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             self.clients.org_management.remove_user_role(org_ids[0], DATA_OPERATOR_ROLE)
             # delete the org
             self.clients.org_management.delete_org(org_ids[0])
-        
+
+        #todo: self.observatory.advance_lcs(observatory_id, LCE.RETIRE)
         return self.observatory.delete_one(observatory_id)
 
 
@@ -242,7 +243,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-
+        # todo self.subsite.advance_lcs(subsite_id, LCE.RETIRE)
         self.subsite.delete_one(subsite_id)
 
 
@@ -289,6 +290,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
+        # todo self.platform_site.advance_lcs(platform_site_id, LCE.RETIRE)
         self.platform_site.delete_one(platform_site_id)
 
 
@@ -333,6 +335,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param instrument_site_id    str
         @throws NotFound    object with specified id does not exist
         """
+        # todo: self.instrument_site.advance_lcs(instrument_site_id, LCE.RETIRE)
         self.instrument_site.delete_one(instrument_site_id)
 
 

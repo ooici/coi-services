@@ -16,10 +16,9 @@ from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
 
-
 from interface.objects import Granule, Attachment, AttachmentType
 
-from ion.agents.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
+from mi.core.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
 
 ### For new granule and stream interface
