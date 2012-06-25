@@ -23,6 +23,7 @@ from ion.agents.instrument.driver_process import DriverProcess, DriverProcessTyp
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/agents.instrument/test/test_driver_launcher.py
 
+@unittest.skip("more negitive testing needed")
 @attr('UNIT', group='mi')
 class TestPythonClassDriverProcess(PyonTestCase):
     """
@@ -37,7 +38,7 @@ class TestPythonClassDriverProcess(PyonTestCase):
             'evt_port': 5557,
 
             'dvr_mod': 'mi.instrument.seabird.sbe37smb.example.driver',
-            'dvr_cls': 'exampleInstrumentDriver',
+            'dvr_cls': 'InstrumentDriver',
 
             'process_type': DriverProcessType.PYTHON_MODULE
         }
