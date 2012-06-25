@@ -96,7 +96,7 @@ class RuvDataHandler(BaseDataHandler):
         new_flst = get_safe(config, 'constraints.new_files', [])
 #        log.debug('new_flist: {0}'.format(new_flst))
         for f in new_flst:
-            log.error('Processing File: {0}'.format(f))
+            log.debug('Processing File: {0}'.format(f))
             try:
                 parser = RuvParser(f[0])
 

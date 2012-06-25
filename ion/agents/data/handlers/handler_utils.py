@@ -87,8 +87,11 @@ def list_file_info_fs(base, pattern):
 
 def get_time_from_filename(file_name, date_extraction_pattern, date_pattern):
     file_str = os.path.basename(file_name)
-    matches = ' '.join(re.match(date_extraction_pattern, file_str).groups())
-    return time.mktime(datetime.datetime.strptime(matches, date_pattern).timetuple())
+    matches = re.match(date_extraction_pattern, file_str)
+    if matches is None:
+        raise StandardError('No matches found in string \'{0}\'for pattern: {1}'.format(file_str,date_extraction_pattern))
+    match_str = ' '.join(matches.groups())
+    return time.mktime(datetime.datetime.strptime(match_str, date_pattern).timetuple())
 
 def calculate_iteration_count(total_recs, max_rec):
     """

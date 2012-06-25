@@ -62,7 +62,9 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
 
         dset.dataset_description.parameters['base_url'] = 'test_data/slocum/'
-        dset.dataset_description.parameters['pattern'] = 'ru05-2012-021-0-0-sbd.dat'
+        dset.dataset_description.parameters['list_pattern'] = 'ru05-2012-021-0-0-sbd.dat'
+        dset.dataset_description.parameters['date_pattern'] = '%Y %j'
+        dset.dataset_description.parameters['date_extraction_pattern'] = 'ru05-([\d]{4})-([\d]{3})-\d-\d-sbd.dat'
         dset.dataset_description.parameters['temporal_dimension'] = None
         dset.dataset_description.parameters['zonal_dimension'] = None
         dset.dataset_description.parameters['meridional_dimension'] = None
