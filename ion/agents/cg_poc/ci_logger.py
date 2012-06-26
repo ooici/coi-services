@@ -22,7 +22,7 @@ from ion.agents.instrument.common import BaseEnum
 #from ion.agents.instrument.common import InstErrorCode
 from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
 from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
-#from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Channel
+#from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Channel
 
 class CgMsgTypes(BaseEnum):
     ACK               = 0
@@ -51,7 +51,7 @@ class CiLogger(object):
         driver_config = {'svr_addr': 'localhost',
                          'cmd_port': 5556,
                          'evt_port': 5557,
-                         'dvr_mod': 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
+                         'dvr_mod': 'mi.instrument.seabird.sbe37smb.ooicore.driver',
                          'dvr_cls': 'SBE37Driver'}
         result = self._start_driver(driver_config)
         if not isinstance(result, int):

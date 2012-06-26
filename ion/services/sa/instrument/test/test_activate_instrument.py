@@ -114,7 +114,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
         driver_config = {
-            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
+            'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }
@@ -267,7 +267,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentStream: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
         driver_config = {
-            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
+            'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }

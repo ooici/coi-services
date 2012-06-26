@@ -1,207 +1,380 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.instrument.driver_process
-@file ion/agents.instrument/driver_process.py
-@author Edward Hunter
-@brief Messaing enabled driver processes.
+@package ion.agents.instrument.driver_launcher
+@file ion/agents.instrument/driver_launcher.py
+@author Bill French
+@brief Drive process class that provides a factory for different launch mechanisms
 """
 
-__author__ = 'Edward Hunter'
+__author__ = 'Bill French'
 __license__ = 'Apache 2.0'
 
-import logging
-from threading import Thread
-from subprocess import Popen
-from subprocess import PIPE
-import signal
 import os
 import sys
+import uuid
 import time
-from ion.agents.instrument.exceptions import InstrumentCommandException
-from ion.agents.instrument.instrument_driver import DriverAsyncEvent
+import signal
+import subprocess
 
-mi_logger = logging.getLogger('mi_logger')
+from pyon.util.log import log
+from ion.agents.instrument.common import BaseEnum
+
+from ion.agents.instrument.exceptions import DriverLaunchException
+from ion.agents.instrument.exceptions import NotImplementedException
+
+PYTHON_PATH = 'bin/python'
+
+class DriverProcessType(BaseEnum):
+    """
+    Base states for driver launcher types.
+    """
+    PYTHON_MODULE = 'ZMQPyClassDriverLauncher',
+    EGG = 'ZMQEggDriverLauncherG'
+
 
 class DriverProcess(object):
     """
-    Base class for messaging enabled OS-level driver processes. Provides
-    run loop, dynamic driver import and construction and interface
-    for messaging implementation subclasses.
+    Base class for driver process launcher
     """
-    
-    @staticmethod
-    def launch_process(cmd_str):
+    _driver_process = None
+    _driver_client = None
+
+    _driver_event_file = None
+    _driver_command_file = None
+
+    _command_port = None
+    _event_port = None
+
+    _packet_factories = None
+
+    @classmethod
+    def get_process(cls, driver_config, test_mode = False):
         """
-        Base class static constructor. Launch the calling class as a
-        separate OS level process. This method combines the derived class
-        command string with the common python interpreter command.
-        @param cmd_string The python command sequence to import, create and
-        run a derived class object.
-        @retval a Popen object representing the dirver process.
+        Factory method to get the correct driver process object based on the type in driver_config
+        @param driver_config a dict containing configuration information for the driver process. This will be different
+               for each driver process type, but each should minimally have 'process_type' which defines which object
+               to use for launching.
+        @param test_mode tell the driver you are running in test mode.  Some drivers use this to add a poison pill to
+               the driver process.
+        """
+        type = driver_config.get("process_type")
+        driver_module = driver_config.get('dvr_mod')
+
+        if not type:
+            raise DriverLaunchException("missing driver config: process_type")
+
+        # For some reason the enum wasn't working with the instrument agent.  I would see [emum] when called from
+        # the IA, but (enum,) when called from this module.
+        #elif type == DriverProcessType.PYTHON_MODULE:
+        elif driver_module:
+            return ZMQPyClassDriverProcess(driver_config, test_mode)
+
+        elif type == DriverProcessType.EGG:
+            raise NotImplementedException()
+            return ZMQEggDriverProcess(driver_config, test_mode)
+
+        else:
+            raise DriverLaunchException("unknown driver process type: %s" % type)
+
+    def launch(self):
+        """
+        Launch the driver process. Once the process is launched read the two status files that contain the event port
+        and command port for the driver.
+        @raises DriverLaunchException
+        """
+        log.info("Launch driver process")
+
+        cmd = self._process_command()
+        self._driver_process = self._spawn(cmd)
+
+        if not self._driver_process and not self.poll():
+            log.error("Failed to launch driver: %s" % cmd)
+            raise DriverLaunchException('Error starting driver process')
+
+        log.debug("driver process started, pid: %s" % self.getpid())
+
+        self._command_port = self._get_port_from_file(self._driver_command_port_file())
+        self._event_port = self._get_port_from_file(self._driver_event_port_file())
+
+        log.debug("-- command port: %s, event port: %s" % (self._command_port, self._event_port))
+
+    def poll(self):
+        """
+        Check to see if the driver process is alive.
+        @return true if driver process is running, false otherwise
         """
 
-        # Launch a separate python interpreter, executing the calling
-        # class command string.
-        spawnargs = ['bin/python', '-c', cmd_str]
-        return Popen(spawnargs, close_fds=True)
-        
-    def __init__(self, driver_module, driver_class, ppid):
-        """
-        @param driver_module The python module containing the driver code.
-        @param driver_class The python driver class.
-        """
-        self.driver_module = driver_module
-        self.driver_class = driver_class
-        self.ppid = ppid
-        self.driver = None
-        self.events = []
-        self.messaging_started = False
-        
-    def construct_driver(self):
-        """
-        Attempt to import and construct the driver object based on
-        configuration.
-        @retval True if successful, False otherwise.
-        """
-        import_str = 'import %s as dvr_mod' % self.driver_module
-        ctor_str = 'driver = dvr_mod.%s(self.send_event)' % self.driver_class
-        try:
-            exec import_str
-            mi_logger.info('Imported driver module %s', self.driver_module)
-            exec ctor_str
-            mi_logger.info('Constructed driver %s', self.driver_class)
-            
-        except (ImportError, NameError, AttributeError) as e:
-            mi_logger.error('Could not import/construct driver module %s, class %s.',
-                      self.driver_module, self.driver_class)
-            mi_logger.error('%s', str(e))
+        # The Popen.poll() doesn't seem to be returning reliable results.  Sending a signal 0 to the process might be
+        # more reliable.
+
+        if not self._driver_process:
             return False
 
-        else:
-            self.driver = driver
-            return True
-            
-    def start_messaging(self):
-        """
-        Initialize and start messaging resources for the driver, blocking
-        until messaging terminates. Overridden in subclasses for
-        specific messaging technologies. 
-        """
-        pass
+        try:
+            os.kill(self._driver_process.pid, 0)
+        except OSError, e:
+            log.warn("Could not send a signal to the driver, pid: %s" % self._driver_process.pid)
+            return False
 
-    def stop_messaging(self):
-        """
-        Close messaging resource for the driver. Overridden in subclasses
-        for specific messaging technologies.
-        """
-        pass
-
-    def shutdown(self):
-        """
-        Shutdown function prior to process exit.
-        """
-        mi_logger.info('Driver process shutting down.')
-        self.driver_module = None
-        self.driver_class = None
-        self.driver = None
-
-    def check_parent(self):
-        """
-        Test for existence of original parent process, if ppid specified.
-        """
-        if self.ppid:
-            try:
-                os.kill(self.ppid, 0)
-                
-            except OSError:
-                mi_logger.info('Driver process COULD NOT DETECT PARENT.')
-                return False
-        
         return True
 
-    def cmd_driver(self, msg):
-        """
-        Process a command message against the driver. If the command
-        exists as a driver attribute, call it passing supplied args and
-        kwargs and returning the driver result. Special messages that are
-        not forwarded to the driver are:
-        'stop_driver_process' - signal to close messaging and terminate.
-        'test_events' - populate event queue with test data.
-        'process_echo' - echos the message back.
-        If the command is not found in the driver, an echo message is
-        replied to the client.
-        @param msg A driver command message.
-        @retval The driver command result.
-        """
-        cmd = msg.get('cmd', None)
-        args = msg.get('args', None)
-        kwargs = msg.get('kwargs', None)
-        cmd_func = getattr(self.driver, cmd, None)
-        mi_logger.debug("DriverProcess.cmd_driver(): cmd=%s, cmd_func=%s" %(cmd, cmd_func))
-        if cmd == 'stop_driver_process':
-            self.stop_messaging()
-            return'stop_driver_process'
-        elif cmd == 'test_events':
-            events = kwargs['events']
-            self.events += events
-            reply = 'test_events'
-        elif cmd == 'process_echo':
-            reply = 'process_echo: %s' % str(args[0])
-        elif cmd_func:
-            try:
-                reply = cmd_func(*args, **kwargs)
-            except Exception as e:
-                reply = e
-                event = {
-                    'type' : DriverAsyncEvent.ERROR,
-                    'value' : str(e),
-                    'exception' : e,
-                    'time' : time.time()
-                }
-                self.send_event(event)
-                
-        else:
-            reply = InstrumentCommandException('Unknown driver command.')
-            event = {
-                'type' : DriverAsyncEvent.ERROR,
-                'value' : str(reply),
-                'exception' : reply,
-                'time' : time.time()
-            }
-            self.send_event(event)
-        
-        return reply        
-            
-    def send_event(self, evt):
-        """
-        Append an event to the list to be sent by the event threaed.
-        """
-        self.events.append(evt)
-            
-    def run(self):
-        """
-        Process entry point. Construct driver and start messaging loops.
-        Periodically check messaging is going and parent exists if
-        specified.
-        """
-        
-        mi_logger.info('Driver process started.')
-        
-        def shand(signum, frame):
-            mi_logger.info('DRIVER GOT SIGINT')        
-        signal.signal(signal.SIGINT, shand)
 
-        if self.construct_driver():
-            self.start_messaging()
-            while self.messaging_started:
-                if self.check_parent():
-                    time.sleep(2)
-                else:
-                    self.stop_messaging()
-                    break
-            
-        self.shutdown()
-        time.sleep(1)
-        os._exit(0)
-        
+
+
+    def stop(self):
+        """
+        Stop the driver process.  We try to stop gracefully using the driver client if we can, otherwise a simple kill
+        does the job.
+        """
+        if self._driver_process:
+            if self._driver_client:
+                self._driver_client.done()
+                self._driver_process.wait()
+                self._driver_process = None
+                self._driver_client = None
+                log.debug("driver process stopped")
+            else:
+                try:
+                    self._driver_process.kill()
+                    self._driver_process.wait()
+                    self._driver_process = None
+                    log.debug("driver process killed")
+
+                except OSError:
+                    pass
+
+    def getpid(self):
+        """
+        Get the pid of the current running process and ensure that it is running.
+        @returns the pid of the driver process if it is running, otherwise None
+        """
+        if self._driver_process:
+            if self.poll():
+                return self._driver_process.pid
+            else:
+                log.warn("Driver process found, but poll failed for pid %s" % self._driver_process.pid)
+        else:
+            return None
+
+    def memory_usage(self):
+        """
+        Get the current memory usage for the current driver process.
+        @returns memory usage in KB of the current driver process
+        """
+        driver_pid = self.getpid()
+        if not driver_pid:
+            log.warn("no process running")
+            return 0
+
+        #ps_process = subprocess.Popen(["ps", "-p", self.getpid(), "-o", "rss,pid"])
+        ps_process = subprocess.Popen(["ps", "-o rss,pid", "-p %s" % self.getpid()], stdout=subprocess.PIPE)
+        retcode = ps_process.poll()
+
+        usage = 0
+        for line in ps_process.stdout:
+            if not line.strip().startswith('RSS'):
+                try:
+                    fields = line.split()
+                    pid = int(fields[1])
+                    if pid == driver_pid:
+                        usage = int(fields[0])
+                except:
+                    log.warn("Failed to parse output for memory usage: %s" % line)
+                    usage = 0
+
+        if usage:
+            log.info("process memory usage: %dk" % usage)
+        else:
+            log.warn("process not running")
+
+        return usage
+
+    def _spawn(self, spawnargs):
+        """
+        Launch a process using popen
+        @param spawnargs a list of arguments for the Popen command line.  The first argument must be a path to a
+                         program and arguments much be in additional list elements.
+        @returns subprocess.Popen object
+        """
+        log.debug("run cmd: %s" % " ".join(spawnargs))
+        return subprocess.Popen(spawnargs, close_fds=True)
+
+
+    def _process_command(self):
+        """
+        Define the command that is sent to _spawn.  This will be specific to each driver process type
+        """
+        raise DriverLaunchException("_process_command must be overloaded")
+
+    def _get_port_from_file(self, filename):
+        """
+        Read the driver port from a status file.  The driver process writes two status files containing the port
+        number for events and commands.  Currently it reads endlessly until the files is successfully opened, but
+        we may want to raise an exception with a timeout.
+        @param filename path to the port file
+        @return port port number read from the file
+        """
+        log.debug("read port from file: %s" % filename)
+
+        #TODO: Should this timeout?
+        while True:
+            try:
+                cmd_port_file = file(filename, 'r')
+                port = int(cmd_port_file.read().strip())
+                cmd_port_file.close()
+                os.remove(filename)
+                break
+
+            except IOError, e:
+                log.debug("failed to read file %s: %s (retry)" % (filename, e))
+                time.sleep(.1)
+                pass
+
+        return port
+
+    def _driver_workdir(self):
+        """
+        read the driver config and get the work directory.
+        @returns path to the work directory, default /tmp
+        """
+        return self.config.get('workdir', '/tmp')
+
+    def _driver_command_port_file(self):
+        """
+        Generate a uniq filename for the command port file.
+        @returns path to a command port file
+        """
+        if not self._driver_command_file:
+            tag = str(uuid.uuid4())
+            self._driver_command_file = os.path.join(self._driver_workdir(), 'dvr_cmd_port_%s.txt' % tag)
+
+        return self._driver_command_file
+
+    def _driver_event_port_file(self):
+        """
+        Generate a uniq filename for the event port file.
+        @returns path to a event port file
+        """
+        if not self._driver_event_file:
+            tag = str(uuid.uuid4())
+            self._driver_event_file = os.path.join(self._driver_workdir(), 'dvr_evt_port_%s.txt' % tag)
+
+        return self._driver_event_file
+
+
+class ZMQPyClassDriverProcess(DriverProcess):
+    """
+    Object to facilitate ZMQ driver processes using a python class and module path.
+
+    Driver config requirements:
+    dvr_mod :: the python module that defines the driver class
+    dvr_cls :: the driver class defined in the module
+
+    Example:
+
+    driver_config = {
+        dvr_mod: mi.instrument.seabird.sbe37smb.ooicore.driver
+        dvr_cls: SBE37Driver
+
+        process_type: DriverProcessType.PYTHON_MODULE
+    }
+    @param driver_config configuration parameters for the driver process
+    @param test_mode should the driver be run in test mode
+    """
+    def __init__(self, driver_config, test_mode = False):
+        self.config = driver_config
+        self.test_mode = test_mode
+
+    def _process_command(self):
+        """
+        Build the process command line using the driver_config dict
+        @return a list containing spawn args for the _spawn method
+        """
+        log.debug("cwd: %s" % os.getcwd())
+        driver_module = self.config.get('dvr_mod')
+        driver_class = self.config.get('dvr_cls')
+        ppid = os.getpid() if self.test_mode else None
+
+        python = PYTHON_PATH
+
+        if not driver_module:
+            raise DriverLaunchException("missing driver config: driver_module")
+        if not driver_class:
+            raise DriverLaunchException("missing driver config: driver_class")
+        if not os.path.exists(python):
+            raise DriverLaunchException("could not find python executable: %s" % python)
+
+        cmd_port_fname = self._driver_command_port_file()
+        evt_port_fname = self._driver_event_port_file()
+        cmd_str = 'from %s import %s; dp = %s("%s", "%s", "%s", "%s", %s);dp.run()'\
+        % ('mi.core.instrument.zmq_driver_process', 'ZmqDriverProcess', 'ZmqDriverProcess', driver_module,
+           driver_class, cmd_port_fname, evt_port_fname, str(ppid))
+
+        return [ python, '-c', cmd_str ]
+
+    def get_client(self):
+        """
+        Get a python client for the driver process.
+        @return an client object for the driver process
+        """
+        # Start client messaging and verify messaging.
+        if not self._driver_client:
+            try:
+                from mi.core.instrument.zmq_driver_client import ZmqDriverClient
+                driver_client = ZmqDriverClient('localhost', self._command_port, self._event_port)
+                self._driver_client = driver_client
+            except Exception, e:
+                self.stop()
+                log.error('Error starting driver client: %s' % e)
+                raise DriverLaunchException('Error starting driver client.')
+
+        return self._driver_client
+
+    def get_packet_factories(self):
+        """
+        Construct packet factories from packet_config member of the driver_config.
+        @retval a list of packet factories defined.
+        """
+        if not self._packet_factories:
+            log.info("generating packet factories")
+            self._packet_factories = {}
+
+            driver_module = self.config.get('dvr_mod')
+            if not driver_module:
+                raise DriverLaunchException("missing driver config: driver_module")
+
+            # Should we poll the driver process to give us these configurations?  If defined in an interface then
+            # this method could be generalized for all driver processes.  It also seems like execing an import
+            # might be unsafe.
+            import_str = 'from %s import PACKET_CONFIG' % driver_module
+            try:
+                exec import_str
+                log.debug("PACKET_CONFIG: %s", PACKET_CONFIG)
+                for (name, val) in PACKET_CONFIG.iteritems():
+                    if val:
+                        try:
+                            mod = val[0]
+                            cls = val[1]
+                            import_str = 'from %s import %s' % (mod, cls)
+                            ctor_str = 'ctor = %s' % cls
+                            exec import_str
+                            exec ctor_str
+                            self._packet_factories[name] = ctor
+
+                        except Exception, e:
+                            log.error('error creating packet factory: %s', e)
+
+                        else:
+                            log.info('created packet factory for stream %s', name)
+            except Exception, e:
+                log.error('Instrument agent %s had error creating packet factories. %s', e)
+
+        return self._packet_factories
+
+class ZMQEggDriverLauncher(DriverProcess):
+    """
+    Object to facilitate driver processes launch from an egg as an 'eggsecutable'
+    """
+    def __init__(self):
+        pass

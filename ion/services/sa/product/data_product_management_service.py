@@ -222,12 +222,12 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
 
-    def set_data_product_lifecycle(self, data_product_id="", lifecycle_state=""):
+    def execute_data_product_lifecycle(self, data_product_id="", lifecycle_event=""):
        """
        declare a data_product to be in a given state
        @param data_product_id the resource id
        """
-       return self.data_product.advance_lcs(data_product_id, lifecycle_state)
+       return self.data_product.advance_lcs(data_product_id, lifecycle_event)
 
     def get_last_update(self, data_product_id=''):
         """@todo document this interface!!!
