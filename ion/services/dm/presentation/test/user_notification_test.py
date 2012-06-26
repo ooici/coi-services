@@ -20,7 +20,7 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent
+from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent, Frequency
 from ion.services.dm.presentation.discovery_service import QueryLanguage
 from ion.services.dm.utility.query_language import QueryLanguage
 import os
@@ -57,11 +57,11 @@ class UserNotificationTest(PyonTestCase):
 
         # Create a notification object
         notification_request = NotificationRequest(name='Setting_email',
-                                                    origin = 'origin',
-                                                    origin_type = 'origin_type',
-                                                    event_type= 'event_type',
-                                                    event_subtype = 'event_subtype' ,
-                                                    delivery_config= delivery_config)
+            origin = 'origin',
+            origin_type = 'origin_type',
+            event_type= 'event_type',
+            event_subtype = 'event_subtype' ,
+            delivery_config= delivery_config)
 
         # execution
         notification_id = self.user_notification.create_notification(notification_request, user_id)
@@ -126,15 +126,15 @@ class UserNotificationTest(PyonTestCase):
         #------------------------------------------------------------------------------------------------------
 
         res = self.user_notification.create_email(event_type='event_type',
-                                                    event_subtype='event_subtype',
-                                                    origin='origin',
-                                                    origin_type='origin_type',
-                                                    user_id='user_id',
-                                                    email='email',
-                                                    mode = DeliveryMode.DIGEST,
-                                                    message_header='message_header',
-                                                    parser='parser',
-                                                    period=2323)
+            event_subtype='event_subtype',
+            origin='origin',
+            origin_type='origin_type',
+            user_id='user_id',
+            email='email',
+            mode = DeliveryMode.DIGEST,
+            message_header='message_header',
+            parser='parser'
+        )
 
         #------------------------------------------------------------------------------------------------------
         # Assert results about complete arguments
@@ -148,7 +148,6 @@ class UserNotificationTest(PyonTestCase):
         self.assertEquals(user_id, 'user_id')
         self.assertEquals(notification_request.delivery_config.delivery['email'], 'email')
         self.assertEquals(notification_request.delivery_config.delivery['mode'], DeliveryMode.DIGEST)
-        self.assertEquals(notification_request.delivery_config.delivery['period'], 2323)
 
         self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
         self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
@@ -166,26 +165,26 @@ class UserNotificationTest(PyonTestCase):
 
         with self.assertRaises(BadRequest):
             res = self.user_notification.create_email(event_type='event_type',
-                                                    event_subtype='event_subtype',
-                                                    origin='origin',
-                                                    origin_type='origin_type',
-                                                    user_id='user_id',
-                                                    mode = DeliveryMode.DIGEST,
-                                                    message_header='message_header',
-                                                    parser='parser')
+                event_subtype='event_subtype',
+                origin='origin',
+                origin_type='origin_type',
+                user_id='user_id',
+                mode = DeliveryMode.DIGEST,
+                message_header='message_header',
+                parser='parser')
 
         #------------------------------------------------------------------------------------------------------
         # Test with user id missing - that is caught in the create_notification method
         #------------------------------------------------------------------------------------------------------
 
         res = self.user_notification.create_email(event_type='event_type',
-                                                event_subtype='event_subtype',
-                                                origin='origin',
-                                                origin_type='origin_type',
-                                                email='email',
-                                                mode = DeliveryMode.DIGEST,
-                                                message_header='message_header',
-                                                parser='parser')
+            event_subtype='event_subtype',
+            origin='origin',
+            origin_type='origin_type',
+            email='email',
+            mode = DeliveryMode.DIGEST,
+            message_header='message_header',
+            parser='parser')
 
         notification_request = kwargs_list['notification']
         user_id = kwargs_list['user_id']
@@ -194,20 +193,6 @@ class UserNotificationTest(PyonTestCase):
         self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
         self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
         self.assertEquals(notification_request.type, NotificationType.EMAIL)
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with no mode - bad request?
-        #------------------------------------------------------------------------------------------------------
-
-        with self.assertRaises(BadRequest):
-            res = self.user_notification.create_email(event_type='event_type',
-                                                        event_subtype='event_subtype',
-                                                        origin='origin',
-                                                        origin_type='origin_type',
-                                                        user_id='user_id',
-                                                        email='email',
-                                                        message_header='message_header',
-                                                        parser='parser')
 
     def test_match(self):
 
@@ -343,91 +328,6 @@ class UserNotificationTest(PyonTestCase):
         event = ExampleDetectableEvent('TestEvent', voltage=9)
         self.assertFalse(QueryLanguage.evaluate_condition(event, query))
 
-    def test_create_sms(self):
-
-        #------------------------------------------------------------------------------------------------------
-        #Setup for the create sms test
-        #------------------------------------------------------------------------------------------------------
-
-        cn = Mock()
-
-        notification_id = 'an id'
-        args_list = {}
-        kwargs_list = {}
-
-        def side_effect(*args, **kwargs):
-
-            args_list.update(args)
-            kwargs_list.update(kwargs)
-            return notification_id
-
-        cn.side_effect = side_effect
-        self.user_notification.create_notification = cn
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with complete arguments
-        #------------------------------------------------------------------------------------------------------
-
-        res = self.user_notification.create_sms(event_type='event_type',
-                                                event_subtype='event_subtype',
-                                                origin='origin',
-                                                origin_type='origin_type',
-                                                user_id='user_id',
-                                                phone='401-XXX-XXXX',
-                                                provider='provider',
-                                                message_header='message_header',
-                                                parser='parser')
-
-        #------------------------------------------------------------------------------------------------------
-        # Assert results about complete arguments
-        #------------------------------------------------------------------------------------------------------
-
-        self.assertEquals(res, notification_id)
-
-        notification_request = kwargs_list['notification']
-        user_id = kwargs_list['user_id']
-
-        self.assertEquals(user_id, 'user_id')
-        self.assertEquals(notification_request.delivery_config.delivery['phone_number'], '401-XXX-XXXX')
-        self.assertEquals(notification_request.delivery_config.delivery['provider'], 'provider')
-
-        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
-        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
-
-        self.assertEquals(notification_request.event_type, 'event_type')
-        self.assertEquals(notification_request.event_subtype, 'event_subtype')
-        self.assertEquals(notification_request.origin, 'origin')
-        self.assertEquals(notification_request.origin_type, 'origin_type')
-        self.assertEquals(notification_request.type, NotificationType.SMS)
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with phone missing - what should that do? - bad request?
-        #------------------------------------------------------------------------------------------------------
-
-        with self.assertRaises(BadRequest):
-            res = self.user_notification.create_sms(event_type='event_type',
-                event_subtype='event_subtype',
-                origin='origin',
-                origin_type='origin_type',
-                user_id='user_id',
-                provider='provider',
-                message_header='message_header',
-                parser='parser')
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with provider missing - what should that do? - bad request?
-        #------------------------------------------------------------------------------------------------------
-
-        with self.assertRaises(BadRequest):
-            res = self.user_notification.create_sms(event_type='event_type',
-                event_subtype='event_subtype',
-                origin='origin',
-                origin_type='origin_type',
-                user_id='user_id',
-                phone = '401-XXX-XXXX',
-                message_header='message_header',
-                parser='parser')
-
 
     def test_create_detection_filter(self):
         self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
@@ -483,9 +383,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             user_id=user_id,
             email='email@email.com',
             mode = DeliveryMode.DIGEST,
+            frequency= Frequency.REAL_TIME,
             message_header='message_header',
-            parser='parser',
-            period=1)
+            parser='parser')
 
         #------------------------------------------------------------------------------------------------------
         # Setup so as to be able to get the message and headers going into the
@@ -537,7 +437,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
     @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @unittest.skip('Test method needs updating to new interface and ion defs')
+    #    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_sms(self):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
@@ -547,7 +448,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_id, _ = self.rrc.create(user)
 
         # set up....
-        notification_id = self.unsc.create_sms(event_type='ResourceLifecycleEvent',
+        notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
             event_subtype=None,
             origin='Some_Resource_Agent_ID1',
             origin_type=None,
@@ -556,7 +457,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             provider='T-Mobile',
             message_header='message_header',
             parser='parser',
-            )
+        )
 
         #------------------------------------------------------------------------------------------------------
         # Setup so as to be able to get the message and headers going into the
@@ -619,8 +520,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         lower_bound = 5
         upper_bound = 10
         instrument = 'instrument_1'
-        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'" \
-                                % (field, lower_bound, upper_bound, instrument)
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
 
         field = 'voltage'
         value = 15
@@ -631,8 +532,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         lower_bound = 8
         upper_bound = 14
         instrument = 'instrument_3'
-        search_string3 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'" \
-                                % (field, lower_bound, upper_bound, instrument)
+        search_string3 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
 
 
         dfilt.processing['search_string'] = search_string1 + search_string2 + search_string3
@@ -645,7 +546,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             origin_type=None,
             user_id=user_id,
             filter_config=dfilt
-            )
+        )
 
         #---------------------------------------------------------------------------------
         # Create event subscription for resulting detection event
@@ -663,8 +564,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             email='email@email.com',
             mode = DeliveryMode.UNFILTERED,
             message_header='Detection event',
-            parser='parser',
-            period=1)
+            parser='parser'
+        )
 
 
         rle_publisher = EventPublisher("ExampleDetectableEvent")
@@ -684,8 +585,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #----------------------------------------------------------------------
 
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-                                    description="RLE test event",
-                                    voltage = 15)
+            description="RLE test event",
+            voltage = 15)
 
         msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
         # check that a non empty message was generated for email
@@ -710,8 +611,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------
 
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-                                    description="RLE test event",
-                                    voltage = 8)
+            description="RLE test event",
+            voltage = 8)
 
         msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
 
@@ -753,13 +654,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # create a dataset object in the RR to pass into the UNS method
         dataset_object = IonObject(RT.DataSet, name="dataset1")
         dataset_id, version = self.rrc.create(dataset_object)
-        
+
         # get the list of event types for the dataset
         events = self.unsc.find_event_types_for_resource(dataset_id)
         log.debug("dataset events = " + str(events))
         if not events == ['dataset_supplement_added', 'dataset_change']:
             self.fail("failed to return correct list of event types")
-            
+
         # try to pass in an id of a resource that doesn't exist (should fail)
         try:
             events = self.unsc.find_event_types_for_resource("bogus_id")
@@ -774,27 +675,27 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_id = self.imc.create_actor_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
-        
+
         # create first notification
         notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
-                                                                 "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['ResourceLifecycleEvent']})
+                                                                  "origin_list":['Some_Resource_Agent_ID1'],
+                                                                  "events_list":['ResourceLifecycleEvent']})
         notification_id1 = self.unsc.create_notification(notification_object1, user_id)
         # create second notification
         notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
-                                                                 "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DataEvent']})
+                                                                  "origin_list":['Some_Resource_Agent_ID2'],
+                                                                  "events_list":['DataEvent']})
         notification_id2 = self.unsc.create_notification(notification_object2, user_id)
-        
+
         # read the notifications back and check that they are correct
         n1 = self.unsc.read_notification(notification_id1)
-        if n1.name != notification_object1.name or \
-           n1.origin_list != notification_object1.origin_list or \
+        if n1.name != notification_object1.name or\
+           n1.origin_list != notification_object1.origin_list or\
            n1.events_list != notification_object1.events_list:
             self.fail("notification was not correct")
         n2 = self.unsc.read_notification(notification_id2)
-        if n2.name != notification_object2.name or \
-           n2.origin_list != notification_object2.origin_list or \
+        if n2.name != notification_object2.name or\
+           n2.origin_list != notification_object2.origin_list or\
            n2.events_list != notification_object2.events_list:
             self.fail("notification was not correct")
 
@@ -805,22 +706,22 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_id = self.imc.create_actor_identity(user_identty_object)
         user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
         self.imc.create_user_info(user_id, user_info_object)
-        
+
         # create first notification
         notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
-                                                                 "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['ResourceLifecycleEvent']})
+                                                                  "origin_list":['Some_Resource_Agent_ID1'],
+                                                                  "events_list":['ResourceLifecycleEvent']})
         notification1_id = self.unsc.create_notification(notification_object1, user_id)
         # create second notification
         notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
-                                                                 "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DataEvent']})
+                                                                  "origin_list":['Some_Resource_Agent_ID2'],
+                                                                  "events_list":['DataEvent']})
         notification2_id = self.unsc.create_notification(notification_object2, user_id)
-        
+
         # delete both notifications
         self.unsc.delete_notification(notification1_id)
         self.unsc.delete_notification(notification2_id)
-        
+
         # check that the notifications are not there
         try:
             n1 = self.unsc.read_notification(notification1_id)
@@ -850,7 +751,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
                                                                  "events_list":['DataEvent']})
         self.unsc.create_notification(notification_object, user_id)
-        
+
         # try to find all notifications for user
         notifications = self.unsc.find_notifications_by_user(user_id)
         if len(notifications) != 2:
@@ -869,12 +770,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                                                  "origin_list":['Some_Resource_Agent_ID1'],
                                                                  "events_list":['ResourceLifecycleEvent']})
         notification_id = self.unsc.create_notification(notification_object, user_id)
-        
+
         # read back the notification and change it
         notification = self.unsc.read_notification(notification_id)
         notification.origin_list = ['Some_Resource_Agent_ID5']
         self.unsc.update_notification(notification)
-        
+
         # read back the notification and check that it got changed
         notification = self.unsc.read_notification(notification_id)
         if notification.origin_list != ['Some_Resource_Agent_ID5']:
@@ -898,7 +799,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                                                  "origin_list":['Some_Resource_Agent_ID2'],
                                                                  "events_list":['DataEvent']})
         self.unsc.create_notification(notification_object, user_id)
-        
+
         # publish an event for each notification to generate the emails
         # this can't be easily check in SW so need to check for these at the myooici@gmail.com account
         rle_publisher = EventPublisher("ResourceLifecycleEvent")
@@ -918,38 +819,38 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event1")
         de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event2")
         de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event3")
-        
+
         # find all events for the originator 'Some_Resource_Agent_ID1'
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1')
         if len(events) != 3:
-            self.fail("failed to find all events")  
+            self.fail("failed to find all events")
         for event in events:
             log.debug("event=" + str(event))
             if event[1][0] != 'Some_Resource_Agent_ID1':
                 self.fail("failed to find correct events")
-                  
+
         # find all events for the originator 'DataEvent'
         events = self.unsc.find_events(type='DataEvent')
         if len(events) != 3:
-            self.fail("failed to find all events")  
+            self.fail("failed to find all events")
         for event in events:
             log.debug("event=" + str(event))
             if event[1][0] != 'DataEvent':
-                self.fail("failed to find correct events") 
-                 
-        # find 2 events for the originator 'Some_Resource_Agent_ID1'
+                self.fail("failed to find correct events")
+
+                # find 2 events for the originator 'Some_Resource_Agent_ID1'
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID2', limit=2)
         if len(events) != 2:
-            self.fail("failed to find all events")  
+            self.fail("failed to find all events")
         for event in events:
             log.debug("event=" + str(event))
             if event[1][0] != 'Some_Resource_Agent_ID2':
                 self.fail("failed to find correct events")
-            
+
         # find all events for the originator 'Some_Resource_Agent_ID1' in reverse time order
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', descending=True)
         if len(events) != 3:
-            self.fail("failed to find all events")  
+            self.fail("failed to find all events")
         for event in events:
             log.debug("event=" + str(event))
             if event[1][0] != 'Some_Resource_Agent_ID1':
