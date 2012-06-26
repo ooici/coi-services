@@ -106,7 +106,7 @@ class ExampleDataProducer(SimpleCtdPublisher):
 
             log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
 
-            g = build_granule(data_producer_id='Bobs Potatoes', taxonomy=tx, record_dictionary=rdt)
+            g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 
             log.info('Sending %d values!' % length)
             self.publisher.publish(g)
