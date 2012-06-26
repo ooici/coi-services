@@ -47,6 +47,8 @@ class SlocumDataHandler(BaseDataHandler):
     @classmethod
     def _constraints_for_new_request(cls, config):
         old_list = get_safe(config, 'new_data_check') or []
+        # CBM: Fix this when the DotList crap is sorted out
+        old_list = list(old_list) # NOTE that the internal tuples are also DotList objects
 
         ret = {}
         base_url = get_safe(config,'ds_params.base_url')

@@ -392,6 +392,8 @@ class BaseDataHandler(object):
         except NotFound:
             raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(res_id))
 
+        return att_id
+
     @classmethod
     def _acquire_data(cls, config, publisher, unlock_new_data_callback, update_new_data_check_attachment):
         """
@@ -412,6 +414,10 @@ class BaseDataHandler(object):
                 constraints = cls._constraints_for_new_request(config)
             except NoNewDataWarning as nndw:
                 log.info(nndw.message)
+                if get_safe(config,'TESTING'):
+                    log.debug('Publish TestingFinished event')
+                    pub = EventPublisher('DeviceCommonLifecycleEvent')
+                    pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
                 return
 
             if constraints is None:
