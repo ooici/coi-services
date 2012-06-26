@@ -98,10 +98,11 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         self.assertRaises(InstrumentDataException, BaseDataHandler._publish_data, publisher=publisher, data_generator=data_generator)
 
+    @patch.object(BaseDataHandler, '_constraints_for_historical_request')
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
     @patch.object(BaseDataHandler, '_publish_data')
-    def test__acquire_data_with_constraints(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock):
+    def test__acquire_data_with_constraints(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock, _constraints_for_historical_request_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
@@ -109,21 +110,23 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         _get_data_mock.return_value = data_generator
 
-        config = {'constraints' : 'test_constraints'}
+        config = {'constraints' : {'test_constraints':'value'}}
         publisher = Mock()
         unlock_new_data_callback = Mock()
-        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
+        update_new_data_check_attachment = Mock()
+        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback, update_new_data_check_attachment=update_new_data_check_attachment)
 
         _init_acquisition_cycle_mock.assert_called_once_with(config)
+        _constraints_for_historical_request_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
         _publish_data_mock.assert_called_once_with(publisher, data_generator)
 
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
     @patch.object(BaseDataHandler, '_publish_data')
-    @patch.object(BaseDataHandler, '_new_data_constraints')
+    @patch.object(BaseDataHandler, '_constraints_for_new_request')
     @patch('ion.agents.data.handlers.base_data_handler.gevent')
-    def test__acquire_data_no_constraints(self, gevent_mock, _new_data_constraints_mock, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock):
+    def test__acquire_data_no_constraints(self, gevent_mock, _constraints_for_new_request_mock, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
@@ -131,24 +134,25 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         gevent_mock.getcurrent = Mock()
 
-        _new_data_constraints_mock.return_value = {'constraints' : 'test_constraints'}
+        _constraints_for_new_request_mock.return_value = {'constraints' : {'test_constraints':'value'}}
         _get_data_mock.return_value = data_generator
 
         config = {}
         publisher = Mock()
         unlock_new_data_callback = Mock()
-        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
+        update_new_data_check_attachment = Mock()
+        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback, update_new_data_check_attachment=update_new_data_check_attachment)
 
         _init_acquisition_cycle_mock.assert_called_once_with(config)
-        _new_data_constraints_mock.assert_called_once_with(config)
+        _constraints_for_new_request_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
         _publish_data_mock.assert_called_once_with(publisher, data_generator)
 
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
-    @patch.object(BaseDataHandler, '_new_data_constraints')
+    @patch.object(BaseDataHandler, '_constraints_for_new_request')
     @patch('ion.agents.data.handlers.base_data_handler.gevent')
-    def test__acquire_data_raise_exception(self, gevent_mock, _new_data_constraints_mock, _get_data_mock, _init_acquisition_cycle_mock):
+    def test__acquire_data_raise_exception(self, gevent_mock,_constraints_for_new_request_mock, _get_data_mock, _init_acquisition_cycle_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
@@ -156,19 +160,21 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         gevent_mock.getcurrent = Mock()
 
-        _new_data_constraints_mock.return_value = None
+        _constraints_for_new_request_mock.return_value = None
         _get_data_mock.return_value = data_generator
 
         config = {}
         publisher = Mock()
         unlock_new_data_callback = Mock()
-        self.assertRaises(InstrumentParameterException, BaseDataHandler._acquire_data, config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
+        update_new_data_check_attachment = Mock()
+        self.assertRaises(InstrumentParameterException, BaseDataHandler._acquire_data, config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback, update_new_data_check_attachment=update_new_data_check_attachment)
 
+    @patch.object(BaseDataHandler, '_constraints_for_historical_request')
     @patch('ion.agents.data.handlers.base_data_handler.EventPublisher')
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
     @patch.object(BaseDataHandler, '_publish_data')
-    def test__acquire_data_with_constraints_testing_flag(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock, EventPublisher_mock):
+    def test__acquire_data_with_constraints_testing_flag(self, _publish_data_mock, _get_data_mock, _init_acquisition_cycle_mock, EventPublisher_mock, _constraints_for_historical_request_mock):
         granule1 = Mock(spec=Granule)
         granule2 = Mock(spec=Granule)
         granule3 = Mock(spec=Granule)
@@ -176,15 +182,17 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         _get_data_mock.return_value = data_generator
 
-        config = {'constraints' : 'test_constraints', 'TESTING':True}
+        config = {'constraints' : {'test_constraints':'value'}, 'TESTING':True}
         publisher = Mock()
         unlock_new_data_callback = Mock()
+        update_new_data_check_attachment = Mock()
         EventPublisher_mock.publish_event = Mock()
-        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback)
+        BaseDataHandler._acquire_data(config=config, publisher=publisher, unlock_new_data_callback=unlock_new_data_callback, update_new_data_check_attachment=update_new_data_check_attachment)
 
         _init_acquisition_cycle_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
         _publish_data_mock.assert_called_once_with(publisher, data_generator)
+        _constraints_for_historical_request_mock.assert_called_once_with(config)
         EventPublisher_mock.publish_event.assert_called_once()
 
     def test_cmd_dvr_initialize(self):
@@ -343,25 +351,17 @@ class TestBaseDataHandlerUnit(PyonTestCase):
             # TODO: This is brittle as the message could change - do we need this check, or is getting the exception enough?
             self.assertEqual(ex.message, "ion.agents.data.handlers.base_data_handler.BaseDataHandler must implement '_init_acquisition_cycle'")
 
-    def test__new_data_constraints(self):
+    def test__constraints_for_new_request(self):
         config = {}
-        self.assertRaises(NotImplementedException, BaseDataHandler._new_data_constraints, config)
+        self.assertRaises(NotImplementedException, BaseDataHandler._constraints_for_new_request, config)
+
+    def test__constraints_for_historical_request(self):
+        config = {}
+        self.assertRaises(NotImplementedException, BaseDataHandler._constraints_for_historical_request, config)
 
     def test__get_data(self):
         config = {}
         self.assertRaises(NotImplementedException, BaseDataHandler._get_data, config)
-
-    def test__calc_iter_cnt_even(self):
-        total_recs = 100
-        max_rec = 10
-        ret = BaseDataHandler._calc_iter_cnt(total_recs=total_recs, max_rec=max_rec)
-        self.assertEqual(ret, 10)
-
-    def test__calc_iter_cnt_remainder(self):
-        total_recs = 101
-        max_rec = 10
-        ret = BaseDataHandler._calc_iter_cnt(total_recs=total_recs, max_rec=max_rec)
-        self.assertEqual(ret, 11)
 
     def test__unlock_new_data_callback(self):
         self._bdh._semaphore = Mock()
@@ -443,42 +443,119 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh.execute_acquire_data({'stream_id' : 'test_stream_id'})
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
 
+    def test__find_new_data_check_attachment(self):
+        attachment_1 = Mock()
+        attachment_1._id = 'attachment_1'
+        attachment_1.keywords = ['NewDataCheck']
+        attachment_1.content = 'content'
+        self._rr_cli.find_attachments.return_value = [attachment_1]
+
+        ret = self._bdh._find_new_data_check_attachment(res_id='res_id')
+        self.assertEqual(ret, 'content')
+        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+
+    def test__find_new_data_check_attachment_no_newdatacheck(self):
+        attachment_1 = Mock()
+        attachment_1._id = 'attachment_1'
+        attachment_1.keywords = ['not_found']
+        attachment_1.content = 'content'
+        self._rr_cli.find_attachments.return_value = [attachment_1]
+
+        ret = self._bdh._find_new_data_check_attachment(res_id='res_id')
+        self.assertEqual(ret, None)
+        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+
+    def test__find_new_data_check_attachment_raise_notfound(self):
+        self._rr_cli.find_attachments.side_effect = NotFound
+
+        with self.assertRaises(InstrumentException) as cm:
+            self._bdh._find_new_data_check_attachment(res_id='not_found')
+
+        self._rr_cli.find_attachments.assert_called_once_with(resource_id='not_found', include_content=False, id_only=False)
+
+    def test__update_new_data_check_attachment(self):
+        attachment_1 = Mock()
+        attachment_1._id = 'attachment_1'
+        attachment_1.keywords = ['NewDataCheck']
+        attachment_1.content = 'content'
+
+        attachment_2 = Mock()
+        attachment_2._id = 'attachment_2'
+        attachment_2.keywords = ['NewDataCheck']
+        attachment_2.content = 'new_content'
+        self._rr_cli.find_attachments.return_value = [attachment_1]
+        self._rr_cli.create_attachment.return_value = attachment_2._id
+
+        self._bdh._update_new_data_check_attachment(res_id='res_id', new_content=attachment_2.content)
+        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+        self._rr_cli.delete_attachment.assert_called_once_with(attachment_1._id)
+        self.assertTrue(self._rr_cli.create_attachment.called)
+
+    def test__update_new_data_check_attachment_no_newdatacheck(self):
+        attachment_1 = Mock()
+        attachment_1._id = 'attachment_1'
+        attachment_1.keywords = ['notfound']
+        attachment_1.content = 'content'
+
+        attachment_2 = Mock()
+        attachment_2._id = 'attachment_2'
+        attachment_2.keywords = ['NewDataCheck']
+        attachment_2.content = 'new_content'
+        self._rr_cli.find_attachments.return_value = [attachment_1]
+        self._rr_cli.create_attachment.return_value = attachment_2._id
+
+        self._bdh._update_new_data_check_attachment(res_id='res_id', new_content=attachment_2.content)
+        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+        self.assertTrue(self._rr_cli.create_attachment.called)
+
+    def test__update_new_data_check_attachment_raise_notfound(self):
+        self._rr_cli.find_attachments.side_effect = NotFound
+
+        with self.assertRaises(InstrumentException) as cm:
+            self._bdh._update_new_data_check_attachment(res_id='not_found', new_content='new_content')
+
+        self._rr_cli.find_attachments.assert_called_once_with(resource_id='not_found', include_content=False, id_only=False)
+
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
     def test_execute_acquire_data_with_stream_id_new_not_already_acquiring(self, mock):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = True
+        self._bdh._glet_queue = Mock()
         attachment = Attachment()
         attachment.keywords = ['NewDataCheck', 'NotFound']
         attachment2 = Attachment()
         attachment2.keywords = ['NotTheRightKeyword']
-        self._rr_cli.find_objects.return_value = [attachment2, attachment], ''
-        self._bdh._glet_queue = Mock()
+        self._bdh._find_new_data_check_attachment = Mock()
+        self._bdh._find_new_data_check_attachment.return_value = [attachment2, attachment]
         self._bdh.execute_acquire_data({'stream_id' : 'test_stream_id'})
 
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
-        self._rr_cli.find_objects.assert_called_once()
+        self._bdh._find_new_data_check_attachment.assert_called_once()
 
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
     def test_execute_acquire_data_with_stream_id_new_not_already_acquiring_res_not_found(self, mock):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = True
 
-        self._rr_cli.find_objects.side_effect = NotFound
+        self._bdh._find_new_data_check_attachment = Mock()
+        self._bdh._find_new_data_check_attachment.side_effect = InstrumentException
 
         self.assertRaises(InstrumentException, self._bdh.execute_acquire_data, {'stream_id' : 'test_stream_id'})
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
-        self._rr_cli.find_objects.assert_called_once()
+        self._bdh._find_new_data_check_attachment.assert_called_once()
 
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
     def test_execute_acquire_data_no_attachments(self, mock):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = True
-        self._rr_cli.find_objects.return_value = [], ''
         self._bdh._glet_queue = Mock()
+        self._bdh._find_new_data_check_attachment = Mock()
+        self._bdh._find_new_data_check_attachment.return_value = []
+
         self._bdh.execute_acquire_data({'stream_id' : 'test_stream_id'})
 
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
-        self._rr_cli.find_objects.assert_called_once()
+        self._bdh._find_new_data_check_attachment.assert_called_once()
 
 @attr('UNIT',group='eoi')
 class TestDummyDataHandlerUnit(PyonTestCase):
@@ -491,14 +568,41 @@ class TestDummyDataHandlerUnit(PyonTestCase):
         DummyDataHandler._init_acquisition_cycle(config)
         _init_acquisition_cycle_mock.assert_called_once_with(config)
 
-    def test__new_data_constraints(self):
+    @unittest.skip('Needs refactoring due to changes to DummyDataHandler')
+    @patch('ion.agents.data.handlers.handler_utils.get_time_from_filename')
+    @patch('ion.agents.data.handlers.handler_utils.list_file_info')
+    def test__constraints_for_new_request(self, list_file_info_mock, get_time_from_filename_mock):
         max_rec = 10
-        config = {'max_records':max_rec}
-        ret = DummyDataHandler._new_data_constraints(config)
-        self.assertTrue('array_len' in ret)
-        i=ret['array_len']
-        self.assertIsInstance(i, int)
-        self.assertTrue(max_rec+1 <= i <= max_rec+10)
+        config = {
+            'max_records':max_rec,
+            'ds_params':{
+                'base_url':'test_data',
+                'list_pattern':'list_pattern',
+                'date_pattern':'date_pattern',
+                'date_extraction_pattern':'date_extraction_pattern',
+            },
+        }
+        f_list = [('a',1,),('b',2,),('c',3,),]
+        list_file_info_mock.return_value = f_list
+        get_time_from_filename_mock.return_value = 'a_time'
+
+        ret = DummyDataHandler._constraints_for_new_request(config)
+        self.assertIn('set_new_data_check',config)
+        self.assertEqual(config['set_new_data_check'], f_list)
+
+        self.assertIn('new_files',ret)
+
+        self.assertEqual(get_time_from_filename_mock.call_count, 2)
+        self.assertEqual(ret['new_files'], f_list)
+        self.assertIn('start_time',ret)
+        self.assertEqual(ret['start_time'], 'a_time')
+        self.assertIn('end_time',ret)
+        self.assertEqual(ret['end_time'], 'a_time')
+        self.assertIn('bounding_box',ret)
+        self.assertIsInstance(ret['bounding_box'], dict)
+        self.assertIn('vars',ret)
+        self.assertIsInstance(ret['vars'], list)
+
 
     @patch('ion.agents.data.handlers.base_data_handler.RecordDictionaryTool')
     @patch('ion.agents.data.handlers.base_data_handler.TaxyTool')
@@ -513,8 +617,8 @@ class TestDummyDataHandlerUnit(PyonTestCase):
             RecordDictionaryTool_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val)
             build_granule_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val, data_producer_id=sentinel.dprod_id, record_dictionary=ANY)
             cargs=build_granule_mock.call_args
-            self.assertIn('data', cargs[1]['record_dictionary'])
-            self.assertIsInstance(cargs[1]['record_dictionary']['data'], numpy.ndarray)
+            self.assertIn('dummy', cargs[1]['record_dictionary'])
+            self.assertIsInstance(cargs[1]['record_dictionary']['dummy'], numpy.ndarray)
 
         self.assertEquals(build_granule_mock.call_count, 2)
         self.assertEquals(RecordDictionaryTool_mock.call_count, 2)
@@ -534,8 +638,8 @@ class TestFibonacciDataHandlerUnit(PyonTestCase):
         FibonacciDataHandler._init_acquisition_cycle(config)
         _init_acquisition_cycle_mock.assert_called_once_with(config)
 
-    def test__new_data_constraints(self):
-        ret = FibonacciDataHandler._new_data_constraints({})
+    def test__constraints_for_new_request(self):
+        ret = FibonacciDataHandler._constraints_for_new_request({})
         self.assertTrue('count' in ret)
         i=ret['count']
         self.assertIsInstance(i, int)

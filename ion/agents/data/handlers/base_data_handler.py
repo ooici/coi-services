@@ -8,8 +8,6 @@
 @brief Base DataHandler class - subclassed by concrete handlers for specific 'classes' of external data
 
 """
-from interface.objects import Granule
-
 from pyon.public import log
 from pyon.util.async import spawn
 from pyon.ion.resource import PRED, RT
@@ -18,6 +16,8 @@ from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 from pyon.ion.granule.taxonomy import TaxyTool
 
+from interface.objects import Granule, Attachment, AttachmentType
+
 from mi.core.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
 
@@ -25,16 +25,11 @@ from ion.agents.instrument.exceptions import InstrumentParameterException, Instr
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.granule import build_granule
 
+from ion.agents.data.handlers.handler_utils import calculate_iteration_count, list_file_info, get_time_from_filename
+
 import gevent
 from gevent.coros import Semaphore
 import time
-
-# todo: rethink this
-# Stream Packet configuration - originally from import
-#from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
-PACKET_CONFIG = {
-    'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
-}
 
 class DataHandlerParameter(DriverParameter):
     """
@@ -184,7 +179,7 @@ class BaseDataHandler(object):
 
         @parameter args First argument can be a config dictionary
         """
-        log.debug('Executing acquire_data: args = {0}'.format(args))
+        log.warn('Executing acquire_data: args = {0}'.format(args))
 
         # Make a copy of the config to ensure no cross-pollution
         config = self._dh_config.copy()
@@ -197,8 +192,9 @@ class BaseDataHandler(object):
 
             log.debug('Configuration modifications provided: {0}'.format(config_mods))
             for k in self._params['PATCHABLE_CONFIG_KEYS']:
-                if get_safe(config_mods, k):
-                   config[k] = config_mods[k]
+                p=get_safe(config_mods, k)
+                if not p is None:
+                    config[k] = p
 
         except IndexError:
             log.info('No configuration modifications were provided')
@@ -214,31 +210,20 @@ class BaseDataHandler(object):
             log.warn('Already acquiring new data - action not duplicated')
             return
 
+        ndc = None
         if isNew:
-            # Get any NewDataCheck attachments and add them to the config
+            # Get the NewDataCheck attachment and add it's content to the config
             ext_ds_id = get_safe(config,'external_dataset_res_id')
             if ext_ds_id:
-                try:
-                    attachment_objs, _ = self._rr_cli.find_objects(ext_ds_id, PRED.hasAttachment, RT.Attachment, False)
-                    for attachment_obj in attachment_objs:
-                        kwds = set(attachment_obj.keywords)
-                        if 'NewDataCheck' in kwds:
-                            log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj))
-                            config['new_data_check'] = attachment_obj.content
-                            break
-                        else:
-                            log.debug('Found attachment: {0}'.format(attachment_obj))
-                except NotFound:
-                    raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(ext_ds_id))
+                ndc = self._find_new_data_check_attachment(ext_ds_id)
 
-        if not get_safe(config, 'new_data_check'):
-            config['new_data_check'] = None
+        config['new_data_check'] = ndc
 
             # Create a publisher to pass into the greenlet
         publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
 
         # Spawn a greenlet to do the data acquisition and publishing
-        g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback)
+        g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback, self._update_new_data_check_attachment)
         log.debug('** Spawned {0}'.format(g))
         self._glet_queue.append(g)
 
@@ -375,11 +360,45 @@ class BaseDataHandler(object):
         log.debug('** Release {0}'.format(caller))
         self._semaphore.release()
 
+    def _find_new_data_check_attachment(self, res_id):
+        try:
+            attachment_objs = self._rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
+            for attachment_obj in attachment_objs:
+                kwds = set(attachment_obj.keywords)
+                if 'NewDataCheck' in kwds:
+                    log.debug('Found NewDataCheck attachment: {0}'.format(attachment_obj._id))
+                    return attachment_obj.content
+                else:
+                    log.debug('Found attachment: {0}'.format(attachment_obj))
+        except NotFound:
+            raise InstrumentException('ExternalDsysatasetResource \'{0}\' not found'.format(res_id))
+
+    def _update_new_data_check_attachment(self, res_id, new_content):
+        try:
+            # Delete any attachments with the "NewDataCheck" keyword
+            attachment_objs = self._rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
+            for attachment_obj in attachment_objs:
+                kwds = set(attachment_obj.keywords)
+                if 'NewDataCheck' in kwds:
+                    log.debug('Delete NewDataCheck attachment: {0}'.format(attachment_obj._id))
+                    self._rr_cli.delete_attachment(attachment_obj._id)
+                else:
+                    log.debug('Found attachment: {0}'.format(attachment_obj))
+
+            # Create the new attachment
+            att = Attachment(name='new_data_check', attachment_type=AttachmentType.OBJECT, keywords=['NewDataCheck',], content_type='text/plain', content=new_content)
+            att_id = self._rr_cli.create_attachment(resource_id=res_id, attachment=att)
+
+        except NotFound:
+            raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(res_id))
+
+        return att_id
+
     @classmethod
-    def _acquire_data(cls, config, publisher, unlock_new_data_callback):
+    def _acquire_data(cls, config, publisher, unlock_new_data_callback, update_new_data_check_attachment):
         """
         Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
-             BaseDataHandler._new_data_constraints (only if config does not contain 'constraints')
+             BaseDataHandler._constraints_for_new_request (only if config does not contain 'constraints')
              BaseDataHandler._publish_data passing BaseDataHandler._get_data as a parameter
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
@@ -391,12 +410,30 @@ class BaseDataHandler(object):
         constraints = get_safe(config,'constraints')
         if not constraints:
             gevent.getcurrent().link(unlock_new_data_callback)
-            constraints = cls._new_data_constraints(config)
+            try:
+                constraints = cls._constraints_for_new_request(config)
+            except NoNewDataWarning as nndw:
+                log.info(nndw.message)
+                if get_safe(config,'TESTING'):
+                    log.debug('Publish TestingFinished event')
+                    pub = EventPublisher('DeviceCommonLifecycleEvent')
+                    pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
+                return
+
             if constraints is None:
-                raise InstrumentParameterException("Data constraints returned from _new_data_constraints cannot be None")
+                raise InstrumentParameterException("Data constraints returned from _constraints_for_new_request cannot be None")
             config['constraints'] = constraints
+        elif isinstance(constraints, dict):
+            addnl_constr = cls._constraints_for_historical_request(config)
+            if not addnl_constr is None and isinstance(addnl_constr, dict):
+                constraints.update(addnl_constr)
+        else:
+            raise InstrumentParameterException('Data constraints must be of type \'dict\':  {0}'.format(constraints))
 
         cls._publish_data(publisher, cls._get_data(config))
+
+        if 'set_new_data_check' in config:
+            update_new_data_check_attachment(config['external_dataset_res_id'], config['set_new_data_check'])
 
         # Publish a 'TestFinished' event
         if get_safe(config,'TESTING'):
@@ -405,16 +442,24 @@ class BaseDataHandler(object):
             pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
 
     @classmethod
+    def _constraints_for_historical_request(cls, config):
+        """
+        Determines any constraints that must be added to the constraints configuration.
+        This should present a uniform constraints configuration to be sent to _get_data
+        """
+        raise NotImplementedException('{0}.{1} must implement \'_constraints_for_historical_request\''.format(cls.__module__, cls.__name__))
+
+    @classmethod
     def _init_acquisition_cycle(cls, config):
         """
         Allows the concrete implementation to initialize/prepare objects the data handler
-        will use repeatedly (such as a dataset object) in cls._new_data_constraints and/or cls._get_data
+        will use repeatedly (such as a dataset object) in cls._constraints_for_new_request and/or cls._get_data
         Objects should be added to the config so they are available later in the workflow
         """
         raise NotImplementedException('{0}.{1} must implement \'_init_acquisition_cycle\''.format(cls.__module__,cls.__name__))
 
     @classmethod
-    def _new_data_constraints(cls, config):
+    def _constraints_for_new_request(cls, config):
         #TODO: Document what "constraints" looks like (yml)!!
         """
         Determines the appropriate constraints for acquiring any "new data" from the external dataset
@@ -423,7 +468,7 @@ class BaseDataHandler(object):
         @param config dict of configuration parameters - may be used to generate the returned 'constraints' dict
         @retval dict that contains the constraints for retrieval of new data from the external dataset
         """
-        raise NotImplementedException('{0}.{1} must implement \'_new_data_constraints\''.format(cls.__module__,cls.__name__))
+        raise NotImplementedException('{0}.{1} must implement \'_constraints_for_new_request\''.format(cls.__module__,cls.__name__))
 
     @classmethod
     def _get_data(cls, config):
@@ -447,31 +492,23 @@ class BaseDataHandler(object):
             if isinstance(gran, Granule):
                 publisher.publish(gran)
             else:
-                log.warn('Could not publish object returned by _get_data: {0}'.format(gran))
+                log.warn('Could not publish object of {0} returned by _get_data: {1}'.format(type(gran), gran))
 
             #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
         #TODO: When finished publishing, update (either directly, or via an event callback to the agent) the UpdateDescription
-
-    @classmethod
-    def _calc_iter_cnt(cls, total_recs, max_rec):
-        """
-        Given the total number of records and the maximum records allowed in a granule,
-        calculates the number of iterations required to traverse the entire array in chunks of size max_rec
-        @param total_recs The total number of records
-        @param max_rec The maximum number of records allowed in a granule
-        """
-        cnt = total_recs / max_rec
-        if total_recs % max_rec > 0:
-            cnt += 1
-
-        return cnt
 
 class DataHandlerError(Exception):
     """
     Base DataHandler error
     """
     pass
+
+class NoNewDataWarning(DataHandlerError):
+    """
+    Raised when there is no new data for a given acquisition cycle
+    """
+    message = 'There is no new data for the dataset, aborting acquisition cycle'
 
 class ConfigurationError(DataHandlerError):
     """
@@ -499,12 +536,16 @@ class FibonacciDataHandler(BaseDataHandler):
         """
 
     @classmethod
-    def _new_data_constraints(cls, config):
+    def _constraints_for_new_request(cls, config):
         """
         Returns a constraints dictionary with 'count' assigned a random integer
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
         """
         return {'count':npr.randint(5,20,1)[0]}
+
+    @classmethod
+    def _constraints_for_historical_request(cls, config):
+        pass
 
     @classmethod
     def _get_data(cls, config):
@@ -537,7 +578,7 @@ class FibonacciDataHandler(BaseDataHandler):
                 a, b = b, a + b
 
         gen=fibGenerator()
-        cnt = cls._calc_iter_cnt(cnt, max_rec)
+        cnt = calculate_iteration_count(cnt, max_rec)
         for i in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
             d = gen.next()
@@ -548,19 +589,78 @@ class FibonacciDataHandler(BaseDataHandler):
 class DummyDataHandler(BaseDataHandler):
     @classmethod
     def _init_acquisition_cycle(cls, config):
-        """
-        Initialize anything the data handler will need to use, such as a dataset
-        """
+        # TODO: Can't build a parser here because we won't have a file name!!  Just a directory :)
+        # May not be much to do in this method...
+        # maybe just ensure access to the dataset_dir and move some of the 'buried' params up to the config dict?
+        ext_dset_res = get_safe(config, 'external_dataset_res', None)
+        if not ext_dset_res:
+            raise SystemError('external_dataset_res not present in configuration, cannot continue')
+
+        config['ds_params'] = ext_dset_res.dataset_description.parameters
+
+    #        base_url = ext_dset_res.dataset_description.parameters['base_url']
+    #        pattern = get_safe(ext_dset_res.dataset_description.parameters, 'pattern')
+    #        config['base_url'] = base_url
+    #        config['pattern'] = pattern
 
     @classmethod
-    def _new_data_constraints(cls, config):
-        """
-        Returns a constraints dictionary with 'array_len' and 'count' assigned random integers
-        @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
-        """
-        # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
-        max_rec = get_safe(config, 'max_records', 1)
-        return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
+    def _constraints_for_new_request(cls, config):
+#        """
+#        Returns a constraints dictionary with 'array_len' and 'count' assigned random integers
+#        @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
+#        """
+#        # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
+#        max_rec = get_safe(config, 'max_records', 1)
+#        return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
+        old_list = get_safe(config, 'new_data_check') or []
+
+        ret = {}
+        base_url = get_safe(config,'ds_params.base_url')
+        list_pattern = get_safe(config,'ds_params.list_pattern')
+        date_pattern = get_safe(config, 'ds_params.date_pattern')
+        date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
+
+        curr_list = list_file_info(base_url, list_pattern)
+
+        # Determine which files are new
+        new_list = [tuple(x) for x in curr_list if list(x) not in old_list]
+
+        if len(new_list) is 0:
+            raise NoNewDataWarning()
+
+        # The curr_list is the new new_data_check - used for the next "new data" evaluation
+        config['set_new_data_check'] = curr_list
+
+        # The new_list is the set of new files - these will be processed
+        ret['new_files'] = new_list
+        ret['start_time'] = get_time_from_filename(new_list[0][0], date_extraction_pattern, date_pattern)
+        ret['end_time'] = get_time_from_filename(new_list[-1][0], date_extraction_pattern, date_pattern)
+        ret['bounding_box'] = {}
+        ret['vars'] = []
+
+        log.warn('constraints_for_new_request: {0}'.format(ret))
+
+        return ret
+
+    @classmethod
+    def _constraints_for_historical_request(cls, config):
+        base_url = get_safe(config,'ds_params.base_url')
+        list_pattern = get_safe(config,'ds_params.list_pattern')
+        date_pattern = get_safe(config, 'ds_params.date_pattern')
+        date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
+
+        start_time = get_safe(config, 'constraints.start_time')
+        end_time = get_safe(config, 'constraints.end_time')
+
+        new_list = []
+        curr_list = list_file_info(base_url, list_pattern)
+
+        for x in curr_list:
+            curr_time = get_time_from_filename(x[0], date_extraction_pattern, date_pattern)
+            if start_time <= curr_time <= end_time:
+                new_list.append(x)
+
+        return {'new_files':new_list}
 
     @classmethod
     def _get_data(cls, config):
@@ -577,11 +677,11 @@ class DummyDataHandler(BaseDataHandler):
 
         arr = npr.random_sample(array_len)
         log.debug('Array to send using max_rec={0}: {1}'.format(max_rec, arr))
-        cnt = cls._calc_iter_cnt(arr.size, max_rec)
+        cnt = calculate_iteration_count(arr.size, max_rec)
         for x in xrange(cnt):
             rdt = RecordDictionaryTool(taxonomy=ttool)
             d = arr[x*max_rec:(x+1)*max_rec]
-            rdt['data'] = d
+            rdt['dummy'] = d
             g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
             yield g
 
