@@ -34,6 +34,17 @@ class ReplayProcessUnitTest(PyonTestCase):
         container.datastore_manager.get_datastore.return_value = datastore
         mock_data = msgpack.packb({'test':'test'},default=encode_ion)
 
+        self.received_packet = False
+        self.end_stream      = False
+
+        def output_test(packet):
+            self.assertIsInstance(packet,dict)
+            if packet == {'test':'test'}:
+                self.received_packet = True
+            if packet == {}:
+                self.end_stream = True
+
+        self.replay.output.publish.side_effect = output_test
 
 
         result = DotDict()
@@ -49,6 +60,7 @@ class ReplayProcessUnitTest(PyonTestCase):
         retval = self.replay.execute_replay()
 
         self.assertTrue(retval)
-        self.replay.output.publish.assert_called_with({'test':'test'})
+        self.assertTrue(self.received_packet)
+        self.assertTrue(self.end_stream)
 
 
