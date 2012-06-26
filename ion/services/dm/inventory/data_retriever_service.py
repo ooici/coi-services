@@ -68,27 +68,43 @@ class DataRetrieverService(BaseDataRetrieverService):
         # Make a new definition container
 
 
+        process_definition = self.clients.resource_registry.read(self.process_definition_id)
 
-        # Make a definition
-        try:
-            definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
-        except IndexError:
-            raise NotFound('The requested document was not located.')
-        definition_container = definition
+        definition_container = None
+
+        #---------------------------------------- WARNING ----------------------------------------
+        # Warning: using absolute module path checking for reverse compatability
+        # This will break if the module moves locations
+        #---------------------------------------- WARNING ----------------------------------------
+
+        replay_stream_id = ''
+        if process_definition.executable['module'] == 'ion.processes.data.replay.replay_process' :
+
+            # Make a definition
+            try:
+                opts = {'key':[dataset.primary_view_key,0],'include_docs':True}
+                definition = datastore.query_view('datasets/dataset_by_id',opts=opts)[0]['doc']
+            except IndexError:
+                raise NotFound('The requested document was not located.')
+            definition_container = definition
+
+            # Tell pubsub about our definition that we want to use and setup the association so clients can figure out
+            # What belongs on the stream
+            definition_id = self.clients.pubsub_management.create_stream_definition(container=definition_container)
+            # Make a stream
+            replay_stream_id = self.clients.pubsub_management.create_stream(stream_definition_id=definition_id)
+            delivery_format.update({'definition_id':definition_id})
+        elif process_definition.executable['module'] == 'ion.processes.data.replay.replay_process_a':
+            replay_stream_id = self.clients.pubsub_management.create_stream()
 
 
 
 
-
-        # Tell pubsub about our definition that we want to use and setup the association so clients can figure out
-        # What belongs on the stream
-        definition_id = self.clients.pubsub_management.create_stream_definition(container=definition_container)
-        # Make a stream
-        replay_stream_id = self.clients.pubsub_management.create_stream(stream_definition_id=definition_id)
         replay = Replay()
         replay.delivery_format = delivery_format
 
-        definition_container.stream_resource_id = replay_stream_id
+        if definition_container is not None:
+            definition_container.stream_resource_id = replay_stream_id
 
 
 
@@ -101,9 +117,10 @@ class DataRetrieverService(BaseDataRetrieverService):
         config = {'process':{
             'query':query,
             'datastore_name':datastore_name,
+            'dataset_id':dataset_id,
             'view_name':view_name,
             'key_id':key_id,
-            'delivery_format':dict({'definition_id':definition_id}, **delivery_format),
+            'delivery_format':delivery_format,
             'publish_streams':{'output':replay_stream_id}
             }
         }
@@ -118,7 +135,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.update(replay)
         self.clients.resource_registry.create_association(replay_id, PRED.hasStream, replay_stream_id)
-        return (replay_id, replay_stream_id)
+        return replay_id, replay_stream_id
 
 
 

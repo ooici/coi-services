@@ -251,21 +251,26 @@ class BootstrapService(BaseBootstrapService):
         self.clients.ingestion_management.activate_ingestion_configuration(ingestion_id)
 
     def post_process_dispatcher(self, config):
+        ingestion_module = config.get_safe('bootstrap.processes.ingestion.module','ion.processes.data.ingestion.ingestion_worker')
+        ingestion_class  = config.get_safe('bootstrap.processes.ingestion.class' ,'IngestionWorker')
+
+        replay_module    = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
+        replay_class     = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')
 
         process_definition = ProcessDefinition(
             name='ingestion_worker_process',
             description='Worker transform process for ingestion of datasets')
-        process_definition.executable['module']='ion.processes.data.ingestion.ingestion_worker'
-        process_definition.executable['class'] = 'IngestionWorker'
+        process_definition.executable['module']= ingestion_module
+        process_definition.executable['class'] = ingestion_class
         self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
 
-        self.process_definition = ProcessDefinition(
+        process_definition = ProcessDefinition(
             name='data_replay_process',
             description='Process for the replay of datasets')
-        self.process_definition.executable['module']='ion.processes.data.replay_process'
-        self.process_definition.executable['class'] = 'ReplayProcess'
-        self.clients.process_dispatcher.create_process_definition(process_definition=self.process_definition)
+        process_definition.executable['module']= replay_module
+        process_definition.executable['class'] = replay_class
+        self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
 
     def post_transform_management(self,config):
