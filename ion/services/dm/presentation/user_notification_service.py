@@ -15,6 +15,7 @@ from pyon.util.log import log
 from pyon.util.containers import DotDict
 from pyon.event.event import EventPublisher
 from ion.services.dm.utility.query_language import QueryLanguage
+from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 
 import string
 import time
@@ -167,12 +168,6 @@ class EventProcessor(object):
         return str(self.__dict__)
 
 
-# the 'from' email address for notification emails
-ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
-ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
-# the default smtp server
-ION_SMTP_SERVER = 'mail.oceanobservatories.org'
-
 
 class EmailEventProcessor(EventProcessor):
 
@@ -180,7 +175,12 @@ class EmailEventProcessor(EventProcessor):
 
         super(EmailEventProcessor, self).__init__(notification_request,user_id)
 
-        smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
+        # the 'from' email address for notification emails
+        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+        # the default smtp server
+        self.ION_SMTP_SERVER = 'mail.oceanobservatories.org'
+
+        smtp_host = CFG.get_safe('server.smtp.host', self.ION_SMTP_SERVER)
         smtp_port = CFG.get_safe('server.smtp.port', 25)
         self.smtp_sender = CFG.get_safe('server.smtp.sender')
         smtp_password = CFG.get_safe('server.smtp.password')
@@ -245,7 +245,7 @@ class EmailEventProcessor(EventProcessor):
                                 "and the emails will not be read."),
             "\r\n")
         msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
-        msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
+        msg_sender = self.ION_NOTIFICATION_EMAIL_ADDRESS
         #        msg_recipient = self.user_email_addr
 
         msg_recipient = self.notification._res_obj.delivery_config.delivery['email']
@@ -334,6 +334,9 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_originators = CFG.event.originators
         self.event_types = CFG.event.types
         self.event_table = {}
+
+        self.discovery = DiscoveryServiceClient()
+
         for originator in self.event_originators:
             try:
                 self.event_table[originator] = CFG.event[originator]
@@ -609,7 +612,7 @@ class UserNotificationService(BaseUserNotificationService):
             configuration=configuration
         )
 
-    def process_batch(self, start_time, end_time):
+    def process_batch(self, start_time = 0, end_time = 10.0):
         '''
         This method is launched when an process_batch event is received. The user info dictionary maintained
         by the User Notification Service is used to query the event repository for all events for a particular
@@ -620,10 +623,6 @@ class UserNotificationService(BaseUserNotificationService):
         # The UNS will use the flat dictionary (with user_ids as keys and notification_ids as values)
         # to query the Event Repository (using code in the event repository module) to see what
         # events corresponding to those notifications have been generated during the day.
-        # Every notification has an event type associated with it.
-        # The UNS will use the find_events() method in EventRepository in the
-        # pyon/event/event.py module using start and end times to query the events that took place
-        # during the period.
 
         #        query_dict = {'and': [],
         #                      'or': [],
@@ -648,7 +647,7 @@ class UserNotificationService(BaseUserNotificationService):
                 search_string = search_origin + 'and' + search_origin_type + 'and' + search_event_type + 'and' +\
                                 search_time
 
-                ret_vals = self.clients.discovery.parse(search_string)
+                ret_vals = self.discovery.parse(search_string)
 
                 events_message += '\n' + str(ret_vals)
 
