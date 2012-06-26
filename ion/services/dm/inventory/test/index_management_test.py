@@ -161,9 +161,12 @@ class IndexManagementUnitTest(PyonTestCase):
         self.assertTrue(self.rr_update.called)
 
     def test_delete_collection(self):
+        self.rr_find_assocs.return_value = ['assoc']
+
         retval = self.index_management.delete_collection('collection_id')
         self.assertTrue(retval)
         self.rr_delete.assert_called_once_with('collection_id')
+        self.rr_delete_assoc.assert_called_once_with('assoc')
 
     def test_list_collection_resources(self):
         self.rr_find_obj.return_value = (['test_id'],[''])
@@ -379,9 +382,10 @@ class IndexManagementIntTest(IonIntegrationTestCase):
     def test_delete_collection(self):
         ims_cli = self.ims_cli
         rr_cli  = self.rr_cli
+        res = Resource()
+        res_id, rev = rr_cli.create(res)
 
-        collection = Collection(name='nub')
-        collection_id, _ = rr_cli.create(collection)
+        collection_id = ims_cli.create_collection(name='test_collection', resources=[res_id])
 
         ims_cli.delete_collection(collection_id)
 

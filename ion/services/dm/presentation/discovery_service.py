@@ -504,7 +504,7 @@ class DiscoveryService(BaseDiscoveryService):
         es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
         source = self.clients.resource_registry.read(source_id)
 
-        iterate = self._multi(self.query_range, source=source, field=field, origin=origin, distance=distance) 
+        iterate = self._multi(self.query_geo_distance, source=source, field=field, origin=origin, distance=distance) 
         if iterate is not None:
             return iterate
 
@@ -557,7 +557,7 @@ class DiscoveryService(BaseDiscoveryService):
         es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
         source = self.clients.resource_registry.read(source_id)
 
-        iterate = self._multi(self.query_range, source=source, field=field, top_left=top_left, bottom_right=bottom_right, order=order, limit=limit, offset=offset, id_only=id_only)
+        iterate = self._multi(self.query_geo_bbox, source=source, field=field, top_left=top_left, bottom_right=bottom_right, order=order, limit=limit, offset=offset, id_only=id_only)
         if iterate is not None:
             return iterate
 
