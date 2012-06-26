@@ -12,6 +12,7 @@ from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from pyon.event.event import EventSubscriber, EventPublisher
 
 class NotificationWorker(TransformDataProcess):
@@ -28,6 +29,7 @@ class NotificationWorker(TransformDataProcess):
     def on_start(self):
         super(NotificationWorker,self).on_start()
 
+        self.update_user_info()
 
         def receive_event(event_msg, headers):
             pass
@@ -42,6 +44,20 @@ class NotificationWorker(TransformDataProcess):
 
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
+
+    def update_user_info(self):
+        '''
+        Method to update the user info dictionary maintained by the NotificationWorker class
+        '''
+        search_string = 'search "name" is "*" from "users_index"'
+        discovery = DiscoveryServiceClient()
+        results  = discovery.parse(search_string)
+
+        for result in results:
+            user_name = result['_source'].name
+            user_contact = result['_source'].contact
+
+            NotificationWorker.user_info[user_name] = user_contact
 
     def process(self, packet):
         """Process incoming data!!!!

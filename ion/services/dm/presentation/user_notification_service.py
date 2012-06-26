@@ -435,7 +435,6 @@ class UserNotificationService(BaseUserNotificationService):
             #---------------------------------------------------------------------------------------------------
 
             NotificationWorker.user_info[user_id] = notification_id
-            NotificationWorker.reverse_user_info[notification_id] = user_id
 
             log.debug('Updated notification object with id: %s' % notification_id)
 
