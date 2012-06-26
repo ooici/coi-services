@@ -41,7 +41,8 @@ STD_INDEXES  = {
     '%s_models_index' % get_sys_name().lower()          : [RT.SensorModel, RT.PlatformModel, RT.InstrumentModel, RT.ExternalDatasetModel, 
                                                             RT.DataSourceModel],
     '%s_data_products_index' % get_sys_name().lower()   : [RT.DataProduct],
-    '%s_searches_and_catalogs' % get_sys_name().lower() : [RT.Index, RT.Catalog]
+    '%s_searches_and_catalogs' % get_sys_name().lower() : [RT.Index, RT.Catalog],
+    '%s_users_index' % get_sys_name().lower()           : [RT.UserInfo]
 }
 COUCHDB_INDEXES = {
     'resources_couch_index'  : '%s_resources' % get_sys_name().lower()
