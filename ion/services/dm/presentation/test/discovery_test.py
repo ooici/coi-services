@@ -12,7 +12,7 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess 
+from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
@@ -741,3 +741,27 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == pd_id)
         self.assertTrue(results[0]['_source'].name == 'test_dev')
         
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_user_search(self):
+        user = UserInfo()
+        user.name = 'test'
+        user.contact.phone = '5551212'
+
+        user_id, _ = self.rr.create(user)
+
+        search_string = 'search "name" is "test" from "users_index"'
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertTrue(results[0]['_id'] == user_id)
+        self.assertTrue(results[0]['_source'].name == 'test')
+
+        search_string = 'search "contact.phone" is "5551212" from "users_index"'
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertTrue(results[0]['_id'] == user_id)
+        self.assertTrue(results[0]['_source'].name == 'test')
