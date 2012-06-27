@@ -11,6 +11,7 @@ import numpy
 import random
 import time
 
+
 ### Taxonomies are defined before hand out of band... somehow.
 tx = TaxyTool()
 tx.add_taxonomy_set('temp','long name for temp')
@@ -20,6 +21,10 @@ tx.add_taxonomy_set('lon','long name for longitude')
 tx.add_taxonomy_set('pres','long name for pres')
 tx.add_taxonomy_set('time','long name for time')
 tx.add_taxonomy_set('height','long name for height')
+# This is an example of using groups it is not a normative statement about how to use groups
+tx.add_taxonomy_set('coordinates','This group contains coordinates...')
+tx.add_taxonomy_set('data','This group contains data...')
+
 
 class SimpleCtdDataProducer(SimpleCtdPublisher):
     """
@@ -33,8 +38,9 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
     def _trigger_func(self, stream_id):
         log.debug("SimpleCtdDataProducer:_trigger_func ")
 
-        print 'SimpleCtdDataProducer SimpleCtdDataProducer SimpleCtdDataProducer SimpleCtdDataProducer'
-
+        rdt = RecordDictionaryTool(taxonomy=tx)
+        rdt0 = RecordDictionaryTool(taxonomy=tx)
+        rdt1 = RecordDictionaryTool(taxonomy=tx)
 
 
         #@todo - add lots of comments in here
@@ -59,21 +65,22 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
 
             self.last_time = max(tvar)
 
-            rdt = RecordDictionaryTool(taxonomy=tx)
-            rdt['time'] = tvar
-            rdt['lat'] = lat
-            rdt['lon'] = lon
-            rdt['temp'] = t
-            rdt['cond'] = c
-            rdt['pres'] = p
-            rdt['height'] = h
+            rdt0['time'] = tvar
+            rdt0['lat'] = lat
+            rdt0['lon'] = lon
+            rdt0['height'] = h
+            rdt1['temp'] = t
+            rdt1['cond'] = c
+            rdt1['pres'] = p
 
+            rdt['coordinates'] = rdt0
+            rdt['data'] = rdt1
 
-            log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
+            log.debug("SimpleCtdDataProducer: logging published Record Dictionary:\n %s", rdt.pretty_print())
 
             g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 
-            log.info('Sending %d values!' % length)
+            log.debug('SimpleCtdDataProducer: Sending %d values!' % length)
             self.publisher.publish(g)
 
             time.sleep(2.0)
