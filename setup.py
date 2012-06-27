@@ -26,7 +26,7 @@ setup(  name = 'coi-services',
         packages = find_packages(),
         dependency_links = [
             'http://ooici.net/releases',
-            'https://github.com/ooici/marine-integrations/tarball/master#egg=marine-integrations'
+            'https://github.com/ooici/marine-integrations/tarball/master#egg=marine_integrations-1.0',
             'https://github.com/ooici/pyon/tarball/master#egg=pyon'
         ],
         test_suite = 'pyon',

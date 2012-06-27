@@ -1,0 +1,34 @@
+dbd_label: DBD_ASC(dinkum_binary_data_ascii)file
+encoding_ver: 2
+num_ascii_tags: 14
+all_sensors: 0
+filename: silbo-2012-066-7-6
+the8x3_filename: 02090006
+filename_extension: sbd
+filename_label: silbo-2012-066-7-6-sbd(02090006)
+mission_name: LEIF.MI
+fileopen_time: Wed_Mar__7_17:40:16_2012
+sensors_per_cycle: 13
+num_label_lines: 3
+num_segments: 1
+segment_filename_0: silbo-2012-066-7-6
+m_battery m_depth m_de_oil_vol m_pitch m_present_secs_into_mission m_present_time m_roll m_vacuum sci_m_present_secs_into_mission sci_m_present_time sci_water_cond sci_water_pressure sci_water_temp 
+volts m cc rad sec timestamp rad inHg sec timestamp s/m bar degc 
+4 4 4 4 4 8 4 4 4 8 4 4 4 
+NaN NaN NaN NaN 24153.7 1331141957.7179 NaN NaN 24153.7 1331141957.7179 0 0 0 
+15.4324 0.0426062 258.961 0.47473 24170.7 1331141975.50427 -0.0401426 9.43283 NaN NaN NaN NaN NaN 
+15.422 0.149122 258.926 NaN 24170.7 1331141975.50427 NaN 9.4113 NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN 24175.9 1331141979.8627 NaN NaN 24175.9 1331141979.8627 0 0 0 
+NaN 0.0426062 NaN NaN 24232.9 1331142037.74722 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.0159773 258.83 NaN 24249.8 1331142054.65134 NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN 24254.4 1331142059.25311 -0.0401426 NaN NaN NaN NaN NaN NaN 
+NaN 0.069235 NaN NaN 24268 1331142072.84756 NaN NaN NaN NaN NaN NaN NaN 
+15.4126 NaN NaN NaN 24277.1 1331142081.95557 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.122493 258.878 NaN 24286.3 1331142091.17163 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.0958639 NaN NaN 24304.8 1331142109.61438 NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN 258.854 NaN 24319.3 1331142124.18546 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.122493 NaN NaN 24323.9 1331142128.77924 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.0426062 NaN NaN 24337.5 1331142142.38147 NaN 9.36742 NaN NaN NaN NaN NaN 
+15.4116 NaN NaN NaN 24345.2 1331142150.03775 NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN 258.914 NaN 24354.5 1331142159.36734 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.05 NaN NaN 24359.2 1331142164.08392 NaN NaN NaN NaN NaN NaN NaN 

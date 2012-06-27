@@ -92,6 +92,8 @@ class IONLoader(ImmediateProcess):
                       'DataProcess',
                       'DataProductLink',
                       'Attachment',
+                      'WorkflowDefinition',
+                      'Workflow',
                       ]
 
         self.path = path
@@ -675,6 +677,49 @@ class IONLoader(ImmediateProcess):
         att_id = rr_client.create_attachment(res_id, att_obj, headers=headers)
         self._register_id(row[self.COL_ID], att_id)
 
+
+    # WorkflowDefinition load functions - Added by Raj Singh
+    def _load_WorkflowDefinition(self, row):
+        log.info("Loading WorkflowDefinition")
+
+        workflow_def_obj = self._create_object_from_row("WorkflowDefinition", row, "wfd/")
+        workflow_client = self._get_service_client("workflow_management")
+
+        # Create the workflow steps
+        steps_string = row["steps"]
+        workflow_step_ids = []
+        if steps_string:
+            workflow_step_ids = self._get_typed_value(steps_string, targettype="simplelist")
+        else:
+            log.info("No steps found for workflow definition. Ignoring this entry")
+            return
+
+        # Locate the data process def objects and add them to the workflow def
+        for step_id in workflow_step_ids:
+            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=self.resource_ids[step_id],
+                persist_process_output_data=False)
+            workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        workflow_def_id = workflow_client.create_workflow_definition(workflow_def_obj)
+
+        self._register_id(row[self.COL_ID], workflow_def_id)
+
+        return
+
+    # Workflow load functions - Added by Raj Singh
+    def _load_Workflow(self,row):
+        log.info("Loading Workflow")
+
+        workflow_obj = self._create_object_from_row("WorkflowDefinition", row, "wf/")
+        workflow_client = self._get_service_client("workflow_management")
+
+        workflow_def_id = self.resource_ids[row["wfd_id"]]
+        #Create and start the workflow
+        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_def_id, self.resource_ids[row["in_dp_id"]], timeout=30)
+        #print " >>>>>>> Workflow_id = ", workflow_id , " workflow_product_id = ", workflow_product_id
+
+        return
     # ---------------------------------------------------------------------------
 
     def extract_ooi_assets(self, path):
