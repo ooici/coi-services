@@ -48,8 +48,6 @@ class BootstrapService(BaseBootstrapService):
             self.post_org_management(config)
         elif level == "exchange_management":
             self.post_exchange_management(config)
-        elif level == "visualization_service":
-            self.bootstrap_viz_svc(config)
         elif level == "load_system_policy":
             self.load_system_policy(config)
 
@@ -185,24 +183,6 @@ class BootstrapService(BaseBootstrapService):
 
         #self.clients.resource_registry.find_subjects(self.xs_id, "HAS-A")
 
-    def bootstrap_viz_svc(self, config):
-
-        # Create process definitions which will used to spawn off the transform processes
-        matplotlib_proc_def = IonObject(RT.ProcessDefinition, name='viz_matplotlib_transform_process')
-        matplotlib_proc_def.executable = {
-            'module': 'ion.services.ans.visualization_service',
-            'class':'VizTransformProcForMatplotlibGraphs'
-        }
-        matplotlib_proc_def_id, _ = self.clients.resource_registry.create(matplotlib_proc_def)
-
-        google_dt_proc_def = IonObject(RT.ProcessDefinition, name='viz_google_dt_transform_process')
-        google_dt_proc_def.executable = {
-            'module': 'ion.services.ans.visualization_service',
-            'class':'VizTransformProcForGoogleDT'
-        }
-        google_dt_proc_def_id, _ = self.clients.resource_registry.create(google_dt_proc_def)
-
-        return
 
     def post_startup(self):
         log.info("Cannot sanity check bootstrap yet, need better plan to sync local state (or pull from datastore?)")
