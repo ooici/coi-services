@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 
-__author__ = 'Thomas R. Lennan, Michael Meisinger'
+
+__author__ = 'Thomas R. Lennan, Michael Meisinger, Stephen Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
+from pyon.core.exception import BadRequest
+from pyon.public import OT
+from pyon.ion.resource import ExtendedResourceContainer
+
 
 class ResourceRegistryService(BaseResourceRegistryService):
     """
@@ -94,3 +99,27 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def read_mult(self, object_ids=[]):
         return self.resource_registry.read_mult(object_ids)
+
+    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None):
+        """Returns any ExtendedResource object containing additional related information derived from associations
+
+        @param resource_id    str
+        @param resource_extension    str
+        @param ext_associations    dict
+        @param ext_exclude    list
+        @retval actor_identity    ExtendedResource
+        @throws BadRequest    A parameter is missing
+        @throws NotFound    An object with the specified resource_id does not exist
+        """
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is empty")
+
+        if not resource_extension:
+            raise BadRequest("The extended_resource parameter not set")
+
+        extended_resource_handler = ExtendedResourceContainer(self, self)
+
+        extended_instrument = extended_resource_handler.create_extended_resource_container(resource_extension,
+            resource_id, None, ext_associations, ext_exclude)
+
+        return extended_instrument
