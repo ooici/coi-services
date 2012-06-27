@@ -246,7 +246,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 #        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product  in_product_producer: " +  str(in_product_producer))
 
         # second - get the streams associated with this IN data products
-        self.in_stream_ids = []
+        in_stream_ids = []
         for  in_data_product_id in in_data_product_ids:
             log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data product")
             stream_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasStream, RT.Stream, True)
@@ -255,12 +255,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             if len(stream_ids) != 1:
                 raise BadRequest("IN Data Product should only have ONE stream at this time" + str(in_data_product_id))
             log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data product:  %s  in_stream_id: %s ", str(in_data_product_id),  str(stream_ids[0]))
-            self.in_stream_ids.append(stream_ids[0])
+            in_stream_ids.append(stream_ids[0])
 
         # Finally - create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
         in_data_product_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
-        query = StreamQuery(stream_ids=self.in_stream_ids)
+        query = StreamQuery(stream_ids=in_stream_ids)
         #self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
         self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=data_process_name)
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(self.input_subscription_id))
