@@ -25,9 +25,6 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from gevent import Greenlet
 
-import operator
-from sets import Set
-
 from ion.services.dm.presentation.sms_providers import sms_providers
 from ion.processes.data.transforms.notification_worker import NotificationWorker
 from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency
@@ -381,11 +378,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         notification_id, _ = self.clients.resource_registry.create(notification)
 
-        #---------------------------------------------------------------------------------------------------
-        # update the user_info dict for the NotificationWorker class
-        #---------------------------------------------------------------------------------------------------
-
-        NotificationWorker.user_info[user_id] = notification_id
+        #-------------------------------------------------------------------------------------------------------------------
+        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+        event_publisher = EventPublisher("UpdateNotificationEvent")
+        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.")
 
         #---------------------------------------------------------------------------------------------------
         # create event processor for user
@@ -430,11 +427,13 @@ class UserNotificationService(BaseUserNotificationService):
             _event_processor.notification.set_notification_id(notification_id)
             # finally update the notification in the RR
             self.clients.resource_registry.update(notification)
-            #---------------------------------------------------------------------------------------------------
-            # update the user_info dict for the NotificationWorker class
-            #---------------------------------------------------------------------------------------------------
 
-            NotificationWorker.user_info[user_id] = notification_id
+            #-------------------------------------------------------------------------------------------------------------------
+            # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+            #-------------------------------------------------------------------------------------------------------------------
+            event_publisher = EventPublisher("UpdateNotificationEvent")
+            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.")
+
 
             log.debug('Updated notification object with id: %s' % notification_id)
 
@@ -461,6 +460,12 @@ class UserNotificationService(BaseUserNotificationService):
         del self.event_processors[notification_id]
         _event_processor.remove_notification(notification_id)
         self.clients.resource_registry.delete(notification_id)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+        event_publisher = EventPublisher("UpdateNotificationEvent")
+        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.")
 
         #@todo clean up the association?
 
@@ -579,9 +584,21 @@ class UserNotificationService(BaseUserNotificationService):
         Publish a general event at a certain time using the UNS
         '''
 
+        #todo - is there a concept of a general time in the system?
+        # todo - publish an event at a particular time
+
+        if event:
+            type = event.type_
+            origin = event.origin
+            description = event.description
+        else:
+            type = "Event"
+            origin = "User"
+            description = "User defined event"
+
         #todo: fill this in with particulars as we come to understand the use cases
-        event_publisher = EventPublisher("Event")
-        event_publisher.publish_event(origin='User', description="User defined event")
+        event_publisher = EventPublisher(type)
+        event_publisher.publish_event(origin=origin, description= description)
 
     def create_worker(self, number_of_workers=1):
         '''
@@ -594,7 +611,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         process_definition = IonObject(RT.ProcessDefinition, name='notification_worker_definition')
         process_definition.executable = {
-            'module': 'ion.processes.data.presentation.notification_worker',
+            'module': 'ion.processes.data.transforms.notification_worker',
             'class':'NotificationWorker'
         }
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
@@ -653,4 +670,5 @@ class UserNotificationService(BaseUserNotificationService):
             log.warning("Each user gets the following message in email: %s" % events_message)
             # send a notification email to each user using a _send_email() method
             # self._send_email(events_message)
+
 

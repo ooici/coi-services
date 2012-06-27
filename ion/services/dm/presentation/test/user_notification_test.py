@@ -436,8 +436,29 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
+
+
     @attr('LOCOINT')
-    @unittest.skip('Test method needs updating to new interface and ion defs')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_user_info(self):
+        '''
+        Test that the user info dictionary maintained by the notification workers get updated when
+        a notification is created, updated, or deleted by UNS
+        '''
+
+        pass
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_batch_notifications(self):
+        '''
+        Test that batch notifications work
+        '''
+
+        pass
+
+    @attr('LOCOINT')
+    @unittest.skip('SMS is being deprecated for now')
     #    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_sms(self):
 
