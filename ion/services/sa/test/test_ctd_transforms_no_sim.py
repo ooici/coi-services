@@ -105,7 +105,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='foome')
 #@unittest.skip("not ready")
 class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
@@ -120,8 +120,6 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        print 'started services'
-
         # Now create client to DataProductManagementService
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
@@ -132,6 +130,21 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+
+
+
+    def create_logger(self, name, stream_id=''):
+
+
+        pid = self.container.spawn_process(
+            name=name+'_logger',
+            module='ion.processes.data.stream_granule_logger',
+            cls='StreamGranuleLogger',
+            config={'process':{'stream_id':stream_id}}
+        )
+        log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
+
+        return pid
 
     def test_createTransformsThenPublishGranules(self):
 
@@ -321,7 +334,6 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
 
-
         log.debug("test_createTransformsThenActivateInstrument: create output data product L0 pressure")
         ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
@@ -388,6 +400,19 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         ctd_l2_density_output_dp_obj = IonObject(RT.DataProduct, name='L2_Density',description='transform output pressure')
         ctd_l2_density_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_density_output_dp_obj, outgoing_stream_l2_density_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_density_output_dp_id, persist_data=True, persist_metadata=True)
+
+
+        self.loggerpids = []
+        # Set up subscribers/loggers to these streams
+        stream_ids, _ = self.rrclient.find_objects(ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
+        log.debug("L2 salinity stream id =  %s", str(stream_ids) )
+        pid = self.create_logger('L2_salinity', stream_ids[0] )
+        self.loggerpids.append(pid)
+
+        stream_ids, _ = self.rrclient.find_objects(ctd_l2_density_output_dp_id, PRED.hasStream, None, True)
+        log.debug("L2 salinity stream id =  %s", str(stream_ids) )
+        pid = self.create_logger('L2_density', stream_ids[0] )
+        self.loggerpids.append(pid)
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
@@ -485,6 +510,10 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         time.sleep(2.0)
 
 
+        # clean up the launched processes
         self.processdispatchclient.cancel_process(producer_pid)
+        for pid in self.loggerpids:
+            self.processdispatchclient.cancel_process(pid)
+
 
 
