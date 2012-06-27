@@ -95,7 +95,7 @@ class InstrumentSiteImpl(SiteImpl):
         return self._find_having(PRED.hasOutputProduct, data_product_id)
 
     def find_stemming_output_product(self, site_id):
-        return self._find_stemming(site_id, PRED.hasMode, RT.DataProduct)
+        return self._find_stemming(site_id, PRED.hasModel, RT.DataProduct)
 
     def on_pre_delete(self, obj_id, obj):
         #todo: unlink parent/children sites, agents, models, devices?
