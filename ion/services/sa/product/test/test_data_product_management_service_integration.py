@@ -81,6 +81,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = ctd_stream_definition()
         ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        print ("Created stream def id %s" % ctd_stream_def_id)
+
 
         # test creating a new data product w/o a stream definition
         print 'test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)'
@@ -106,6 +108,18 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new dp_id = ', dp_id2
+
+        #make sure data product is associated with stream def
+        streamdefs = []
+        streams, _ = self.rrclient.find_objects(dp_id2, PRED.hasStream, RT.Stream, True)
+        for s in streams:
+            print ("Checking stream %s" % s)
+            sdefs, _ = self.rrclient.find_objects(s, PRED.hasStreamDefinition, RT.StreamDefinition, True)
+            for sd in sdefs:
+                print ("Checking streamdef %s" % sd)
+                streamdefs.append(sd)
+        self.assertIn(ctd_stream_def_id, streamdefs)
+
 
         # test activate and suspend data product persistence
         try:
