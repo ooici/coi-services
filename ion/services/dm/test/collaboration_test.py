@@ -17,6 +17,8 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, CouchStorage
+import unittest
+import os
 
 import gevent
 @attr('INT',group='dm')
@@ -44,8 +46,14 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         self.received += 1
         if self.received >= 2:
             self.async_done.set(True)
+            
 
+    #--------------------------------------------------------------------------------
+    # I have to skip CEI mode in the interim because of the couch config madness, it's going away shortly.
+    #--------------------------------------------------------------------------------
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ingest_to_replay(self):
 
         self.async_done = AsyncResult()

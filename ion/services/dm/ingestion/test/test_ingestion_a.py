@@ -19,11 +19,12 @@ from pyon.util.containers import DotDict
 from pyon.core.bootstrap import get_sys_name
 from pyon.datastore.datastore import DataStore
 from ion.processes.data.ingestion.ingestion_worker_a import IngestionWorker
+import unittest
+import os
 
 
 
 @attr('INT',group='dm')
-
 class RawStreamIntegration(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
@@ -44,7 +45,8 @@ class RawStreamIntegration(IonIntegrationTestCase):
 
         #    def _spawn_service_process(self, process_id, name, module, cls, config):
         #    def spawn_process(self, name=None, module=None, cls=None, config=None, process_id=None):
-
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_raw_stream_integration(self):
         cc = self.container
         assertions = self.assertTrue
