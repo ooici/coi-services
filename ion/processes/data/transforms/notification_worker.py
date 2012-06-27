@@ -14,42 +14,45 @@ from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from pyon.event.event import EventSubscriber, EventPublisher
-#from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
+from ion.services.dm.utility.uns_utility_methods import send_email, update_user_info, calculate_reverse_user_info
 
 class NotificationWorker(TransformDataProcess):
     """
     Instances of this class acts as a Notification Worker.
     """
 
-    # the dictionary containing info for all the users
-    user_info = {} #  dict = {'user_id' : notification}
-
     def on_init(self):
         self.event_pub = EventPublisher()
-#        self.email_event_processor = EmailEventProcessor()
+        # the dictionary containing info for all the users
+        self.user_info = {} #  dict = {'user_id' : notification}
+
+        # the reverse dictionaries
+        self.event_type_user = {}
+        self.event_subtype_user = {}
+        self.event_origin_user = {}
+        self.event_origin_type_user = {}
 
     def on_start(self):
         super(NotificationWorker,self).on_start()
 
         self.update_user_info()
 
-        def receive_event(event_msg, headers):
-            # use the subscription call back of the email event processor to send an email
-#            self.email_event_processor.subscription_callback(event_msg)
-            pass
+#        def receive_event(event_msg, headers):
+#            # use the subscription call back of the email event processor to send an email
+#            self.process_event(event_msg)
 
         def receive_update_notification_event(event_msg, headers):
             self.update_user_info()
 
-        #------------------------------------------------------------------------------------
-        # start the event subscriber for all events that are of interest for notifications
-        #------------------------------------------------------------------------------------
-
-        self.event_subscriber = EventSubscriber(
-            event_type="Event",
-            queue_name = 'uns_queue', # modify this to point at the right queue
-            callback=receive_event
-        )
+#        #------------------------------------------------------------------------------------
+#        # start the event subscriber for all events that are of interest for notifications
+#        #------------------------------------------------------------------------------------
+#
+#        self.event_subscriber = EventSubscriber(
+#            event_type="Event",
+#            queue_name = 'uns_queue', # modify this to point at the right queue
+#            callback=receive_event
+#        )
 
         #------------------------------------------------------------------------------------
         # start the event subscriber for listening to events which get generated when
@@ -61,28 +64,23 @@ class NotificationWorker(TransformDataProcess):
             callback=receive_update_notification_event
         )
 
-
         self.gl = spawn(self.event_subscriber.listen)
         self.event_subscriber._ready_event.wait(timeout=5)
 
-    def update_user_info(self):
-        '''
-        Method to update the user info dictionary maintained by the NotificationWorker class
-        '''
-        search_string = 'search "name" is "*" from "users_index"'
-        discovery = DiscoveryServiceClient()
-        results  = discovery.parse(search_string)
+        # calculate the user info dictionary
+        self.user_info = update_user_info()
 
-        for result in results:
-            user_name = result['_source'].name
-            user_contact = result['_source'].contact
-
-            NotificationWorker.user_info[user_name] = user_contact
+        # calculate the reverse user info
+        self.event_type_user, self.event_subtype_user, \
+        self.event_origin_user, self.event_origin_type_user =  calculate_reverse_user_info(self.user_info)
 
     def process(self, packet):
         """Process incoming data!!!!
+
+        From the user_info dict find out which user has subscribed to that event.
+        Send email to the user
+
         """
-        # Process the packet
 
         for key,value in packet.identifiables.iteritems():
             pass

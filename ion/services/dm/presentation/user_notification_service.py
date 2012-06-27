@@ -26,11 +26,10 @@ from email.mime.text import MIMEText
 from gevent import Greenlet
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from ion.processes.data.transforms.notification_worker import NotificationWorker
 from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-
+from ion.services.dm.utility.uns_utility_methods import send_email, update_user_info, calculate_reverse_user_info
 import smtplib
 
 class fake_smtplib(object):
@@ -332,6 +331,8 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_types = CFG.event.types
         self.event_table = {}
 
+        self.user_info = {}
+
         self.discovery = DiscoveryServiceClient()
 
         for originator in self.event_originators:
@@ -340,9 +341,27 @@ class UserNotificationService(BaseUserNotificationService):
             except NotFound:
                 log.info("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
 
-        log.debug("UserNotificationService.on_start(): event_originators=%s" %str(self.event_originators))
-        log.debug("UserNotificationService.on_start(): event_types=%s" %str(self.event_types))
-        log.debug("UserNotificationService.on_start(): event_table=%s" %str(self.event_table))
+        #------------------------------------------------------------------------------------
+        # start the event subscriber for listening to events which get generated when
+        # notifications are updated.. this is required so that the UNS can update its user_info dict
+        # that it needs for batch notifications
+        #------------------------------------------------------------------------------------
+
+        def receive_update_notification_event(event_msg, headers):
+            self.user_info = update_user_info()
+
+            # calculate the reverse user info
+            self.event_type_user, self.event_subtype_user,\
+            self.event_origin_user, self.event_origin_type_user =  calculate_reverse_user_info(self.user_info)
+
+        # set up the event subscribers
+        self.event_subscriber = EventSubscriber(
+            event_type="UpdateNotificationEvent",
+            callback=receive_update_notification_event
+        )
+
+        self.gl = spawn(self.event_subscriber.listen)
+        self.event_subscriber._ready_event.wait(timeout=5)
 
     def on_quit(self):
 
@@ -646,8 +665,8 @@ class UserNotificationService(BaseUserNotificationService):
         #                               'index': 'events_index',
         #                               'range': {'from': 0.0, 'to': 100.0}}}
 
-        for user in NotificationWorker.user_info.iterkeys():
-            notifications = NotificationWorker.user_info[user]
+        for user in self.user_info.iterkeys():
+            notifications = self.user_info[user]['notifications']
 
             events_message = ''
 
@@ -670,5 +689,9 @@ class UserNotificationService(BaseUserNotificationService):
             log.warning("Each user gets the following message in email: %s" % events_message)
             # send a notification email to each user using a _send_email() method
             # self._send_email(events_message)
+
+
+
+
 
 
