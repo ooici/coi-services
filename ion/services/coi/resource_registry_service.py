@@ -119,7 +119,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
         extended_resource_handler = ExtendedResourceContainer(self, self)
 
-        extended_instrument = extended_resource_handler.create_extended_resource_container(resource_extension,
-            resource_id, None, ext_associations, ext_exclude)
+        extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
+                                        resource_id, None, ext_associations, ext_exclude)
 
-        return extended_instrument
+        return extended_resource
