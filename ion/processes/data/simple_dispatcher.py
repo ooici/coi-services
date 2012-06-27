@@ -120,7 +120,7 @@ class SimpleDispatcher(StandaloneProcess):
 
 
         subscriber = stream_subscriber.create_subscriber(exchange_name=exchange_name, callback=message_received)
-        subscriber.start()
+        self._process.add_endpoint(subscriber)
 
         pubsub_cli.activate_subscription(subscription_id)
 

@@ -10,7 +10,8 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.public import PRED, RT, Container
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
-from pyon.event.event import EventPublisher, EventSubscriber
+from pyon.event.event import EventPublisher
+from pyon.ion.endpoint import ProcessEventSubscriber
 
 MANAGER_ROLE = 'ORG_MANAGER'  # Can only act upon resource within the specific Org
 MEMBER_ROLE = 'ORG_MEMBER'    # Can only access resources within the specific Org
@@ -20,17 +21,11 @@ ION_MANAGER = 'ION_MANAGER'   # Can act upon resources across all Orgs - like a 
 class PolicyManagementService(BasePolicyManagementService):
 
 
-    def on_init(self):
+    def on_start(self):
         self.event_pub = EventPublisher()
 
-        self.policy_event_subscriber = EventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self.policy_event_callback)
-        self.policy_event_subscriber.activate()
-
-    def on_quit(self):
-
-        if self.policy_event_subscriber is not None:
-            self.policy_event_subscriber.deactivate()
-
+        self.policy_event_subscriber = ProcessEventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self.policy_event_callback, process=self)
+        self._process.add_endpoint(self.policy_event_subscriber)
 
     """
     Provides the interface to define and manage policy and a repository to store and retrieve policy and templates for

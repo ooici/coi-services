@@ -186,6 +186,9 @@ class IndexManagementService(BaseIndexManagementService):
         return self.clients.resource_registry.update(collection)
 
     def delete_collection(self, collection_id=''):
+        assocs = self.clients.resource_registry.find_associations(subject=collection_id, predicate=PRED.hasElement)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(collection_id)
         return True
 

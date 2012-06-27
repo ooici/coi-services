@@ -14,6 +14,7 @@ from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler, DataHandlerParameter
+from ion.agents.data.handlers.handler_utils import calculate_iteration_count
 import hashlib
 import numpy as np
 from pyon.core.interceptor.encode import encode_ion, decode_ion
@@ -23,15 +24,10 @@ import time
 
 from netCDF4 import Dataset
 
-
-PACKET_CONFIG = {
-    'data_stream' : ('prototype.sci_data.stream_defs', 'ctd_stream_packet')
-}
-
 class NetcdfDataHandler(BaseDataHandler):
 
     @classmethod
-    def _new_data_constraints(cls, config):
+    def _constraints_for_new_request(cls, config):
         """
         Returns a constraints dictionary with
         @param config Dict of configuration parameters - may be used to generate the returned 'constraints' dict
@@ -88,6 +84,10 @@ class NetcdfDataHandler(BaseDataHandler):
         return None
 
     @classmethod
+    def _constraints_for_historical_request(cls, config):
+        return {}
+
+    @classmethod
     def _get_data(cls, config):
         """
         Retrieves config['constraints']['count'] number of random samples of length config['constraints']['array_len']
@@ -123,7 +123,7 @@ class NetcdfDataHandler(BaseDataHandler):
             tx_yml = get_safe(config, 'taxonomy')
             ttool = TaxyTool.load(tx_yml) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
 
-            cnt = cls._calc_iter_cnt(t_arr.size, max_rec)
+            cnt = calculate_iteration_count(t_arr.size, max_rec)
             for x in xrange(cnt):
                 ta = t_arr[x*max_rec:(x+1)*max_rec]
 

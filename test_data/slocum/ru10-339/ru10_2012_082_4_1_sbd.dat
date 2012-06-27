@@ -1,0 +1,32 @@
+dbd_label: DBD_ASC(dinkum_binary_data_ascii)file
+encoding_ver: 2
+num_ascii_tags: 14
+all_sensors: 0
+filename: ru10-2012-082-4-1
+the8x3_filename: 02400001
+filename_extension: sbd
+filename_label: ru10-2012-082-4-1-sbd(02400001)
+mission_name: 100_NW.MI
+fileopen_time: Fri_Mar_23_18:17:30_2012
+sensors_per_cycle: 58
+num_label_lines: 3
+num_segments: 1
+segment_filename_0: ru10-2012-082-4-1
+c_alt_time c_ballast_pumped c_heading c_science_send_all c_wpt_x_lmc c_wpt_y_lmc f_fin_offset m_avg_speed m_battpos m_coulomb_amphr m_fin m_final_water_vx m_final_water_vy m_gps_lat m_gps_lon m_gps_mag_var m_gps_status m_heading m_lat m_leakdetect_voltage m_leakdetect_voltage_forward m_lon m_pitch m_present_time m_pressure m_roll m_tot_num_inflections m_vacuum m_veh_temp m_water_depth m_water_vx m_water_vy m_x_lmc m_y_lmc gld_dup_sci_water_cond gld_dup_sci_water_pressure gld_dup_sci_water_temp u_hd_fin_ap_gain u_hd_fin_ap_hardover_holdoff u_hd_fin_ap_igain u_hd_fin_ap_inflection_holdoff u_min_water_depth u_pitch_ap_deadband u_pitch_ap_gain u_pitch_max_delta_battpos x_cycle_overrun_in_ms x_lmc_xy_source sci_m_present_time sci_water_pressure sci_water_cond sci_water_temp sci_ctd41cp_timestamp sci_bbfl2s_bb_scaled sci_bbfl2s_chlor_scaled sci_bbfl2s_cdom_scaled sci_bb3slo_b470_scaled sci_bb3slo_b532_scaled sci_bb3slo_b660_scaled 
+sec cc rad bool m m rad m/s in amp-hrs rad m/s m/s lat lon rad enum rad lat volts volts lon rad timestamp bar rad nodim inHg c m m/s m/s m m S/m bar degC 1/rad sec 1/rad-sec sec m rad 1/rad in msec enum timestamp bar s/m degc timestamp nodim ug/l ppb nodim nodim nodim 
+4 4 4 1 4 4 4 4 4 4 4 4 4 8 8 4 1 4 8 4 4 8 4 8 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 1 8 4 4 4 8 4 4 4 4 4 4 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526598.96835 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526598.96835 0 0 0 0 0 0 0 0 0 0 
+-1 213 1.80238 0 103770 -73122.7 0 0.185772 1.02827 0 -0.00120513 0.0282791 -0.0785927 3926.1958 -7413.4037 0.23911 0 1.41492 3926.19580006121 2.49951 -1 -7413.4036999993 0.000577586 1332526606.21176 0.0291924 -0.0595826 120043 9.48327 -1 -1 0.0173299 -0.0710091 954.58 -103.611 3 0.014 10 1 120 0.03 -1 0 0.0524 -2.86 0.05 1086 -1 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN 213 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 2.49328 -1 NaN NaN 1332526606.21176 0.101856 NaN NaN 9.59127 NaN -1 NaN NaN NaN NaN NaN 0.018 NaN NaN NaN NaN NaN NaN NaN NaN NaN 1086 -1 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526653.73792 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.016 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526659.0094 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.015 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526664.21558 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.018 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526669.30389 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.013 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526674.37057 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.013 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526679.4548 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.017 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526684.42761 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.015 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526689.44046 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.017 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526694.34384 0.0921397 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.014 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526699.42725 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.015 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526704.51007 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.016 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 1332526709.59726 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.016 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN -1 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 

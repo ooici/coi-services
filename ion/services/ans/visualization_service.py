@@ -103,7 +103,7 @@ class VisualizationService(BaseVisualizationService):
         self.viz_service_submit_stream_sub_id = self.pubsub_cli.create_subscription(query=query, exchange_name="visualization_service_submit_queue")
         submit_stream_subscriber_registrar = StreamSubscriberRegistrar(process = self.container, node = self.container.node )
         submit_stream_subscriber = submit_stream_subscriber_registrar.create_subscriber(exchange_name='visualization_service_submit_queue', callback=self.process_submission)
-        submit_stream_subscriber.start()
+        self._process.add_endpoint(submit_stream_subscriber)
 
         self.pubsub_cli.activate_subscription(self.viz_service_submit_stream_sub_id)
 

@@ -1,0 +1,26 @@
+dbd_label: DBD_ASC(dinkum_binary_data_ascii)file
+encoding_ver: 2
+num_ascii_tags: 14
+all_sensors: 0
+filename: silbo-2012-066-7-8
+the8x3_filename: 02090008
+filename_extension: sbd
+filename_label: silbo-2012-066-7-8-sbd(02090008)
+mission_name: LEIF.MI
+fileopen_time: Wed_Mar__7_20:03:41_2012
+sensors_per_cycle: 13
+num_label_lines: 3
+num_segments: 1
+segment_filename_0: silbo-2012-066-7-8
+m_battery m_depth m_de_oil_vol m_pitch m_present_secs_into_mission m_present_time m_roll m_vacuum sci_m_present_secs_into_mission sci_m_present_time sci_water_cond sci_water_pressure sci_water_temp 
+volts m cc rad sec timestamp rad inHg sec timestamp s/m bar degc 
+4 4 4 4 4 8 4 4 4 8 4 4 4 
+NaN NaN NaN NaN 32755.1 1331150559.0972 NaN NaN 32755.1 1331150559.0972 0 0 0 
+15.3959 0.0159773 258.664 0.5044 32775 1331150579.83163 -0.0244346 9.278 NaN NaN NaN NaN NaN 
+15.387 0.122493 258.616 NaN 32775 1331150579.83163 NaN 9.34838 NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN 32776.5 1331150580.54214 NaN NaN 32776.5 1331150580.54214 0 0 0 
+NaN 1.69359 NaN NaN 32836 1331150640.83417 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.069235 258.593 NaN 32854.2 1331150659.06396 NaN NaN NaN NaN NaN NaN NaN 
+NaN 0.0159773 NaN NaN 32872.3 1331150677.15402 NaN NaN NaN NaN NaN NaN NaN 
+15.3854 NaN NaN NaN 32881.4 1331150686.25525 NaN NaN NaN NaN NaN NaN NaN 
+NaN 7.07262 258.581 NaN 32890.6 1331150695.48514 NaN NaN NaN NaN NaN NaN NaN 
