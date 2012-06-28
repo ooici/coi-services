@@ -24,6 +24,11 @@ from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
 import gevent
 
+### For new granule and stream interface
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
+from pyon.util.containers import get_safe
 
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 
@@ -100,16 +105,16 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         #---------------------------
         # Set up ingestion - this is an operator concern - not done by SA in a deployed system
         #---------------------------
-        # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
-        log.debug('Calling create_ingestion_configuration')
-        ingestion_configuration_id = ingestion_management_service.create_ingestion_configuration(
-            exchange_point_id='science_data',
-            couch_storage=CouchStorage(datastore_name=datastore_name,datastore_profile='SCIDATA'),
-            number_of_workers=1
-        )
-        #
-        ingestion_management_service.activate_ingestion_configuration(
-            ingestion_configuration_id=ingestion_configuration_id)
+#        # Configure ingestion using eight workers, ingesting to test_dm_integration datastore with the SCIDATA profile
+#        log.debug('Calling create_ingestion_configuration')
+#        ingestion_configuration_id = ingestion_management_service.create_ingestion_configuration(
+#            exchange_point_id='science_data',
+#            couch_storage=CouchStorage(datastore_name=datastore_name,datastore_profile='SCIDATA'),
+#            number_of_workers=1
+#        )
+#        #
+#        ingestion_management_service.activate_ingestion_configuration(
+#            ingestion_configuration_id=ingestion_configuration_id)
 
 
 
@@ -121,20 +126,20 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         ctd_stream_id = pubsub_management_service.create_stream(stream_definition_id=ctd_stream_def_id)
 
 
-        # Set up the datasets
-        ctd_dataset_id = dataset_management_service.create_dataset(
-            stream_id=ctd_stream_id,
-            datastore_name=datastore_name,
-            view_name='datasets/stream_join_granule'
-        )
+#        # Set up the datasets
+#        ctd_dataset_id = dataset_management_service.create_dataset(
+#            stream_id=ctd_stream_id,
+#            datastore_name=datastore_name,
+#            view_name='datasets/stream_join_granule'
+#        )
 
-        # Configure ingestion of this dataset
-        ctd_dataset_config_id = ingestion_management_service.create_dataset_configuration(
-            dataset_id = ctd_dataset_id,
-            archive_data = True,
-            archive_metadata = True,
-            ingestion_configuration_id = ingestion_configuration_id, # you need to know the ingestion configuration id!
-        )
+#        # Configure ingestion of this dataset
+#        ctd_dataset_config_id = ingestion_management_service.create_dataset_configuration(
+#            dataset_id = ctd_dataset_id,
+#            archive_data = True,
+#            archive_metadata = True,
+#            ingestion_configuration_id = ingestion_configuration_id, # you need to know the ingestion configuration id!
+#        )
         # Hold onto ctd_dataset_config_id if you want to stop/start ingestion of that dataset by the ingestion service
 
         #---------------------------
@@ -146,20 +151,20 @@ class CTDIntegrationTest(IonIntegrationTestCase):
         sal_stream_id = pubsub_management_service.create_stream(stream_definition_id=sal_stream_def_id)
 
 
-        # Set up the datasets
-        sal_dataset_id = dataset_management_service.create_dataset(
-            stream_id=sal_stream_id,
-            datastore_name=datastore_name,
-            view_name='datasets/stream_join_granule'
-        )
+#        # Set up the datasets
+#        sal_dataset_id = dataset_management_service.create_dataset(
+#            stream_id=sal_stream_id,
+#            datastore_name=datastore_name,
+#            view_name='datasets/stream_join_granule'
+#        )
 
-        # Configure ingestion of the salinity as a dataset
-        sal_dataset_config_id = ingestion_management_service.create_dataset_configuration(
-            dataset_id = sal_dataset_id,
-            archive_data = True,
-            archive_metadata = True,
-            ingestion_configuration_id = ingestion_configuration_id, # you need to know the ingestion configuration id!
-        )
+#        # Configure ingestion of the salinity as a dataset
+#        sal_dataset_config_id = ingestion_management_service.create_dataset_configuration(
+#            dataset_id = sal_dataset_id,
+#            archive_data = True,
+#            archive_metadata = True,
+#            ingestion_configuration_id = ingestion_configuration_id, # you need to know the ingestion configuration id!
+#        )
         # Hold onto sal_dataset_config_id if you want to stop/start ingestion of that dataset by the ingestion service
 
 
@@ -234,20 +239,26 @@ class CTDIntegrationTest(IonIntegrationTestCase):
 
         for message in results:
 
-            psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
+            #psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
+            rdt = RecordDictionaryTool.load_from_granule(message)
+            rdt0 = rdt['coordinates']
+            rdt1 = rdt['data']
+
+            salinity = get_safe(rdt1, 'salinity')
+
 
             # Test the handy info method for the names of fields in the stream def
-            assertions('salinity' in psd.list_field_names())
+            #assertions('salinity' in psd.list_field_names())
 
 
             # you have to know the name of the coverage in stream def
-            salinity = psd.get_values('salinity')
+            #salinity = psd.get_values('salinity')
 
-            import numpy
-
-            assertions(isinstance(salinity, numpy.ndarray))
-
-            assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
+#            import numpy
+#
+#            assertions(isinstance(salinity, numpy.ndarray))
+#
+#            assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
 
 
 
