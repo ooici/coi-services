@@ -24,6 +24,7 @@ from gevent.timeout import Timeout
 from datetime import datetime
 from email.mime.text import MIMEText
 from gevent import Greenlet
+import elasticpy as ep
 
 from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency
@@ -159,48 +160,6 @@ class EmailEventProcessor(EventProcessor):
 
         self.smtp_client = setting_up_smtp_client()
 
-#        if CFG.get_safe('system.smtp',False):
-#            log.warning('Using a fake SMTP library to simulate email notifications!')
-#            self.smtp_client = fake_smtplib.SMTP('mail.oceanobservatories.org')
-
-
-#        log.warning('Using a fake SMTP library to simulate email notifications!')
-#        self.smtp_client = fake_smtplib.SMTP('mail.oceanobservatories.org')
-
-#        # the 'from' email address for notification emails
-#        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
-#        # the default smtp server
-#        self.ION_SMTP_SERVER = 'mail.oceanobservatories.org'
-#
-#        smtp_host = CFG.get_safe('server.smtp.host', self.ION_SMTP_SERVER)
-#        smtp_port = CFG.get_safe('server.smtp.port', 25)
-#        self.smtp_sender = CFG.get_safe('server.smtp.sender')
-#        smtp_password = CFG.get_safe('server.smtp.password')
-#
-#        log.info('smtp_host: %s' % str(smtp_host))
-#        log.info('smtp_port: %s' % str(smtp_port))
-#
-#        if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
-#            log.warning('Using the real SMTP library to send email notifications!')
-#
-#            #@todo - for now hard wire for gmail account
-#            #msg_sender = 'ooici777@gmail.com'
-#            #gmail_pwd = 'ooici777'
-#
-#            self.smtp_client = smtplib.SMTP(smtp_host)
-#            self.smtp_client.ehlo()
-#            self.smtp_client.starttls()
-#            self.smtp_client.login(self.smtp_sender, smtp_password)
-#
-#            log.warning("Using smpt host: %s" % smtp_host)
-#        else:
-#            # Keep this as a warning
-#            log.warning('Using a fake SMTP library to simulate email notifications!')
-#
-#            #@todo - what about port etc??? What is the correct interface to fake?
-#            self.smtp_client = fake_smtplib.SMTP(smtp_host)
-
-
         log.debug("UserEventProcessor.__init__(): email for user %s " %self.user_id)
 
     def subscription_callback(self, message, headers):
@@ -223,14 +182,11 @@ class EmailEventProcessor(EventProcessor):
 #        if CFG.get_safe('system.smtp',False):
 #            self.smtp_client.close()
 
-
 #---------------------
-
 #        provider = notification_request.delivery_config.delivery['provider']
 #
 #        provider_email = sms_providers[provider] # self.notification.delivery_config.delivery['provider']
 #        self.msg_recipient = notification_request.delivery_config.delivery['phone_number'] + provider_email
-#
 
 class DetectionEventProcessor(EventProcessor):
 
@@ -297,7 +253,25 @@ class UserNotificationService(BaseUserNotificationService):
         self.user_info = {}
         self.reverse_user_info = {}
 
-        self.discovery = DiscoveryServiceClient()
+        use_es = CFG.get_safe('system.elasticsearch',False)
+
+        if use_es:
+            self.es_host   = CFG.get_safe('server.elasticsearch.host', 'localhost')
+            self.es_port   = CFG.get_safe('server.elasticsearch.port', '9200')
+            CFG.server.elasticsearch.shards         = 1
+            CFG.server.elasticsearch.replicas       = 0
+            CFG.server.elasticsearch.river_shards   = 1
+            CFG.server.elasticsearch.river_replicas = 0
+            self.es = ep.ElasticSearch(
+                host=self.es_host,
+                port=self.es_port,
+                timeout=10,
+                verbose=True
+            )
+
+            op = DotDict(CFG)
+            op.op = 'clean_bootstrap'
+            self.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap', op)
 
         for originator in self.event_originators:
             try:

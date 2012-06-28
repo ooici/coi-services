@@ -9,7 +9,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig
+from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig, NotificationRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.public import IonObject, RT, PRED, Container
@@ -361,9 +361,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
-        self.unsc = UserNotificationServiceClient(node=self.container.node)
-        self.rrc = ResourceRegistryServiceClient(node=self.container.node)
-        self.imc = IdentityManagementServiceClient(node=self.container.node)
+        self.unsc = UserNotificationServiceClient()
+        self.rrc = ResourceRegistryServiceClient()
+        self.imc = IdentityManagementServiceClient()
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -445,6 +445,30 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test that the user info dictionary maintained by the notification workers get updated when
         a notification is created, updated, or deleted by UNS
         '''
+
+        # Make a notification request object
+        notification_request_1 = NotificationRequest(origin="Some_user",
+            origin_type="some_type",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="A_user",
+            origin_type="some_type",
+            event_type='DetectionEvent')
+
+        # Create a user and get the user_id
+        user = UserInfo()
+        user.name = 'new_user'
+        user.contact.phone = '5551212'
+        user.variables = [{'name' : 'notification', 'value' : [notification_request_1, notification_request_2]}]
+
+        user_id, _ = self.rrc.create(user)
+
+        # Create notification
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+
+        # Check the user_info and reverse_user_info in UNS got reloaded
+
+
 
 
     @attr('LOCOINT')

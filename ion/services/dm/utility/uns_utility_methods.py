@@ -3,6 +3,7 @@ from pyon.public import get_sys_name, CFG
 from pyon.util.log import log
 from pyon.core.exception import NotFound
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.objects import NotificationRequest
 import smtplib
 import gevent
 from gevent.timeout import Timeout
@@ -139,6 +140,20 @@ def check_user_notification_interest(notification, reverse_user_info):
 
     return users
 
+def poll(tries, callback, *args, **kwargs):
+    '''
+    Polling wrapper for queries
+    Elasticsearch may not index and cache the changes right away so we may need
+    a couple of tries and a little time to go by before the results show.
+    '''
+    for i in xrange(tries):
+        retval = callback(*args, **kwargs)
+        if retval:
+            return retval
+        time.sleep(0.2)
+    return None
+
+
 def load_user_info():
     '''
     Method to load the user info dictionary... used by notification workers and the UNS
@@ -147,25 +162,33 @@ def load_user_info():
 
     log.warning("Came here!!!!")
 
-    search_string = 'search "name" is "*" from "users_index"'
+    search_string = 'search "name" is "new_user" from "users_index"'
 
     results = []
     user_info = {}
 
     try:
         discovery = DiscoveryServiceClient()
-        results  = discovery.parse(search_string)
-    except NotFound:
-        log.warning("Discovery could not find the index, users_index. ")
+        results = poll(9, discovery.parse,search_string)
+    except NotFound as exc:
+        log.warning("Discovery could not find the index, users_index. Exception message: %s" % exc.message)
+
+    log.warning("results --- : %s" % results)
 
     for result in results:
         user_name = result['_source'].name
         user_contact = result['_source'].contact
-        notifications = result['_source'].variables.values()
+
+        notifications = []
+
+        for variable in result['_source'].variables:
+            if variable['name'] == 'notification':
+                log.warning("variable: %s" % variable )
+                notifications.extend(variable['value'])
 
         user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
 
-    log.warning("And came here...")
+    log.warning("user_info: %s" % user_info)
 
     return user_info
 
@@ -187,35 +210,42 @@ def calculate_reverse_user_info(user_info = {}):
     dict_3 = {}
     dict_4 = {}
 
-    for key, value in user_info.iteritems:
+    for key, value in user_info.iteritems():
 
         notifications = value['notifications']
 
-        for notification in notifications:
+        log.warning("notifications: %s" % notifications)
 
-            if dict_1[notification.event_type]:
-                dict_1[notification.event_type].append(key)
-            else:
-                dict_1[notification.event_type] = [key]
+        if notifications:
 
-            if dict_2[notification.event_subtype]:
-                dict_2[notification.event_subtype].append(key)
-            else:
-                dict_2[notification.event_subtype] = [key]
+            for notification in notifications:
 
-            if dict_3[notification.origin]:
-                dict_3[notification.origin].append(key)
-            else:
-                dict_3[notification.origin] = [key]
+                if not isinstance(notification, NotificationRequest):
+                    break
 
-            if dict_4[notification.origin_type]:
-                dict_4[notification.origin_type].append(key)
-            else:
-                dict_4[notification.origin_type] = [key]
+                if dict_1.has_key(notification.event_type):
+                    dict_1[notification.event_type].append(key)
+                else:
+                    dict_1[notification.event_type] = [key]
 
-            reverse_user_info['event_type'] = dict_1
-            reverse_user_info['event_subtype'] = dict_2
-            reverse_user_info['event_origin'] = dict_3
-            reverse_user_info['event_origin_type'] = dict_4
+                if dict_2.has_key(notification.event_subtype):
+                    dict_2[notification.event_subtype].append(key)
+                else:
+                    dict_2[notification.event_subtype] = [key]
+
+                if dict_3.has_key(notification.origin):
+                    dict_3[notification.origin].append(key)
+                else:
+                    dict_3[notification.origin] = [key]
+
+                if dict_4.has_key(notification.origin_type):
+                    dict_4[notification.origin_type].append(key)
+                else:
+                    dict_4[notification.origin_type] = [key]
+
+                reverse_user_info['event_type'] = dict_1
+                reverse_user_info['event_subtype'] = dict_2
+                reverse_user_info['event_origin'] = dict_3
+                reverse_user_info['event_origin_type'] = dict_4
 
     return reverse_user_info
