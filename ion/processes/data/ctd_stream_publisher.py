@@ -115,7 +115,8 @@ class SimpleCtdPublisher(StandaloneProcess):
 
             length = random.randint(1,20)
 
-            ctd_packet = self._get_ctd_packet(stream_id, length)
+            #ctd_packet = self._get_ctd_packet(stream_id, length)
+            ctd_packet = self._get_new_ctd_packet(stream_id, length)
 
             log.info('SimpleCtdPublisher sending %d values!' % length)
             self.publisher.publish(ctd_packet)
