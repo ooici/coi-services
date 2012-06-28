@@ -105,7 +105,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='foome')
+@attr('INT', group='sa')
 #@unittest.skip("not ready")
 class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
@@ -516,6 +516,8 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         self.processdispatchclient.cancel_process(producer_pid)
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
+
+
 
 
 
