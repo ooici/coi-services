@@ -29,8 +29,8 @@ from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from ion.services.dm.utility.uns_utility_methods import send_email, update_user_info, setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, fake_smtplib
+from ion.services.dm.utility.uns_utility_methods import send_email, load_user_info, setting_up_smtp_client
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, fake_smtplib, check_user_notification_interest
 
 """
 For every user that has existing notification requests (who has called
@@ -295,6 +295,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_table = {}
 
         self.user_info = {}
+        self.reverse_user_info = {}
 
         self.discovery = DiscoveryServiceClient()
 
@@ -310,16 +311,24 @@ class UserNotificationService(BaseUserNotificationService):
         # that it needs for batch notifications
         #------------------------------------------------------------------------------------
 
-        def receive_update_notification_event(event_msg, headers):
-            self.user_info = update_user_info()
+        def reload_user_info(event_msg, headers):
+            notification_id =  event_msg.notification_id
+            log.warning("Received notification with id: %s" % notification_id)
 
-            # calculate the reverse user info
-            reverse_user_info =  calculate_reverse_user_info(self.user_info)
+            #------------------------------------------------------------------------------------------
+            # reloads the user_info and reverse_user_info dictionaries
+            #------------------------------------------------------------------------------------------
 
-        # set up the event subscribers
+            self.user_info = load_user_info()
+            if self.user_info:
+                self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
+
+            log.warning("After reload, user_info: %s" % self.user_info)
+            log.warning("After reload, reverse_user_info: %s" % self.reverse_user_info)
+
         self.event_subscriber = EventSubscriber(
-            event_type="UpdateNotificationEvent",
-            callback=receive_update_notification_event
+            event_type="ReloadUserInfoEvent",
+            callback=reload_user_info
         )
         self.event_subscriber.activate()
 
@@ -360,8 +369,8 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        event_publisher = EventPublisher("UpdateNotificationEvent")
-        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.")
+        event_publisher = EventPublisher("ReloadUserInfoEvent")
+        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
 
         #---------------------------------------------------------------------------------------------------
         # create event processor for user
@@ -410,8 +419,8 @@ class UserNotificationService(BaseUserNotificationService):
             #-------------------------------------------------------------------------------------------------------------------
             # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
             #-------------------------------------------------------------------------------------------------------------------
-            event_publisher = EventPublisher("UpdateNotificationEvent")
-            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.")
+            event_publisher = EventPublisher("ReloadUserInfoEvent")
+            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.", notification_id = notification_id)
 
 
             log.debug('Updated notification object with id: %s' % notification_id)
@@ -443,8 +452,8 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        event_publisher = EventPublisher("UpdateNotificationEvent")
-        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.")
+        event_publisher = EventPublisher("ReloadUserInfoEvent")
+        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.", notification_id = notification_id)
 
         #@todo clean up the association?
 

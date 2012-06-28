@@ -1,6 +1,7 @@
 
 from pyon.public import get_sys_name, CFG
 from pyon.util.log import log
+from pyon.core.exception import NotFound
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 import smtplib
 import gevent
@@ -119,16 +120,43 @@ def send_email(message, msg_recipient, smtp_client):
 #    if CFG.get_safe('system.smtp',False):
 #        smtp_client.close()
 
-        
-def update_user_info():
+def check_user_notification_interest(notification, reverse_user_info):
     '''
-    Method to update the user info dictionary... used by notification workers and the UNS
+    A method to check which user is interested in a notification. Returns the list of users interested in the notification
+
+    @param notification NotificationRequest
+    @param reverse_user_info    dict
+
+    @retval users list
+    '''
+
+    user_list_1 = reverse_user_info[notification.origin]
+    user_list_2 = reverse_user_info[notification.origin_type]
+    user_list_3 = reverse_user_info[notification.event_type]
+    user_list_4 = reverse_user_info[notification.event_subtype]
+
+    users = list( set.intersection(set(user_list_1), set(user_list_2), set(user_list_3), set(user_list_4)))
+
+    return users
+
+def load_user_info():
+    '''
+    Method to load the user info dictionary... used by notification workers and the UNS
     '''
     #todo make this method more efficient and accept different parameters instead of using *
 
+    log.warning("Came here!!!!")
+
     search_string = 'search "name" is "*" from "users_index"'
-    discovery = DiscoveryServiceClient()
-    results  = discovery.parse(search_string)
+
+    results = []
+    user_info = {}
+
+    try:
+        discovery = DiscoveryServiceClient()
+        results  = discovery.parse(search_string)
+    except NotFound:
+        log.warning("Discovery could not find the index, users_index. ")
 
     for result in results:
         user_name = result['_source'].name
@@ -136,6 +164,8 @@ def update_user_info():
         notifications = result['_source'].variables.values()
 
         user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
+
+    log.warning("And came here...")
 
     return user_info
 

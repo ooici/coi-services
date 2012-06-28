@@ -446,7 +446,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         a notification is created, updated, or deleted by UNS
         '''
 
-        pass
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
