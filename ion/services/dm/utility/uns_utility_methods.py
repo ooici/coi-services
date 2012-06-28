@@ -1,9 +1,15 @@
 
 from pyon.public import get_sys_name, CFG
+from pyon.util.log import log
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 import smtplib
 import gevent
 from gevent.timeout import Timeout
+from datetime import datetime
+import string
+import time
+from email.mime.text import MIMEText
+from gevent import Greenlet
 
 class fake_smtplib(object):
 
@@ -20,17 +26,11 @@ class fake_smtplib(object):
         log.info('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
         self.sentmail.put((msg_sender, msg_recipient, msg))
 
-
-def send_email(message, msg_recipient):
+def setting_up_smtp_client():
     '''
-    A common method to send email with formatting
-
-    @param message              Event
-    @param msg_recipient        str
+    Sets up the smtp client
     '''
 
-    # the 'from' email address for notification emails
-    ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
     # the default smtp server
     ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 
@@ -63,6 +63,18 @@ def send_email(message, msg_recipient):
         #@todo - what about port etc??? What is the correct interface to fake?
         smtp_client = fake_smtplib.SMTP(smtp_host)
 
+    return smtp_client
+
+def send_email(message, msg_recipient, smtp_client):
+    '''
+    A common method to send email with formatting
+
+    @param message              Event
+    @param msg_recipient        str
+
+    '''
+
+
     time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
 
     event = message.type_
@@ -87,6 +99,10 @@ def send_email(message, msg_recipient):
                             "and the emails will not be read."),
         "\r\n")
     msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
+
+    # the 'from' email address for notification emails
+    ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+
     msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
 
     msg = MIMEText(msg_body)
@@ -96,10 +112,12 @@ def send_email(message, msg_recipient):
     log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
     %msg_recipient)
 
+    smtp_sender = CFG.get_safe('server.smtp.sender')
+
     smtp_client.sendmail(smtp_sender, msg_recipient, msg.as_string())
 
-    if CFG.get_safe('system.smtp',False):
-        smtp_client.close()
+#    if CFG.get_safe('system.smtp',False):
+#        smtp_client.close()
 
         
 def update_user_info():

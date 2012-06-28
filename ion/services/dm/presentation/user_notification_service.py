@@ -29,8 +29,8 @@ from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from ion.services.dm.utility.uns_utility_methods import send_email, update_user_info, calculate_reverse_user_info
-
+from ion.services.dm.utility.uns_utility_methods import send_email, update_user_info, setting_up_smtp_client
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, fake_smtplib
 
 """
 For every user that has existing notification requests (who has called
@@ -52,7 +52,8 @@ list of event subscribers (only one for LCA) that listen for the events in the n
 """
 
 """
-The class, NotificationEventSubscriber, has been replaced by a lower level way of activating and deactivating the subscriber
+The class, NotificationEventSubscriber, has been replaced by a lower level way of
+activating and deactivating the subscriber
 
 """
 
@@ -157,6 +158,16 @@ class EmailEventProcessor(EventProcessor):
         super(EmailEventProcessor, self).__init__(notification_request,user_id)
 
 
+        self.smtp_client = setting_up_smtp_client()
+
+#        if CFG.get_safe('system.smtp',False):
+#            log.warning('Using a fake SMTP library to simulate email notifications!')
+#            self.smtp_client = fake_smtplib.SMTP('mail.oceanobservatories.org')
+
+
+#        log.warning('Using a fake SMTP library to simulate email notifications!')
+#        self.smtp_client = fake_smtplib.SMTP('mail.oceanobservatories.org')
+
 #        # the 'from' email address for notification emails
 #        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 #        # the default smtp server
@@ -204,7 +215,7 @@ class EmailEventProcessor(EventProcessor):
 
         msg_recipient = self.notification._res_obj.delivery_config.delivery['email']
 
-        send_email(message, msg_recipient)
+        send_email(message, msg_recipient, self.smtp_client)
 
     def remove_notification(self):
 
@@ -347,11 +358,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         notification_id, _ = self.clients.resource_registry.create(notification)
 
-        #-------------------------------------------------------------------------------------------------------------------
-        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-        #-------------------------------------------------------------------------------------------------------------------
-        event_publisher = EventPublisher("UpdateNotificationEvent")
-        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.")
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+#        #-------------------------------------------------------------------------------------------------------------------
+#        event_publisher = EventPublisher("UpdateNotificationEvent")
+#        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.")
 
         #---------------------------------------------------------------------------------------------------
         # create event processor for user
@@ -397,11 +408,11 @@ class UserNotificationService(BaseUserNotificationService):
             # finally update the notification in the RR
             self.clients.resource_registry.update(notification)
 
-            #-------------------------------------------------------------------------------------------------------------------
-            # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-            #-------------------------------------------------------------------------------------------------------------------
-            event_publisher = EventPublisher("UpdateNotificationEvent")
-            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.")
+#            #-------------------------------------------------------------------------------------------------------------------
+#            # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+#            #-------------------------------------------------------------------------------------------------------------------
+#            event_publisher = EventPublisher("UpdateNotificationEvent")
+#            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.")
 
 
             log.debug('Updated notification object with id: %s' % notification_id)
@@ -430,11 +441,11 @@ class UserNotificationService(BaseUserNotificationService):
         _event_processor.remove_notification(notification_id)
         self.clients.resource_registry.delete(notification_id)
 
-        #-------------------------------------------------------------------------------------------------------------------
-        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-        #-------------------------------------------------------------------------------------------------------------------
-        event_publisher = EventPublisher("UpdateNotificationEvent")
-        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.")
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+#        #-------------------------------------------------------------------------------------------------------------------
+#        event_publisher = EventPublisher("UpdateNotificationEvent")
+#        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.")
 
         #@todo clean up the association?
 
