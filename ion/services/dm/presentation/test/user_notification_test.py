@@ -446,6 +446,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         a notification is created, updated, or deleted by UNS
         '''
 
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
         # Make a notification request object
         notification_request_1 = NotificationRequest(origin="Some_user",
             origin_type="some_type",
@@ -466,8 +468,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notification
         self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
-        # Check the user_info and reverse_user_info in UNS got reloaded
+        gevent.sleep(5)
 
+
+        print ("here... proc1.user_info: ", proc1.user_info)
+
+        # Check the user_info and reverse_user_info in UNS got reloaded
+        self.assertEquals(proc1.user_info['new_user']['notifications'], user.variables[0]['value'])
+        self.assertEquals(proc1.user_info['new_user']['user_contact'].phone, '5551212' )
 
 
 
