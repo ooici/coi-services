@@ -157,7 +157,6 @@ class EmailEventProcessor(EventProcessor):
 
         super(EmailEventProcessor, self).__init__(notification_request,user_id)
 
-
         self.smtp_client = setting_up_smtp_client()
 
 #        if CFG.get_safe('system.smtp',False):
@@ -358,11 +357,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         notification_id, _ = self.clients.resource_registry.create(notification)
 
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-#        #-------------------------------------------------------------------------------------------------------------------
-#        event_publisher = EventPublisher("UpdateNotificationEvent")
-#        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.")
+        #-------------------------------------------------------------------------------------------------------------------
+        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+        event_publisher = EventPublisher("UpdateNotificationEvent")
+        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.")
 
         #---------------------------------------------------------------------------------------------------
         # create event processor for user
@@ -408,11 +407,11 @@ class UserNotificationService(BaseUserNotificationService):
             # finally update the notification in the RR
             self.clients.resource_registry.update(notification)
 
-#            #-------------------------------------------------------------------------------------------------------------------
-#            # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-#            #-------------------------------------------------------------------------------------------------------------------
-#            event_publisher = EventPublisher("UpdateNotificationEvent")
-#            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.")
+            #-------------------------------------------------------------------------------------------------------------------
+            # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+            #-------------------------------------------------------------------------------------------------------------------
+            event_publisher = EventPublisher("UpdateNotificationEvent")
+            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.")
 
 
             log.debug('Updated notification object with id: %s' % notification_id)
@@ -441,11 +440,11 @@ class UserNotificationService(BaseUserNotificationService):
         _event_processor.remove_notification(notification_id)
         self.clients.resource_registry.delete(notification_id)
 
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-#        #-------------------------------------------------------------------------------------------------------------------
-#        event_publisher = EventPublisher("UpdateNotificationEvent")
-#        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.")
+        #-------------------------------------------------------------------------------------------------------------------
+        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+        event_publisher = EventPublisher("UpdateNotificationEvent")
+        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.")
 
         #@todo clean up the association?
 
