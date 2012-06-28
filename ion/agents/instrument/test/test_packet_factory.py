@@ -23,14 +23,11 @@ from pyon.ion.granule.granule import build_granule
 
 from ion.agents.instrument.packet_factory import PacketFactory, PacketFactoryType, LCAPacketFactory
 
-# i'm getting an error when using PyonTestCase, so using unittest.TestCase
-# directly for the moment
-#from pyon.util.unit_test import PyonTestCase
+from pyon.util.unit_test import PyonTestCase
 
 
 @attr('UNIT', group='mi')
-class TestPacketFactory(unittest.TestCase):
-#class TestPacketFactory(PyonTestCase):
+class TestPacketFactory(PyonTestCase):
     def setUp(self):
         """
         Setup test cases.
