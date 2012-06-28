@@ -104,7 +104,7 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
             log.info("L4-CI-SA-RQ-145")
 
         event_sub = EventSubscriber(event_type="ResourceModifiedEvent", callback=consume_event)
-        event_sub.activate()
+        event_sub.start()
 
 
         inst_obj = self.RR.read(instrument_device_id)
@@ -113,7 +113,7 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
 
         #wait for event
         result = self.received_event.get(timeout=10)
-        event_sub.deactivate()
+        event_sub.stop()
 
         self.assertTrue(result)
 

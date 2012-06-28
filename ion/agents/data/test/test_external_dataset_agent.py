@@ -213,11 +213,11 @@ class ExternalDatasetAgentTestBase(object):
                     log.debug('Called self._async_finished_result.set({0})'.format(len(self._finished_events_received)))
 
         self._finished_event_subscriber = EventSubscriber(event_type='DeviceEvent', callback=consume_event)
-        self._finished_event_subscriber.activate()
+        self._finished_event_subscriber.start()
 
     def _stop_finished_event_subscriber(self):
         if self._finished_event_subscriber:
-            self._finished_event_subscriber.deactivate()
+            self._finished_event_subscriber.stop()
             self._finished_event_subscriber = None
 
 

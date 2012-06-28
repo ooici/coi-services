@@ -336,7 +336,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 self._async_event_result.set()
                 
         event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
-        event_sub.activate()
+        event_sub.start()
         self._event_subscribers.append(event_sub)
         
     def _stop_event_subscribers(self):
@@ -344,7 +344,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Stop event subscribers on cleanup.
         """
         for sub in self._event_subscribers:
-            sub.deactivate()
+            sub.stop()
         
     def assertSampleDict(self, val):
         """
