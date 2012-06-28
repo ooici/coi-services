@@ -140,15 +140,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
         self.RR.create_association(platform_device_id, PRED.hasInstrument, instrument_device_id)
 
-        platform_model_id #is only a target
-
-        #sensor_device
-        self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
-
-        #Used for testing of computed attributes for calculating associations
-        self.RR.create_association(instrument_device_id,PRED.hasSensor, sensor_device_id)
-
-        sensor_model_id #is only a target
 
         #Testing multiple instrument owners
         subject1 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254"
@@ -175,4 +166,4 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_device_id,extended_instrument._id)
         self.assertEqual(len(extended_instrument.owners),2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
-        self.assertEqual(extended_instrument.computed.sensor_count,1)
+        self.assertEqual(extended_instrument.computed.data_producer_count,1)
