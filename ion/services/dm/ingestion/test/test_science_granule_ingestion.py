@@ -48,8 +48,8 @@ class ScienceGranuleIngestionIntTest(IonIntegrationTestCase):
     def launch_worker(self):
         cfg = DotDict()
 
-        cfg.processes.datastore_name = self.datastore_name
-        cfg.processes.queue_name = self.queue_name
+        cfg.process.datastore_name = self.datastore_name
+        cfg.process.queue_name = self.queue_name
 
         #@todo: replace with CEI friendly calls
 

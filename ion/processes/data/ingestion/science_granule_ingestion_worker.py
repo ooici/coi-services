@@ -25,8 +25,8 @@ import re
 
 class ScienceGranuleIngestionWorker(SimpleProcess):
     def on_start(self): #pragma no cover
-        self.queue_name = self.CFG.get_safe('processes.queue_name','ingestion_queue')
-        self.datastore_name = self.CFG.get_safe('processes.datastore_name', 'datasets')
+        self.queue_name = self.CFG.get_safe('process.queue_name','ingestion_queue')
+        self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
 
         self.subscriber = Subscriber(name=(get_sys_name(), self.queue_name), callback=self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
@@ -54,8 +54,9 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
 
         dataset_granule = {
            'stream_id'      : stream_id,
-           'dataset_id'     : msg.data_producer_id,
-           'persisted_sha1' : encoding_type,
+           'dataset_id'     : stream_id,
+           'persisted_sha1' : calculated_sha1,
+           'encoding_type'  : encoding_type,
            'ts_create'      : get_ion_ts()
         }
         self.persist(dataset_granule)
