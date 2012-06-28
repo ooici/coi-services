@@ -86,7 +86,7 @@ class QueryLanguage(object):
         #--------------------------------------------------------------------------------------
         # <query-filter> ::= "FILTER" <python-string>
         # <index-name>   ::= <python-string>
-        # <resource-id>  ::= '"' a..z A..Z 0..9 '"' (alpha nums surrounded by double quotes)
+        # <resource-id>  ::= '"' a..z A..Z 0..9 $ _ -'"' (alpha nums surrounded by double quotes)
         # <collection-id> ::= <resource-id>
         #--------------------------------------------------------------------------------------
         query_filter = CaselessLiteral("FILTER") + python_string
@@ -95,7 +95,7 @@ class QueryLanguage(object):
         index_name = MatchFirst(python_string)
         # Add the index to the frame object
         index_name.setParseAction(lambda x : self.frame.update({'index' : x[0]}))
-        resource_id = Regex(r'("(?:[a-zA-Z0-9])*"|\'(?:[a-zA-Z0-9]*)\')').setParseAction(removeQuotes)
+        resource_id = Regex(r'("(?:[a-zA-Z0-9\$_-])*"|\'(?:[a-zA-Z0-9\$_-]*)\')').setParseAction(removeQuotes)
         collection_id = resource_id
 
         #--------------------------------------------------------------------------------------
