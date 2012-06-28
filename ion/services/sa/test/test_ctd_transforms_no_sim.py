@@ -136,23 +136,34 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
     def create_logger(self, name, stream_id=''):
 
 
-        pid = self.container.spawn_process(
-            name=name+'_logger',
-            module='ion.processes.data.stream_granule_logger',
-            cls='StreamGranuleLogger',
-            config={'process':{'stream_id':stream_id}}
-        )
-        log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
+#        pid = self.container.spawn_process(
+#            name=name+'_logger',
+#            module='ion.processes.data.stream_granule_logger',
+#            cls='StreamGranuleLogger',
+#            config={'process':{'stream_id':stream_id}}
+#        )
+#        log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
+
+        # logger process
+        producer_definition = ProcessDefinition(name=name+'_logger')
+        producer_definition.executable = {
+            'module':'ion.processes.data.stream_granule_logger',
+            'class':'StreamGranuleLogger'
+        }
+
+        logger_procdef_id = self.processdispatchclient.create_process_definition(process_definition=producer_definition)
+        configuration = {
+            'process':{
+                'stream_id':stream_id,
+                }
+        }
+        pid = self.processdispatchclient.schedule_process(process_definition_id= logger_procdef_id, configuration=configuration)
 
         return pid
 
     def test_createTransformsThenPublishGranules(self):
 
-
-        ###
-        ### And two process definitions...
-        ###
-        # one for the ctd simulator...
+        # ctd simulator process
         producer_definition = ProcessDefinition(name='Example Data Producer')
         producer_definition.executable = {
             'module':'ion.services.sa.test.simple_ctd_data_producer',
