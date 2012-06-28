@@ -51,8 +51,8 @@ class ReplayProcess(BaseReplayProcess):
         view_name = 'manifest/by_dataset'
 
         opts = dict(
-            start_key = [self.dataset_id, 0],
-            end_key   = [self.dataset_id, {}],
+            start_key = [self.dataset.primary_view_key, 0],
+            end_key   = [self.dataset.primary_view_key, {}],
             include_docs = True
         )
         if self.start_time is not None:
@@ -64,7 +64,6 @@ class ReplayProcess(BaseReplayProcess):
         #--------------------------------------------------------------------------------
         # Gather all the dataset granules and compile the FS cache
         #--------------------------------------------------------------------------------
-
         for result in datastore.query_view(view_name,opts=opts):
             doc = result.get('doc')
             if doc is not None:
@@ -76,7 +75,7 @@ class ReplayProcess(BaseReplayProcess):
                 self.output.publish(obj)
 
         # Need to terminate the stream, null granule = {}
-        self.output.publish({}) 
+        self.output.publish({})
         return True
 
 
@@ -87,7 +86,7 @@ class ReplayProcess(BaseReplayProcess):
             with open(path, 'r') as f:
                 byte_string = f.read()
         except IOError as e:
-            raise BadRequest(e.message)
+            raise BadRequest('(%s)\n\t\tIOProblem: %s' % (e.message,path))
         return byte_string
 
 

@@ -20,6 +20,7 @@ class ReplayProcessUnitTest(PyonTestCase):
         self.replay.dataset_id = 'dataset'
         self.replay.dataset = DotDict()
         self.replay.dataset.datastore_name='datasets'
+        self.replay.dataset.primary_view_key = 'stream_id'
         self.replay.deliver_format = {}
         self.replay.start_time = None
         self.replay.end_time = None
