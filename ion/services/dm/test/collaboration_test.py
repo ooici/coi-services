@@ -13,7 +13,6 @@ from nose.plugins.attrib import attr
 from gevent.event import AsyncResult
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.services.dm.iingestion_management_service_a import IngestionManagementServiceAClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -36,6 +35,7 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         self.ingestion_management = IngestionManagementServiceClient()
         self.dataset_management   = DatasetManagementServiceClient()
         self.process_dispatcher   = ProcessDispatcherServiceClient()
+        self.ingestion_management = IngestionManagementServiceClient()
         self.data_retriever       = DataRetrieverServiceClient()
         self.exchange_space       = 'science_ingestion'
         self.exchange_point       = 'science_data'
@@ -87,12 +87,6 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
 
         self.process_dispatcher.schedule_process(self.process_definitions['data_producer'],configuration=config)
 
-
-    def launch_ingestion_service(self):
-        self.container.spawn_process(name='ingestion_management_a', module='ion.services.dm.ingestion.ingestion_management_service_a', cls='IngestionManagementServiceA', process_id='ingestion_management_a')
-
-        self.ingestion_management = IngestionManagementServiceAClient()
-
             
     def create_ingestion_config(self):
         ingest_queue = IngestionQueue(name=self.exchange_space, type='science_granule')
@@ -116,8 +110,6 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up the process definitions the services and process launchers will use
         self.create_process_definitions()
-        # Launch the new ingestion service (not part of r2dm or r2deploy)
-        self.launch_ingestion_service()
 
         # Make a transport stream
         stream_id = self.pubsub_management.create_stream()

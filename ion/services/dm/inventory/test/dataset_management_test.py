@@ -5,7 +5,6 @@
 '''
 import unittest
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from prototype.sci_data.stream_defs import ctd_stream_packet
 from pyon.datastore.datastore import DataStore
@@ -76,7 +75,6 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         self.db_raw = self.db.server
 
         self.dataset_management_client = DatasetManagementServiceClient(node=self.container.node)
-        self.ingestion_client = IngestionManagementServiceClient(node=self.container.node)
 
     def _random_data(self, entropy):
         random_pressures = [(random.random()*100) for i in xrange(entropy)]
@@ -110,14 +108,5 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         self.assertTrue(bounds['longitude_bounds'][1] < 80.0)
 
         self.dataset_management_client.delete_dataset(dataset_id)
-        
-    @unittest.skip('not ready yet')
-    def test_dataset_ingestion(self):
-        couch_storage = { 'server':'localhost', 'database':'scidata'}
-        ingestion_configuration_id = self.ingestion_client.create_ingestion_configuration(
-            exchange_point_id='science_data',
-            couch_storage=couch_storage,
-            hdf_storage={},
-            number_of_workers=4,
-            default_policy={})
+
 

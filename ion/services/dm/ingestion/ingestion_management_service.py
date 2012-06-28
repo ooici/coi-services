@@ -1,415 +1,100 @@
 #!/usr/bin/env python
-__license__ = 'Apache 2.0'
 '''
-@author Maurice Manning
-@author Swarbhanu Chatterjee
-@author David Stuebe
-@file ion/services/dm/ingestion/ingestion_management_service.py
-@description Implementation for IngestionManagementService
+@author Luke Campbell <LCampbell@ASAScience.com>
+@file ingestion_management_service_a.py
+@date 06/21/12 17:43
+@description DESCRIPTION
 '''
+from pyon.public import PRED
+from pyon.util.arg_check import validate_is_instance, validate_true
+
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
-from pyon.core import bootstrap
-from pyon.core.exception import NotFound, BadRequest
-from pyon.public import RT, PRED, log, IonObject
-from pyon.public import CFG
-from pyon.core.exception import IonException
-from interface.objects import ExchangeQuery, IngestionConfiguration, ProcessDefinition
-from interface.objects import DatasetIngestionConfiguration, DatasetIngestionByStream, DatasetIngestionTypeEnum
-from pyon.event.event import EventPublisher
-from pyon.core.object import IonObjectSerializer, IonObjectBase
-
-
-from pyon.datastore.datastore import DataStore
-
-
-
-class IngestionManagementServiceException(IonException):
-    """
-    Exception class for IngestionManagementService exceptions. This class inherits from IonException
-    and implements the __str__() method.
-    """
-    def __str__(self):
-        return str(self.get_status_code()) + str(self.get_error_message())
+from interface.objects import IngestionConfigurationA, IngestionQueue, StreamQuery
 
 
 class IngestionManagementService(BaseIngestionManagementService):
-    """
-    id_p = cc.spawn_process('ingestion_worker', 'ion.services.dm.ingestion.ingestion_management_service', 'IngestionManagementService')
-    cc.proc_manager.procs['%s.%s' %(cc.id,id_p)].start()
-    """
 
-    base_exchange_name = 'ingestion_queue'
+    def create_ingestion_configuration(self,name='', exchange_point_id='', queues=None):
+        validate_is_instance(queues,list,'The queues parameter is not a proper list.')
+        validate_true(len(queues)>0, 'Ingestion needs at least one queue to ingest from')
+        for queue in queues:
+            validate_is_instance(queue, IngestionQueue)
 
-    def __init__(self):
-        BaseIngestionManagementService.__init__(self)
+        ingestion_config = IngestionConfigurationA()
 
-        xs_dot_xp = CFG.core_xps.science_data
-        try:
-            self.XS, xp_base = xs_dot_xp.split('.')
-            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
-        except ValueError:
-            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+        ingestion_config.name = name
+        ingestion_config.exchange_point = exchange_point_id
+        ingestion_config.queues = queues
 
-        self.serializer = IonObjectSerializer()
-        self.process_definition_id = None
+        config_id, rev = self.clients.resource_registry.create(ingestion_config)
 
-
-    def on_start(self):
-        super(IngestionManagementService,self).on_start()
-        self.event_publisher = EventPublisher(event_type="DatasetIngestionConfigurationEvent")
-
-        res_list , _ = self.clients.resource_registry.find_resources(
-            restype=RT.ProcessDefinition,
-            name='ingestion_worker_process',
-            id_only=True)
-        if len(res_list):
-            self.process_definition_id = res_list[0]
-
-
-    def on_quit(self):
-        #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
-        super(IngestionManagementService,self).on_quit()
-
-    def create_ingestion_configuration(self, exchange_point_id='', couch_storage=None, hdf_storage=None,number_of_workers=0):
-        """
-        @brief Setup ingestion workers to ingest all the data from a single exchange point.
-        @param exchange_point_id is the resource id for the exchagne point to ingest from
-        @param couch_storage is the specification of the couch database to use
-        @param hdf_storage is the specification of the filesystem to use for hdf data files
-        @param number_of_workers is the number of ingestion workers to create
-        """
-
-        if self.process_definition_id is None:
-            res, _ = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name='ingestion_worker_process', id_only=True)
-            if not len(res):
-                raise BadRequest('No ingestion work process definition found')
-            self.process_definition_id = res[0]
- 
-
-        # Give each ingestion configuration its own queue name to receive data on
-        #----------------------------- TODO ---------------------------------------------
-        # Add support right here for user specified queue based on this set of ingestion 
-        # workers
-        #----------------------------- TODO ---------------------------------------------
-        exchange_name = 'ingestion_queue'
-
-        ##------------------------------------------------------------------------------------
-        ## declare our intent to subscribe to all messages on the exchange point
-        query = ExchangeQuery()
-
-        subscription_id = self.clients.pubsub_management.create_subscription(query=query,
-            exchange_name=exchange_name, name='Ingestion subscription', description='Subscription for ingestion workers')
-
-        ##------------------------------------------------------------------------------------------
-
-        # create an ingestion_configuration instance and update the registry
-        # @todo: right now sending in the exchange_point_id as the name...
-        ingestion_configuration = IngestionConfiguration( name = self.XP)
-        ingestion_configuration.description = '%s exchange point ingestion configuration' % self.XP
-        ingestion_configuration.number_of_workers = number_of_workers
-
-        if hdf_storage is not None:
-            ingestion_configuration.hdf_storage.update(hdf_storage)
-
-        if couch_storage is not None:
-            ingestion_configuration.couch_storage.update(couch_storage)
-
-
-        ingestion_configuration_id, _ = self.clients.resource_registry.create(ingestion_configuration)
-
-        self._launch_transforms(
-            ingestion_configuration.number_of_workers,
-            subscription_id,
-            ingestion_configuration_id,
-            ingestion_configuration,
-            self.process_definition_id
-        )
-        return ingestion_configuration_id
-
-    def _launch_transforms(self, number_of_workers, subscription_id, ingestion_configuration_id, ingestion_configuration, process_definition_id):
-        """
-        This method spawns the two transform processes without activating them...Note: activating the transforms does the binding
-        """
-
-        description = 'Ingestion worker'
-
-        configuration = self.serializer.serialize(ingestion_configuration)
-        configuration.pop('type_')
-        configuration['configuration_id'] = ingestion_configuration_id
-
-
-        # launch the transforms
-        for i in xrange(number_of_workers):
-            name = '(%s)_Ingestion_Worker_%s' % (ingestion_configuration_id, i+1)
-            transform_id = self.clients.transform_management.create_transform(
-                name = name,
-                description = description,
-                in_subscription_id= subscription_id,
-                out_streams = {},
-                process_definition_id=process_definition_id,
-                configuration=ingestion_configuration)
-
-            # create association between ingestion configuration and the transforms that act as Ingestion Workers
-            if not transform_id:
-                raise IngestionManagementServiceException('Transform could not be launched by ingestion.')
-            self.clients.resource_registry.create_association(ingestion_configuration_id, PRED.hasTransform, transform_id)
-
-
-    def update_ingestion_configuration(self, ingestion_configuration=None):
-        """Change the number of workers or the default policy for ingesting data on each stream
-
-        @param ingestion_configuration    IngestionConfiguration
-        """
-        log.debug("Updating ingestion configuration")
-        id, rev = self.clients.resource_registry.update(ingestion_configuration)
+        return config_id
 
     def read_ingestion_configuration(self, ingestion_configuration_id=''):
-        """Get an existing ingestion configuration object.
+        return self.clients.resource_registry.read(ingestion_configuration_id)
 
-        @param ingestion_configuration_id    str
-        @retval ingestion_configuration    IngestionConfiguration
-        @throws NotFound    if ingestion configuration did not exist
-        """
-        log.debug("Reading ingestion configuration object id: %s", ingestion_configuration_id)
-        ingestion_configuration = self.clients.resource_registry.read(ingestion_configuration_id)
-        if ingestion_configuration is None:
-            raise NotFound("Ingestion configuration %s does not exist" % ingestion_configuration_id)
-        return ingestion_configuration
+    def update_ingestion_configuration(self, ingestion_configuration=None):
+        return self.clients.resource_registry.update(ingestion_configuration)
 
     def delete_ingestion_configuration(self, ingestion_configuration_id=''):
-        """Delete an existing ingestion configuration object.
+        assocs = self.clients.resource_registry.find_associations(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+            self.clients.pubsub_management.delete_subscription(assoc.o)
+        return self.clients.resource_registry.delete(ingestion_configuration_id)
 
-        @param ingestion_configuration_id    str
-        @throws NotFound    if ingestion configuration did not exist
-        """
-        log.debug("Deleting ingestion configuration: %s", ingestion_configuration_id)
+    # --
 
+    def persist_data_stream(self, stream_id='', ingestion_configuration_id=''):
+        # Figure out which MIME or xpath in the stream definition belongs where
 
-        #ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        #@todo Should we check to see if the ingestion configuration exists?
+        # Just going to use the first queue for now
 
-        #delete the transforms associated with the ingestion_configuration_id
-        transform_ids = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
+        ingestion_config = self.read_ingestion_configuration(ingestion_configuration_id)
 
-        if len(transform_ids) < 1:
-            raise NotFound('No transforms associated with this ingestion configuration!')
+        ingestion_queue = self._determine_queue(stream_id, ingestion_config.queues)
 
-        log.debug('len(transform_ids): %s' % len(transform_ids))
-
-        for transform_id in transform_ids:
-            # To Delete - we need to actually remove each of the transforms
-            self.clients.transform_management.delete_transform(transform_id)
-
-
-        # delete the associations too...
-        associations = self.clients.resource_registry.find_associations(ingestion_configuration_id,PRED.hasTransform)
-        log.info('associations: %s' % associations)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
-            #@todo How should we deal with failure?
-
-
-        self.clients.resource_registry.delete(ingestion_configuration_id)
-
-
-    def activate_ingestion_configuration(self, ingestion_configuration_id=''):
-        """Activate an ingestion configuration and the transform processes that execute it
-
-        @param ingestion_configuration_id    str
-        @throws NotFound    The ingestion configuration id did not exist
-        """
-
-        log.debug("Activating ingestion configuration")
-
-        # check whether the ingestion configuration object exists
-        #ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        #@todo Should we check to see if the ingestion configuration exists?
-
-        # read the transforms
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
-        if len(transform_ids) < 1:
-            raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
-
-        # since all ingestion worker transforms have the same subscription, only deactivate one
-        self.clients.transform_management.activate_transform(transform_ids[0])
-
-        return True
-
-
-    def deactivate_ingestion_configuration(self, ingestion_configuration_id=''):
-        """Deactivate one of the transform processes that uses an ingestion configuration
-
-        @param ingestion_configuration_id    str
-        @throws NotFound    The ingestion configuration id did not exist
-        """
-        log.debug("Deactivating ingestion configuration")
-
-        # check whether the ingestion configuration object exists
-        #ingestion_configuration = self.read_ingestion_configuration(ingestion_configuration_id)
-        #@todo Should we check to see if the ingestion configuration exists?
-
-
-        # use the deactivate method in transformation management service
-        transform_ids, _ = self.clients.resource_registry.find_objects(ingestion_configuration_id, PRED.hasTransform, RT.Transform, True)
-        if len(transform_ids) < 1:
-            raise NotFound('The ingestion configuration %s does not exist' % str(ingestion_configuration_id))
-
-        # since all ingestion worker transforms have the same subscription, only deactivate one
-        self.clients.transform_management.deactivate_transform(transform_ids[0])
-
-        return True
-
-    def create_dataset_configuration(self, dataset_id='', archive_data=True, archive_metadata=True, ingestion_configuration_id=''):
-        """Create a configuration for ingestion of a particular dataset and associate it to a ingestion configuration.
-
-        @param dataset_id    str
-        @param archive_data    bool
-        @param archive_metadata    bool
-        @param ingestion_configuration_id    str
-        @retval dataset_ingestion_configuration_id    str
-        """
-
-        if not dataset_id:
-            raise IngestionManagementServiceException('Must pass a dataset id to create_dataset_configuration')
-
-        log.debug("Creating dataset configuration")
-
-
-        dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
-
-        stream_id =dataset.primary_view_key
-
-        # Read the stream to get the stream definition
-        #stream = self.clients.pubsub_management.read_stream(stream_id=stream_id)
-
-        # Get the associated stream definition!
-        stream_defs, _ = self.clients.resource_registry.find_objects(stream_id, PRED.hasStreamDefinition)
-
-        if len(stream_defs)==1:
-
-            stream_def_resource = stream_defs[0]
-            # Get the container object out of the stream def resource and set the stream id field in the local instance
-            stream_def_container = stream_def_resource.container
-            stream_def_container.stream_resource_id = stream_id
-
-            # Get the ingestion configuration
-            ingestion_configuration = self.clients.resource_registry.read(ingestion_configuration_id)
-            couch_storage = ingestion_configuration.couch_storage
-
-            log.info('Adding stream definition for stream "%s" to ingestion database "%s"' % (stream_id, couch_storage.datastore_name))
-            db = self.container.datastore_manager.get_datastore(ds_name = couch_storage.datastore_name, config = self.CFG)
-
-            # put it in couch db!
-            db.create(stream_def_container)
-            db.close()
-
-        elif len(stream_defs) ==0:
-            log.info('No stream def for this stream. Hope you know what you are doing....')
-
-        else:
-            raise IngestionManagementServiceException('The stream is associated with more than one stream definition!')
-
-
-
-        #@todo Add business logic to create the right kind of dataset ingestion configuration
-        config = DatasetIngestionByStream(
-            archive_data=archive_data,
-            archive_metadata=archive_metadata,
-            stream_id=stream_id,
-            dataset_id=dataset_id)
-
-        dset_ingest_config = DatasetIngestionConfiguration(
-            name = 'Dataset config %s' % dataset_id,
-            description = 'configuration for dataset %s' % dataset_id,
-            configuration = config,
-            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM
-            )
-
-        dset_ingest_config_id , _ = self.clients.resource_registry.create(dset_ingest_config)
-
-        self.clients.resource_registry.create_association(dset_ingest_config_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
-
-        self.clients.resource_registry.create_association(dataset_id, PRED.hasIngestionConfiguration, ingestion_configuration_id)
-
-        self.event_publisher.publish_event(
-            origin=ingestion_configuration_id, # Use the ingestion configuration ID as the origin!
-            description = dset_ingest_config.description,
-            configuration = config,
-            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
-            resource_id = dset_ingest_config_id
-            )
-
-
-        return dset_ingest_config_id
-
-    def update_dataset_config(self, dataset_ingestion_configuration=None):
-        """Update the ingestion configuration for a dataset
-
-        @param dataset_ingestion_configuration    DatasetIngestionConfiguration
-        """
-
-        #@todo - make it an exception to change the dataset_id or the stream_id in the dataset config!
-
-        log.info('dataset configuration to update: %s' % dataset_ingestion_configuration)
-
-        log.debug("Updating dataset config")
-        dset_ingest_config_id, rev = self.clients.resource_registry.update(dataset_ingestion_configuration)
-
-        ingest_config_ids, _ = self.clients.resource_registry.find_objects(dset_ingest_config_id, PRED.hasIngestionConfiguration, id_only=True)
-
-        if len(ingest_config_ids)!=1:
-            raise IngestionManagementServiceException('The dataset ingestion configuration is associated with more than one ingestion configuration!')
-
-        ingest_config_id = ingest_config_ids[0]
-
-        #@todo - what is it okay to update?
-        self.event_publisher.publish_event(
-            origin=ingest_config_id,
-            description = dataset_ingestion_configuration.description,
-            configuration = dataset_ingestion_configuration.configuration,
-            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
-            resource_id = dset_ingest_config_id
+        subscription_id = self.clients.pubsub_management.create_subscription(
+            query=StreamQuery(stream_ids=[stream_id]),
+            exchange_name=ingestion_queue.name
         )
 
+        self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
 
-    def read_dataset_config(self, dataset_ingestion_configuration_id=''):
-        """Get an existing dataset configuration.
-
-        @param dataset_ingestion_configuration_id    str
-        @retval dataset_ingestion_configuration    DatasetIngestionConfiguration
-        @throws NotFound    if ingestion configuration did not exist
-        """
-
-        log.debug("Reading dataset configuration")
-        dataset_ingestion_configuration = self.clients.resource_registry.read(dataset_ingestion_configuration_id)
-
-        return dataset_ingestion_configuration
-
-    def delete_dataset_config(self,dataset_ingestion_configuration_id=''):
-        """Delete an existing dataset configuration.
-
-        @param dataset_ingestion_configuration_id    str
-        @throws NotFound    if ingestion configuration did not exist
-        """
-
-        dataset_ingestion_configuration = self.clients.resource_registry.read(dataset_ingestion_configuration_id)
-
-        log.debug("Deleting dataset configuration")
-        self.clients.resource_registry.delete(dataset_ingestion_configuration_id)
-
-        ingest_config_ids, association_ids = self.clients.resource_registry.find_objects(dataset_ingestion_configuration_id, PRED.hasIngestionConfiguration, id_only=True)
-
-        if len(ingest_config_ids)!=1:
-            raise IngestionManagementServiceException('The dataset ingestion configuration is associated with more than one ingestion configuration!')
-
-        ingest_config_id = ingest_config_ids[0]
-
-        self.clients.resource_registry.delete_association(association=association_ids[0])
-
-        self.event_publisher.publish_event(
-            origin=ingest_config_id,
-            configuration = dataset_ingestion_configuration.configuration,
-            type = DatasetIngestionTypeEnum.DATASETINGESTIONBYSTREAM,
-            resource_id = dataset_ingestion_configuration_id,
-            deleted = True
+        self.clients.resource_registry.create_association(
+            subject=ingestion_configuration_id,
+            predicate=PRED.hasSubscription,
+            object=subscription_id
         )
+
+        # Create dataset stuff here
+        dataset_id = self._new_dataset(stream_id)
+
+        return ""
+
+    def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
+        subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
+        for i in xrange(len(subscriptions)):
+            subscription = subscriptions[i]
+            assoc = assocs[i]
+            # Check if this subscription is the one with the stream_id
+
+            if len(self.clients.resource_registry.find_associations(subject=subscription, object=stream_id))>0: # this subscription has this stream
+                self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription)
+                self.clients.resource_registry.delete_association(assoc)
+                self.clients.pubsub_management.delete_subscription(subscription)
+
+
+
+    def _determine_queue(self,stream_id='', queues=[]):
+        # For now just return the first queue until stream definition is defined
+        return queues[0]
+
+    def _new_dataset(self,stream_id=''):
+        '''
+        Handles stream definition inspection.
+        Uses dataset management to create the dataset
+        '''
+        return ''
+
+
