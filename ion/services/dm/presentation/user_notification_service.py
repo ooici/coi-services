@@ -30,22 +30,7 @@ from interface.objects import NotificationRequest, DeliveryConfig, NotificationT
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, update_user_info, calculate_reverse_user_info
-import smtplib
 
-class fake_smtplib(object):
-
-    def __init__(self,host):
-        self.host = host
-        self.sentmail = gevent.queue.Queue()
-
-    @classmethod
-    def SMTP(cls,host):
-        log.info("In fake_smptplib.SMTP method call. class: %s, host: %s" % (str(cls), str(host)))
-        return cls(host)
-
-    def sendmail(self, msg_sender, msg_recipient, msg):
-        log.info('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
-        self.sentmail.put((msg_sender, msg_recipient, msg))
 
 """
 For every user that has existing notification requests (who has called
@@ -171,38 +156,39 @@ class EmailEventProcessor(EventProcessor):
 
         super(EmailEventProcessor, self).__init__(notification_request,user_id)
 
-        # the 'from' email address for notification emails
-        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
-        # the default smtp server
-        self.ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 
-        smtp_host = CFG.get_safe('server.smtp.host', self.ION_SMTP_SERVER)
-        smtp_port = CFG.get_safe('server.smtp.port', 25)
-        self.smtp_sender = CFG.get_safe('server.smtp.sender')
-        smtp_password = CFG.get_safe('server.smtp.password')
-
-        log.info('smtp_host: %s' % str(smtp_host))
-        log.info('smtp_port: %s' % str(smtp_port))
-
-        if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
-            log.warning('Using the real SMTP library to send email notifications!')
-
-            #@todo - for now hard wire for gmail account
-            #msg_sender = 'ooici777@gmail.com'
-            #gmail_pwd = 'ooici777'
-
-            self.smtp_client = smtplib.SMTP(smtp_host)
-            self.smtp_client.ehlo()
-            self.smtp_client.starttls()
-            self.smtp_client.login(self.smtp_sender, smtp_password)
-
-            log.warning("Using smpt host: %s" % smtp_host)
-        else:
-            # Keep this as a warning
-            log.warning('Using a fake SMTP library to simulate email notifications!')
-
-            #@todo - what about port etc??? What is the correct interface to fake?
-            self.smtp_client = fake_smtplib.SMTP(smtp_host)
+#        # the 'from' email address for notification emails
+#        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+#        # the default smtp server
+#        self.ION_SMTP_SERVER = 'mail.oceanobservatories.org'
+#
+#        smtp_host = CFG.get_safe('server.smtp.host', self.ION_SMTP_SERVER)
+#        smtp_port = CFG.get_safe('server.smtp.port', 25)
+#        self.smtp_sender = CFG.get_safe('server.smtp.sender')
+#        smtp_password = CFG.get_safe('server.smtp.password')
+#
+#        log.info('smtp_host: %s' % str(smtp_host))
+#        log.info('smtp_port: %s' % str(smtp_port))
+#
+#        if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
+#            log.warning('Using the real SMTP library to send email notifications!')
+#
+#            #@todo - for now hard wire for gmail account
+#            #msg_sender = 'ooici777@gmail.com'
+#            #gmail_pwd = 'ooici777'
+#
+#            self.smtp_client = smtplib.SMTP(smtp_host)
+#            self.smtp_client.ehlo()
+#            self.smtp_client.starttls()
+#            self.smtp_client.login(self.smtp_sender, smtp_password)
+#
+#            log.warning("Using smpt host: %s" % smtp_host)
+#        else:
+#            # Keep this as a warning
+#            log.warning('Using a fake SMTP library to simulate email notifications!')
+#
+#            #@todo - what about port etc??? What is the correct interface to fake?
+#            self.smtp_client = fake_smtplib.SMTP(smtp_host)
 
 
         log.debug("UserEventProcessor.__init__(): email for user %s " %self.user_id)
@@ -212,56 +198,23 @@ class EmailEventProcessor(EventProcessor):
         This callback is given to all the event subscribers that this user wants notifications for.
         If this callback gets called the user in this processor should get an email
         """
-
         log.debug("UserEventProcessor.subscription_callback(): message=" + str(message))
         log.debug("event type = " + str(message._get_type()))
         log.debug('type of message: %s' % type(message))
 
-        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
-
-        event = message.type_
-        origin = message.origin
-        description = message.description
-
-
-        # build the email from the event content
-        msg_body = string.join(("Event: %s" %  event,
-                                "",
-                                "Originator: %s" %  origin,
-                                "",
-                                "Description: %s" % description ,
-                                "",
-                                "Time stamp: %s" %  time_stamp,
-                                "",
-                                "You received this notification from ION because you asked to be "\
-                                "notified about this event from this source. ",
-                                "To modify or remove notifications about this event, "\
-                                "please access My Notifications Settings in the ION Web UI.",
-                                "Do not reply to this email.  This email address is not monitored "\
-                                "and the emails will not be read."),
-            "\r\n")
-        msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
-        msg_sender = self.ION_NOTIFICATION_EMAIL_ADDRESS
-        #        msg_recipient = self.user_email_addr
-
         msg_recipient = self.notification._res_obj.delivery_config.delivery['email']
 
-        msg = MIMEText(msg_body)
-        msg['Subject'] = msg_subject
-        msg['From'] = msg_sender
-        msg['To'] = msg_recipient
-        log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
-        %msg_recipient)
-
-        self.smtp_client.sendmail(self.smtp_sender, msg_recipient, msg.as_string())
+        send_email(message, msg_recipient)
 
     def remove_notification(self):
 
         super(EmailEventProcessor, self).remove_notification()
 
-        if CFG.get_safe('system.smtp',False):
-            self.smtp_client.close()
+#        if CFG.get_safe('system.smtp',False):
+#            self.smtp_client.close()
 
+
+#---------------------
 
 #        provider = notification_request.delivery_config.delivery['provider']
 #
@@ -351,17 +304,14 @@ class UserNotificationService(BaseUserNotificationService):
             self.user_info = update_user_info()
 
             # calculate the reverse user info
-            self.event_type_user, self.event_subtype_user,\
-            self.event_origin_user, self.event_origin_type_user =  calculate_reverse_user_info(self.user_info)
+            reverse_user_info =  calculate_reverse_user_info(self.user_info)
 
         # set up the event subscribers
         self.event_subscriber = EventSubscriber(
             event_type="UpdateNotificationEvent",
             callback=receive_update_notification_event
         )
-
-        self.gl = spawn(self.event_subscriber.listen)
-        self.event_subscriber._ready_event.wait(timeout=5)
+        self.event_subscriber.activate()
 
     def on_quit(self):
 
@@ -688,7 +638,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             log.warning("Each user gets the following message in email: %s" % events_message)
             # send a notification email to each user using a _send_email() method
-            # self._send_email(events_message)
+            send_email(message = events_message, msg_recipient=self.user_info[user]['user_contact'].email)
 
 
 
