@@ -9,7 +9,7 @@ from pyon.public import PRED
 from pyon.util.arg_check import validate_is_instance, validate_true
 
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
-from interface.objects import IngestionConfigurationA, IngestionQueue, StreamQuery
+from interface.objects import IngestionConfiguration, IngestionQueue, StreamQuery
 
 
 class IngestionManagementService(BaseIngestionManagementService):
@@ -20,7 +20,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         for queue in queues:
             validate_is_instance(queue, IngestionQueue)
 
-        ingestion_config = IngestionConfigurationA()
+        ingestion_config = IngestionConfiguration()
 
         ingestion_config.name = name
         ingestion_config.exchange_point = exchange_point_id
