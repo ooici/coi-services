@@ -55,7 +55,7 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
 
         def check_persist(dataset_granule):
             self.assertTrue(dataset_granule['stream_id'] == 'stream_id')
-            self.assertTrue(dataset_granule['dataset_id'] == 'test_identifier')
+            self.assertTrue(dataset_granule['dataset_id'] == 'stream_id')
         self.worker.persist.side_effect = check_persist
 
         self.worker.ingest(granule,'stream_id')
