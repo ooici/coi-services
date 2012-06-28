@@ -135,15 +135,6 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
     def create_logger(self, name, stream_id=''):
 
-
-#        pid = self.container.spawn_process(
-#            name=name+'_logger',
-#            module='ion.processes.data.stream_granule_logger',
-#            cls='StreamGranuleLogger',
-#            config={'process':{'stream_id':stream_id}}
-#        )
-#        log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
-
         # logger process
         producer_definition = ProcessDefinition(name=name+'_logger')
         producer_definition.executable = {
