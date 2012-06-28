@@ -22,7 +22,6 @@ from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 
-PYTHON_PATH = 'bin/python'
 
 class PacketFactoryType(BaseEnum):
     """
@@ -91,8 +90,8 @@ class LCAPacketFactory(PacketFactory):
         nick_names = self._get_nick_names_from_taxonomy(taxonomy)
 
         #
-        # TODO in general, how are groups (for nested data dictionaries) to
-        # ne determined?
+        # TODO in general, how are groups (and the individual values
+        # belonging to the groups) to be determined?
         #
 
         # in this version, expect 'data' and 'coordinates' to be included in
@@ -127,7 +126,8 @@ class LCAPacketFactory(PacketFactory):
                 if len(handles) == 1:
                     handle = handles.pop()
                 elif len(handles) > 1:
-                    log.warn("Multiple handles found for '%s: %s" % (name %
+                    # TODO proper handling of this case
+                    log.warn("Multiple handles found for '%s': %s" % (name %
                                                                  handles))
 
             if handle >= 0:
@@ -139,7 +139,8 @@ class LCAPacketFactory(PacketFactory):
                 else:
                     data_rdt[nick_name] = np_value
             else:
-                log.warn("No handle found for '%s" % name)
+                # TODO throw some exception?
+                log.warn("No handle found for '%s'" % name)
 
         log.debug("dictionary created: %s" % rdt.pretty_print())
 
