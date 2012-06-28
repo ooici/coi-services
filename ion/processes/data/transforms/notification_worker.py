@@ -26,11 +26,8 @@ class NotificationWorker(TransformDataProcess):
         # the dictionary containing info for all the users
         self.user_info = {} #  dict = {'user_id' : notification}
 
-        # the reverse dictionaries
-        self.event_type_user = {}
-        self.event_subtype_user = {}
-        self.event_origin_user = {}
-        self.event_origin_type_user = {}
+        # the reverse  user info dictionary that maps event types etc to users
+        self.reverse_user_info = {}
 
     def on_start(self):
         super(NotificationWorker,self).on_start()
@@ -64,8 +61,7 @@ class NotificationWorker(TransformDataProcess):
             callback=receive_update_notification_event
         )
 
-        self.gl = spawn(self.event_subscriber.listen)
-        self.event_subscriber._ready_event.wait(timeout=5)
+        self.event_subscriber.activate()
 
         # calculate the user info dictionary
         self.user_info = update_user_info()
