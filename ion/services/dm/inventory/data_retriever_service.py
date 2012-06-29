@@ -136,6 +136,6 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         cli = ReplayProcessClient(name=pid)
 
-        cli.execute_retrieve()
+        return cli.execute_retrieve()
 
 
